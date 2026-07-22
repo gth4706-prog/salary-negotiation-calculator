@@ -1,0 +1,12 @@
+# 시크릿 (전역 보안규칙)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+id_rsa*
+# OS / 에디터
+.DS_Store
+Thumbs.db
+node_modules/

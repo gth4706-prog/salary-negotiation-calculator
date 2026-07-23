@@ -2,6 +2,7 @@
 <!-- 배포 시 joeltool.com 을 실제 도메인으로 일괄 치환하세요 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://joeltool.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://joeltool.com/room-planner/</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
   <url><loc>https://joeltool.com/guide/salary-negotiation-guide.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://joeltool.com/guide/why-take-home-differs.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://joeltool.com/guide/base-vs-bonus.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>

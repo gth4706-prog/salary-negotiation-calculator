@@ -1,0 +1,77 @@
+/* =========================================================
+   방 가구 배치 시뮬레이터 — 전용 스타일 (공유 style.css 뒤에 로드)
+   ========================================================= */
+
+/* 평면도 캔버스 */
+.plan-wrap{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:6px}
+#plan{display:block;width:100%;height:auto;touch-action:none;-webkit-user-select:none;user-select:none}
+.grid-l{stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
+.grid-l.major{stroke:var(--line-strong);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.room-fill{fill:var(--surface)}
+.room-wall{fill:none;stroke:var(--ink);stroke-width:8;vector-effect:non-scaling-stroke;stroke-linejoin:miter}
+.op-door{stroke:var(--accent);stroke-width:9;vector-effect:non-scaling-stroke;stroke-linecap:butt}
+.op-win{stroke:#5B9BD5;stroke-width:9;vector-effect:non-scaling-stroke;stroke-linecap:butt}
+.op-swing{fill:color-mix(in srgb,var(--accent) 10%,transparent);stroke:var(--accent);stroke-width:1;stroke-dasharray:6 5;vector-effect:non-scaling-stroke}
+.dim-txt{fill:var(--muted);font-size:22px;font-family:var(--mono);text-anchor:middle;dominant-baseline:middle}
+
+/* 가구 */
+.furn{cursor:grab}
+.furn.dragging{cursor:grabbing}
+.furn rect{fill:color-mix(in srgb,var(--accent) 18%,var(--surface));stroke:var(--accent-ink);stroke-width:2;vector-effect:non-scaling-stroke;rx:3}
+.furn.sel rect{stroke:var(--accent);stroke-width:4;vector-effect:non-scaling-stroke}
+.furn.bad rect{fill:color-mix(in srgb,var(--bad) 22%,var(--surface));stroke:var(--bad)}
+.furn text{fill:var(--ink);font-size:20px;text-anchor:middle;dominant-baseline:middle;pointer-events:none;font-weight:700}
+.furn .sz{fill:var(--muted);font-size:17px;font-weight:500;font-family:var(--mono)}
+.furn .front{stroke:var(--accent-ink);stroke-width:5;vector-effect:non-scaling-stroke;opacity:.55}
+.clear-zone{fill:color-mix(in srgb,var(--warn) 13%,transparent);stroke:none;pointer-events:none}
+
+/* 선택 가구 컨트롤 */
+.sel-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--paper)}
+.sel-bar .nm{font-weight:800;font-size:14px;flex:1;min-width:110px}
+.sel-bar button{font:inherit;font-size:13px;font-weight:700;padding:9px 13px;border-radius:9px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--muted)}
+.sel-bar button:hover{border-color:var(--accent);color:var(--accent-ink)}
+.sel-bar button.del{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
+.sel-empty{font-size:12.5px;color:var(--faint);margin-top:12px;text-align:center;padding:12px;border:1px dashed var(--line-strong);border-radius:var(--r-sm)}
+
+/* 프리셋 */
+.cat-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.cat-btn{font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 12px;cursor:pointer}
+.cat-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.preset-btn{font:inherit;text-align:left;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);cursor:pointer;color:var(--ink)}
+.preset-btn:hover{border-color:var(--accent)}
+.preset-btn b{display:block;font-size:13.5px;font-weight:700}
+.preset-btn span{display:block;font-size:11.5px;color:var(--muted);font-family:var(--mono);margin-top:2px}
+
+/* 진단 */
+.diag{display:flex;flex-direction:column;gap:9px}
+.diag-item{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;padding:11px 13px;border-radius:10px;line-height:1.55}
+.diag-item .ic{flex:none;font-size:14px;line-height:1.4}
+.diag-item.err{background:var(--bad-bg);color:var(--bad)}
+.diag-item.warn{background:var(--warn-bg);color:var(--warn)}
+.diag-item.ok{background:var(--good-bg);color:var(--good)}
+.diag-item b{font-weight:800}
+.occ{margin-top:14px}
+.occ-head{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);font-weight:700;margin-bottom:6px}
+.occ-head b{font-family:var(--mono);color:var(--ink)}
+.occ-bar{height:9px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.occ-fill{height:100%;width:0;background:var(--accent);transition:width .4s cubic-bezier(.22,1,.36,1)}
+.occ-fill.warn{background:var(--warn)}.occ-fill.bad{background:var(--bad)}
+
+/* 배치 목록 */
+.item-list{list-style:none;padding:0;margin:14px 0 0;display:flex;flex-direction:column;gap:7px}
+.item-list li{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);font-size:13.5px;cursor:pointer}
+.item-list li.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--paper))}
+.item-list li .nm{font-weight:700;flex:1}
+.item-list li .sz{font-family:var(--mono);font-size:12px;color:var(--muted)}
+
+/* 치수 붙여넣기 */
+.paste-box{width:100%;font:inherit;font-size:14px;color:var(--ink);background:var(--paper);border:1.5px solid var(--line-strong);border-radius:11px;padding:11px 12px;min-height:64px;resize:vertical}
+.paste-box:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+.paste-res{font-size:12.5px;color:var(--muted);margin-top:8px}
+.paste-res b{color:var(--accent-ink);font-family:var(--mono);font-weight:800}
+
+/* 개구부 목록 */
+.op-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.op-chip{display:flex;align-items:center;gap:7px;font-size:12.5px;padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:var(--paper)}
+.op-chip button{border:0;background:none;color:var(--bad);cursor:pointer;font:inherit;font-weight:800;padding:0 2px;line-height:1}

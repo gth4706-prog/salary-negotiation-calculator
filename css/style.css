@@ -197,15 +197,9 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 #share-btn:hover{border-color:var(--accent);color:var(--accent-ink)}
 #restart{color:#fff;background:linear-gradient(180deg,var(--accent-2),var(--accent));border:0;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 30%,transparent)}
 
-/* 반응형 레이아웃: 모바일 1단 / 데스크톱 2단 */
-.wrap-wide{max-width:960px;margin:0 auto;padding:0 16px}
-.tool-grid{display:flex;flex-direction:column;gap:18px}
-.col{display:flex;flex-direction:column;gap:18px;min-width:0}
-.article{max-width:720px;margin:0 auto}
-@media (min-width:880px){
-  .tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
-  .hero h1{font-size:38px}
-}
+/* 레이아웃: PC에서도 좁은 단일 컬럼 유지 (가독성 우선, 광고 대비 콘텐츠 밀도 확보) */
+.wrap-wide{max-width:var(--wrap);margin:0 auto;padding:0 16px}
+.article{max-width:var(--wrap);margin:0 auto}
 
 @media (max-width:520px){.row,.subtot,.cmp{grid-template-columns:1fr}.nav .links a{padding:8px 7px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

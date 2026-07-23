@@ -118,16 +118,6 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 .verdict{display:flex;align-items:center;gap:13px;padding:15px;border-radius:var(--r-sm);background:var(--vbg,var(--surface-2));border:1px solid var(--line);margin-bottom:15px}
 .verdict .dot{width:13px;height:13px;border-radius:50%;background:var(--vc,var(--accent));flex:none;box-shadow:0 0 0 4px color-mix(in srgb,var(--vc,var(--accent)) 18%,transparent)}
 .verdict .vt{font-weight:800;font-size:17px;color:var(--vc,var(--ink));letter-spacing:-.02em}.verdict .vd{font-size:12.5px;color:var(--muted);margin-top:1px}
-.readout{text-align:center;padding:6px 0 12px}
-.readout .k{font-size:12.5px;color:var(--muted);font-weight:700}
-.readout .big{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:clamp(28px,7vw,42px);font-weight:800;color:var(--accent-ink);margin:4px 0;letter-spacing:-.03em}
-.readout .sub{font-size:12.5px;color:var(--muted)}
-.cmp{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:13px}
-.cmp .b{border:1px solid var(--line);border-radius:var(--r-sm);padding:13px;text-align:center;background:var(--paper)}
-.cmp .b .t{font-size:11.5px;color:var(--muted)}.cmp .b .v{font-family:var(--mono);font-weight:800;font-size:17px;margin-top:4px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-.cmp .b.after{background:color-mix(in srgb,var(--accent) 8%,var(--surface));border-color:color-mix(in srgb,var(--accent) 25%,var(--line))}
-.cmp .b.after .v{color:var(--accent-ink)}
-.delta{margin-top:11px;text-align:center;font-weight:800;font-size:14px;padding:12px;border-radius:var(--r-sm);background:var(--good-bg);color:var(--good);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 
 /* 광고 슬롯 */
 .ad-slot{margin:20px 0;min-height:90px;display:flex;align-items:center;justify-content:center;border:1px dashed var(--line-strong);border-radius:var(--r-sm);background:var(--surface-2);color:var(--faint);font-size:12px;text-align:center}
@@ -181,6 +171,12 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 .big-money .u{position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--faint)}
 .helper{font-size:12.5px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin:14px 0;line-height:1.65}
 .helper b{color:var(--accent-ink);font-weight:700}
+.wish-rate{margin-top:10px;font-size:13.5px;color:var(--muted);text-align:right}
+.wish-rate b{font-family:var(--mono);color:var(--accent-ink);font-weight:800;font-variant-numeric:tabular-nums}
+.pct-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;justify-content:flex-end}
+.pct-btn{font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 12px;cursor:pointer}
+.pct-btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+.pct-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .est-net{margin-top:16px;text-align:center;background:linear-gradient(165deg,color-mix(in srgb,var(--accent) 8%,var(--surface)),var(--surface));border:1px solid color-mix(in srgb,var(--accent) 22%,var(--line));border-radius:var(--r);padding:16px;box-shadow:var(--shadow-lg)}
 .est-net .k{font-size:12.5px;color:var(--muted);font-weight:700}
 .est-net .v{font-family:var(--mono);font-weight:800;font-size:clamp(26px,6.5vw,34px);color:var(--ink);letter-spacing:-.03em;margin-top:3px;font-variant-numeric:tabular-nums}

@@ -2,12 +2,16 @@
    이직 연봉 협상 계산기 — 엘리베이터 플로우 로직 (index 전용)
    ⚠️ 실수령액은 2026 요율 근사(1인·비과세식대20만 가정). 정식은 국세청 간이세액표로 대체.
    ⚠️ 평균/포지션은 예시 데이터. 정식은 고용노동부 공공데이터로 대체.
-   흐름: STEP1(직군+희망) → STEP2(연차+기본급+성과급) → STEP2r(그래프+예상실수령)
-        → STEP3(제안, 선택) → STEP4(지금·희망·제안 비교)
+   ⚠️ 업계 평균 인상률(5%)·후보자 기대 인상률(10%)은 통용되는 참고치. 실제 통계 확보 시 교체 예정.
+   흐름: STEP1(직군+지금연봉+희망연봉) → STEP2(연차+기본급/성과급) → STEP2r(그래프+예상실수령+희망포지션)
+        → STEP3(제안, 선택) → STEP4(지금·희망·제안 비교 + 매력도 판정)
    ========================================================= */
 (function(){
   var $=function(id){return document.getElementById(id)};
   if(!$("job"))return;
+
+  var AVG_RAISE_PCT=5;        // 참고: 업계 평균 인상률(추정)
+  var CANDIDATE_EXPECT_PCT=10; // 참고: 후보자들이 통상 기대하는 인상률(추정)
 
   var JOBS=[["개발·IT",3400,250],["디자인",3000,190],["기획·PM",3200,240],["마케팅·광고",3050,210],
     ["영업·영업관리",3100,230],["무역·해외영업",3200,220],["인사·HR",3050,200],["총무·경영지원",2950,170],
@@ -36,8 +40,7 @@
   function takeHome(cashMan){ // 월, 1인가구·비과세식대20만 가정
     var G=cashMan*10000/12, taxable=Math.max(0,G-200000);
     var np=Math.min(taxable,6370000)*0.045, hi=taxable*0.03545, ltc=hi*0.1295, ei=taxable*0.009, it=estTax(cashMan);
-    var ded=np+hi+ltc+ei+it;
-    return G-ded;
+    return G-(np+hi+ltc+ei+it);
   }
   function val(id){return +$(id).value||0;}
   function curTotal(){return val("c-base")+val("c-bonus");}
@@ -45,13 +48,46 @@
 
   function reveal(id){var el=$(id);if(!el)return;el.hidden=false;el.classList.remove("reveal");void el.offsetWidth;el.classList.add("reveal");el.scrollIntoView({behavior:"smooth",block:"start"});}
 
-  // ---- STEP1: 직군 + 희망연봉 ----
+  // ---- STEP1: 직군 + 지금 연봉 + 희망 연봉 ----
+  var PCTS=[5,10,15,20,25,30,35,40];
+  var pctRow=$("pct-row");
+  PCTS.forEach(function(p){
+    var b=document.createElement("button");
+    b.type="button";b.className="pct-btn";b.textContent="+"+p+"%";b.dataset.pct=p;
+    b.addEventListener("click",function(){
+      var cur=val("c-total");
+      if(cur<=0){$("c-total").focus();return;}
+      $("wish").value=Math.round(cur*(1+p/100));
+      updateWishRateLive();
+    });
+    pctRow.appendChild(b);
+  });
+  function updateWishRateLive(){
+    var cur=val("c-total"), wish=val("wish");
+    var btns=pctRow.querySelectorAll(".pct-btn");
+    if(cur<=0||wish<=0){
+      $("wish-rate-line").textContent="지금 연봉과 희망 연봉을 입력하면 인상률이 표시됩니다.";
+      Array.prototype.forEach.call(btns,function(b){b.classList.remove("on");});
+      return;
+    }
+    var rate=(wish-cur)/cur*100;
+    $("wish-rate-line").innerHTML="지금보다 <b>"+(rate>=0?"+":"")+rate.toFixed(1)+"%</b> 인상 희망";
+    Array.prototype.forEach.call(btns,function(b){
+      b.classList.toggle("on",Math.abs(rate-(+b.dataset.pct))<0.3);
+    });
+  }
+  $("c-total").addEventListener("input",updateWishRateLive);
+  $("wish").addEventListener("input",updateWishRateLive);
+
   function submitStep1(){
+    if(val("c-total")<=0){$("c-total").focus();return;}
     if(val("wish")<=0){$("wish").focus();return;}
+    $("c-base").value=val("c-total");
     reveal("step2");
-    setTimeout(function(){$("c-base").focus();},400);
+    setTimeout(function(){$("year") && $("year").focus();},400);
   }
   $("go1").addEventListener("click",submitStep1);
+  $("c-total").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();$("wish").focus();}});
   $("wish").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();submitStep1();}});
 
   // ---- STEP2: 연차 + 기본급/성과급 ----
@@ -60,13 +96,19 @@
   yr.addEventListener("input",syncYear);
 
   function renderStep2r(){
-    var base=val("c-base"),bonus=val("c-bonus"),tc=base+bonus||1;
+    var base=val("c-base"),bonus=val("c-bonus"),tc=base+bonus||1,yrN=+yr.value;
     $("s-base").style.width=(base/tc*100)+"%";
     $("s-bonus").style.width=(bonus/tc*100)+"%";
     var net=takeHome(curTotal());
     $("th-net").textContent=wonRaw(net);
     $("th-net-y").textContent=won(net*12/10000);
     var big=$("th-net").parentNode;if(big){big.classList.remove("pop");void big.offsetWidth;big.classList.add("pop");}
+
+    var wish=val("wish"), cur=curTotal();
+    var wishTop=topPct(wish,yrN), wishDiff=(wish/median(yrN)-1)*100, wishRate=cur>0?(wish-cur)/cur*100:0;
+    $("wp-pos").textContent="상위 "+wishTop+"%";
+    $("wp-diff").innerHTML="<b>"+(wishDiff>=0?"+":"")+wishDiff.toFixed(0)+"%</b>";
+    $("wp-rate").innerHTML="<b>"+(wishRate>=0?"+":"")+wishRate.toFixed(1)+"%</b>";
   }
   function submitStep2(){
     renderStep2r();
@@ -84,7 +126,7 @@
   }
   $("go3").addEventListener("click",goStep3);
 
-  // ---- STEP3: 제안 처우 (선택) ----
+  // ---- STEP3: 제안 연봉 (선택) ----
   var hasOffer=false;
   function toStep4(withOffer){
     hasOffer=withOffer;
@@ -105,8 +147,7 @@
     $("r-wish-pos").textContent="상위 "+topPct(wish,yrN)+"%";
     $("r-wish-net").textContent=wonRaw(wishNet);
 
-    var offerCard=$("r-offer-card");
-    var lines=[];
+    var offerCard=$("r-offer-card"), verdict=$("verdict"), lines=[];
     var wishRate=cur>0?(wish-cur)/cur*100:0;
     lines.push("희망 연봉은 지금보다 <b>"+(wishRate>=0?"+":"")+wishRate.toFixed(1)+"%</b>이고, 같은 직군·연차에서 <b>상위 "+topPct(wish,yrN)+"%</b> 수준입니다.");
 
@@ -119,9 +160,18 @@
       var offRate=cur>0?(off-cur)/cur*100:0;
       var vs = off>=wish ? "제안이 희망 연봉 이상입니다 — 좋은 신호입니다." : "제안이 희망 연봉에는 못 미칩니다("+won(wish-off)+" 부족).";
       lines.push("제안 연봉은 지금보다 <b>"+(offRate>=0?"+":"")+offRate.toFixed(1)+"%</b>이며, 월 실수령은 <b>"+(offNet-curNet>=0?"+":"")+wonRaw(offNet-curNet)+"</b> 변화합니다. "+vs);
+
+      verdict.hidden=false;
+      var vc,vbg,vt,vd;
+      if(offRate>=CANDIDATE_EXPECT_PCT){vc="var(--good)";vbg="var(--good-bg)";vt="매력적인 처우";vd="후보자들이 통상 기대하는 인상률("+CANDIDATE_EXPECT_PCT+"%+) 이상입니다.";}
+      else if(offRate>=AVG_RAISE_PCT){vc="var(--warn)";vbg="var(--warn-bg)";vt="무난한 처우";vd="업계 평균 인상률(약 "+AVG_RAISE_PCT+"%)은 넘지만, 후보자 기대치("+CANDIDATE_EXPECT_PCT+"%)에는 못 미칩니다.";}
+      else{vc="var(--bad)";vbg="var(--bad-bg)";vt="아쉬운 처우";vd="업계 평균 인상률(약 "+AVG_RAISE_PCT+"%)에도 못 미치는 수준입니다.";}
+      verdict.style.setProperty("--vc",vc);verdict.style.setProperty("--vbg",vbg);
+      $("v-t").style.color=vc;$("v-t").textContent=vt;$("v-d").textContent=vd;
     }else{
       offerCard.hidden=true;
-      lines.push("제안받은 처우는 입력하지 않았습니다. 나중에 제안을 받으면 다시 계산해 비교해 보세요.");
+      verdict.hidden=true;
+      lines.push("제안받은 연봉은 입력하지 않았습니다. 나중에 제안을 받으면 다시 계산해 비교해 보세요.");
     }
     $("verdict-line").innerHTML=lines.join(" ");
   }
@@ -134,7 +184,7 @@
 
   // ---- 공유(URL 상태) ----
   function buildShareURL(){
-    var p=["j="+jobIndex(),"y="+val("year"),"cb="+val("c-base"),"cn="+val("c-bonus"),
+    var p=["j="+jobIndex(),"y="+val("year"),"ct="+val("c-total"),"cb="+val("c-base"),"cn="+val("c-bonus"),
       "w="+val("wish"),"ob="+val("o-base"),"on="+val("o-bonus"),"s=1"];
     return location.origin+location.pathname+"?"+p.join("&");
   }
@@ -142,6 +192,7 @@
     var q=location.search.replace(/^\?/,"");if(!q)return false;
     var o={};q.split("&").forEach(function(kv){var a=kv.split("=");o[a[0]]=decodeURIComponent(a[1]||"");});
     if(o.j!=null&&JOBS[+o.j])sel.selectedIndex=+o.j;
+    if(o.ct!=null)$("c-total").value=o.ct;
     if(o.y!=null)$("year").value=o.y;
     if(o.cb!=null)$("c-base").value=o.cb;
     if(o.cn!=null)$("c-bonus").value=o.cn;
@@ -159,8 +210,10 @@
 
   // ---- 초기화 ----
   syncYear();
+  updateWishRateLive();
   var shared=applyParams();
   syncYear();
+  updateWishRateLive();
   if(shared){
     renderStep2r();
     $("step2").hidden=true;$("step2r").hidden=true;$("step3").hidden=true;

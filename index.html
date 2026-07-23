@@ -37,16 +37,19 @@
 
 <main class="wrap-wide page stack">
 
-  <!-- STEP 1: 직군 + 희망연봉 (첫 화면, 최소 입력) -->
+  <!-- STEP 1: 직군 + 지금 연봉 + 희망 연봉 (첫 화면) -->
   <section class="card step" id="step1">
-    <h1 class="q">희망 연봉이 어떻게 되나요?<span class="s">직군을 고르고 원하는 연봉을 입력한 뒤 Enter를 누르세요.</span></h1>
-    <div class="hero-row">
+    <h1 class="q">지금 연봉과 희망 연봉이 어떻게 되나요?<span class="s">아래 정보를 입력한 뒤 Enter를 누르세요.</span></h1>
+    <div class="row" style="margin-top:20px">
       <div class="field"><label class="lbl" for="job">직군</label><select id="job"></select></div>
-      <div class="field">
-        <label class="lbl" for="wish">희망 연봉</label>
-        <div class="big-money"><input class="txt" id="wish" type="number" min="0" placeholder="6,500" inputmode="numeric"><span class="u">만원</span></div>
-      </div>
+      <div class="field"><label class="lbl" for="c-total">지금 연봉 (총액)</label><div class="money"><input class="txt" id="c-total" type="number" min="0" placeholder="5000" inputmode="numeric"><span class="u">만원</span></div></div>
     </div>
+    <div class="field full" style="margin-top:16px">
+      <label class="lbl" for="wish">희망 연봉</label>
+      <div class="big-money"><input class="txt" id="wish" type="number" min="0" placeholder="6000" inputmode="numeric"><span class="u">만원</span></div>
+    </div>
+    <div class="wish-rate" id="wish-rate-line">지금 연봉과 희망 연봉을 입력하면 인상률이 표시됩니다.</div>
+    <div class="pct-row" id="pct-row"></div>
     <button class="cta" id="go1" type="button" style="margin-top:18px">다음 →</button>
   </section>
 
@@ -58,10 +61,10 @@
         <div class="slider-head"><label class="lbl" for="year">연차</label><span class="slider-val" id="year-v">4년차</span></div>
         <input type="range" id="year" min="0" max="20" value="4">
       </div>
-      <div class="field"><label class="lbl" for="c-base">기본급</label><div class="money"><input class="txt cur" id="c-base" type="number" min="0" value="4000" inputmode="numeric"><span class="u">만원</span></div></div>
-      <div class="field"><label class="lbl" for="c-bonus">성과급</label><div class="money"><input class="txt cur" id="c-bonus" type="number" min="0" value="600" inputmode="numeric"><span class="u">만원</span></div></div>
+      <div class="field"><label class="lbl" for="c-base">기본급</label><div class="money"><input class="txt cur" id="c-base" type="number" min="0" value="0" inputmode="numeric"><span class="u">만원</span></div></div>
+      <div class="field"><label class="lbl" for="c-bonus">성과급</label><div class="money"><input class="txt cur" id="c-bonus" type="number" min="0" value="0" inputmode="numeric"><span class="u">만원</span></div></div>
     </div>
-    <div class="helper">💡 <b>식대·상품권·복지포인트</b> 등 현금성 복지는 <b>기본급</b>에, <b>인센티브·상여금</b>은 <b>성과급</b>에 합쳐서 입력하세요.</div>
+    <div class="helper">💡 1단계 총액이 <b>기본급</b>에 자동으로 채워집니다. <b>식대·상품권·복지포인트</b> 등 현금성 복지는 기본급에, <b>인센티브·상여금</b>은 성과급으로 옮겨서 입력하세요.</div>
     <button class="cta" id="go2" type="button">다음 →</button>
   </section>
 
@@ -74,7 +77,12 @@
       <div class="v"><span id="th-net">–</span></div>
       <div class="tag">연 <span id="th-net-y">–</span> · 4대보험·세금 반영 예상치</div>
     </div>
-    <button class="cta" id="go3" type="button" style="margin-top:16px">다음: 제안받은 처우 입력 →</button>
+    <div class="est-net" style="margin-top:14px">
+      <div class="k">희망 연봉 포지션</div>
+      <div class="v"><span id="wp-pos">–</span></div>
+      <div class="tag">동일 연차·직군 평균 대비 <span id="wp-diff">–</span> · 지금보다 <span id="wp-rate">–</span> 인상 희망</div>
+    </div>
+    <button class="cta" id="go3" type="button" style="margin-top:16px">다음: 제안받은 연봉이 있나요? →</button>
   </section>
 
   <!-- 광고 -->
@@ -82,7 +90,7 @@
 
   <!-- STEP 3: 제안받은 처우 (선택) -->
   <section class="card step" id="step3" hidden>
-    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">제안받은 처우가 있나요?<span class="s">있다면 입력하고, 없으면 건너뛰어도 됩니다.</span></h2>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">제안받은 연봉이 있나요?<span class="s">있다면 입력하고, 없으면 건너뛰어도 됩니다.</span></h2>
     <div class="row" style="margin-top:16px">
       <div class="field"><label class="lbl" for="o-base">제안 기본급</label><div class="money"><input class="txt" id="o-base" type="number" min="0" value="4600" inputmode="numeric"><span class="u">만원</span></div></div>
       <div class="field"><label class="lbl" for="o-bonus">제안 성과급</label><div class="money"><input class="txt" id="o-bonus" type="number" min="0" value="900" inputmode="numeric"><span class="u">만원</span></div></div>
@@ -96,6 +104,7 @@
   <!-- STEP 4: 결과 (지금 · 희망 · 제안) -->
   <section class="card step" id="result" hidden>
     <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">지금 · 희망 · 제안, 한눈에 비교</h2>
+    <div class="verdict" id="verdict" hidden><span class="dot"></span><div><div class="vt" id="v-t">–</div><div class="vd" id="v-d"></div></div></div>
     <div class="cmp3">
       <div class="c3"><div class="nm">지금</div><div class="amt" id="r-cur-amt">–</div><div class="pos" id="r-cur-pos">–</div><div class="net">월 실수령(예상) <span id="r-cur-net">–</span></div></div>
       <div class="c3 wish"><div class="nm">희망</div><div class="amt" id="r-wish-amt">–</div><div class="pos" id="r-wish-pos">–</div><div class="net">월 실수령(예상) <span id="r-wish-net">–</span></div></div>

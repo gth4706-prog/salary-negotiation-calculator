@@ -4,6 +4,8 @@
   <url><loc>https://YOUR-DOMAIN/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
   <url><loc>https://YOUR-DOMAIN/guide/salary-negotiation-guide.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://YOUR-DOMAIN/guide/why-take-home-differs.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://YOUR-DOMAIN/guide/base-vs-bonus.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://YOUR-DOMAIN/guide/negotiation-scripts.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://YOUR-DOMAIN/about.html</loc><changefreq>yearly</changefreq><priority>0.4</priority></url>
   <url><loc>https://YOUR-DOMAIN/privacy.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
   <url><loc>https://YOUR-DOMAIN/contact.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>

@@ -47,6 +47,7 @@
     $("th-net").textContent=wonRaw(t.net);$("th-net-y").textContent="· 연 "+won(t.net*12/10000);
     $("th-rate").textContent=t.rate.toFixed(1)+"%";$("th-ded").textContent=wonRaw(t.ded);
     $("th-ins").textContent=wonRaw(t.ins);$("th-tax").textContent=wonRaw(t.tax);
+    var big=$("th-net").parentNode;if(big){big.classList.remove("pop");void big.offsetWidth;big.classList.add("pop");}
     updateWish();
   }
   Array.prototype.forEach.call(document.querySelectorAll(".cur"),function(el){el.addEventListener("input",updateComp);});

@@ -74,7 +74,7 @@ a:hover{text-decoration:underline}
 .field.full{grid-column:1/-1}
 .lbl{font-size:13px;font-weight:700;color:var(--ink);letter-spacing:-.01em}
 .lbl .hint{font-weight:500;color:var(--faint)}
-select,.txt{font:inherit;font-size:15px;font-weight:500;color:var(--ink);background:var(--paper);border:1.5px solid var(--line-strong);border-radius:11px;padding:12px 13px;width:100%;transition:border-color .15s,box-shadow .15s}
+select,.txt{font:inherit;font-size:16px;font-weight:500;color:var(--ink);background:var(--paper);border:1.5px solid var(--line-strong);border-radius:11px;padding:12px 13px;width:100%;transition:border-color .15s,box-shadow .15s}
 .money{position:relative}
 .money .txt{padding-right:46px;font-variant-numeric:tabular-nums;font-weight:600}
 .money .u{position:absolute;right:13px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--faint);pointer-events:none}
@@ -175,6 +175,16 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 /* 미세 인터랙션 */
 @keyframes rc-pop{0%{transform:scale(1)}28%{transform:scale(1.045)}100%{transform:scale(1)}}
 .live .big.pop{animation:rc-pop .32s cubic-bezier(.22,1,.36,1)}
+
+/* 반응형 레이아웃: 모바일 1단 / 데스크톱 2단 */
+.wrap-wide{max-width:960px;margin:0 auto;padding:0 16px}
+.tool-grid{display:flex;flex-direction:column;gap:18px}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.article{max-width:720px;margin:0 auto}
+@media (min-width:880px){
+  .tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+  .hero h1{font-size:38px}
+}
 
 @media (max-width:520px){.row,.subtot,.cmp{grid-template-columns:1fr}.nav .links a{padding:8px 7px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="google-site-verification" content="-Vv3HKaiNfWlG3iVql38iG773LaD3LpSHJtwBU4-iU8" />
+<meta name="naver-site-verification" content="d4f9a360f5b25c71f4df188700ea809f9f69c0dd" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#A56F63">
+<title>이직 연봉 협상 계산기(처우협의 계산) | 희망연봉·평균연봉·실수령액</title>
+<meta name="description" content="희망연봉, 평균연봉, 직군별 평균 연봉, 실수령액까지 한 번에 확인하는 연봉 계산기. 제안받은 연봉(처우협의)이 같은 직군·연차 평균 대비 적정한지 이직 연봉 협상 전에 확인해보세요.">
+<link rel="canonical" href="https://joeltool.com/salary-calculator/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="이직 연봉 협상 계산기(처우협의 계산)">
+<meta property="og:description" content="희망연봉·평균연봉·직군별 평균 연봉·실수령액까지 — 제안받은 연봉이 적정한지 한 번에.">
+<meta property="og:url" content="https://joeltool.com/salary-calculator/">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%AD%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="../css/style.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"이직 연봉 협상 계산기(처우협의 계산)","applicationCategory":"FinanceApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"희망연봉, 평균연봉, 직군별 평균 연봉, 실수령액을 계산하고 제안받은 연봉의 포지션을 확인하는 무료 도구."}
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<nav class="nav"><div class="in">
+  <a class="brand" href="../index.html">
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
+    <span class="n">joeltool</span>
+  </a>
+  <div class="links">
+    <a href="../room-planner/">방 배치</a>
+    <a href="guide/salary-negotiation-guide.html">협상 가이드</a>
+    <a href="../about.html">소개</a>
+    <button class="theme-btn" id="theme-btn" type="button">◐</button>
+  </div>
+</div></nav>
+
+<main class="wrap-wide page stack">
+
+  <!-- STEP 1: 직군 + 지금 연봉 + 희망 연봉 (실시간 실수령) -->
+  <section class="card step" id="step1">
+    <h1 class="q">지금 연봉과 희망 연봉이 어떻게 되나요?<span class="s">직군과 두 연봉을 넣으면 예상 월 실수령액이 바로 나옵니다.</span></h1>
+    <div class="field full" style="margin-top:20px">
+      <label class="lbl" for="job">직군</label>
+      <select id="job" class="big-sel"></select>
+    </div>
+    <div class="field full" style="margin-top:18px">
+      <label class="lbl">지금 연봉 — 기본급 / 성과급<span class="hint">(성과급은 선택, 없으면 비워두세요)</span></label>
+      <div class="row" style="margin-top:8px">
+        <div class="field"><div class="money"><input class="txt" id="c-base" type="number" min="0" step="100" placeholder="4500" inputmode="numeric"><span class="u">만원</span></div><span class="hint" style="margin-top:4px">기본급</span></div>
+        <div class="field"><div class="money"><input class="txt" id="c-bonus" type="number" min="0" step="100" placeholder="0" inputmode="numeric"><span class="u">만원</span></div><span class="hint" style="margin-top:4px">성과급 (선택)</span></div>
+      </div>
+      <div class="bar"><div class="seg base" id="c-seg-base"></div><div class="seg bonus" id="c-seg-bonus"></div></div>
+      <div class="mini-net" id="cur-net-line">기본급·성과급을 입력하면 예상 월 실수령액이 표시됩니다.</div>
+    </div>
+    <div class="field full" style="margin-top:18px">
+      <label class="lbl" for="wish">희망 연봉</label>
+      <div class="big-money"><input class="txt" id="wish" type="number" min="0" step="100" placeholder="6000" inputmode="numeric"><span class="u">만원</span></div>
+      <div class="mini-net" id="wish-net-line"></div>
+      <div class="wish-rate" id="wish-rate-line">지금 연봉과 희망 연봉을 입력하면 인상률이 표시됩니다.</div>
+      <div class="pct-row" id="pct-row"></div>
+    </div>
+    <button class="cta" id="go1" type="button" style="margin-top:18px">다음 →</button>
+  </section>
+
+  <!-- STEP 2: 연차 -->
+  <section class="card step" id="step2" hidden>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">현재 몇 년차인가요?<span class="s">직군·연차를 기준으로 내 연봉이 어느 위치인지 계산합니다.</span></h2>
+    <div class="field full" style="margin-top:18px">
+      <div class="slider-head"><label class="lbl" for="year">연차</label><span class="slider-val" id="year-v">4년차</span></div>
+      <input type="range" id="year" min="0" max="20" value="4">
+    </div>
+    <button class="cta" id="go2" type="button" style="margin-top:18px">내 포지션 보기 →</button>
+  </section>
+
+  <!-- STEP 2 결과: 포지션 (실수령 제외, 상위 % + 텍스트) -->
+  <section class="card step" id="step2r" hidden>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">내 연봉 포지션</h2>
+    <div class="est-net">
+      <div class="k">지금 연봉 · <b id="cp-tag" style="font-weight:800">–</b></div>
+      <div class="v"><span id="cp-pos">–</span></div>
+      <div class="tag" id="cp-desc"></div>
+    </div>
+    <div class="est-net" style="margin-top:14px">
+      <div class="k">희망 연봉 · <b id="wp-tag" style="font-weight:800">–</b></div>
+      <div class="v"><span id="wp-pos">–</span></div>
+      <div class="tag" id="wp-desc"></div>
+    </div>
+    <button class="cta" id="go3" type="button" style="margin-top:16px">다음: 제안받은 연봉이 있나요? →</button>
+  </section>
+
+  <!-- 광고 -->
+  <div class="ad-slot" aria-hidden="true" id="adwrap" hidden><span class="lab">광고 영역 (승인 후 노출)</span></div>
+
+  <!-- STEP 3: 제안받은 연봉 (총액, 실시간 실수령) -->
+  <section class="card step" id="step3" hidden>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">제안받은 연봉이 있나요?<span class="s">이직·오퍼 받은 연봉(총액)을 넣으세요. 없으면 건너뛰어도 됩니다.</span></h2>
+    <div class="field full" style="margin-top:16px">
+      <label class="lbl">제안 연봉 — 기본급 / 성과급<span class="hint">(성과급은 선택, 없으면 비워두세요)</span></label>
+      <div class="row" style="margin-top:8px">
+        <div class="field"><div class="money"><input class="txt" id="o-base" type="number" min="0" step="100" placeholder="5000" inputmode="numeric"><span class="u">만원</span></div><span class="hint" style="margin-top:4px">기본급</span></div>
+        <div class="field"><div class="money"><input class="txt" id="o-bonus" type="number" min="0" step="100" placeholder="0" inputmode="numeric"><span class="u">만원</span></div><span class="hint" style="margin-top:4px">성과급 (선택)</span></div>
+      </div>
+      <div class="bar"><div class="seg base" id="o-seg-base"></div><div class="seg bonus" id="o-seg-bonus"></div></div>
+      <div class="mini-net" id="off-net-line"></div>
+    </div>
+    <div class="share-row">
+      <button class="cta ghost" id="skip3" type="button">제안 없음 · 건너뛰기</button>
+      <button class="cta" id="go3b" type="button">결과 보기 →</button>
+    </div>
+  </section>
+
+  <!-- STEP 4: 결과 (지금 vs 제안) -->
+  <section class="card step" id="result" hidden>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">지금 vs 제안, 어떤 선택이 좋을까</h2>
+    <div class="verdict" id="verdict" hidden><span class="dot"></span><div><div class="vt" id="v-t">–</div><div class="vd" id="v-d"></div></div></div>
+    <div class="cmp2">
+      <div class="c3"><div class="nm">지금 연봉</div><div class="amt" id="r-cur-amt">–</div><div class="pos" id="r-cur-pos">–</div><div class="net">월 실수령 <span id="r-cur-net">–</span></div></div>
+      <div class="c3 wish" id="r-offer-card"><div class="nm">제안 연봉</div><div class="amt" id="r-off-amt">–</div><div class="pos" id="r-off-pos">–</div><div class="net">월 실수령 <span id="r-off-net">–</span></div></div>
+    </div>
+    <div class="verdict-line" id="verdict-line">–</div>
+    <div class="share-row">
+      <button id="share-btn" type="button">🔗 결과 링크 복사</button>
+      <button id="restart" type="button">↺ 다시 계산하기</button>
+    </div>
+  </section>
+
+  <!-- 광고 (콘텐츠 사이 자연 배치) -->
+  <div class="ad-slot" aria-hidden="true"><span class="lab">광고 영역 (승인 후 노출)</span></div>
+
+  <!-- 협상 가이드 -->
+  <section class="card">
+    <h2>연봉 협상 가이드</h2>
+    <p class="desc">이직·협상 전에 읽으면 좋은 글.</p>
+    <ul class="guides">
+      <li><a href="guide/salary-negotiation-guide.html">이직 연봉 협상, 몇 % 불러야 할까?<span>제안 연봉 판단법과 실수령 함정</span></a></li>
+      <li><a href="guide/why-take-home-differs.html">연봉 실수령액, 왜 계산기마다 다를까?<span>비과세·요율·부양가족 — 가정의 차이</span></a></li>
+      <li><a href="guide/base-vs-bonus.html">성과급 vs 기본급, 뭐가 더 중요할까<span>연봉 구성의 협상 가치</span></a></li>
+      <li><a href="guide/negotiation-scripts.html">연봉 협상 실전 예시 문구<span>상황별로 바로 쓰는 스크립트</span></a></li>
+      <li><a href="guide/find-average-salary.html">직군별 평균 연봉 확인하는 법<span>공공데이터로 내 위치 파악하기</span></a></li>
+      <li><a href="guide/negotiation-timing.html">연봉 협상 타이밍, 언제 꺼내야 유리할까<span>같은 말도 시점이 절반</span></a></li>
+    </ul>
+  </section>
+
+  <!-- 다른 도구 -->
+  <section class="card">
+    <h2>다른 도구</h2>
+    <p class="desc">joeltool의 다른 실용 도구도 써보세요.</p>
+    <ul class="guides">
+      <li><a href="../room-planner/">방 가구 배치 시뮬레이터<span>평수 입력 → 평면도 생성 → 통로·문 열림까지 자동 진단</span></a></li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer"><div class="in">
+  <a href="../about.html">소개</a><span class="sep">·</span>
+  <a href="../privacy.html">개인정보처리방침</a><span class="sep">·</span>
+  <a href="../contact.html">문의</a><span class="sep">·</span>
+  <a href="guide/salary-negotiation-guide.html">협상 가이드</a>
+  <div class="cp">참고용 지표이며 법적 효력이 없습니다. 정식 데이터는 고용노동부·국세청 기준으로 대체 예정. © 이직 연봉 협상 계산기</div>
+</div></footer>
+
+<script src="../js/site.js"></script>
+<script src="../js/app.js"></script>
+</body>
+</html>

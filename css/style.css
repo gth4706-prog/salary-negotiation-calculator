@@ -210,5 +210,15 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 .wrap-wide{max-width:var(--wrap);margin:0 auto;padding:0 16px}
 .article{max-width:var(--wrap);margin:0 auto}
 
+/* 허브 도구 카드 */
+.tool-cards{list-style:none;padding:0;margin:0;display:grid;gap:14px}
+.tool-cards a{display:flex;align-items:center;gap:15px;padding:18px 20px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow);color:var(--ink);transition:transform .14s,box-shadow .14s,border-color .14s}
+.tool-cards a:hover{text-decoration:none;transform:translateY(-2px);border-color:var(--accent);box-shadow:var(--shadow-lg)}
+.tool-cards .ico{flex:none;font-size:32px;line-height:1;width:52px;height:52px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:14px}
+.tool-cards .tbody{flex:1;min-width:0}
+.tool-cards .tbody b{display:block;font-size:16.5px;font-weight:800;letter-spacing:-.02em}
+.tool-cards .tbody span{display:block;font-size:13px;color:var(--muted);margin-top:4px;line-height:1.55}
+.tool-cards .go{flex:none;font-size:20px;color:var(--accent);font-weight:800}
+
 @media (max-width:520px){.row,.subtot,.cmp{grid-template-columns:1fr}.nav .links a{padding:8px 7px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

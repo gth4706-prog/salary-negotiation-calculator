@@ -37,50 +37,50 @@
 
 <main class="wrap-wide page stack">
 
-  <!-- STEP 1: 직군 + 지금 연봉 + 희망 연봉 (첫 화면) -->
+  <!-- STEP 1: 직군 + 지금 연봉 + 희망 연봉 (실시간 실수령) -->
   <section class="card step" id="step1">
-    <h1 class="q">지금 연봉과 희망 연봉이 어떻게 되나요?<span class="s">아래 정보를 입력한 뒤 Enter를 누르세요.</span></h1>
-    <div class="row" style="margin-top:20px">
-      <div class="field"><label class="lbl" for="job">직군</label><select id="job"></select></div>
-      <div class="field"><label class="lbl" for="c-total">지금 연봉 (총액)</label><div class="money"><input class="txt" id="c-total" type="number" min="0" placeholder="5000" inputmode="numeric"><span class="u">만원</span></div></div>
+    <h1 class="q">지금 연봉과 희망 연봉이 어떻게 되나요?<span class="s">직군과 두 연봉을 넣으면 예상 월 실수령액이 바로 나옵니다.</span></h1>
+    <div class="field full" style="margin-top:20px">
+      <label class="lbl" for="job">직군</label>
+      <select id="job" class="big-sel"></select>
     </div>
-    <div class="field full" style="margin-top:16px">
+    <div class="field full" style="margin-top:18px">
+      <label class="lbl" for="c-total">지금 연봉 (총액)</label>
+      <div class="big-money"><input class="txt" id="c-total" type="number" min="0" step="100" placeholder="5000" inputmode="numeric"><span class="u">만원</span></div>
+      <div class="mini-net" id="cur-net-line">연봉을 입력하면 예상 월 실수령액이 표시됩니다.</div>
+    </div>
+    <div class="field full" style="margin-top:18px">
       <label class="lbl" for="wish">희망 연봉</label>
-      <div class="big-money"><input class="txt" id="wish" type="number" min="0" placeholder="6000" inputmode="numeric"><span class="u">만원</span></div>
+      <div class="big-money"><input class="txt" id="wish" type="number" min="0" step="100" placeholder="6000" inputmode="numeric"><span class="u">만원</span></div>
+      <div class="mini-net" id="wish-net-line"></div>
+      <div class="wish-rate" id="wish-rate-line">지금 연봉과 희망 연봉을 입력하면 인상률이 표시됩니다.</div>
+      <div class="pct-row" id="pct-row"></div>
     </div>
-    <div class="wish-rate" id="wish-rate-line">지금 연봉과 희망 연봉을 입력하면 인상률이 표시됩니다.</div>
-    <div class="pct-row" id="pct-row"></div>
     <button class="cta" id="go1" type="button" style="margin-top:18px">다음 →</button>
   </section>
 
-  <!-- STEP 2: 현재 연차 + 기본급/성과급 (간단) -->
+  <!-- STEP 2: 연차 -->
   <section class="card step" id="step2" hidden>
-    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">지금 연차와 연봉은 어떻게 되나요?<span class="s">이직 반영 여부를 정확히 보려면 아래 안내를 참고해 입력하세요.</span></h2>
-    <div class="row" style="margin-top:16px">
-      <div class="field full">
-        <div class="slider-head"><label class="lbl" for="year">연차</label><span class="slider-val" id="year-v">4년차</span></div>
-        <input type="range" id="year" min="0" max="20" value="4">
-      </div>
-      <div class="field"><label class="lbl" for="c-base">기본급</label><div class="money"><input class="txt cur" id="c-base" type="number" min="0" value="0" inputmode="numeric"><span class="u">만원</span></div></div>
-      <div class="field"><label class="lbl" for="c-bonus">성과급</label><div class="money"><input class="txt cur" id="c-bonus" type="number" min="0" value="0" inputmode="numeric"><span class="u">만원</span></div></div>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">현재 몇 년차인가요?<span class="s">직군·연차를 기준으로 내 연봉이 어느 위치인지 계산합니다.</span></h2>
+    <div class="field full" style="margin-top:18px">
+      <div class="slider-head"><label class="lbl" for="year">연차</label><span class="slider-val" id="year-v">4년차</span></div>
+      <input type="range" id="year" min="0" max="20" value="4">
     </div>
-    <div class="helper">💡 1단계 총액이 <b>기본급</b>에 자동으로 채워집니다. <b>식대·상품권·복지포인트</b> 등 현금성 복지는 기본급에, <b>인센티브·상여금</b>은 성과급으로 옮겨서 입력하세요.</div>
-    <button class="cta" id="go2" type="button">다음 →</button>
+    <button class="cta" id="go2" type="button" style="margin-top:18px">내 포지션 보기 →</button>
   </section>
 
-  <!-- STEP 2 결과: 그래프 + 예상 실수령 -->
+  <!-- STEP 2 결과: 포지션 (실수령 제외, 상위 % + 텍스트) -->
   <section class="card step" id="step2r" hidden>
-    <div class="bar"><div class="seg base" id="s-base"></div><div class="seg bonus" id="s-bonus"></div></div>
-    <div class="legend"><span><i style="background:var(--base)"></i>기본급</span><span><i style="background:var(--bonus)"></i>성과급</span></div>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">내 연봉 포지션</h2>
     <div class="est-net">
-      <div class="k">월 예상 실수령액</div>
-      <div class="v"><span id="th-net">–</span></div>
-      <div class="tag">연 <span id="th-net-y">–</span> · 4대보험·세금 반영 예상치</div>
+      <div class="k">지금 연봉 · <b id="cp-tag" style="font-weight:800">–</b></div>
+      <div class="v"><span id="cp-pos">–</span></div>
+      <div class="tag" id="cp-desc"></div>
     </div>
     <div class="est-net" style="margin-top:14px">
-      <div class="k">희망 연봉 포지션</div>
+      <div class="k">희망 연봉 · <b id="wp-tag" style="font-weight:800">–</b></div>
       <div class="v"><span id="wp-pos">–</span></div>
-      <div class="tag">동일 연차·직군 평균 대비 <span id="wp-diff">–</span> · 지금보다 <span id="wp-rate">–</span> 인상 희망</div>
+      <div class="tag" id="wp-desc"></div>
     </div>
     <button class="cta" id="go3" type="button" style="margin-top:16px">다음: 제안받은 연봉이 있나요? →</button>
   </section>
@@ -88,12 +88,13 @@
   <!-- 광고 -->
   <div class="ad-slot" aria-hidden="true" id="adwrap" hidden><span class="lab">광고 영역 (승인 후 노출)</span></div>
 
-  <!-- STEP 3: 제안받은 처우 (선택) -->
+  <!-- STEP 3: 제안받은 연봉 (총액, 실시간 실수령) -->
   <section class="card step" id="step3" hidden>
-    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">제안받은 연봉이 있나요?<span class="s">있다면 입력하고, 없으면 건너뛰어도 됩니다.</span></h2>
-    <div class="row" style="margin-top:16px">
-      <div class="field"><label class="lbl" for="o-base">제안 기본급</label><div class="money"><input class="txt" id="o-base" type="number" min="0" value="4600" inputmode="numeric"><span class="u">만원</span></div></div>
-      <div class="field"><label class="lbl" for="o-bonus">제안 성과급</label><div class="money"><input class="txt" id="o-bonus" type="number" min="0" value="900" inputmode="numeric"><span class="u">만원</span></div></div>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">제안받은 연봉이 있나요?<span class="s">이직·오퍼 받은 연봉(총액)을 넣으세요. 없으면 건너뛰어도 됩니다.</span></h2>
+    <div class="field full" style="margin-top:16px">
+      <label class="lbl" for="o-total">제안 연봉 (총액)</label>
+      <div class="big-money"><input class="txt" id="o-total" type="number" min="0" step="100" placeholder="6000" inputmode="numeric"><span class="u">만원</span></div>
+      <div class="mini-net" id="off-net-line"></div>
     </div>
     <div class="share-row">
       <button class="cta ghost" id="skip3" type="button">제안 없음 · 건너뛰기</button>
@@ -101,14 +102,13 @@
     </div>
   </section>
 
-  <!-- STEP 4: 결과 (지금 · 희망 · 제안) -->
+  <!-- STEP 4: 결과 (지금 vs 제안) -->
   <section class="card step" id="result" hidden>
-    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">지금 · 희망 · 제안, 한눈에 비교</h2>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">지금 vs 제안, 어떤 선택이 좋을까</h2>
     <div class="verdict" id="verdict" hidden><span class="dot"></span><div><div class="vt" id="v-t">–</div><div class="vd" id="v-d"></div></div></div>
-    <div class="cmp3">
-      <div class="c3"><div class="nm">지금</div><div class="amt" id="r-cur-amt">–</div><div class="pos" id="r-cur-pos">–</div><div class="net">월 실수령(예상) <span id="r-cur-net">–</span></div></div>
-      <div class="c3 wish"><div class="nm">희망</div><div class="amt" id="r-wish-amt">–</div><div class="pos" id="r-wish-pos">–</div><div class="net">월 실수령(예상) <span id="r-wish-net">–</span></div></div>
-      <div class="c3" id="r-offer-card"><div class="nm">제안</div><div class="amt" id="r-off-amt">–</div><div class="pos" id="r-off-pos">–</div><div class="net">월 실수령(예상) <span id="r-off-net">–</span></div></div>
+    <div class="cmp2">
+      <div class="c3"><div class="nm">지금 연봉</div><div class="amt" id="r-cur-amt">–</div><div class="pos" id="r-cur-pos">–</div><div class="net">월 실수령 <span id="r-cur-net">–</span></div></div>
+      <div class="c3 wish" id="r-offer-card"><div class="nm">제안 연봉</div><div class="amt" id="r-off-amt">–</div><div class="pos" id="r-off-pos">–</div><div class="net">월 실수령 <span id="r-off-net">–</span></div></div>
     </div>
     <div class="verdict-line" id="verdict-line">–</div>
     <div class="share-row">

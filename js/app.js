@@ -61,10 +61,10 @@
   }
 
   /* ---------- STEP1: 실시간 실수령 + 인상률 ---------- */
-  function netLine(v){return "예상 월 실수령 <b>"+wonRaw(takeHome(v))+"</b>";}
+  function netLine(v,bonusZero){return "예상 월 실수령 <b>"+wonRaw(takeHome(v))+"</b>"+(bonusZero?" <span style=\"color:var(--faint)\">(기본급 기준)</span>":"");}
   function updCurNet(){
     updBar("c-base","c-bonus","c-seg-base","c-seg-bonus");
-    var c=curTotal();$("cur-net-line").innerHTML=c>0?netLine(c):"기본급·성과급을 입력하면 예상 월 실수령액이 표시됩니다.";
+    var c=curTotal();$("cur-net-line").innerHTML=c>0?netLine(c,val("c-bonus")<=0):"기본급만 입력해도 예상 월 실수령액이 표시됩니다. (성과급은 선택)";
   }
   function updWishNet(){var w=val("wish");$("wish-net-line").innerHTML=w>0?netLine(w):"";}
 
@@ -117,7 +117,7 @@
   /* ---------- STEP3: 제안 (기본급/성과급) 실시간 실수령 ---------- */
   function updOffNet(){
     updBar("o-base","o-bonus","o-seg-base","o-seg-bonus");
-    var o=offTotal();$("off-net-line").innerHTML=o>0?netLine(o):"";
+    var o=offTotal();$("off-net-line").innerHTML=o>0?netLine(o,val("o-bonus")<=0):"";
   }
   ["o-base","o-bonus"].forEach(function(id){$(id).addEventListener("input",updOffNet);});
   $("o-base").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();$("o-bonus").focus();}});

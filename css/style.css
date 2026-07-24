@@ -1,35 +1,35 @@
 /* =========================================================
-   이직 연봉 협상 계산기 — 공유 디자인 시스템 v3
-   방향: 파스텔 스카이 (크림+블루 브랜드 팔레트), Pretendard
+   이직 연봉 협상 계산기 — 공유 디자인 시스템 v4
+   방향: 딥 티얼 × 테라코타 (쿨-웜 강대비 에디토리얼), Pretendard
    토큰 → 컴포넌트. 라이트/다크 대응. 클래스 계약 유지.
-   브랜드 원색: F9E8A2(크림) B4E1EB(라이트시안) 95BDD7(블루) 78A4CB(딥블루)
+   브랜드 원색: 0F3040(딥티얼) 464858(슬레이트) A56F63(테라코타) D99B7F(피치)
    ========================================================= */
 :root{
-  --paper:#FBF8EF;--surface:#FFFFFF;--surface-2:#EAF4F7;--line:#D8E7EC;--line-strong:#BFD8E0;
-  --ink:#1E2B35;--muted:#5C7180;--faint:#8FA3AF;
-  --accent:#78A4CB;--accent-2:#95BDD7;--accent-ink:#3D6E93;
-  --soft:#B4E1EB;--warm:#F9E8A2;--warm-ink:#8A6D1F;
+  --paper:#F8F6F3;--surface:#FFFFFF;--surface-2:#EFEAE5;--line:#E0D8D1;--line-strong:#C9BDB3;
+  --ink:#0F3040;--muted:#464858;--faint:#8B8D9A;
+  --accent:#A56F63;--accent-2:#D99B7F;--accent-ink:#84594F;
+  --soft:#DCE8EA;--warm:#F3DCCB;--warm-ink:#84594F;
   --good:#3F9463;--good-bg:#E4F3EA;--warn:#B07C1A;--warn-bg:#F6EEDB;--bad:#C24A3E;--bad-bg:#F7E7E4;
-  --shadow-sm:0 1px 2px rgba(30,43,53,.06);
-  --shadow:0 2px 4px rgba(30,43,53,.05),0 12px 30px rgba(30,43,53,.09);
-  --shadow-lg:0 8px 40px rgba(120,164,203,.22);
+  --shadow-sm:0 1px 2px rgba(15,48,64,.07);
+  --shadow:0 2px 4px rgba(15,48,64,.06),0 12px 30px rgba(15,48,64,.10);
+  --shadow-lg:0 8px 40px rgba(165,111,99,.24);
   --r:18px;--r-sm:12px;
   --font:"Pretendard Variable","Pretendard",system-ui,"Apple SD Gothic Neo","Malgun Gothic",-apple-system,sans-serif;
   --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
   --wrap:640px;
 }
 @media (prefers-color-scheme:dark){:root{
-  --paper:#101821;--surface:#182430;--surface-2:#1F2E3B;--line:#2A3D4C;--line-strong:#3A5468;
-  --ink:#EAF3F7;--muted:#93A8B5;--faint:#5F7480;
-  --accent:#8FBEE0;--accent-2:#A9CFE6;--accent-ink:#C7E3F2;
-  --soft:#2C4A56;--warm:#E8D394;--warm-ink:#F3E3B0;
+  --paper:#0F3040;--surface:#173D4E;--surface-2:#1E495B;--line:#2C5A6C;--line-strong:#3F7286;
+  --ink:#F3ECE6;--muted:#A7ACC0;--faint:#6E7386;
+  --accent:#D99B7F;--accent-2:#E6B79C;--accent-ink:#F0CDB6;
+  --soft:#1E495B;--warm:#3A2A22;--warm-ink:#E6B79C;
   --good:#4FBE85;--good-bg:#123024;--warn:#D9A84A;--warn-bg:#2A2211;--bad:#E08175;--bad-bg:#2B1714;
   --shadow-sm:0 1px 2px rgba(0,0,0,.4);
   --shadow:0 2px 4px rgba(0,0,0,.3),0 14px 34px rgba(0,0,0,.45);
   --shadow-lg:0 10px 44px rgba(0,0,0,.5);
 }}
-:root[data-theme="light"]{--paper:#FBF8EF;--surface:#FFFFFF;--surface-2:#EAF4F7;--line:#D8E7EC;--line-strong:#BFD8E0;--ink:#1E2B35;--muted:#5C7180;--faint:#8FA3AF;--accent:#78A4CB;--accent-2:#95BDD7;--accent-ink:#3D6E93;--soft:#B4E1EB;--warm:#F9E8A2;--warm-ink:#8A6D1F;--good:#3F9463;--good-bg:#E4F3EA;--warn:#B07C1A;--warn-bg:#F6EEDB;--bad:#C24A3E;--bad-bg:#F7E7E4;--shadow:0 2px 4px rgba(30,43,53,.05),0 12px 30px rgba(30,43,53,.09);}
-:root[data-theme="dark"]{--paper:#101821;--surface:#182430;--surface-2:#1F2E3B;--line:#2A3D4C;--line-strong:#3A5468;--ink:#EAF3F7;--muted:#93A8B5;--faint:#5F7480;--accent:#8FBEE0;--accent-2:#A9CFE6;--accent-ink:#C7E3F2;--soft:#2C4A56;--warm:#E8D394;--warm-ink:#F3E3B0;--good:#4FBE85;--good-bg:#123024;--warn:#D9A84A;--warn-bg:#2A2211;--bad:#E08175;--bad-bg:#2B1714;--shadow:0 2px 4px rgba(0,0,0,.3),0 14px 34px rgba(0,0,0,.45);}
+:root[data-theme="light"]{--paper:#F8F6F3;--surface:#FFFFFF;--surface-2:#EFEAE5;--line:#E0D8D1;--line-strong:#C9BDB3;--ink:#0F3040;--muted:#464858;--faint:#8B8D9A;--accent:#A56F63;--accent-2:#D99B7F;--accent-ink:#84594F;--soft:#DCE8EA;--warm:#F3DCCB;--warm-ink:#84594F;--good:#3F9463;--good-bg:#E4F3EA;--warn:#B07C1A;--warn-bg:#F6EEDB;--bad:#C24A3E;--bad-bg:#F7E7E4;--shadow:0 2px 4px rgba(15,48,64,.06),0 12px 30px rgba(15,48,64,.10);}
+:root[data-theme="dark"]{--paper:#0F3040;--surface:#173D4E;--surface-2:#1E495B;--line:#2C5A6C;--line-strong:#3F7286;--ink:#F3ECE6;--muted:#A7ACC0;--faint:#6E7386;--accent:#D99B7F;--accent-2:#E6B79C;--accent-ink:#F0CDB6;--soft:#1E495B;--warm:#3A2A22;--warm-ink:#E6B79C;--good:#4FBE85;--good-bg:#123024;--warn:#D9A84A;--warn-bg:#2A2211;--bad:#E08175;--bad-bg:#2B1714;--shadow:0 2px 4px rgba(0,0,0,.3),0 14px 34px rgba(0,0,0,.45);}
 
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}

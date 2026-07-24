@@ -2,17 +2,26 @@
    방 가구 배치 시뮬레이터 — 전용 스타일 (공유 style.css 뒤에 로드)
    ========================================================= */
 
+/* 상단 고정 평면도 */
+.plan-sticky{position:sticky;top:0;z-index:20;background:var(--paper);padding:10px 0 12px;border-bottom:1px solid var(--line)}
+.plan-sticky-in{max-width:var(--wrap);margin:0 auto;padding:0 16px;position:relative}
+.plan-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.phase-badge{font-size:11.5px;font-weight:800;color:#fff;background:var(--accent);border-radius:999px;padding:5px 11px;letter-spacing:.01em}
+.plan-size{font-size:12px;color:var(--muted);font-family:var(--mono)}
+
 /* 평면도 캔버스 */
-.plan-wrap{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:6px}
-#plan{display:block;width:100%;height:auto;touch-action:none;-webkit-user-select:none;user-select:none}
-.grid-l{stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
-.grid-l.major{stroke:var(--line-strong);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.plan-wrap{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;box-shadow:var(--shadow-sm)}
+#plan{display:block;width:100%;height:auto;touch-action:none;-webkit-user-select:none;user-select:none;max-height:56vh}
 .room-fill{fill:var(--surface)}
-.room-wall{fill:none;stroke:var(--ink);stroke-width:8;vector-effect:non-scaling-stroke;stroke-linejoin:miter}
-.op-door{stroke:var(--accent);stroke-width:9;vector-effect:non-scaling-stroke;stroke-linecap:butt}
-.op-win{stroke:#5B9BD5;stroke-width:9;vector-effect:non-scaling-stroke;stroke-linecap:butt}
-.op-swing{fill:color-mix(in srgb,var(--accent) 10%,transparent);stroke:var(--accent);stroke-width:1;stroke-dasharray:6 5;vector-effect:non-scaling-stroke}
-.dim-txt{fill:var(--muted);font-size:22px;font-family:var(--mono);text-anchor:middle;dominant-baseline:middle}
+.room-wall{fill:none;stroke:var(--ink);stroke-width:6;vector-effect:non-scaling-stroke;stroke-linejoin:miter}
+.dim-txt{fill:var(--muted);font-size:20px;font-family:var(--mono);text-anchor:middle;dominant-baseline:middle}
+
+/* 방 모양 타일 편집 */
+.tile{stroke:var(--surface);stroke-width:2;vector-effect:non-scaling-stroke;cursor:pointer}
+.tile.on{fill:var(--soft)}
+.tile.off{fill:var(--surface-2)}
+.tile.off:hover{fill:color-mix(in srgb,var(--accent) 16%,var(--surface-2))}
+.tile.on:hover{fill:color-mix(in srgb,var(--bad) 14%,var(--soft))}
 
 /* 가구 */
 .furn{cursor:grab}
@@ -20,15 +29,27 @@
 .furn rect{fill:color-mix(in srgb,var(--accent) 18%,var(--surface));stroke:var(--accent-ink);stroke-width:2;vector-effect:non-scaling-stroke;rx:3}
 .furn.sel rect{stroke:var(--accent);stroke-width:4;vector-effect:non-scaling-stroke}
 .furn.bad rect{fill:color-mix(in srgb,var(--bad) 22%,var(--surface));stroke:var(--bad)}
-.furn text{fill:var(--ink);font-size:20px;text-anchor:middle;dominant-baseline:middle;pointer-events:none;font-weight:700}
-.furn .sz{fill:var(--muted);font-size:17px;font-weight:500;font-family:var(--mono)}
+.furn text{fill:var(--ink);font-size:19px;text-anchor:middle;dominant-baseline:middle;pointer-events:none;font-weight:700}
+.furn .sz{fill:var(--muted);font-size:16px;font-weight:500;font-family:var(--mono)}
 .furn .front{stroke:var(--accent-ink);stroke-width:5;vector-effect:non-scaling-stroke;opacity:.55}
-.clear-zone{fill:color-mix(in srgb,var(--warn) 13%,transparent);stroke:none;pointer-events:none}
+.clear-zone{fill:color-mix(in srgb,var(--warn) 16%,transparent);stroke:none;pointer-events:none}
 
-/* 선택 가구 컨트롤 */
-.sel-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--paper)}
-.sel-bar .nm{font-weight:800;font-size:14px;flex:1;min-width:110px}
-.sel-bar button{font:inherit;font-size:13px;font-weight:700;padding:9px 13px;border-radius:9px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--muted)}
+/* 필수 가전(고정) */
+.builtin rect{fill:color-mix(in srgb,var(--warm-ink) 20%,var(--surface));stroke:var(--warm-ink);stroke-width:2;stroke-dasharray:none;vector-effect:non-scaling-stroke;rx:3}
+.builtin.sel rect{stroke:var(--bad);stroke-width:3;vector-effect:non-scaling-stroke}
+.builtin text{fill:var(--warm-ink);font-size:18px;text-anchor:middle;dominant-baseline:middle;pointer-events:none;font-weight:700}
+.draw-preview{fill:color-mix(in srgb,var(--accent) 22%,transparent);stroke:var(--accent);stroke-width:2;stroke-dasharray:8 5;vector-effect:non-scaling-stroke;pointer-events:none}
+
+/* 드래그 힌트(플로팅) */
+.drag-hint{position:absolute;pointer-events:none;font-size:12.5px;font-weight:800;padding:6px 11px;border-radius:999px;box-shadow:var(--shadow);white-space:nowrap;transform:translate(-50%,-130%);z-index:30;transition:background .15s,color .15s}
+.drag-hint.ok{background:var(--good-bg);color:var(--good)}
+.drag-hint.warn{background:var(--warn-bg);color:var(--warn)}
+.drag-hint.err{background:var(--bad-bg);color:var(--bad)}
+
+/* 선택 컨트롤 */
+.sel-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;padding:11px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface)}
+.sel-bar .nm{font-weight:800;font-size:13.5px;flex:1;min-width:100px}
+.sel-bar button{font:inherit;font-size:12.5px;font-weight:700;padding:8px 12px;border-radius:9px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--muted)}
 .sel-bar button:hover{border-color:var(--accent);color:var(--accent-ink)}
 .sel-bar button.del{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
 .sel-empty{font-size:12.5px;color:var(--faint);margin-top:12px;text-align:center;padding:12px;border:1px dashed var(--line-strong);border-radius:var(--r-sm)}
@@ -42,6 +63,16 @@
 .preset-btn:hover{border-color:var(--accent)}
 .preset-btn b{display:block;font-size:13.5px;font-weight:700}
 .preset-btn span{display:block;font-size:11.5px;color:var(--muted);font-family:var(--mono);margin-top:2px}
+.preset-btn.active{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--paper))}
+
+/* 단위 토글 */
+.unit-toggle{display:flex;gap:6px}
+.unit-btn{font:inherit;font-size:13px;font-weight:700;padding:10px 16px;border-radius:10px;cursor:pointer;border:1.5px solid var(--line-strong);background:var(--paper);color:var(--muted)}
+.unit-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* 필수가전 요약 */
+.builtin-summary{font-size:13px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-top:6px;line-height:1.6}
+.builtin-summary b{color:var(--ink)}
 
 /* 진단 */
 .diag{display:flex;flex-direction:column;gap:9px}
@@ -65,13 +96,7 @@
 .item-list li .nm{font-weight:700;flex:1}
 .item-list li .sz{font-family:var(--mono);font-size:12px;color:var(--muted)}
 
-/* 치수 붙여넣기 */
-.paste-box{width:100%;font:inherit;font-size:14px;color:var(--ink);background:var(--paper);border:1.5px solid var(--line-strong);border-radius:11px;padding:11px 12px;min-height:64px;resize:vertical}
-.paste-box:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
-.paste-res{font-size:12.5px;color:var(--muted);margin-top:8px}
-.paste-res b{color:var(--accent-ink);font-family:var(--mono);font-weight:800}
-
-/* 개구부 목록 */
+/* 요약 칩 목록(가전) */
 .op-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
 .op-chip{display:flex;align-items:center;gap:7px;font-size:12.5px;padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:var(--paper)}
 .op-chip button{border:0;background:none;color:var(--bad);cursor:pointer;font:inherit;font-weight:800;padding:0 2px;line-height:1}

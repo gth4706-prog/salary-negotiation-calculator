@@ -7,11 +7,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#A56F63">
 <title>방 가구 배치 시뮬레이터 | 원룸·자취방 평면도 인테리어 시뮬레이션</title>
-<meta name="description" content="평수만 입력하면 1m 격자 평면도가 만들어집니다. 침대·옷장·책상을 실제 규격으로 배치해보고 통로 폭, 문 열림 반경, 서랍 앞 공간까지 자동으로 진단해 드립니다. 원룸·자취방·첫 이사 가구 배치를 미리 확인해 보세요.">
+<meta name="description" content="평수만 입력하면 내 방 모양에 맞춘 평면도가 만들어집니다. 싱크대·냉장고·세탁기부터 침대·책상까지 실제 규격으로 배치해보고 통로 폭, 앞 공간까지 실시간으로 진단해 드립니다.">
 <link rel="canonical" href="https://joeltool.com/room-planner/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="방 가구 배치 시뮬레이터">
-<meta property="og:description" content="평수 입력 → 평면도 생성 → 가구 배치 → 통로·문 열림까지 자동 진단.">
+<meta property="og:description" content="평수 입력 → 내 방 모양 만들기 → 가전·가구 배치 → 통로·앞공간까지 자동 진단.">
 <meta property="og:url" content="https://joeltool.com/room-planner/">
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%8B%3C/text%3E%3C/svg%3E">
@@ -19,7 +19,7 @@
 <link rel="stylesheet" href="../css/style.css">
 <link rel="stylesheet" href="../css/planner.css">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebApplication","name":"방 가구 배치 시뮬레이터","applicationCategory":"DesignApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"평수 기반 평면도에 가구를 배치하고 통로·문 열림·앞 공간을 진단하는 무료 도구."}
+{"@context":"https://schema.org","@type":"WebApplication","name":"방 가구 배치 시뮬레이터","applicationCategory":"DesignApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"평수 기반으로 내 방 모양을 만들고 가전·가구를 배치해 통로·앞공간을 진단하는 무료 도구."}
 </script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
 </head>
@@ -37,60 +37,93 @@
   </div>
 </div></nav>
 
-<main class="wrap-wide page stack">
-  <header class="hero">
-    <h1>방 가구 배치 시뮬레이터</h1>
-    <p>평수만 넣으면 <b>1m 격자 평면도</b>가 만들어집니다. 가구를 끌어다 놓으면 <b>실제로 살 수 있는 배치인지</b> 바로 진단해 드려요.</p>
-  </header>
-
-  <div class="note"><span>ℹ️</span><span>모든 계산은 <b>브라우저 안에서만</b> 이뤄지며 어디에도 저장·전송되지 않습니다. 실제 시공·구매 전에는 반드시 현장 실측을 권장합니다.</span></div>
-
-  <!-- 1. 방 크기 -->
-  <section class="card">
-    <h2>1. 방 크기</h2>
-    <p class="desc">평수를 넣으면 대략적인 크기가 잡힙니다. 실제 방에 맞춰 가로·세로를 조정하세요.</p>
-    <div class="row">
-      <div class="field"><label class="lbl" for="py">평수</label><div class="money"><input class="txt" id="py" type="number" min="1" max="30" step="0.5" value="6" inputmode="decimal"><span class="u">평</span></div></div>
-      <div class="field"><label class="lbl">현재 면적</label><div class="age-out"><b id="py-out">6.0평</b></div></div>
-      <div class="field full">
-        <div class="slider-head"><label class="lbl" for="rw">가로</label><span class="slider-val" id="rw-v">4.0m</span></div>
-        <input type="range" id="rw" min="200" max="800" step="10" value="400">
-      </div>
-      <div class="field full">
-        <div class="slider-head"><label class="lbl" for="rh">세로</label><span class="slider-val" id="rh-v">5.0m</span></div>
-        <input type="range" id="rh" min="200" max="900" step="10" value="500">
-      </div>
+<!-- 상단 고정 평면도: 방 생성 전엔 숨김 -->
+<div class="plan-sticky" id="plan-sticky" hidden>
+  <div class="plan-sticky-in">
+    <div class="plan-topbar">
+      <span class="phase-badge" id="phase-badge">모양 조정 중</span>
+      <span class="plan-size" id="plan-size-txt">–</span>
     </div>
-
-    <div class="helper">🚪 <b>문과 창문</b> 위치를 넣으면 문 열림 반경·채광까지 함께 진단합니다.</div>
-    <div class="row">
-      <div class="field"><label class="lbl" for="op-type">종류</label><select id="op-type"><option value="d">문</option><option value="w">창문</option></select></div>
-      <div class="field"><label class="lbl" for="op-wall">위치한 벽</label><select id="op-wall"><option value="bottom">아래</option><option value="top">위</option><option value="left">왼쪽</option><option value="right">오른쪽</option></select></div>
-      <div class="field"><label class="lbl" for="op-pos">벽에서 위치</label><div class="money"><input class="txt" id="op-pos" type="number" min="5" max="95" step="5" value="25"><span class="u">%</span></div></div>
-      <div class="field"><label class="lbl" for="op-w">폭</label><div class="money"><input class="txt" id="op-w" type="number" min="40" max="300" step="10" value="90"><span class="u">cm</span></div></div>
-    </div>
-    <button class="cta ghost" id="op-add" type="button" style="margin-top:12px">+ 문·창문 추가</button>
-    <div class="op-list" id="op-list"></div>
-    <div class="sel-empty" id="op-empty">아직 추가된 문·창문이 없습니다.</div>
-  </section>
-
-  <!-- 2. 평면도 -->
-  <section class="card">
-    <h2>2. 평면도</h2>
-    <p class="desc">가구를 <b>끌어서</b> 옮기세요. 10cm 단위로 정렬되고, 노란 영역은 문·서랍이 열릴 공간입니다.</p>
-    <div class="plan-wrap"><svg id="plan" viewBox="-60 -60 520 620" role="img" aria-label="방 평면도"></svg></div>
+    <div class="plan-wrap"><svg id="plan" viewBox="0 0 520 520" role="img" aria-label="방 평면도"></svg></div>
+    <div class="drag-hint" id="drag-hint" hidden></div>
     <div class="sel-bar" id="sel-bar" hidden>
       <span class="nm" id="sel-nm">–</span>
       <button type="button" id="rot">↻ 90° 회전</button>
       <button type="button" id="del" class="del">삭제</button>
     </div>
-    <div class="sel-empty" id="sel-empty">평면도에서 가구를 누르면 회전·삭제할 수 있습니다.</div>
+  </div>
+</div>
+
+<main class="wrap-wide page stack">
+  <header class="hero">
+    <h1>방 가구 배치 시뮬레이터</h1>
+    <p>평수를 넣고 <b>내 방과 비슷한 모양</b>을 만든 뒤, 가전·가구를 배치해 보세요. <b>실제로 살 수 있는 배치인지</b> 바로 진단해 드려요.</p>
+  </header>
+
+  <div class="note"><span>ℹ️</span><span>모든 계산은 <b>브라우저 안에서만</b> 이뤄지며 어디에도 저장·전송되지 않습니다. 실제 시공·구매 전에는 반드시 현장 실측을 권장합니다.</span></div>
+
+  <!-- STEP A: 평수 입력 -->
+  <section class="card step" id="stepA">
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">몇 평의 방인가요?<span class="s">평수를 넣으면 미터법으로 환산해 정사각형에 가까운 모양부터 만들어 드려요.</span></h2>
+    <div class="row" style="margin-top:16px">
+      <div class="field"><label class="lbl" for="py">평수</label><div class="money"><input class="txt" id="py" type="number" min="1" max="30" step="0.5" value="6" inputmode="decimal"><span class="u">평</span></div></div>
+      <div class="field"><label class="lbl">환산 크기</label><div class="age-out" id="py-out">–</div></div>
+    </div>
+    <button class="cta" id="gen-room" type="button" style="margin-top:16px">방 생성 →</button>
   </section>
 
-  <!-- 3. 진단 -->
-  <section class="card">
-    <h2>3. 배치 진단</h2>
-    <p class="desc">통로 폭·문 열림·앞 공간을 실시간으로 검사합니다.</p>
+  <!-- STEP B: 방 모양 조정 -->
+  <section class="card step" id="stepB" hidden>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">방 모양을 실제와 비슷하게 만들어 보세요<span class="s">위 평면도에서 타일을 눌러 켜고 끄면 방 모양이 바뀝니다. (예: 현관·베란다 자리 빼기)</span></h2>
+    <div class="helper" style="margin-top:14px">💡 진하게 채워진 칸이 방 안쪽입니다. 빈 칸을 누르면 방에 추가되고, 채워진 칸을 누르면 제외됩니다. 최소 4칸은 남겨두세요.</div>
+    <button class="cta" id="shape-done" type="button">이 모양으로 확정 →</button>
+  </section>
+
+  <!-- STEP C: 필수 가전 -->
+  <section class="card step" id="stepC" hidden>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">기본 가전을 배치해 보세요<span class="s">버튼을 누른 뒤, 위 평면도에서 드래그하면 그 범위만큼 자리를 차지합니다.</span></h2>
+    <div class="cat-row" id="builtin-row" style="margin-top:14px"></div>
+    <div class="helper" id="builtin-hint">배치할 가전 버튼을 먼저 눌러주세요.</div>
+    <div class="builtin-summary" id="builtin-summary">현재 구성: 아직 배치된 가전이 없습니다.</div>
+    <div class="op-list" id="builtin-list"></div>
+    <button class="cta" id="builtin-done" type="button" style="margin-top:14px">기본 세팅 완료 →</button>
+  </section>
+
+  <div class="ad-slot" aria-hidden="true" id="adwrap" hidden><span class="lab">광고 영역 (승인 후 노출)</span></div>
+
+  <!-- STEP D: 가구 추가 -->
+  <section class="card step" id="stepD" hidden>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">가구를 하나씩 추가해 보세요<span class="s">추가하면 바로 위 평면도에 나타나고, 끌어서 위치를 잡을 수 있어요.</span></h2>
+    <div class="cat-row" id="cat-row" style="margin-top:14px"></div>
+    <div class="preset-grid" id="preset-grid"></div>
+
+    <div class="helper" style="margin-top:20px">📐 목록에 없는 가구는 아래에서 <b>직접 입력</b>하세요. 사이즈는 상품 상세페이지에서 확인해 넣는 걸 가장 권장합니다.</div>
+    <div class="row" style="margin-top:14px">
+      <div class="field full"><label class="lbl" for="c-name">이름</label><input class="txt" id="c-name" type="text" placeholder="예: 원목 책상" maxlength="14"></div>
+      <div class="field">
+        <label class="lbl" for="c-w">가로</label>
+        <div class="money"><input class="txt" id="c-w" type="number" min="1" placeholder="120" inputmode="numeric"><span class="u" id="c-w-u">cm</span></div>
+      </div>
+      <div class="field">
+        <label class="lbl" for="c-h">세로</label>
+        <div class="money"><input class="txt" id="c-h" type="number" min="1" placeholder="60" inputmode="numeric"><span class="u" id="c-h-u">cm</span></div>
+      </div>
+      <div class="field full">
+        <label class="lbl">단위</label>
+        <div class="unit-toggle">
+          <button type="button" class="unit-btn on" id="unit-cm" data-unit="cm">cm</button>
+          <button type="button" class="unit-btn" id="unit-mm" data-unit="mm">mm</button>
+        </div>
+      </div>
+      <div class="field full"><label class="lbl" for="c-cl">앞 필요공간 <span class="hint">(서랍·문이 열리는 가구면 60cm 정도)</span></label><div class="money"><input class="txt" id="c-cl" type="number" min="0" max="150" step="10" value="0" inputmode="numeric"><span class="u">cm</span></div></div>
+    </div>
+    <button class="cta" id="add-custom" type="button">+ 직접 입력한 가구 추가</button>
+  </section>
+
+  <!-- 배치 진단 -->
+  <section class="card step" id="stepDiag" hidden>
+    <h2>배치 진단</h2>
+    <p class="desc">통로 폭·앞 공간을 검사합니다.</p>
     <div class="diag" id="diag"></div>
     <div class="occ">
       <div class="occ-head"><span>가구 점유율</span><span><b id="occ-v">0%</b> · <span id="occ-note">–</span></span></div>
@@ -98,36 +131,14 @@
     </div>
   </section>
 
-  <div class="ad-slot" aria-hidden="true"><span class="lab">광고 영역 (승인 후 노출)</span></div>
-
-  <!-- 4. 가구 추가 -->
-  <section class="card">
-    <h2>4. 가구 추가</h2>
-    <p class="desc">한국 표준 규격 프리셋으로 빠르게, 또는 실제 상품 치수로 직접 넣으세요.</p>
-    <div class="cat-row" id="cat-row"></div>
-    <div class="preset-grid" id="preset-grid"></div>
-
-    <div class="helper" style="margin-top:20px">📋 상품 상세페이지의 <b>치수 텍스트를 복사해 붙여넣으면</b> 숫자만 자동으로 뽑아냅니다. (예: <code>1200 x 600</code>, <code>가로 120cm 세로 60cm</code>)</div>
-    <textarea class="paste-box" id="paste" placeholder="상품 치수 텍스트를 붙여넣어 보세요"></textarea>
-    <div class="paste-res" id="paste-res"></div>
-
-    <div class="row" style="margin-top:14px">
-      <div class="field full"><label class="lbl" for="c-name">이름</label><input class="txt" id="c-name" type="text" placeholder="예: 원목 책상" maxlength="14"></div>
-      <div class="field"><label class="lbl" for="c-w">가로</label><div class="money"><input class="txt" id="c-w" type="number" min="10" max="500" placeholder="120" inputmode="numeric"><span class="u">cm</span></div></div>
-      <div class="field"><label class="lbl" for="c-h">세로</label><div class="money"><input class="txt" id="c-h" type="number" min="10" max="500" placeholder="60" inputmode="numeric"><span class="u">cm</span></div></div>
-      <div class="field full"><label class="lbl" for="c-cl">앞 필요공간 <span class="hint">(서랍·문이 열리는 가구면 60 정도)</span></label><div class="money"><input class="txt" id="c-cl" type="number" min="0" max="150" step="10" value="0" inputmode="numeric"><span class="u">cm</span></div></div>
-    </div>
-    <button class="cta" id="add-custom" type="button">+ 직접 입력한 가구 추가</button>
-  </section>
-
-  <!-- 5. 배치 목록 -->
-  <section class="card">
-    <h2>5. 배치한 가구</h2>
+  <!-- 배치 목록 -->
+  <section class="card step" id="stepList" hidden>
+    <h2>배치한 가구</h2>
     <ul class="item-list" id="ilist"></ul>
     <div class="sel-empty" id="ilist-empty">아직 배치한 가구가 없습니다.</div>
     <div class="share-row">
       <button id="share" type="button">🔗 배치도 링크 복사</button>
-      <button id="clear-all" type="button">↺ 전부 지우기</button>
+      <button id="clear-all" type="button">↺ 처음부터 다시</button>
     </div>
   </section>
 

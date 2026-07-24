@@ -1,34 +1,35 @@
 /* =========================================================
-   이직 연봉 협상 계산기 — 공유 디자인 시스템 v2
-   방향: 확신 있는 커리어 핀테크 (클린 + 강한 숫자 타이포)
+   이직 연봉 협상 계산기 — 공유 디자인 시스템 v3
+   방향: 파스텔 스카이 (크림+블루 브랜드 팔레트), Pretendard
    토큰 → 컴포넌트. 라이트/다크 대응. 클래스 계약 유지.
+   브랜드 원색: F9E8A2(크림) B4E1EB(라이트시안) 95BDD7(블루) 78A4CB(딥블루)
    ========================================================= */
 :root{
-  --paper:#F4F6F5;--surface:#FFFFFF;--surface-2:#EDF1EF;--line:#E4E8E6;--line-strong:#D1D8D4;
-  --ink:#0E1512;--muted:#586460;--faint:#8B948F;
-  --accent:#059669;--accent-2:#10B981;--accent-ink:#047857;
-  --base:#059669;--bonus:#5FCBA6;--welfare:#E0A93E;--etc:#A2ACA6;
-  --good:#059669;--good-bg:#E4F3EC;--warn:#B07C1A;--warn-bg:#F6EEDB;--bad:#C24A3E;--bad-bg:#F7E7E4;
-  --shadow-sm:0 1px 2px rgba(13,20,16,.05);
-  --shadow:0 2px 4px rgba(13,20,16,.04),0 12px 30px rgba(13,20,16,.08);
-  --shadow-lg:0 8px 40px rgba(5,150,105,.10);
+  --paper:#FBF8EF;--surface:#FFFFFF;--surface-2:#EAF4F7;--line:#D8E7EC;--line-strong:#BFD8E0;
+  --ink:#1E2B35;--muted:#5C7180;--faint:#8FA3AF;
+  --accent:#78A4CB;--accent-2:#95BDD7;--accent-ink:#3D6E93;
+  --soft:#B4E1EB;--warm:#F9E8A2;--warm-ink:#8A6D1F;
+  --good:#3F9463;--good-bg:#E4F3EA;--warn:#B07C1A;--warn-bg:#F6EEDB;--bad:#C24A3E;--bad-bg:#F7E7E4;
+  --shadow-sm:0 1px 2px rgba(30,43,53,.06);
+  --shadow:0 2px 4px rgba(30,43,53,.05),0 12px 30px rgba(30,43,53,.09);
+  --shadow-lg:0 8px 40px rgba(120,164,203,.22);
   --r:18px;--r-sm:12px;
-  --font:"Pretendard",system-ui,"Apple SD Gothic Neo","Malgun Gothic",-apple-system,sans-serif;
+  --font:"Pretendard Variable","Pretendard",system-ui,"Apple SD Gothic Neo","Malgun Gothic",-apple-system,sans-serif;
   --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
   --wrap:640px;
 }
 @media (prefers-color-scheme:dark){:root{
-  --paper:#0C1310;--surface:#131C17;--surface-2:#1A2620;--line:#243229;--line-strong:#33453B;
-  --ink:#E9F0EC;--muted:#93A099;--faint:#5F6E66;
-  --accent:#34D399;--accent-2:#10B981;--accent-ink:#6EE7B7;
-  --base:#34D399;--bonus:#1F8C6E;--welfare:#D9A84A;--etc:#65746C;
-  --good:#34D399;--good-bg:#0F2A20;--warn:#D9A84A;--warn-bg:#2A2211;--bad:#E08175;--bad-bg:#2B1714;
+  --paper:#101821;--surface:#182430;--surface-2:#1F2E3B;--line:#2A3D4C;--line-strong:#3A5468;
+  --ink:#EAF3F7;--muted:#93A8B5;--faint:#5F7480;
+  --accent:#8FBEE0;--accent-2:#A9CFE6;--accent-ink:#C7E3F2;
+  --soft:#2C4A56;--warm:#E8D394;--warm-ink:#F3E3B0;
+  --good:#4FBE85;--good-bg:#123024;--warn:#D9A84A;--warn-bg:#2A2211;--bad:#E08175;--bad-bg:#2B1714;
   --shadow-sm:0 1px 2px rgba(0,0,0,.4);
   --shadow:0 2px 4px rgba(0,0,0,.3),0 14px 34px rgba(0,0,0,.45);
   --shadow-lg:0 10px 44px rgba(0,0,0,.5);
 }}
-:root[data-theme="light"]{--paper:#F4F6F5;--surface:#FFFFFF;--surface-2:#EDF1EF;--line:#E4E8E6;--line-strong:#D1D8D4;--ink:#0E1512;--muted:#586460;--faint:#8B948F;--accent:#059669;--accent-2:#10B981;--accent-ink:#047857;--base:#059669;--bonus:#5FCBA6;--welfare:#E0A93E;--etc:#A2ACA6;--good:#059669;--good-bg:#E4F3EC;--warn:#B07C1A;--warn-bg:#F6EEDB;--bad:#C24A3E;--bad-bg:#F7E7E4;--shadow:0 2px 4px rgba(13,20,16,.04),0 12px 30px rgba(13,20,16,.08);}
-:root[data-theme="dark"]{--paper:#0C1310;--surface:#131C17;--surface-2:#1A2620;--line:#243229;--line-strong:#33453B;--ink:#E9F0EC;--muted:#93A099;--faint:#5F6E66;--accent:#34D399;--accent-2:#10B981;--accent-ink:#6EE7B7;--base:#34D399;--bonus:#1F8C6E;--welfare:#D9A84A;--etc:#65746C;--good:#34D399;--good-bg:#0F2A20;--warn:#D9A84A;--warn-bg:#2A2211;--bad:#E08175;--bad-bg:#2B1714;--shadow:0 2px 4px rgba(0,0,0,.3),0 14px 34px rgba(0,0,0,.45);}
+:root[data-theme="light"]{--paper:#FBF8EF;--surface:#FFFFFF;--surface-2:#EAF4F7;--line:#D8E7EC;--line-strong:#BFD8E0;--ink:#1E2B35;--muted:#5C7180;--faint:#8FA3AF;--accent:#78A4CB;--accent-2:#95BDD7;--accent-ink:#3D6E93;--soft:#B4E1EB;--warm:#F9E8A2;--warm-ink:#8A6D1F;--good:#3F9463;--good-bg:#E4F3EA;--warn:#B07C1A;--warn-bg:#F6EEDB;--bad:#C24A3E;--bad-bg:#F7E7E4;--shadow:0 2px 4px rgba(30,43,53,.05),0 12px 30px rgba(30,43,53,.09);}
+:root[data-theme="dark"]{--paper:#101821;--surface:#182430;--surface-2:#1F2E3B;--line:#2A3D4C;--line-strong:#3A5468;--ink:#EAF3F7;--muted:#93A8B5;--faint:#5F7480;--accent:#8FBEE0;--accent-2:#A9CFE6;--accent-ink:#C7E3F2;--soft:#2C4A56;--warm:#E8D394;--warm-ink:#F3E3B0;--good:#4FBE85;--good-bg:#123024;--warn:#D9A84A;--warn-bg:#2A2211;--bad:#E08175;--bad-bg:#2B1714;--shadow:0 2px 4px rgba(0,0,0,.3),0 14px 34px rgba(0,0,0,.45);}
 
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -80,12 +81,6 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.12)}
 input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:var(--surface);border:3.5px solid var(--accent);cursor:pointer}
 .age-out{font-size:14px;color:var(--muted);margin-top:4px}
 .age-out b{color:var(--ink);font-weight:800}
-
-/* 연봉 구성 그래프 */
-.bar{display:flex;height:38px;border-radius:11px;overflow:hidden;background:var(--surface-2);position:relative;margin:8px 0 4px;box-shadow:inset 0 0 0 1px var(--line)}
-.seg{height:100%;width:0;transition:width .5s cubic-bezier(.22,1,.36,1)}
-.seg.base{background:var(--base)}.seg.bonus{background:var(--bonus)}.seg.welfare{background:var(--welfare)}.seg.etc{background:var(--etc)}
-.bar .mark{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);opacity:.5;transition:left .5s;pointer-events:none}
 .legend{display:flex;flex-wrap:wrap;gap:9px 15px;margin-top:12px;font-size:12px}
 .legend span{display:flex;align-items:center;gap:6px;color:var(--muted)}
 .legend i{width:11px;height:11px;border-radius:3px;flex:none}

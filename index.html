@@ -46,9 +46,13 @@
       <select id="job" class="big-sel"></select>
     </div>
     <div class="field full" style="margin-top:18px">
-      <label class="lbl" for="c-total">지금 연봉 (총액)</label>
-      <div class="big-money"><input class="txt" id="c-total" type="number" min="0" step="100" placeholder="5000" inputmode="numeric"><span class="u">만원</span></div>
-      <div class="mini-net" id="cur-net-line">연봉을 입력하면 예상 월 실수령액이 표시됩니다.</div>
+      <label class="lbl">지금 연봉 — 기본급 / 성과급</label>
+      <div class="row" style="margin-top:8px">
+        <div class="field"><div class="money"><input class="txt" id="c-base" type="number" min="0" step="100" placeholder="4500" inputmode="numeric"><span class="u">만원</span></div><span class="hint" style="margin-top:4px">기본급</span></div>
+        <div class="field"><div class="money"><input class="txt" id="c-bonus" type="number" min="0" step="100" placeholder="500" inputmode="numeric"><span class="u">만원</span></div><span class="hint" style="margin-top:4px">성과급</span></div>
+      </div>
+      <div class="bar"><div class="seg base" id="c-seg-base"></div><div class="seg bonus" id="c-seg-bonus"></div></div>
+      <div class="mini-net" id="cur-net-line">기본급·성과급을 입력하면 예상 월 실수령액이 표시됩니다.</div>
     </div>
     <div class="field full" style="margin-top:18px">
       <label class="lbl" for="wish">희망 연봉</label>
@@ -93,8 +97,12 @@
   <section class="card step" id="step3" hidden>
     <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">제안받은 연봉이 있나요?<span class="s">이직·오퍼 받은 연봉(총액)을 넣으세요. 없으면 건너뛰어도 됩니다.</span></h2>
     <div class="field full" style="margin-top:16px">
-      <label class="lbl" for="o-total">제안 연봉 (총액)</label>
-      <div class="big-money"><input class="txt" id="o-total" type="number" min="0" step="100" placeholder="6000" inputmode="numeric"><span class="u">만원</span></div>
+      <label class="lbl">제안 연봉 — 기본급 / 성과급</label>
+      <div class="row" style="margin-top:8px">
+        <div class="field"><div class="money"><input class="txt" id="o-base" type="number" min="0" step="100" placeholder="5000" inputmode="numeric"><span class="u">만원</span></div><span class="hint" style="margin-top:4px">기본급</span></div>
+        <div class="field"><div class="money"><input class="txt" id="o-bonus" type="number" min="0" step="100" placeholder="1000" inputmode="numeric"><span class="u">만원</span></div><span class="hint" style="margin-top:4px">성과급</span></div>
+      </div>
+      <div class="bar"><div class="seg base" id="o-seg-base"></div><div class="seg bonus" id="o-seg-bonus"></div></div>
       <div class="mini-net" id="off-net-line"></div>
     </div>
     <div class="share-row">

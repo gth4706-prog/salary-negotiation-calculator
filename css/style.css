@@ -9,6 +9,7 @@
   --ink:#0F3040;--muted:#464858;--faint:#8B8D9A;
   --accent:#A56F63;--accent-2:#D99B7F;--accent-ink:#84594F;
   --soft:#DCE8EA;--warm:#F3DCCB;--warm-ink:#84594F;
+  --base:#A56F63;--bonus:#D9BBA8;
   --good:#3F9463;--good-bg:#E4F3EA;--warn:#B07C1A;--warn-bg:#F6EEDB;--bad:#C24A3E;--bad-bg:#F7E7E4;
   --shadow-sm:0 1px 2px rgba(15,48,64,.07);
   --shadow:0 2px 4px rgba(15,48,64,.06),0 12px 30px rgba(15,48,64,.10);
@@ -23,13 +24,14 @@
   --ink:#F3ECE6;--muted:#A7ACC0;--faint:#6E7386;
   --accent:#D99B7F;--accent-2:#E6B79C;--accent-ink:#F0CDB6;
   --soft:#1E495B;--warm:#3A2A22;--warm-ink:#E6B79C;
+  --base:#D99B7F;--bonus:#7A5546;
   --good:#4FBE85;--good-bg:#123024;--warn:#D9A84A;--warn-bg:#2A2211;--bad:#E08175;--bad-bg:#2B1714;
   --shadow-sm:0 1px 2px rgba(0,0,0,.4);
   --shadow:0 2px 4px rgba(0,0,0,.3),0 14px 34px rgba(0,0,0,.45);
   --shadow-lg:0 10px 44px rgba(0,0,0,.5);
 }}
-:root[data-theme="light"]{--paper:#F8F6F3;--surface:#FFFFFF;--surface-2:#EFEAE5;--line:#E0D8D1;--line-strong:#C9BDB3;--ink:#0F3040;--muted:#464858;--faint:#8B8D9A;--accent:#A56F63;--accent-2:#D99B7F;--accent-ink:#84594F;--soft:#DCE8EA;--warm:#F3DCCB;--warm-ink:#84594F;--good:#3F9463;--good-bg:#E4F3EA;--warn:#B07C1A;--warn-bg:#F6EEDB;--bad:#C24A3E;--bad-bg:#F7E7E4;--shadow:0 2px 4px rgba(15,48,64,.06),0 12px 30px rgba(15,48,64,.10);}
-:root[data-theme="dark"]{--paper:#0F3040;--surface:#173D4E;--surface-2:#1E495B;--line:#2C5A6C;--line-strong:#3F7286;--ink:#F3ECE6;--muted:#A7ACC0;--faint:#6E7386;--accent:#D99B7F;--accent-2:#E6B79C;--accent-ink:#F0CDB6;--soft:#1E495B;--warm:#3A2A22;--warm-ink:#E6B79C;--good:#4FBE85;--good-bg:#123024;--warn:#D9A84A;--warn-bg:#2A2211;--bad:#E08175;--bad-bg:#2B1714;--shadow:0 2px 4px rgba(0,0,0,.3),0 14px 34px rgba(0,0,0,.45);}
+:root[data-theme="light"]{--paper:#F8F6F3;--surface:#FFFFFF;--surface-2:#EFEAE5;--line:#E0D8D1;--line-strong:#C9BDB3;--ink:#0F3040;--muted:#464858;--faint:#8B8D9A;--accent:#A56F63;--accent-2:#D99B7F;--accent-ink:#84594F;--soft:#DCE8EA;--warm:#F3DCCB;--warm-ink:#84594F;--base:#A56F63;--bonus:#D9BBA8;--good:#3F9463;--good-bg:#E4F3EA;--warn:#B07C1A;--warn-bg:#F6EEDB;--bad:#C24A3E;--bad-bg:#F7E7E4;--shadow:0 2px 4px rgba(15,48,64,.06),0 12px 30px rgba(15,48,64,.10);}
+:root[data-theme="dark"]{--paper:#0F3040;--surface:#173D4E;--surface-2:#1E495B;--line:#2C5A6C;--line-strong:#3F7286;--ink:#F3ECE6;--muted:#A7ACC0;--faint:#6E7386;--accent:#D99B7F;--accent-2:#E6B79C;--accent-ink:#F0CDB6;--soft:#1E495B;--warm:#3A2A22;--warm-ink:#E6B79C;--base:#D99B7F;--bonus:#7A5546;--good:#4FBE85;--good-bg:#123024;--warn:#D9A84A;--warn-bg:#2A2211;--bad:#E08175;--bad-bg:#2B1714;--shadow:0 2px 4px rgba(0,0,0,.3),0 14px 34px rgba(0,0,0,.45);}
 
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -85,6 +87,10 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 .legend span{display:flex;align-items:center;gap:6px;color:var(--muted)}
 .legend i{width:11px;height:11px;border-radius:3px;flex:none}
 .subtot{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:16px}
+/* 연봉 구성 그래프(기본급/성과급) */
+.bar{display:flex;height:34px;border-radius:11px;overflow:hidden;background:var(--surface-2);position:relative;margin:8px 0 4px;box-shadow:inset 0 0 0 1px var(--line)}
+.seg{height:100%;width:0;transition:width .5s cubic-bezier(.22,1,.36,1)}
+.seg.base{background:var(--base)}.seg.bonus{background:var(--bonus)}
 .subtot .b{border:1px solid var(--line);border-radius:var(--r-sm);padding:12px 14px;background:var(--paper)}
 .subtot .b .t{font-size:11.5px;color:var(--muted);font-weight:600}
 .subtot .b .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:800;font-size:17px;margin-top:4px;letter-spacing:-.01em}

@@ -16,8 +16,8 @@
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%96%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
-<link rel="stylesheet" href="../css/style.css?v=0.01">
-<link rel="stylesheet" href="../css/referee.css?v=0.01">
+<link rel="stylesheet" href="../css/style.css?v=0.02">
+<link rel="stylesheet" href="../css/referee.css?v=0.02">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"커플 재판","applicationCategory":"LifestyleApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"연인·부부 다툼을 성향이 다른 재판관 5명이 판정해주는 참고용 재미 도구."}
 </script>
@@ -35,7 +35,7 @@
     <a href="../resignation-timing/">퇴사 타이밍</a>
     <a href="../about.html">소개</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.01</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.02</span>
   </div>
 </div></nav>
 
@@ -56,7 +56,7 @@
     </div>
 
     <div class="field full" style="margin-top:14px">
-      <label class="lbl" for="p-text">하고 싶은 말 <span class="hint">(판정에는 안 쓰여요, 감정 정리용이에요)</span></label>
+      <label class="lbl" for="p-text">하고 싶은 말 <span class="hint">(반복·화해 표현, 위험 신호는 판정에 반영돼요)</span></label>
       <textarea class="txt" id="p-text" rows="5" placeholder="무슨 일이 있었는지, 어떤 마음인지 편하게 적어보세요"></textarea>
       <button type="button" class="cta ghost" id="degender-btn" style="margin-top:8px;width:auto;padding:10px 16px">🩶 성별추정 표현 제거</button>
       <div class="helper" id="degender-note" hidden>완벽하지 않을 수 있어요 — 성별을 짐작하게 하는 표현 일부를 중립적인 말로 바꿨어요.</div>
@@ -91,6 +91,7 @@
   <section class="card step" id="stepResult" hidden>
     <h2 class="q">판정 결과<span class="s" id="result-sub">–</span></h2>
     <div class="verdict-line" id="result-banner" style="margin-top:14px">–</div>
+    <div class="helper" id="result-textnote" hidden style="margin-top:10px"></div>
     <div class="judge-grid" id="judge-cards" style="margin-top:16px"></div>
     <button class="cta ghost" id="result-restart" type="button" style="margin-top:18px">↺ 처음부터 다시</button>
   </section>
@@ -114,7 +115,7 @@
   <div class="cp">참고용 재미 콘텐츠이며 실제 법적·심리적 판단이 아닙니다. © 각잡살림</div>
 </div></footer>
 
-<script src="../js/site.js?v=0.01"></script>
-<script src="../js/referee.js?v=0.01"></script>
+<script src="../js/site.js?v=0.02"></script>
+<script src="../js/referee.js?v=0.02"></script>
 </body>
 </html>

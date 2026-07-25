@@ -31,6 +31,13 @@
     [/오빠|누나|형|언니/g,"상대방"],[/자기야|자기(?=[\s.,!?]|$)/g,"상대방"]
   ];
 
+  /* 자유서술 키워드 신호 — 방향(누구 탓인지) 판단이 필요한 신호는 오판 위험이 커서 넣지 않고,
+     방향과 무관하게 안전한 신호(위험/반복/화해)만 판정에 반영한다. */
+  var SAFETY_WORDS=[/때렸/,/맞았/,/폭행/,/밀쳤/,/멱살/,/협박/,/죽인다/,/죽여/,/손찌검/,/폭력/];
+  var REPEAT_WORDS=[/맨날/,/항상/,/매번/,/반복/,/또\s?이런/,/한두\s?번이/];
+  var RECONCILE_WORDS=[/미안/,/사과/,/화해/,/풀었/];
+  function textHas(list,text){ return list.some(function(re){return re.test(text||"")}); }
+
   var state={phase:"A",A:{},B:{}};
 
   /* ---------- 객관식 폼 렌더 ---------- */
@@ -138,20 +145,28 @@
   function apologyCredit(p){ return (p.q4==="self"||p.q4==="both")?0.3:0; }
   function repeatFactor(A,B){
     var rank={first:1,sometimes:1.15,often:1.3};
-    return Math.max(rank[A.q2]||1,rank[B.q2]||1);
+    var f=Math.max(rank[A.q2]||1,rank[B.q2]||1);
+    if(textHas(REPEAT_WORDS,A.text)||textHas(REPEAT_WORDS,B.text))f=Math.max(f,1.2);
+    return f;
+  }
+  function reconcileSoftening(A,B){
+    return (textHas(RECONCILE_WORDS,A.text)||textHas(RECONCILE_WORDS,B.text))?0.3:0;
   }
   function judgeVerdict(judge,A,B){
-    var rf=repeatFactor(A,B);
-    var faultA=(catWeight("q1",A,B,judge.trustOther)*judge.raiseMul+catWeight("q3",A,B,judge.trustOther)*judge.breakMul)*rf-apologyCredit(A);
-    var faultB=(catWeight("q1",B,A,judge.trustOther)*judge.raiseMul+catWeight("q3",B,A,judge.trustOther)*judge.breakMul)*rf-apologyCredit(B);
+    var rf=repeatFactor(A,B),soften=reconcileSoftening(A,B);
+    var faultA=(catWeight("q1",A,B,judge.trustOther)*judge.raiseMul+catWeight("q3",A,B,judge.trustOther)*judge.breakMul)*rf-apologyCredit(A)-soften;
+    var faultB=(catWeight("q1",B,A,judge.trustOther)*judge.raiseMul+catWeight("q3",B,A,judge.trustOther)*judge.breakMul)*rf-apologyCredit(B)-soften;
     faultA=Math.max(0,faultA); faultB=Math.max(0,faultB);
     var diff=faultA-faultB;
     if(Math.abs(diff)<judge.threshold)return{side:"both"};
     return{side:diff>0?"B":"A"}; // A 잘못이 크면(diff>0) B 편을 들어줌
   }
+  function textFlagsSafety(){
+    return textHas(SAFETY_WORDS,state.A.text)||textHas(SAFETY_WORDS,state.B.text);
+  }
 
   function finish(){
-    if(state.A.q6==="yes"||state.B.q6==="yes"){
+    if(state.A.q6==="yes"||state.B.q6==="yes"||textFlagsSafety()){
       $("stepForm").hidden=true;
       $("stepSafety").hidden=false;
       $("stepSafety").scrollIntoView({behavior:"smooth",block:"start"});
@@ -183,6 +198,12 @@
     }
     $("result-banner").innerHTML=bannerText;
     $("result-sub").textContent=state.A.name+" · "+state.B.name;
+
+    var textNotes=[];
+    if(textHas(REPEAT_WORDS,state.A.text)||textHas(REPEAT_WORDS,state.B.text))textNotes.push("적어주신 글에서 '반복되는 일'이라는 표현이 감지돼 반영했어요.");
+    if(textHas(RECONCILE_WORDS,state.A.text)||textHas(RECONCILE_WORDS,state.B.text))textNotes.push("적어주신 글에서 '사과·화해' 표현이 감지돼 판정을 조금 완화했어요.");
+    if(textNotes.length){$("result-textnote").innerHTML="✍️ "+textNotes.join(" ");$("result-textnote").hidden=false;}
+    else $("result-textnote").hidden=true;
 
     $("stepForm").hidden=true;
     $("stepResult").hidden=false;

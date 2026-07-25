@@ -3,9 +3,11 @@
    ========================================================= */
 
 /* STEP A 팝업(평수 입력) */
-.modal-backdrop{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-start;justify-content:center;padding:20px;padding-top:min(12vh,80px);background:rgba(15,20,25,.55);backdrop-filter:blur(2px);overflow-y:auto}
+.modal-backdrop{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-start;justify-content:center;padding:20px;padding-top:min(8vh,60px);background:rgba(15,20,25,.55);backdrop-filter:blur(2px);overflow-y:auto}
 .modal-backdrop[hidden]{display:none}
-.modal-box{width:100%;max-width:420px;flex:none;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow-lg);padding:clamp(18px,4vw,26px);margin-bottom:20px}
+.modal-box{width:100%;max-width:460px;max-height:calc(100vh - 12vh - 40px);flex:none;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow-lg);overflow:hidden;margin-bottom:20px}
+.modal-scroll{overflow-y:auto;padding:clamp(18px,4vw,26px);padding-bottom:10px}
+.modal-box>.cta{margin:0;border-radius:0;padding:16px;width:100%;flex:none}
 
 /* 상단 고정 평면도 */
 .plan-sticky{position:sticky;top:0;z-index:20;background:var(--paper);padding:10px 0 12px;border-bottom:1px solid var(--line)}
@@ -16,7 +18,7 @@
 
 /* 평면도 캔버스 */
 .plan-wrap{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;box-shadow:var(--shadow-sm)}
-#plan{display:block;width:100%;height:auto;touch-action:none;-webkit-user-select:none;user-select:none;max-height:56vh}
+#plan{display:block;width:100%;height:auto;touch-action:none;-webkit-user-select:none;user-select:none;max-height:min(40vh,380px)}
 .room-fill{fill:var(--surface)}
 .room-wall{fill:none;stroke:var(--ink);stroke-width:6;vector-effect:non-scaling-stroke;stroke-linejoin:miter}
 .dim-txt{fill:var(--muted);font-size:20px;font-family:var(--mono);text-anchor:middle;dominant-baseline:middle}

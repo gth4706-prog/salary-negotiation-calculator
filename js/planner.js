@@ -23,6 +23,7 @@
     customUnit:"cm",
     tileMode:"add",         // "add" | "remove" — 방 모양 조정 드래그 모드
     tileDrag:null,          // {mode} — B단계 드래그 중 여부
+    pendingShapeKind:"square", // 팝업에서 고른(아직 미확정) 형태
     uid:1
   };
 
@@ -289,13 +290,16 @@
     var p=roomPreview(py);
     $("py-out").textContent="약 "+(p.w/100).toFixed(1)+"m × "+(p.h/100).toFixed(1)+"m (근사)";
   }
-  $("py").addEventListener("input",updPyOut);
+  $("py").addEventListener("input",function(){
+    updPyOut();
+    var py=+$("py").value||0;
+    if(py>0)renderShapeGrid(py*PYEONG);
+  });
 
   $("gen-room").addEventListener("click",function(){
     var py=+$("py").value||0; if(py<=0){$("py").focus();return;}
     if($("stepA-modal"))$("stepA-modal").hidden=true;
-    $("shape-refine").hidden=true;
-    renderShapeGrid(py*PYEONG);
+    applyShape(py*PYEONG,state.pendingShapeKind);
     reveal("stepShape");
   });
 
@@ -415,12 +419,12 @@
     var grid=$("shape-grid"); grid.innerHTML="";
     SHAPE_KINDS.forEach(function(sk){
       var btn=document.createElement("button");
-      btn.type="button"; btn.className="shape-btn"; btn.setAttribute("data-kind",sk.k);
+      btn.type="button"; btn.className="shape-btn"+(sk.k===state.pendingShapeKind?" on":""); btn.setAttribute("data-kind",sk.k);
       btn.innerHTML='<span class="shape-prev">'+miniSvg(area,sk.k)+'</span><b>'+sk.label+'</b>';
       btn.addEventListener("click",function(){
+        state.pendingShapeKind=sk.k;
         Array.prototype.forEach.call(grid.children,function(c){c.classList.remove("on")});
         btn.classList.add("on");
-        applyShape(area,sk.k);
       });
       grid.appendChild(btn);
     });
@@ -432,7 +436,6 @@
     $("plan-sticky").hidden=false;
     $("phase-badge").textContent="모양 조정 중";
     updatePlanSizeTxt();
-    $("shape-refine").hidden=false;
     render();
   }
   function updatePlanSizeTxt(){
@@ -756,6 +759,7 @@
 
   /* ---------- 초기화 ---------- */
   updPyOut();
+  renderShapeGrid((+$("py").value||6)*PYEONG);
   if(decode()){
     if($("stepA-modal"))$("stepA-modal").hidden=true;
     state.phase="D";

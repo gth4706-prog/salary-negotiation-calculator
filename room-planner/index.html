@@ -54,15 +54,19 @@
   </div>
 </div>
 
-<!-- STEP A: 평수 입력 (팝업) -->
+<!-- STEP A: 평수 입력 + 방 형태 선택 (팝업, 확정 버튼 하나) -->
 <div class="modal-backdrop" id="stepA-modal">
   <div class="modal-box">
-    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">몇 평의 방인가요?<span class="s">평수를 넣으면 미터법으로 환산해 정사각형에 가까운 모양부터 만들어 드려요.</span></h2>
-    <div class="row" style="margin-top:16px">
-      <div class="field"><label class="lbl" for="py">평수</label><div class="money"><input class="txt" id="py" type="number" min="1" max="30" step="0.5" value="6" inputmode="decimal"><span class="u">평</span></div></div>
-      <div class="field"><label class="lbl">환산 크기</label><div class="age-out" id="py-out">–</div></div>
+    <div class="modal-scroll">
+      <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">몇 평의 방인가요?<span class="s">평수를 넣으면 미터법으로 환산해 형태를 미리 보여드려요.</span></h2>
+      <div class="row" style="margin-top:16px">
+        <div class="field"><label class="lbl" for="py">평수</label><div class="money"><input class="txt" id="py" type="number" min="1" max="30" step="0.5" value="6" inputmode="decimal"><span class="u">평</span></div></div>
+        <div class="field"><label class="lbl">환산 크기</label><div class="age-out" id="py-out">–</div></div>
+      </div>
+      <div class="helper" style="margin-top:16px">💡 내 방과 비슷한 형태를 하나 골라주세요. 나중에 세부 조정도 가능해요.</div>
+      <div class="shape-grid" id="shape-grid" style="margin-top:10px"></div>
     </div>
-    <button class="cta" id="gen-room" type="button" style="margin-top:16px;width:100%">방 생성 →</button>
+    <button class="cta" id="gen-room" type="button">이 형태로 방 만들기 →</button>
   </div>
 </div>
 
@@ -74,20 +78,15 @@
 
   <div class="note"><span>ℹ️</span><span>모든 계산은 <b>브라우저 안에서만</b> 이뤄지며 어디에도 저장·전송되지 않습니다. 실제 시공·구매 전에는 반드시 현장 실측을 권장합니다.</span></div>
 
-  <!-- STEP SHAPE: 방 형태 선택 (+ 원하는 사람만 세부 조정) -->
+  <!-- STEP 세부조정: 원하는 사람만 다듬기 -->
   <section class="card step" id="stepShape" hidden>
-    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">방 형태를 골라주세요<span class="s">입력한 평수에 맞춰 만든 대략적인 형태예요. 내 방과 비슷한 걸 고르면 됩니다.</span></h2>
-    <div class="shape-grid" id="shape-grid" style="margin-top:14px"></div>
-
-    <div class="shape-refine" id="shape-refine" hidden style="margin-top:18px">
-      <div class="helper">💡 이대로 써도 되고, 위 평면도를 눌러서 끌면 칸을 더 다듬을 수 있어요. 세부 조정이 필요 없다면 바로 확정하세요.</div>
-      <div class="cat-row" id="tile-mode-row" style="margin-top:10px">
-        <button type="button" class="cat-btn on" id="tile-add" data-mode="add">➕ 칸 추가</button>
-        <button type="button" class="cat-btn" id="tile-remove" data-mode="remove">➖ 칸 제거</button>
-        <button type="button" class="cat-btn" id="rotate-room">↻ 평면도 90° 회전</button>
-      </div>
-      <button class="cta" id="shape-done" type="button" style="margin-top:14px">이 모양으로 확정 →</button>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">필요하면 모양을 더 다듬어보세요<span class="s">이대로도 괜찮아요. 위 평면도를 눌러서 끌면 칸을 더 다듬을 수 있어요.</span></h2>
+    <div class="cat-row" id="tile-mode-row" style="margin-top:14px">
+      <button type="button" class="cat-btn on" id="tile-add" data-mode="add">➕ 칸 추가</button>
+      <button type="button" class="cat-btn" id="tile-remove" data-mode="remove">➖ 칸 제거</button>
+      <button type="button" class="cat-btn" id="rotate-room">↻ 평면도 90° 회전</button>
     </div>
+    <button class="cta" id="shape-done" type="button" style="margin-top:14px">다음: 가전 배치 →</button>
   </section>
 
   <!-- STEP C: 필수 가전 -->

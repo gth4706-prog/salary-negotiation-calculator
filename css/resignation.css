@@ -1,0 +1,33 @@
+/* =========================================================
+   퇴사 타이밍 계산기 — 전용 스타일 (공유 style.css 뒤에 로드)
+   ========================================================= */
+
+/* 배포 버전 배지(캐시 확인용) */
+.ver-badge{font-size:10px;font-weight:800;color:var(--faint);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:3px 8px;letter-spacing:.02em;font-variant-numeric:tabular-nums;margin-left:6px}
+
+/* 연차 산정기준 토글 */
+.unit-toggle{display:flex;gap:6px}
+.unit-btn{font:inherit;font-size:13px;font-weight:700;padding:10px 14px;border-radius:10px;cursor:pointer;border:1.5px solid var(--line-strong);background:var(--paper);color:var(--muted)}
+.unit-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* 결과 카드 */
+.rcard{border:1px solid var(--line);border-radius:var(--r-sm);padding:14px 15px;background:var(--paper)}
+.rcard .rt{display:flex;align-items:center;gap:8px;font-weight:800;font-size:13.5px}
+.rcard .rt .ic{font-size:15px;line-height:1}
+.rcard .rd{font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.6}
+.rcard.ok{background:var(--good-bg);border-color:color-mix(in srgb,var(--good) 35%,var(--line))}
+.rcard.ok .rt{color:var(--good)}
+.rcard.warn{background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 35%,var(--line))}
+.rcard.warn .rt{color:var(--warn)}
+.rcard.info{background:var(--surface-2)}
+
+/* 퇴사 고민 체크 — 진행 표시 */
+.psy-progress{display:flex;gap:5px}
+.psy-progress span{flex:1;height:4px;border-radius:999px;background:var(--surface-2)}
+.psy-progress span.done{background:var(--accent)}
+
+/* 퇴사 고민 체크 — 질문/선택지 */
+.psy-q .pq-t{font-size:15px;font-weight:800;letter-spacing:-.01em;margin-bottom:12px}
+.psy-opts{display:flex;flex-direction:column;gap:8px}
+.psy-opt{font:inherit;text-align:left;padding:13px 15px;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);color:var(--ink);cursor:pointer;font-size:14px;font-weight:600;transition:border-color .12s,transform .1s}
+.psy-opt:hover{border-color:var(--accent);transform:translateY(-1px)}

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="google-site-verification" content="-Vv3HKaiNfWlG3iVql38iG773LaD3LpSHJtwBU4-iU8" />
+<meta name="naver-site-verification" content="d4f9a360f5b25c71f4df188700ea809f9f69c0dd" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#A56F63">
+<title>퇴사 타이밍 계산기 | 퇴직금·연차수당 다 챙기는 퇴사일 계산</title>
+<meta name="description" content="입사일만 넣으면 퇴직금이 발생하는 날짜와 다음 연차가 생기는 날짜를 계산해, 두 조건을 모두 챙길 수 있는 최적 퇴사일을 알려드립니다. 퇴사 이유를 가볍게 점검하는 체크도 함께.">
+<link rel="canonical" href="https://joeltool.com/resignation-timing/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="퇴사 타이밍 계산기">
+<meta property="og:description" content="퇴직금·연차수당 다 챙기는 퇴사일 계산 + 퇴사 고민 가볍게 점검하기.">
+<meta property="og:url" content="https://joeltool.com/resignation-timing/">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%AA%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="../css/style.css?v=0.01">
+<link rel="stylesheet" href="../css/resignation.css?v=0.01">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"퇴사 타이밍 계산기","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"입사일을 기준으로 퇴직금·연차수당을 모두 챙길 수 있는 최적 퇴사일을 계산하는 무료 도구."}
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<nav class="nav"><div class="in">
+  <a class="brand" href="../index.html">
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
+    <span class="n">각잡살림</span>
+  </a>
+  <div class="links">
+    <a href="../salary-calculator/">연봉 계산기</a>
+    <a href="../room-planner/">방 배치</a>
+    <a href="../about.html">소개</a>
+    <button class="theme-btn" id="theme-btn" type="button">◐</button>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.01</span>
+  </div>
+</div></nav>
+
+<main class="wrap page stack">
+  <header class="hero">
+    <h1>퇴사 타이밍 계산기</h1>
+    <p>입사일만 넣으면 <b>퇴직금·연차수당을 다 챙길 수 있는 날짜</b>를 계산해 드려요. 그 아래에서 <b>퇴사 이유도 가볍게 점검</b>해볼 수 있어요.</p>
+  </header>
+
+  <div class="note"><span>ℹ️</span><span>모든 계산은 <b>브라우저 안에서만</b> 이뤄지며 어디에도 저장·전송되지 않습니다. 회사 내규에 따라 실제 기준은 다를 수 있어 참고용으로만 활용해 주세요.</span></div>
+
+  <!-- STEP 1: 입력 -->
+  <section class="card step" id="stepIn">
+    <h2 class="q">언제 입사하셨나요?<span class="s">입사일만 있으면 계산할 수 있어요. 나머지는 선택이에요.</span></h2>
+    <div class="row" style="margin-top:16px">
+      <div class="field"><label class="lbl" for="hire-date">입사일</label><input class="txt" id="hire-date" type="date"></div>
+      <div class="field">
+        <label class="lbl">연차 산정 기준</label>
+        <div class="unit-toggle">
+          <button type="button" class="unit-btn on" id="basis-hire" data-basis="hire">입사일 기준</button>
+          <button type="button" class="unit-btn" id="basis-fiscal" data-basis="fiscal">회계연도(1/1) 기준</button>
+        </div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:15px">
+      <div class="field"><label class="lbl" for="monthly-pay">월급 <span class="hint">(선택 — 연차수당 손해액 근사 계산용)</span></label><div class="money"><input class="txt" id="monthly-pay" type="number" min="0" step="10" placeholder="300" inputmode="numeric"><span class="u">만원</span></div></div>
+      <div class="field"><label class="lbl" for="target-date">퇴사 희망일 <span class="hint">(선택 — 넣으면 그 날짜도 같이 판정)</span></label><input class="txt" id="target-date" type="date"></div>
+    </div>
+    <button class="cta" id="calc-btn" type="button" style="margin-top:16px">퇴사 타이밍 계산하기 →</button>
+  </section>
+
+  <!-- STEP 2: 결과 -->
+  <section class="card step" id="stepResult" hidden>
+    <h2 class="q">이렇게 계산됐어요<span class="s" id="result-sub">–</span></h2>
+    <div class="verdict-line" id="combo-line" style="margin-top:14px">–</div>
+    <div class="cmp2" id="result-cards" style="margin-top:14px"></div>
+    <div class="cmp2" id="target-cards" style="margin-top:10px"></div>
+  </section>
+
+  <div class="ad-slot" aria-hidden="true" id="adwrap" hidden><span class="lab">광고 영역 (승인 후 노출)</span></div>
+
+  <!-- STEP 3: 퇴사 고민 체크 -->
+  <section class="card step" id="stepPsy">
+    <h2 class="q">퇴사, 어떤 이유로 고민하고 계신가요?<span class="s">클릭 한 번으로 다음 질문이 이어져요. 5개 답하면 짧은 정리를 보여드려요.</span></h2>
+    <div class="helper" style="margin-top:12px">💡 이 체크는 전문 심리상담을 대체하지 않는 <b>참고용 성찰 도구</b>예요. 힘든 상황이 계속된다면 전문가 상담을 권해드려요.</div>
+
+    <div class="psy-progress" id="psy-progress" style="margin-top:14px"></div>
+    <div class="psy-q" id="psy-q" style="margin-top:10px"></div>
+    <div class="verdict-line" id="psy-result" hidden style="margin-top:16px"></div>
+    <button class="cta ghost" id="psy-restart" type="button" hidden style="margin-top:12px">↺ 다시 체크하기</button>
+  </section>
+
+  <!-- 다른 도구 -->
+  <section class="card">
+    <h2>다른 도구</h2>
+    <ul class="guides">
+      <li><a href="../salary-calculator/">이직 연봉 협상 계산기<span>제안 연봉이 적정한지 · 실수령액 · 평균 대비 포지션</span></a></li>
+      <li><a href="../room-planner/">방 가구 배치 시뮬레이터<span>평수 입력하면 방 모양부터, 가전·가구까지 배치</span></a></li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer"><div class="in">
+  <a href="../about.html">소개</a><span class="sep">·</span>
+  <a href="../privacy.html">개인정보처리방침</a><span class="sep">·</span>
+  <a href="../contact.html">문의</a><span class="sep">·</span>
+  <a href="../salary-calculator/">연봉 계산기</a>
+  <div class="cp">참고용 도구이며 법적 효력이 없습니다. © 각잡살림</div>
+</div></footer>
+
+<script src="../js/site.js?v=0.01"></script>
+<script src="../js/resignation.js?v=0.01"></script>
+</body>
+</html>

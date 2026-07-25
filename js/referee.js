@@ -119,7 +119,7 @@
   $("handoff-continue").addEventListener("click",function(){
     state.phase="B";
     resetFormFields();
-    $("form-title").textContent="두 번째 분, 상황을 알려주세요";
+    $("form-title-text").textContent="두 번째 분, 상황을 알려주세요";
     $("form-sub").textContent="앞서 적은 내용은 안 보여요. 편하게 적어주세요.";
     $("form-next").textContent="판정 받기 →";
     $("stepHandoff").hidden=true;

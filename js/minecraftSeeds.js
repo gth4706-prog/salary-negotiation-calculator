@@ -1,113 +1,185 @@
 /* =========================================================
    마인크래프트 시드 추천기 (minecraft-seeds)
-   - 서버 없음. data/minecraft-seeds.json(204개, 실제 수집)을 같은 사이트에서 fetch.
-   - 로딩 연출의 "5,000여 개" 카운트는 순수 애니메이션 장식이며, 실제 추천은
-     항상 204개의 검증된 데이터 안에서만 이루어짐(과장 없음 원칙).
+   - 서버 없음. data/minecraft-seeds.json을 같은 사이트에서 fetch.
+   - 무작위 추첨이 아니라, 실제 시드 데이터(카테고리·설명문)에서 뽑아낸
+     특징과 사용자 답변을 점수로 매칭해 상위 1~2개를 고른다.
    ========================================================= */
 (function(){
   var $=function(id){return document.getElementById(id)};
-  if(!$("stepQ1"))return;
+  if(!$("mc-quiz"))return;
 
-  var GROUPS=[
-    {id:"nature",icon:"🌿",label:"자연 경관이 예쁜 곳",tags:["자연경관","벚꽃숲","겨울설원","사막","정글","초원평원","버섯섬","해양난파선"]},
-    {id:"survival",icon:"🏘️",label:"마을·자원이 많은 생존",tags:["마을근접","촌락밀집","생존초반유리"]},
-    {id:"ruins",icon:"🏛️",label:"던전·유적 탐험",tags:["던전유적"]},
-    {id:"rare",icon:"💎",label:"희귀·독특한 지형",tags:["희귀독특"]},
-    {id:"build",icon:"🏗️",label:"건축하기 좋은 곳",tags:["건축용"]},
-    {id:"speedrun",icon:"🏃",label:"스피드런에 좋은 곳",tags:["스피드런"]}
+  /* ---------- 시드 1건에서 특징 추출 ---------- */
+  function featuresOf(s){
+    var t=(s.category||"")+" "+(s.description||"");
+    return {
+      village:/마을|촌락/.test(t),
+      ruins:/저택|사원|유적|초소|요새|고대|기념물|던전|폐허|시험실/.test(t),
+      cave:/동굴|광산|협곡|다이아|광물|자원|치즈/.test(t),
+      forest:/숲|벚꽃|꽃/.test(t),
+      snow:/눈|얼음|설원|타이가|서리/.test(t),
+      desert:/사막|황토|메사/.test(t),
+      jungle:/정글|대나무/.test(t),
+      ocean:/바다|해양|섬|난파선|산호/.test(t),
+      mountain:/산|절벽|봉우리|계곡|고원/.test(t)
+    };
+  }
+
+  /* ---------- 질문지 ---------- */
+  var QUESTIONS=[
+    {id:"edition",t:"어떤 에디션으로 플레이하세요?",opts:[
+      ["java","☕","자바 (PC)"],
+      ["bedrock","🧱","베드락 (모바일·콘솔)"],
+      ["any","🎮","상관없어요"]
+    ]},
+    {id:"style",t:"이번 월드에서 뭘 하고 싶으세요?",opts:[
+      ["settle","🏘️","자리 잡고 생존하기"],
+      ["explore","🧭","유적·던전 탐험하기"],
+      ["build","🏗️","예쁜 곳에 건축하기"],
+      ["speed","🏃","빠르게 클리어하기"],
+      ["weird","💎","특이한 지형 구경하기"]
+    ]},
+    {id:"scene",t:"어떤 풍경에서 시작하고 싶으세요?",opts:[
+      ["forest","🌸","숲·벚꽃"],
+      ["snow","❄️","눈·얼음"],
+      ["desert","🏜️","사막"],
+      ["jungle","🌴","정글"],
+      ["ocean","🌊","바다·섬"],
+      ["mountain","⛰️","산·절벽"],
+      ["any","🎲","상관없어요"]
+    ]},
+    {id:"near","t":"스폰 근처에 뭐가 있으면 좋겠어요?",opts:[
+      ["village","🏡","마을"],
+      ["ruins","🏛️","유적·던전"],
+      ["cave","⛏️","동굴·광물"],
+      ["any","🤷","상관없어요"]
+    ]}
   ];
 
-  var DATA=[], byTag={};
+  var STYLE_CATS={
+    settle:["마을근접","촌락밀집","생존초반유리"],
+    explore:["던전유적","해양난파선"],
+    build:["건축용","벚꽃숲","초원평원"],
+    speed:["스피드런"],
+    weird:["희귀독특","자연경관"]
+  };
+  var SCENE_LABEL={forest:"숲·벚꽃",snow:"눈·얼음",desert:"사막",jungle:"정글",ocean:"바다·섬",mountain:"산·절벽"};
+  var NEAR_LABEL={village:"마을 근처",ruins:"유적·던전",cave:"동굴·광물"};
+  var STYLE_LABEL={settle:"생존 정착",explore:"탐험",build:"건축",speed:"스피드런",weird:"특이 지형"};
+
+  var DATA=[], answers={}, qIdx=0, ranked=[], shownFrom=0;
+
   fetch("../data/minecraft-seeds.json")
     .then(function(r){return r.json()})
     .then(function(list){
-      DATA=list||[];
-      DATA.forEach(function(s){
-        byTag[s.category]=byTag[s.category]||[];
-        byTag[s.category].push(s);
-      });
-      renderQ1();
+      DATA=(list||[]).map(function(s){ s._f=featuresOf(s); return s; });
+      renderQuestion();
     })
     .catch(function(){
-      $("mc-q1").innerHTML='<div class="helper">시드 데이터를 불러오지 못했어요. 새로고침해 주세요.</div>';
+      $("mc-quiz").innerHTML='<div class="helper">시드 데이터를 불러오지 못했어요. 새로고침해 주세요.</div>';
     });
 
-  function tagCount(tag){ return (byTag[tag]||[]).length; }
-  function groupCount(g){ return g.tags.reduce(function(sum,t){return sum+tagCount(t)},0); }
-
-  function renderQ1(){
-    var box=$("mc-q1"); box.innerHTML="";
-    GROUPS.forEach(function(g){
+  /* ---------- 질문 렌더 ---------- */
+  function renderProgress(){
+    var box=$("mc-progress"); box.innerHTML="";
+    for(var i=0;i<QUESTIONS.length;i++){
+      var s=document.createElement("span");
+      if(i<qIdx)s.className="done";
+      box.appendChild(s);
+    }
+  }
+  function renderQuestion(){
+    if(qIdx>=QUESTIONS.length){ finish(); return; }
+    renderProgress();
+    var q=QUESTIONS[qIdx];
+    $("mc-q-title").textContent=(qIdx+1)+". "+q.t;
+    var box=$("mc-opts"); box.innerHTML="";
+    q.opts.forEach(function(o){
       var b=document.createElement("button");
       b.type="button"; b.className="mc-opt";
-      b.innerHTML='<span class="ic">'+g.icon+'</span><span class="lb">'+g.label+'</span><span class="n">'+groupCount(g)+'개</span>';
+      b.innerHTML='<span class="ic">'+o[1]+'</span><span class="lb">'+o[2]+'</span>';
       b.addEventListener("click",function(){
-        if(g.tags.length>1){ renderQ2(g); $("stepQ1").hidden=true; $("stepQ2").hidden=false; $("stepQ2").scrollIntoView({behavior:"smooth",block:"start"}); }
-        else{ startResult(g.tags[0]); }
+        answers[q.id]=o[0];
+        qIdx++;
+        renderQuestion();
       });
       box.appendChild(b);
     });
-  }
-
-  function renderQ2(g){
-    var box=$("mc-q2"); box.innerHTML="";
-    g.tags.forEach(function(tag){
-      var b=document.createElement("button");
-      b.type="button"; b.className="mc-opt";
-      b.innerHTML='<span class="ic">📍</span><span class="lb">'+tag+'</span><span class="n">'+tagCount(tag)+'개</span>';
-      b.addEventListener("click",function(){ startResult(tag); });
-      box.appendChild(b);
-    });
+    $("mc-back").hidden=qIdx===0;
   }
   $("mc-back").addEventListener("click",function(){
-    $("stepQ2").hidden=true; $("stepQ1").hidden=false;
-    $("stepQ1").scrollIntoView({behavior:"smooth",block:"start"});
+    if(qIdx>0){ qIdx--; renderQuestion(); }
   });
 
-  var currentTag=null;
-  function startResult(tag){
-    currentTag=tag;
-    $("stepQ1").hidden=true; $("stepQ2").hidden=true;
-    runScanAnimation(function(){ showResult(tag); });
+  /* ---------- 점수 매칭 ---------- */
+  function editionOk(s){
+    var e=(s.edition||"").toLowerCase();
+    if(answers.edition==="java")return e.indexOf("java")!==-1;
+    if(answers.edition==="bedrock")return e.indexOf("bedrock")!==-1;
+    return true;
   }
-  function runScanAnimation(cb){
-    var overlay=$("mc-loading"), numEl=$("mc-loading-num");
-    overlay.hidden=false;
-    overlay.scrollIntoView({behavior:"smooth",block:"start"});
-    var target=5000+Math.floor(Math.random()*400);
-    var start=null, dur=900;
-    function tick(ts){
-      if(!start)start=ts;
-      var p=Math.min(1,(ts-start)/dur);
-      numEl.textContent=Math.floor(p*target).toLocaleString();
-      if(p<1)requestAnimationFrame(tick);
-      else setTimeout(function(){ overlay.hidden=true; cb(); },350);
-    }
-    requestAnimationFrame(tick);
+  function scoreSeed(s){
+    var sc=0, why=[];
+    var cats=STYLE_CATS[answers.style]||[];
+    if(cats.indexOf(s.category)!==-1){ sc+=3; why.push(STYLE_LABEL[answers.style]); }
+    if(answers.scene!=="any"&&s._f[answers.scene]){ sc+=3; why.push(SCENE_LABEL[answers.scene]); }
+    if(answers.near!=="any"&&s._f[answers.near]){ sc+=2; why.push(NEAR_LABEL[answers.near]); }
+    if(answers.edition!=="any"&&(s.edition||"").indexOf("&")!==-1)sc+=0.5; // 양쪽 지원이면 소폭 가산
+    return {seed:s,score:sc,why:why};
+  }
+  function computeRanked(){
+    var pool=DATA.filter(editionOk).map(scoreSeed).filter(function(r){return r.score>0});
+    pool.sort(function(a,b){ return b.score-a.score; });
+    return pool;
   }
 
-  function pickRandom(tag,n){
-    var pool=(byTag[tag]||[]).slice();
-    for(var i=pool.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=pool[i]; pool[i]=pool[j]; pool[j]=t; }
-    return pool.slice(0,n);
+  function finish(){
+    renderProgress();
+    $("stepQuiz").hidden=true;
+    runScan(function(){
+      ranked=computeRanked();
+      shownFrom=0;
+      showResult();
+    });
   }
+  function runScan(cb){
+    var overlay=$("mc-loading");
+    overlay.hidden=false;
+    overlay.scrollIntoView({behavior:"smooth",block:"start"});
+    setTimeout(function(){ overlay.hidden=true; cb(); },900);
+  }
+
   function escapeHtml(s){
     return (s||"").replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});
   }
 
-  function showResult(tag){
-    var n=Math.min(3,Math.max(2, tagCount(tag)>=3?3:2));
-    var picks=pickRandom(tag,n);
-    $("mc-result-title").textContent=tag+" 추천 시드";
-    $("mc-result-sub").textContent="204개 중 "+tagCount(tag)+"개 후보에서 무작위로 골랐어요.";
-    $("mc-results").innerHTML=picks.map(function(s){
+  function showResult(){
+    var picks=ranked.slice(shownFrom,shownFrom+2);
+    if(!picks.length){
+      if(shownFrom>0){ shownFrom=0; picks=ranked.slice(0,2); }
+    }
+    if(!picks.length){
+      $("mc-result-title").textContent="딱 맞는 시드를 못 찾았어요";
+      $("mc-result-sub").textContent="조건을 조금 넓혀서 다시 골라보시겠어요?";
+      $("mc-results").innerHTML='<div class="helper">선택하신 조건 모두를 만족하는 시드가 없었어요. \'상관없어요\'를 섞어서 다시 시도해 주세요.</div>';
+      $("mc-more").hidden=true;
+      $("stepResult").hidden=false;
+      $("stepResult").scrollIntoView({behavior:"smooth",block:"start"});
+      return;
+    }
+
+    $("mc-result-title").textContent=picks.length>1?"이 시드를 추천해요":"이 시드를 추천해요";
+    $("mc-result-sub").textContent="답변하신 조건과 가장 잘 맞는 순서예요.";
+    $("mc-results").innerHTML=picks.map(function(r){
+      var s=r.seed;
+      var whyChips=r.why.map(function(w){return '<span class="mc-tag match">✓ '+escapeHtml(w)+'</span>'}).join("");
       return '<div class="mc-card">'
         +'<div class="mc-seed-row"><span class="mc-seed">'+escapeHtml(s.seed)+'</span><button type="button" class="mc-copy" data-seed="'+escapeHtml(s.seed)+'">📋 복사</button></div>'
-        +'<div class="mc-meta"><span class="mc-tag">'+escapeHtml(s.edition||"미상")+'</span><span class="mc-tag">v'+escapeHtml(s.version||"미상")+'</span></div>'
+        +'<div class="mc-meta">'+whyChips+'<span class="mc-tag">'+escapeHtml(s.edition||"미상")+'</span><span class="mc-tag">v'+escapeHtml(s.version||"미상")+'</span></div>'
         +'<div class="mc-desc">'+escapeHtml(s.description||"")+'</div>'
         +(s.source_url?'<div class="mc-src">출처: <a href="'+escapeHtml(s.source_url)+'" target="_blank" rel="noopener">'+escapeHtml(s.source_url)+'</a></div>':'')
         +'</div>';
     }).join("");
+
     Array.prototype.forEach.call($("mc-results").querySelectorAll(".mc-copy"),function(btn){
       btn.addEventListener("click",function(){
         var seed=btn.getAttribute("data-seed");
@@ -116,15 +188,22 @@
         else prompt("복사하세요:",seed);
       });
     });
+
+    $("mc-more").hidden=ranked.length<=shownFrom+2;
     $("stepResult").hidden=false;
     $("stepResult").scrollIntoView({behavior:"smooth",block:"start"});
     if($("adwrap"))$("adwrap").hidden=false;
   }
 
-  $("mc-reroll").addEventListener("click",function(){ if(currentTag)showResult(currentTag); });
+  $("mc-more").addEventListener("click",function(){
+    shownFrom+=2;
+    showResult();
+  });
   $("mc-restart").addEventListener("click",function(){
+    answers={}; qIdx=0; ranked=[]; shownFrom=0;
     $("stepResult").hidden=true;
-    $("stepQ1").hidden=false;
-    $("stepQ1").scrollIntoView({behavior:"smooth",block:"start"});
+    $("stepQuiz").hidden=false;
+    renderQuestion();
+    $("stepQuiz").scrollIntoView({behavior:"smooth",block:"start"});
   });
 })();

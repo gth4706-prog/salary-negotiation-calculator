@@ -21,6 +21,8 @@
     drawStart:null,         // {c,r}
     drawCur:null,
     customUnit:"cm",
+    tileMode:"add",         // "add" | "remove" — 방 모양 조정 드래그 모드
+    tileDrag:null,          // {mode} — B단계 드래그 중 여부
     uid:1
   };
 
@@ -311,7 +313,25 @@
   }
   function reveal(id){var e=$(id);if(!e)return;e.hidden=false;e.classList.remove("reveal");void e.offsetWidth;e.classList.add("reveal");e.scrollIntoView({behavior:"smooth",block:"start"});}
 
-  /* ---------- STEP B: 타일 토글 ---------- */
+  /* ---------- STEP B: 타일 토글(드래그로 여러 칸) ---------- */
+  function applyTile(c,r,mode){
+    var key=tileKey(c,r);
+    if(mode==="remove"){
+      if(state.tileSet.has(key)&&state.tileSet.size>4)state.tileSet.delete(key);
+    }else{
+      state.tileSet.add(key);
+    }
+    updatePlanSizeTxt();
+    render();
+  }
+  function setTileMode(m){
+    state.tileMode=m;
+    $("tile-add").classList.toggle("on",m==="add");
+    $("tile-remove").classList.toggle("on",m==="remove");
+  }
+  $("tile-add").addEventListener("click",function(){setTileMode("add")});
+  $("tile-remove").addEventListener("click",function(){setTileMode("remove")});
+
   $("shape-done").addEventListener("click",function(){
     if(state.tileSet.size<4){alert("방이 너무 작습니다. 타일을 4칸 이상 남겨주세요.");return;}
     state.phase="C";
@@ -386,11 +406,11 @@
     if(state.phase==="B"){
       var tEl=e.target.closest?e.target.closest(".tile"):null;
       if(!tEl)return;
-      var c=+tEl.getAttribute("data-c"), r=+tEl.getAttribute("data-r"), key=tileKey(c,r);
-      if(state.tileSet.has(key)){ if(state.tileSet.size>4)state.tileSet.delete(key); }
-      else state.tileSet.add(key);
-      updatePlanSizeTxt();
-      render();
+      var c=+tEl.getAttribute("data-c"), r=+tEl.getAttribute("data-r");
+      state.tileDrag={mode:state.tileMode};
+      applyTile(c,r,state.tileMode);
+      svg.setPointerCapture(e.pointerId);
+      e.preventDefault();
       return;
     }
     if(state.phase==="C"&&state.placingBuiltin){
@@ -415,6 +435,13 @@
   });
 
   svg.addEventListener("pointermove",function(e){
+    if(state.phase==="B"&&state.tileDrag){
+      var pB=toSvg(e);
+      var cB=Math.floor(pB.x/TILE), rB=Math.floor(pB.y/TILE);
+      if(cB>=0&&rB>=0&&cB<state.gridW&&rB<state.gridH)applyTile(cB,rB,state.tileDrag.mode);
+      e.preventDefault();
+      return;
+    }
     if(state.phase==="C"&&state.drawStart){
       var p=toSvg(e);
       state.drawCur={c:Math.floor(p.x/TILE),r:Math.floor(p.y/TILE)};
@@ -437,6 +464,11 @@
   });
 
   function endDrag(e){
+    if(state.phase==="B"&&state.tileDrag){
+      state.tileDrag=null;
+      try{svg.releasePointerCapture(e.pointerId)}catch(_){}
+      return;
+    }
     if(state.phase==="C"&&state.drawStart){
       var rr=drawRectFromDrag();
       var okIn=inRoom(rr), blk=allBlocks().some(function(b){return inter(rr,b.r)>0});

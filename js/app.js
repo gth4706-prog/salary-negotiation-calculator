@@ -95,6 +95,13 @@
   $("c-bonus").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();$("wish").focus();}});
   $("wish").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();submitStep1();}});
 
+  /* ---------- 포지션 바(가로 막대 + N명 중 등수) ---------- */
+  function setPct(top,markerId,rankId){
+    var m=$(markerId),r=$(rankId);
+    if(m)m.style.left=Math.max(2,Math.min(98,100-top))+"%";
+    if(r)r.innerHTML="비슷한 조건 100명 중 약 <b>"+top+"등</b>";
+  }
+
   /* ---------- STEP2 → STEP2r: 포지션 ---------- */
   var yr=$("year");
   function syncYear(){var v=+yr.value;$("year-v").textContent=v+"년차";yr.style.setProperty("--p",(v/20*100)+"%");}
@@ -104,10 +111,12 @@
     var yrN=+yr.value,cur=curTotal(),wish=val("wish");
     var cTop=topPct(cur,yrN),cl=posLabel(cTop),cd=diffPct(cur,yrN);
     $("cp-pos").textContent="상위 "+cTop+"%";
+    setPct(cTop,"cp-bar","cp-rank");
     $("cp-tag").textContent=cl.tag;$("cp-tag").style.color=cl.vc;
     $("cp-desc").innerHTML=cl.desc+" (직군 평균 대비 <b>"+(cd>=0?"+":"")+cd.toFixed(0)+"%</b>)";
     var wTop=topPct(wish,yrN),raiseReq=cur>0?(wish-cur)/cur*100:0,wr=wishRealism(raiseReq,wTop);
     $("wp-pos").textContent="상위 "+wTop+"%";
+    setPct(wTop,"wp-bar","wp-rank");
     $("wp-tag").textContent=wr.tag;$("wp-tag").style.color=wr.vc;
     $("wp-desc").innerHTML="지금보다 <b>"+(raiseReq>=0?"+":"")+raiseReq.toFixed(1)+"%</b> 인상 요구 · "+wr.txt;
   }
@@ -135,12 +144,14 @@
     var curBase=val("c-base"),offBase=val("o-base");
     var cTop=topPct(cur,yrN);
     $("r-cur-amt").textContent=won(cur);$("r-cur-pos").textContent="상위 "+cTop+"%";$("r-cur-net").textContent=wonRaw(takeHome(cur));
+    setPct(cTop,"r-cur-bar","r-cur-rank");
     var verdict=$("verdict"),line=[];
     if(hasOffer&&off>0){
       $("r-offer-card").hidden=false;
       var oTop=topPct(off,yrN),offRaise=cur>0?(off-cur)/cur*100:0;
       var baseRaise=curBase>0?(offBase-curBase)/curBase*100:(offBase>0?100:0);
       $("r-off-amt").textContent=won(off);$("r-off-pos").textContent="상위 "+oTop+"%";$("r-off-net").textContent=wonRaw(takeHome(off));
+      setPct(oTop,"r-off-bar","r-off-rank");
 
       var vc,vt,vd,body;
       var baseTxt="기본급은 지금보다 <b>"+(baseRaise>=0?"+":"")+baseRaise.toFixed(1)+"%</b>("+won(curBase)+" → "+won(offBase)+") 오릅니다.";

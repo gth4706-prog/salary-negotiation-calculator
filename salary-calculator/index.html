@@ -16,7 +16,7 @@
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%AD%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
-<link rel="stylesheet" href="../css/style.css?v=0.01">
+<link rel="stylesheet" href="../css/style.css?v=0.02">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"이직 연봉 협상 계산기(처우협의 계산)","applicationCategory":"FinanceApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"희망연봉, 평균연봉, 직군별 평균 연봉, 실수령액을 계산하고 제안받은 연봉의 포지션을 확인하는 무료 도구."}
 </script>
@@ -43,7 +43,7 @@
     <a href="guide/salary-negotiation-guide.html">협상 가이드</a>
     <a href="../about.html">소개</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.01</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.02</span>
   </div>
 </div></nav>
 
@@ -91,11 +91,17 @@
     <div class="est-net">
       <div class="k">지금 연봉 · <b id="cp-tag" style="font-weight:800">–</b></div>
       <div class="v"><span id="cp-pos">–</span></div>
+      <div class="pct-bar"><div class="pct-marker" id="cp-bar"></div></div>
+      <div class="pct-scale"><span>낮음</span><span>높음</span></div>
+      <div class="pct-rank" id="cp-rank"></div>
       <div class="tag" id="cp-desc"></div>
     </div>
     <div class="est-net" style="margin-top:14px">
       <div class="k">희망 연봉 · <b id="wp-tag" style="font-weight:800">–</b></div>
       <div class="v"><span id="wp-pos">–</span></div>
+      <div class="pct-bar"><div class="pct-marker" id="wp-bar"></div></div>
+      <div class="pct-scale"><span>낮음</span><span>높음</span></div>
+      <div class="pct-rank" id="wp-rank"></div>
       <div class="tag" id="wp-desc"></div>
     </div>
     <button class="cta" id="go3" type="button" style="margin-top:16px">다음: 제안받은 연봉이 있나요? →</button>
@@ -127,8 +133,8 @@
     <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">지금 vs 제안, 어떤 선택이 좋을까</h2>
     <div class="verdict" id="verdict" hidden><span class="dot"></span><div><div class="vt" id="v-t">–</div><div class="vd" id="v-d"></div></div></div>
     <div class="cmp2">
-      <div class="c3"><div class="nm">지금 연봉</div><div class="amt" id="r-cur-amt">–</div><div class="pos" id="r-cur-pos">–</div><div class="net">월 실수령 <span id="r-cur-net">–</span></div></div>
-      <div class="c3 wish" id="r-offer-card"><div class="nm">제안 연봉</div><div class="amt" id="r-off-amt">–</div><div class="pos" id="r-off-pos">–</div><div class="net">월 실수령 <span id="r-off-net">–</span></div></div>
+      <div class="c3"><div class="nm">지금 연봉</div><div class="amt" id="r-cur-amt">–</div><div class="pos" id="r-cur-pos">–</div><div class="pct-bar mini"><div class="pct-marker" id="r-cur-bar"></div></div><div class="pct-rank" id="r-cur-rank"></div><div class="net">월 실수령 <span id="r-cur-net">–</span></div></div>
+      <div class="c3 wish" id="r-offer-card"><div class="nm">제안 연봉</div><div class="amt" id="r-off-amt">–</div><div class="pos" id="r-off-pos">–</div><div class="pct-bar mini"><div class="pct-marker" id="r-off-bar"></div></div><div class="pct-rank" id="r-off-rank"></div><div class="net">월 실수령 <span id="r-off-net">–</span></div></div>
     </div>
     <div class="verdict-line" id="verdict-line">–</div>
     <div class="share-row">
@@ -202,7 +208,7 @@
   <div class="cp">참고용 지표이며 법적 효력이 없습니다. 정식 데이터는 고용노동부·국세청 기준으로 대체 예정. © 이직 연봉 협상 계산기</div>
 </div></footer>
 
-<script src="../js/site.js?v=0.01"></script>
-<script src="../js/app.js?v=0.01"></script>
+<script src="../js/site.js?v=0.02"></script>
+<script src="../js/app.js?v=0.02"></script>
 </body>
 </html>

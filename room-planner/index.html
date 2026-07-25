@@ -54,6 +54,18 @@
   </div>
 </div>
 
+<!-- STEP A: 평수 입력 (팝업) -->
+<div class="modal-backdrop" id="stepA-modal">
+  <div class="modal-box">
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">몇 평의 방인가요?<span class="s">평수를 넣으면 미터법으로 환산해 정사각형에 가까운 모양부터 만들어 드려요.</span></h2>
+    <div class="row" style="margin-top:16px">
+      <div class="field"><label class="lbl" for="py">평수</label><div class="money"><input class="txt" id="py" type="number" min="1" max="30" step="0.5" value="6" inputmode="decimal"><span class="u">평</span></div></div>
+      <div class="field"><label class="lbl">환산 크기</label><div class="age-out" id="py-out">–</div></div>
+    </div>
+    <button class="cta" id="gen-room" type="button" style="margin-top:16px;width:100%">방 생성 →</button>
+  </div>
+</div>
+
 <main class="wrap-wide page stack">
   <header class="hero">
     <h1>방 가구 배치 시뮬레이터</h1>
@@ -61,16 +73,6 @@
   </header>
 
   <div class="note"><span>ℹ️</span><span>모든 계산은 <b>브라우저 안에서만</b> 이뤄지며 어디에도 저장·전송되지 않습니다. 실제 시공·구매 전에는 반드시 현장 실측을 권장합니다.</span></div>
-
-  <!-- STEP A: 평수 입력 -->
-  <section class="card step" id="stepA">
-    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">몇 평의 방인가요?<span class="s">평수를 넣으면 미터법으로 환산해 정사각형에 가까운 모양부터 만들어 드려요.</span></h2>
-    <div class="row" style="margin-top:16px">
-      <div class="field"><label class="lbl" for="py">평수</label><div class="money"><input class="txt" id="py" type="number" min="1" max="30" step="0.5" value="6" inputmode="decimal"><span class="u">평</span></div></div>
-      <div class="field"><label class="lbl">환산 크기</label><div class="age-out" id="py-out">–</div></div>
-    </div>
-    <button class="cta" id="gen-room" type="button" style="margin-top:16px">방 생성 →</button>
-  </section>
 
   <!-- STEP B: 방 모양 조정 -->
   <section class="card step" id="stepB" hidden>

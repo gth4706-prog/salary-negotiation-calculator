@@ -2,6 +2,11 @@
    방 가구 배치 시뮬레이터 — 전용 스타일 (공유 style.css 뒤에 로드)
    ========================================================= */
 
+/* STEP A 팝업(평수 입력) */
+.modal-backdrop{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,20,25,.55);backdrop-filter:blur(2px)}
+.modal-backdrop[hidden]{display:none}
+.modal-box{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow-lg);padding:clamp(18px,4vw,26px)}
+
 /* 상단 고정 평면도 */
 .plan-sticky{position:sticky;top:0;z-index:20;background:var(--paper);padding:10px 0 12px;border-bottom:1px solid var(--line)}
 .plan-sticky-in{max-width:var(--wrap);margin:0 auto;padding:0 16px;position:relative}

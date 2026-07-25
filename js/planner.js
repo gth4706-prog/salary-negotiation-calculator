@@ -291,6 +291,7 @@
 
   $("gen-room").addEventListener("click",function(){
     var py=+$("py").value||0; if(py<=0){$("py").focus();return;}
+    if($("stepA-modal"))$("stepA-modal").hidden=true;
     var p=roomPreview(py);
     state.gridW=Math.min(MAX_GRID,p.cols+MARGIN*2);
     state.gridH=Math.min(MAX_GRID,p.rows+MARGIN*2);
@@ -562,6 +563,7 @@
   /* ---------- 초기화 ---------- */
   updPyOut();
   if(decode()){
+    if($("stepA-modal"))$("stepA-modal").hidden=true;
     state.phase="D";
     $("plan-sticky").hidden=false;
     $("phase-badge").textContent="가구 배치 중";

@@ -1,0 +1,20 @@
+/* =========================================================
+   키워드 진단기 — 전용 스타일 (공유 style.css 뒤에 로드)
+   ========================================================= */
+
+.kc-sub{font-size:14px;font-weight:800;margin:22px 0 10px;color:var(--ink)}
+.kc-sub:first-of-type{margin-top:18px}
+.kc-sub .hint{font-weight:500;color:var(--faint);font-size:11.5px}
+
+.kc-list{display:flex;flex-direction:column;gap:7px}
+.kc-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.kc-item .kc-rank{flex:none;width:20px;text-align:center;font-size:12px;font-weight:800;color:var(--faint)}
+.kc-item .kc-term{flex:none;width:120px;max-width:34vw;font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kc-item .kc-bar{flex:1;height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.kc-item .kc-bar-fill{height:100%;background:var(--accent);border-radius:999px}
+.kc-item .kc-src{flex:none;font-size:10px;color:var(--faint);width:52px;text-align:right}
+
+.kc-chips{display:flex;flex-wrap:wrap;gap:8px}
+.kc-chip{font-size:12.5px;font-weight:700;padding:7px 13px;border-radius:999px;background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+
+.kc-empty{padding:16px;text-align:center;color:var(--faint);font-size:13px}

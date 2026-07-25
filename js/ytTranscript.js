@@ -7,8 +7,8 @@
   var $=function(id){return document.getElementById(id)};
   if(!$("stepIn"))return;
 
-  // 배포 후 실제 Worker URL로 교체 필요
-  var API_BASE="https://yt-transcript-proxy.YOUR-SUBDOMAIN.workers.dev";
+  // 배포 후 실제 Worker URL로 교체 필요 (webtool-proxy — /seo-keywords와 공용)
+  var API_BASE="https://webtool-proxy.YOUR-SUBDOMAIN.workers.dev";
 
   var state={cues:[],player:null,pollTimer:null,activeIdx:-1};
 

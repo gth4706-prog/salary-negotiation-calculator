@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="google-site-verification" content="-Vv3HKaiNfWlG3iVql38iG773LaD3LpSHJtwBU4-iU8" />
+<meta name="naver-site-verification" content="d4f9a360f5b25c71f4df188700ea809f9f69c0dd" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#A56F63">
+<title>키워드 진단기 | 내 페이지의 SEO 키워드 확인</title>
+<meta name="description" content="웹페이지 링크를 넣으면 title·설명·제목 태그·본문에서 실제로 어떤 SEO 키워드가 잡히는지 순위로 보여주고, 추가하면 좋을 키워드 후보도 제시합니다.">
+<link rel="canonical" href="https://joeltool.com/keyword-checker/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="키워드 진단기">
+<meta property="og:description" content="링크 하나로 내 페이지의 SEO 키워드를 순위로 확인하고, 추가 키워드 후보까지.">
+<meta property="og:url" content="https://joeltool.com/keyword-checker/">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%8D%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="../css/style.css?v=0.01">
+<link rel="stylesheet" href="../css/keywordChecker.css?v=0.01">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"키워드 진단기","applicationCategory":"UtilityApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"웹페이지 링크에서 SEO 키워드를 추출하고 추가 키워드 후보를 제시하는 무료 도구."}
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<nav class="nav"><div class="in">
+  <a class="brand" href="../index.html" title="각잡살림 — 각 잡고 만든 살림(생활 도구). 쓸모있는 무료 웹 도구 모음">
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
+    <span class="n">각잡살림</span>
+  </a>
+  <div class="links">
+    <a href="../salary-calculator/">연봉 계산기</a>
+    <a href="../youtube-transcript/">유튜브 자막</a>
+    <a href="../about.html">소개</a>
+    <button class="theme-btn" id="theme-btn" type="button">◐</button>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.01</span>
+  </div>
+</div></nav>
+
+<main class="wrap-wide page stack">
+  <header class="hero">
+    <h1>키워드 진단기</h1>
+    <p>웹페이지 링크만 넣으면 <b>실제로 잡혀있는 SEO 키워드</b>를 순위로 보여드려요. 추가하면 좋을 키워드 후보도 같이요.</p>
+  </header>
+
+  <div class="note"><span>ℹ️</span><span>title·설명·제목 태그(H1~H3)·본문에서 키워드를 뽑아요. 완전한 형태소분석은 아니라 <b>근사치</b>이고, 추천 키워드는 조합 후보라 <b>실제 검색량은 확인 전</b>이에요. 상품 링크(쿠팡 등)는 접근이 막혀 있어 지원하지 않아요.</span></div>
+
+  <!-- STEP 1: URL 입력 -->
+  <section class="card step" id="stepIn">
+    <h2 class="q">진단할 페이지 링크를 넣어주세요<span class="s">블로그 글, 상세페이지, 랜딩페이지 등 어떤 웹페이지든 괜찮아요.</span></h2>
+    <div class="field full" style="margin-top:16px">
+      <input class="txt" id="kc-url" type="text" placeholder="https://example.com/my-post" inputmode="url">
+    </div>
+    <button class="cta" id="kc-go" type="button" style="margin-top:14px">키워드 진단하기 →</button>
+    <div class="helper" id="kc-error" hidden style="margin-top:12px"></div>
+  </section>
+
+  <div class="ad-slot" aria-hidden="true" id="adwrap" hidden><span class="lab">광고 영역 (승인 후 노출)</span></div>
+
+  <!-- STEP 2: 결과 -->
+  <section class="card step" id="stepResult" hidden>
+    <h2 class="q" id="kc-title" style="font-size:clamp(17px,3.2vw,20px)">–</h2>
+    <p class="desc" id="kc-desc" style="margin:4px 0 0"></p>
+
+    <h3 class="kc-sub">발견된 키워드</h3>
+    <div class="kc-list" id="kc-keywords"></div>
+
+    <h3 class="kc-sub">추가하면 좋을 키워드 후보 <span class="hint">(조합 예시, 실제 검색량 미확인)</span></h3>
+    <div class="kc-chips" id="kc-suggestions"></div>
+
+    <button class="cta ghost" id="kc-restart" type="button" style="margin-top:18px">↺ 다른 페이지 진단하기</button>
+  </section>
+
+  <!-- 다른 도구 -->
+  <section class="card">
+    <h2>다른 도구</h2>
+    <ul class="guides">
+      <li><a href="../salary-calculator/">이직 연봉 협상 계산기<span>제안 연봉이 적정한지 · 실수령액 · 평균 대비 포지션</span></a></li>
+      <li><a href="../room-planner/">방 가구 배치 시뮬레이터<span>평수 입력하면 방 모양부터, 가전·가구까지 배치</span></a></li>
+      <li><a href="../resignation-timing/">퇴사 타이밍 계산기<span>퇴직금·연차수당 다 챙기는 퇴사일 계산</span></a></li>
+      <li><a href="../couple-referee/">커플 재판<span>성향 다른 재판관 5명이 다툼을 판정</span></a></li>
+      <li><a href="../youtube-transcript/">유튜브 자막 추출기<span>링크 하나로 자막을 타임스탬프 텍스트로</span></a></li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer"><div class="in">
+  <a href="../about.html">소개</a><span class="sep">·</span>
+  <a href="../privacy.html">개인정보처리방침</a><span class="sep">·</span>
+  <a href="../contact.html">문의</a><span class="sep">·</span>
+  <a href="../salary-calculator/">연봉 계산기</a>
+  <div class="cp">참고용 도구이며 실제 검색 순위·검색량을 보장하지 않습니다. © 각잡살림</div>
+</div></footer>
+
+<script src="../js/site.js?v=0.01"></script>
+<script src="../js/keywordChecker.js?v=0.01"></script>
+</body>
+</html>

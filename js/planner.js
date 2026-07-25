@@ -646,6 +646,10 @@
         state.builtins.push({id:state.uid++,type:state.placingBuiltin.type,name:state.placingBuiltin.name,x:rr.x,y:rr.y,w:rr.w,h:rr.h});
         renderBuiltinSummary();
       }
+      state.placingBuiltin=null;
+      var btnRow=$("builtin-row");
+      if(btnRow)Array.prototype.forEach.call(btnRow.children,function(c){c.classList.remove("on")});
+      if($("builtin-hint"))$("builtin-hint").textContent="배치할 가전 버튼을 먼저 눌러주세요.";
       state.drawStart=null; state.drawCur=null;
       try{svg.releasePointerCapture(e.pointerId)}catch(_){}
       hideHint();

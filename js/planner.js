@@ -299,56 +299,116 @@
     reveal("stepShape");
   });
 
-  /* ---------- 방 형태 프리셋(공간 감각 없어도 고를 수 있게) ---------- */
+  /* ---------- 방 형태 프리셋(공간 감각 없어도 고를 수 있게, 16종) ---------- */
   var SHAPE_KINDS=[
     {k:"square",label:"정사각형에 가깝게"},
     {k:"wide",label:"가로로 넓게"},
     {k:"tall",label:"세로로 길게"},
-    {k:"lshape",label:"ㄱ자형(코너 있음)"}
+    {k:"verywide",label:"납작하고 넓게"},
+    {k:"verytall",label:"좁고 긴 복도형"},
+    {k:"corner-tr",label:"ㄱ자형(우상단 절개)"},
+    {k:"corner-tl",label:"ㄴ자형(좌상단 절개)"},
+    {k:"corner-br",label:"ㄱ자형(우하단 절개)"},
+    {k:"corner-bl",label:"ㄴ자형(좌하단 절개)"},
+    {k:"ushape",label:"ㄷ자형(양쪽 절개)"},
+    {k:"tshape",label:"T자형(통로+안쪽 방)"},
+    {k:"alcove",label:"알코브형(작은 돌출부)"},
+    {k:"nick",label:"모서리만 살짝 깎인 형"},
+    {k:"octagon",label:"네 모서리가 깎인 형"},
+    {k:"stair",label:"계단식 모서리"},
+    {k:"hall",label:"현관 복도가 딸린 형"}
   ];
-  function kindDims(area,kind){
-    var cols,rows;
-    if(kind==="wide"){
-      cols=Math.max(4,Math.round(Math.sqrt(area*1.6)/TILE));
-      rows=Math.max(3,Math.round(area/(cols*TILE)/TILE));
-    }else if(kind==="tall"){
-      rows=Math.max(4,Math.round(Math.sqrt(area*1.6)/TILE));
-      cols=Math.max(3,Math.round(area/(rows*TILE)/TILE));
-    }else if(kind==="lshape"){
-      var base=Math.max(4,Math.round(Math.sqrt(area*1.35)/TILE));
-      cols=base; rows=base;
-    }else{
-      cols=Math.max(3,Math.round(Math.sqrt(area)/TILE));
-      rows=Math.max(3,Math.round(area/(cols*TILE)/TILE));
-    }
+  function baseDims(area,ratio){
+    var cols=Math.max(3,Math.round(Math.sqrt(area*ratio)/TILE));
+    var rows=Math.max(3,Math.round(area/(cols*TILE)/TILE));
     return{cols:cols,rows:rows};
   }
-  function shapeCells(cols,rows,kind){
-    var cells=[];
-    if(kind==="lshape"){
-      var cutW=Math.max(1,Math.round(cols*0.42)), cutH=Math.max(1,Math.round(rows*0.42));
-      for(var r=0;r<rows;r++)for(var c=0;c<cols;c++){
-        if(c>=cols-cutW&&r<cutH)continue;
-        cells.push([c,r]);
-      }
-    }else{
-      for(var r2=0;r2<rows;r2++)for(var c2=0;c2<cols;c2++)cells.push([c2,r2]);
+  function fullCells(cols,rows){
+    var cs=[]; for(var r=0;r<rows;r++)for(var c=0;c<cols;c++)cs.push([c,r]); return cs;
+  }
+  function cutCorner(cells,cols,rows,corner,fw,fh){
+    var cw=Math.max(1,Math.round(cols*fw)), ch=Math.max(1,Math.round(rows*fh));
+    return cells.filter(function(p){
+      var c=p[0],r=p[1];
+      if(corner==="tr")return !(c>=cols-cw&&r<ch);
+      if(corner==="tl")return !(c<cw&&r<ch);
+      if(corner==="br")return !(c>=cols-cw&&r>=rows-ch);
+      return !(c<cw&&r>=rows-ch); // bl
+    });
+  }
+  function shapeGen(area,kind){
+    var d;
+    if(kind==="wide"){d=baseDims(area,1.6);return{cells:fullCells(d.cols,d.rows),cols:d.cols,rows:d.rows};}
+    if(kind==="tall"){d=baseDims(area,1/1.6);return{cells:fullCells(d.cols,d.rows),cols:d.cols,rows:d.rows};}
+    if(kind==="verywide"){d=baseDims(area,2.4);return{cells:fullCells(d.cols,d.rows),cols:d.cols,rows:d.rows};}
+    if(kind==="verytall"){d=baseDims(area,1/2.4);return{cells:fullCells(d.cols,d.rows),cols:d.cols,rows:d.rows};}
+    if(kind==="corner-tr"){d=baseDims(area,1.15);return{cells:cutCorner(fullCells(d.cols,d.rows),d.cols,d.rows,"tr",.42,.42),cols:d.cols,rows:d.rows};}
+    if(kind==="corner-tl"){d=baseDims(area,1.15);return{cells:cutCorner(fullCells(d.cols,d.rows),d.cols,d.rows,"tl",.42,.42),cols:d.cols,rows:d.rows};}
+    if(kind==="corner-br"){d=baseDims(area,1.15);return{cells:cutCorner(fullCells(d.cols,d.rows),d.cols,d.rows,"br",.42,.42),cols:d.cols,rows:d.rows};}
+    if(kind==="corner-bl"){d=baseDims(area,1.15);return{cells:cutCorner(fullCells(d.cols,d.rows),d.cols,d.rows,"bl",.42,.42),cols:d.cols,rows:d.rows};}
+    if(kind==="ushape"){
+      d=baseDims(area,1.15);
+      var uc=cutCorner(fullCells(d.cols,d.rows),d.cols,d.rows,"tl",.3,.35);
+      uc=cutCorner(uc,d.cols,d.rows,"tr",.3,.35);
+      return{cells:uc,cols:d.cols,rows:d.rows};
     }
-    return cells;
+    if(kind==="tshape"){
+      d=baseDims(area,1.15);
+      var tc=[], topRows=Math.max(1,Math.round(d.rows*0.4));
+      var s0=Math.round(d.cols*0.28), s1=d.cols-s0;
+      for(var r=0;r<d.rows;r++)for(var c=0;c<d.cols;c++){
+        if(r<topRows||(c>=s0&&c<s1))tc.push([c,r]);
+      }
+      return{cells:tc,cols:d.cols,rows:d.rows};
+    }
+    if(kind==="alcove"){
+      d=baseDims(area,0.85);
+      var bw=Math.max(1,Math.round(d.cols*0.28)), bh=Math.max(1,Math.round(d.rows*0.42));
+      var br0=Math.round((d.rows-bh)/2);
+      var ac=fullCells(d.cols,d.rows);
+      for(var rr=br0;rr<br0+bh;rr++)for(var cc=d.cols;cc<d.cols+bw;cc++)ac.push([cc,rr]);
+      return{cells:ac,cols:d.cols+bw,rows:d.rows};
+    }
+    if(kind==="nick"){d=baseDims(area,1);return{cells:cutCorner(fullCells(d.cols,d.rows),d.cols,d.rows,"tr",.16,.16),cols:d.cols,rows:d.rows};}
+    if(kind==="octagon"){
+      d=baseDims(area,1);
+      var oc=fullCells(d.cols,d.rows);
+      ["tl","tr","bl","br"].forEach(function(cn){oc=cutCorner(oc,d.cols,d.rows,cn,.16,.16)});
+      return{cells:oc,cols:d.cols,rows:d.rows};
+    }
+    if(kind==="stair"){
+      d=baseDims(area,1.1);
+      var s1w=Math.round(d.cols*0.45), s1h=Math.round(d.rows*0.22);
+      var s2w=Math.round(d.cols*0.22), s2h=Math.round(d.rows*0.45);
+      var stc=fullCells(d.cols,d.rows).filter(function(p){
+        var c=p[0],r=p[1];
+        var in1=c>=d.cols-s1w&&r<s1h, in2=c>=d.cols-s2w&&r<s2h;
+        return !(in1||in2);
+      });
+      return{cells:stc,cols:d.cols,rows:d.rows};
+    }
+    if(kind==="hall"){
+      d=baseDims(area,1);
+      var hw=Math.max(1,Math.round(d.cols*0.24)), hl=Math.max(2,Math.round(d.rows*0.55));
+      var hc=fullCells(d.cols,d.rows);
+      for(var hr=d.rows;hr<d.rows+hl;hr++)for(var hcx=0;hcx<hw;hcx++)hc.push([hcx,hr]);
+      return{cells:hc,cols:d.cols,rows:d.rows+hl};
+    }
+    d=baseDims(area,1); return{cells:fullCells(d.cols,d.rows),cols:d.cols,rows:d.rows}; // square(기본)
   }
   function buildShapeTileSet(area,kind){
-    var d=kindDims(area,kind), cells=shapeCells(d.cols,d.rows,kind);
-    var gridW=Math.min(MAX_GRID,d.cols+MARGIN*2), gridH=Math.min(MAX_GRID,d.rows+MARGIN*2);
-    var offC=Math.floor((gridW-d.cols)/2), offR=Math.floor((gridH-d.rows)/2);
+    var g=shapeGen(area,kind);
+    var gridW=Math.min(MAX_GRID,g.cols+MARGIN*2), gridH=Math.min(MAX_GRID,g.rows+MARGIN*2);
+    var offC=Math.floor((gridW-g.cols)/2), offR=Math.floor((gridH-g.rows)/2);
     var ts=new Set();
-    cells.forEach(function(p){ts.add(tileKey(offC+p[0],offR+p[1]))});
+    g.cells.forEach(function(p){ts.add(tileKey(offC+p[0],offR+p[1]))});
     return{tileSet:ts,gridW:gridW,gridH:gridH};
   }
   function miniSvg(area,kind){
-    var d=kindDims(area,kind), cells=shapeCells(d.cols,d.rows,kind);
-    var vb=Math.max(d.cols,d.rows), offx=(vb-d.cols)/2, offy=(vb-d.rows)/2;
+    var g=shapeGen(area,kind);
+    var vb=Math.max(g.cols,g.rows), offx=(vb-g.cols)/2, offy=(vb-g.rows)/2;
     var s='<svg viewBox="0 0 '+vb+' '+vb+'" preserveAspectRatio="xMidYMid meet">';
-    cells.forEach(function(p){s+='<rect x="'+(p[0]+offx)+'" y="'+(p[1]+offy)+'" width="1" height="1"/>';});
+    g.cells.forEach(function(p){s+='<rect x="'+(p[0]+offx)+'" y="'+(p[1]+offy)+'" width="1" height="1"/>';});
     return s+'</svg>';
   }
   function renderShapeGrid(area){

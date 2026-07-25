@@ -460,6 +460,20 @@
   $("tile-add").addEventListener("click",function(){setTileMode("add")});
   $("tile-remove").addEventListener("click",function(){setTileMode("remove")});
 
+  function rotateRoom(){
+    var oldH=state.gridH;
+    var rotated=new Set();
+    state.tileSet.forEach(function(k){
+      var p=k.split(","), c=+p[0], r=+p[1];
+      rotated.add(tileKey(oldH-1-r,c));
+    });
+    state.tileSet=rotated;
+    var tmp=state.gridW; state.gridW=state.gridH; state.gridH=tmp;
+    updatePlanSizeTxt();
+    render();
+  }
+  $("rotate-room").addEventListener("click",rotateRoom);
+
   $("shape-done").addEventListener("click",function(){
     if(state.tileSet.size<4){alert("방이 너무 작습니다. 타일을 4칸 이상 남겨주세요.");return;}
     state.phase="C";
@@ -559,6 +573,12 @@
       fEl.classList.add("dragging");
       svg.setPointerCapture(e.pointerId);
       e.preventDefault();
+    }else if(type==="builtin"){
+      var bt=state.builtins.filter(function(x){return x.id===id})[0]; if(!bt)return;
+      drag={kind:"builtin",ref:bt,dx:p.x-bt.x,dy:p.y-bt.y};
+      fEl.classList.add("dragging");
+      svg.setPointerCapture(e.pointerId);
+      e.preventDefault();
     }
   });
 
@@ -582,11 +602,18 @@
     }
     if(!drag)return;
     var p2=toSvg(e);
+    var svgRect=svg.getBoundingClientRect();
+    var outNow=e.clientX<svgRect.left||e.clientX>svgRect.right||e.clientY<svgRect.top||e.clientY>svgRect.bottom;
     if(drag.kind==="furn"){
       drag.ref.x=snap(p2.x-drag.dx); drag.ref.y=snap(p2.y-drag.dy);
       renderDiag();
-      var h=itemHint(rect(drag.ref),drag.ref);
-      showHint(e.clientX,e.clientY,h.t,h.l);
+      if(outNow)showHint(e.clientX,e.clientY,"여기서 놓으면 삭제돼요","err");
+      else{var h=itemHint(rect(drag.ref),drag.ref); showHint(e.clientX,e.clientY,h.t,h.l);}
+    }else if(drag.kind==="builtin"){
+      drag.ref.x=snap(p2.x-drag.dx); drag.ref.y=snap(p2.y-drag.dy);
+      renderDiag();
+      if(outNow)showHint(e.clientX,e.clientY,"여기서 놓으면 삭제돼요","err");
+      else{var hb={x:drag.ref.x,y:drag.ref.y,w:drag.ref.w,h:drag.ref.h}; var h2=itemHint(hb,drag.ref); showHint(e.clientX,e.clientY,h2.t,h2.l);}
     }
     e.preventDefault();
   });
@@ -611,6 +638,13 @@
       return;
     }
     if(!drag)return;
+    var svgRect2=svg.getBoundingClientRect();
+    var outEnd=e.clientX<svgRect2.left||e.clientX>svgRect2.right||e.clientY<svgRect2.top||e.clientY>svgRect2.bottom;
+    if(outEnd){
+      if(drag.kind==="furn")state.items=state.items.filter(function(x){return x.id!==drag.ref.id});
+      else if(drag.kind==="builtin"){state.builtins=state.builtins.filter(function(x){return x.id!==drag.ref.id});renderBuiltinSummary();}
+      state.selId=null; state.selType=null; syncSel();
+    }
     drag=null;
     try{svg.releasePointerCapture(e.pointerId)}catch(_){}
     hideHint();

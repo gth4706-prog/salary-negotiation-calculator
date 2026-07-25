@@ -16,8 +16,8 @@
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%AA%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
-<link rel="stylesheet" href="../css/style.css?v=0.01">
-<link rel="stylesheet" href="../css/resignation.css?v=0.01">
+<link rel="stylesheet" href="../css/style.css?v=0.02">
+<link rel="stylesheet" href="../css/resignation.css?v=0.02">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"퇴사 타이밍 계산기","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"입사일을 기준으로 퇴직금·연차수당을 모두 챙길 수 있는 최적 퇴사일을 계산하는 무료 도구."}
 </script>
@@ -35,7 +35,7 @@
     <a href="../room-planner/">방 배치</a>
     <a href="../about.html">소개</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.01</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.02</span>
   </div>
 </div></nav>
 
@@ -61,7 +61,7 @@
       </div>
     </div>
     <div class="row" style="margin-top:15px">
-      <div class="field"><label class="lbl" for="monthly-pay">월급 <span class="hint">(선택 — 연차수당 손해액 근사 계산용)</span></label><div class="money"><input class="txt" id="monthly-pay" type="number" min="0" step="10" placeholder="300" inputmode="numeric"><span class="u">만원</span></div></div>
+      <div class="field"><label class="lbl" for="monthly-pay">월급(세후) <span class="hint">(선택 — 실수령액 기준으로 넣어주세요. 연차수당·예상 퇴직금 근사 계산용)</span></label><div class="money"><input class="txt" id="monthly-pay" type="number" min="0" step="10" placeholder="300" inputmode="numeric"><span class="u">만원</span></div></div>
       <div class="field"><label class="lbl" for="target-date">퇴사 희망일 <span class="hint">(선택 — 넣으면 그 날짜도 같이 판정)</span></label><input class="txt" id="target-date" type="date"></div>
     </div>
     <button class="cta" id="calc-btn" type="button" style="margin-top:16px">퇴사 타이밍 계산하기 →</button>
@@ -106,7 +106,7 @@
   <div class="cp">참고용 도구이며 법적 효력이 없습니다. © 각잡살림</div>
 </div></footer>
 
-<script src="../js/site.js?v=0.01"></script>
-<script src="../js/resignation.js?v=0.01"></script>
+<script src="../js/site.js?v=0.02"></script>
+<script src="../js/resignation.js?v=0.02"></script>
 </body>
 </html>

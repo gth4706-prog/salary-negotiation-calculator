@@ -20,6 +20,14 @@
 
   function severanceDate(hire){ return addYears(hire,1); }
 
+  /* 예상 퇴직금 근사치 = 세후 월급 × 근속연수(1일 평균임금×30×근속일수/365 을 월급으로 근사) */
+  function estimateSeverance(hire,ref,payManwon){
+    if(!payManwon)return 0;
+    var tenureDays=daysBetween(hire,ref);
+    if(tenureDays<=0)return 0;
+    return Math.round(payManwon*(tenureDays/365));
+  }
+
   function nextAccrualDate(hire,basis,ref){
     if(basis==="fiscal"){
       return new Date(ref.getFullYear()+1,0,1);
@@ -89,10 +97,13 @@
 
     $("result-sub").textContent="입사일 "+fmt(hire)+" 기준";
 
+    var estToday=estimateSeverance(hire,today,pay);
+    var estAt1yr=estimateSeverance(hire,sevDate,pay);
+
     var cards="";
     cards+=rcard(sevDone?"ok":"warn", sevDone?"✅":"⏳", "퇴직금",
-      sevDone? "근속 1년(" + fmt(sevDate) + ") 이상 — 이미 퇴직금 발생 대상이에요."
-             : "근속 1년 완성일 " + fmt(sevDate) + " · <b>D-" + sevDday + "</b> — 그 전에 퇴사하면 퇴직금이 발생하지 않아요.");
+      (sevDone? "근속 1년(" + fmt(sevDate) + ") 이상 — 이미 퇴직금 발생 대상이에요." + (estToday? " 오늘 기준 예상 퇴직금 약 <b>" + estToday + "만원</b>(세후 월급 기준 근사치)." : "")
+             : "근속 1년 완성일 " + fmt(sevDate) + " · <b>D-" + sevDday + "</b> — 그 전에 퇴사하면 퇴직금이 발생하지 않아요." + (estAt1yr? " 1년을 채우면 예상 퇴직금 약 <b>" + estAt1yr + "만원</b>(세후 월급 기준 근사치)." : "")));
     cards+=rcard("info","📅","다음 연차 발생일",
       fmt(nextLeave) + " · <b>D-" + leaveDday + "</b> — 이 날짜에 " + batchDays + "일치 연차가 새로 생겨요." +
       (dailyWage? " 지금 퇴사하면 약 <b>" + lossAmt + "만원</b> 손해 예상(근사치)." : ""));
@@ -103,8 +114,9 @@
     var tcards="";
     if(target){
       var tSevOk=target>=sevDate, tLeaveOk=target>=nextLeave;
+      var estAtTarget=tSevOk?estimateSeverance(hire,target,pay):0;
       tcards+=rcard(tSevOk?"ok":"warn", tSevOk?"✅":"⛔", "희망일(" + fmt(target) + ") 기준 퇴직금",
-        tSevOk? "퇴직금 발생 조건을 충족해요." : "퇴직금 발생 전이에요 (" + daysBetween(target,sevDate) + "일 부족).");
+        tSevOk? "퇴직금 발생 조건을 충족해요." + (estAtTarget? " 예상 퇴직금 약 <b>" + estAtTarget + "만원</b>(세후 월급 기준 근사치)." : "") : "퇴직금 발생 전이에요 (" + daysBetween(target,sevDate) + "일 부족).");
       tcards+=rcard(tLeaveOk?"ok":"warn", tLeaveOk?"✅":"⛔", "희망일 기준 다음 연차",
         tLeaveOk? "다음 연차분까지 받을 수 있어요." : "다음 연차 발생 전이에요 (" + daysBetween(target,nextLeave) + "일 부족).");
     }

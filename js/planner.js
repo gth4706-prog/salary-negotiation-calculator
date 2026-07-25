@@ -299,6 +299,8 @@
   $("gen-room").addEventListener("click",function(){
     var py=+$("py").value||0; if(py<=0){$("py").focus();return;}
     if($("stepA-modal"))$("stepA-modal").hidden=true;
+    if($("hero"))$("hero").hidden=true;
+    if($("privacy-note"))$("privacy-note").hidden=true;
     applyShape(py*PYEONG,state.pendingShapeKind);
     reveal("stepShape");
   });
@@ -483,6 +485,7 @@
     $("phase-badge").textContent="가전 배치 중";
     updatePlanSizeTxt();
     renderBuiltinButtons();
+    $("stepShape").hidden=true;
     reveal("stepC");
     render();
   });
@@ -525,6 +528,7 @@
     $("phase-badge").textContent="가구 배치 중";
     state.placingBuiltin=null;
     renderPresets();
+    $("stepC").hidden=true;
     reveal("stepD");
     reveal("stepDiag");
     reveal("stepList");
@@ -762,12 +766,14 @@
   renderShapeGrid((+$("py").value||6)*PYEONG);
   if(decode()){
     if($("stepA-modal"))$("stepA-modal").hidden=true;
+    if($("hero"))$("hero").hidden=true;
+    if($("privacy-note"))$("privacy-note").hidden=true;
     state.phase="D";
     $("plan-sticky").hidden=false;
     $("phase-badge").textContent="가구 배치 중";
     updatePlanSizeTxt();
     renderBuiltinButtons(); renderBuiltinSummary(); renderPresets();
-    ["stepC","stepD","stepDiag","stepList"].forEach(function(id){$(id).hidden=false});
+    ["stepD","stepDiag","stepList"].forEach(function(id){$(id).hidden=false});
     if($("adwrap"))$("adwrap").hidden=false;
     syncSel(); renderDiag();
   }

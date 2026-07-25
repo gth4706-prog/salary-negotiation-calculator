@@ -294,19 +294,87 @@
   $("gen-room").addEventListener("click",function(){
     var py=+$("py").value||0; if(py<=0){$("py").focus();return;}
     if($("stepA-modal"))$("stepA-modal").hidden=true;
-    var p=roomPreview(py);
-    state.gridW=Math.min(MAX_GRID,p.cols+MARGIN*2);
-    state.gridH=Math.min(MAX_GRID,p.rows+MARGIN*2);
-    var offC=Math.floor((state.gridW-p.cols)/2), offR=Math.floor((state.gridH-p.rows)/2);
-    state.tileSet=new Set();
-    for(var r=0;r<p.rows;r++)for(var c=0;c<p.cols;c++)state.tileSet.add(tileKey(offC+c,offR+r));
+    $("shape-refine").hidden=true;
+    renderShapeGrid(py*PYEONG);
+    reveal("stepShape");
+  });
+
+  /* ---------- 방 형태 프리셋(공간 감각 없어도 고를 수 있게) ---------- */
+  var SHAPE_KINDS=[
+    {k:"square",label:"정사각형에 가깝게"},
+    {k:"wide",label:"가로로 넓게"},
+    {k:"tall",label:"세로로 길게"},
+    {k:"lshape",label:"ㄱ자형(코너 있음)"}
+  ];
+  function kindDims(area,kind){
+    var cols,rows;
+    if(kind==="wide"){
+      cols=Math.max(4,Math.round(Math.sqrt(area*1.6)/TILE));
+      rows=Math.max(3,Math.round(area/(cols*TILE)/TILE));
+    }else if(kind==="tall"){
+      rows=Math.max(4,Math.round(Math.sqrt(area*1.6)/TILE));
+      cols=Math.max(3,Math.round(area/(rows*TILE)/TILE));
+    }else if(kind==="lshape"){
+      var base=Math.max(4,Math.round(Math.sqrt(area*1.35)/TILE));
+      cols=base; rows=base;
+    }else{
+      cols=Math.max(3,Math.round(Math.sqrt(area)/TILE));
+      rows=Math.max(3,Math.round(area/(cols*TILE)/TILE));
+    }
+    return{cols:cols,rows:rows};
+  }
+  function shapeCells(cols,rows,kind){
+    var cells=[];
+    if(kind==="lshape"){
+      var cutW=Math.max(1,Math.round(cols*0.42)), cutH=Math.max(1,Math.round(rows*0.42));
+      for(var r=0;r<rows;r++)for(var c=0;c<cols;c++){
+        if(c>=cols-cutW&&r<cutH)continue;
+        cells.push([c,r]);
+      }
+    }else{
+      for(var r2=0;r2<rows;r2++)for(var c2=0;c2<cols;c2++)cells.push([c2,r2]);
+    }
+    return cells;
+  }
+  function buildShapeTileSet(area,kind){
+    var d=kindDims(area,kind), cells=shapeCells(d.cols,d.rows,kind);
+    var gridW=Math.min(MAX_GRID,d.cols+MARGIN*2), gridH=Math.min(MAX_GRID,d.rows+MARGIN*2);
+    var offC=Math.floor((gridW-d.cols)/2), offR=Math.floor((gridH-d.rows)/2);
+    var ts=new Set();
+    cells.forEach(function(p){ts.add(tileKey(offC+p[0],offR+p[1]))});
+    return{tileSet:ts,gridW:gridW,gridH:gridH};
+  }
+  function miniSvg(area,kind){
+    var d=kindDims(area,kind), cells=shapeCells(d.cols,d.rows,kind);
+    var vb=Math.max(d.cols,d.rows), offx=(vb-d.cols)/2, offy=(vb-d.rows)/2;
+    var s='<svg viewBox="0 0 '+vb+' '+vb+'" preserveAspectRatio="xMidYMid meet">';
+    cells.forEach(function(p){s+='<rect x="'+(p[0]+offx)+'" y="'+(p[1]+offy)+'" width="1" height="1"/>';});
+    return s+'</svg>';
+  }
+  function renderShapeGrid(area){
+    var grid=$("shape-grid"); grid.innerHTML="";
+    SHAPE_KINDS.forEach(function(sk){
+      var btn=document.createElement("button");
+      btn.type="button"; btn.className="shape-btn"; btn.setAttribute("data-kind",sk.k);
+      btn.innerHTML='<span class="shape-prev">'+miniSvg(area,sk.k)+'</span><b>'+sk.label+'</b>';
+      btn.addEventListener("click",function(){
+        Array.prototype.forEach.call(grid.children,function(c){c.classList.remove("on")});
+        btn.classList.add("on");
+        applyShape(area,sk.k);
+      });
+      grid.appendChild(btn);
+    });
+  }
+  function applyShape(area,kind){
+    var built=buildShapeTileSet(area,kind);
+    state.tileSet=built.tileSet; state.gridW=built.gridW; state.gridH=built.gridH;
     state.phase="B";
     $("plan-sticky").hidden=false;
     $("phase-badge").textContent="모양 조정 중";
     updatePlanSizeTxt();
-    reveal("stepB");
+    $("shape-refine").hidden=false;
     render();
-  });
+  }
   function updatePlanSizeTxt(){
     var area=state.tileSet.size*TILE*TILE;
     $("plan-size-txt").textContent=(area/10000).toFixed(1)+"m² · 약 "+(area/PYEONG).toFixed(1)+"평";
@@ -601,7 +669,7 @@
     $("phase-badge").textContent="가구 배치 중";
     updatePlanSizeTxt();
     renderBuiltinButtons(); renderBuiltinSummary(); renderPresets();
-    ["stepB","stepC","stepD","stepDiag","stepList"].forEach(function(id){$(id).hidden=false});
+    ["stepC","stepD","stepDiag","stepList"].forEach(function(id){$(id).hidden=false});
     if($("adwrap"))$("adwrap").hidden=false;
     syncSel(); renderDiag();
   }

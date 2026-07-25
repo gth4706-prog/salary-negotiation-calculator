@@ -74,15 +74,19 @@
 
   <div class="note"><span>ℹ️</span><span>모든 계산은 <b>브라우저 안에서만</b> 이뤄지며 어디에도 저장·전송되지 않습니다. 실제 시공·구매 전에는 반드시 현장 실측을 권장합니다.</span></div>
 
-  <!-- STEP B: 방 모양 조정 -->
-  <section class="card step" id="stepB" hidden>
-    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">방 모양을 실제와 비슷하게 만들어 보세요<span class="s">아래에서 추가/제거를 고른 뒤 평면도를 눌러서 끌면(드래그) 여러 칸을 한 번에 바꿀 수 있어요.</span></h2>
-    <div class="cat-row" id="tile-mode-row" style="margin-top:14px">
-      <button type="button" class="cat-btn on" id="tile-add" data-mode="add">➕ 칸 추가</button>
-      <button type="button" class="cat-btn" id="tile-remove" data-mode="remove">➖ 칸 제거</button>
+  <!-- STEP SHAPE: 방 형태 선택 (+ 원하는 사람만 세부 조정) -->
+  <section class="card step" id="stepShape" hidden>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">방 형태를 골라주세요<span class="s">입력한 평수에 맞춰 만든 대략적인 형태예요. 내 방과 비슷한 걸 고르면 됩니다.</span></h2>
+    <div class="shape-grid" id="shape-grid" style="margin-top:14px"></div>
+
+    <div class="shape-refine" id="shape-refine" hidden style="margin-top:18px">
+      <div class="helper">💡 이대로 써도 되고, 위 평면도를 눌러서 끌면 칸을 더 다듬을 수 있어요. 세부 조정이 필요 없다면 바로 확정하세요.</div>
+      <div class="cat-row" id="tile-mode-row" style="margin-top:10px">
+        <button type="button" class="cat-btn on" id="tile-add" data-mode="add">➕ 칸 추가</button>
+        <button type="button" class="cat-btn" id="tile-remove" data-mode="remove">➖ 칸 제거</button>
+      </div>
+      <button class="cta" id="shape-done" type="button" style="margin-top:14px">이 모양으로 확정 →</button>
     </div>
-    <div class="helper" style="margin-top:10px">💡 진하게 채워진 칸이 방 안쪽입니다. 위 모드를 고른 뒤 평면도를 눌러 끌면 지나간 칸이 한 번에 바뀝니다. (예: 현관·베란다 자리 빼기) 최소 4칸은 남겨두세요.</div>
-    <button class="cta" id="shape-done" type="button">이 모양으로 확정 →</button>
   </section>
 
   <!-- STEP C: 필수 가전 -->

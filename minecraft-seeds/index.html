@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="google-site-verification" content="-Vv3HKaiNfWlG3iVql38iG773LaD3LpSHJtwBU4-iU8" />
+<meta name="naver-site-verification" content="d4f9a360f5b25c71f4df188700ea809f9f69c0dd" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#A56F63">
+<title>마인크래프트 시드 추천기 | 질문 몇 개로 딱 맞는 시드 찾기</title>
+<meta name="description" content="어떤 마인크래프트 시드를 찾는지 몇 가지만 골라주세요. 5,000여 개 후보 중 실제로 확인된 204개 시드만 엄선해서 2~3개 추천해드립니다.">
+<link rel="canonical" href="https://joeltool.com/minecraft-seeds/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="마인크래프트 시드 추천기">
+<meta property="og:description" content="질문 몇 개로 내 취향에 맞는 마인크래프트 시드를 추천해드려요.">
+<meta property="og:url" content="https://joeltool.com/minecraft-seeds/">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%B0%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="../css/style.css?v=0.01">
+<link rel="stylesheet" href="../css/minecraftSeeds.css?v=0.01">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"마인크래프트 시드 추천기","applicationCategory":"GameApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"질문 몇 개로 취향에 맞는 마인크래프트 시드를 추천하는 무료 도구."}
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<nav class="nav"><div class="in">
+  <a class="brand" href="../index.html" title="각잡살림 — 각 잡고 만든 살림(생활 도구). 쓸모있는 무료 웹 도구 모음">
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
+    <span class="n">각잡살림</span>
+  </a>
+  <div class="links">
+    <a href="../keyword-checker/">키워드 진단기</a>
+    <a href="../about.html">소개</a>
+    <button class="theme-btn" id="theme-btn" type="button">◐</button>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.01</span>
+  </div>
+</div></nav>
+
+<main class="wrap page stack">
+  <header class="hero">
+    <h1>마인크래프트 시드 추천기</h1>
+    <p>몇 가지만 골라주시면 딱 맞는 시드를 찾아드려요. <b>5,000여 개 후보 중 실제로 확인된 204개</b> 시드만 추천에 씁니다.</p>
+  </header>
+
+  <div class="note"><span>ℹ️</span><span>공개된 공략 사이트·커뮤니티에서 모은 시드예요. 대부분 최신 버전(26.2) 기준이지만 <b>2차 취합 정보라 실제 게임 내 재검증은 하지 않았습니다.</b> 지형이 설명과 다를 수 있어요.</span></div>
+
+  <!-- STEP 1: 대분류 -->
+  <section class="card step" id="stepQ1">
+    <h2 class="q">어떤 시드를 찾으세요?</h2>
+    <div class="mc-grid" id="mc-q1"></div>
+  </section>
+
+  <!-- STEP 2: 중분류(필요할 때만) -->
+  <section class="card step" id="stepQ2" hidden>
+    <h2 class="q">그중에서도 어떤 느낌이 좋으세요?</h2>
+    <div class="mc-grid" id="mc-q2"></div>
+    <button class="cta ghost" id="mc-back" type="button" style="margin-top:14px">← 다시 고르기</button>
+  </section>
+
+  <!-- 로딩 연출 -->
+  <div class="mc-loading" id="mc-loading" hidden>
+    <div class="mc-loading-num" id="mc-loading-num">0</div>
+    <div class="mc-loading-txt">후보 시드 스캔 중...</div>
+  </div>
+
+  <div class="ad-slot" aria-hidden="true" id="adwrap" hidden><span class="lab">광고 영역 (승인 후 노출)</span></div>
+
+  <!-- STEP 3: 결과 -->
+  <section class="card step" id="stepResult" hidden>
+    <h2 class="q" id="mc-result-title">추천 시드</h2>
+    <p class="desc" id="mc-result-sub" style="margin:4px 0 0"></p>
+    <div class="mc-results" id="mc-results" style="margin-top:14px"></div>
+    <div class="share-row" style="margin-top:16px">
+      <button class="cta ghost" id="mc-reroll" type="button">🎲 다시 뽑기</button>
+      <button class="cta ghost" id="mc-restart" type="button">↺ 처음부터</button>
+    </div>
+  </section>
+
+  <!-- 다른 도구 -->
+  <section class="card">
+    <h2>다른 도구</h2>
+    <ul class="guides">
+      <li><a href="../salary-calculator/">이직 연봉 협상 계산기<span>제안 연봉이 적정한지 · 실수령액 · 평균 대비 포지션</span></a></li>
+      <li><a href="../room-planner/">방 가구 배치 시뮬레이터<span>평수 입력하면 방 모양부터, 가전·가구까지 배치</span></a></li>
+      <li><a href="../resignation-timing/">퇴사 타이밍 계산기<span>퇴직금·연차수당 다 챙기는 퇴사일 계산</span></a></li>
+      <li><a href="../couple-referee/">커플 재판<span>성향 다른 재판관 5명이 다툼을 판정</span></a></li>
+      <li><a href="../youtube-transcript/">유튜브 자막 추출기<span>링크 하나로 자막을 타임스탬프 텍스트로</span></a></li>
+      <li><a href="../keyword-checker/">키워드 진단기<span>내 페이지 SEO 키워드 진단 + 추천 키워드</span></a></li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer"><div class="in">
+  <a href="../about.html">소개</a><span class="sep">·</span>
+  <a href="../privacy.html">개인정보처리방침</a><span class="sep">·</span>
+  <a href="../contact.html">문의</a><span class="sep">·</span>
+  <a href="../salary-calculator/">연봉 계산기</a>
+  <div class="cp">참고용 정보이며 실제 지형은 다를 수 있습니다. © 각잡살림</div>
+</div></footer>
+
+<script src="../js/site.js?v=0.01"></script>
+<script src="../js/minecraftSeeds.js?v=0.01"></script>
+</body>
+</html>

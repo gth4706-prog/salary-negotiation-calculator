@@ -56,6 +56,7 @@ a:hover{text-decoration:underline}
 .nav .links a:hover{color:var(--ink);background:var(--surface-2);text-decoration:none}
 .theme-btn{font:inherit;font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--line);width:34px;height:34px;border-radius:50%;cursor:pointer;margin-left:4px}
 .theme-btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+.ver-badge{font-size:10px;font-weight:800;color:var(--faint);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:3px 8px;letter-spacing:.02em;font-variant-numeric:tabular-nums;margin-left:6px}
 
 /* 카드 */
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:clamp(17px,3.4vw,26px)}

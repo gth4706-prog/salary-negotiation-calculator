@@ -2,9 +2,6 @@
    방 가구 배치 시뮬레이터 — 전용 스타일 (공유 style.css 뒤에 로드)
    ========================================================= */
 
-/* 배포 버전 배지(캐시 확인용) */
-.ver-badge{font-size:10px;font-weight:800;color:var(--faint);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:3px 8px;letter-spacing:.02em;font-variant-numeric:tabular-nums;margin-left:6px}
-
 /* STEP A 팝업(평수 입력) */
 .modal-backdrop{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-start;justify-content:center;padding:20px;padding-top:min(8vh,60px);background:rgba(15,20,25,.55);backdrop-filter:blur(2px);overflow-y:auto}
 .modal-backdrop[hidden]{display:none}

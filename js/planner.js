@@ -37,7 +37,15 @@
     {type:"sink",name:"싱크대",w:180,h:60},
     {type:"fridge",name:"냉장고",w:90,h:75},
     {type:"washer",name:"세탁기",w:60,h:60},
-    {type:"shoe",name:"신발장",w:100,h:35}
+    {type:"shoe",name:"신발장",w:100,h:35},
+    {type:"closet",name:"붙박이장",w:150,h:60},
+    {type:"boiler",name:"보일러",w:60,h:25},
+    {type:"aircon",name:"에어컨(벽걸이)",w:90,h:25},
+    {type:"stove",name:"가스레인지·인덕션",w:60,h:55},
+    {type:"meter",name:"계량기함·두꺼비집",w:30,h:15},
+    {type:"boxpipe",name:"배관(PS)박스",w:40,h:40},
+    {type:"bathroom",name:"화장실 문",w:70,h:10},
+    {type:"entrance",name:"현관문",w:80,h:10}
   ];
 
   /* ---------- 기하 헬퍼 ---------- */

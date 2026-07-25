@@ -16,10 +16,19 @@
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%8B%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
-<link rel="stylesheet" href="../css/style.css?v=0.01">
-<link rel="stylesheet" href="../css/planner.css?v=0.01">
+<link rel="stylesheet" href="../css/style.css?v=0.02">
+<link rel="stylesheet" href="../css/planner.css?v=0.02">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"방 가구 배치 시뮬레이터","applicationCategory":"DesignApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"평수 기반으로 내 방 모양을 만들고 가전·가구를 배치해 통로·앞공간을 진단하는 무료 도구."}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"가구 배치를 미리 확인하는 게 정말 필요한가요?","acceptedAnswer":{"@type":"Answer","text":"이사 후 침대·소파를 들여놓고 나서야 통로가 너무 좁거나 문이 안 열리는 문제를 발견하는 경우가 많습니다. 평수·방 모양·가구 사이즈를 미리 넣어보면 실측 전에 겹침·통로 폭 문제를 걸러낼 수 있습니다."}},
+{"@type":"Question","name":"정확한 가구 사이즈를 모르면 어떻게 하나요?","acceptedAnswer":{"@type":"Answer","text":"침대는 슈퍼싱글·퀸·킹 표준 규격을 프리셋으로 제공해 사이즈를 몰라도 바로 배치할 수 있습니다. 나머지 가구는 실측하거나 구매 페이지에 적힌 가로×세로 치수를 직접 입력하면 됩니다."}},
+{"@type":"Question","name":"원룸에서 통로 폭은 최소 얼마나 확보해야 하나요?","acceptedAnswer":{"@type":"Answer","text":"사람이 지나다니는 기본 통로는 최소 60cm가 권장 기준입니다. 이 시뮬레이터는 가구를 배치하는 동안 통로가 좁아지면 실시간으로 경고를 표시합니다."}},
+{"@type":"Question","name":"상품 링크를 붙여넣으면 사이즈를 자동으로 가져오나요?","acceptedAnswer":{"@type":"Answer","text":"현재는 지원하지 않습니다. 오늘의집·쿠팡 등은 자동 수집을 막고 있어 대신 사이즈를 직접 입력하는 방식을 채택했습니다. cm·mm 단위를 토글로 바꿀 수 있습니다."}},
+{"@type":"Question","name":"배치한 결과를 저장하거나 공유할 수 있나요?","acceptedAnswer":{"@type":"Answer","text":"네. 배치도 링크 복사 버튼을 누르면 지금 배치가 URL 하나에 담겨, 그 링크를 열면 같은 배치가 그대로 재현됩니다."}}
+]}
 </script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
 </head>
@@ -34,7 +43,7 @@
     <a href="../salary-calculator/">연봉 계산기</a>
     <a href="../about.html">소개</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.01</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.02</span>
   </div>
 </div></nav>
 
@@ -92,7 +101,8 @@
 
   <!-- STEP C: 필수 가전 -->
   <section class="card step" id="stepC" hidden>
-    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">기본 가전을 배치해 보세요<span class="s">버튼을 누른 뒤, 위 평면도에서 드래그하면 그 범위만큼 자리를 차지합니다.</span></h2>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">기본 가전·구조물을 배치해 보세요<span class="s">이사해도 위치를 쉽게 바꿀 수 없는 것들이에요. 버튼을 누른 뒤 위 평면도에서 드래그하면 그 범위만큼 자리를 차지합니다.</span></h2>
+    <div class="helper" style="margin-top:8px">💡 여기서는 <b>싱크대·냉장고·붙박이장·문</b>처럼 원래 자리가 고정된 것만 입력해요. 소파·TV·테이블처럼 직접 사서 자유롭게 놓는 가구는 다음 단계에서 추가해요.</div>
     <div class="cat-row" id="builtin-row" style="margin-top:14px"></div>
     <div class="helper" id="builtin-hint">배치할 가전 버튼을 먼저 눌러주세요.</div>
     <div class="builtin-summary" id="builtin-summary">현재 구성: 아직 배치된 가전이 없습니다.</div>
@@ -153,6 +163,44 @@
     </div>
   </section>
 
+  <!-- FAQ (검색 유입용) -->
+  <section class="card">
+    <h2>자주 묻는 질문</h2>
+    <div class="faq">
+      <details>
+        <summary>가구 배치를 미리 확인하는 게 정말 필요한가요?</summary>
+        <p>이사 후 침대·소파를 들여놓고 나서야 <strong>통로가 너무 좁거나 문이 안 열리는 문제</strong>를 발견하는 경우가 많습니다. 평수·방 모양·가구 사이즈를 미리 넣어보면 실측 전에 겹침·통로 폭 문제를 걸러낼 수 있습니다.</p>
+      </details>
+      <details>
+        <summary>정확한 가구 사이즈를 모르면 어떻게 하나요?</summary>
+        <p>침대는 <strong>슈퍼싱글·퀸·킹 표준 규격</strong>을 프리셋으로 제공해 사이즈를 몰라도 바로 배치할 수 있습니다. 나머지 가구는 실측하거나 구매 페이지에 적힌 가로×세로 치수를 직접 입력하면 됩니다. 표준 침대 규격은 <a href="guide/bed-size-guide.html">침대 사이즈 총정리</a>에서 확인하세요.</p>
+      </details>
+      <details>
+        <summary>원룸에서 통로 폭은 최소 얼마나 확보해야 하나요?</summary>
+        <p>사람이 지나다니는 <strong>기본 통로는 최소 60cm</strong>가 권장 기준입니다. 이 시뮬레이터는 가구를 배치하는 동안 통로가 좁아지면 실시간으로 경고를 표시합니다. 자세한 기준은 <a href="guide/passage-width-guide.html">통로 폭 가이드</a>를 참고하세요.</p>
+      </details>
+      <details>
+        <summary>상품 링크를 붙여넣으면 사이즈를 자동으로 가져오나요?</summary>
+        <p>현재는 지원하지 않습니다. 오늘의집·쿠팡 등은 자동 수집을 막고 있어(robots.txt 차단), 대신 사이즈를 <strong>직접 입력</strong>하는 방식을 채택했습니다. cm·mm 단위를 토글로 바꿀 수 있어 어떤 단위로 적혀 있어도 그대로 넣으면 됩니다.</p>
+      </details>
+      <details>
+        <summary>배치한 결과를 저장하거나 공유할 수 있나요?</summary>
+        <p>네. "배치도 링크 복사" 버튼을 누르면 지금 배치가 URL 하나에 담겨, 그 링크를 열면 같은 배치가 그대로 재현됩니다. 가족이나 룸메이트와 배치안을 공유할 때 유용합니다.</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- 가이드 -->
+  <section class="card">
+    <h2>가구 배치 가이드</h2>
+    <p class="desc">배치 전에 읽으면 좋은 글.</p>
+    <ul class="guides">
+      <li><a href="guide/bed-size-guide.html">침대 사이즈 총정리<span>슈퍼싱글·퀸·킹 표준 규격 한눈에</span></a></li>
+      <li><a href="guide/passage-width-guide.html">원룸 가구 배치, 통로 폭은 얼마나?<span>최소 확보 기준과 자주 하는 실수</span></a></li>
+      <li><a href="guide/pre-move-planning-guide.html">이사 전 가구 배치를 미리 확인해야 하는 이유<span>실측 전에 걸러지는 문제들</span></a></li>
+    </ul>
+  </section>
+
   <!-- 다른 도구 -->
   <section class="card">
     <h2>다른 도구</h2>
@@ -170,7 +218,7 @@
   <div class="cp">참고용 도구이며 실제 시공·구매 전 현장 실측을 권장합니다. © joeltool</div>
 </div></footer>
 
-<script src="../js/site.js?v=0.01"></script>
-<script src="../js/planner.js?v=0.01"></script>
+<script src="../js/site.js?v=0.02"></script>
+<script src="../js/planner.js?v=0.02"></script>
 </body>
 </html>

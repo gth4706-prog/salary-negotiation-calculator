@@ -41,22 +41,28 @@ GAME.ResultScene.prototype.create = function () {
     color = C.warn;
   }
 
-  GAME.UI.label(this, W / 2, 210, title, 62, color, 0.5);
-  GAME.UI.label(this, W / 2, 284, sub, 18, C.textDim, 0.5);
+  var H = GAME.CONFIG.HEIGHT;
+  var P = GAME.CONFIG.PORTRAIT;
+  var u = H / 100;
+  var bw = Math.min(W - 60, 360);
 
-  GAME.UI.label(this, W / 2, 366, '상대 진형: ' + formation.name +
-    (formation.isAI ? '  (AI 배치)' : '  (사람 배치)'), 19, C.text, 0.5);
-  GAME.UI.label(this, W / 2, 402, GAME.UI.winRateText(this.formationId), 17, C.warn, 0.5);
+  GAME.UI.label(this, W / 2, u * 24, title, P ? 40 : 62, color, 0.5);
+  GAME.UI.label(this, W / 2, u * 34, sub, P ? 13 : 18, C.textDim, 0.5)
+    .setAlign('center').setWordWrapWidth(W - 40);
 
-  GAME.UI.button(this, W / 2, 494, 340, 56, '같은 진형에 다시 도전', function () {
+  GAME.UI.label(this, W / 2, u * 45, '상대 진형: ' + formation.name +
+    (formation.isAI ? ' (AI)' : ' (사람)'), P ? 15 : 19, C.text, 0.5);
+  GAME.UI.label(this, W / 2, u * 50, GAME.UI.winRateText(this.formationId), P ? 13 : 17, C.warn, 0.5);
+
+  GAME.UI.button(this, W / 2, u * 61, bw, u * 6.5, '같은 진형에 다시 도전', function () {
     self.scene.start('Draft', { formationId: self.formationId });
-  }, { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: 19 });
+  }, { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: P ? 16 : 19 });
 
-  GAME.UI.button(this, W / 2, 566, 340, 48, '다른 진형 고르기', function () {
+  GAME.UI.button(this, W / 2, u * 70, bw, u * 5.5, '다른 진형 고르기', function () {
     self.scene.start('Select');
-  }, { fontSize: 17 });
+  }, { fontSize: P ? 14 : 17 });
 
-  GAME.UI.button(this, W / 2, 630, 340, 48, '메뉴로', function () {
+  GAME.UI.button(this, W / 2, u * 78, bw, u * 5.5, '메뉴로', function () {
     self.scene.start('Menu');
-  }, { fontSize: 17 });
+  }, { fontSize: P ? 14 : 17 });
 };

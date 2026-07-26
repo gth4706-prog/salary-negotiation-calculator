@@ -27,7 +27,8 @@ GAME.BattleScene.prototype.create = function () {
   for (var i = 0; i < this.formation.units.length; i++) {
     var e = this.formation.units[i];
     if (!GAME.UNITS[e.type]) continue;
-    this.state.units.push(GAME.Combat.createUnit(e.type, e.x, e.y, 'strategist'));
+    var w = GAME.Formations.toWorld(e);
+    this.state.units.push(GAME.Combat.createUnit(e.type, w.x, w.y, 'strategist'));
   }
 
   this.hero = GAME.Combat.createHero(
@@ -37,52 +38,100 @@ GAME.BattleScene.prototype.create = function () {
   this.input.mouse.disableContextMenu();
   this.ctrl = new GAME.InputController(this, this.state, this.hero);
 
-  var barTop = 486;
+  // ── HUD: 좌표를 계산으로 배분해 겹침을 구조적으로 막는다 ──
+  var L = GAME.Layout;
+  var hud = L.hud();
+  var P = GAME.CONFIG.PORTRAIT;
+  var rows = L.rows(P
+    ? [{ name: 'status', h: 24, gap: 4 }, { name: 'status2', h: 24, gap: 10 },
+       { name: 'skills', h: 92, gap: 10 }, { name: 'hint', h: 34, gap: 0 }]
+    : [{ name: 'status', h: 26, gap: 14 },
+       { name: 'skills', h: 96, gap: 14 }, { name: 'hint', h: 20, gap: 0 }]);
+  var W = GAME.CONFIG.WIDTH;
 
-  this.hudHero = GAME.UI.label(this, 24, barTop, '', 17, C.accent, 0);
-  this.hudTimer = GAME.UI.label(this, 600, barTop - 2, '', 26, C.text, 0.5).setOrigin(0.5, 0);
-  this.hudEnemy = GAME.UI.label(this, 1176, barTop, '', 17, C.accentAlt, 0).setOrigin(1, 0);
+  this.hudHero = GAME.UI.label(this, hud.pad, rows.status.y, '', P ? 15 : 17, C.accent, 0);
+  if (P) {
+    this.hudTimer = GAME.UI.label(this, hud.pad, rows.status2.y, '', 20, C.text, 0);
+    this.hudEnemy = GAME.UI.label(this, W - hud.pad, rows.status2.y, '', 15, C.accentAlt, 0).setOrigin(1, 0);
+  } else {
+    this.hudTimer = GAME.UI.label(this, W / 2, rows.status.y - 2, '', 26, C.text, 0.5).setOrigin(0.5, 0);
+    this.hudEnemy = GAME.UI.label(this, W - hud.pad, rows.status.y, '', 17, C.accentAlt, 0).setOrigin(1, 0);
+  }
 
-  // 스킬 바 — 터치 기기에서는 눌러서 조준하는 버튼이 된다
+  // 스킬 바 5칸(QWER + 물약) — 터치에서는 눌러서 조준하는 버튼이 된다
+  var cols = L.cols(5, { gap: P ? 6 : 10, max: 104 });
+  var boxH = rows.skills.h;
   this.skillBoxes = [];
   var slots = ['Q', 'W', 'E', 'R'];
   for (var s = 0; s < slots.length; s++) {
     (function (slot, idx) {
-      var cx = 420 + idx * 104;
-      var cy = barTop + 118;
-      var rect = self.add.rectangle(cx, cy, 96, 96, 0x1c1c28).setStrokeStyle(1, 0x3a3a52);
+      var c = cols[idx], cy = rows.skills.cy;
+      var rect = self.add.rectangle(c.cx, cy, c.w, boxH, 0x1c1c28).setStrokeStyle(1, 0x3a3a52);
       rect.setInteractive({ useHandCursor: true });
       rect.on('pointerdown', function () { self.ctrl.armSkill(slot); });
       self.skillBoxes.push({
-        slot: slot, cx: cx, cy: cy, rect: rect,
-        key: GAME.UI.label(self, cx - 38, cy - 40, GAME.isTouch ? '' : slot, 15, C.accent, 0),
-        name: GAME.UI.label(self, cx, cy + 26, '', 12, C.text, 0.5).setOrigin(0.5),
-        cd: GAME.UI.label(self, cx, cy - 4, '', 20, C.text, 0.5).setOrigin(0.5)
+        slot: slot, rect: rect,
+        key: GAME.UI.label(self, c.x + 6, rows.skills.y + 4, GAME.isTouch ? '' : slot, 14, C.accent, 0),
+        name: GAME.UI.label(self, c.cx, rows.skills.bottom - 14, '', P ? 11 : 12, C.text, 0.5).setOrigin(0.5),
+        cd: GAME.UI.label(self, c.cx, cy, '', P ? 17 : 20, C.text, 0.5).setOrigin(0.5)
       });
     })(slots[s], s);
   }
 
-  this.potionBox = { cx: 856, cy: barTop + 118 };
-  var prect = this.add.rectangle(this.potionBox.cx, this.potionBox.cy, 96, 96, 0x1c1c28)
-    .setStrokeStyle(1, 0x3a3a52);
+  var pc = cols[4];
+  var prect = this.add.rectangle(pc.cx, rows.skills.cy, pc.w, boxH, 0x1c1c28).setStrokeStyle(1, 0x3a3a52);
   prect.setInteractive({ useHandCursor: true });
   prect.on('pointerdown', function () { GAME.Combat.usePotion(self.hero); });
-  GAME.UI.label(this, this.potionBox.cx - 38, this.potionBox.cy - 40,
-    GAME.isTouch ? '' : 'F', 15, C.accent, 0);
-  this.potionText = GAME.UI.label(this, this.potionBox.cx, this.potionBox.cy - 2, '', 15, C.text, 0.5).setOrigin(0.5);
-  GAME.UI.label(this, this.potionBox.cx, this.potionBox.cy + 26, '물약', 12, C.text, 0.5).setOrigin(0.5);
+  GAME.UI.label(this, pc.x + 6, rows.skills.y + 4, GAME.isTouch ? '' : 'F', 14, C.accent, 0);
+  this.potionText = GAME.UI.label(this, pc.cx, rows.skills.cy, '', P ? 14 : 15, C.text, 0.5).setOrigin(0.5);
+  GAME.UI.label(this, pc.cx, rows.skills.bottom - 14, '물약', P ? 11 : 12, C.text, 0.5).setOrigin(0.5);
 
-  this.hintText = GAME.UI.label(this, 600, barTop + 190,
-    GAME.isTouch
-      ? '한 번 탭: 이동하며 교전   ·   두 번 탭: 이동만   ·   스킬 버튼 누른 뒤 위치를 탭하면 시전'
-      : '우클릭 이동 / 적 클릭 공격   ·   방향키 직접 이동   ·   Q W E R 스킬(마우스 방향)   ·   F 물약   ·   Space 기본공격',
-    13, '#6f6f88', 0.5).setOrigin(0.5);
+  this.hintText = GAME.UI.label(this, W / 2, rows.hint.y, this._hintDefault(), P ? 11 : 13, '#6f6f88', 0.5)
+    .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - hud.pad * 2);
+
+  // 떠오르는 피해 숫자 — Text 를 미리 만들어 돌려 쓴다(매 프레임 생성은 비싸다)
+  this.numPool = [];
+  for (var n = 0; n < 26; n++) {
+    this.numPool.push(this.add.text(0, 0, '', {
+      fontFamily: GAME.CONFIG.FONT, fontSize: '18px', color: '#ffffff',
+      stroke: '#000000', strokeThickness: 4
+    }).setOrigin(0.5).setVisible(false));
+  }
 
   this.events.on('shutdown', function () { if (self.ctrl) self.ctrl.destroy(); });
 };
 
+GAME.BattleScene.prototype._hintDefault = function () {
+  return GAME.isTouch
+    ? '한 번 탭: 이동하며 교전   ·   두 번 탭: 이동만   ·   스킬 버튼 → 위치 탭'
+    : '우클릭 이동 / 적 클릭 공격   ·   방향키 직접 이동   ·   Q W E R 스킬   ·   F 물약   ·   Space 기본공격';
+};
+
 GAME.BattleScene.prototype.showMarker = function (x, y, type) {
   this.markers.push({ x: x, y: y, type: type, t: 450, total: 450 });
+};
+
+// 피해 숫자 렌더 — 위로 떠오르며 사라진다. 크리티컬은 크고 노랗고 '!' 가 붙는다.
+GAME.BattleScene.prototype.drawNumbers = function () {
+  var C = GAME.CONFIG.COLORS;
+  var Iso = GAME.Iso;
+  var nums = this.state.numbers;
+  var pool = this.numPool;
+  // 최신 것부터 풀 크기만큼만 보여준다
+  var start = Math.max(0, nums.length - pool.length);
+  var used = 0;
+  for (var i = start; i < nums.length; i++) {
+    var n = nums[i];
+    var t = pool[used++];
+    var prog = 1 - n.t / n.total;
+    t.setVisible(true);
+    t.setText(n.crit ? n.value + '!' : String(n.value));
+    t.setFontSize(n.crit ? 26 : 17);
+    t.setColor(n.crit ? C.crit : (n.onHero ? '#ff8f8f' : '#ffffff'));
+    t.setAlpha(Math.max(0, 1 - prog * prog));
+    t.setPosition(n.x + (n.drift || 0) * prog, Iso.toScreenY(n.y) - 26 - prog * 46);
+  }
+  for (; used < pool.length; used++) pool[used].setVisible(false);
 };
 
 GAME.BattleScene.prototype.update = function (time, delta) {
@@ -99,6 +148,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   }
 
   this.draw();
+  this.drawNumbers();
   this.updateHud();
 
   if (this.state.over && !this.ended) {
@@ -145,8 +195,8 @@ GAME.BattleScene.prototype.updateHud = function () {
   if (armed) {
     this.hintText.setText('조준 중 — 시전할 위치를 탭하세요 (버튼을 다시 누르면 취소)');
     this.hintText.setColor(GAME.CONFIG.COLORS.warn);
-  } else if (GAME.isTouch) {
-    this.hintText.setText('한 번 탭: 이동하며 교전   ·   두 번 탭: 이동만   ·   스킬 버튼 누른 뒤 위치를 탭하면 시전');
+  } else {
+    this.hintText.setText(this._hintDefault());
     this.hintText.setColor('#6f6f88');
   }
 
@@ -238,6 +288,19 @@ GAME.BattleScene.prototype.draw = function () {
       g.lineBetween(wx - Math.cos(perp) * half2, wy - Math.sin(perp) * half2 * Iso.TILT,
                     wx + Math.cos(perp) * half2, wy + Math.sin(perp) * half2 * Iso.TILT);
 
+    } else if (e.kind === 'healPulse') {
+      var ha = e.t / e.total;
+      g.lineStyle(2, 0x7ef0a0, ha * 0.8);
+      GAME.UI.groundCircle(g, e.x, e.y, e.r * (1.02 - ha * 0.12));
+      g.fillStyle(0x7ef0a0, ha * 0.07);
+      GAME.UI.groundCircleFill(g, e.x, e.y, e.r);
+
+    } else if (e.kind === 'block') {
+      // 방탄병이 투사체를 막았다
+      var bl = e.t / e.total;
+      g.lineStyle(3, 0x8fa0bb, bl);
+      g.strokeCircle(e.x, Iso.toScreenY(e.y) - 14, 12 + (1 - bl) * 10);
+
     } else if (e.kind === 'lob') {
       // 마법사 구체 — 예고 시간 동안 착탄점으로 날아간다
       var lp = 1 - e.t / e.total;
@@ -275,6 +338,24 @@ GAME.BattleScene.prototype.draw = function () {
     if (u.isHero) {
       g.lineStyle(2, C.controller, 0.55);
       GAME.UI.groundCircle(g, u.x, u.y, u.def.radius + 10);
+    }
+
+    // 지원 유닛의 영향 범위를 보여준다 — 뭘 해야 할지 판단할 수 있게
+    if (u.def.healRadius) {
+      g.lineStyle(1.5, 0x7ef0a0, 0.28);
+      GAME.UI.groundCircle(g, u.x, u.y, u.def.healRadius);
+    }
+    if (u.def.buffRadius) {
+      g.lineStyle(1.5, 0xffd166, 0.28);
+      GAME.UI.groundCircle(g, u.x, u.y, u.def.buffRadius);
+    }
+    if (u.def.isMine) {
+      g.lineStyle(1.5, 0xef4444, 0.5);
+      GAME.UI.groundCircle(g, u.x, u.y, u.def.triggerRadius);
+    }
+    if (u.def.intercept) {
+      g.lineStyle(1.5, 0x8fa0bb, 0.3);
+      GAME.UI.groundCircle(g, u.x, u.y, u.def.intercept);
     }
 
     var pos = GAME.UI.drawUnit(g, u.def, u.x, u.y, color, 1, u.facing);

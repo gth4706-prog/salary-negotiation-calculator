@@ -15,9 +15,9 @@ window.GAME = window.GAME || {};
 GAME.HEROES = {
   vanguard: {
     key: 'vanguard',
-    name: '선봉',
+    name: '특전사',
     trait: '돌격형',
-    desc: '앞으로 파고들어 광역으로 쓸어담는다. 체력이 두껍고 실수에 관대하다.',
+    desc: '침투해서 휘젓는다. 대검 하나로 쓸어담고, 두꺼워서 실수에 관대하다.',
     cost: 75,
     hp: 1125,
     armor: 35,
@@ -31,18 +31,18 @@ GAME.HEROES = {
     radius: 17,
     shape: 'square',
     skills: [
-      { slot: 'Q', name: '돌진베기', type: 'dash', dist: 230, damage: 55, radius: 55, cooldown: 8000 },
-      { slot: 'W', name: '회전베기', type: 'aoeSelf', radius: 88, damage: 62, cooldown: 11000 },
-      { slot: 'E', name: '방패올림', type: 'buff', armorAdd: 45, speedMul: 0.85, duration: 3500, cooldown: 14000 },
-      { slot: 'R', name: '대지가르기', type: 'aoeSelf', radius: 150, damage: 105, knockback: 95, cooldown: 32000 }
+      { slot: 'Q', name: '돌파', type: 'dash', dist: 230, damage: 55, radius: 55, cooldown: 8000 },
+      { slot: 'W', name: '대검 난무', type: 'aoeSelf', radius: 88, damage: 62, cooldown: 11000 },
+      { slot: 'E', name: '방탄 태세', type: 'buff', armorAdd: 45, speedMul: 0.85, duration: 3500, cooldown: 14000 },
+      { slot: 'R', name: '수류탄 투척', type: 'aoeSelf', radius: 150, damage: 105, knockback: 95, cooldown: 32000 }
     ]
   },
 
   ranger: {
     key: 'ranger',
-    name: '유격',
+    name: '수색대',
     trait: '원거리형',
-    desc: '거리를 벌리며 싸운다. 빠르지만 얇아서 한 번 물리면 위험하다.',
+    desc: 'K2로 거리를 벌리며 싸운다. 빠르지만 얇아서 한 번 물리면 위험하다.',
     cost: 85,
     hp: 775,
     armor: 12,
@@ -57,18 +57,18 @@ GAME.HEROES = {
     radius: 15,
     shape: 'triangle',
     skills: [
-      { slot: 'Q', name: '관통사격', type: 'projectile', damage: 68, speed: 520, pierce: true, radius: 9, cooldown: 8000 },
-      { slot: 'W', name: '구르기', type: 'dash', dist: 210, damage: 0, radius: 0, cooldown: 5000 },
-      { slot: 'E', name: '덫', type: 'trap', damage: 55, radius: 55, rootMs: 1400, life: 12000, cooldown: 11000 },
-      { slot: 'R', name: '화살비', type: 'aoeTarget', radius: 115, damage: 34, repeat: 3, interval: 700, telegraph: 600, cooldown: 30000 }
+      { slot: 'Q', name: '관통 사격', type: 'projectile', damage: 68, speed: 520, pierce: true, radius: 9, cooldown: 8000 },
+      { slot: 'W', name: '전술 굴림', type: 'dash', dist: 210, damage: 0, radius: 0, cooldown: 5000 },
+      { slot: 'E', name: '크레모아', type: 'trap', damage: 55, radius: 55, rootMs: 1400, life: 12000, cooldown: 11000 },
+      { slot: 'R', name: '박격포 요청', type: 'aoeTarget', radius: 115, damage: 34, repeat: 3, interval: 700, telegraph: 600, cooldown: 30000 }
     ]
   },
 
   warden: {
     key: 'warden',
-    name: '수호',
+    name: '헌병대',
     trait: '지속형',
-    desc: '흡혈로 버티며 오래 싸운다. 물량을 끌어모아 녹이는 쪽에 가깝다.',
+    desc: '방패로 버티며 오래 싸운다. 물량을 끌어모아 녹이는 쪽.',
     cost: 65,
     hp: 1315,
     armor: 45,
@@ -82,10 +82,10 @@ GAME.HEROES = {
     radius: 18,
     shape: 'hex',
     skills: [
-      { slot: 'Q', name: '강타', type: 'strike', damage: 88, lifestealMul: 2.5, cooldown: 7000 },
-      { slot: 'W', name: '보호막', type: 'buff', shield: 300, duration: 4500, cooldown: 15000 },
-      { slot: 'E', name: '끌어당김', type: 'pull', coneDeg: 120, dist: 240, damage: 32, cooldown: 13000 },
-      { slot: 'R', name: '성역', type: 'aura', radius: 132, dps: 26, duration: 8000, cooldown: 34000 }
+      { slot: 'Q', name: '진압봉', type: 'strike', damage: 88, lifestealMul: 2.5, cooldown: 7000 },
+      { slot: 'W', name: '방패 방어', type: 'buff', shield: 300, duration: 4500, cooldown: 15000 },
+      { slot: 'E', name: '검문 검색', type: 'pull', coneDeg: 120, dist: 240, damage: 32, cooldown: 13000 },
+      { slot: 'R', name: '통제 구역', type: 'aura', radius: 132, dps: 26, duration: 8000, cooldown: 34000 }
     ]
   }
 };

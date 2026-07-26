@@ -7,6 +7,7 @@ GAME.Combat = {
   createState: function () {
     return {
       units: [], projectiles: [], effects: [], traps: [],
+      numbers: [],          // 떠오르는 피해 숫자 (렌더 전용 데이터)
       elapsed: 0, over: false, winner: null
     };
   },
@@ -89,9 +90,23 @@ GAME.Combat = {
   },
 
   effSpeed: function (u) {
+    if (u.def.immobile) return 0;
     var s = u.def.speed;
     for (var i = 0; i < u.buffs.length; i++) if (u.buffs[i].speedMul) s *= u.buffs[i].speedMul;
     return s;
+  },
+
+  // 분대장이 주변에 있으면 공격력이 올라간다
+  effDamage: function (u, state) {
+    var d = u.def.damage;
+    if (!state) return d;
+    for (var i = 0; i < state.units.length; i++) {
+      var o = state.units[i];
+      if (!o.alive || o.side !== u.side || o === u) continue;
+      if (!o.def.buffRadius) continue;
+      if (this.dist(u, o) <= o.def.buffRadius) d *= o.def.buffDamageMul;
+    }
+    return d;
   },
 
   dist: function (a, b) {
@@ -130,8 +145,17 @@ GAME.Combat = {
   },
 
   // ── 피해 / 회복 ──────────────────────────────────────────────
-  applyDamage: function (unit, dmg, source, state) {
+  // opts: { noCrit: true } 면 크리티컬 판정을 건너뛴다(지속피해 등)
+  applyDamage: function (unit, dmg, source, state, opts) {
     if (!unit.alive) return 0;
+
+    // 크리티컬 — 모든 공격에 25% 확률로 1.5배
+    var crit = false;
+    if (!(opts && opts.noCrit) && Math.random() < GAME.CONFIG.CRIT_CHANCE) {
+      crit = true;
+      dmg *= GAME.CONFIG.CRIT_MULT;
+    }
+
     // 방어력은 '비율' 경감이다. 정액 차감으로 하면 방어력 높은 영웅에게
     // 약한 공격 다수(=물량)가 최소피해 1로 무력화되어, 물량이라는 전략 자체가 죽는다.
     var eff = Math.max(1, dmg * (100 / (100 + this.effArmor(unit))));
@@ -146,6 +170,8 @@ GAME.Combat = {
     unit.flash = 130;
     if (unit.hp <= 0) { unit.hp = 0; unit.alive = false; }
 
+    if (state) this.pushNumber(state, unit, eff, crit);
+
     // 흡혈 — 실제로 들어간 피해 기준
     if (source && source.alive && eff > 0) {
       var ls = (source.def.lifesteal || 0) * (source._lsMul || 1);
@@ -154,9 +180,35 @@ GAME.Combat = {
     return eff;
   },
 
+  pushNumber: function (state, unit, amount, crit) {
+    if (amount <= 0) return;
+    state.numbers.push({
+      x: unit.x + (Math.random() - 0.5) * 30,
+      y: unit.y,
+      // 좌우로 퍼지게 흘려보낸다 — 같은 자리에서 여러 대 맞으면 숫자가 뭉쳐 읽을 수 없다
+      drift: (Math.random() - 0.5) * 46,
+      value: Math.round(amount),
+      crit: !!crit,
+      // 영웅이 맞은 건지 적이 맞은 건지 색으로 구분
+      onHero: !!unit.isHero,
+      t: crit ? 1000 : 750,
+      total: crit ? 1000 : 750
+    });
+    // 숫자가 무한정 쌓이지 않게 상한
+    if (state.numbers.length > 70) state.numbers.splice(0, state.numbers.length - 70);
+  },
+
   heal: function (u, amount) {
     if (!u.alive) return;
     u.hp = Math.min(u.maxHp, u.hp + amount);
+  },
+
+  // 화학병 점착탄 — 같은 종류의 둔화는 갱신만 하고 중첩되지 않는다
+  applySlow: function (u, p) {
+    for (var i = 0; i < u.buffs.length; i++) {
+      if (u.buffs[i].slowTag) { u.buffs[i].t = p.slowMs; return; }
+    }
+    u.buffs.push({ speedMul: p.slowMul, t: p.slowMs, slowTag: true });
   },
 
   usePotion: function (u) {
@@ -201,8 +253,10 @@ GAME.Combat = {
   // ── 기본 공격 ────────────────────────────────────────────────
   fire: function (u, tx, ty, target, state) {
     var def = u.def;
+    if (def.attack === 'none') return;
     var ang = Math.atan2(ty - u.y, tx - u.x);
     u.facing = ang;
+    var dmg = this.effDamage(u, state);
 
     if (def.attack === 'melee') {
       var half = ((def.coneDeg || 90) * Math.PI / 180) / 2;
@@ -212,7 +266,7 @@ GAME.Combat = {
         if (this.dist(u, o) > def.range + o.def.radius) continue;
         var a = Math.atan2(o.y - u.y, o.x - u.x);
         var diff = Math.atan2(Math.sin(a - ang), Math.cos(a - ang));
-        if (Math.abs(diff) <= half) this.applyDamage(o, def.damage, u, state);
+        if (Math.abs(diff) <= half) this.applyDamage(o, dmg, u, state);
       }
       state.effects.push({
         kind: 'slash', x: u.x, y: u.y, angle: ang,
@@ -229,18 +283,20 @@ GAME.Combat = {
         x: u.x, y: u.y,
         vx: Math.cos(ang) * def.projectileSpeed,
         vy: Math.sin(ang) * def.projectileSpeed,
-        damage: def.damage,
+        damage: dmg,
         side: u.side,
         radius: def.projectileRadius,
         life: 3000,
-        owner: u
+        owner: u,
+        slowMul: def.slowMul, slowMs: def.slowMs,   // 화학병 점착탄
+        sticky: !!def.slowMul
       });
 
     } else if (def.attack === 'aoe') {
       state.effects.push({
         kind: 'telegraph', x: tx, y: ty, r: def.aoeRadius,
         t: def.telegraph, total: def.telegraph,
-        damage: def.damage, side: u.side, owner: u
+        damage: dmg, side: u.side, owner: u
       });
       // 예고 시간 동안 시전자에서 착탄점으로 구체가 날아가는 게 보인다
       state.effects.push({
@@ -253,7 +309,7 @@ GAME.Combat = {
       if (target && target.alive) {
         state.projectiles.push({
           x: u.x, y: u.y, vx: 0, vy: 0,
-          damage: def.damage, side: u.side, radius: 6,
+          damage: dmg, side: u.side, radius: 6,
           life: 4000, owner: u, homing: target,
           speed: def.bulletSpeed || 700, tracer: true
         });
@@ -441,6 +497,8 @@ GAME.Combat = {
 
     if (fromHome >= chase * 0.98) { u.stance = 'return'; return false; }
 
+    if (u.def.immobile) { u.stance = 'hold'; return true; }
+
     var tgt = this.nearestEnemy(u, state.units);
     if (tgt && this.dist(u, tgt) <= (u.def.aggro || 300)) u.stance = 'chase';
     else if (u.stance === 'chase' && fromHome > chase * 0.5) u.stance = 'return';
@@ -454,6 +512,16 @@ GAME.Combat = {
     var tgt = null;
 
     if (!this.updateStance(u, state, dt)) return;
+
+    // 지원·설치 유닛은 교전하지 않는다. 위생병은 아군 뒤에 머문다.
+    if (def.attack === 'none') {
+      if (def.isMine || def.immobile) return;
+      var home = u.home;
+      if (this.dist(u, { x: home.x, y: home.y }) > 6) {
+        this.moveToward(u, home.x, home.y, this.effSpeed(u) * dt);
+      }
+      return;
+    }
 
     if (u.order) {
       if (u.order.type === 'move') {
@@ -555,11 +623,54 @@ GAME.Combat = {
             var v = state.units[m];
             if (!v.alive || v.side === u.side) continue;
             if (this.dist(u, v) <= au.radius + v.def.radius) {
-              this.applyDamage(v, au.dps * 0.25, u, state);
+              // 지속 피해는 크리티컬 판정을 하지 않는다(숫자가 폭주함)
+              this.applyDamage(v, au.dps * 0.25, u, state, { noCrit: true });
             }
           }
         }
         if (au.t <= 0) u.auras.splice(k, 1);
+      }
+
+      // 위생병 — 주변 아군 회복
+      if (u.def.healRadius) {
+        u.healTick = (u.healTick || 0) - dtMs;
+        if (u.healTick <= 0) {
+          u.healTick = u.def.healInterval;
+          var healed = 0;
+          for (k = 0; k < state.units.length; k++) {
+            var al = state.units[k];
+            if (!al.alive || al.side !== u.side || al === u) continue;
+            if (al.hp >= al.maxHp) continue;
+            if (this.dist(u, al) <= u.def.healRadius) { this.heal(al, u.def.healPerTick); healed++; }
+          }
+          if (healed) {
+            state.effects.push({
+              kind: 'healPulse', x: u.x, y: u.y, r: u.def.healRadius,
+              t: 420, total: 420, side: u.side
+            });
+          }
+        }
+      }
+
+      // 발목지뢰 — 밟으면 최대 체력의 일정 비율이 날아간다
+      if (u.def.isMine) {
+        for (k = 0; k < state.units.length; k++) {
+          var vic = state.units[k];
+          if (!vic.alive || vic.side === u.side) continue;
+          if (this.dist(u, vic) > u.def.triggerRadius) continue;
+          var pct = vic.maxHp * u.def.pctMaxHp;
+          // 방어력을 무시하고 비율로 깎는다 — 지뢰는 방탄복으로 막는 게 아니다
+          vic.hp -= pct; vic.flash = 200;
+          if (vic.hp <= 0) { vic.hp = 0; vic.alive = false; }
+          this.pushNumber(state, vic, pct, true);
+          state.effects.push({
+            kind: 'blast', x: u.x, y: u.y, r: u.def.blastRadius,
+            t: 320, total: 320, side: u.side
+          });
+          u.alive = false;   // 1회용
+          break;
+        }
+        if (!u.alive) continue;
       }
 
       if (u.rootedFor > 0) continue;      // 속박 중엔 행동 불가
@@ -618,6 +729,25 @@ GAME.Combat = {
         continue;
       }
 
+      // 방탄병 차단 — 아군에게 갈 투사체를 몸으로 대신 맞는다.
+      // 유도탄(저격)은 대상이 정해져 있어 차단하지 않는다.
+      var blocker = null;
+      if (!p.homing) {
+        for (k = 0; k < state.units.length; k++) {
+          var sh = state.units[k];
+          if (!sh.alive || sh.side === p.side || !sh.def.intercept) continue;
+          var sdx = sh.x - p.x, sdy = sh.y - p.y;
+          if (Math.sqrt(sdx * sdx + sdy * sdy) <= sh.def.intercept + p.radius) { blocker = sh; break; }
+        }
+      }
+      if (blocker) {
+        this.applyDamage(blocker, p.damage, p.owner, state);
+        if (p.sticky) this.applySlow(blocker, p);
+        state.effects.push({ kind: 'block', x: p.x, y: p.y, t: 200, total: 200, side: p.side });
+        state.projectiles.splice(i, 1);
+        continue;
+      }
+
       var removed = false;
       for (k = 0; k < state.units.length; k++) {
         var o = state.units[k];
@@ -632,6 +762,7 @@ GAME.Combat = {
           state.effects.push({ kind: 'spark', x: p.x, y: p.y, t: 120, total: 120, side: p.side });
         } else {
           this.applyDamage(o, p.damage, p.owner, state);
+          if (p.sticky) this.applySlow(o, p);
           state.effects.push({ kind: 'spark', x: p.x, y: p.y, t: 120, total: 120, side: p.side });
           state.projectiles.splice(i, 1);
           removed = true;
@@ -662,6 +793,12 @@ GAME.Combat = {
         continue;
       }
       state.effects.splice(i, 1);
+    }
+
+    // 떠오르는 피해 숫자 수명
+    for (i = state.numbers.length - 1; i >= 0; i--) {
+      state.numbers[i].t -= dtMs;
+      if (state.numbers[i].t <= 0) state.numbers.splice(i, 1);
     }
 
     // 승패 판정

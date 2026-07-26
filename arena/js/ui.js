@@ -76,6 +76,67 @@ GAME.UI = {
     g.strokeRect(R.x, R.y, R.w, R.h);
   },
 
+  // 몸통 실루엣. 유닛 종류를 형태로 구분한다(색은 진영을 나타내므로 쓸 수 없다).
+  // fillStyle 은 호출부에서 미리 지정해둔 상태로 들어온다.
+  bodyShape: function (g, shape, sx, by, r) {
+    var i, ang, pts;
+
+    if (shape === 'square') {
+      g.fillRect(sx - r, by - r, r * 2, r * 2);
+
+    } else if (shape === 'triangle') {
+      g.fillTriangle(sx, by - r, sx - r, by + r * 0.8, sx + r, by + r * 0.8);
+
+    } else if (shape === 'diamond') {
+      g.fillPoints([
+        { x: sx, y: by - r }, { x: sx + r, y: by },
+        { x: sx, y: by + r }, { x: sx - r, y: by }
+      ], true);
+
+    } else if (shape === 'cross') {
+      // 위생병 — 십자
+      var t = r * 0.42;
+      g.fillRect(sx - t, by - r, t * 2, r * 2);
+      g.fillRect(sx - r, by - t, r * 2, t * 2);
+
+    } else if (shape === 'shield') {
+      // 방탄병 — 아래가 뾰족한 방패꼴
+      g.fillPoints([
+        { x: sx - r, y: by - r * 0.85 }, { x: sx + r, y: by - r * 0.85 },
+        { x: sx + r * 0.8, y: by + r * 0.45 }, { x: sx, y: by + r },
+        { x: sx - r * 0.8, y: by + r * 0.45 }
+      ], true);
+
+    } else if (shape === 'star') {
+      // 분대장 — 계급장 느낌의 별
+      pts = [];
+      for (i = 0; i < 10; i++) {
+        ang = (Math.PI / 5) * i - Math.PI / 2;
+        var rr = (i % 2 === 0) ? r : r * 0.45;
+        pts.push({ x: sx + Math.cos(ang) * rr, y: by + Math.sin(ang) * rr });
+      }
+      g.fillPoints(pts, true);
+
+    } else if (shape === 'bunker') {
+      // 기관총 진지 — 낮고 넓은 사대
+      g.fillRect(sx - r * 1.15, by - r * 0.5, r * 2.3, r * 1.5);
+      g.fillRect(sx - r * 0.5, by - r, r, r * 0.6);
+
+    } else if (shape === 'mine') {
+      // 발목지뢰 — 납작한 원반에 신관
+      g.fillEllipse(sx, by + r * 0.3, r * 2, r * 1.1);
+      g.fillRect(sx - r * 0.14, by - r * 0.5, r * 0.28, r * 0.8);
+
+    } else {
+      pts = [];
+      for (i = 0; i < 6; i++) {
+        ang = (Math.PI / 3) * i - Math.PI / 2;
+        pts.push({ x: sx + Math.cos(ang) * r, y: by + Math.sin(ang) * r });
+      }
+      g.fillPoints(pts, true);
+    }
+  },
+
   // 무기 실루엣 — 유닛이 뭘 들었는지 한눈에 보이게. facing 방향으로 뻗는다.
   drawWeapon: function (g, kind, sx, by, r, facing, color, alpha) {
     if (!kind) return;
@@ -86,38 +147,65 @@ GAME.UI = {
     var px = -fy, py = fx;   // 수직 방향
     var hx = sx + fx * r * 0.85, hy = by + fy * r * 0.85;   // 손 위치
 
-    if (kind === 'sword') {
+    if (kind === 'bayonet') {
+      // 대검 — 짧고 굵은 칼
       g.lineStyle(4, 0xdfe4ee, a);
-      g.lineBetween(hx, hy, hx + fx * r * 1.5, hy + fy * r * 1.5);
-      g.lineStyle(3, color, a);
-      g.lineBetween(hx - px * r * 0.35, hy - py * r * 0.35, hx + px * r * 0.35, hy + py * r * 0.35);
-
-    } else if (kind === 'bow') {
-      g.lineStyle(3, 0xd9b48a, a);
-      g.beginPath();
-      g.arc(hx, hy, r * 0.95, facing - 1.15, facing + 1.15, false);
-      g.strokePath();
-      g.lineStyle(1.5, 0xdfe4ee, a * 0.9);
-      g.lineBetween(hx + Math.cos(facing - 1.15) * r * 0.95, hy + Math.sin(facing - 1.15) * r * 0.95 * Iso.TILT,
-                    hx + Math.cos(facing + 1.15) * r * 0.95, hy + Math.sin(facing + 1.15) * r * 0.95 * Iso.TILT);
-
-    } else if (kind === 'staff') {
-      g.lineStyle(3.5, 0x8a6b4f, a);
-      g.lineBetween(hx - fx * r * 0.3, hy - fy * r * 0.3 + r * 0.5,
-                    hx + fx * r * 0.9, hy + fy * r * 0.9 - r * 0.9);
-      g.fillStyle(0x9fd0ff, a);
-      g.fillCircle(hx + fx * r * 0.9, hy + fy * r * 0.9 - r * 0.9, r * 0.36);
-      g.fillStyle(0xffffff, a * 0.8);
-      g.fillCircle(hx + fx * r * 0.9, hy + fy * r * 0.9 - r * 0.9, r * 0.16);
+      g.lineBetween(hx, hy, hx + fx * r * 1.25, hy + fy * r * 1.25);
+      g.lineStyle(3, 0x6b7280, a);
+      g.lineBetween(hx - px * r * 0.3, hy - py * r * 0.3, hx + px * r * 0.3, hy + py * r * 0.3);
 
     } else if (kind === 'rifle') {
-      g.lineStyle(4, 0x4a5060, a);
-      g.lineBetween(hx - fx * r * 0.4, hy - fy * r * 0.4, hx + fx * r * 1.9, hy + fy * r * 1.9);
-      g.lineStyle(3, 0x2f3442, a);
-      g.lineBetween(hx - fx * r * 0.5 - px * r * 0.2, hy - fy * r * 0.5 - py * r * 0.2,
-                    hx - fx * r * 0.1, hy - fy * r * 0.1);
+      // K2 소총 — 총열 + 개머리판
+      g.lineStyle(3.5, 0x3d4350, a);
+      g.lineBetween(hx - fx * r * 0.6, hy - fy * r * 0.6, hx + fx * r * 1.7, hy + fy * r * 1.7);
+      g.lineStyle(3, 0x2a2f3a, a);
+      g.lineBetween(hx - fx * r * 0.9 - px * r * 0.25, hy - fy * r * 0.9 - py * r * 0.25,
+                    hx - fx * r * 0.3, hy - fy * r * 0.3);
+
+    } else if (kind === 'sniperRifle') {
+      // K14 저격총 — 길고 조준경
+      g.lineStyle(3.5, 0x2f3442, a);
+      g.lineBetween(hx - fx * r * 0.7, hy - fy * r * 0.7, hx + fx * r * 2.3, hy + fy * r * 2.3);
       g.fillStyle(0xf0a86a, a);
-      g.fillCircle(hx + fx * r * 0.6, hy + fy * r * 0.6 - r * 0.35, r * 0.2);
+      g.fillCircle(hx + fx * r * 0.5, hy + fy * r * 0.5 - r * 0.4, r * 0.22);
+      g.lineStyle(2, 0x555b6a, a);
+      g.lineBetween(hx + fx * r * 1.2, hy + fy * r * 1.2 + r * 0.3,
+                    hx + fx * r * 1.5, hy + fy * r * 1.5 + r * 0.7);
+
+    } else if (kind === 'launcher') {
+      // K201 유탄발사기 — 굵은 통
+      g.lineStyle(6, 0x4a5540, a);
+      g.lineBetween(hx - fx * r * 0.3, hy - fy * r * 0.3, hx + fx * r * 1.4, hy + fy * r * 1.4);
+      g.fillStyle(0x9fd0ff, a);
+      g.fillCircle(hx + fx * r * 1.5, hy + fy * r * 1.5, r * 0.28);
+
+    } else if (kind === 'mg') {
+      // K3 경기관총 — 총열 + 삼각대
+      g.lineStyle(5, 0x33384a, a);
+      g.lineBetween(hx - fx * r * 0.5, hy - fy * r * 0.5, hx + fx * r * 2.0, hy + fy * r * 2.0);
+      g.lineStyle(2.5, 0x4a5060, a);
+      g.lineBetween(hx + fx * r * 0.6, hy + fy * r * 0.6, hx + fx * r * 0.6 - px * r * 0.6, hy + fy * r * 0.6 + r * 0.8);
+      g.lineBetween(hx + fx * r * 0.6, hy + fy * r * 0.6, hx + fx * r * 0.6 + px * r * 0.6, hy + fy * r * 0.8 + r * 0.8);
+
+    } else if (kind === 'pistol') {
+      g.lineStyle(3.5, 0x3d4350, a);
+      g.lineBetween(hx, hy, hx + fx * r * 0.9, hy + fy * r * 0.9);
+
+    } else if (kind === 'riotShield') {
+      // 방탄 방패 — 몸 앞을 가리는 판
+      var shx = sx + fx * r * 0.75, shy = by + fy * r * 0.75;
+      g.fillStyle(0x5a6478, a);
+      g.fillRoundedRect(shx - r * 0.55, shy - r * 1.0, r * 1.1, r * 2.0, r * 0.25);
+      g.lineStyle(2, 0x8fa0bb, a);
+      g.strokeRoundedRect(shx - r * 0.55, shy - r * 1.0, r * 1.1, r * 2.0, r * 0.25);
+
+    } else if (kind === 'aidkit') {
+      // 위생병 구급낭 — 흰 가방에 적십자
+      g.fillStyle(0xf2f5f8, a);
+      g.fillRect(hx - r * 0.4, hy - r * 0.35, r * 0.8, r * 0.7);
+      g.lineStyle(2.5, 0xe24b4a, a);
+      g.lineBetween(hx, hy - r * 0.25, hx, hy + r * 0.25);
+      g.lineBetween(hx - r * 0.25, hy, hx + r * 0.25, hy);
     }
   },
 
@@ -147,23 +235,7 @@ GAME.UI = {
     }
 
     g.fillStyle(color, a);
-    if (def.shape === 'square') {
-      g.fillRect(sx - r, by - r, r * 2, r * 2);
-    } else if (def.shape === 'triangle') {
-      g.fillTriangle(sx, by - r, sx - r, by + r * 0.8, sx + r, by + r * 0.8);
-    } else if (def.shape === 'diamond') {
-      g.fillPoints([
-        { x: sx, y: by - r }, { x: sx + r, y: by },
-        { x: sx, y: by + r }, { x: sx - r, y: by }
-      ], true);
-    } else {
-      var pts = [];
-      for (var i = 0; i < 6; i++) {
-        var ang = (Math.PI / 3) * i - Math.PI / 2;
-        pts.push({ x: sx + Math.cos(ang) * r, y: by + Math.sin(ang) * r });
-      }
-      g.fillPoints(pts, true);
-    }
+    this.bodyShape(g, def.shape, sx, by, r);
 
     // 머리 — 도형만으로는 사람처럼 안 보여서 실루엣을 잡아준다
     g.fillStyle(color, a);
@@ -173,26 +245,10 @@ GAME.UI = {
   },
 
   // 팔레트/상점처럼 화면 좌표에 바로 그려야 할 때(투영 없음)
-  drawUnitFlat: function (g, def, sx, sy, color, alpha) {
-    var r = def.radius;
+  drawUnitFlat: function (g, def, sx, sy, color, alpha, scale) {
+    var r = def.radius * (scale || 1);
     g.fillStyle(color, alpha === undefined ? 1 : alpha);
-    if (def.shape === 'square') {
-      g.fillRect(sx - r, sy - r, r * 2, r * 2);
-    } else if (def.shape === 'triangle') {
-      g.fillTriangle(sx, sy - r, sx - r, sy + r * 0.8, sx + r, sy + r * 0.8);
-    } else if (def.shape === 'diamond') {
-      g.fillPoints([
-        { x: sx, y: sy - r }, { x: sx + r, y: sy },
-        { x: sx, y: sy + r }, { x: sx - r, y: sy }
-      ], true);
-    } else {
-      var pts = [];
-      for (var i = 0; i < 6; i++) {
-        var ang = (Math.PI / 3) * i - Math.PI / 2;
-        pts.push({ x: sx + Math.cos(ang) * r, y: sy + Math.sin(ang) * r });
-      }
-      g.fillPoints(pts, true);
-    }
+    this.bodyShape(g, def.shape, sx, sy, r);
   },
 
   // 지면에 눕힌 원 (스킬 범위·예고·덫 표시)

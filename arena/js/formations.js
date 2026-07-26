@@ -1,67 +1,70 @@
 window.GAME = window.GAME || {};
 
-// 배치도 = { id, name, author, isAI, units:[{type,x,y}] }
-// AI 시드 배치도: 유저가 0명이어도 즉시 플레이 가능하게 만드는 콜드스타트 해결책.
+// 배치도는 **정규화 좌표(nx, ny: 0~1)** 로 저장한다.
+// 세로 모바일과 가로 PC의 아레나 비율이 달라서, 절대 좌표로 저장하면
+// 한쪽에서 만든 배치도가 다른 쪽에서 화면 밖으로 나간다.
 GAME.SEED_FORMATIONS = [
   {
-    id: 'seed-wall',
-    name: '방벽',
-    author: 'AI',
-    isAI: true,
-    tier: '중예산',
-    budget: 160,
+    id: 'seed-wall', name: '방벽 진지', author: 'AI', isAI: true,
+    tier: '중예산', budget: 160, v: 2,
     units: [
-      { type: 'warrior', x: 300, y: 228 }, { type: 'warrior', x: 386, y: 236 },
-      { type: 'warrior', x: 472, y: 240 }, { type: 'warrior', x: 558, y: 242 },
-      { type: 'warrior', x: 644, y: 240 }, { type: 'warrior', x: 730, y: 236 },
-      { type: 'warrior', x: 816, y: 228 }, { type: 'warrior', x: 902, y: 220 },
-      { type: 'archer', x: 420, y: 138 }, { type: 'archer', x: 520, y: 128 },
-      { type: 'archer', x: 620, y: 128 }, { type: 'archer', x: 720, y: 138 },
-      { type: 'archer', x: 600, y: 66 }
+      { type: 'rifleman', nx: 0.24, ny: 0.31 }, { type: 'rifleman', nx: 0.38, ny: 0.33 },
+      { type: 'rifleman', nx: 0.50, ny: 0.33 }, { type: 'rifleman', nx: 0.62, ny: 0.33 },
+      { type: 'rifleman', nx: 0.76, ny: 0.31 },
+      { type: 'bayonet', nx: 0.34, ny: 0.21 }, { type: 'bayonet', nx: 0.50, ny: 0.22 },
+      { type: 'bayonet', nx: 0.66, ny: 0.21 },
+      { type: 'shieldman', nx: 0.50, ny: 0.11 },
+      { type: 'medic', nx: 0.38, ny: 0.07 }
     ]
   },
   {
-    id: 'seed-crossfire',
-    name: '십자포화',
-    author: 'AI',
-    isAI: true,
-    tier: '중예산',
-    budget: 160,
+    id: 'seed-crossfire', name: '십자포화', author: 'AI', isAI: true,
+    tier: '고예산', budget: 220, v: 2,
     units: [
-      { type: 'archer', x: 120, y: 150 }, { type: 'archer', x: 190, y: 96 },
-      { type: 'archer', x: 300, y: 78 }, { type: 'archer', x: 900, y: 78 },
-      { type: 'archer', x: 1010, y: 96 }, { type: 'archer', x: 1080, y: 150 },
-      { type: 'warrior', x: 520, y: 246 }, { type: 'warrior', x: 620, y: 246 },
-      { type: 'mage', x: 470, y: 120 }, { type: 'mage', x: 690, y: 120 }
+      { type: 'rifleman', nx: 0.08, ny: 0.19 }, { type: 'rifleman', nx: 0.15, ny: 0.11 },
+      { type: 'rifleman', nx: 0.26, ny: 0.07 }, { type: 'rifleman', nx: 0.74, ny: 0.07 },
+      { type: 'rifleman', nx: 0.85, ny: 0.11 }, { type: 'rifleman', nx: 0.92, ny: 0.19 },
+      { type: 'bayonet', nx: 0.50, ny: 0.34 },
+      { type: 'grenadier', nx: 0.38, ny: 0.15 }, { type: 'grenadier', nx: 0.62, ny: 0.15 },
+      { type: 'sergeant', nx: 0.50, ny: 0.23 },
+      { type: 'mine', nx: 0.50, ny: 0.44 }
     ]
   },
   {
-    id: 'seed-sniper-nest',
-    name: '저격 둥지',
-    author: 'AI',
-    isAI: true,
-    tier: '중예산',
-    budget: 160,
+    id: 'seed-sniper-nest', name: '저격 둥지', author: 'AI', isAI: true,
+    tier: '고예산', budget: 220, v: 2,
     units: [
-      { type: 'sniper', x: 500, y: 66 }, { type: 'sniper', x: 600, y: 62 },
-      { type: 'sniper', x: 700, y: 66 },
-      { type: 'warrior', x: 470, y: 242 }, { type: 'warrior', x: 560, y: 246 },
-      { type: 'warrior', x: 650, y: 246 }, { type: 'warrior', x: 740, y: 242 }
+      { type: 'sniper', nx: 0.42, ny: 0.07 }, { type: 'sniper', nx: 0.58, ny: 0.07 },
+      { type: 'bayonet', nx: 0.26, ny: 0.32 }, { type: 'bayonet', nx: 0.38, ny: 0.34 },
+      { type: 'bayonet', nx: 0.50, ny: 0.35 }, { type: 'bayonet', nx: 0.62, ny: 0.34 },
+      { type: 'bayonet', nx: 0.74, ny: 0.32 },
+      { type: 'rifleman', nx: 0.32, ny: 0.22 }, { type: 'rifleman', nx: 0.68, ny: 0.22 },
+      { type: 'shieldman', nx: 0.50, ny: 0.21 },
+      { type: 'medic', nx: 0.66, ny: 0.13 }
     ]
   },
   {
-    id: 'seed-zone-lock',
-    name: '봉쇄진',
-    author: 'AI',
-    isAI: true,
-    tier: '중예산',
-    budget: 160,
+    id: 'seed-zone-lock', name: '봉쇄 작전', author: 'AI', isAI: true,
+    tier: '고예산', budget: 220, v: 2,
     units: [
-      { type: 'mage', x: 360, y: 116 }, { type: 'mage', x: 520, y: 92 },
-      { type: 'mage', x: 680, y: 92 }, { type: 'mage', x: 840, y: 116 },
-      { type: 'warrior', x: 430, y: 246 }, { type: 'warrior', x: 540, y: 250 },
-      { type: 'warrior', x: 660, y: 250 }, { type: 'warrior', x: 770, y: 246 },
-      { type: 'archer', x: 600, y: 190 }
+      { type: 'grenadier', nx: 0.28, ny: 0.13 }, { type: 'grenadier', nx: 0.50, ny: 0.08 },
+      { type: 'grenadier', nx: 0.72, ny: 0.13 },
+      { type: 'chemtrooper', nx: 0.38, ny: 0.24 }, { type: 'chemtrooper', nx: 0.62, ny: 0.24 },
+      { type: 'bayonet', nx: 0.30, ny: 0.33 }, { type: 'bayonet', nx: 0.43, ny: 0.35 },
+      { type: 'bayonet', nx: 0.57, ny: 0.35 }, { type: 'bayonet', nx: 0.70, ny: 0.33 },
+      { type: 'bayonet', nx: 0.50, ny: 0.29 },
+      { type: 'mine', nx: 0.50, ny: 0.46 }
+    ]
+  },
+  {
+    id: 'seed-mg-nest', name: '기관총 진지', author: 'AI', isAI: true,
+    tier: '고예산', budget: 220, v: 2,
+    units: [
+      { type: 'mgnest', nx: 0.32, ny: 0.17 }, { type: 'mgnest', nx: 0.68, ny: 0.17 },
+      { type: 'shieldman', nx: 0.42, ny: 0.30 }, { type: 'shieldman', nx: 0.58, ny: 0.30 },
+      { type: 'medic', nx: 0.50, ny: 0.09 },
+      { type: 'bayonet', nx: 0.26, ny: 0.33 },
+      { type: 'sergeant', nx: 0.50, ny: 0.22 }
     ]
   }
 ];
@@ -69,6 +72,9 @@ GAME.SEED_FORMATIONS = [
 GAME.Formations = {
   STORE_KEY: 'asymgame.formations.v1',
   STATS_KEY: 'asymgame.stats.v1',
+
+  // 구버전 절대좌표가 만들어졌던 아레나(가로 PC 기준) — 마이그레이션용
+  LEGACY_ARENA: { x: 20, y: 20, w: 1160, h: 680 },
 
   _safeRead: function (key, fallback) {
     try {
@@ -88,22 +94,59 @@ GAME.Formations = {
     }
   },
 
-  // 사용자가 저장한 배치도만
-  loadSaved: function () {
-    var list = this._safeRead(this.STORE_KEY, []);
-    return Array.isArray(list) ? list : [];
+  // 정규화 좌표 ↔ 현재 아레나 좌표
+  toWorld: function (u) {
+    var A = GAME.CONFIG.ARENA;
+    return { x: A.x + u.nx * A.w, y: A.y + u.ny * A.h };
   },
 
-  // AI 시드 + 사용자 저장분 전체
+  normalize: function (x, y) {
+    var A = GAME.CONFIG.ARENA;
+    return {
+      nx: Math.round(((x - A.x) / A.w) * 1000) / 1000,
+      ny: Math.round(((y - A.y) / A.h) * 1000) / 1000
+    };
+  },
+
+  // 옛 절대좌표 배치도를 정규화 좌표로 올린다
+  _migrate: function (f) {
+    if (f.v === 2) return f;
+    var L = this.LEGACY_ARENA;
+    var renames = {
+      warrior: 'bayonet', archer: 'rifleman', mage: 'grenadier', sniper: 'sniper'
+    };
+    f.units = (f.units || []).map(function (u) {
+      if (u.nx !== undefined) return u;
+      return {
+        type: renames[u.type] || u.type,
+        nx: Math.round(((u.x - L.x) / L.w) * 1000) / 1000,
+        ny: Math.round(((u.y - L.y) / L.h) * 1000) / 1000
+      };
+    });
+    f.v = 2;
+    return f;
+  },
+
+  loadSaved: function () {
+    var list = this._safeRead(this.STORE_KEY, []);
+    if (!Array.isArray(list)) return [];
+    var self = this;
+    var migrated = false;
+    list = list.map(function (f) {
+      if (f.v !== 2) { migrated = true; return self._migrate(f); }
+      return f;
+    });
+    if (migrated) this._safeWrite(this.STORE_KEY, list);
+    return list;
+  },
+
   loadAll: function () {
     return GAME.SEED_FORMATIONS.concat(this.loadSaved());
   },
 
   getById: function (id) {
     var all = this.loadAll();
-    for (var i = 0; i < all.length; i++) {
-      if (all[i].id === id) return all[i];
-    }
+    for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
     return null;
   },
 
@@ -118,8 +161,6 @@ GAME.Formations = {
     this._safeWrite(this.STORE_KEY, list);
   },
 
-  // 전적: 전략가 배치도 기준 { win, loss, draw }
-  // win = 배치도가 이김(컨트롤러 격퇴), loss = 컨트롤러에게 뚫림
   getStats: function (id) {
     var all = this._safeRead(this.STATS_KEY, {});
     return all[id] || { win: 0, loss: 0, draw: 0 };
@@ -157,10 +198,24 @@ GAME.Formations = {
     return 'f-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
   },
 
-  // 컨트롤러는 배치도와 같은 예산을 받는다 (동등 조건)
+  // 컨트롤러는 이 예산을 그대로 받는다. 배치도가 선언 예산보다 더 썼다면
+  // 그건 진형이 몰래 이득을 본 것이므로, 실제 비용을 예산으로 올려 공정성을 지킨다.
   budgetOf: function (formation) {
-    if (formation && formation.budget) return formation.budget;
-    return GAME.CONFIG.BUDGETS[GAME.CONFIG.DEFAULT_TIER];
+    var declared = (formation && formation.budget) || GAME.CONFIG.BUDGETS[GAME.CONFIG.DEFAULT_TIER];
+    if (!formation) return declared;
+    var actual = this.cost(formation);
+    return Math.max(declared, actual);
+  },
+
+  // 시드 데이터가 선언 예산을 넘지 않는지 개발 중 확인용
+  validateSeeds: function () {
+    var bad = [];
+    for (var i = 0; i < GAME.SEED_FORMATIONS.length; i++) {
+      var f = GAME.SEED_FORMATIONS[i];
+      var c = this.cost(f);
+      if (c > f.budget) bad.push(f.name + ': 비용 ' + c + ' > 예산 ' + f.budget);
+    }
+    return bad;
   },
 
   random: function () {

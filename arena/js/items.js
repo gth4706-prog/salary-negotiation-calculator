@@ -12,24 +12,24 @@ GAME.ITEM_SLOTS = [
 
 GAME.ITEMS = {
   weapon: [
-    { key: 'w1', name: '예리한 칼', cost: 15, damageAdd: 8, note: '공격력 +8' },
-    { key: 'w2', name: '대검', cost: 30, damageAdd: 18, note: '공격력 +18' },
-    { key: 'w3', name: '처형자', cost: 50, damageAdd: 30, lifestealAdd: 0.08, note: '공격력 +30, 흡혈 +8%' }
+    { key: 'w1', name: 'K5 권총', cost: 15, damageAdd: 8, note: '공격력 +8' },
+    { key: 'w2', name: 'K2 소총', cost: 30, damageAdd: 18, note: '공격력 +18' },
+    { key: 'w3', name: 'K7 특수전용', cost: 50, damageAdd: 24, lifestealAdd: 0.06, note: '공격력 +24, 흡혈 +6%' }
   ],
   armor: [
-    { key: 'a1', name: '가죽 갑옷', cost: 15, hpAdd: 140, note: '체력 +140' },
-    { key: 'a2', name: '판금 갑옷', cost: 30, hpAdd: 260, armorAdd: 12, note: '체력 +260, 방어력 +12' },
-    { key: 'a3', name: '성채', cost: 50, hpAdd: 440, armorAdd: 25, note: '체력 +440, 방어력 +25' }
+    { key: 'a1', name: '전투조끼', cost: 15, hpAdd: 140, note: '체력 +140' },
+    { key: 'a2', name: '방탄복', cost: 30, hpAdd: 260, armorAdd: 12, note: '체력 +260, 방어력 +12' },
+    { key: 'a3', name: 'EOD 방폭복', cost: 50, hpAdd: 360, armorAdd: 18, note: '체력 +360, 방어력 +18' }
   ],
   boots: [
-    { key: 'b1', name: '가벼운 신발', cost: 12, speedAdd: 25, note: '이동속도 +25' },
-    { key: 'b2', name: '질풍화', cost: 25, speedAdd: 48, note: '이동속도 +48' },
-    { key: 'b3', name: '순보', cost: 40, speedAdd: 72, cdrMul: 0.88, note: '이동속도 +72, 스킬 쿨 -12%' }
+    { key: 'b1', name: '단화', cost: 12, speedAdd: 25, note: '이동속도 +25' },
+    { key: 'b2', name: '전투화', cost: 25, speedAdd: 48, note: '이동속도 +48' },
+    { key: 'b3', name: '특전화', cost: 40, speedAdd: 72, cdrMul: 0.88, note: '이동속도 +72, 스킬 쿨 -12%' }
   ],
   potion: [
-    { key: 'p1', name: '소형 물약', cost: 10, heal: 220, charges: 1, note: '회복 220 · 1회' },
-    { key: 'p2', name: '중형 물약', cost: 20, heal: 400, charges: 1, note: '회복 400 · 1회' },
-    { key: 'p3', name: '대형 물약', cost: 35, heal: 340, charges: 2, note: '회복 340 · 2회' }
+    { key: 'p1', name: '수통', cost: 10, heal: 220, charges: 1, note: '회복 220 · 1회' },
+    { key: 'p2', name: '전투식량', cost: 20, heal: 400, charges: 1, note: '회복 400 · 1회' },
+    { key: 'p3', name: '구급낭', cost: 35, heal: 340, charges: 2, note: '회복 340 · 2회' }
   ]
 };
 

@@ -97,10 +97,11 @@ GAME.Score = {
     return null;
   },
 
-  // 랭킹이 로컬 범위임을 화면에 정확히 알리기 위한 문구
-  scopeNote: function () {
-    return GAME.Store.isRemote()
-      ? '전체 플레이어 기준'
-      : '이 브라우저에 기록된 ID 기준 (전역 랭킹은 서버 연동 필요)';
+  // 랭킹 범위를 화면에 정확히 알린다. 서버가 실제로 응답했는지로 판단한다
+  // (주소만 설정돼 있고 응답이 없으면 '전체'라고 표시하면 거짓말이 된다).
+  scopeNote: function (serverOk) {
+    if (serverOk === true) return '전체 플레이어 기준 (서버 연동)';
+    if (serverOk === false) return '이 브라우저 기준 — 서버에 연결하지 못했습니다';
+    return '이 브라우저에 기록된 ID 기준';
   }
 };

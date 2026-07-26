@@ -10,8 +10,9 @@ window.GAME = window.GAME || {};
 //
 // 워커 소스: 03-webtool-adsense/workers/arena-api/worker.js
 GAME.Api = {
-  // ⚠️ Worker 배포 후 이 값만 실제 주소로 바꾸면 전역 랭킹이 켜진다.
-  API_BASE: '',
+  // Cloudflare Worker 주소. 여기가 살아 있으면 전역 랭킹으로 동작하고,
+  // 응답이 없거나 아직 코드가 배포되지 않았으면 조용히 로컬 기록으로 되돌아간다.
+  API_BASE: 'https://arena-api.gth3941.workers.dev',
 
   enabled: function () { return !!this.API_BASE; },
 

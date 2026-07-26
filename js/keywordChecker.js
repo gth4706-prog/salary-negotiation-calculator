@@ -7,8 +7,7 @@
   var $=function(id){return document.getElementById(id)};
   if(!$("stepIn"))return;
 
-  // 배포 후 실제 Worker URL로 교체 필요 (webtool-proxy — /transcript와 공용)
-  var API_BASE="https://webtool-proxy.YOUR-SUBDOMAIN.workers.dev";
+  var API_BASE="https://bold-dream-f416.gth3941.workers.dev";
 
   // 서버(Worker)가 아직 배포되지 않은 상태를 감지한다.
   // API_BASE를 실제 주소로 교체하면 이 가드는 자동으로 풀린다.

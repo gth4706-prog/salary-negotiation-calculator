@@ -32,9 +32,11 @@ GAME.MenuScene.prototype.create = function () {
 
   GAME.UI.label(this, W / 2, 522, '진형을 짜서 저장하면, 컨트롤러들이 그것과 싸운다', 15, C.textDim, 0.5);
 
-  var hint =
-    '컨트롤러 조작  ─  우클릭: 이동 / 적 클릭 시 공격   |   방향키: 직접 이동\n' +
-    'Q W E R: 스킬 (마우스 방향으로 시전)   |   F: 물약   |   Space: 기본공격';
+  var hint = GAME.isTouch
+    ? '컨트롤러 조작  ─  한 번 탭: 이동하며 교전   |   두 번 탭: 이동만\n' +
+      '스킬 버튼을 누른 뒤 위치를 탭하면 시전   |   물약 버튼으로 회복'
+    : '컨트롤러 조작  ─  우클릭: 이동 / 적 클릭 시 공격   |   방향키: 직접 이동\n' +
+      'Q W E R: 스킬 (마우스 방향으로 시전)   |   F: 물약   |   Space: 기본공격';
   GAME.UI.label(this, W / 2, 624, hint, 15, C.textDim, 0.5).setAlign('center').setLineSpacing(9);
 
   GAME.UI.label(this, W / 2, 726,

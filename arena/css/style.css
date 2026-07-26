@@ -30,12 +30,13 @@ html, body {
   pointer-events: none;
 }
 
-/* 좁은 화면에서는 조작이 불가능하므로 안내로 대체한다 */
+/* 모바일도 플레이할 수 있다(탭 조작). 다만 세로 화면은 아레나가 너무 납작해져
+   가로로 돌려달라고 안내한다. */
 #small-screen {
   display: none;
 }
 
-@media (max-width: 900px), (max-height: 560px) {
+@media (orientation: portrait) and (max-width: 900px) {
   #game, #ver { display: none; }
   #small-screen {
     display: flex;

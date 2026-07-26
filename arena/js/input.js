@@ -10,6 +10,10 @@ window.GAME = window.GAME || {};
 // QWER 을 스킬 전용으로 비우기 위해 직접 이동은 WASD 가 아니라 방향키에 둔다.
 //
 // 화면 좌표는 전부 GAME.Iso 로 평면 좌표로 되돌린 뒤 로직에 넘긴다.
+// 모바일(터치)에서는 조작을 이렇게 나눈다:
+//   한 번 탭      해당 위치로 이동하며 교전(어택무브)
+//   두 번 탭      해당 위치로 이동만 (교전하지 않음)
+//   스킬 버튼 → 탭   버튼을 누르면 조준 모드, 다음 탭한 위치로 시전
 GAME.InputController = function (scene, state, hero) {
   this.scene = scene;
   this.state = state;
@@ -17,6 +21,11 @@ GAME.InputController = function (scene, state, hero) {
 
   this.mouse = { x: hero.x, y: hero.y };   // 평면 좌표
   this.down = {};
+
+  this.touch = GAME.isTouch;
+  this.armedSkill = null;       // 조준 대기 중인 스킬 슬롯
+  this._lastTap = { t: 0, x: 0, y: 0 };
+  this._pendingTap = null;
 
   this._bind();
 };
@@ -35,7 +44,35 @@ GAME.InputController.prototype._bind = function () {
     var w = GAME.Iso.toWorld(p.x, p.y);
     self.mouse.x = w.x;
     self.mouse.y = w.y;
-    if (p.rightButtonDown()) self.issueMove(w.x, w.y);
+
+    if (!self.touch) {
+      if (p.rightButtonDown()) self.issueMove(w.x, w.y);
+      return;
+    }
+
+    // ── 터치 조작 ──
+    if (p.y > GAME.Iso.screenRect().bottom) return;   // 하단 버튼 영역은 버튼이 처리
+
+    if (self.armedSkill) {
+      GAME.Combat.castSkill(self.hero, self.armedSkill, w.x, w.y, self.state);
+      self.armedSkill = null;
+      return;
+    }
+
+    var now = p.downTime || Date.now();
+    var last = self._lastTap;
+    var isDouble = (now - last.t < 320) &&
+      Math.abs(p.x - last.x) < 44 && Math.abs(p.y - last.y) < 44;
+    self._lastTap = { t: now, x: p.x, y: p.y };
+
+    if (isDouble) {
+      // 두 번 탭 = 이동만. 첫 탭이 걸어둔 교전 명령을 덮어쓴다.
+      self._pendingTap = null;
+      self.hero.order = { type: 'move', x: w.x, y: w.y };
+      if (self.scene.showMarker) self.scene.showMarker(w.x, w.y, 'move');
+    } else {
+      self.issueTouchAttackMove(w.x, w.y);
+    }
   });
 
   // ev.code 를 쓰면 한/영 상태와 무관하게 동작한다
@@ -90,10 +127,26 @@ GAME.InputController.prototype.issueMove = function (x, y) {
   }
 };
 
-GAME.InputController.prototype.castW = function () {
-  if (this.hero.alive) {
-    GAME.Combat.castSkill(this.hero, 'W', this.mouse.x, this.mouse.y, this.state);
+// 터치: 탭한 지점으로 가되, 가는 길에 적을 만나면 교전한다
+GAME.InputController.prototype.issueTouchAttackMove = function (x, y) {
+  var h = this.hero;
+  if (!h.alive) return;
+  var enemy = GAME.Combat.unitAt(this.state, x, y, 'strategist');
+  if (enemy) {
+    h.order = { type: 'attack', target: enemy };
+    if (this.scene.showMarker) this.scene.showMarker(x, y, 'attack');
+  } else {
+    h.order = { type: 'attackmove', x: x, y: y };
+    if (this.scene.showMarker) this.scene.showMarker(x, y, 'attackmove');
   }
+};
+
+// 스킬 버튼을 눌렀을 때 — 조준 모드로 들어간다
+GAME.InputController.prototype.armSkill = function (slot) {
+  if (!this.hero.alive) return false;
+  if (!GAME.Combat.skillReady(this.hero, slot)) return false;
+  this.armedSkill = (this.armedSkill === slot) ? null : slot;
+  return true;
 };
 
 GAME.InputController.prototype.update = function (dtMs) {

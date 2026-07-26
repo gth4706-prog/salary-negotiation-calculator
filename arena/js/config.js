@@ -44,6 +44,11 @@ GAME.CONFIG = {
   }
 };
 
+// 터치 기기 판별 — 조작 스킴이 완전히 달라진다(마우스+QWER vs 탭+스킬버튼)
+GAME.isTouch = (function () {
+  return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+})();
+
 GAME.CONFIG.ARENA.right = GAME.CONFIG.ARENA.x + GAME.CONFIG.ARENA.w;
 GAME.CONFIG.ARENA.bottom = GAME.CONFIG.ARENA.y + GAME.CONFIG.ARENA.h;
 

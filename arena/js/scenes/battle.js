@@ -43,29 +43,39 @@ GAME.BattleScene.prototype.create = function () {
   this.hudTimer = GAME.UI.label(this, 600, barTop - 2, '', 26, C.text, 0.5).setOrigin(0.5, 0);
   this.hudEnemy = GAME.UI.label(this, 1176, barTop, '', 17, C.accentAlt, 0).setOrigin(1, 0);
 
-  // 스킬 바
+  // 스킬 바 — 터치 기기에서는 눌러서 조준하는 버튼이 된다
   this.skillBoxes = [];
   var slots = ['Q', 'W', 'E', 'R'];
   for (var s = 0; s < slots.length; s++) {
-    var cx = 420 + s * 104;
-    var cy = barTop + 118;
-    this.add.rectangle(cx, cy, 96, 96, 0x1c1c28).setStrokeStyle(1, 0x3a3a52);
-    this.skillBoxes.push({
-      slot: slots[s], cx: cx, cy: cy,
-      key: GAME.UI.label(this, cx - 38, cy - 40, slots[s], 15, C.accent, 0),
-      name: GAME.UI.label(this, cx, cy + 26, '', 12, C.text, 0.5).setOrigin(0.5),
-      cd: GAME.UI.label(this, cx, cy - 4, '', 20, C.text, 0.5).setOrigin(0.5)
-    });
+    (function (slot, idx) {
+      var cx = 420 + idx * 104;
+      var cy = barTop + 118;
+      var rect = self.add.rectangle(cx, cy, 96, 96, 0x1c1c28).setStrokeStyle(1, 0x3a3a52);
+      rect.setInteractive({ useHandCursor: true });
+      rect.on('pointerdown', function () { self.ctrl.armSkill(slot); });
+      self.skillBoxes.push({
+        slot: slot, cx: cx, cy: cy, rect: rect,
+        key: GAME.UI.label(self, cx - 38, cy - 40, GAME.isTouch ? '' : slot, 15, C.accent, 0),
+        name: GAME.UI.label(self, cx, cy + 26, '', 12, C.text, 0.5).setOrigin(0.5),
+        cd: GAME.UI.label(self, cx, cy - 4, '', 20, C.text, 0.5).setOrigin(0.5)
+      });
+    })(slots[s], s);
   }
 
   this.potionBox = { cx: 856, cy: barTop + 118 };
-  this.add.rectangle(this.potionBox.cx, this.potionBox.cy, 96, 96, 0x1c1c28).setStrokeStyle(1, 0x3a3a52);
-  GAME.UI.label(this, this.potionBox.cx - 38, this.potionBox.cy - 40, 'F', 15, C.accent, 0);
+  var prect = this.add.rectangle(this.potionBox.cx, this.potionBox.cy, 96, 96, 0x1c1c28)
+    .setStrokeStyle(1, 0x3a3a52);
+  prect.setInteractive({ useHandCursor: true });
+  prect.on('pointerdown', function () { GAME.Combat.usePotion(self.hero); });
+  GAME.UI.label(this, this.potionBox.cx - 38, this.potionBox.cy - 40,
+    GAME.isTouch ? '' : 'F', 15, C.accent, 0);
   this.potionText = GAME.UI.label(this, this.potionBox.cx, this.potionBox.cy - 2, '', 15, C.text, 0.5).setOrigin(0.5);
   GAME.UI.label(this, this.potionBox.cx, this.potionBox.cy + 26, '물약', 12, C.text, 0.5).setOrigin(0.5);
 
-  GAME.UI.label(this, 600, barTop + 190,
-    '우클릭 이동 / 적 클릭 공격   ·   방향키 직접 이동   ·   Q W E R 스킬(마우스 방향)   ·   F 물약   ·   Space 기본공격',
+  this.hintText = GAME.UI.label(this, 600, barTop + 190,
+    GAME.isTouch
+      ? '한 번 탭: 이동하며 교전   ·   두 번 탭: 이동만   ·   스킬 버튼 누른 뒤 위치를 탭하면 시전'
+      : '우클릭 이동 / 적 클릭 공격   ·   방향키 직접 이동   ·   Q W E R 스킬(마우스 방향)   ·   F 물약   ·   Space 기본공격',
     13, '#6f6f88', 0.5).setOrigin(0.5);
 
   this.events.on('shutdown', function () { if (self.ctrl) self.ctrl.destroy(); });
@@ -119,13 +129,25 @@ GAME.BattleScene.prototype.updateHud = function () {
   this.hudEnemy.setText(this.formation.name + '   남은 적 ' +
     GAME.Combat.aliveCount(this.state, 'strategist') + '기');
 
+  var armed = this.ctrl.armedSkill;
   for (var i = 0; i < this.skillBoxes.length; i++) {
     var b = this.skillBoxes[i];
     var sk = h.hero.skills[i];
     b.name.setText(sk.name);
     var cd = h.skillCd[b.slot];
-    b.cd.setText(cd > 0 ? (cd / 1000).toFixed(1) : '준비');
-    b.cd.setColor(cd > 0 ? C.textDim : C.accent);
+    var ready = cd <= 0;
+    b.cd.setText(ready ? (armed === b.slot ? '조준' : '준비') : (cd / 1000).toFixed(1));
+    b.cd.setColor(armed === b.slot ? C.warn : (ready ? C.accent : C.textDim));
+    b.rect.setStrokeStyle(armed === b.slot ? 2 : 1, armed === b.slot ? 0xf0a86a : 0x3a3a52);
+    b.rect.setFillStyle(armed === b.slot ? 0x2e2618 : 0x1c1c28);
+  }
+
+  if (armed) {
+    this.hintText.setText('조준 중 — 시전할 위치를 탭하세요 (버튼을 다시 누르면 취소)');
+    this.hintText.setColor(GAME.CONFIG.COLORS.warn);
+  } else if (GAME.isTouch) {
+    this.hintText.setText('한 번 탭: 이동하며 교전   ·   두 번 탭: 이동만   ·   스킬 버튼 누른 뒤 위치를 탭하면 시전');
+    this.hintText.setColor('#6f6f88');
   }
 
   this.potionText.setText(h.potionCharges > 0 ? h.potionCharges + '회' : '없음');
@@ -203,6 +225,31 @@ GAME.BattleScene.prototype.draw = function () {
       var pa = e.t / e.total;
       g.fillStyle(0xffffff, pa);
       g.fillCircle(e.x, Iso.toScreenY(e.y) - 12, 4 * pa + 2);
+
+    } else if (e.kind === 'slashWave') {
+      // 근접 공격도 뭔가 날아가는 게 보이게 — 짧은 검기가 뻗어나간다
+      var wp = 1 - e.t / e.total;
+      var wd = e.range * (0.35 + wp * 0.85);
+      var wx = e.x + Math.cos(e.angle) * wd;
+      var wy = Iso.toScreenY(e.y + Math.sin(e.angle) * wd) - 14;
+      var perp = e.angle + Math.PI / 2;
+      var half2 = e.range * 0.42;
+      g.lineStyle(4, col, (1 - wp) * 0.9);
+      g.lineBetween(wx - Math.cos(perp) * half2, wy - Math.sin(perp) * half2 * Iso.TILT,
+                    wx + Math.cos(perp) * half2, wy + Math.sin(perp) * half2 * Iso.TILT);
+
+    } else if (e.kind === 'lob') {
+      // 마법사 구체 — 예고 시간 동안 착탄점으로 날아간다
+      var lp = 1 - e.t / e.total;
+      var lx = e.x1 + (e.x2 - e.x1) * lp;
+      var ly = Iso.toScreenY(e.y1 + (e.y2 - e.y1) * lp);
+      var arc = Math.sin(lp * Math.PI) * 46;      // 포물선
+      g.fillStyle(0x9fd0ff, 0.25);
+      g.fillCircle(lx, ly - arc, 13);
+      g.fillStyle(0x9fd0ff, 1);
+      g.fillCircle(lx, ly - arc, 7);
+      g.fillStyle(0xffffff, 0.9);
+      g.fillCircle(lx, ly - arc, 3);
     }
   }
 
@@ -230,7 +277,7 @@ GAME.BattleScene.prototype.draw = function () {
       GAME.UI.groundCircle(g, u.x, u.y, u.def.radius + 10);
     }
 
-    var pos = GAME.UI.drawUnit(g, u.def, u.x, u.y, color, 1);
+    var pos = GAME.UI.drawUnit(g, u.def, u.x, u.y, color, 1, u.facing);
 
     if (!u.isHero && !GAME.isNonTarget(u.def)) {
       g.lineStyle(2, 0xf0a86a, 0.9);
@@ -271,8 +318,10 @@ GAME.BattleScene.prototype.draw = function () {
     var sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1;
     var ux = p.vx / sp, uy = (p.vy / sp) * Iso.TILT;
     var rr = p.radius * (p.big ? 1.5 : 1);
-    g.lineStyle(3, pcol, 0.35);
-    g.lineBetween(psx - ux * 22, psy - uy * 22, psx, psy);
+    // 저격탄은 길게 늘어진 예광탄으로 — 유도라 피할 순 없지만 날아오는 게 보인다
+    var tail = p.tracer ? 60 : 22;
+    g.lineStyle(p.tracer ? 2 : 3, pcol, p.tracer ? 0.75 : 0.35);
+    g.lineBetween(psx - ux * tail, psy - uy * tail, psx, psy);
     g.fillStyle(pcol, 0.22);
     g.fillCircle(psx, psy, rr + 6);
     g.fillStyle(pcol, 1);

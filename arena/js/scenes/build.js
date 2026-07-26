@@ -186,10 +186,10 @@ GAME.BuildScene.prototype.redraw = function () {
   g.strokeRect(this.zone.x + 2, zr.toScreenY(this.zone.y) + 2,
     this.zone.w - 4, this.zone.h * zr.TILT - 4);
 
-  // 위쪽: 상대가 볼 모습(뒤집힌 미리보기)
+  // 위쪽: 상대가 볼 모습(뒤집힌 미리보기) — 전투에서처럼 아래를 향한다
   for (i = 0; i < this.placed.length; i++) {
     var pv = this.placed[i];
-    GAME.UI.drawUnit(g, GAME.UNITS[pv.type], pv.x, GAME.mirrorY(pv.y), C.strategist, 0.32);
+    GAME.UI.drawUnit(g, GAME.UNITS[pv.type], pv.x, GAME.mirrorY(pv.y), C.strategist, 0.32, Math.PI / 2);
   }
 
   // 아래쪽: 내가 놓은 것 (깊이 정렬)
@@ -197,7 +197,7 @@ GAME.BuildScene.prototype.redraw = function () {
   for (i = 0; i < sorted.length; i++) {
     var p = sorted[i];
     def = GAME.UNITS[p.type];
-    GAME.UI.drawUnit(g, def, p.x, p.y, this.myColor, 1);
+    GAME.UI.drawUnit(g, def, p.x, p.y, this.myColor, 1, -Math.PI / 2);
     if (!GAME.isNonTarget(def)) {
       g.lineStyle(2, 0xf0a86a, 0.9);
       GAME.UI.groundCircle(g, p.x, p.y, def.radius + 7);

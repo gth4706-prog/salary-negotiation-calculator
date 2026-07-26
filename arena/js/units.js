@@ -20,7 +20,13 @@ GAME.UNITS = {
     attack: 'melee',
     coneDeg: 90,
     radius: 13,
-    shape: 'square'
+    shape: 'square',
+    weapon: 'sword',
+    // 배치 지점에서 이만큼까지는 쫓아나갈 수 있다. 근접은 진형을 깨고 달려든다.
+    // aggro 를 좁게 잡아 '가까운 몇 기만' 반응하게 한다. 전부 한꺼번에 달려들면
+    // 진형이 그냥 뭉텅이 돌격이 되고, 영웅이 순식간에 녹아 배울 틈이 없다.
+    chase: 270,
+    aggro: 210
   },
   archer: {
     key: 'archer',
@@ -37,7 +43,11 @@ GAME.UNITS = {
     projectileSpeed: 230,
     projectileRadius: 7,
     radius: 11,
-    shape: 'triangle'
+    shape: 'triangle',
+    weapon: 'bow',
+    // 원거리는 자리를 지키며 쏜다. 조금만 움직인다.
+    chase: 150,
+    aggro: 360
   },
   mage: {
     key: 'mage',
@@ -54,7 +64,10 @@ GAME.UNITS = {
     aoeRadius: 62,
     telegraph: 900,
     radius: 12,
-    shape: 'diamond'
+    shape: 'diamond',
+    weapon: 'staff',
+    chase: 130,
+    aggro: 330
   },
   sniper: {
     key: 'sniper',
@@ -68,8 +81,12 @@ GAME.UNITS = {
     damage: 70,
     cooldown: 3000,
     attack: 'targeted',
+    bulletSpeed: 760,
     radius: 11,
-    shape: 'hex'
+    shape: 'hex',
+    weapon: 'rifle',
+    chase: 110,
+    aggro: 440
   }
 };
 

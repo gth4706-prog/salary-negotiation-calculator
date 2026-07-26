@@ -76,9 +76,54 @@ GAME.UI = {
     g.strokeRect(R.x, R.y, R.w, R.h);
   },
 
+  // 무기 실루엣 — 유닛이 뭘 들었는지 한눈에 보이게. facing 방향으로 뻗는다.
+  drawWeapon: function (g, kind, sx, by, r, facing, color, alpha) {
+    if (!kind) return;
+    var a = alpha === undefined ? 1 : alpha;
+    var Iso = GAME.Iso;
+    // 화면상 방향 — y는 압축되어 있으므로 같은 비율로 눕힌다
+    var fx = Math.cos(facing), fy = Math.sin(facing) * Iso.TILT;
+    var px = -fy, py = fx;   // 수직 방향
+    var hx = sx + fx * r * 0.85, hy = by + fy * r * 0.85;   // 손 위치
+
+    if (kind === 'sword') {
+      g.lineStyle(4, 0xdfe4ee, a);
+      g.lineBetween(hx, hy, hx + fx * r * 1.5, hy + fy * r * 1.5);
+      g.lineStyle(3, color, a);
+      g.lineBetween(hx - px * r * 0.35, hy - py * r * 0.35, hx + px * r * 0.35, hy + py * r * 0.35);
+
+    } else if (kind === 'bow') {
+      g.lineStyle(3, 0xd9b48a, a);
+      g.beginPath();
+      g.arc(hx, hy, r * 0.95, facing - 1.15, facing + 1.15, false);
+      g.strokePath();
+      g.lineStyle(1.5, 0xdfe4ee, a * 0.9);
+      g.lineBetween(hx + Math.cos(facing - 1.15) * r * 0.95, hy + Math.sin(facing - 1.15) * r * 0.95 * Iso.TILT,
+                    hx + Math.cos(facing + 1.15) * r * 0.95, hy + Math.sin(facing + 1.15) * r * 0.95 * Iso.TILT);
+
+    } else if (kind === 'staff') {
+      g.lineStyle(3.5, 0x8a6b4f, a);
+      g.lineBetween(hx - fx * r * 0.3, hy - fy * r * 0.3 + r * 0.5,
+                    hx + fx * r * 0.9, hy + fy * r * 0.9 - r * 0.9);
+      g.fillStyle(0x9fd0ff, a);
+      g.fillCircle(hx + fx * r * 0.9, hy + fy * r * 0.9 - r * 0.9, r * 0.36);
+      g.fillStyle(0xffffff, a * 0.8);
+      g.fillCircle(hx + fx * r * 0.9, hy + fy * r * 0.9 - r * 0.9, r * 0.16);
+
+    } else if (kind === 'rifle') {
+      g.lineStyle(4, 0x4a5060, a);
+      g.lineBetween(hx - fx * r * 0.4, hy - fy * r * 0.4, hx + fx * r * 1.9, hy + fy * r * 1.9);
+      g.lineStyle(3, 0x2f3442, a);
+      g.lineBetween(hx - fx * r * 0.5 - px * r * 0.2, hy - fy * r * 0.5 - py * r * 0.2,
+                    hx - fx * r * 0.1, hy - fy * r * 0.1);
+      g.fillStyle(0xf0a86a, a);
+      g.fillCircle(hx + fx * r * 0.6, hy + fy * r * 0.6 - r * 0.35, r * 0.2);
+    }
+  },
+
   // ── 유닛 (지면 그림자 + 세워진 몸통) ────────────────────────
   // worldX/worldY 는 평면 좌표. 변환은 여기서만 일어난다.
-  drawUnit: function (g, def, worldX, worldY, color, alpha) {
+  drawUnit: function (g, def, worldX, worldY, color, alpha, facing) {
     var Iso = GAME.Iso;
     var sx = worldX;
     var sy = Iso.toScreenY(worldY);
@@ -95,6 +140,11 @@ GAME.UI = {
     // 몸통을 지면과 잇는 기둥 — 높이감
     g.fillStyle(color, 0.28 * a);
     g.fillRect(sx - r * 0.30, by, r * 0.60, lift);
+
+    // 무기는 몸통 뒤에서 먼저 그려 겹침이 자연스럽게
+    if (def.weapon !== undefined && facing !== undefined) {
+      this.drawWeapon(g, def.weapon, sx, by, r, facing, color, a);
+    }
 
     g.fillStyle(color, a);
     if (def.shape === 'square') {
@@ -114,6 +164,10 @@ GAME.UI = {
       }
       g.fillPoints(pts, true);
     }
+
+    // 머리 — 도형만으로는 사람처럼 안 보여서 실루엣을 잡아준다
+    g.fillStyle(color, a);
+    g.fillCircle(sx, by - r * 1.35, r * 0.42);
 
     return { sx: sx, sy: sy, by: by };
   },

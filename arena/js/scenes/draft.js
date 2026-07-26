@@ -189,7 +189,7 @@ GAME.DraftScene.prototype.redraw = function () {
     var e = enemies[i];
     var edef = GAME.UNITS[e.type];
     if (!edef) continue;
-    GAME.UI.drawUnit(g, edef, e.x, e.y, C.strategist, 0.85);
+    GAME.UI.drawUnit(g, edef, e.x, e.y, C.strategist, 0.85, Math.PI / 2);
     if (!GAME.isNonTarget(edef)) {
       g.lineStyle(2, 0xf0a86a, 0.9);
       GAME.UI.groundCircle(g, e.x, e.y, edef.radius + 7);

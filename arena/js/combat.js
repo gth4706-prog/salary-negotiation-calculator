@@ -61,8 +61,10 @@ GAME.Combat = {
       x: x,
       y: y,
       home: { x: x, y: y },
-      // 전략가 유닛은 배치된 자리를 지킨다. 진지를 버리고 돌격하면 '배치'가 의미를 잃는다.
-      leash: side === 'strategist' ? GAME.CONFIG.LEASH : Infinity,
+      // 전략가 유닛은 적이 가까우면 배치를 깨고 쫓아나가되, chase 반경을 넘으면 자리로 돌아온다.
+      // 무한 돌격을 막아 '배치'가 여전히 의미를 갖게 하는 장치.
+      leash: side === 'strategist' ? (def.chase || GAME.CONFIG.LEASH) : Infinity,
+      stance: 'hold',        // hold | chase | return
       hp: def.hp,
       maxHp: def.hp,
       cd: Math.random() * 250,
@@ -216,6 +218,11 @@ GAME.Combat = {
         kind: 'slash', x: u.x, y: u.y, angle: ang,
         range: def.range, half: half, t: 140, total: 140, side: u.side
       });
+      // 근접도 '무언가 날아간다'는 게 보이도록 검기를 띄운다 (연출 전용, 피해는 위에서 이미 적용)
+      state.effects.push({
+        kind: 'slashWave', x: u.x, y: u.y, angle: ang,
+        range: def.range, t: 220, total: 220, side: u.side
+      });
 
     } else if (def.attack === 'projectile') {
       state.projectiles.push({
@@ -235,13 +242,20 @@ GAME.Combat = {
         t: def.telegraph, total: def.telegraph,
         damage: def.damage, side: u.side, owner: u
       });
+      // 예고 시간 동안 시전자에서 착탄점으로 구체가 날아가는 게 보인다
+      state.effects.push({
+        kind: 'lob', x1: u.x, y1: u.y, x2: tx, y2: ty,
+        t: def.telegraph, total: def.telegraph, side: u.side
+      });
 
     } else if (def.attack === 'targeted') {
+      // 자동명중이지만 '보이게' 한다 — 유도탄이라 피할 수는 없다
       if (target && target.alive) {
-        this.applyDamage(target, def.damage, u, state);
-        state.effects.push({
-          kind: 'beam', x1: u.x, y1: u.y, x2: target.x, y2: target.y,
-          t: 160, total: 160, side: u.side
+        state.projectiles.push({
+          x: u.x, y: u.y, vx: 0, vy: 0,
+          damage: def.damage, side: u.side, radius: 6,
+          life: 4000, owner: u, homing: target,
+          speed: def.bulletSpeed || 700, tracer: true
         });
       }
     }
@@ -409,11 +423,37 @@ GAME.Combat = {
   },
 
   // ── AI ──────────────────────────────────────────────────────
+  // 전략가 유닛의 진형 이탈/복귀 판정.
+  // 반환값이 false면 이번 프레임은 복귀 이동만 하고 교전하지 않는다.
+  updateStance: function (u, state, dt) {
+    if (u.side !== 'strategist') return true;
+
+    var dxh = u.x - u.home.x, dyh = u.y - u.home.y;
+    var fromHome = Math.sqrt(dxh * dxh + dyh * dyh);
+    var chase = u.def.chase || GAME.CONFIG.LEASH;
+
+    if (u.stance === 'return') {
+      // 자리로 돌아가는 중엔 적을 무시한다 (질질 끌려다니지 않게)
+      if (fromHome <= chase * 0.35) { u.stance = 'hold'; return true; }
+      this.moveToward(u, u.home.x, u.home.y, this.effSpeed(u) * dt);
+      return false;
+    }
+
+    if (fromHome >= chase * 0.98) { u.stance = 'return'; return false; }
+
+    var tgt = this.nearestEnemy(u, state.units);
+    if (tgt && this.dist(u, tgt) <= (u.def.aggro || 300)) u.stance = 'chase';
+    else if (u.stance === 'chase' && fromHome > chase * 0.5) u.stance = 'return';
+    return true;
+  },
+
   runAI: function (u, state, dt) {
     var def = u.def;
     var moveTo = null;
     var engage = true;
     var tgt = null;
+
+    if (!this.updateStance(u, state, dt)) return;
 
     if (u.order) {
       if (u.order.type === 'move') {
@@ -558,6 +598,16 @@ GAME.Combat = {
     // 투사체
     for (i = state.projectiles.length - 1; i >= 0; i--) {
       var p = state.projectiles[i];
+
+      // 유도탄: 대상을 계속 따라간다 (회피 불가 — 대신 눈에 보인다)
+      if (p.homing) {
+        if (!p.homing.alive) { state.projectiles.splice(i, 1); continue; }
+        var hx = p.homing.x - p.x, hy = p.homing.y - p.y;
+        var hd = Math.sqrt(hx * hx + hy * hy) || 1;
+        p.vx = (hx / hd) * p.speed;
+        p.vy = (hy / hd) * p.speed;
+      }
+
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.life -= dtMs;

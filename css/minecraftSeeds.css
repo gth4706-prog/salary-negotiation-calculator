@@ -22,6 +22,77 @@
   --mc-ink:#efece0;        /* 밝은 텍스트 */
 }
 
+/* ---------- 페이지 전체 톤 (배경·nav·footer 포함) ----------
+   이 파일은 minecraft-seeds 페이지에서만 로드되므로 body/.nav/.footer
+   같은 전역 클래스를 직접 override해도 다른 도구 페이지에는 영향 없음. */
+body{
+  background:var(--mc-bg);
+  background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.02) 0 4px,transparent 4px 8px);
+  color:var(--mc-ink);
+}
+.nav{
+  background:#1c1c18;
+  border-bottom:3px solid #000;
+  box-shadow:inset 0 -4px 0 rgba(0,0,0,.3);
+  backdrop-filter:none;
+}
+.nav .brand{color:var(--mc-ink)}
+.nav .brand svg{color:var(--mc-grass)}
+.nav .links a{color:#b9b9ac}
+.nav .links a:hover{color:#fff;background:#3d3d37}
+.theme-btn{background:#3d3d37;border:2px solid #000;border-radius:0;color:#efece0}
+.theme-btn:hover{color:var(--mc-gold);border-color:var(--mc-gold)}
+.ver-badge{
+  font-family:var(--mc-font);border-radius:0;border:2px solid #000;
+  background:#3d3d37;color:var(--mc-gold);
+}
+.footer{background:#1c1c18;border-top:3px solid #000}
+.footer a{color:#c9c9bd}
+.footer a:hover{color:var(--mc-gold)}
+.footer .sep{color:#55554c}
+.footer .cp{color:#8a8a7c}
+
+/* 카드 전반(질문지·결과·"다른 도구") — 돌 패널 톤으로 통일 */
+.card{
+  background:var(--mc-panel);
+  color:var(--mc-ink);
+  border:3px solid #000;
+  border-radius:0;
+  box-shadow:inset 2px 2px 0 rgba(255,255,255,.08),inset -2px -2px 0 rgba(0,0,0,.35);
+}
+.card>h2{
+  font-family:var(--mc-font);
+  font-size:14px;
+  color:#fff;
+  text-shadow:2px 2px 0 rgba(0,0,0,.45);
+}
+.card>.desc{color:#b9b9ac}
+
+/* "다른 도구" 링크 → 블록 버튼 */
+.guides a{
+  border-radius:0;
+  border:3px solid #000;
+  background:#55554c;
+  color:var(--mc-ink);
+  box-shadow:inset 2px 2px 0 rgba(255,255,255,.15),inset -2px -2px 0 rgba(0,0,0,.3);
+  transition:background .06s;
+}
+.guides a:hover{
+  background:#6a6a5f;
+  transform:none;
+  box-shadow:inset 2px 2px 0 rgba(255,255,255,.25),inset -2px -2px 0 rgba(0,0,0,.3),0 0 0 3px var(--mc-gold);
+}
+.guides a span{color:#b9b9ac}
+
+/* 광고 슬롯 */
+.ad-slot{
+  border:3px dashed #000;
+  border-radius:0;
+  background:#33332d;
+  color:#9a9a8c;
+}
+.ad-slot .lab{color:#c9c9bd}
+
 /* ---------- 히어로: 잔디→흙 단면 ---------- */
 .hero.mc-theme{
   position:relative;

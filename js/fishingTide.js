@@ -10,9 +10,11 @@
   var $=function(id){return document.getElementById(id)};
   if(!$("ft-opts"))return;
 
-  // 배포 후 실제 Worker URL로 교체 필요 (webtool-proxy — /transcript, /seo-keywords와 공용)
-  var API_BASE="https://webtool-proxy.YOUR-SUBDOMAIN.workers.dev";
-  var API_READY=API_BASE.indexOf("YOUR-SUBDOMAIN")===-1;
+  /* webtool-proxy Worker (/transcript, /seo-keywords, /couple-verdict와 공용).
+     ⚠️ 이 파일은 아직 이 주소로 아무 요청도 보내지 않는다. Worker에 /tide 핸들러는
+     있지만 프론트엔드 연동 코드가 없다. 주소만 맞춰둔 상태이므로
+     "연동중" 같은 진행형 문구를 화면에 쓰면 안 된다 — 실제로 부르는 게 없다. */
+  var API_BASE="https://bold-dream-f416.gth3941.workers.dev";
 
   var REGION_EMOJI={인천:"🌊",경기:"🌊",충남:"⛵",전북:"🌾",전남:"🏝️",부산:"🌉",울산:"🏭",경남:"⛴️",경북:"⛰️",강원:"🏔️",제주:"🌴"};
   var TECH_EMOJI={릴찌:"🎣",원투:"🪝",장대:"🎋",민장대:"🎋",루어:"🐟",부력:"🛟",잠수:"🤿",목줄:"🪢",훌치기:"🪤",홀치기:"🪤",에깅:"🦑",지깅:"⚓"};
@@ -187,21 +189,40 @@
   function mapLink(s){
     return "https://map.kakao.com/link/map/"+encodeURIComponent(s.name)+","+s.lat+","+s.lon;
   }
+  /* depth 원본값은 출처가 섞여 있어 1,076건 중 748건은 이미 "0.4m~0.6m"처럼
+     끝에 단위 m이 붙어 있고, 328건은 "3~5"처럼 붙여야 한다. 데이터는 그대로 두고
+     렌더 시점에 "끝에 단위가 있는지"만 보고 붙여 "0.6mm" 중복 표기를 막는다.
+     끝 기준으로 판단해야 "8m~10"처럼 앞쪽에만 단위가 붙은 값도
+     "8m~10m"으로 정상 표기된다. 대문자 M·꼬리 공백·"m 내외" 같은 변형도 흡수. */
+  function depthText(v){
+    var t=(v==null?"":String(v)).replace(/^\s+|\s+$/g,"");
+    if(!t)return "";
+    // 마지막 숫자 뒤에 오는 꼬리 문자열에 m이 있으면 이미 단위가 붙은 값
+    var tail=t.replace(/^[\s\S]*[0-9]/,"");
+    return /m/i.test(tail) ? t : t+"m";
+  }
+
   function tideHtml(){
     var tide=tideNumberOf(new Date());
     if(!tide)return "";
-    return '<span class="ft-tag tide">오늘 '+escapeHtml(tide.label)+' ('+tide.n+'물)</span>';
+    // label이 이미 "5물" 형태면 번호를 또 붙이면 "5물 (5물)"이 된다.
+    // 숫자가 안 드러나는 "사리"/"조금"일 때만 괄호로 물때 번호를 덧붙인다.
+    var txt="오늘 "+tide.label;
+    if(!/^[0-9]+물$/.test(tide.label))txt+=" ("+tide.n+"물)";
+    return '<span class="ft-tag tide">'+escapeHtml(txt)+'</span>';
   }
+  /* 만조·간조 '시각'은 아직 제공하지 않는다(물때 번호만 계산 가능).
+     아직 없는 정보라는 걸 사용자가 알아볼 수 있게 경고 톤(unknown)을 유지한다. */
   function timeHtml(){
-    if(API_READY)return '<span class="ft-tag">만조·간조 시각 연동중</span>';
-    return '<span class="ft-tag unknown">만조·간조 시각은 서버 배포 후 제공</span>';
+    return '<span class="ft-tag unknown">만조·간조 시각은 아직 제공 안 함</span>';
   }
   function cardHtml(s){
     var speciesChips=(s.species||[]).slice(0,6).map(function(sp){return '<span class="ft-tag match">'+escapeHtml(sp)+'</span>'}).join("");
     var techChips=(s.techniques||[]).slice(0,6).map(function(t){return '<span class="ft-tag">'+escapeHtml(t)+'</span>'}).join("");
+    var depth=depthText(s.depth);
     return '<div class="ft-card">'
       +'<div class="ft-name-row"><span class="ft-name">'+escapeHtml(s.name)+'</span><button type="button" class="ft-copy" data-name="'+escapeHtml(s.name)+'">📋 이름 복사</button></div>'
-      +'<div class="ft-meta">'+tideHtml()+timeHtml()+'<span class="ft-tag">'+escapeHtml(s.region)+'</span>'+(s.depth?'<span class="ft-tag">수심 '+escapeHtml(s.depth)+'m</span>':'')+(s.bottom?'<span class="ft-tag">해저 '+escapeHtml(s.bottom)+'</span>':'')+'</div>'
+      +'<div class="ft-meta">'+tideHtml()+timeHtml()+'<span class="ft-tag">'+escapeHtml(s.region)+'</span>'+(depth?'<span class="ft-tag">수심 '+escapeHtml(depth)+'</span>':'')+(s.bottom?'<span class="ft-tag">해저 '+escapeHtml(s.bottom)+'</span>':'')+'</div>'
       +'<div class="ft-meta" style="margin-top:6px">'+speciesChips+techChips+'</div>'
       +(s.tideNote?'<div class="ft-desc">물때 메모: '+escapeHtml(s.tideNote)+'</div>':'')
       +'<div class="ft-actions"><a class="ft-maplink" href="'+mapLink(s)+'" target="_blank" rel="noopener">🗺️ 지도에서 위치 보기</a></div>'

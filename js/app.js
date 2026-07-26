@@ -33,6 +33,9 @@
   function estTax(man){var P=[[0,0],[2000,12000],[3000,63700],[5000,303600],[7000,600000],[10000,1227800],[15000,2600000]];if(man<=0)return 0;if(man>=15000){var l=P[6],p=P[5];return l[1]+(l[1]-p[1])/(l[0]-p[0])*(man-l[0]);}for(var i=0;i<6;i++){var a=P[i],b=P[i+1];if(man>=a[0]&&man<=b[0])return a[1]+(b[1]-a[1])*(man-a[0])/(b[0]-a[0]);}return 0;}
   function takeHome(cashMan){var G=cashMan*10000/12,taxable=Math.max(0,G-200000);var np=Math.min(taxable,6370000)*0.045,hi=taxable*0.03545,ltc=hi*0.1295,ei=taxable*0.009,it=estTax(cashMan);return G-(np+hi+ltc+ei+it);}
   function val(id){return +$(id).value||0;}
+  /* 부호를 항상 붙인 퍼센트 문자열. 옆에 오는 서술어(인상/삭감, 오릅니다/내려갑니다)도
+     반드시 부호에 맞춰야 한다 — 연봉이 줄어드는 이직 제안이 드물지 않다. */
+  function pct(p){return (p>=0?"+":"")+p.toFixed(1)+"%";}
   function curTotal(){return val("c-base")+val("c-bonus");}
   function offTotal(){return val("o-base")+val("o-bonus");}
   function reveal(id){var el=$(id);el.hidden=false;el.classList.remove("reveal");void el.offsetWidth;el.classList.add("reveal");el.scrollIntoView({behavior:"smooth",block:"start"});}
@@ -80,7 +83,7 @@
     var cur=curTotal(),wish=val("wish"),btns=pctRow.querySelectorAll(".pct-btn");
     if(cur<=0||wish<=0){$("wish-rate-line").textContent="지금 연봉과 희망 연봉을 입력하면 인상률이 표시됩니다.";Array.prototype.forEach.call(btns,function(b){b.classList.remove("on")});return;}
     var rate=(wish-cur)/cur*100;
-    $("wish-rate-line").innerHTML="지금보다 <b>"+(rate>=0?"+":"")+rate.toFixed(1)+"%</b> 인상 희망";
+    $("wish-rate-line").innerHTML="지금보다 <b>"+pct(rate)+"</b> "+(rate>=0?"인상":"삭감")+" 희망";
     Array.prototype.forEach.call(btns,function(b){b.classList.toggle("on",Math.abs(rate-(+b.dataset.pct))<0.3)});
   }
   ["c-base","c-bonus"].forEach(function(id){$(id).addEventListener("input",function(){updCurNet();updWishRate();});});
@@ -124,7 +127,7 @@
     $("wp-pos").textContent="상위 "+wTop+"%";
     setPct(wTop,"wp-bar","wp-rank");
     $("wp-tag").textContent=wr.tag;$("wp-tag").style.color=wr.vc;
-    $("wp-desc").innerHTML="지금보다 <b>"+(raiseReq>=0?"+":"")+raiseReq.toFixed(1)+"%</b> 인상 요구 · "+wr.txt;
+    $("wp-desc").innerHTML="지금보다 <b>"+pct(raiseReq)+"</b> "+(raiseReq>=0?"인상":"삭감")+" 요구 · "+wr.txt;
   }
   $("go2").addEventListener("click",function(){renderPos();reveal("step2r");});
   $("go3").addEventListener("click",function(){$("adwrap").hidden=false;reveal("step3");setTimeout(function(){$("o-base").focus()},400);});
@@ -160,10 +163,26 @@
       setPct(oTop,"r-off-bar","r-off-rank");
 
       var vc,vt,vd,body;
-      var baseTxt="기본급은 지금보다 <b>"+(baseRaise>=0?"+":"")+baseRaise.toFixed(1)+"%</b>("+won(curBase)+" → "+won(offBase)+") 오릅니다.";
-      var totalTxt="총액 기준으로는 <b>"+(offRaise>=0?"+":"")+offRaise.toFixed(1)+"%</b> 인상이고, 같은 직군·연차에서 <b>상위 "+oTop+"%</b>(지금은 상위 "+cTop+"%)입니다.";
+      /* 이직 제안이 늘 인상인 건 아니다 — 임금이 줄어드는 이동도 흔하다.
+         부호를 안 보고 서술어를 고정하면 "-10.0% 오릅니다" 같은 문장이 나온다. */
+      var baseTxt="기본급은 지금보다 <b>"+pct(baseRaise)+"</b>("+won(curBase)+" → "+won(offBase)+") "
+        +(baseRaise>=0?"오릅니다.":"내려갑니다.");
+      var totalTxt="총액 기준으로는 <b>"+pct(offRaise)+"</b> "+(offRaise>=0?"인상":"삭감")
+        +"이고, 같은 직군·연차에서 <b>상위 "+oTop+"%</b>(지금은 상위 "+cTop+"%)입니다.";
 
-      if(baseRaise>=BASE_GOOD_PCT){
+      if(offRaise<0){
+        /* 총액이 줄어드는 제안. "인상폭이 작다"고 뭉뚱그리지 않고 삭감이라고 분명히 말한다. */
+        vc="var(--bad)";vt="삭감 제안";vd="지금보다 총액이 줄어드는 제안이에요";
+        body=totalTxt+" "+baseTxt+" <b>연봉이 줄어드는 이동</b>이라는 점을 먼저 분명히 봐주세요. "
+          +"직무 전환·근무 조건·성장 기회처럼 <b>연봉 외에 확실히 얻는 것</b>이 있고 그게 이 감소분을 감수할 만한지가 판단 기준입니다. "
+          +"그런 이유 없이 단순히 옮기는 자리라면 다시 협의하시길 권합니다. → "+GUIDE_LINK+"을 참고해보세요.";
+      }else if(baseRaise<0){
+        /* 총액은 유지·상승인데 기본급만 깎이는 경우 — 성과급 비중이 커진 구조다. */
+        vc="var(--warn)";vt="따져볼 처우";vd="총액은 유지·상승이지만 기본급이 줄어요";
+        body=totalTxt+" 다만 "+baseTxt+" 기본급이 줄면 퇴직금·성과급 산정 기준과 다음 이직의 출발선이 함께 낮아집니다. "
+          +"총액이 성과급에 기대는 구조라 <b>목표를 못 채우면 실제 수령액은 지금보다 적어질 수 있어요.</b> "
+          +"기본급을 지금 수준 이상으로 맞춰달라고 요청해보시길 권합니다. → "+GUIDE_LINK+"에서 실제로 쓸 수 있는 문구를 확인해보세요.";
+      }else if(baseRaise>=BASE_GOOD_PCT){
         vc="var(--good)";vt="매력적인 처우";vd="기본급이 안정적으로 올라요";
         body=baseTxt+" 기본급이 이 정도 오르면 장기적으로도 든든합니다. "+totalTxt+" 망설이지 마세요 — <b>원하시던 직무라면 충분히 이동해도 좋은 수</b>입니다.";
       }else if(baseRaise>=BASE_OK_PCT){

@@ -21,6 +21,28 @@
 .rcard.warn{background:var(--bad-bg);border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
 .rcard.warn .rt{color:var(--bad)}
 
+/* 재판 중 — AI 판정 대기.
+   .cr-loading이 display:flex라서 부모가 [hidden]이어도 뚫고 나오는 일이 없도록
+   숨김 규칙을 명시한다(다른 도구에서 같은 버그를 겪었음). */
+.cr-loading{display:flex;flex-direction:column;align-items:center;gap:12px;padding:34px 0}
+.cr-loading[hidden],#stepLoading[hidden]{display:none}
+.cr-spinner{width:30px;height:30px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:cr-spin .8s linear infinite}
+@keyframes cr-spin{to{transform:rotate(360deg)}}
+.cr-loading-txt{font-size:14px;font-weight:700}
+.cr-loading-sub{font-size:12.5px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.cr-spinner{animation:none}}
+
+/* 판정 출처 배지 — AI 판정인지, AI를 못 불러와 객관식만 본 간이 판정인지 */
+.mode-badge{font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;vertical-align:middle;white-space:nowrap}
+.mode-badge[hidden]{display:none}
+.mode-badge.ai{background:var(--soft);color:var(--accent-ink)}
+.mode-badge.rule{background:var(--surface-2);color:var(--muted)}
+
+/* AI가 정리한 상황 요약 · 다음 행동 제안 */
+.cr-summary{margin-top:12px;padding:13px 15px;border-radius:var(--r-sm);background:var(--surface);border:1px solid var(--line);font-size:13.5px;line-height:1.65;color:var(--ink)}
+.cr-summary[hidden],.cr-advice[hidden]{display:none}
+.cr-advice{margin-top:16px;padding:14px 16px;border-radius:var(--r-sm);background:var(--good-bg);border:1px solid color-mix(in srgb,var(--good) 30%,var(--line));font-size:13.5px;line-height:1.7}
+
 /* 재판관 카드 */
 .judge-grid{display:grid;gap:12px}
 .judge-card{display:flex;gap:13px;align-items:flex-start;padding:14px 15px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--paper)}
@@ -28,6 +50,8 @@
 .judge-card .jname{font-weight:800;font-size:14px}
 .judge-card .jblurb{font-size:12px;color:var(--muted);margin-top:2px}
 .judge-card .jverdict{margin-top:7px;font-size:13px;font-weight:700;padding:6px 11px;border-radius:999px;display:inline-block}
+.judge-card .jline{margin-top:8px;font-size:13.5px;font-weight:700;line-height:1.55}
+.judge-card .jreason{margin-top:5px;font-size:12.5px;color:var(--muted);line-height:1.65}
 .judge-card .jverdict.side-a{background:var(--warn-bg);color:var(--warn)}
 .judge-card .jverdict.side-b{background:var(--soft);color:var(--accent-ink)}
 .judge-card .jverdict.side-both{background:var(--good-bg);color:var(--good)}

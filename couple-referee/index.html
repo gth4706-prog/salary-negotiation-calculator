@@ -16,8 +16,8 @@
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%96%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
-<link rel="stylesheet" href="../css/style.css?v=0.03">
-<link rel="stylesheet" href="../css/referee.css?v=0.03">
+<link rel="stylesheet" href="../css/style.css?v=0.04">
+<link rel="stylesheet" href="../css/referee.css?v=0.04">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"커플 재판","applicationCategory":"LifestyleApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"연인·부부 다툼을 성향이 다른 재판관 5명이 판정해주는 참고용 재미 도구."}
 </script>
@@ -35,7 +35,7 @@
     <a href="../resignation-timing/">퇴사 타이밍</a>
     <a href="../about.html">소개</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.03</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.04</span>
   </div>
 </div></nav>
 
@@ -45,7 +45,7 @@
     <p>다투셨나요? <b>성향이 다른 재판관 5명</b>이 각자 판정을 내려요. 확실한 잘못이 있을 때만 편을 들어드려요.</p>
   </header>
 
-  <div class="note"><span>ℹ️</span><span>모든 계산은 <b>브라우저 안에서만</b> 이뤄지며 어디에도 저장·전송되지 않습니다. <b>참고용 재미 콘텐츠</b>이며 실제 법적·심리적 판단이 아니에요.</span></div>
+  <div class="note"><span>ℹ️</span><span>재판관들이 두 분의 글을 직접 읽고 판정하기 위해 입력 내용이 <b>AI로 전달</b>돼요. <b>어디에도 저장하지 않고</b> 판정 직후 버려집니다. 이름은 안 적으셔도 되고, 신원이 특정될 만한 정보는 빼고 적어주세요. <b>참고용 재미 콘텐츠</b>이며 실제 법적·심리적 판단이 아니에요.</span></div>
 
   <!-- 입력 폼 (A/B 공용, JS로 phase 전환) -->
   <section class="card step" id="stepForm">
@@ -56,7 +56,7 @@
     </div>
 
     <div class="field full" style="margin-top:14px">
-      <label class="lbl" for="p-text">하고 싶은 말 <span class="hint">(반복·화해 표현, 위험 신호는 판정에 반영돼요)</span></label>
+      <label class="lbl" for="p-text">하고 싶은 말 <span class="hint">(자세히 적을수록 판정이 정확해져요)</span></label>
       <textarea class="txt" id="p-text" rows="5" placeholder="무슨 일이 있었는지, 어떤 마음인지 편하게 적어보세요"></textarea>
       <button type="button" class="cta ghost" id="degender-btn" style="margin-top:8px;width:auto;padding:10px 16px">🩶 성별추정 표현 제거</button>
       <div class="helper" id="degender-note" hidden>완벽하지 않을 수 있어요 — 성별을 짐작하게 하는 표현 일부를 중립적인 말로 바꿨어요.</div>
@@ -85,14 +85,24 @@
     <button class="cta ghost" id="safety-restart" type="button" style="margin-top:16px">↺ 처음부터 다시</button>
   </section>
 
+  <!-- 재판 중(AI 판정 대기) -->
+  <section class="card step" id="stepLoading" hidden>
+    <div class="cr-loading">
+      <div class="cr-spinner"></div>
+      <div class="cr-loading-txt">재판관 5명이 두 분의 이야기를 읽는 중...</div>
+      <div class="cr-loading-sub">최대 20초 정도 걸릴 수 있어요.</div>
+    </div>
+  </section>
+
   <div class="ad-slot" aria-hidden="true" id="adwrap" hidden><span class="lab">광고 영역 (승인 후 노출)</span></div>
 
   <!-- 판정 결과 -->
   <section class="card step" id="stepResult" hidden>
-    <h2 class="q">판정 결과<span class="s" id="result-sub">–</span></h2>
+    <h2 class="q">판정 결과 <span class="mode-badge" id="result-mode" hidden></span><span class="s" id="result-sub">–</span></h2>
+    <div class="cr-summary" id="result-summary" hidden></div>
     <div class="verdict-line" id="result-banner" style="margin-top:14px">–</div>
-    <div class="helper" id="result-textnote" hidden style="margin-top:10px"></div>
     <div class="judge-grid" id="judge-cards" style="margin-top:16px"></div>
+    <div class="cr-advice" id="result-advice" hidden></div>
     <button class="cta ghost" id="result-restart" type="button" style="margin-top:18px">↺ 처음부터 다시</button>
   </section>
 
@@ -119,7 +129,7 @@
   <div class="cp">참고용 재미 콘텐츠이며 실제 법적·심리적 판단이 아닙니다. © 각잡살림</div>
 </div></footer>
 
-<script src="../js/site.js?v=0.03"></script>
-<script src="../js/referee.js?v=0.03"></script>
+<script src="../js/site.js?v=0.04"></script>
+<script src="../js/referee.js?v=0.04"></script>
 </body>
 </html>

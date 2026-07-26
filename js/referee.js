@@ -1,11 +1,23 @@
 /* =========================================================
    커플 재판 (couple-referee)
-   - 서버 없음. AI/LLM 호출 없음 — 100% 결정론적 규칙(룰) 기반.
-   - 자유서술은 화면 표시/감정정리용일 뿐 채점에는 쓰이지 않음.
+
+   판정은 두 갈래로 나오지만 화면에 그리는 코드는 하나다.
+     - AI 판정   : Worker(/couple-verdict)가 자유서술까지 읽고 판정. 기본 경로.
+     - 간이 판정 : AI가 안 되면(미배포·할당량 소진·오프라인) 객관식만 보는
+                   결정론적 룰 엔진. 화면이 절대 에러로 끝나지 않게 하는 안전망.
+   두 갈래 모두 같은 모양의 verdict 객체를 만들고 renderResult() 하나가 그린다.
+     verdict = { mode, summary, advice, judges:[{id, side, line, reason}] }
+     side: "A" | "B" | "both"  (편을 들어주는 쪽)
+
+   ⚠️ AI 경로에서는 입력 내용이 Worker를 거쳐 AI 제공자로 전송된다(저장은 안 함).
+      화면 안내 문구도 이 사실에 맞춰져 있어야 한다 — 임의로 "브라우저 안에서만"
+      으로 되돌리지 말 것.
    ========================================================= */
 (function(){
   var $=function(id){return document.getElementById(id)};
   if(!$("stepForm"))return;
+
+  var API_BASE="https://bold-dream-f416.gth3941.workers.dev";
 
   var QUESTIONS=[
     {id:"q1",t:"언성을 높이거나 화를 낸 쪽은?",opts:[["self","나"],["other","상대방"],["both","둘 다"],["none","아무도"]]},
@@ -23,6 +35,8 @@
     {id:"blunt",name:"팩폭형 재판관 직진",img:"blunt",blurb:"본인이 인정한 사실만 믿고, 확실하면 확실하게 말해요.",raiseMul:1.0,breakMul:1.0,repeatMul:1.0,trustOther:false,threshold:0.9},
     {id:"reconcile",name:"화해형 재판관 온화",img:"reconcile",blurb:"누구 잘못인지보다 어떻게 풀지가 더 중요해요.",raiseMul:0.7,breakMul:0.7,repeatMul:1.0,trustOther:true,threshold:2.0}
   ];
+  var JUDGE_BY_ID={};
+  JUDGES.forEach(function(j){JUDGE_BY_ID[j.id]=j});
 
   var DEGENDER_MAP=[
     [/남자\s?친구/g,"애인"],[/여자\s?친구/g,"애인"],[/남친/g,"애인"],[/여친/g,"애인"],
@@ -31,12 +45,39 @@
     [/오빠|누나|형|언니/g,"상대방"],[/자기야|자기(?=[\s.,!?]|$)/g,"상대방"]
   ];
 
-  /* 자유서술 키워드 신호 — 방향(누구 탓인지) 판단이 필요한 신호는 오판 위험이 커서 넣지 않고,
-     방향과 무관하게 안전한 신호(위험/반복/화해)만 판정에 반영한다. */
-  var SAFETY_WORDS=[/때렸/,/맞았/,/폭행/,/밀쳤/,/멱살/,/협박/,/죽인다/,/죽여/,/손찌검/,/폭력/];
+  /* 자유서술 키워드 신호 — 간이 판정에서만 쓴다. AI 판정은 글 전체를 직접 읽는다.
+     방향(누구 탓인지) 판단이 필요한 신호는 오판 위험이 커서 넣지 않고,
+     방향과 무관하게 안전한 신호(위험/반복/화해)만 반영한다. */
+  /* 안전 게이트 키워드. AI 판정에는 "학대 정황이면 멈춰라"는 지시가 따로 있지만,
+     AI가 안 될 때(미배포·할당량 소진·오프라인) 남는 안전망은 이 목록뿐이다.
+     즉 안전망이 가장 약해지는 시점이 AI가 죽었을 때라 여기가 넉넉해야 한다.
+     놓치는 쪽(위험한데 재미 판정을 보여줌)이 과잉 감지보다 훨씬 나쁘므로
+     의심스러우면 잡는 방향으로 둔다. 단 "졸랐"은 '떼썼다'는 뜻으로도 흔히 쓰여
+     목/멱살 같은 신체 맥락이 붙을 때만 잡는다. */
+  var SAFETY_WORDS=[
+    /때렸|때리[려겠]|때릴|팼|패버/,/맞았|맞을\s?뻔/,/폭행|구타/,/밀쳤|밀쳐|밀어서\s?넘어/,
+    /멱살|머리채/,/협박|위협했/,/죽인다|죽여|죽일|죽는다고/,/손찌검/,/폭력/,
+    /목을?\s?(졸|조르|조였|죄)/,
+    /발로\s?(찼|차서|밟)|걷어찼/,
+    /감금|가뒀|가둬|못\s?나가게|문을?\s?잠그/,
+    /흉기|칼을?\s?(들|겨|휘)/,
+    /(물건|의자|핸드폰|폰|컵|그릇|리모컨)을?\s?던[지졌져]|집어\s?던/,
+    /벽을?\s?(치|쳤|주먹)|주먹으로/
+  ];
   var REPEAT_WORDS=[/맨날/,/항상/,/매번/,/반복/,/또\s?이런/,/한두\s?번이/];
   var RECONCILE_WORDS=[/미안/,/사과/,/화해/,/풀었/];
   function textHas(list,text){ return list.some(function(re){return re.test(text||"")}); }
+
+  /* 이름 뒤에 "님"을 붙일 때 — 기본값이 "첫 번째 분"이라 그냥 붙이면 "첫 번째 분님"이 된다. */
+  function honorific(name){
+    return /[분님]$/.test(name) ? name : name+"님";
+  }
+
+  function escapeHtml(s){
+    return String(s==null?"":s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  }
 
   var state={phase:"A",A:{},B:{}};
 
@@ -66,6 +107,10 @@
             Array.prototype.forEach.call(opts.children,function(c){c.classList.remove("on")});
             b.classList.add("on");
             current[q.id]=o[0];
+            /* 폭력을 '있었음'으로 고른 순간 바로 지원기관 안내로 넘긴다.
+               예전엔 두 사람이 다 입력한 뒤에야 떴는데, 그러면 신고하려는 쪽이
+               화면을 상대에게 넘겨야 해서 안내를 못 보고 위험해질 수 있었다. */
+            if(q.safety&&o[0]==="yes")showSafety();
           });
           opts.appendChild(b);
         });
@@ -84,6 +129,20 @@
     ta.value=v;
     $("degender-note").hidden=false;
   });
+
+  /* ---------- 화면 전환 ---------- */
+  function show(id){
+    ["stepForm","stepHandoff","stepSafety","stepResult"].forEach(function(s){ $(s).hidden = (s!==id); });
+    $(id).scrollIntoView({behavior:"smooth",block:"start"});
+  }
+  function showSafety(){
+    setLoading(false);
+    show("stepSafety");
+  }
+  function setLoading(on){
+    var el=$("stepLoading");
+    if(el)el.hidden=!on;
+  }
 
   /* ---------- 폼 진행 ---------- */
   function collectAnswers(){
@@ -105,11 +164,11 @@
   $("form-next").addEventListener("click",function(){
     var ans=collectAnswers();
     if(!ans){alert("모든 질문에 답해주세요.");return;}
+    /* 자유서술에 폭력 정황이 있으면 상대에게 화면을 넘기기 전에 여기서 멈춘다. */
+    if(ans.q6==="yes"||textHas(SAFETY_WORDS,ans.text)){ showSafety(); return; }
     if(state.phase==="A"){
       state.A=ans;
-      $("stepForm").hidden=true;
-      $("stepHandoff").hidden=false;
-      $("stepHandoff").scrollIntoView({behavior:"smooth",block:"start"});
+      show("stepHandoff");
     }else{
       state.B=ans;
       finish();
@@ -122,9 +181,7 @@
     $("form-title-text").textContent="두 번째 분, 상황을 알려주세요";
     $("form-sub").textContent="앞서 적은 내용은 안 보여요. 편하게 적어주세요.";
     $("form-next").textContent="판정 받기 →";
-    $("stepHandoff").hidden=true;
-    $("stepForm").hidden=false;
-    $("stepForm").scrollIntoView({behavior:"smooth",block:"start"});
+    show("stepForm");
   });
 
   function restart(){
@@ -133,7 +190,9 @@
   $("safety-restart").addEventListener("click",restart);
   $("result-restart").addEventListener("click",restart);
 
-  /* ---------- 채점 엔진 ---------- */
+  /* =========================================================
+     판정 갈래 1 — 간이 판정(룰 엔진). AI가 안 될 때의 안전망.
+     ========================================================= */
   function catWeight(qid,target,other,trustOther){
     var selfAdmit=target[qid]==="self"||target[qid]==="both";
     var otherBlame=other[qid]==="other"||other[qid]==="both";
@@ -152,62 +211,153 @@
   function reconcileSoftening(A,B){
     return (textHas(RECONCILE_WORDS,A.text)||textHas(RECONCILE_WORDS,B.text))?0.3:0;
   }
-  function judgeVerdict(judge,A,B){
+  function judgeSide(judge,A,B){
     var rf=repeatFactor(A,B),soften=reconcileSoftening(A,B);
     var faultA=(catWeight("q1",A,B,judge.trustOther)*judge.raiseMul+catWeight("q3",A,B,judge.trustOther)*judge.breakMul)*rf-apologyCredit(A)-soften;
     var faultB=(catWeight("q1",B,A,judge.trustOther)*judge.raiseMul+catWeight("q3",B,A,judge.trustOther)*judge.breakMul)*rf-apologyCredit(B)-soften;
     faultA=Math.max(0,faultA); faultB=Math.max(0,faultB);
     var diff=faultA-faultB;
-    if(Math.abs(diff)<judge.threshold)return{side:"both"};
-    return{side:diff>0?"B":"A"}; // A 잘못이 크면(diff>0) B 편을 들어줌
+    if(Math.abs(diff)<judge.threshold)return "both";
+    return diff>0?"B":"A"; // A 잘못이 크면(diff>0) B 편을 들어줌
   }
-  function textFlagsSafety(){
-    return textHas(SAFETY_WORDS,state.A.text)||textHas(SAFETY_WORDS,state.B.text);
+  function ruleVerdict(A,B){
+    var notes=[];
+    if(textHas(REPEAT_WORDS,A.text)||textHas(REPEAT_WORDS,B.text))notes.push("'반복되는 일'이라는 표현이 감지돼 반영했어요.");
+    /* 화해 표현은 양쪽 점수를 똑같이 깎아서 대개 판정 방향을 바꾸지 않는다.
+       "완화했다"고 단정하지 말고 감지 사실만 알린다. */
+    if(textHas(RECONCILE_WORDS,A.text)||textHas(RECONCILE_WORDS,B.text))notes.push("'사과·화해' 표현이 보였어요.");
+    return {
+      mode:"rule",
+      summary:notes.join(" "),
+      advice:"",
+      judges:JUDGES.map(function(j){
+        return {id:j.id,side:judgeSide(j,A,B),line:"",reason:""};
+      })
+    };
+  }
+
+  /* =========================================================
+     판정 갈래 2 — AI 판정. 자유서술까지 읽고 재판관별로 판정한다.
+     실패하면 null을 돌려주고 호출부가 간이 판정으로 넘어간다.
+     ========================================================= */
+  function payloadOf(p){
+    return {name:p.name,text:p.text,q1:p.q1,q2:p.q2,q3:p.q3,q4:p.q4,q5:p.q5};
+  }
+  function aiVerdict(A,B){
+    var ctrl=("AbortController" in window)?new AbortController():null;
+    var timer=setTimeout(function(){ if(ctrl)ctrl.abort(); },25000);
+
+    return fetch(API_BASE+"/couple-verdict",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({a:payloadOf(A),b:payloadOf(B)}),
+      signal:ctrl?ctrl.signal:undefined
+    }).then(function(res){
+      if(!res.ok)return null;      // 미배포(404)·AI 없음(503)·할당량 소진 → 간이 판정
+      return res.json();
+    }).then(function(d){
+      if(!d)return null;
+      if(d.safety===true)return {mode:"safety"};
+      /* 모르는 재판관 id만 오면 필터 후 0명이 된다 — 걸러낸 뒤에 세야 한다. */
+      var judges=(d.judges||[]).filter(function(j){
+        return j&&JUDGE_BY_ID[j.id]&&(j.side==="A"||j.side==="B"||j.side==="both");
+      });
+      if(!judges.length)return null;
+      return {mode:"ai",summary:d.summary||"",advice:d.advice||"",judges:judges};
+    }).catch(function(){
+      return null;                 // 타임아웃·네트워크 오류 → 간이 판정
+    }).then(function(v){
+      clearTimeout(timer);
+      return v;
+    });
+  }
+
+  /* =========================================================
+     결과 렌더 — 두 갈래가 만든 같은 모양의 verdict 하나만 받는다.
+     ========================================================= */
+  function renderResult(v){
+    var votes={A:0,B:0,both:0};
+    var html="";
+    v.judges.forEach(function(j){
+      var meta=JUDGE_BY_ID[j.id];
+      if(!meta)return;
+      votes[j.side]++;
+      var label=j.side==="both"?"둘 다 조금씩":honorific(j.side==="A"?state.A.name:state.B.name)+" 편";
+      html+='<div class="judge-card">'
+        +'<img src="../img/judges/'+meta.img+'.svg" alt="'+escapeHtml(meta.name)+'">'
+        +'<div><div class="jname">'+escapeHtml(meta.name)+'</div>'
+        +'<div class="jblurb">'+escapeHtml(meta.blurb)+'</div>'
+        +'<span class="jverdict side-'+j.side.toLowerCase()+'">'+escapeHtml(label)+'</span>'
+        +(j.line?'<div class="jline">'+escapeHtml(j.line)+'</div>':"")
+        +(j.reason?'<div class="jreason">'+escapeHtml(j.reason)+'</div>':"")
+        +'</div></div>';
+    });
+    $("judge-cards").innerHTML=html;
+
+    var n=v.judges.length;
+    var tally="("+escapeHtml(state.A.name)+" 편:"+votes.A+" · "+escapeHtml(state.B.name)+" 편:"+votes.B
+      +" · 둘 다:"+votes.both+")";
+    /* 단독 최다일 때만 그 결과를 헤드라인으로 쓴다. 2:2:1처럼 아무도 단독
+       최다가 아닌 경우 "1명이 둘 다라고 봤어요"를 크게 쓰면 실제 결과를
+       대표하지 못하므로, 갈렸다고 그대로 말한다. */
+    if(votes.A>votes.B&&votes.A>votes.both){
+      $("result-banner").innerHTML="📌 "+n+"명 중 <b>"+votes.A+"명</b>이 <b>"
+        +escapeHtml(honorific(state.A.name))+"</b> 편을 들었어요.";
+    }else if(votes.B>votes.A&&votes.B>votes.both){
+      $("result-banner").innerHTML="📌 "+n+"명 중 <b>"+votes.B+"명</b>이 <b>"
+        +escapeHtml(honorific(state.B.name))+"</b> 편을 들었어요.";
+    }else if(votes.both>votes.A&&votes.both>votes.B){
+      $("result-banner").innerHTML="📌 "+n+"명 중 <b>"+votes.both+"명</b>이 \"둘 다 조금씩\"이라고 봤어요. "+tally;
+    }else{
+      $("result-banner").innerHTML="📌 재판관들 의견이 <b>팽팽하게 갈렸어요.</b> "+tally;
+    }
+    $("result-sub").textContent=state.A.name+" · "+state.B.name;
+
+    var badge=$("result-mode");
+    if(badge){
+      badge.textContent=v.mode==="ai"?"AI 판정":"간이 판정";
+      badge.title=v.mode==="ai"
+        ? "AI가 두 분이 적은 글을 직접 읽고 재판관별로 판정했어요."
+        : "AI 판정을 못 불러와서 객관식 답변만으로 판정했어요. 잠시 후 다시 시도해보세요.";
+      badge.className="mode-badge "+(v.mode==="ai"?"ai":"rule");
+      badge.hidden=false;
+    }
+
+    var sum=$("result-summary");
+    if(sum){
+      if(v.summary){ sum.textContent=v.summary; sum.hidden=false; }
+      else sum.hidden=true;
+    }
+    var adv=$("result-advice");
+    if(adv){
+      if(v.advice){ adv.innerHTML="💡 <b>이렇게 해보세요</b><br>"+escapeHtml(v.advice); adv.hidden=false; }
+      else adv.hidden=true;
+    }
+
+    setLoading(false);
+    show("stepResult");
+    if($("adwrap"))$("adwrap").hidden=false;
   }
 
   function finish(){
-    if(state.A.q6==="yes"||state.B.q6==="yes"||textFlagsSafety()){
-      $("stepForm").hidden=true;
-      $("stepSafety").hidden=false;
-      $("stepSafety").scrollIntoView({behavior:"smooth",block:"start"});
-      return;
+    if(state.A.q6==="yes"||state.B.q6==="yes"
+      ||textHas(SAFETY_WORDS,state.A.text)||textHas(SAFETY_WORDS,state.B.text)){
+      showSafety(); return;
     }
-    var votes={A:0,B:0,both:0};
-    var cardsHtml="";
-    JUDGES.forEach(function(j){
-      var v=judgeVerdict(j,state.A,state.B);
-      votes[v.side]++;
-      var label=v.side==="both"?"둘 다 조금씩":(v.side==="A"?state.A.name+"님 편":state.B.name+"님 편");
-      cardsHtml+='<div class="judge-card">'
-        +'<img src="../img/judges/'+j.img+'.svg" alt="'+j.name+'">'
-        +'<div><div class="jname">'+j.name+'</div><div class="jblurb">'+j.blurb+'</div>'
-        +'<span class="jverdict side-'+v.side.toLowerCase()+'">'+label+'</span></div>'
-        +'</div>';
-    });
-    $("judge-cards").innerHTML=cardsHtml;
-
-    var winner="both";
-    if(votes.A>votes.B&&votes.A>votes.both)winner="A";
-    else if(votes.B>votes.A&&votes.B>votes.both)winner="B";
-    var bannerText;
-    if(winner==="both"){
-      bannerText="📌 5명 중 <b>"+votes.both+"명</b>이 \"둘 다 조금씩\"이라고 봤어요. ("+state.A.name+" 편:"+votes.A+" · "+state.B.name+" 편:"+votes.B+")";
-    }else{
-      var sidedWith=winner==="A"?state.A.name:state.B.name;
-      bannerText="📌 5명 중 <b>"+votes[winner]+"명</b>이 <b>"+sidedWith+"님</b> 편을 들었어요.";
+    /* 두 사람이 같은 이름을 적으면 "민수님 편"이 양쪽 다 나와 결과를 구분할 수 없다. */
+    if(state.A.name===state.B.name){
+      state.A.name=state.A.name+"(1)";
+      state.B.name=state.B.name+"(2)";
     }
-    $("result-banner").innerHTML=bannerText;
-    $("result-sub").textContent=state.A.name+" · "+state.B.name;
-
-    var textNotes=[];
-    if(textHas(REPEAT_WORDS,state.A.text)||textHas(REPEAT_WORDS,state.B.text))textNotes.push("적어주신 글에서 '반복되는 일'이라는 표현이 감지돼 반영했어요.");
-    if(textHas(RECONCILE_WORDS,state.A.text)||textHas(RECONCILE_WORDS,state.B.text))textNotes.push("적어주신 글에서 '사과·화해' 표현이 감지돼 판정을 조금 완화했어요.");
-    if(textNotes.length){$("result-textnote").innerHTML="✍️ "+textNotes.join(" ");$("result-textnote").hidden=false;}
-    else $("result-textnote").hidden=true;
-
     $("stepForm").hidden=true;
-    $("stepResult").hidden=false;
-    $("stepResult").scrollIntoView({behavior:"smooth",block:"start"});
-    if($("adwrap"))$("adwrap").hidden=false;
+    setLoading(true);
+    $("stepLoading").scrollIntoView({behavior:"smooth",block:"start"});
+    aiVerdict(state.A,state.B).then(function(v){
+      if(v&&v.mode==="safety"){ showSafety(); return; }
+      renderResult(v||ruleVerdict(state.A,state.B));
+    }).catch(function(){
+      /* 렌더 중 예외가 나도 스피너가 영원히 도는 화면은 만들지 않는다. */
+      renderResult(ruleVerdict(state.A,state.B));
+    });
   }
 })();

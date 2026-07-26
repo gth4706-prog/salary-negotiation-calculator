@@ -43,7 +43,8 @@ GAME.RankScene.prototype.create = function () {
   }
 
   this.geo = {
-    top: P ? 118 : 152,
+    // 탭 버튼 아래 끝(세로 102 / 가로 133)보다 열 제목(top-18)이 더 내려가야 한다
+    top: P ? 134 : 152,
     rowH: P ? 34 : 40,
     pad: P ? 14 : 60
   };
@@ -69,6 +70,7 @@ GAME.RankScene.prototype.create = function () {
   GAME.UI.label(this, W / 2, H - (P ? 74 : 84),
     me ? ('내 기록 — ' + me + ' · 누적 ' + myRec.total.toLocaleString('ko-KR') + '점 · 격파 ' +
           myRec.rounds + '회 · 최고 ' + myRec.best.toLocaleString('ko-KR') +
+          (myRec.towerBest ? ' · 탑 ' + myRec.towerBest + '층' : '') +
           (myRank ? ' · 이번 순위 ' + myRank + '위' : ''))
        : '로그인하지 않았습니다',
     P ? 11 : 14, C.text, 0.5).setWordWrapWidth(W - 40);
@@ -105,10 +107,20 @@ GAME.RankScene.prototype._renderRows = function (rows, fromServer) {
     return;
   }
 
+  // 오른쪽 정렬 열들을 계산으로 배분한다 — 손으로 x 를 박으면 닉네임과 겹친다.
+  var colW = P ? 80 : 96;
+  var xScore = W - g.pad - 8;
+  var xRounds = xScore - colW;
+  var xTower = xRounds - colW;
+  // 각 숫자 열은 x 에서 **왼쪽으로** colW 만큼 뻗는다(오른쪽 정렬).
+  // 닉네임 칸은 그 왼쪽 끝보다 더 왼쪽에서 끝나야 한다.
+  var nameRight = xTower - colW - 8;
+
   add(GAME.UI.label(this, g.pad + 8, g.top - 18, '순위', P ? 10 : 12, C.textDim, 0));
   add(GAME.UI.label(this, g.pad + 58, g.top - 18, '닉네임', P ? 10 : 12, C.textDim, 0));
-  add(GAME.UI.label(this, W - g.pad - 96, g.top - 18, '격파', P ? 10 : 12, C.textDim, 1).setOrigin(1, 0));
-  add(GAME.UI.label(this, W - g.pad - 8, g.top - 18, '점수', P ? 10 : 12, C.textDim, 1).setOrigin(1, 0));
+  add(GAME.UI.label(this, xTower, g.top - 18, '탑', P ? 10 : 12, C.textDim, 1).setOrigin(1, 0));
+  add(GAME.UI.label(this, xRounds, g.top - 18, '격파', P ? 10 : 12, C.textDim, 1).setOrigin(1, 0));
+  add(GAME.UI.label(this, xScore, g.top - 18, '점수', P ? 10 : 12, C.textDim, 1).setOrigin(1, 0));
 
   for (var i = 0; i < Math.min(rows.length, g.maxRows); i++) {
     var r = rows[i];
@@ -119,10 +131,14 @@ GAME.RankScene.prototype._renderRows = function (rows, fromServer) {
     var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : String(i + 1);
     add(GAME.UI.label(this, g.pad + 8, y + g.rowH / 2 - 3, medal, P ? 13 : 15, C.text, 0).setOrigin(0, 0.5));
     add(GAME.UI.label(this, g.pad + 58, y + g.rowH / 2 - 3, r.id, P ? 13 : 16,
-      mine ? C.accent : C.text, 0).setOrigin(0, 0.5));
-    add(GAME.UI.label(this, W - g.pad - 96, y + g.rowH / 2 - 3, String(r.rounds || 0),
+      mine ? C.accent : C.text, 0).setOrigin(0, 0.5)
+      .setFixedSize(Math.max(60, nameRight - (g.pad + 58)), 0));
+    // 서버 랭킹에는 아직 탑 기록 칸이 없다 — 없으면 '-' 로 정직하게 비운다
+    add(GAME.UI.label(this, xTower, y + g.rowH / 2 - 3,
+      r.tower ? r.tower + '층' : '-', P ? 12 : 14, r.tower ? C.warn : '#55556b', 1).setOrigin(1, 0.5));
+    add(GAME.UI.label(this, xRounds, y + g.rowH / 2 - 3, String(r.rounds || 0),
       P ? 12 : 14, C.textDim, 1).setOrigin(1, 0.5));
-    add(GAME.UI.label(this, W - g.pad - 8, y + g.rowH / 2 - 3, (r.score || 0).toLocaleString('ko-KR'),
+    add(GAME.UI.label(this, xScore, y + g.rowH / 2 - 3, (r.score || 0).toLocaleString('ko-KR'),
       P ? 13 : 16, C.crit, 1).setOrigin(1, 0.5));
   }
 

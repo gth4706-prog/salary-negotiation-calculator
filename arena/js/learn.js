@@ -28,7 +28,8 @@ GAME.Learn = {
       battles: 0, wins: 0,
       escalation: 0,          // 컨트롤러에게 격파당한 횟수 = 난이도 단계
       adapt: {
-        medicFollow: 0, guardFollow: 0, kite: 0, rallyBias: 0
+        medicFollow: 0, guardFollow: 0, kite: 0, rallyBias: 0,
+        press: 0            // 진형이 영웅에게 닿지도 못했을 때 올라가는 '압박' — 반응·추격 범위 확대
       },
       trial: null,
       rejected: {},
@@ -88,6 +89,11 @@ GAME.Learn = {
     }
     if ((t.rangedDiedInMelee || 0) > 0) {
       c.push({ key: 'kite', why: '원거리가 붙어서 죽음 → 다치면 물러나게' });
+    }
+    // 진형 절반 이상이 영웅을 한 번도 못 때렸다 = 제자리만 지키고 교전을 못 했다.
+    // 태현님이 관찰한 "제자리에서 뱅글뱅글 돌고 영웅을 잡으러 안 간다"가 이 신호다.
+    if (t.strategistUnits > 0 && (t.engagedUnits || 0) * 2 < t.strategistUnits) {
+      c.unshift({ key: 'press', why: '유닛 절반 이상이 영웅과 교전조차 못 함 → 더 적극적으로 나가게' });
     }
     return c.filter(function (x) {
       return !rec.rejected[x.key] && rec.adapt[x.key] < cap - 0.001;
@@ -177,6 +183,7 @@ GAME.Learn = {
     var rec = this.get(formationId);
     if (!rec.battles && !rec.escalation) return null;
     var a = rec.adapt, active = [];
+    if (a.press > 0.1) active.push('적극 압박');
     if (a.medicFollow > 0.1) active.push('위생병 추적');
     if (a.guardFollow > 0.1) active.push('방탄병 차단');
     if (a.kite > 0.1) active.push('부상 시 이탈');

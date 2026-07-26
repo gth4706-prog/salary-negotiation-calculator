@@ -8,9 +8,15 @@ GAME.Score = {
 
   // 한 판의 점수
   forResult: function (opts) {
-    // opts: { won, asStrategist, budget, escalation, secondsLeft, hpPct, enemiesKilled }
+    // opts: { won, asStrategist, budget, escalation, secondsLeft, hpPct, tower }
     if (!opts.won) return 0;
     var s = 0;
+    // 통곡의 탑 — 층 자체가 성과다. 층수에 가속을 줘서 위층 한 판이
+    // 아래층 여러 판보다 확실히 값지게 한다(랭킹이 반복 노가다로 채워지지 않도록).
+    if (opts.tower) {
+      var f = opts.tower;
+      return Math.round(150 + f * 40 + f * f * 3);
+    }
     if (opts.asStrategist) {
       // 전략가 승리: AI 컨트롤러를 막아냈다
       s = 120 + (opts.escalation || 0) * 40 + Math.round((opts.budget || 0) / 3);
@@ -31,14 +37,19 @@ GAME.Score = {
   add: function (id, entry) {
     if (!id) return null;
     var all = this._all();
-    var rec = all[id] || { id: id, total: 0, best: 0, rounds: 0, entries: [] };
+    var rec = all[id] || { id: id, total: 0, best: 0, rounds: 0, towerBest: 0, entries: [] };
     rec.total += entry.score;
     if (entry.score > rec.best) rec.best = entry.score;
     if (entry.won && !entry.asStrategist) rec.rounds++;
+    // 통곡의 탑 최고 층 — 랭킹에 함께 보여줄 별도 성과 지표
+    if (entry.tower && entry.won && entry.tower > (rec.towerBest || 0)) {
+      rec.towerBest = entry.tower;
+    }
     rec.entries.push({
       t: Date.now(), score: entry.score, won: !!entry.won,
       role: entry.asStrategist ? 'S' : 'C',
-      esc: entry.escalation || 0, formation: entry.formationName || ''
+      esc: entry.escalation || 0, formation: entry.formationName || '',
+      tower: entry.tower || 0
     });
     // 무한정 쌓이지 않게 최근 200판만
     if (rec.entries.length > 200) rec.entries = rec.entries.slice(-200);
@@ -57,7 +68,7 @@ GAME.Score = {
   },
 
   of: function (id) {
-    return this._all()[id] || { id: id, total: 0, best: 0, rounds: 0, entries: [] };
+    return this._all()[id] || { id: id, total: 0, best: 0, rounds: 0, towerBest: 0, entries: [] };
   },
 
   // 기간별 랭킹. scope: 'live' | 'week' | 'all'
@@ -72,17 +83,19 @@ GAME.Score = {
     var rows = Object.keys(all).map(function (id) {
       var rec = all[id];
       if (!cut) {
-        return { id: id, score: rec.total, rounds: rec.rounds, best: rec.best };
+        return { id: id, score: rec.total, rounds: rec.rounds, best: rec.best,
+                 tower: rec.towerBest || 0 };
       }
-      var sum = 0, rounds = 0, best = 0;
+      var sum = 0, rounds = 0, best = 0, tower = 0;
       for (var i = 0; i < rec.entries.length; i++) {
         var e = rec.entries[i];
         if (e.t < cut) continue;
         sum += e.score;
         if (e.won && e.role === 'C') rounds++;
         if (e.score > best) best = e.score;
+        if (e.won && (e.tower || 0) > tower) tower = e.tower;
       }
-      return { id: id, score: sum, rounds: rounds, best: best };
+      return { id: id, score: sum, rounds: rounds, best: best, tower: tower };
     }).filter(function (r) { return r.score > 0; });
 
     // 차단된 닉네임은 랭킹에서 감춘다

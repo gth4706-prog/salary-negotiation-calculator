@@ -9,9 +9,17 @@ GAME.Combat = {
       units: [], projectiles: [], effects: [], traps: [],
       numbers: [],          // 떠오르는 피해 숫자 (렌더 전용 데이터)
       elapsed: 0, over: false, winner: null,
+      // 전략가가 영웅에게 마지막으로 피해를 준 뒤 흐른 시간 → 교착 압박 계산에 쓴다
+      noHitFor: 0,
       // 학습형 AI: 배치도의 적응값 + 이번 판 관측치
       adapt: null,
-      telemetry: { medicHealed: 0, guardBlocked: 0, rangedDiedInMelee: 0, heroXSamples: [] }
+      telemetry: {
+        medicHealed: 0, guardBlocked: 0, rangedDiedInMelee: 0, heroXSamples: [],
+        // 진형이 영웅에게 닿지도 못했는가 (제자리에서 왕복하는 문제를 감지하는 신호)
+        strategistUnits: 0, engagedUnits: 0, heroDamageTaken: 0,
+        // 플레이어 성향 관측 (GAME.Profile 이 읽는다)
+        heroDistSamples: [], projectilesAtHero: 0, projectilesHitHero: 0
+      }
     };
   },
 
@@ -79,6 +87,8 @@ GAME.Combat = {
       // 무한 돌격을 막아 '배치'가 여전히 의미를 갖게 하는 장치.
       leash: side === 'strategist' ? (def.chase || GAME.CONFIG.LEASH) : Infinity,
       stance: 'hold',        // hold | chase | return
+      restFor: 0,            // 복귀 직후 잠시 대기 (즉시 재출격 = 진동 방지)
+      everEngaged: false,    // 이 유닛이 한 번이라도 적을 때렸는가 (학습 신호)
       hp: def.hp,
       maxHp: def.hp,
       cd: Math.random() * 250,
@@ -203,7 +213,18 @@ GAME.Combat = {
       }
     }
 
-    if (state) this.pushNumber(state, unit, eff, crit);
+    if (state) {
+      this.pushNumber(state, unit, eff, crit);
+      // 전략가가 영웅을 때렸다 → 교착 압박을 초기화하고 '교전했다'로 기록
+      if (unit.isHero && source && source.side === 'strategist') {
+        state.noHitFor = 0;
+        state.telemetry.heroDamageTaken += eff;
+        if (!source.everEngaged) {
+          source.everEngaged = true;
+          state.telemetry.engagedUnits++;
+        }
+      }
+    }
 
     // 흡혈 — 실제로 들어간 피해 기준
     if (source && source.alive && eff > 0) {
@@ -253,13 +274,15 @@ GAME.Combat = {
   },
 
   // ── 이동 ────────────────────────────────────────────────────
-  clampToLeash: function (u) {
+  // leash 는 '절대 한계'다. 교착 압박이 차오르면 그만큼 함께 늘어난다.
+  clampToLeash: function (u, state) {
     if (!isFinite(u.leash)) return;
+    var limit = state ? this.effChase(u, state) : u.leash;
     var dx = u.x - u.home.x, dy = u.y - u.home.y;
     var d = Math.sqrt(dx * dx + dy * dy);
-    if (d > u.leash) {
-      u.x = u.home.x + (dx / d) * u.leash;
-      u.y = u.home.y + (dy / d) * u.leash;
+    if (d > limit) {
+      u.x = u.home.x + (dx / d) * limit;
+      u.y = u.home.y + (dy / d) * limit;
     }
   },
 
@@ -324,6 +347,10 @@ GAME.Combat = {
         slowMul: def.slowMul, slowMs: def.slowMs,   // 화학병 점착탄
         sticky: !!def.slowMul
       });
+      // 관측: 영웅을 겨눈 논타겟이 몇 발이었나 (회피 실력 계산의 분모)
+      if (u.side === 'strategist' && target && target.isHero) {
+        state.telemetry.projectilesAtHero++;
+      }
 
     } else if (def.attack === 'aoe') {
       state.effects.push({
@@ -401,7 +428,7 @@ GAME.Combat = {
           if (sk.knockback && d > 0.1) {
             var kx = (o.x - u.x) / d, ky = (o.y - u.y) / d;
             o.x += kx * sk.knockback; o.y += ky * sk.knockback;
-            this.clampToArena(o); this.clampToLeash(o);
+            this.clampToArena(o); this.clampToLeash(o, state);
           }
         }
       }
@@ -488,7 +515,7 @@ GAME.Combat = {
         var pullTo = Math.max(0, dd - 120);
         o.x = u.x + Math.cos(aa) * pullTo;
         o.y = u.y + Math.sin(aa) * pullTo;
-        this.clampToArena(o); this.clampToLeash(o);
+        this.clampToArena(o); this.clampToLeash(o, state);
       }
       state.effects.push({
         kind: 'slash', x: u.x, y: u.y, angle: ang,
@@ -526,29 +553,76 @@ GAME.Combat = {
   },
 
   // ── AI ──────────────────────────────────────────────────────
+  // 교착 압박(pressure). 전략가가 영웅에게 한동안 피해를 못 주면 0→1 로 차오르고,
+  // 그만큼 반응·추격 범위가 늘어난다. 이게 없으면 영웅이 사거리 밖에 가만히 서 있기만 해도
+  // 진형이 영원히 닿지 못한다(실제로 유닛이 제자리에서 왕복하는 버그로 나타났다).
+  pressureOf: function (state) {
+    var idle = state.noHitFor || 0;
+    if (idle <= 5000) return 0;
+    return Math.min(1, (idle - 5000) / 11000);
+  },
+
+  effAggro: function (u, state) {
+    var p = this.pressureOf(state);
+    var press = (state.adapt && state.adapt.press) || 0;
+    return (u.def.aggro || 300) * (1 + 2.6 * p) + press * 220;
+  },
+
+  effChase: function (u, state) {
+    var p = this.pressureOf(state);
+    var press = (state.adapt && state.adapt.press) || 0;
+    return (u.def.chase || GAME.CONFIG.LEASH) * (1 + 1.9 * p) + press * 160;
+  },
+
   // 전략가 유닛의 진형 이탈/복귀 판정.
-  // 반환값이 false면 이번 프레임은 복귀 이동만 하고 교전하지 않는다.
+  // 반환값이 false면 이번 프레임은 이동만 처리했고 교전하지 않는다.
+  //
+  // 중요: stance 가 **이동을 실제로 통제**해야 한다. 예전 구현은 stance 와 무관하게
+  // 항상 가장 가까운 적을 향해 걸어가서, leash 가 되돌리는 진자운동이 생겼다.
   updateStance: function (u, state, dt) {
     if (u.side !== 'strategist') return true;
+    if (u.def.immobile) { u.stance = 'hold'; return true; }
 
     var dxh = u.x - u.home.x, dyh = u.y - u.home.y;
     var fromHome = Math.sqrt(dxh * dxh + dyh * dyh);
-    var chase = u.def.chase || GAME.CONFIG.LEASH;
+    var chase = this.effChase(u, state);
+    var aggro = this.effAggro(u, state);
+
+    if (u.restFor > 0) u.restFor -= dt * 1000;
 
     if (u.stance === 'return') {
-      // 자리로 돌아가는 중엔 적을 무시한다 (질질 끌려다니지 않게)
-      if (fromHome <= chase * 0.35) { u.stance = 'hold'; return true; }
+      if (fromHome <= 8) {
+        u.stance = 'hold';
+        u.restFor = 900;         // 돌아온 직후엔 잠시 쉰다 (즉시 재출격 = 진동)
+        return true;
+      }
       this.moveToward(u, u.home.x, u.home.y, this.effSpeed(u) * dt);
       return false;
     }
 
-    if (fromHome >= chase * 0.98) { u.stance = 'return'; return false; }
-
-    if (u.def.immobile) { u.stance = 'hold'; return true; }
-
     var tgt = this.nearestEnemy(u, state.units);
-    if (tgt && this.dist(u, tgt) <= (u.def.aggro || 300)) u.stance = 'chase';
-    else if (u.stance === 'chase' && fromHome > chase * 0.5) u.stance = 'return';
+    if (!tgt) { u.stance = 'hold'; return true; }
+
+    // 추격 한계를 넘겼으면 복귀
+    if (fromHome >= chase) { u.stance = 'return'; return false; }
+
+    // '집에서 갈 수 있는 거리 안에 있는 적'만 쫓는다.
+    // 닿을 수 없는 적을 쫓으면 나갔다 돌아오기를 반복할 뿐이다.
+    var tgtFromHome = Math.sqrt((tgt.x - u.home.x) * (tgt.x - u.home.x) +
+                                (tgt.y - u.home.y) * (tgt.y - u.home.y));
+    var reachable = tgtFromHome <= chase - u.def.range * 0.5;
+    var inAggro = this.dist(u, tgt) <= aggro;
+
+    if (u.restFor > 0) { u.stance = 'hold'; }
+    else if (inAggro && reachable) { u.stance = 'chase'; }
+    else { u.stance = 'hold'; }
+
+    // 대기 상태면 제자리(집)를 지킨다 — 밀려났으면 돌아온다
+    if (u.stance === 'hold') {
+      if (fromHome > 10) this.moveToward(u, u.home.x, u.home.y, this.effSpeed(u) * dt);
+      // 사거리 안에 적이 있으면 제자리에서 쏜다 (아래 runAI 가 처리)
+      return this.dist(u, tgt) <= u.def.range;
+    }
     return true;
   },
 
@@ -701,6 +775,7 @@ GAME.Combat = {
     if (state.over) return;
     var dt = dtMs / 1000;
     state.elapsed += dtMs;
+    state.noHitFor += dtMs;
 
     var i, u, k;
 
@@ -796,7 +871,7 @@ GAME.Combat = {
     this.separate(state);
 
     for (i = 0; i < state.units.length; i++) {
-      if (state.units[i].alive) this.clampToLeash(state.units[i]);
+      if (state.units[i].alive) this.clampToLeash(state.units[i], state);
     }
 
     // 덫
@@ -879,6 +954,10 @@ GAME.Combat = {
         } else {
           this.applyDamage(o, p.damage, p.owner, state);
           if (p.sticky) this.applySlow(o, p);
+          // 관측: 영웅이 논타겟에 실제로 맞았나 (회피 실력 계산의 분자)
+          if (o.isHero && p.side === 'strategist' && !p.homing) {
+            state.telemetry.projectilesHitHero++;
+          }
           state.effects.push({ kind: 'spark', x: p.x, y: p.y, t: 120, total: 120, side: p.side });
           state.projectiles.splice(i, 1);
           removed = true;
@@ -926,6 +1005,9 @@ GAME.Combat = {
         if (hu.alive && hu.isHero) {
           var A2 = GAME.CONFIG.ARENA;
           state.telemetry.heroXSamples.push(((hu.x - A2.x) / A2.w) * 2 - 1);
+          // 관측: 영웅이 적과 어느 거리에서 싸우는가 (파고드는가 / 거리를 두는가)
+          var ne = this.nearestEnemy(hu, state.units);
+          if (ne) state.telemetry.heroDistSamples.push(this.dist(hu, ne));
           break;
         }
       }

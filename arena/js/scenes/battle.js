@@ -11,6 +11,7 @@ GAME.BattleScene.prototype.init = function (data) {
   this.heroKey = data.heroKey;
   this.items = data.items || {};
   this.picks = data.picks || GAME.defaultSkillPicks();
+  this.tower = data.tower || 0;      // 통곡의 탑 층수 (0이면 일반 대전)
   this.startPos = data.startPos || { x: 600, y: 590 };
   this.ended = false;
   this.markers = [];
@@ -25,10 +26,11 @@ GAME.BattleScene.prototype.create = function () {
 
   this.state = GAME.Combat.createState();
 
-  // 난이도 단계 — 이 ID 가 이 진형을 격파한 횟수만큼 진형이 강해져 있다
+  // 난이도 — 탑은 층수로, 일반 대전은 격파 횟수(escalation)로 강해진다
   var lrec = GAME.Learn.get(this.formation.id);
-  this.escalation = lrec.escalation || 0;
-  var mods = GAME.Learn.escalationMods(this.escalation);
+  this.escalation = this.tower ? (this.tower - 1) : (lrec.escalation || 0);
+  var mods = this.tower ? GAME.Tower.modsFor(this.tower)
+                        : GAME.Learn.escalationMods(this.escalation);
   var bias = (lrec.adapt && lrec.adapt.rallyBias) || 0;
 
   for (var i = 0; i < this.formation.units.length; i++) {
@@ -53,6 +55,9 @@ GAME.BattleScene.prototype.create = function () {
   this.state.telemetry.guardPlaced = this.formation.units.some(function (u) {
     return GAME.UNITS[u.type] && GAME.UNITS[u.type].intercept;
   });
+  // 교전 가능한 전략가 유닛 수 — 몇 기가 실제로 영웅을 때렸는지와 비교해 학습한다
+  this.state.telemetry.strategistUnits =
+    GAME.Combat.aliveCount(this.state, 'strategist');
 
   this.input.mouse.disableContextMenu();
   this.ctrl = new GAME.InputController(this, this.state, this.hero);
@@ -182,6 +187,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       medicPlaced: t.medicPlaced, medicHealed: t.medicHealed,
       guardPlaced: t.guardPlaced, guardBlocked: t.guardBlocked,
       rangedDiedInMelee: t.rangedDiedInMelee,
+      strategistUnits: t.strategistUnits, engagedUnits: t.engagedUnits,
       heroSideAvg: xs.length ? xs.reduce(function (a, b) { return a + b; }, 0) / xs.length : undefined
     });
 
@@ -193,14 +199,25 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       budget: GAME.Formations.budgetOf(this.formation),
       escalation: this.escalation,
       secondsLeft: secondsLeft,
-      hpPct: this.hero.maxHp ? this.hero.hp / this.hero.maxHp : 0
+      hpPct: this.hero.maxHp ? this.hero.hp / this.hero.maxHp : 0,
+      tower: this.tower
     });
     var id = GAME.Account.current();
     if (id && score > 0) {
       GAME.Score.add(id, {
         score: score, won: won, asStrategist: false,
-        escalation: this.escalation, formationName: this.formation.name
+        escalation: this.escalation, formationName: this.formation.name,
+        tower: this.tower
       });
+    }
+
+    // 플레이어 성향 누적 — AI 전략가가 다음 배치를 짤 때 쓴다
+    GAME.Profile.record(this.heroKey, t);
+
+    // 통곡의 탑 진행 처리
+    var towerRec = null;
+    if (this.tower) {
+      towerRec = won ? GAME.Tower.clear(this.tower) : GAME.Tower.fail();
     }
 
     this.time.delayedCall(1100, function () {
@@ -210,6 +227,8 @@ GAME.BattleScene.prototype.update = function (time, delta) {
         heroKey: self.heroKey,
         escalation: self.escalation,
         score: score,
+        tower: self.tower,
+        towerRec: towerRec,
         learnNotes: learnRec.lastNotes || []
       });
     });

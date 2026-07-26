@@ -27,7 +27,8 @@ GAME.AdminScene.prototype.create = function () {
     P ? 10 : 12, C.textDim, 0.5).setWordWrapWidth(W - 40);
 
   var list = GAME.Account.list();
-  var top = P ? 74 : 100;
+  // 세로에서는 위 설명문이 개수 표시(top-20)와 겹쳤다 — 그만큼 아래로 민다
+  var top = P ? 88 : 100;
   var rowH = P ? 46 : 52;
   var perPage = Math.max(3, Math.floor((H - top - (P ? 100 : 120)) / rowH));
   var pages = Math.max(1, Math.ceil(list.length / perPage));

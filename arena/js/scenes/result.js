@@ -15,6 +15,8 @@ GAME.ResultScene.prototype.init = function (data) {
   this.aiSkill = data.aiSkill || 0;
   this.score = data.score || 0;
   this.escalation = data.escalation || 0;
+  this.tower = data.tower || 0;
+  this.towerRec = data.towerRec || null;
 };
 
 GAME.ResultScene.prototype.create = function () {
@@ -28,7 +30,19 @@ GAME.ResultScene.prototype.create = function () {
   this.cameras.main.setBackgroundColor(C.bg);
 
   var title, sub, color;
-  if (this.defendMode) {
+  if (this.tower) {
+    // 통곡의 탑
+    if (this.winner === 'controller') {
+      title = this.tower + '층 돌파'; color = C.accent;
+      sub = '다음은 ' + (this.tower + 1) + '층 — 적 진형 ' + GAME.Tower.budgetFor(this.tower + 1) +
+            ' vs 내 예산 ' + GAME.Tower.heroBudgetFor(this.tower + 1) +
+            '. AI가 이번 전투를 분석해 배치를 바꿉니다.';
+    } else {
+      title = this.tower + '층에서 탈락'; color = C.accentAlt;
+      sub = '1층부터 다시 시작합니다.' +
+            (this.towerRec ? ' 최고 기록 ' + (this.towerRec.best || 0) + '층.' : '');
+    }
+  } else if (this.defendMode) {
     // 전략가 방어전 — AI 컨트롤러가 이겼으면 내 진형이 뚫린 것
     if (this.winner === 'controller') {
       title = '진형 돌파됨'; color = C.accentAlt;
@@ -71,7 +85,14 @@ GAME.ResultScene.prototype.create = function () {
   }
 
   var y = 46;
-  if (this.defendMode) {
+  if (this.tower) {
+    var prof = GAME.Profile.read();
+    GAME.UI.label(this, W / 2, u * y,
+      'AI가 읽은 당신 — ' + prof.styleLabel + ' · ' + prof.dodgeLabel +
+      ' (평균 교전거리 ' + prof.avgDist + ')', P ? 12 : 15, C.crit, 0.5)
+      .setWordWrapWidth(W - 50);
+    y += 5;
+  } else if (this.defendMode) {
     GAME.UI.label(this, W / 2, u * y, 'AI 컨트롤러 숙련도 ' + Math.round(this.aiSkill * 100) + '%',
       P ? 13 : 17, C.text, 0.5);
     y += 5;
@@ -91,15 +112,18 @@ GAME.ResultScene.prototype.create = function () {
       P ? 10 : 13, C.crit, 0.5).setAlign('center').setWordWrapWidth(W - 60);
   }
 
-  var b1 = this.defendMode ? '배치 고쳐 다시' : '같은 진형에 다시 도전';
+  var b1 = this.tower ? (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : '1층부터 다시')
+         : (this.defendMode ? '배치 고쳐 다시' : '같은 진형에 다시 도전');
   GAME.UI.button(this, W / 2, u * 64, bw, u * 7, b1, function () {
-    if (self.defendMode) self.scene.start('Build');
+    if (self.tower) self.scene.start('Tower');
+    else if (self.defendMode) self.scene.start('Build');
     else self.scene.start('Draft', { formationId: self.formationId });
   }, { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: P ? 15 : 18 });
 
-  GAME.UI.button(this, W / 2, u * 73, bw, u * 6, this.defendMode ? '컨트롤러로 도전' : '다른 진형 고르기', function () {
-    self.scene.start('Select');
-  }, { fontSize: P ? 13 : 16 });
+  GAME.UI.button(this, W / 2, u * 73, bw, u * 6,
+    this.tower ? '일반 대전으로' : (this.defendMode ? '컨트롤러로 도전' : '다른 진형 고르기'), function () {
+      self.scene.start('Select');
+    }, { fontSize: P ? 13 : 16 });
 
   var rc = GAME.Layout.cols(2, { gap: 10, width: bw, left: (W - bw) / 2, pad: 0 });
   GAME.UI.button(this, rc[0].cx, u * 82, rc[0].w, u * 6, '🏆 랭킹', function () {

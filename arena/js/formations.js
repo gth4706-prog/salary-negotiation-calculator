@@ -145,6 +145,10 @@ GAME.Formations = {
   },
 
   getById: function (id) {
+    // 통곡의 탑 배치도는 그 층에서만 쓰는 임시 배치라 저장소에 넣지 않는다
+    if (GAME.Tower && GAME.Tower.pending && GAME.Tower.pending.id === id) {
+      return GAME.Tower.pending;
+    }
     var all = this.loadAll();
     for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
     return null;

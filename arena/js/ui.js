@@ -22,6 +22,11 @@ GAME.UI = {
     rect.on('pointerout', function () { rect.setFillStyle(fill); });
     rect.on('pointerdown', function () { onClick(); });
 
+    // 겹침 감사용 표시 — 버튼과 그 버튼의 라벨은 겹쳐도 정상이다.
+    // 이 표시가 없으면 감사에서 버튼-라벨 쌍을 손으로 걸러내다 진짜 겹침을 놓친다(실제로 겪음).
+    rect.__uiBtn = true;
+    txt.__btnLabel = rect;
+
     return { rect: rect, text: txt };
   },
 

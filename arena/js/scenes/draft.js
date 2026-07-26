@@ -11,12 +11,18 @@ GAME.DraftScene.prototype.constructor = GAME.DraftScene;
 
 GAME.DraftScene.prototype.init = function (data) {
   this.formation = GAME.Formations.getById(data.formationId);
-  this.budget = GAME.Formations.budgetOf(this.formation);
+  this.tower = (data && data.tower) || 0;    // 통곡의 탑 층수 (0이면 일반 대전)
+  // 탑에서는 영웅 예산이 진형보다 느리게 오른다 (난이도가 실제로 올라가게)
+  this.budget = this.tower ? GAME.Tower.heroBudgetFor(this.tower)
+                           : GAME.Formations.budgetOf(this.formation);
   this.heroKey = 'vanguard';
   this.items = { weapon: null, armor: null, boots: null, potion: null };
   this.picks = GAME.defaultSkillPicks();
   this.editSlot = 'Q';
   this.hoverItem = null;
+  // 씬을 다시 들어오면 이전 표시객체는 이미 파괴돼 있다. 참조를 지우지 않으면
+  // redraw 의 `if (!this.scoutSummary)` 가 파괴된 객체를 재사용해 터진다.
+  this.scoutSummary = null;
 };
 
 GAME.DraftScene.prototype.create = function () {
@@ -29,9 +35,12 @@ GAME.DraftScene.prototype.create = function () {
 
   // ── 화면 분할 ──
   // 세로 모바일은 폭이 좁아 좌우 분할이 안 되므로 위(정찰)/아래(설정)로 나눈다.
+  // 정찰도 아래의 '적 구성 요약'은 유닛 종류가 많으면 두 줄이 된다.
+  // 그 높이를 명시적으로 잡아두지 않으면 아래 패널의 첫 줄(예산)과 겹친다(실제로 겪음).
+  var SUMMARY_H = P ? 34 : 20;
   this.split = P
-    ? { scoutX: 10, scoutY: 44, scoutW: W - 20, scoutH: Math.round(H * 0.34),
-        panelX: 10, panelY: Math.round(H * 0.34) + 54, panelW: W - 20 }
+    ? { scoutX: 10, scoutY: 44, scoutW: W - 20, scoutH: Math.round(H * 0.32),
+        panelX: 10, panelY: 44 + Math.round(H * 0.32) + 6 + SUMMARY_H, panelW: W - 20 }
     : { scoutX: 16, scoutY: 52, scoutW: Math.round(W * 0.34), scoutH: H - 116,
         panelX: Math.round(W * 0.34) + 32, panelY: 52, panelW: W - Math.round(W * 0.34) - 48 };
 
@@ -50,9 +59,10 @@ GAME.DraftScene.prototype.create = function () {
 
   this._buildPanel();
 
-  GAME.UI.button(this, W - (P ? 70 : 90), H - 26, P ? 120 : 160, 36, '← 진형 선택', function () {
-    self.scene.start('Select');
-  }, { fontSize: P ? 12 : 14 });
+  GAME.UI.button(this, W - (P ? 70 : 90), H - 26, P ? 120 : 160, 36,
+    this.tower ? '← 탑으로' : '← 진형 선택', function () {
+      self.scene.start(self.tower ? 'Tower' : 'Select');
+    }, { fontSize: P ? 12 : 14 });
 
   this.redraw();
 };
@@ -236,6 +246,7 @@ GAME.DraftScene.prototype._start = function () {
     heroKey: this.heroKey,
     items: this.items,
     picks: this.picks,
+    tower: this.tower,
     startPos: { x: Z.x + Z.w / 2, y: Z.y + Z.h * 0.55 }
   });
 };

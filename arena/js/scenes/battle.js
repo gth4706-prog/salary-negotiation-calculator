@@ -25,11 +25,20 @@ GAME.BattleScene.prototype.create = function () {
 
   this.state = GAME.Combat.createState();
 
+  // 난이도 단계 — 이 ID 가 이 진형을 격파한 횟수만큼 진형이 강해져 있다
+  var lrec = GAME.Learn.get(this.formation.id);
+  this.escalation = lrec.escalation || 0;
+  var mods = GAME.Learn.escalationMods(this.escalation);
+  var bias = (lrec.adapt && lrec.adapt.rallyBias) || 0;
+
   for (var i = 0; i < this.formation.units.length; i++) {
     var e = this.formation.units[i];
     if (!GAME.UNITS[e.type]) continue;
     var w = GAME.Formations.toWorld(e);
-    this.state.units.push(GAME.Combat.createUnit(e.type, w.x, w.y, 'strategist'));
+    // 학습(rallyBias): 영웅이 자주 들어오던 쪽으로 진형을 조금 기울인다
+    var wx = w.x + bias * GAME.CONFIG.ARENA.w * 0.06;
+    wx = Math.max(GAME.CONFIG.ARENA.x + 20, Math.min(GAME.CONFIG.ARENA.right - 20, wx));
+    this.state.units.push(GAME.Combat.createUnit(e.type, wx, w.y, 'strategist', mods));
   }
 
   this.hero = GAME.Combat.createHero(
@@ -176,11 +185,31 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       heroSideAvg: xs.length ? xs.reduce(function (a, b) { return a + b; }, 0) / xs.length : undefined
     });
 
+    // 점수 — 격파한 난이도 단계가 클수록, 체력·시간을 남길수록 높다
+    var won = this.state.winner === 'controller';
+    var secondsLeft = Math.max(0, GAME.CONFIG.BATTLE_TIME - this.state.elapsed / 1000);
+    var score = GAME.Score.forResult({
+      won: won, asStrategist: false,
+      budget: GAME.Formations.budgetOf(this.formation),
+      escalation: this.escalation,
+      secondsLeft: secondsLeft,
+      hpPct: this.hero.maxHp ? this.hero.hp / this.hero.maxHp : 0
+    });
+    var id = GAME.Account.current();
+    if (id && score > 0) {
+      GAME.Score.add(id, {
+        score: score, won: won, asStrategist: false,
+        escalation: this.escalation, formationName: this.formation.name
+      });
+    }
+
     this.time.delayedCall(1100, function () {
       self.scene.start('Result', {
         winner: self.state.winner,
         formationId: self.formation.id,
         heroKey: self.heroKey,
+        escalation: self.escalation,
+        score: score,
         learnNotes: learnRec.lastNotes || []
       });
     });

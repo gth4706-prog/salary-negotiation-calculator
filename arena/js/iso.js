@@ -8,10 +8,10 @@ window.GAME = window.GAME || {};
 // → 롤토체스식 비스듬한 뷰를 얻으면서도 논타겟 회피 판정의 공정성은 손상되지 않는다.
 GAME.Iso = {
   // y축 압축 비율. 1이면 정탑다운, 작을수록 더 눕는다.
-  TILT: 0.60,
+  TILT: GAME.CONFIG.PORTRAIT ? 0.72 : 0.60,
 
   // 아레나 상단이 화면에서 시작하는 y 좌표
-  SCREEN_TOP: 66,
+  SCREEN_TOP: GAME.CONFIG.PORTRAIT ? 52 : 66,
 
   // 유닛이 지면에서 떠 보이는 정도(빌보드 높이 배율)
   LIFT: 1.15,

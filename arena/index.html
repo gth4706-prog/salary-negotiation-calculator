@@ -4,16 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>전략 vs 컨트롤 — 비대칭 실시간 대전 게임 | 각잡살림</title>
-<meta name="description" content="전략가는 진형을 짜서 저장하고, 컨트롤러는 영웅 하나로 그 진형을 뚫는 비대칭 실시간 대전 게임. 설치 없이 브라우저에서 바로 플레이.">
+<meta name="description" content="전략가는 진형을 짜서 저장하고, 컨트롤러는 영웅 하나로 그 진형을 뚫는 비대칭 실시간 대전 게임. 깰수록 AI가 학습해 어려워집니다. 설치 없이 브라우저에서 바로 플레이.">
 <link rel="canonical" href="https://joeltool.com/arena/">
 <meta property="og:title" content="전략 vs 컨트롤 — 비대칭 실시간 대전">
-<meta property="og:description" content="진형을 짜는 사람과 영웅을 모는 사람이 같은 판에서 싸운다. 브라우저에서 바로 플레이.">
+<meta property="og:description" content="진형을 짜는 사람과 영웅을 모는 사람이 같은 판에서 싸운다. 깰수록 AI가 학습한다.">
 <meta property="og:type" content="website">
-<link rel="stylesheet" href="css/style.css?v=0.05">
+<link rel="stylesheet" href="css/style.css?v=0.06">
 </head>
 <body>
 <div id="game"></div>
-<div id="ver">v0.05</div>
+<div id="ver">v0.06</div>
 <div id="small-screen">
   <div>
     <h1>화면이 너무 낮습니다</h1>
@@ -21,23 +21,32 @@
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
-<script src="js/config.js?v=0.05"></script>
-<script src="js/iso.js?v=0.05"></script>
-<script src="js/layout.js?v=0.05"></script>
-<script src="js/learn.js?v=0.05"></script>
-<script src="js/units.js?v=0.05"></script>
-<script src="js/heroes.js?v=0.05"></script>
-<script src="js/items.js?v=0.05"></script>
-<script src="js/formations.js?v=0.05"></script>
-<script src="js/combat.js?v=0.05"></script>
-<script src="js/input.js?v=0.05"></script>
-<script src="js/ui.js?v=0.05"></script>
-<script src="js/scenes/menu.js?v=0.05"></script>
-<script src="js/scenes/select.js?v=0.05"></script>
-<script src="js/scenes/build.js?v=0.05"></script>
-<script src="js/scenes/draft.js?v=0.05"></script>
-<script src="js/scenes/battle.js?v=0.05"></script>
-<script src="js/scenes/result.js?v=0.05"></script>
-<script src="js/main.js?v=0.05"></script>
+<script src="js/config.js?v=0.06"></script>
+<script src="js/store.js?v=0.06"></script>
+<script src="js/api.js?v=0.06"></script>
+<script src="js/account.js?v=0.06"></script>
+<script src="js/score.js?v=0.06"></script>
+<script src="js/iso.js?v=0.06"></script>
+<script src="js/layout.js?v=0.06"></script>
+<script src="js/learn.js?v=0.06"></script>
+<script src="js/units.js?v=0.06"></script>
+<script src="js/heroes.js?v=0.06"></script>
+<script src="js/items.js?v=0.06"></script>
+<script src="js/formations.js?v=0.06"></script>
+<script src="js/combat.js?v=0.06"></script>
+<script src="js/input.js?v=0.06"></script>
+<script src="js/aihero.js?v=0.06"></script>
+<script src="js/ui.js?v=0.06"></script>
+<script src="js/scenes/login.js?v=0.06"></script>
+<script src="js/scenes/menu.js?v=0.06"></script>
+<script src="js/scenes/select.js?v=0.06"></script>
+<script src="js/scenes/build.js?v=0.06"></script>
+<script src="js/scenes/draft.js?v=0.06"></script>
+<script src="js/scenes/battle.js?v=0.06"></script>
+<script src="js/scenes/defend.js?v=0.06"></script>
+<script src="js/scenes/result.js?v=0.06"></script>
+<script src="js/scenes/rank.js?v=0.06"></script>
+<script src="js/scenes/admin.js?v=0.06"></script>
+<script src="js/main.js?v=0.06"></script>
 </body>
 </html>

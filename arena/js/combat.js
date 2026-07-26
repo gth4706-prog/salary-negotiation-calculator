@@ -15,8 +15,16 @@ GAME.Combat = {
     };
   },
 
-  createUnit: function (typeKey, x, y, side) {
-    var def = GAME.UNITS[typeKey];
+  // mods: { hp, damage } — 난이도 단계(escalation)에 따른 능력 배수
+  createUnit: function (typeKey, x, y, side, mods) {
+    var base = GAME.UNITS[typeKey];
+    var def = base;
+    if (mods && (mods.hp !== 1 || mods.damage !== 1)) {
+      def = {};
+      for (var k in base) def[k] = base[k];
+      def.hp = Math.round(base.hp * (mods.hp || 1));
+      def.damage = Math.round(base.damage * (mods.damage || 1));
+    }
     return this._baseUnit(def, x, y, side, typeKey);
   },
 

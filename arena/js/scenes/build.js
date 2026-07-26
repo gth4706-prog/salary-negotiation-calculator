@@ -94,16 +94,19 @@ GAME.BuildScene.prototype.create = function () {
     .setWordWrapWidth(Math.max(80, W - descX - hud.pad));
 
   // 액션
-  var acols = L.cols(3, { gap: 8 });
-  GAME.UI.button(this, acols[0].cx, rows.act.cy, acols[0].w, rows.act.h, '배치도 저장', function () {
+  var acols = L.cols(4, { gap: 8 });
+  GAME.UI.button(this, acols[0].cx, rows.act.cy, acols[0].w, rows.act.h, '방어전 시작', function () {
+    self._defend();
+  }, { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: P ? 14 : 17 });
+  GAME.UI.button(this, acols[1].cx, rows.act.cy, acols[1].w, rows.act.h, '배치도 저장', function () {
     self._save();
-  }, { fill: 0x2a2440, line: 0x9b8cf0, hover: 0x372f52, color: C.accentAlt, fontSize: P ? 15 : 18 });
-  GAME.UI.button(this, acols[1].cx, rows.act.cy, acols[1].w, rows.act.h, '전부 지우기', function () {
+  }, { fill: 0x2a2440, line: 0x9b8cf0, hover: 0x372f52, color: C.accentAlt, fontSize: P ? 14 : 17 });
+  GAME.UI.button(this, acols[2].cx, rows.act.cy, acols[2].w, rows.act.h, '전부 지우기', function () {
     self.placed = []; self.warnText.setText(''); self.redraw();
-  }, { fontSize: P ? 13 : 15 });
-  GAME.UI.button(this, acols[2].cx, rows.act.cy, acols[2].w, rows.act.h, '메뉴', function () {
+  }, { fontSize: P ? 12 : 14 });
+  GAME.UI.button(this, acols[3].cx, rows.act.cy, acols[3].w, rows.act.h, '메뉴', function () {
     self.scene.start('Menu');
-  }, { fontSize: P ? 13 : 15 });
+  }, { fontSize: P ? 12 : 14 });
 
   this.input.on('pointerdown', function (p) {
     if (p.y > GAME.Iso.screenRect().bottom) return;
@@ -170,6 +173,17 @@ GAME.BuildScene.prototype._removeAt = function (x, y) {
       return;
     }
   }
+};
+
+// 방어전 — AI 컨트롤러가 이 진형을 공격한다
+GAME.BuildScene.prototype._defend = function () {
+  if (!this.placed.length) {
+    this.warnText.setText('유닛을 최소 1기 배치해야 합니다.');
+    return;
+  }
+  this.scene.start('Defend', {
+    placed: this.placed.slice(), tier: this.tier, budget: this.budget
+  });
 };
 
 GAME.BuildScene.prototype._save = function () {

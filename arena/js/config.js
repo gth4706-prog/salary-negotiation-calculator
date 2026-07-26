@@ -18,11 +18,12 @@ GAME.isPortrait = (function () {
 GAME.CONFIG = (function () {
   var P = GAME.isPortrait;
 
-  var W = P ? 620 : 1200;
-  var H = P ? 1100 : 820;
+  // 맵을 조금 넓혔다 — 영웅이 도망칠 공간이 늘어나는 만큼 진형도 넓게 펼 수 있다.
+  var W = P ? 660 : 1340;
+  var H = P ? 1160 : 900;
   var arena = P
-    ? { x: 14, y: 14, w: 592, h: 900 }
-    : { x: 20, y: 20, w: 1160, h: 680 };
+    ? { x: 14, y: 14, w: 632, h: 950 }
+    : { x: 20, y: 20, w: 1300, h: 760 };
 
   // 배치 구역: 위 30%가 전략가, 아래 30%가 컨트롤러
   var zoneH = Math.round(arena.h * 0.30);

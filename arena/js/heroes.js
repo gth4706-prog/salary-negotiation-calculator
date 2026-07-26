@@ -23,19 +23,19 @@ GAME.HEROES = {
     trait: '돌격형',
     desc: '침투해서 휘젓는다. 대검 하나로 쓸어담고, 두꺼워서 실수에 관대하다.',
     cost: 75,
-    hp: 1125, armor: 35, damage: 26, cooldown: 900, speed: 155, range: 62,
+    hp: 900, armor: 35, damage: 22, cooldown: 900, speed: 155, range: 62,
     attack: 'melee', coneDeg: 100, lifesteal: 0.10,
     radius: 17, shape: 'square',
     skillOptions: {
       Q: [
-        { name: '돌파', type: 'dash', dist: 230, damage: 55, radius: 55, cooldown: 8000 },
-        { name: '착검 돌격', type: 'dash', dist: 150, damage: 85, radius: 70, cooldown: 9000 },
+        { name: '돌파', type: 'dash', dist: 230, damage: 44, radius: 55, cooldown: 8000 },
+        { name: '착검 돌격', type: 'dash', dist: 150, damage: 68, radius: 70, cooldown: 9000 },
         { name: '연막 침투', type: 'dash', dist: 300, damage: 0, radius: 0, cooldown: 6000 }
       ],
       W: [
-        { name: '대검 난무', type: 'aoeSelf', radius: 88, damage: 62, cooldown: 11000 },
-        { name: '가로 베기', type: 'pull', coneDeg: 100, dist: 170, damage: 70, cooldown: 10000 },
-        { name: '섬광탄', type: 'aoeSelf', radius: 130, damage: 30, rootMs: 1300, cooldown: 13000 }
+        { name: '대검 난무', type: 'aoeSelf', radius: 88, damage: 50, cooldown: 11000 },
+        { name: '가로 베기', type: 'pull', coneDeg: 100, dist: 170, damage: 56, cooldown: 10000 },
+        { name: '섬광탄', type: 'aoeSelf', radius: 130, damage: 24, rootMs: 1300, cooldown: 13000 }
       ],
       E: [
         { name: '방탄 태세', type: 'buff', armorAdd: 45, speedMul: 0.85, duration: 3500, cooldown: 14000 },
@@ -43,9 +43,9 @@ GAME.HEROES = {
         { name: '응급 처치', type: 'buff', healNow: 260, shield: 120, duration: 3000, cooldown: 15000 }
       ],
       R: [
-        { name: '수류탄 투척', type: 'aoeSelf', radius: 150, damage: 105, knockback: 95, cooldown: 32000 },
-        { name: '크레모아 설치', type: 'trap', damage: 190, radius: 90, rootMs: 1500, life: 20000, cooldown: 26000 },
-        { name: '포격 요청', type: 'aoeTarget', radius: 140, damage: 60, repeat: 3, interval: 650, telegraph: 700, cooldown: 30000 }
+        { name: '수류탄 투척', type: 'aoeSelf', radius: 150, damage: 84, knockback: 95, cooldown: 32000 },
+        { name: '크레모아 설치', type: 'trap', damage: 152, radius: 90, rootMs: 1500, life: 20000, cooldown: 26000 },
+        { name: '포격 요청', type: 'aoeTarget', radius: 140, damage: 48, repeat: 3, interval: 650, telegraph: 700, cooldown: 30000 }
       ]
     }
   },
@@ -56,29 +56,29 @@ GAME.HEROES = {
     trait: '원거리형',
     desc: 'K2로 거리를 벌리며 싸운다. 빠르지만 얇아서 한 번 물리면 위험하다.',
     cost: 85,
-    hp: 775, armor: 12, damage: 23, cooldown: 750, speed: 178, range: 340,
+    hp: 620, armor: 12, damage: 20, cooldown: 750, speed: 178, range: 340,
     attack: 'projectile', projectileSpeed: 420, projectileRadius: 7, lifesteal: 0,
     radius: 15, shape: 'triangle',
     skillOptions: {
       Q: [
-        { name: '관통 사격', type: 'projectile', damage: 68, speed: 520, pierce: true, radius: 9, cooldown: 8000 },
-        { name: '속사', type: 'projectile', damage: 34, speed: 620, pierce: false, radius: 7, burst: 3, burstDelay: 110, cooldown: 7000 },
-        { name: '유탄 사격', type: 'aoeTarget', radius: 95, damage: 72, repeat: 1, telegraph: 500, cooldown: 9000 }
+        { name: '관통 사격', type: 'projectile', damage: 54, speed: 520, pierce: true, radius: 9, cooldown: 8000 },
+        { name: '속사', type: 'projectile', damage: 27, speed: 620, pierce: false, radius: 7, burst: 3, burstDelay: 110, cooldown: 7000 },
+        { name: '유탄 사격', type: 'aoeTarget', radius: 95, damage: 58, repeat: 1, telegraph: 500, cooldown: 9000 }
       ],
       W: [
         { name: '전술 굴림', type: 'dash', dist: 210, damage: 0, radius: 0, cooldown: 5000 },
         { name: '위치 변경', type: 'dash', dist: 330, damage: 0, radius: 0, cooldown: 8000 },
-        { name: '반동 사격', type: 'dash', dist: 160, damage: 48, radius: 60, cooldown: 6500, backward: true }
+        { name: '반동 사격', type: 'dash', dist: 160, damage: 38, radius: 60, cooldown: 6500, backward: true }
       ],
       E: [
-        { name: '크레모아', type: 'trap', damage: 55, radius: 55, rootMs: 1400, life: 12000, cooldown: 11000 },
-        { name: '조명 지뢰', type: 'trap', damage: 20, radius: 90, rootMs: 2400, life: 14000, cooldown: 10000 },
+        { name: '크레모아', type: 'trap', damage: 44, radius: 55, rootMs: 1400, life: 12000, cooldown: 11000 },
+        { name: '조명 지뢰', type: 'trap', damage: 16, radius: 90, rootMs: 2400, life: 14000, cooldown: 10000 },
         { name: '위장 태세', type: 'buff', armorAdd: 30, speedMul: 1.25, duration: 3000, cooldown: 12000 }
       ],
       R: [
-        { name: '박격포 요청', type: 'aoeTarget', radius: 115, damage: 34, repeat: 3, interval: 700, telegraph: 600, cooldown: 30000 },
-        { name: '융단 폭격', type: 'aoeTarget', radius: 180, damage: 26, repeat: 5, interval: 500, telegraph: 800, cooldown: 34000 },
-        { name: '저격 지원', type: 'projectile', damage: 165, speed: 800, pierce: true, radius: 11, cooldown: 26000 }
+        { name: '박격포 요청', type: 'aoeTarget', radius: 115, damage: 27, repeat: 3, interval: 700, telegraph: 600, cooldown: 30000 },
+        { name: '융단 폭격', type: 'aoeTarget', radius: 180, damage: 21, repeat: 5, interval: 500, telegraph: 800, cooldown: 34000 },
+        { name: '저격 지원', type: 'projectile', damage: 132, speed: 800, pierce: true, radius: 11, cooldown: 26000 }
       ]
     }
   },
@@ -89,14 +89,14 @@ GAME.HEROES = {
     trait: '지속형',
     desc: '방패로 버티며 오래 싸운다. 물량을 끌어모아 녹이는 쪽.',
     cost: 65,
-    hp: 1315, armor: 45, damage: 20, cooldown: 1000, speed: 142, range: 72,
+    hp: 1052, armor: 45, damage: 17, cooldown: 1000, speed: 142, range: 72,
     attack: 'melee', coneDeg: 120, lifesteal: 0.25,
     radius: 18, shape: 'hex',
     skillOptions: {
       Q: [
-        { name: '진압봉', type: 'strike', damage: 88, lifestealMul: 2.5, cooldown: 7000 },
-        { name: '방패 타격', type: 'aoeSelf', radius: 80, damage: 52, knockback: 60, cooldown: 8000 },
-        { name: '테이저', type: 'strike', damage: 46, rootMs: 1800, lifestealMul: 1, cooldown: 9000 }
+        { name: '진압봉', type: 'strike', damage: 70, lifestealMul: 2.5, cooldown: 7000 },
+        { name: '방패 타격', type: 'aoeSelf', radius: 80, damage: 42, knockback: 60, cooldown: 8000 },
+        { name: '테이저', type: 'strike', damage: 37, rootMs: 1800, lifestealMul: 1, cooldown: 9000 }
       ],
       W: [
         { name: '방패 방어', type: 'buff', shield: 300, duration: 4500, cooldown: 15000 },
@@ -104,14 +104,14 @@ GAME.HEROES = {
         { name: '군장 정비', type: 'buff', healNow: 340, duration: 1000, cooldown: 17000 }
       ],
       E: [
-        { name: '검문 검색', type: 'pull', coneDeg: 120, dist: 240, damage: 32, cooldown: 13000 },
-        { name: '일제 검문', type: 'pull', coneDeg: 360, dist: 200, damage: 26, cooldown: 15000 },
-        { name: '추격', type: 'dash', dist: 200, damage: 40, radius: 60, cooldown: 9000 }
+        { name: '검문 검색', type: 'pull', coneDeg: 120, dist: 240, damage: 26, cooldown: 13000 },
+        { name: '일제 검문', type: 'pull', coneDeg: 360, dist: 200, damage: 21, cooldown: 15000 },
+        { name: '추격', type: 'dash', dist: 200, damage: 32, radius: 60, cooldown: 9000 }
       ],
       R: [
-        { name: '통제 구역', type: 'aura', radius: 132, dps: 26, duration: 8000, cooldown: 34000 },
-        { name: '위병소 설치', type: 'aura', radius: 190, dps: 17, duration: 10000, cooldown: 36000 },
-        { name: '진압 작전', type: 'aoeSelf', radius: 165, damage: 120, knockback: 70, cooldown: 28000 }
+        { name: '통제 구역', type: 'aura', radius: 132, dps: 21, duration: 8000, cooldown: 34000 },
+        { name: '위병소 설치', type: 'aura', radius: 190, dps: 14, duration: 10000, cooldown: 36000 },
+        { name: '진압 작전', type: 'aoeSelf', radius: 165, damage: 96, knockback: 70, cooldown: 28000 }
       ]
     }
   }

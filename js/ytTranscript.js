@@ -10,6 +10,10 @@
   // 배포 후 실제 Worker URL로 교체 필요 (webtool-proxy — /seo-keywords와 공용)
   var API_BASE="https://webtool-proxy.YOUR-SUBDOMAIN.workers.dev";
 
+  // 서버(Worker)가 아직 배포되지 않은 상태를 감지한다.
+  // API_BASE를 실제 주소로 교체하면 이 가드는 자동으로 풀린다.
+  var API_READY=API_BASE.indexOf("YOUR-SUBDOMAIN")===-1;
+
   var state={cues:[],player:null,pollTimer:null,activeIdx:-1};
 
   /* ---------- 영상 ID 파싱(클라이언트 측 1차 검증) ---------- */
@@ -176,7 +180,16 @@
       });
   }
 
+  // 준비 중이면 입력을 막고 상태를 정확히 알린다(작동하는 척하지 않음).
+  if(!API_READY){
+    $("yt-url").disabled=true;
+    $("yt-go").disabled=true;
+    $("yt-go").textContent="준비 중이에요";
+    if($("yt-soon"))$("yt-soon").hidden=false;
+  }
+
   $("yt-go").addEventListener("click",function(){
+    if(!API_READY)return;
     var v=extractVideoId($("yt-url").value);
     if(!v){showError("올바른 유튜브 링크가 아니에요.");return;}
     loadTranscript(v,null);

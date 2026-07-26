@@ -10,6 +10,10 @@
   // 배포 후 실제 Worker URL로 교체 필요 (webtool-proxy — /transcript와 공용)
   var API_BASE="https://webtool-proxy.YOUR-SUBDOMAIN.workers.dev";
 
+  // 서버(Worker)가 아직 배포되지 않은 상태를 감지한다.
+  // API_BASE를 실제 주소로 교체하면 이 가드는 자동으로 풀린다.
+  var API_READY=API_BASE.indexOf("YOUR-SUBDOMAIN")===-1;
+
   var SRC_LABEL={title:"제목",h1:"H1",heading:"소제목",meta:"설명",body:"본문"};
 
   function escapeHtml(s){
@@ -75,7 +79,16 @@
     try{ new URL(v); return v; }catch(e){ return null; }
   }
 
+  // 준비 중이면 입력을 막고 상태를 정확히 알린다(작동하는 척하지 않음).
+  if(!API_READY){
+    $("kc-url").disabled=true;
+    $("kc-go").disabled=true;
+    $("kc-go").textContent="준비 중이에요";
+    if($("kc-soon"))$("kc-soon").hidden=false;
+  }
+
   $("kc-go").addEventListener("click",function(){
+    if(!API_READY)return;
     var u=normalizeUrl($("kc-url").value);
     if(!u){showError("올바른 웹페이지 링크가 아니에요.");return;}
     loadKeywords(u);

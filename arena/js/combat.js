@@ -114,10 +114,18 @@ GAME.Combat = {
     return Math.sqrt(dx * dx + dy * dy);
   },
 
+  // 지뢰는 '전투원'이 아니라 지형 위험물이다. 쏘는 게 아니라 피하는 것이므로
+  // 조준 대상에서 빼고, 승패 판정(전멸 조건)에서도 세지 않는다.
+  // 세지 않으면 지뢰를 못 없애서 이길 수 없는 상황이 생기기 때문.
+  isHazard: function (u) {
+    return !!u.def.isMine;
+  },
+
   aliveCount: function (state, side) {
     var n = 0;
     for (var i = 0; i < state.units.length; i++) {
-      if (state.units[i].alive && state.units[i].side === side) n++;
+      var u = state.units[i];
+      if (u.alive && u.side === side && !this.isHazard(u)) n++;
     }
     return n;
   },
@@ -126,7 +134,7 @@ GAME.Combat = {
     var best = null, bestD = Infinity;
     for (var i = 0; i < units.length; i++) {
       var o = units[i];
-      if (!o.alive || o.side === unit.side) continue;
+      if (!o.alive || o.side === unit.side || this.isHazard(o)) continue;
       var d = this.dist(unit, o);
       if (d < bestD) { bestD = d; best = o; }
     }
@@ -136,7 +144,7 @@ GAME.Combat = {
   unitAt: function (state, x, y, side) {
     for (var i = 0; i < state.units.length; i++) {
       var u = state.units[i];
-      if (!u.alive) continue;
+      if (!u.alive || this.isHazard(u)) continue;
       if (side && u.side !== side) continue;
       var dx = u.x - x, dy = u.y - y;
       if (Math.sqrt(dx * dx + dy * dy) <= u.def.radius + 6) return u;
@@ -148,6 +156,8 @@ GAME.Combat = {
   // opts: { noCrit: true } 면 크리티컬 판정을 건너뛴다(지속피해 등)
   applyDamage: function (unit, dmg, source, state, opts) {
     if (!unit.alive) return 0;
+    // 지뢰는 피해로 제거할 수 없다. 밟아서 터뜨리거나, 피해서 지나가는 수밖에.
+    if (this.isHazard(unit)) return 0;
 
     // 크리티컬 — 모든 공격에 25% 확률로 1.5배
     var crit = false;
@@ -564,10 +574,10 @@ GAME.Combat = {
     var us = state.units;
     for (var i = 0; i < us.length; i++) {
       var a = us[i];
-      if (!a.alive) continue;
+      if (!a.alive || this.isHazard(a) || a.def.immobile) continue;
       for (var j = i + 1; j < us.length; j++) {
         var b = us[j];
-        if (!b.alive) continue;
+        if (!b.alive || this.isHazard(b) || b.def.immobile) continue;
         var dx = b.x - a.x, dy = b.y - a.y;
         var min = a.def.radius + b.def.radius;
         var d = Math.sqrt(dx * dx + dy * dy);

@@ -151,6 +151,7 @@ body{
 
 /* ---------- 로딩 ---------- */
 .ft-loading{display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px 0}
+.ft-loading[hidden]{display:none}
 .ft-loading.ft-theme{color:var(--ft-muted)}
 .ft-spinner{width:30px;height:30px;border-radius:50%;border:3px solid #0C2C4B;border-top-color:var(--ft-accent);animation:ft-spin .8s linear infinite}
 @keyframes ft-spin{to{transform:rotate(360deg)}}

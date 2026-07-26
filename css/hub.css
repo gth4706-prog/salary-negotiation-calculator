@@ -43,8 +43,30 @@ body{background:var(--hub-canvas);color:var(--hub-ink)}
 }
 .brand-desc b{color:var(--hub-ink)}
 
-/* ---------- 카테고리 ---------- */
-.cat-title{color:var(--hub-ink);font-weight:700;font-size:15px}
+/* ---------- 고민별 필터 칩 ---------- */
+.cat-filter{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.cat-filter .chip{
+  font:inherit;font-size:13px;font-weight:600;
+  background:var(--hub-surface);
+  border:1px solid var(--hub-line);
+  color:var(--hub-muted);
+  border-radius:980px;
+  padding:8px 16px;
+  cursor:pointer;
+  transition:background .15s,color .15s,border-color .15s;
+}
+.cat-filter .chip:hover{border-color:var(--hub-accent);color:var(--hub-accent)}
+.cat-filter .chip.on{background:var(--hub-accent);border-color:var(--hub-accent);color:#fff}
+
+/* 카드 안 카테고리 태그 */
+.tool-cards .cat-tag{
+  display:inline-block;
+  font-size:11px;font-weight:700;
+  color:var(--hub-muted);
+  margin-bottom:4px;
+}
+
+.hub-grid{margin-top:16px}
 
 /* ---------- 도구 카드 ---------- */
 .tool-cards a{

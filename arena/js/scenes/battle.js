@@ -10,6 +10,7 @@ GAME.BattleScene.prototype.init = function (data) {
   this.formation = GAME.Formations.getById(data.formationId);
   this.heroKey = data.heroKey;
   this.items = data.items || {};
+  this.picks = data.picks || GAME.defaultSkillPicks();
   this.startPos = data.startPos || { x: 600, y: 590 };
   this.ended = false;
   this.markers = [];
@@ -32,8 +33,17 @@ GAME.BattleScene.prototype.create = function () {
   }
 
   this.hero = GAME.Combat.createHero(
-    this.heroKey, this.startPos.x, this.startPos.y, 'controller', this.items);
+    this.heroKey, this.startPos.x, this.startPos.y, 'controller', this.items, this.picks);
   this.state.units.push(this.hero);
+
+  // 학습형 AI: 이 배치도가 지금까지 배운 적응값을 전투에 적용한다
+  this.state.adapt = GAME.Learn.get(this.formation.id).adapt;
+  this.state.telemetry.medicPlaced = this.formation.units.some(function (u) {
+    return GAME.UNITS[u.type] && GAME.UNITS[u.type].healRadius;
+  });
+  this.state.telemetry.guardPlaced = this.formation.units.some(function (u) {
+    return GAME.UNITS[u.type] && GAME.UNITS[u.type].intercept;
+  });
 
   this.input.mouse.disableContextMenu();
   this.ctrl = new GAME.InputController(this, this.state, this.hero);
@@ -154,11 +164,24 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   if (this.state.over && !this.ended) {
     this.ended = true;
     var self = this;
+
+    // 학습형 AI: 이 판의 관측치를 배치도에 기록한다.
+    // '전략가가 이겼는가' 기준이므로 컨트롤러 승리는 진형의 패배다.
+    var t = this.state.telemetry;
+    var xs = t.heroXSamples;
+    var learnRec = GAME.Learn.record(this.formation.id, this.state.winner === 'strategist', {
+      medicPlaced: t.medicPlaced, medicHealed: t.medicHealed,
+      guardPlaced: t.guardPlaced, guardBlocked: t.guardBlocked,
+      rangedDiedInMelee: t.rangedDiedInMelee,
+      heroSideAvg: xs.length ? xs.reduce(function (a, b) { return a + b; }, 0) / xs.length : undefined
+    });
+
     this.time.delayedCall(1100, function () {
       self.scene.start('Result', {
         winner: self.state.winner,
         formationId: self.formation.id,
-        heroKey: self.heroKey
+        heroKey: self.heroKey,
+        learnNotes: learnRec.lastNotes || []
       });
     });
   }
@@ -182,7 +205,7 @@ GAME.BattleScene.prototype.updateHud = function () {
   var armed = this.ctrl.armedSkill;
   for (var i = 0; i < this.skillBoxes.length; i++) {
     var b = this.skillBoxes[i];
-    var sk = h.hero.skills[i];
+    var sk = h.skills[i];
     b.name.setText(sk.name);
     var cd = h.skillCd[b.slot];
     var ready = cd <= 0;

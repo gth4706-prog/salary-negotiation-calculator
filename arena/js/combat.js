@@ -8,7 +8,10 @@ GAME.Combat = {
     return {
       units: [], projectiles: [], effects: [], traps: [],
       numbers: [],          // 떠오르는 피해 숫자 (렌더 전용 데이터)
-      elapsed: 0, over: false, winner: null
+      elapsed: 0, over: false, winner: null,
+      // 학습형 AI: 배치도의 적응값 + 이번 판 관측치
+      adapt: null,
+      telemetry: { medicHealed: 0, guardBlocked: 0, rangedDiedInMelee: 0, heroXSamples: [] }
     };
   },
 
@@ -18,7 +21,7 @@ GAME.Combat = {
   },
 
   // 영웅 = 아이템 보정을 반영한 합성 def를 가진 특수 유닛
-  createHero: function (heroKey, x, y, side, chosenItems) {
+  createHero: function (heroKey, x, y, side, chosenItems, skillPicks) {
     var h = GAME.HEROES[heroKey];
     var st = GAME.Items.applyTo(h, chosenItems || {});
 
@@ -44,6 +47,8 @@ GAME.Combat = {
     var u = this._baseUnit(def, x, y, side, heroKey);
     u.isHero = true;
     u.hero = h;
+    // QWER 슬롯마다 고른 선택지로 실제 스킬 세트를 구성한다
+    u.skills = GAME.buildSkills(heroKey, skillPicks || GAME.defaultSkillPicks());
     u.cdrMul = st.cdrMul;
     u.potionHeal = st.potionHeal;
     u.potionCharges = st.potionCharges;
@@ -96,9 +101,12 @@ GAME.Combat = {
     return s;
   },
 
-  // 분대장이 주변에 있으면 공격력이 올라간다
+  // 분대장이 주변에 있으면 공격력이 올라간다. 영웅은 자기 버프(전투 각성)를 받는다.
   effDamage: function (u, state) {
     var d = u.def.damage;
+    for (var b = 0; b < u.buffs.length; b++) {
+      if (u.buffs[b].damageMul) d *= u.buffs[b].damageMul;
+    }
     if (!state) return d;
     for (var i = 0; i < state.units.length; i++) {
       var o = state.units[i];
@@ -178,7 +186,14 @@ GAME.Combat = {
 
     unit.hp -= eff;
     unit.flash = 130;
-    if (unit.hp <= 0) { unit.hp = 0; unit.alive = false; }
+    if (unit.hp <= 0) {
+      unit.hp = 0; unit.alive = false;
+      // 관측: 원거리 유닛이 근접 공격에 죽었나 (kite 학습 신호)
+      if (state && unit.side === 'strategist' && (unit.def.range || 0) > 150 &&
+          source && source.def && source.def.attack === 'melee') {
+        state.telemetry.rangedDiedInMelee++;
+      }
+    }
 
     if (state) this.pushNumber(state, unit, eff, crit);
 
@@ -335,8 +350,8 @@ GAME.Combat = {
   castSkill: function (u, slot, tx, ty, state) {
     if (!this.skillReady(u, slot)) return false;
     var sk = null;
-    for (var i = 0; i < u.hero.skills.length; i++) {
-      if (u.hero.skills[i].slot === slot) { sk = u.hero.skills[i]; break; }
+    for (var i = 0; i < u.skills.length; i++) {
+      if (u.skills[i].slot === slot) { sk = u.skills[i]; break; }
     }
     if (!sk) return false;
 
@@ -346,8 +361,10 @@ GAME.Combat = {
     var i2, o;
 
     if (sk.type === 'dash') {
-      var nx = u.x + Math.cos(ang) * sk.dist;
-      var ny = u.y + Math.sin(ang) * sk.dist;
+      // backward = 마우스 반대 방향으로 물러나며 쏜다(반동 사격)
+      var dir = sk.backward ? ang + Math.PI : ang;
+      var nx = u.x + Math.cos(dir) * sk.dist;
+      var ny = u.y + Math.sin(dir) * sk.dist;
       var fromX = u.x, fromY = u.y;
       u.x = nx; u.y = ny;
       this.clampToArena(u);
@@ -372,6 +389,7 @@ GAME.Combat = {
         var d = this.dist(u, o);
         if (d <= sk.radius + o.def.radius) {
           this.applyDamage(o, sk.damage, u, state);
+          if (sk.rootMs) o.rootedFor = Math.max(o.rootedFor, sk.rootMs);
           if (sk.knockback && d > 0.1) {
             var kx = (o.x - u.x) / d, ky = (o.y - u.y) / d;
             o.x += kx * sk.knockback; o.y += ky * sk.knockback;
@@ -396,19 +414,27 @@ GAME.Combat = {
       }
 
     } else if (sk.type === 'projectile') {
-      state.projectiles.push({
-        x: u.x, y: u.y,
-        vx: Math.cos(ang) * sk.speed,
-        vy: Math.sin(ang) * sk.speed,
-        damage: sk.damage,
-        side: u.side,
-        radius: sk.radius,
-        life: 3000,
-        pierce: !!sk.pierce,
-        hitSet: [],
-        owner: u,
-        big: true
-      });
+      var shots = sk.burst || 1;
+      for (var b2 = 0; b2 < shots; b2++) {
+        state.projectiles.push({
+          x: u.x, y: u.y,
+          vx: Math.cos(ang) * sk.speed,
+          vy: Math.sin(ang) * sk.speed,
+          damage: sk.damage,
+          side: u.side,
+          radius: sk.radius,
+          life: 3000,
+          // 연사는 시간차를 두고 나가게 뒤쪽에서 출발시킨다
+          delayDist: b2 * (sk.burstDelay || 0) * sk.speed / 1000,
+          pierce: !!sk.pierce,
+          hitSet: [],
+          owner: u,
+          big: true
+        });
+        var last = state.projectiles[state.projectiles.length - 1];
+        last.x -= Math.cos(ang) * last.delayDist;
+        last.y -= Math.sin(ang) * last.delayDist;
+      }
 
     } else if (sk.type === 'strike') {
       var tgt = this.nearestEnemy(u, state.units);
@@ -416,6 +442,7 @@ GAME.Combat = {
         u._lsMul = sk.lifestealMul || 1;
         this.applyDamage(tgt, sk.damage, u, state);
         u._lsMul = 1;
+        if (sk.rootMs) tgt.rootedFor = Math.max(tgt.rootedFor, sk.rootMs);
         state.effects.push({
           kind: 'beam', x1: u.x, y1: u.y, x2: tgt.x, y2: tgt.y,
           t: 220, total: 220, side: u.side
@@ -428,9 +455,11 @@ GAME.Combat = {
       u.buffs.push({
         armorAdd: sk.armorAdd || 0,
         speedMul: sk.speedMul || 1,
+        damageMul: sk.damageMul || 1,
         t: sk.duration
       });
       if (sk.shield) u.shield += sk.shield;
+      if (sk.healNow) this.heal(u, sk.healNow);
       state.effects.push({
         kind: 'ring', x: u.x, y: u.y, r: u.def.radius + 26,
         t: 400, total: 400, side: u.side
@@ -521,17 +550,37 @@ GAME.Combat = {
     var engage = true;
     var tgt = null;
 
-    if (!this.updateStance(u, state, dt)) return;
-
-    // 지원·설치 유닛은 교전하지 않는다. 위생병은 아군 뒤에 머문다.
+    // 지원·설치 유닛은 교전하지 않으므로 진지 이탈/복귀(stance) 판정을 적용하지 않는다.
+    // stance 를 먼저 돌리면 부상자를 따라가려는 이동을 매 프레임 되돌려 상쇄된다.
     if (def.attack === 'none') {
       if (def.isMine || def.immobile) return;
+
+      // 학습(medicFollow): 위생병이 회복을 못 했던 진형은 부상자를 따라가도록 배운다.
+      // 이 판단은 여기 한 곳에서만 한다 — 다른 곳에서 또 움직이면 서로 상쇄된다.
+      var ad = state.adapt;
+      if (def.healRadius && ad && ad.medicFollow > 0.2 && u.side === 'strategist') {
+        var worst = null, worstRatio = 0.9;
+        for (var wi = 0; wi < state.units.length; wi++) {
+          var w2 = state.units[wi];
+          if (!w2.alive || w2.side !== u.side || w2 === u || this.isHazard(w2)) continue;
+          var ratio = w2.hp / w2.maxHp;
+          if (ratio < worstRatio) { worstRatio = ratio; worst = w2; }
+        }
+        if (worst && this.dist(u, worst) > def.healRadius * 0.6) {
+          u.leash = Infinity;   // 부상자를 따라갈 땐 진지 구속을 푼다
+          this.moveToward(u, worst.x, worst.y, this.effSpeed(u) * dt);
+          return;
+        }
+      }
+
       var home = u.home;
       if (this.dist(u, { x: home.x, y: home.y }) > 6) {
         this.moveToward(u, home.x, home.y, this.effSpeed(u) * dt);
       }
       return;
     }
+
+    if (!this.updateStance(u, state, dt)) return;
 
     if (u.order) {
       if (u.order.type === 'move') {
@@ -549,6 +598,22 @@ GAME.Combat = {
 
     if (tgt) {
       var d = this.dist(u, tgt);
+
+      // 학습: kite — **다친** 원거리 유닛만 물러나며 쏜다.
+      // 멀쩡한 유닛까지 물러나면 진형의 화력 집중이 깨져 오히려 약해진다(실측으로 확인).
+      var ad2 = state.adapt;
+      if (ad2 && ad2.kite > 0.1 && u.side === 'strategist' &&
+          def.range > 150 && u.hp < u.maxHp * 0.55 &&
+          d < def.range * 0.4 && u.rootedFor <= 0) {
+        var away = Math.atan2(u.y - tgt.y, u.x - tgt.x);
+        u.x += Math.cos(away) * this.effSpeed(u) * dt * ad2.kite;
+        u.y += Math.sin(away) * this.effSpeed(u) * dt * ad2.kite;
+        this.clampToArena(u);
+        u.facing = Math.atan2(tgt.y - u.y, tgt.x - u.x);
+        if (u.cd <= 0) { this.fire(u, tgt.x, tgt.y, tgt, state); u.cd = def.cooldown; }
+        return;
+      }
+
       if (d <= def.range) {
         u.facing = Math.atan2(tgt.y - u.y, tgt.x - u.x);
         if (u.cd <= 0) {
@@ -559,6 +624,33 @@ GAME.Combat = {
       }
       if (!moveTo || (u.order && u.order.type === 'attack')) {
         moveTo = { x: tgt.x, y: tgt.y };
+      }
+    }
+
+    // 학습: guardFollow — 방탄병이 영웅과 가장 가까운 아군 사이를 막아선다.
+    // 영웅이 멀면 움직이지 않는다 — 맵을 가로질러 달려가면 진형에서 이탈해 손해다.
+    var ad3 = state.adapt;
+    if (ad3 && ad3.guardFollow > 0.1 && u.side === 'strategist' && u.def.intercept && u.rootedFor <= 0) {
+      var hero = null;
+      for (var hh = 0; hh < state.units.length; hh++) {
+        if (state.units[hh].alive && state.units[hh].isHero) { hero = state.units[hh]; break; }
+      }
+      if (hero && this.dist(u, hero) < 340) {
+        var ward = null, wd = Infinity;
+        for (var aa = 0; aa < state.units.length; aa++) {
+          var al2 = state.units[aa];
+          if (!al2.alive || al2.side !== u.side || al2 === u || this.isHazard(al2)) continue;
+          var dh = this.dist(al2, hero);
+          if (dh < wd) { wd = dh; ward = al2; }
+        }
+        if (ward) {
+          var mx2 = (ward.x + hero.x) / 2, my2 = (ward.y + hero.y) / 2;
+          if (this.dist(u, { x: mx2, y: my2 }) > 30) {
+            this.moveToward(u, mx2, my2, this.effSpeed(u) * dt * ad3.guardFollow);
+            u.leash = Math.max(u.leash, u.def.chase * 1.5);
+            return;
+          }
+        }
       }
     }
 
@@ -651,7 +743,11 @@ GAME.Combat = {
             var al = state.units[k];
             if (!al.alive || al.side !== u.side || al === u) continue;
             if (al.hp >= al.maxHp) continue;
-            if (this.dist(u, al) <= u.def.healRadius) { this.heal(al, u.def.healPerTick); healed++; }
+            if (this.dist(u, al) <= u.def.healRadius) {
+              this.heal(al, u.def.healPerTick);
+              healed++;
+              if (u.side === 'strategist') state.telemetry.medicHealed += u.def.healPerTick;
+            }
           }
           if (healed) {
             state.effects.push({
@@ -660,6 +756,7 @@ GAME.Combat = {
             });
           }
         }
+
       }
 
       // 발목지뢰 — 밟으면 최대 체력의 일정 비율이 날아간다
@@ -753,6 +850,7 @@ GAME.Combat = {
       if (blocker) {
         this.applyDamage(blocker, p.damage, p.owner, state);
         if (p.sticky) this.applySlow(blocker, p);
+        if (blocker.side === 'strategist') state.telemetry.guardBlocked++;
         state.effects.push({ kind: 'block', x: p.x, y: p.y, t: 200, total: 200, side: p.side });
         state.projectiles.splice(i, 1);
         continue;
@@ -809,6 +907,20 @@ GAME.Combat = {
     for (i = state.numbers.length - 1; i >= 0; i--) {
       state.numbers[i].t -= dtMs;
       if (state.numbers[i].t <= 0) state.numbers.splice(i, 1);
+    }
+
+    // 관측: 영웅이 어느 쪽(x)으로 들어오는지 1초마다 샘플 (rallyBias 학습 신호)
+    state._heroSampleT = (state._heroSampleT || 0) - dtMs;
+    if (state._heroSampleT <= 0) {
+      state._heroSampleT = 1000;
+      for (i = 0; i < state.units.length; i++) {
+        var hu = state.units[i];
+        if (hu.alive && hu.isHero) {
+          var A2 = GAME.CONFIG.ARENA;
+          state.telemetry.heroXSamples.push(((hu.x - A2.x) / A2.w) * 2 - 1);
+          break;
+        }
+      }
     }
 
     // 승패 판정

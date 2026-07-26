@@ -46,4 +46,7 @@ GAME.MenuScene.prototype.create = function () {
     P ? '논타겟은 피할 수 있고, 타겟은 피할 수 없다.'
       : '논타겟 공격은 피할 수 있고, 타겟 공격은 피할 수 없다. 그것이 이 게임의 균형이다.',
     P ? 11 : 14, '#6f6f88', 0.5).setWordWrapWidth(W - 40);
+
+  // 버전은 캔버스 안에도 찍는다 — DOM 배지가 가려지거나 안 보이는 경우가 있어서
+  GAME.UI.label(this, W - 12, H - 10, GAME.VERSION || '', 12, '#6f6f88', 1).setOrigin(1, 1);
 };

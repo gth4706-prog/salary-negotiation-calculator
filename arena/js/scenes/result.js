@@ -10,6 +10,7 @@ GAME.ResultScene.prototype.init = function (data) {
   this.winner = data.winner;
   this.formationId = data.formationId;
   this.heroKey = data.heroKey;
+  this.learnNotes = data.learnNotes || [];
 };
 
 GAME.ResultScene.prototype.create = function () {
@@ -50,9 +51,22 @@ GAME.ResultScene.prototype.create = function () {
   GAME.UI.label(this, W / 2, u * 34, sub, P ? 13 : 18, C.textDim, 0.5)
     .setAlign('center').setWordWrapWidth(W - 40);
 
-  GAME.UI.label(this, W / 2, u * 45, '상대 진형: ' + formation.name +
+  GAME.UI.label(this, W / 2, u * 44, '상대 진형: ' + formation.name +
     (formation.isAI ? ' (AI)' : ' (사람)'), P ? 15 : 19, C.text, 0.5);
-  GAME.UI.label(this, W / 2, u * 50, GAME.UI.winRateText(this.formationId), P ? 13 : 17, C.warn, 0.5);
+  GAME.UI.label(this, W / 2, u * 48.5, GAME.UI.winRateText(this.formationId), P ? 13 : 17, C.warn, 0.5);
+
+  // 학습형 AI가 이번 판에서 무엇을 배웠는지 보여준다.
+  // 보이지 않으면 학습이 있는지 없는지 알 수 없어 의미가 없다.
+  var sum = GAME.Learn.summary(this.formationId);
+  if (this.learnNotes.length) {
+    GAME.UI.label(this, W / 2, u * 53.5,
+      '🧠 이 진형이 배운 것: ' + this.learnNotes.join(' / '),
+      P ? 11 : 13, C.crit, 0.5).setAlign('center').setWordWrapWidth(W - 60);
+  } else if (sum && sum.learned.length) {
+    GAME.UI.label(this, W / 2, u * 53.5,
+      '🧠 적용 중인 학습: ' + sum.learned.join(', ') + '  (' + sum.battles + '전 누적)',
+      P ? 11 : 13, C.crit, 0.5).setAlign('center').setWordWrapWidth(W - 60);
+  }
 
   GAME.UI.button(this, W / 2, u * 61, bw, u * 6.5, '같은 진형에 다시 도전', function () {
     self.scene.start('Draft', { formationId: self.formationId });

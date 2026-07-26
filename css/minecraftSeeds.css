@@ -1,37 +1,197 @@
 /* =========================================================
    마인크래프트 시드 추천기 — 전용 스타일 (공유 style.css 뒤에 로드)
+   테마: 마인크래프트 컨셉 (딥티얼×테라코타 사이트 팔레트와 독립)
+   - 잔디/흙/돌/딥슬레이트 + 골드·다이아몬드·레드스톤 포인트
+   - 각진 인벤토리 슬롯 베벨(둥근 모서리 없음), 픽셀 폰트는 짧은 라벨에만
+   - 본문 설명문은 가독성을 위해 사이트 기본 폰트(Pretendard) 유지
+   - 이 파일은 minecraft-seeds 페이지에서만 로드되므로 구조(레이아웃)와
+     스킨(색·테두리)을 함께 정의한다.
    ========================================================= */
+:root{
+  --mc-font:'Silkscreen',var(--mono),monospace;
+  --mc-bg:#2b2b26;         /* 딥슬레이트 나이트 배경 */
+  --mc-panel:#3d3d37;      /* 돌 패널 */
+  --mc-grass:#5fa441;      /* 잔디 */
+  --mc-dirt:#6b4a2e;       /* 흙 */
+  --mc-stone:#7d7d74;      /* 돌 회색 */
+  --mc-oak:#c8a165;        /* 참나무 판자(카드 표면) */
+  --mc-oak-ink:#3a2a13;    /* 오크 위 텍스트 */
+  --mc-gold:#e7c64c;       /* 골드 — 매칭/강조 */
+  --mc-diamond:#4fd1c5;    /* 다이아몬드 — 포커스/버튼 */
+  --mc-redstone:#b3402f;   /* 레드스톤 — 미확인/경고 */
+  --mc-ink:#efece0;        /* 밝은 텍스트 */
+}
 
-/* 진행 표시 */
-.mc-progress{display:flex;gap:5px}
-.mc-progress span{flex:1;height:4px;border-radius:999px;background:var(--surface-2)}
-.mc-progress span.done{background:var(--accent)}
+/* ---------- 히어로: 잔디→흙 단면 ---------- */
+.hero.mc-theme{
+  position:relative;
+  border:3px solid #000;
+  border-radius:0;
+  padding:26px 20px 22px;
+  color:var(--mc-ink);
+  background-image:
+    repeating-linear-gradient(45deg,rgba(255,255,255,.05) 0 4px,transparent 4px 8px),
+    linear-gradient(180deg,var(--mc-grass) 0 20px,var(--mc-dirt) 20px 100%);
+  box-shadow:inset 0 3px 0 rgba(255,255,255,.18),inset 0 -6px 0 rgba(0,0,0,.3);
+}
+.hero.mc-theme h1{
+  font-family:var(--mc-font);
+  font-size:19px;
+  line-height:1.5;
+  letter-spacing:.3px;
+  margin:0 0 12px;
+  text-shadow:3px 3px 0 rgba(0,0,0,.55);
+}
+.hero.mc-theme p{
+  font-size:14px;
+  margin:0;
+  text-shadow:2px 2px 0 rgba(0,0,0,.45);
+}
+.hero.mc-theme b{color:var(--mc-gold)}
 
-/* 선택지 */
+/* ---------- 안내 배너 (사인판) ---------- */
+.note.mc-theme{
+  background:var(--mc-oak);
+  color:var(--mc-oak-ink);
+  border:3px solid #000;
+  border-radius:0;
+  border-left:8px solid var(--mc-redstone);
+  box-shadow:inset 2px 2px 0 rgba(255,255,255,.25),inset -2px -2px 0 rgba(0,0,0,.2);
+}
+.note.mc-theme b{color:#5a3d10}
+
+/* ---------- 카드(질문지·결과 패널) ---------- */
+.step.mc-theme{
+  background:var(--mc-panel);
+  color:var(--mc-ink);
+  border:3px solid #000;
+  border-radius:0;
+  box-shadow:inset 2px 2px 0 rgba(255,255,255,.08),inset -2px -2px 0 rgba(0,0,0,.35);
+}
+.step.mc-theme .q{
+  font-family:var(--mc-font);
+  font-size:14px;
+  line-height:1.6;
+  color:#fff;
+  text-shadow:2px 2px 0 rgba(0,0,0,.5);
+  letter-spacing:.2px;
+}
+
+/* 진행 표시 → XP 바 느낌 */
+.mc-progress{display:flex;gap:4px}
+.mc-progress span{
+  flex:1;height:8px;border-radius:0;background:#1c1c18;
+  border:2px solid #000;box-shadow:inset 1px 1px 0 rgba(0,0,0,.4);
+}
+.mc-progress span.done{
+  background:var(--mc-grass);
+  box-shadow:inset 1px 1px 0 rgba(255,255,255,.35);
+}
+
+/* 선택지 → 인벤토리 슬롯 */
 .mc-opts{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px}
 @media(min-width:560px){.mc-opts{grid-template-columns:repeat(3,1fr)}}
-.mc-opt{font:inherit;display:flex;flex-direction:column;align-items:center;gap:8px;padding:18px 10px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--paper);color:var(--ink);cursor:pointer;text-align:center;transition:transform .12s,border-color .12s,box-shadow .12s}
-.mc-opt:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
-.mc-opt .ic{font-size:26px;line-height:1}
-.mc-opt .lb{font-size:13px;font-weight:700;line-height:1.35}
+.mc-opt{
+  font:inherit;display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:18px 10px;cursor:pointer;text-align:center;
+  background:#8b8b80;
+  color:#1c1c18;
+  border:3px solid #000;
+  border-radius:0;
+  box-shadow:inset 2px 2px 0 rgba(255,255,255,.4),inset -3px -3px 0 rgba(0,0,0,.4);
+  transition:background .06s,box-shadow .06s;
+}
+.mc-opt:hover{
+  background:#a3a396;
+  box-shadow:inset 2px 2px 0 rgba(255,255,255,.55),inset -3px -3px 0 rgba(0,0,0,.4),0 0 0 3px var(--mc-gold);
+}
+.mc-opt:active{
+  box-shadow:inset -2px -2px 0 rgba(255,255,255,.3),inset 3px 3px 0 rgba(0,0,0,.35);
+}
+.mc-opt .ic{font-size:24px;line-height:1}
+.mc-opt .lb{
+  font-family:var(--mc-font);
+  font-size:10.5px;
+  line-height:1.6;
+  letter-spacing:.2px;
+}
 
-/* 로딩 */
+/* 버튼(뒤로가기/다음/처음부터) → 마인크래프트 클래식 버튼 */
+.step.mc-theme .cta{
+  font-family:var(--mc-font);
+  font-size:12px;
+  letter-spacing:.3px;
+  color:#fff;
+  background:#7d7d74;
+  border:3px solid #000;
+  border-radius:0;
+  text-shadow:1px 1px 0 rgba(0,0,0,.5);
+  box-shadow:inset 2px 2px 0 rgba(255,255,255,.3),inset -2px -2px 0 rgba(0,0,0,.35);
+}
+.step.mc-theme .cta:hover{background:#8f8f85;filter:none}
+.step.mc-theme .cta:active{transform:none;box-shadow:inset -2px -2px 0 rgba(255,255,255,.2),inset 2px 2px 0 rgba(0,0,0,.3)}
+.step.mc-theme .cta.ghost{background:#4a4a42;color:var(--mc-diamond)}
+.step.mc-theme .cta.ghost:hover{background:#565650}
+
+/* ---------- 로딩 ---------- */
 .mc-loading{display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px 0}
-.mc-spinner{width:30px;height:30px;border-radius:50%;border:3px solid var(--surface-2);border-top-color:var(--accent);animation:mc-spin .8s linear infinite}
-@keyframes mc-spin{to{transform:rotate(360deg)}}
-.mc-loading-txt{font-size:13px;color:var(--muted)}
+.mc-loading.mc-theme{color:var(--mc-ink)}
+.mc-spinner{
+  width:22px;height:22px;border:none;border-radius:0;
+  background:
+    conic-gradient(var(--mc-grass) 0 90deg,transparent 0 180deg,var(--mc-grass) 0 270deg,transparent 0);
+  animation:mc-step-spin .9s steps(8) infinite;
+}
+@keyframes mc-step-spin{to{transform:rotate(360deg)}}
+.mc-loading-txt{font-size:13px;color:var(--mc-stone)}
+@media (prefers-reduced-motion:reduce){
+  .mc-spinner{animation:none}
+}
 
-/* 결과 카드 */
+/* ---------- 결과 카드(아이템 카드) ---------- */
 .mc-results{display:flex;flex-direction:column;gap:12px}
-.mc-card{border:1px solid var(--line);border-radius:var(--r-sm);padding:16px;background:var(--paper)}
+.mc-card{
+  padding:16px;
+  background:var(--mc-oak);
+  color:var(--mc-oak-ink);
+  border:3px solid #000;
+  border-radius:0;
+  box-shadow:inset 2px 2px 0 rgba(255,255,255,.25),inset -2px -2px 0 rgba(0,0,0,.3);
+}
 .mc-card .mc-seed-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.mc-card .mc-seed{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--ink);word-break:break-all;background:var(--surface-2);border-radius:8px;padding:6px 10px}
-.mc-card .mc-copy{font:inherit;font-size:12px;font-weight:700;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer;flex:none}
-.mc-card .mc-copy:hover{border-color:var(--accent);color:var(--accent-ink)}
+.mc-card .mc-seed{
+  font-family:var(--mono);font-size:15px;font-weight:700;word-break:break-all;padding:6px 10px;
+  color:#8CF57A;
+  background:#1c1c18;
+  border:2px solid #000;
+  border-radius:0;
+}
+.mc-card .mc-copy{
+  font-family:var(--mc-font);font-size:10.5px;font-weight:700;padding:7px 12px;cursor:pointer;flex:none;
+  border-radius:0;
+  border:2px solid #000;
+  background:#7d7d74;
+  color:#fff;
+  box-shadow:inset 1px 1px 0 rgba(255,255,255,.3),inset -1px -1px 0 rgba(0,0,0,.3);
+}
+.mc-card .mc-copy:hover{background:#8f8f85;color:#fff}
 .mc-card .mc-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
-.mc-tag{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--surface-2);color:var(--muted)}
-.mc-tag.match{background:var(--good-bg);color:var(--good)}
-.mc-tag.unknown{background:var(--warn-bg);color:var(--warn)}
-.mc-card .mc-desc{font-size:13px;color:var(--ink);margin-top:9px;line-height:1.6}
-.mc-card .mc-src{font-size:11.5px;color:var(--faint);margin-top:8px;word-break:break-all}
-.mc-card .mc-src a{color:var(--accent-ink)}
+.mc-tag{
+  font-family:var(--mc-font);font-size:9.5px;font-weight:700;padding:4px 10px;
+  border-radius:0;
+  border:2px solid #000;
+  background:#5a5a50;
+  color:#fff;
+}
+.mc-tag.match{background:var(--mc-gold);color:#3b2e00}
+.mc-tag.unknown{background:var(--mc-redstone);color:#fff}
+.mc-card .mc-desc{font-size:13px;margin-top:9px;line-height:1.6;color:var(--mc-oak-ink)}
+.mc-card .mc-src{font-size:11.5px;margin-top:8px;word-break:break-all;color:#6b5732}
+.mc-card .mc-src a{color:#3a2a13;font-weight:700}
+
+/* 포커스 링 */
+.mc-opt:focus-visible,
+.step.mc-theme .cta:focus-visible,
+.mc-card .mc-copy:focus-visible{
+  outline:3px solid var(--mc-gold);outline-offset:2px;
+}

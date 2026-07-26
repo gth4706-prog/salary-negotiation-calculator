@@ -1,0 +1,198 @@
+/* =========================================================
+   낚시 물때 가이드 — 전용 스타일 (공유 style.css 뒤에 로드)
+   테마: "도시어부"풍 방송 그래픽 텐션 — 심해 네이비 + 입질 레드오렌지 +
+   부표 옐로우 + 씨폼 틸. 이 파일은 이 페이지에서만 로드되므로 body/.nav/
+   .footer/.card 등 전역 클래스를 직접 override해도 다른 도구엔 영향 없음.
+   ========================================================= */
+:root{
+  --ft-font:'Do Hyeon',var(--font);
+  --ft-bg:#071E33;     /* 심해 네이비 배경 */
+  --ft-panel:#0F3459;  /* 패널 네이비 */
+  --ft-ink:#F4F7FA;    /* 포말 화이트 텍스트 */
+  --ft-line:#1B4A73;   /* 패널 내부 경계선 */
+  --ft-accent:#FF4B3E; /* 입질 레드오렌지 — 강조/CTA */
+  --ft-accent2:#FFC93C;/* 부표 옐로우 — 보조 강조 */
+  --ft-teal:#2EC4B6;   /* 씨폼 틸 — 매칭 태그 */
+  --ft-muted:#9FB3C8;  /* 보조 텍스트 */
+}
+
+/* ---------- 페이지 전체 톤 ---------- */
+body{
+  background:var(--ft-bg);
+  background-image:radial-gradient(ellipse at top, rgba(46,196,182,.08), transparent 60%);
+  color:var(--ft-ink);
+}
+.nav{background:#051524;border-bottom:3px solid var(--ft-accent);backdrop-filter:none}
+.nav .brand{color:var(--ft-ink)}
+.nav .brand svg{color:var(--ft-accent2)}
+.nav .links a{color:var(--ft-muted)}
+.nav .links a:hover{color:#fff;background:var(--ft-panel)}
+.theme-btn{background:var(--ft-panel);border:1px solid var(--ft-line);color:var(--ft-ink)}
+.theme-btn:hover{border-color:var(--ft-accent2);color:var(--ft-accent2)}
+.ver-badge{background:var(--ft-panel);border:1px solid var(--ft-line);color:var(--ft-accent2)}
+.footer{background:#051524;border-top:1px solid var(--ft-line)}
+.footer a{color:var(--ft-muted)}
+.footer a:hover{color:var(--ft-accent2)}
+.footer .sep{color:var(--ft-line)}
+.footer .cp{color:#5E7B98}
+
+/* 카드 전반("다른 도구" 포함) — 패널 톤 통일 */
+.card{
+  background:var(--ft-panel);
+  color:var(--ft-ink);
+  border:1px solid var(--ft-line);
+  border-radius:16px;
+  box-shadow:0 10px 30px rgba(0,0,0,.35);
+}
+.card>h2{font-family:var(--ft-font);font-size:19px;color:#fff;letter-spacing:.02em}
+.card>.desc{color:var(--ft-muted)}
+.guides a{
+  background:#0C2C4B;
+  border:1px solid var(--ft-line);
+  color:var(--ft-ink);
+  border-radius:12px;
+}
+.guides a:hover{border-color:var(--ft-teal);box-shadow:0 0 0 2px rgba(46,196,182,.25)}
+.guides a span{color:var(--ft-muted)}
+.ad-slot{border:1px dashed var(--ft-line);background:#0C2C4B;color:var(--ft-muted)}
+
+/* ---------- 히어로: 속보 배너 시그니처 ---------- */
+.hero.ft-theme{
+  position:relative;
+  background:linear-gradient(180deg,#0C3155,#071E33);
+  border:1px solid var(--ft-line);
+  border-radius:16px;
+  padding:30px 22px 24px;
+  overflow:hidden;
+}
+.hero.ft-theme::before{
+  content:"오늘 낚시, 가도 될까?";
+  position:absolute;
+  top:14px; right:-42px;
+  background:var(--ft-accent);
+  color:#fff;
+  font-family:var(--ft-font);
+  font-size:12px;
+  letter-spacing:.03em;
+  padding:5px 50px;
+  transform:rotate(28deg);
+  box-shadow:0 4px 14px rgba(255,75,62,.4);
+}
+.hero.ft-theme h1{
+  font-family:var(--ft-font);
+  font-size:26px;
+  letter-spacing:.01em;
+  margin:0 0 10px;
+  color:#fff;
+}
+.hero.ft-theme p{font-size:14.5px;color:var(--ft-muted);margin:0;max-width:82%}
+.hero.ft-theme b{color:var(--ft-accent2)}
+
+/* ---------- 안내 배너 ---------- */
+.note.ft-theme{
+  background:#0C2C4B;
+  color:var(--ft-muted);
+  border:1px solid var(--ft-line);
+  border-left:4px solid var(--ft-teal);
+  border-radius:12px;
+}
+.note.ft-theme b{color:var(--ft-ink)}
+
+/* ---------- 질문지·결과 패널 ---------- */
+.step.ft-theme{
+  background:var(--ft-panel);
+  color:var(--ft-ink);
+  border:1px solid var(--ft-line);
+  border-radius:16px;
+  box-shadow:0 10px 30px rgba(0,0,0,.35);
+}
+.step.ft-theme .q{font-family:var(--ft-font);font-size:20px;color:#fff;letter-spacing:.01em}
+.step.ft-theme .desc{color:var(--ft-muted)}
+
+/* 진행 표시 */
+.ft-progress{display:flex;gap:5px}
+.ft-progress span{flex:1;height:5px;border-radius:999px;background:#0C2C4B;border:1px solid var(--ft-line)}
+.ft-progress span.done{background:var(--ft-teal);border-color:var(--ft-teal)}
+
+/* 선택지 */
+.ft-opts{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:16px}
+@media(min-width:560px){.ft-opts{grid-template-columns:repeat(3,1fr)}}
+.ft-opt{
+  font:inherit;display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:18px 10px;cursor:pointer;text-align:center;
+  background:#0C2C4B;
+  color:var(--ft-ink);
+  border:1px solid var(--ft-line);
+  border-radius:14px;
+  transition:transform .12s,border-color .12s,box-shadow .12s,background .12s;
+}
+.ft-opt:hover{
+  border-color:var(--ft-teal);
+  background:#123a61;
+  transform:translateY(-2px);
+  box-shadow:0 8px 20px rgba(46,196,182,.18);
+}
+.ft-opt .ic{font-size:25px;line-height:1}
+.ft-opt .lb{font-size:13px;font-weight:700;line-height:1.35}
+
+/* 버튼 */
+.step.ft-theme .cta{
+  font-family:var(--ft-font);
+  letter-spacing:.02em;
+  background:var(--ft-accent);
+  color:#fff;
+  border:0;
+  border-radius:12px;
+  box-shadow:0 8px 20px rgba(255,75,62,.35);
+}
+.step.ft-theme .cta:hover{filter:brightness(1.06)}
+.step.ft-theme .cta.ghost{background:#0C2C4B;color:var(--ft-teal);border:1px solid var(--ft-line);box-shadow:none}
+.step.ft-theme .cta.ghost:hover{border-color:var(--ft-teal)}
+
+/* ---------- 로딩 ---------- */
+.ft-loading{display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px 0}
+.ft-loading.ft-theme{color:var(--ft-muted)}
+.ft-spinner{width:30px;height:30px;border-radius:50%;border:3px solid #0C2C4B;border-top-color:var(--ft-accent);animation:ft-spin .8s linear infinite}
+@keyframes ft-spin{to{transform:rotate(360deg)}}
+.ft-loading-txt{font-size:13px;color:var(--ft-muted)}
+@media (prefers-reduced-motion:reduce){.ft-spinner{animation:none}}
+
+/* ---------- 결과 카드 ---------- */
+.ft-results{display:flex;flex-direction:column;gap:12px}
+.ft-card{
+  padding:16px;
+  background:#0C2C4B;
+  color:var(--ft-ink);
+  border:1px solid var(--ft-line);
+  border-radius:14px;
+}
+.ft-name-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ft-name{font-size:16px;font-weight:800;color:#fff;word-break:break-word}
+.ft-copy{
+  font:inherit;font-size:12px;font-weight:700;padding:7px 12px;cursor:pointer;flex:none;
+  border-radius:999px;border:1px solid var(--ft-line);background:#071E33;color:var(--ft-muted);
+}
+.ft-copy:hover{border-color:var(--ft-teal);color:var(--ft-teal)}
+.ft-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.ft-tag{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;background:#071E33;color:var(--ft-muted);border:1px solid var(--ft-line)}
+.ft-tag.match{background:rgba(46,196,182,.16);color:var(--ft-teal);border-color:var(--ft-teal)}
+.ft-tag.tide{background:rgba(255,201,60,.16);color:var(--ft-accent2);border-color:var(--ft-accent2)}
+.ft-tag.unknown{background:rgba(255,75,62,.12);color:var(--ft-accent);border-color:var(--ft-accent)}
+.ft-desc{font-size:13px;color:var(--ft-muted);margin-top:9px;line-height:1.6}
+.ft-actions{margin-top:11px}
+.ft-maplink{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--ft-teal);border:1px solid var(--ft-teal);border-radius:999px;padding:7px 14px}
+.ft-maplink:hover{background:rgba(46,196,182,.12);text-decoration:none}
+.ft-src{font-size:11.5px;color:#5E7B98;margin-top:9px}
+.ft-src a{color:#7A9BB8}
+
+/* ---------- 낚시 기본 팁 ---------- */
+.ft-tips h3{font-family:var(--ft-font);color:#fff;font-size:17px}
+.ft-tip-item{font-size:13.5px;color:var(--ft-muted);line-height:1.7;padding:11px 13px;background:#0C2C4B;border:1px solid var(--ft-line);border-radius:10px;margin-top:8px}
+
+/* 포커스 링 */
+.ft-opt:focus-visible,
+.step.ft-theme .cta:focus-visible,
+.ft-copy:focus-visible,
+.ft-maplink:focus-visible{
+  outline:2px solid var(--ft-teal);outline-offset:2px;
+}

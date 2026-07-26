@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="google-site-verification" content="-Vv3HKaiNfWlG3iVql38iG773LaD3LpSHJtwBU4-iU8" />
+<meta name="naver-site-verification" content="d4f9a360f5b25c71f4df188700ea809f9f69c0dd" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B5D8A">
+<title>낚시 물때 가이드 | 어디로, 언제 가야 할지 몰라도 괜찮아요</title>
+<meta name="description" content="지역·낚시기법·대상어종 세 가지만 고르면 실제 갯바위 낚시 포인트 1,076곳 중에서 오늘 조건에 맞는 곳을 추천해드려요. 물때번호와 낚시 기본 팁까지 한 번에.">
+<link rel="canonical" href="https://joeltool.com/fishing-tide/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="낚시 물때 가이드">
+<meta property="og:description" content="지역·낚시기법·대상어종만 고르면 실제 낚시 포인트와 오늘의 물때를 추천해드려요.">
+<meta property="og:url" content="https://joeltool.com/fishing-tide/">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%A3%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Do+Hyeon&display=swap">
+<link rel="stylesheet" href="../css/style.css?v=0.01">
+<link rel="stylesheet" href="../css/fishingTide.css?v=0.01">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"낚시 물때 가이드","applicationCategory":"UtilityApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"지역·낚시기법·대상어종을 고르면 실제 낚시 포인트와 오늘의 물때를 추천하는 무료 도구."}
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/korean-lunar-calendar/dist/korean-lunar-calendar.min.js"></script>
+</head>
+<body>
+
+<nav class="nav"><div class="in">
+  <a class="brand" href="../index.html" title="각잡살림 — 각 잡고 만든 살림(생활 도구). 쓸모있는 무료 웹 도구 모음">
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
+    <span class="n">각잡살림</span>
+  </a>
+  <div class="links">
+    <a href="../minecraft-seeds/">시드 추천기</a>
+    <a href="../about.html">소개</a>
+    <button class="theme-btn" id="theme-btn" type="button">◐</button>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.01</span>
+  </div>
+</div></nav>
+
+<main class="wrap page stack">
+  <header class="hero ft-theme">
+    <h1>🎣 낚시 물때 가이드</h1>
+    <p>실제 낚시 포인트 <b id="ft-total">–</b>곳 중에서 <b>지역·기법·어종</b>만 고르면 오늘 갈 곳을 추천해드려요.</p>
+  </header>
+
+  <div class="note ft-theme"><span>ℹ️</span><span>해양수산부가 공개한 전국 갯바위 낚시 포인트 데이터를 가공했어요. 좌표는 <b>대략적인 위치</b>(실제와 100~200m가량 차이 가능)라 지도 링크로 대략 확인 후 현장 상황을 직접 살펴주세요. 물때번호는 <b>남해안 기준 관습 계산법</b>이라 동해안은 조차가 작아 영향이 적어요. 정확한 만조·간조 <b>시각</b>은 서버 연동 후 제공됩니다.</span></div>
+
+  <!-- 질문지 -->
+  <section class="card step ft-theme" id="stepQuiz">
+    <div class="ft-progress" id="ft-progress"></div>
+    <h2 class="q" id="ft-q-title" style="margin-top:14px">–</h2>
+    <div class="ft-opts" id="ft-opts"></div>
+    <button class="cta ghost" id="ft-back" type="button" hidden style="margin-top:14px">← 이전 질문</button>
+  </section>
+
+  <!-- 로딩 연출 -->
+  <div class="ft-loading ft-theme" id="ft-loading" hidden>
+    <div class="ft-spinner"></div>
+    <div class="ft-loading-txt">입질 좋은 포인트를 찾는 중...</div>
+  </div>
+
+  <div class="ad-slot" aria-hidden="true" id="adwrap" hidden><span class="lab">광고 영역 (승인 후 노출)</span></div>
+
+  <!-- 결과 -->
+  <section class="card step ft-theme" id="stepResult" hidden>
+    <h2 class="q" id="ft-result-title">추천 포인트</h2>
+    <p class="desc" id="ft-result-sub" style="margin:4px 0 0"></p>
+    <div class="ft-results" id="ft-results" style="margin-top:14px"></div>
+    <div class="share-row" style="margin-top:16px">
+      <button class="cta ghost" id="ft-more" type="button" hidden>다음 후보 보기 →</button>
+      <button class="cta ghost" id="ft-restart" type="button">↺ 처음부터</button>
+    </div>
+
+    <div class="ft-tips" id="ft-tips" style="margin-top:22px"></div>
+  </section>
+
+  <!-- 다른 도구 -->
+  <section class="card">
+    <h2>다른 도구</h2>
+    <ul class="guides">
+      <li><a href="../salary-calculator/">이직 연봉 협상 계산기<span>제안 연봉이 적정한지 · 실수령액 · 평균 대비 포지션</span></a></li>
+      <li><a href="../room-planner/">방 가구 배치 시뮬레이터<span>평수 입력하면 방 모양부터, 가전·가구까지 배치</span></a></li>
+      <li><a href="../resignation-timing/">퇴사 타이밍 계산기<span>퇴직금·연차수당 다 챙기는 퇴사일 계산</span></a></li>
+      <li><a href="../couple-referee/">커플 재판<span>성향 다른 재판관 5명이 다툼을 판정</span></a></li>
+      <li><a href="../youtube-transcript/">유튜브 자막 추출기<span>링크 하나로 자막을 타임스탬프 텍스트로</span></a></li>
+      <li><a href="../keyword-checker/">키워드 진단기<span>내 페이지 SEO 키워드 진단 + 추천 키워드</span></a></li>
+      <li><a href="../minecraft-seeds/">마인크래프트 시드 추천기<span>질문 몇 개로 취향에 맞는 시드 추천</span></a></li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer"><div class="in">
+  <a href="../about.html">소개</a><span class="sep">·</span>
+  <a href="../privacy.html">개인정보처리방침</a><span class="sep">·</span>
+  <a href="../contact.html">문의</a><span class="sep">·</span>
+  <a href="../salary-calculator/">연봉 계산기</a>
+  <div class="cp">참고용 정보이며 실제 물때·어황은 현장 상황에 따라 다를 수 있습니다. © 각잡살림</div>
+</div></footer>
+
+<script src="../js/site.js?v=0.01"></script>
+<script src="../js/fishingTide.js?v=0.01"></script>
+</body>
+</html>

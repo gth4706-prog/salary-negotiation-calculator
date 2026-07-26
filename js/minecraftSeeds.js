@@ -66,17 +66,20 @@
   var NEAR_LABEL={village:"마을 근처",ruins:"유적·던전",cave:"동굴·광물"};
   var STYLE_LABEL={settle:"생존 정착",explore:"탐험",build:"건축",speed:"스피드런",weird:"특이 지형"};
 
-  var DATA=[], answers={}, qIdx=0, ranked=[], shownFrom=0;
+  var DATA=[], POOL=[], answers={}, qIdx=0, ranked=[], shownFrom=0, poolFrom=0;
 
-  fetch("../data/minecraft-seeds.json")
-    .then(function(r){return r.json()})
-    .then(function(list){
-      DATA=(list||[]).map(function(s){ s._f=featuresOf(s); return s; });
-      renderQuestion();
-    })
-    .catch(function(){
-      $("mc-quiz").innerHTML='<div class="helper">시드 데이터를 불러오지 못했어요. 새로고침해 주세요.</div>';
-    });
+  Promise.all([
+    fetch("../data/minecraft-seeds.json").then(function(r){return r.json()}),
+    fetch("../data/minecraft-seeds-random.json").then(function(r){return r.json()}).catch(function(){return{seeds:[]}})
+  ]).then(function(res){
+    DATA=(res[0]||[]).map(function(s){ s._f=featuresOf(s); return s; });
+    POOL=(res[1]&&res[1].seeds)||[];
+    var total=DATA.length+POOL.length;
+    if($("mc-total"))$("mc-total").textContent=total.toLocaleString();
+    renderQuestion();
+  }).catch(function(){
+    $("mc-quiz").innerHTML='<div class="helper">시드 데이터를 불러오지 못했어요. 새로고침해 주세요.</div>';
+  });
 
   /* ---------- 질문 렌더 ---------- */
   function renderProgress(){
@@ -152,34 +155,7 @@
     return (s||"").replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});
   }
 
-  function showResult(){
-    var picks=ranked.slice(shownFrom,shownFrom+2);
-    if(!picks.length){
-      if(shownFrom>0){ shownFrom=0; picks=ranked.slice(0,2); }
-    }
-    if(!picks.length){
-      $("mc-result-title").textContent="딱 맞는 시드를 못 찾았어요";
-      $("mc-result-sub").textContent="조건을 조금 넓혀서 다시 골라보시겠어요?";
-      $("mc-results").innerHTML='<div class="helper">선택하신 조건 모두를 만족하는 시드가 없었어요. \'상관없어요\'를 섞어서 다시 시도해 주세요.</div>';
-      $("mc-more").hidden=true;
-      $("stepResult").hidden=false;
-      $("stepResult").scrollIntoView({behavior:"smooth",block:"start"});
-      return;
-    }
-
-    $("mc-result-title").textContent=picks.length>1?"이 시드를 추천해요":"이 시드를 추천해요";
-    $("mc-result-sub").textContent="답변하신 조건과 가장 잘 맞는 순서예요.";
-    $("mc-results").innerHTML=picks.map(function(r){
-      var s=r.seed;
-      var whyChips=r.why.map(function(w){return '<span class="mc-tag match">✓ '+escapeHtml(w)+'</span>'}).join("");
-      return '<div class="mc-card">'
-        +'<div class="mc-seed-row"><span class="mc-seed">'+escapeHtml(s.seed)+'</span><button type="button" class="mc-copy" data-seed="'+escapeHtml(s.seed)+'">📋 복사</button></div>'
-        +'<div class="mc-meta">'+whyChips+'<span class="mc-tag">'+escapeHtml(s.edition||"미상")+'</span><span class="mc-tag">v'+escapeHtml(s.version||"미상")+'</span></div>'
-        +'<div class="mc-desc">'+escapeHtml(s.description||"")+'</div>'
-        +(s.source_url?'<div class="mc-src">출처: <a href="'+escapeHtml(s.source_url)+'" target="_blank" rel="noopener">'+escapeHtml(s.source_url)+'</a></div>':'')
-        +'</div>';
-    }).join("");
-
+  function bindCopy(){
     Array.prototype.forEach.call($("mc-results").querySelectorAll(".mc-copy"),function(btn){
       btn.addEventListener("click",function(){
         var seed=btn.getAttribute("data-seed");
@@ -188,8 +164,51 @@
         else prompt("복사하세요:",seed);
       });
     });
+  }
+  function cardHtml(r){
+    var s=r.seed;
+    var whyChips=r.why.map(function(w){return '<span class="mc-tag match">✓ '+escapeHtml(w)+'</span>'}).join("");
+    return '<div class="mc-card">'
+      +'<div class="mc-seed-row"><span class="mc-seed">'+escapeHtml(s.seed)+'</span><button type="button" class="mc-copy" data-seed="'+escapeHtml(s.seed)+'">📋 복사</button></div>'
+      +'<div class="mc-meta">'+whyChips+'<span class="mc-tag">'+escapeHtml(s.edition||"미상")+'</span><span class="mc-tag">v'+escapeHtml(s.version||"미상")+'</span></div>'
+      +'<div class="mc-desc">'+escapeHtml(s.description||"")+'</div>'
+      +(s.source_url?'<div class="mc-src">출처: <a href="'+escapeHtml(s.source_url)+'" target="_blank" rel="noopener">'+escapeHtml(s.source_url)+'</a></div>':'')
+      +'</div>';
+  }
+  function poolCardHtml(seedNum){
+    return '<div class="mc-card">'
+      +'<div class="mc-seed-row"><span class="mc-seed">'+escapeHtml(seedNum)+'</span><button type="button" class="mc-copy" data-seed="'+escapeHtml(seedNum)+'">📋 복사</button></div>'
+      +'<div class="mc-meta"><span class="mc-tag unknown">특징 미확인</span></div>'
+      +'<div class="mc-desc">아직 아무도 정리하지 않은 시드예요. 어떤 지형이 나올지는 직접 들어가서 확인해보세요.</div>'
+      +'</div>';
+  }
+  function pickPool(n){
+    var out=[];
+    for(var i=0;i<n&&POOL.length;i++){
+      out.push(POOL[Math.floor(Math.random()*POOL.length)]);
+    }
+    return out;
+  }
 
-    $("mc-more").hidden=ranked.length<=shownFrom+2;
+  function showResult(){
+    var picks=ranked.slice(shownFrom,shownFrom+2);
+
+    if(picks.length){
+      $("mc-result-title").textContent="이 시드를 추천해요";
+      $("mc-result-sub").textContent="답변하신 조건과 가장 잘 맞는 순서예요.";
+      $("mc-results").innerHTML=picks.map(cardHtml).join("");
+      $("mc-more").hidden=false;
+      $("mc-more").textContent=(ranked.length>shownFrom+2)?"다음 후보 보기 →":"미개척 시드도 보기 🎲";
+    }else{
+      // 정리된 후보를 다 봤거나 조건에 맞는 게 없을 때 → 미개척 시드 풀에서 제시
+      $("mc-result-title").textContent="미개척 시드";
+      $("mc-result-sub").textContent="아직 특징이 정리되지 않은 시드예요. 직접 들어가서 확인해보세요.";
+      $("mc-results").innerHTML=pickPool(2).map(poolCardHtml).join("");
+      $("mc-more").hidden=false;
+      $("mc-more").textContent="다른 시드 보기 🎲";
+    }
+
+    bindCopy();
     $("stepResult").hidden=false;
     $("stepResult").scrollIntoView({behavior:"smooth",block:"start"});
     if($("adwrap"))$("adwrap").hidden=false;
@@ -200,7 +219,7 @@
     showResult();
   });
   $("mc-restart").addEventListener("click",function(){
-    answers={}; qIdx=0; ranked=[]; shownFrom=0;
+    answers={}; qIdx=0; ranked=[]; shownFrom=0; poolFrom=0;
     $("stepResult").hidden=true;
     $("stepQuiz").hidden=false;
     renderQuestion();

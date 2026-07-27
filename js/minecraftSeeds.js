@@ -11,6 +11,12 @@
   /* ---------- 시드 1건에서 특징 추출 ---------- */
   function featuresOf(s){
     var t=(s.category||"")+" "+(s.description||"");
+    // 한 글자 키워드가 무관한 단어에 걸리는 걸 막는다.
+    // '산': 광산(동굴)·산호(바다)·황산염·빙산·산산이 → 산악으로 오판. 해당 단어만 지운 사본으로 검사.
+    //       산맥·산악·산비탈·톱니산·산양 등 진짜 산악 표현은 그대로 남는다.
+    var tm=t.replace(/광산|산호초|산호|황산염|빙산|산산이/g,"");
+    // '섬': 섬뜩한·이스터섬(석상 비유) → 바다로 오판.
+    var to=t.replace(/섬뜩|이스터섬/g,"");
     return {
       village:/마을|촌락/.test(t),
       ruins:/저택|사원|유적|초소|요새|고대|기념물|던전|폐허|시험실/.test(t),
@@ -19,8 +25,8 @@
       snow:/눈|얼음|설원|타이가|서리/.test(t),
       desert:/사막|황토|메사/.test(t),
       jungle:/정글|대나무/.test(t),
-      ocean:/바다|해양|섬|난파선|산호/.test(t),
-      mountain:/산|절벽|봉우리|계곡|고원/.test(t)
+      ocean:/바다|해양|섬|난파선|산호/.test(to),
+      mountain:/산|절벽|봉우리|계곡|고원/.test(tm)
     };
   }
 
@@ -126,12 +132,16 @@
     if(cats.indexOf(s.category)!==-1){ sc+=3; why.push(STYLE_LABEL[answers.style]); }
     if(answers.scene!=="any"&&s._f[answers.scene]){ sc+=3; why.push(SCENE_LABEL[answers.scene]); }
     if(answers.near!=="any"&&s._f[answers.near]){ sc+=2; why.push(NEAR_LABEL[answers.near]); }
-    if(answers.edition!=="any"&&(s.edition||"").indexOf("&")!==-1)sc+=0.5; // 양쪽 지원이면 소폭 가산
-    return {seed:s,score:sc,why:why};
+    // 양쪽 에디션 지원(Java & Bedrock)은 "사용자가 고른 조건"이 아니라 동점자 정렬용 타이브레이커다.
+    // 실질 점수(sc)에 더하면 조건에 하나도 안 맞는 시드가 이 0.5점만으로 후보에 올라오므로 따로 둔다.
+    var tie=(answers.edition!=="any"&&(s.edition||"").indexOf("&")!==-1)?0.5:0;
+    return {seed:s,score:sc,tie:tie,rank:sc+tie,why:why};
   }
   function computeRanked(){
+    // 임계값 sc>0: 실질 조건(스타일 3 / 장면 3 / 근처 2)에서 한 개도 못 맞춘 시드를 뺀다.
+    // 가산점 단위가 최소 2점이라 sc>0 은 사실상 "최소 한 조건 충족"과 같다.
     var pool=DATA.filter(editionOk).map(scoreSeed).filter(function(r){return r.score>0});
-    pool.sort(function(a,b){ return b.score-a.score; });
+    pool.sort(function(a,b){ return b.rank-a.rank; }); // 동점일 때만 타이브레이커가 순서를 가른다
     return pool;
   }
 

@@ -178,6 +178,8 @@ body{
 .ft-tag{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;background:#071E33;color:var(--ft-muted);border:1px solid var(--ft-line)}
 .ft-tag.match{background:rgba(46,196,182,.16);color:var(--ft-teal);border-color:var(--ft-teal)}
 .ft-tag.tide{background:rgba(255,201,60,.16);color:var(--ft-accent2);border-color:var(--ft-accent2)}
+/* 만조·간조 시각 — 여러 시각이 한 줄에 들어가므로 폭이 넓어질 수 있다 */
+.ft-tag.time{background:rgba(46,196,182,.12);color:var(--ft-teal);border-color:var(--ft-teal);cursor:help}
 .ft-tag.unknown{background:rgba(255,75,62,.12);color:var(--ft-accent);border-color:var(--ft-accent)}
 .ft-desc{font-size:13px;color:var(--ft-muted);margin-top:9px;line-height:1.6}
 .ft-actions{margin-top:11px}

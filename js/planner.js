@@ -60,6 +60,25 @@
   function worldW(){return state.gridW*TILE}
   function worldH(){return state.gridH*TILE}
 
+  /* 실제 방이 차지하는 타일들의 최소 사각형(cm). gridW/gridH는 방 사방에
+     MARGIN(3타일=1.5m)씩 여백을 더한 '편집 캔버스' 크기라서, 이걸 방 크기로
+     쓰면 안 된다 — 9타일(4.5m) 방이 15타일(7.5m)로 표시되던 원인.
+     비정형 방(ㄱ자 등)이면 이 값은 '가장 넓은 곳 기준'이 된다. */
+  function roomBBox(){
+    var minC=Infinity,minR=Infinity,maxC=-Infinity,maxR=-Infinity;
+    state.tileSet.forEach(function(k){
+      var p=k.split(","),c=+p[0],r=+p[1];
+      if(c<minC)minC=c; if(c>maxC)maxC=c;
+      if(r<minR)minR=r; if(r>maxR)maxR=r;
+    });
+    if(minC===Infinity)return null;
+    return {x:minC*TILE, y:minR*TILE, w:(maxC-minC+1)*TILE, h:(maxR-minR+1)*TILE};
+  }
+  /* 방이 직사각형이 아니면(타일 수 < bbox 타일 수) 치수는 근사값이다. */
+  function roomIsRect(bb){
+    return !!bb && state.tileSet.size === (bb.w/TILE)*(bb.h/TILE);
+  }
+
   function inRoom(r){ // 사각형 r(cm)이 방(타일셋) 안에 있는지 근사 판정: 모서리+중앙 샘플
     var pts=[[r.x+1,r.y+1],[r.x+r.w-1,r.y+1],[r.x+1,r.y+r.h-1],[r.x+r.w-1,r.y+r.h-1],[r.x+r.w/2,r.y+r.h/2]];
     for(var i=0;i<pts.length;i++){
@@ -164,8 +183,16 @@
     }
 
     if(state.phase!=="B"){
-      var d1=el("text",{x:W/2,y:-24,class:"dim-txt"},svg); d1.textContent=(W/100).toFixed(1)+"m";
-      var d2=el("text",{x:-26,y:H/2,class:"dim-txt",transform:"rotate(-90 "+(-26)+" "+(H/2)+")"},svg); d2.textContent=(H/100).toFixed(1)+"m";
+      /* 치수는 캔버스가 아니라 실제 방 범위를 재고, 라벨도 그 위에 놓는다. */
+      var bb=roomBBox();
+      if(bb){
+        var approx=roomIsRect(bb)?"":"약 ";  // 비정형 방이면 가장 넓은 곳 기준임을 표시
+        var d1=el("text",{x:bb.x+bb.w/2,y:bb.y-24,class:"dim-txt"},svg);
+        d1.textContent=approx+(bb.w/100).toFixed(1)+"m";
+        var ly=bb.y+bb.h/2, lx=bb.x-26;
+        var d2=el("text",{x:lx,y:ly,class:"dim-txt",transform:"rotate(-90 "+lx+" "+ly+")"},svg);
+        d2.textContent=approx+(bb.h/100).toFixed(1)+"m";
+      }
     }
   }
 

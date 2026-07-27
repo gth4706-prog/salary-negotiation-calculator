@@ -4,16 +4,14 @@
    - 지역 → 낚시기법 → 대상어종 순서로 좁혀서 실제 포인트 추천
    - 물때번호(사리/조금)는 korean-lunar-calendar(음력 변환, KASI 표준)로
      그 자리에서 계산 — 서버 불필요, 항상 정확
-   - 정확한 만조/간조 "시각"만 서버(Worker) 필요 — 배포 전까지 안내 문구로 대체
+   - 만조/간조 "시각"은 Worker(/tide) 경유 국립해양조사원 조석예보.
+     포인트마다 가장 가까운 조위관측소 코드가 데이터에 들어있다.
    ========================================================= */
 (function(){
   var $=function(id){return document.getElementById(id)};
   if(!$("ft-opts"))return;
 
-  /* webtool-proxy Worker (/transcript, /seo-keywords, /couple-verdict와 공용).
-     ⚠️ 이 파일은 아직 이 주소로 아무 요청도 보내지 않는다. Worker에 /tide 핸들러는
-     있지만 프론트엔드 연동 코드가 없다. 주소만 맞춰둔 상태이므로
-     "연동중" 같은 진행형 문구를 화면에 쓰면 안 된다 — 실제로 부르는 게 없다. */
+  // webtool-proxy Worker (/transcript, /seo-keywords, /couple-verdict와 공용)
   var API_BASE="https://bold-dream-f416.gth3941.workers.dev";
 
   var REGION_EMOJI={인천:"🌊",경기:"🌊",충남:"⛵",전북:"🌾",전남:"🏝️",부산:"🌉",울산:"🏭",경남:"⛴️",경북:"⛰️",강원:"🏔️",제주:"🌴"};
@@ -211,10 +209,45 @@
     if(!/^[0-9]+물$/.test(tide.label))txt+=" ("+tide.n+"물)";
     return '<span class="ft-tag tide">'+escapeHtml(txt)+'</span>';
   }
-  /* 만조·간조 '시각'은 아직 제공하지 않는다(물때 번호만 계산 가능).
-     아직 없는 정보라는 걸 사용자가 알아볼 수 있게 경고 톤(unknown)을 유지한다. */
-  function timeHtml(){
-    return '<span class="ft-tag unknown">만조·간조 시각은 아직 제공 안 함</span>';
+  /* ---------- 만조·간조 시각 (국립해양조사원 조석예보) ----------
+     포인트마다 가장 가까운 조위관측소(station)가 데이터에 박혀 있다.
+     카드를 먼저 그려놓고 관측소별로 한 번씩만 조회해 나중에 채워 넣는다
+     — 같은 관측소를 쓰는 포인트가 여러 개여도 호출은 1번이다.
+     실패하면 그 자리만 조용히 비운다. 추천 자체는 서버 없이도 동작해야 한다. */
+  var tideTimeCache={};   // station -> Promise<extremes[] | null>
+  function todayYmd(){
+    var d=new Date(), p=function(n){return (n<10?"0":"")+n};
+    return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate());
+  }
+  function fetchTideTimes(station){
+    if(!station)return Promise.resolve(null);
+    if(!tideTimeCache[station]){
+      tideTimeCache[station]=fetch(API_BASE+"/tide?station="+encodeURIComponent(station)+"&date="+todayYmd())
+        .then(function(r){ return r.ok?r.json():null; })
+        .then(function(d){ return (d&&d.extremes&&d.extremes.length)?d.extremes:null; })
+        .catch(function(){ return null; });
+    }
+    return tideTimeCache[station];
+  }
+  /* 카드가 DOM에 붙은 뒤 호출. 자리표시자를 실제 시각으로 바꾼다. */
+  function fillTideTimes(){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-tide-station]"),function(el){
+      var st=el.getAttribute("data-tide-station");
+      fetchTideTimes(st).then(function(ex){
+        if(!ex){ el.remove(); return; }   // 못 가져오면 빈 자리로 두는 게 낫다
+        var km=el.getAttribute("data-tide-km");
+        var nm=el.getAttribute("data-tide-name");
+        el.className="ft-tag time";
+        el.textContent="🌊 "+ex.map(function(e){return e.type+" "+e.time}).join(" · ");
+        el.title=nm+" 관측소 기준"+(km?" (약 "+km+"km 떨어짐)":"");
+      });
+    });
+  }
+  function timeHtml(s){
+    if(!s.station)return "";
+    return '<span class="ft-tag" data-tide-station="'+escapeHtml(s.station)+'"'
+      +' data-tide-name="'+escapeHtml(s.stationName||"")+'"'
+      +' data-tide-km="'+escapeHtml(String(s.stationKm||""))+'">🌊 만조·간조 불러오는 중…</span>';
   }
   function cardHtml(s){
     var speciesChips=(s.species||[]).slice(0,6).map(function(sp){return '<span class="ft-tag match">'+escapeHtml(sp)+'</span>'}).join("");
@@ -222,7 +255,7 @@
     var depth=depthText(s.depth);
     return '<div class="ft-card">'
       +'<div class="ft-name-row"><span class="ft-name">'+escapeHtml(s.name)+'</span><button type="button" class="ft-copy" data-name="'+escapeHtml(s.name)+'">📋 이름 복사</button></div>'
-      +'<div class="ft-meta">'+tideHtml()+timeHtml()+'<span class="ft-tag">'+escapeHtml(s.region)+'</span>'+(depth?'<span class="ft-tag">수심 '+escapeHtml(depth)+'</span>':'')+(s.bottom?'<span class="ft-tag">해저 '+escapeHtml(s.bottom)+'</span>':'')+'</div>'
+      +'<div class="ft-meta">'+tideHtml()+timeHtml(s)+'<span class="ft-tag">'+escapeHtml(s.region)+'</span>'+(depth?'<span class="ft-tag">수심 '+escapeHtml(depth)+'</span>':'')+(s.bottom?'<span class="ft-tag">해저 '+escapeHtml(s.bottom)+'</span>':'')+'</div>'
       +'<div class="ft-meta" style="margin-top:6px">'+speciesChips+techChips+'</div>'
       +(s.tideNote?'<div class="ft-desc">물때 메모: '+escapeHtml(s.tideNote)+'</div>':'')
       +'<div class="ft-actions"><a class="ft-maplink" href="'+mapLink(s)+'" target="_blank" rel="noopener">🗺️ 지도에서 위치 보기</a></div>'
@@ -252,6 +285,7 @@
       $("ft-results").innerHTML=picks.map(cardHtml).join("");
       $("ft-more").hidden = !(ranked.length>shownFrom+3);
       bindCopy();
+      fillTideTimes();
     }
 
     $("stepResult").hidden=false;

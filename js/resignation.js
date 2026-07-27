@@ -12,7 +12,18 @@
 
   /* ---------- 날짜 헬퍼 ---------- */
   function parseDate(v){ if(!v)return null; var p=v.split("-"); return new Date(+p[0],+p[1]-1,+p[2]); }
-  function addMonths(d,n){ var r=new Date(d); r.setMonth(r.getMonth()+n); return r; }
+  /* d의 n개월 뒤 "응당일".
+     대상 월에 같은 날짜가 없으면(예: 1/31 → 2월) 그 달 말일에 1개월이 만료되므로 다음 달 1일을 응당일로 본다.
+     (JS의 setMonth는 2/31 → 3/3처럼 넘친 일수만큼 밀려나서 응당일이 3일로 어긋난다)
+     ⚠️ 이 규칙은 민법 160조 + 고용노동부 해석(1개월 개근 만료 다음 날 발생)을 따른 것이지만,
+     "만료일 당일(2/28)에 발생"으로 운영하는 회사도 실제로 있다. 월말 입사자에게만
+     하루 차이가 나므로, 이 부분은 노무사 확인이 필요한 영역으로 남겨둔다. */
+  function addMonths(d,n){
+    var base=new Date(d.getFullYear(),d.getMonth()+n,1);
+    var lastDay=new Date(base.getFullYear(),base.getMonth()+1,0).getDate();
+    if(d.getDate()>lastDay)return new Date(base.getFullYear(),base.getMonth()+1,1);
+    return new Date(base.getFullYear(),base.getMonth(),d.getDate());
+  }
   function addYears(d,n){ var r=new Date(d); r.setFullYear(r.getFullYear()+n); return r; }
   function daysBetween(a,b){ return Math.round((b-a)/86400000); }
   function fmt(d){ return d.getFullYear()+"."+String(d.getMonth()+1).padStart(2,"0")+"."+String(d.getDate()).padStart(2,"0"); }
@@ -33,13 +44,15 @@
       return new Date(ref.getFullYear()+1,0,1);
     }
     var oneYear=severanceDate(hire);
+    /* 응당일은 항상 입사일에서 직접 계산한다. 직전 결과에 다시 1개월/1년을 더하면
+       월말 입사(1/31 등)에서 어긋난 날짜가 누적돼(1/31→3/3→4/3→5/3) 응당일이 통째로 바뀐다. */
     if(ref<oneYear){
-      var cand=new Date(hire);
-      while(cand<=ref)cand=addMonths(cand,1);
+      var n=1, cand=addMonths(hire,n);
+      while(cand<=ref){n++;cand=addMonths(hire,n);}
       return cand<oneYear?cand:oneYear;
     }
-    var cand2=new Date(hire);
-    while(cand2<=ref)cand2=addYears(cand2,1);
+    var y=1, cand2=addYears(hire,y);
+    while(cand2<=ref){y++;cand2=addYears(hire,y);}
     return cand2;
   }
 
@@ -76,10 +89,32 @@
 
   $("calc-btn").addEventListener("click",function(){
     var hire=parseDate($("hire-date").value);
+    /* 힌트 정리는 early-return보다 앞에 둔다 — 미래 날짜로 안내를 띄운 뒤
+       입력을 지우면, 지운 날짜를 계속 지적하는 문구가 남는다. */
+    var hint=$("hire-hint");
+    if(hint){hint.hidden=true;hint.innerHTML="";}
     if(!hire){$("hire-date").focus();return;}
     var today=today0();
     var pay=+$("monthly-pay").value||0;
     var target=parseDate($("target-date").value);
+
+    /* 미래 입사일(아직 입사 전) — 근무일수가 0이라 퇴직금·연차 계산 자체가 성립하지 않는다.
+       근속 1년 미만 연차는 "매월 개근 시 1일"이므로 근무를 시작하기 전에는 0일이고,
+       D-day나 "지금 퇴사하면 얼마 손해" 같은 문구도 의미가 없다 → 결과 카드는 내지 않는다.
+       다만 입사 예정일을 미리 넣어보는 사용자를 막지는 않고, 예정일 기준 기준일만 안내 톤으로 알려준다. */
+    if(hire>today){
+      state.comboDate=null;
+      $("stepResult").hidden=true;
+      /* 결과가 사라진 자리에 광고 슬롯만 남지 않게 같이 접는다. */
+      if($("adwrap"))$("adwrap").hidden=true;
+      if(hint){
+        hint.innerHTML="🗓️ 입력하신 <b>"+fmt(hire)+"</b>은 아직 오지 않은 날짜예요. 입사 전에는 근무일수가 0이라 연차도 0일이고 퇴직금 D-day도 셀 수 없어서 계산 결과는 보여드리지 않았어요."+
+          "<br>입사 예정일이라면, 실제로 출근을 시작한 뒤 <b>"+fmt(addMonths(hire,1))+"</b>(1개월 개근)에 첫 연차 1일이, <b>"+fmt(severanceDate(hire))+"</b>(근속 1년)에 퇴직금 대상이 돼요. 입사 후에 다시 계산하면 추천 퇴사일까지 알려드릴게요.";
+        hint.hidden=false;
+      }
+      $("hire-date").focus();
+      return;
+    }
 
     var sevDate=severanceDate(hire);
     var sevDone=today>=sevDate;
@@ -112,7 +147,11 @@
     $("combo-line").innerHTML="📌 <b>" + fmt(comboDate) + "</b> 이후 퇴사하면 퇴직금과 다음 연차분을 모두 챙길 수 있어요.";
 
     var tcards="";
-    if(target){
+    if(target&&target<hire){
+      /* 퇴사 희망일이 입사일보다 앞선 경우 — "N일 부족"으로 판정하면 입력 실수를 못 알아챈다. */
+      tcards+=rcard("warn","⚠️","희망일("+fmt(target)+") 확인이 필요해요",
+        "퇴사 희망일이 입사일("+fmt(hire)+")보다 앞서 있어요. 날짜를 다시 확인해 주세요.");
+    }else if(target){
       var tSevOk=target>=sevDate, tLeaveOk=target>=nextLeave;
       var estAtTarget=tSevOk?estimateSeverance(hire,target,pay):0;
       tcards+=rcard(tSevOk?"ok":"warn", tSevOk?"✅":"⛔", "희망일(" + fmt(target) + ") 기준 퇴직금",
@@ -183,9 +222,17 @@
     var parts=[REASON_BASE[a.reason]];
     if(a.since==="long")parts.push("오래 고민해오셨다면, 이번엔 미루지 말고 구체적인 날짜를 잡아보는 것도 방법이에요.");
     else parts.push("고민을 시작한 지 얼마 안 됐다면, 조금 더 지켜보면서 정보를 모아보는 것도 좋아요.");
-    if(a.ready==="yes")parts.push("이미 갈 곳이 있으시다면, 위에서 계산한 추천 퇴사일에 맞춰 인수인계 일정만 조율하면 될 것 같아요.");
-    else if(a.finance==="tight")parts.push("갈 곳이 아직 없고 재정도 빠듯하시다면, 위에서 계산한 퇴직금·연차부터 꼭 챙기고 최소 몇 개월치 생활비를 확보한 뒤 움직이는 걸 권해드려요.");
-    else parts.push("갈 곳이 아직 없다면, 위에서 계산한 퇴직금·연차 발생일까지는 챙기고 움직이는 게 유리해요.");
+    /* 위쪽 계산을 안 했거나(미래 입사일 등) 결과가 없으면 "위에서 계산한"을 쓰면 안 된다. */
+    var hasCalc=!!state.comboDate;
+    if(a.ready==="yes")parts.push(hasCalc
+      ? "이미 갈 곳이 있으시다면, 위에서 계산한 추천 퇴사일에 맞춰 인수인계 일정만 조율하면 될 것 같아요."
+      : "이미 갈 곳이 있으시다면, 퇴직금·연차 발생일을 먼저 확인하고 인수인계 일정을 조율해보세요.");
+    else if(a.finance==="tight")parts.push(hasCalc
+      ? "갈 곳이 아직 없고 재정도 빠듯하시다면, 위에서 계산한 퇴직금·연차부터 꼭 챙기고 최소 몇 개월치 생활비를 확보한 뒤 움직이는 걸 권해드려요."
+      : "갈 곳이 아직 없고 재정도 빠듯하시다면, 퇴직금·연차부터 꼭 챙기고 최소 몇 개월치 생활비를 확보한 뒤 움직이는 걸 권해드려요.");
+    else parts.push(hasCalc
+      ? "갈 곳이 아직 없다면, 위에서 계산한 퇴직금·연차 발생일까지는 챙기고 움직이는 게 유리해요."
+      : "갈 곳이 아직 없다면, 퇴직금·연차 발생일까지는 챙기고 움직이는 게 유리해요.");
     if(a.tried==="no")parts.push("아직 시도해본 게 없다면, 결정을 내리기 전에 한 번은 시도해보고 판단해도 늦지 않아요.");
     else parts.push("이미 여러 시도를 해보셨다면, 지금의 고민은 충분히 근거가 있는 신호일 수 있어요.");
     if(state.comboDate)parts.push("위에서 계산한 추천 퇴사일(<b>"+fmt(state.comboDate)+"</b>)도 함께 참고해보세요.");

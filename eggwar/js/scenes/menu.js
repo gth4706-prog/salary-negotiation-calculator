@@ -76,8 +76,8 @@ GAME.MenuScene.prototype.create = function () {
   }
 
   var hint = GAME.isTouch
-    ? '조작  ─  한 번 탭: 이동하며 교전   |   두 번 탭: 이동만   |   스킬 버튼 → 위치 탭'
-    : '조작  ─  우클릭: 이동 / 적 클릭 공격   |   방향키: 직접 이동   |   Q W E R: 스킬   |   F: 물약';
+    ? '조작  ─  한 번 탭: 이동하며 교전   |   두 번 탭: 이동만   |   스킬 버튼: 바라보는 방향 시전'
+    : '조작  ─  우클릭: 이동 / 적 클릭 공격   |   방향키: 직접 이동   |   Q W E R: 바라보는 방향 시전   |   F: 물약';
   GAME.UI.label(this, W / 2, u * 86, hint, P ? 13 : 13, C.textDim, 0.5)
     .setAlign('center').setWordWrapWidth(W - 40);
 

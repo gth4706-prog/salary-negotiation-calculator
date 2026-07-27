@@ -169,8 +169,8 @@ GAME.BattleScene.prototype._hintDefault = function () {
   // (조준 대기 같은 **일시적 안내**는 계속 이 라벨을 쓴다)
   if (GAME.isTouch && GAME.CONFIG.PORTRAIT) return '';
   return GAME.isTouch
-    ? '한 번 탭: 이동하며 교전   ·   두 번 탭: 이동만   ·   스킬 버튼 → 위치 탭'
-    : '우클릭 이동 / 적 클릭 공격   ·   방향키 직접 이동   ·   Q W E R 스킬   ·   F 물약   ·   Space 기본공격';
+    ? '한 번 탭: 이동하며 교전   ·   두 번 탭: 이동만   ·   스킬 버튼: 바라보는 방향 시전'
+    : '우클릭 이동 / 적 클릭 공격   ·   방향키 직접 이동   ·   Q W E R 바라보는 방향 시전   ·   F 물약   ·   Space 기본공격';
 };
 
 GAME.BattleScene.prototype.showMarker = function (x, y, type) {
@@ -318,29 +318,22 @@ GAME.BattleScene.prototype.updateHud = function () {
     bossText:   bossAlive ? (Math.ceil(bossU.hp) + ' / ' + bossU.maxHp) : '처치'
   });
 
-  var armed = this.ctrl.armedSkill;
   for (var i = 0; i < this.skillBoxes.length; i++) {
     var b = this.skillBoxes[i];
     var sk = h.skills[i];
-    b.name.setText(sk.name);
+    // 스킬 이름 + 예상 사거리(있을 때만). 방향으로 즉시 시전하므로 사거리를 감으로 맞춘다.
+    var reach = GAME.Combat.skillReach(sk);
+    b.name.setText(reach > 0 ? (sk.name + '  ' + reach) : sk.name);
     var cd = h.skillCd[b.slot];
     var ready = cd <= 0;
-    b.cd.setText(ready ? (armed === b.slot ? '조준' : '준비') : (cd / 1000).toFixed(1));
-    b.cd.setColor(armed === b.slot ? C.warn : (ready ? C.accent : C.textDim));
-    // 조준 중 강조 — 색을 직접 박으면 라이트 테마에서 카드가 혼자 새까매진다(실제로 그랬다).
-    // focus(포커스 링) / panelAmber(경고 톤 패널) 토큰을 쓰면 어느 테마에서도 성립한다.
-    b.rect.setStrokeStyle(armed === b.slot ? 3 : 1,
-      armed === b.slot ? GAME.UI.COL.focus : GAME.UI.COL.border);
-    b.rect.setFillStyle(armed === b.slot ? GAME.UI.COL.panelAmber : GAME.UI.COL.surface);
+    b.cd.setText(ready ? '준비' : (cd / 1000).toFixed(1));
+    b.cd.setColor(ready ? C.accent : C.textDim);
+    b.rect.setStrokeStyle(1, GAME.UI.COL.border);
+    b.rect.setFillStyle(GAME.UI.COL.surface);
   }
 
-  if (armed) {
-    this.hintText.setText('조준 중 — 시전할 위치를 탭하세요 (버튼을 다시 누르면 취소)');
-    this.hintText.setColor(GAME.CONFIG.COLORS.warn);
-  } else {
-    this.hintText.setText(this._hintDefault());
-    this.hintText.setColor(GAME.CONFIG.COLORS.textFaint);
-  }
+  this.hintText.setText(this._hintDefault());
+  this.hintText.setColor(GAME.CONFIG.COLORS.textFaint);
 
   // 세로 터치에서는 하단 스킬바를 안 만든다 → 물약 표시도 없다(원형 패드가 대신한다)
   if (this.potionText) this.potionText.setText(h.potionCharges > 0 ? h.potionCharges + '회' : '없음');
@@ -672,6 +665,27 @@ GAME.BattleScene.prototype.draw = function () {
     g.lineBetween(pos.sx, pos.by,
       pos.sx + Math.cos(u.facing) * (u.def.radius + 9),
       pos.by + Math.sin(u.facing) * (u.def.radius + 9) * Iso.TILT);
+
+    // 조준선 — **내가 모는 영웅**에만. 준비된 스킬 중 가장 긴 사거리만큼 facing 방향으로
+    // 옅게 뻗어, 스킬이 바라보는 방향으로 어디까지 닿는지 감으로 조준하게 한다.
+    // (조준 탭이 없어졌으므로 이 선이 '예상 사거리'를 알려주는 역할)
+    if (this.ctrl && this.ctrl.hero === u && u.alive && u.rootedFor <= 0) {
+      var aimReach = 0;
+      for (var si = 0; si < u.skills.length; si++) {
+        if (u.skillCd[u.skills[si].slot] <= 0) {
+          aimReach = Math.max(aimReach, GAME.Combat.skillReach(u.skills[si]));
+        }
+      }
+      if (aimReach < 60) aimReach = 60;
+      var aex = pos.sx + Math.cos(u.facing) * aimReach;
+      var aey = pos.by + Math.sin(u.facing) * aimReach * Iso.TILT;
+      g.lineStyle(2, color, 0.22);
+      g.lineBetween(pos.sx, pos.by, aex, aey);
+      // 끝에 작은 조준 눈금
+      g.lineStyle(2, color, 0.45);
+      GAME.UI.groundCircle(g, u.x + Math.cos(u.facing) * aimReach,
+        u.y + Math.sin(u.facing) * aimReach, 7);
+    }
 
     // 체력 바 — 라이트 테마에서는 크림 캡슐 + 잉크 테두리로 그려진다.
     // (초록 채움이 초록 들판과 대비 1.02:1 이라 그냥은 보이지 않는다 — ui.js 참고)

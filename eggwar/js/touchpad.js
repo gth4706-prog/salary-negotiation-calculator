@@ -176,8 +176,8 @@ GAME.TouchPad.prototype._attack = function () {
 };
 
 GAME.TouchPad.prototype._skill = function (slot) {
-  // 조준이 필요한 스킬은 버튼을 누르면 조준 모드로 들어가고, 다음 탭 위치에 시전된다.
-  this.ctrl.armSkill(slot);
+  // 버튼을 누르면 **바라보는 방향으로 즉시 시전**한다(조준 탭 없음). 사거리는 감으로 맞춘다.
+  this.ctrl.armSkill(slot);   // armSkill 은 이제 즉시 시전한다(input.js 참조)
   this.refresh();
 };
 

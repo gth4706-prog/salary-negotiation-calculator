@@ -463,6 +463,40 @@ GAME.Combat = {
     return u.isHero && u.alive && u.skillCd[slot] <= 0 && u.rootedFor <= 0;
   },
 
+  // 스킬의 '예상 사거리' — 시전 방향으로 얼마나 뻗는가. UI 표시와 방향 시전에 함께 쓴다.
+  //  · dash/pull   : 이동/원뿔 거리(sk.dist, 이미 WORLD_SCALE 반영됨)
+  //  · aoeSelf/aura: 자기 중심 반경(sk.radius)
+  //  · aoeTarget/trap/projectile: 앞쪽으로 떨어질 거리(literal 은 월드 배율을 곱한다)
+  //  · buff/strike : 자기/자동 대상 — 방향 무의미(0)
+  skillReach: function (sk) {
+    if (!sk) return 0;
+    var ws = (GAME.CONFIG && GAME.CONFIG.WORLD_SCALE) || 1;
+    switch (sk.type) {
+      case 'dash': case 'pull': return Math.round(sk.dist || 0);
+      case 'aoeSelf': case 'aura': return Math.round(sk.radius || 0);
+      case 'aoeTarget': return Math.round((sk.range || 240) * ws);
+      case 'trap': return Math.round((sk.range || 220) * ws);
+      case 'projectile': return Math.round((sk.range || 460) * ws);
+      default: return 0;   // buff, strike
+    }
+  },
+
+  // 영웅이 **바라보는 방향(facing)** 으로 즉시 시전한다. PC·모바일 공통.
+  // 조준을 따로 하지 않는다 — 지점 배치 스킬(aoeTarget/trap)은 사거리만큼 앞에 떨어지고,
+  // 방향형(dash/projectile/pull)은 각도만 쓰인다. 자기중심(buff/aoeSelf/aura)은 facing 을
+  // 그대로 보존한다(reach 0 이면 앞 120px 로 각도만 유지).
+  castSkillFacing: function (u, slot, state) {
+    if (!this.skillReady(u, slot)) return false;
+    var sk = null;
+    for (var i = 0; i < u.skills.length; i++) {
+      if (u.skills[i].slot === slot) { sk = u.skills[i]; break; }
+    }
+    if (!sk) return false;
+    var ang = (typeof u.facing === 'number') ? u.facing : 0;
+    var reach = this.skillReach(sk) || 120;
+    return this.castSkill(u, slot, u.x + Math.cos(ang) * reach, u.y + Math.sin(ang) * reach, state);
+  },
+
   castSkill: function (u, slot, tx, ty, state) {
     if (!this.skillReady(u, slot)) return false;
     var sk = null;

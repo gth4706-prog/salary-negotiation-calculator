@@ -3,7 +3,7 @@ window.GAME = window.GAME || {};
 // 컨트롤러 조작 — 영웅 1기를 롤처럼 몬다.
 //   우클릭       이동 / 적을 찍으면 공격 (롤 기본 조작)
 //   방향키        직접 이동 (즉시 반응, 우클릭 명령을 덮어씀)
-//   Q W E R      스킬 — 마우스 위치/방향으로 시전
+//   Q W E R      스킬 — **바라보는 방향(facing)** 으로 즉시 시전
 //   F            물약
 //   Space        마우스 방향으로 기본공격
 //
@@ -13,7 +13,7 @@ window.GAME = window.GAME || {};
 // 모바일(터치)에서는 조작을 이렇게 나눈다:
 //   한 번 탭      해당 위치로 이동하며 교전(어택무브)
 //   두 번 탭      해당 위치로 이동만 (교전하지 않음)
-//   스킬 버튼 → 탭   버튼을 누르면 조준 모드, 다음 탭한 위치로 시전
+//   스킬 버튼      누르면 **바라보는 방향으로 즉시 시전**(조준 탭 없음). 사거리는 감으로.
 GAME.InputController = function (scene, state, hero) {
   this.scene = scene;
   this.state = state;
@@ -56,12 +56,6 @@ GAME.InputController.prototype._bind = function () {
     // 패드가 전장 아래쪽에 겹쳐 있어서 이 판정이 없으면 스틱을 잡을 때마다 영웅이 튄다.
     if (self.pad && self.pad.hits(p.x, p.y)) return;
 
-    if (self.armedSkill) {
-      GAME.Combat.castSkill(self.hero, self.armedSkill, w.x, w.y, self.state);
-      self.armedSkill = null;
-      return;
-    }
-
     var now = p.downTime || Date.now();
     var last = self._lastTap;
     var isDouble = (now - last.t < 320) &&
@@ -93,7 +87,8 @@ GAME.InputController.prototype._bind = function () {
     else if (ev.code === 'KeyR') slot = 'R';
 
     if (slot) {
-      GAME.Combat.castSkill(h, slot, self.mouse.x, self.mouse.y, self.state);
+      // 바라보는 방향으로 즉시 시전 (마우스 위치가 아니라 facing)
+      GAME.Combat.castSkillFacing(h, slot, self.state);
       ev.preventDefault();
       return;
     }
@@ -144,12 +139,12 @@ GAME.InputController.prototype.issueTouchAttackMove = function (x, y) {
   }
 };
 
-// 스킬 버튼을 눌렀을 때 — 조준 모드로 들어간다
+// 스킬 버튼(모바일 패드·PC 스킬박스)을 눌렀을 때 — **바라보는 방향으로 즉시 시전**.
+// 예전엔 조준 모드로 들어가 다음 탭 위치에 쐈지만, 이제 조준 없이 facing 방향으로 나간다.
+// 호출부(touchpad._skill, battle 스킬박스)는 그대로 이 함수를 부른다.
 GAME.InputController.prototype.armSkill = function (slot) {
   if (!this.hero.alive) return false;
-  if (!GAME.Combat.skillReady(this.hero, slot)) return false;
-  this.armedSkill = (this.armedSkill === slot) ? null : slot;
-  return true;
+  return GAME.Combat.castSkillFacing(this.hero, slot, this.state);
 };
 
 GAME.InputController.prototype.update = function (dtMs) {

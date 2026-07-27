@@ -87,8 +87,10 @@ GAME.InputController.prototype._bind = function () {
     else if (ev.code === 'KeyR') slot = 'R';
 
     if (slot) {
-      // 바라보는 방향으로 즉시 시전 (마우스 위치가 아니라 facing)
-      GAME.Combat.castSkillFacing(h, slot, self.state);
+      // PC 는 **마우스 위치**로 시전한다(요청으로 되돌림). 마우스가 곧 조준점이라
+      // 지점 배치 스킬(낙석·함정)을 원하는 자리에 정확히 놓을 수 있다.
+      // 모바일은 조준할 손가락이 없으므로 바라보는 방향으로 쏜다(touchpad.js 참조).
+      GAME.Combat.castSkill(h, slot, self.mouse.x, self.mouse.y, self.state);
       ev.preventDefault();
       return;
     }
@@ -139,12 +141,13 @@ GAME.InputController.prototype.issueTouchAttackMove = function (x, y) {
   }
 };
 
-// 스킬 버튼(모바일 패드·PC 스킬박스)을 눌렀을 때 — **바라보는 방향으로 즉시 시전**.
-// 예전엔 조준 모드로 들어가 다음 탭 위치에 쐈지만, 이제 조준 없이 facing 방향으로 나간다.
-// 호출부(touchpad._skill, battle 스킬박스)는 그대로 이 함수를 부른다.
+// 스킬 버튼(모바일 패드·PC 스킬박스)을 눌렀을 때 — 조준 단계 없이 즉시 시전한다.
+//   · 모바일: 조준할 손가락이 없으므로 **바라보는 방향(facing)** 으로.
+//   · PC    : 마우스가 곧 조준점이므로 **마우스 위치**로(요청으로 되돌림).
 GAME.InputController.prototype.armSkill = function (slot) {
   if (!this.hero.alive) return false;
-  return GAME.Combat.castSkillFacing(this.hero, slot, this.state);
+  if (this.touch) return GAME.Combat.castSkillFacing(this.hero, slot, this.state);
+  return GAME.Combat.castSkill(this.hero, slot, this.mouse.x, this.mouse.y, this.state);
 };
 
 GAME.InputController.prototype.update = function (dtMs) {
@@ -177,6 +180,18 @@ GAME.InputController.prototype.update = function (dtMs) {
       h.cd = h.def.cooldown;
     } else {
       h.facing = Math.atan2(dy, dx);
+    }
+  }
+
+  // 사거리 안에 적이 있으면 **가만히 있어도 자동으로 친다** (모바일과 같은 감각).
+  // 쫓아가지는 않는다 — 이동은 어디까지나 플레이어 몫이고, 여기서 따라가면
+  // 방향키로 거리를 재는 플레이(카이팅)가 무너진다. 사거리에 들어온 것만 때린다.
+  // 위의 '직접 이동 중 자동공격'은 이동할 때만 돌아서, 멈춰 있으면 안 쐈다.
+  if (!dx && !dy && h.cd <= 0 && !this.down['Space']) {
+    var near = GAME.Combat.nearestEnemy(h, this.state.units);
+    if (near && GAME.Combat.dist(h, near) <= h.def.range) {
+      GAME.Combat.fire(h, near.x, near.y, near, this.state);
+      h.cd = h.def.cooldown;
     }
   }
 

@@ -347,15 +347,30 @@ GAME.Combat = {
 
   // ── 이동 ────────────────────────────────────────────────────
   // leash 는 '절대 한계'다. 교착 압박이 차오르면 그만큼 함께 늘어난다.
-  clampToLeash: function (u, state) {
+  //
+  // **한계를 넘었다고 좌표를 즉시 옮기지 않는다.** 예전엔 그렇게 스냅했는데,
+  // 추격 한계는 압박(pressure)에 따라 실시간으로 늘었다 줄었다 한다 — 영웅이 도약으로
+  // 멀리 빠지면 한계가 확 줄면서 밖에 있던 유닛들이 **한 프레임에 순간이동**했다
+  // (실측 신고: "궁수가 도약 쓰면 적 유닛이 순간이동"). 걸어서 돌아오게 한다.
+  // 다만 아주 크게 벗어난 경우(넉백·끌기 등으로 튕겨나간 상황)는 안전장치로 잘라준다.
+  clampToLeash: function (u, state, dt) {
     if (!isFinite(u.leash)) return;
     var limit = state ? this.effChase(u, state) : u.leash;
     var dx = u.x - u.home.x, dy = u.y - u.home.y;
     var d = Math.sqrt(dx * dx + dy * dy);
-    if (d > limit) {
-      u.x = u.home.x + (dx / d) * limit;
-      u.y = u.home.y + (dy / d) * limit;
+    if (d <= limit || d <= 0.001) return;
+
+    var HARD = 1.6;                       // 이 배수를 넘으면 정말로 잘라낸다(안전장치)
+    if (d > limit * HARD) {
+      u.x = u.home.x + (dx / d) * limit * HARD;
+      u.y = u.home.y + (dy / d) * limit * HARD;
+      return;
     }
+    // 한계 바깥이면 그 경계로 **걸어서** 돌아온다
+    var step = this.effSpeed(u) * (dt === undefined ? 0.016 : dt);
+    var back = Math.min(d - limit, step);
+    u.x -= (dx / d) * back;
+    u.y -= (dy / d) * back;
   },
 
   clampToArena: function (u) {
@@ -690,14 +705,31 @@ GAME.Combat = {
     return Math.min(span, v + pressAdd);
   },
 
+  // 유닛별 '지루함' — 이 유닛이 **한 번도 싸우지 못한 채** 흘려보낸 시간(ms).
+  //
+  // 왜 필요한가(실측): 전역 압박(pressureOf)은 영웅이 **아무한테도** 안 맞을 때만 오른다.
+  // 그래서 앞줄이 영웅과 붙어 싸우는 동안 압박은 계속 0 이고, 뒷줄은 영원히 대기했다 —
+  // 4층에서 전체의 42%, 8층에서 54% 가 한 번도 교전하지 않았다(전투 끝까지).
+  // 유닛 개인의 무료함으로 자기 반응 범위만 넓히면, 앞줄 교전은 그대로 두고
+  // 논 유닛만 천천히 합류한다. 시작하자마자 전원 돌격하는 부작용이 없다
+  // (CLAUDE.md: aggro 를 통째로 키우면 뭉텅이 돌격이 되어 영웅이 6초 만에 녹았다).
+  BORED_AFTER: 4000,      // 이 시간 넘게 논 뒤부터
+  BORED_FULL: 14000,      // 이 시간이면 반응 범위가 맵 끝까지
+  boredomOf: function (u) {
+    var t = u.idleFor || 0;
+    if (t <= this.BORED_AFTER) return 0;
+    return Math.min(1, (t - this.BORED_AFTER) / (this.BORED_FULL - this.BORED_AFTER));
+  },
+
   effAggro: function (u, state) {
-    var p = this.pressureOf(state);
+    var p = Math.max(this.pressureOf(state), this.boredomOf(u));
     var press = (state.adapt && state.adapt.press) || 0;
     return this._reach(u.def.aggro || 300, p, press * 220);
   },
 
   effChase: function (u, state) {
-    var p = this.pressureOf(state);
+    // 지루한 유닛은 더 멀리까지 쫓아나간다(effAggro 와 같은 이유).
+    var p = Math.max(this.pressureOf(state), this.boredomOf(u));
     var press = (state.adapt && state.adapt.press) || 0;
     return this._reach(u.def.chase || GAME.CONFIG.LEASH, p, press * 160);
   },
@@ -709,6 +741,15 @@ GAME.Combat = {
   // 항상 가장 가까운 적을 향해 걸어가서, leash 가 되돌리는 진자운동이 생겼다.
   updateStance: function (u, state, dt) {
     if (u.side !== 'strategist') return true;
+
+    // 지루함 누적/해제 — 사거리 안에 적이 있으면(=싸울 수 있으면) 논 게 아니다.
+    // 고정물(쇠뇌 진지·지뢰)도 사거리로 판단한다: 못 쏘고 있으면 지루한 게 맞지만
+    // 움직일 수 없으니 aggro 만 넓어져 '사각지대'가 줄어든다.
+    var nearEnemy = this.nearestEnemy(u, state.units);
+    var canFight = nearEnemy && this.dist(u, nearEnemy) <= (u.def.range || 0) + 4;
+    if (canFight) u.idleFor = 0;
+    else u.idleFor = (u.idleFor || 0) + dt * 1000;
+
     if (u.def.immobile) { u.stance = 'hold'; return true; }
 
     var dxh = u.x - u.home.x, dyh = u.y - u.home.y;
@@ -1002,7 +1043,7 @@ GAME.Combat = {
     this.separate(state);
 
     for (i = 0; i < state.units.length; i++) {
-      if (state.units[i].alive) this.clampToLeash(state.units[i], state);
+      if (state.units[i].alive) this.clampToLeash(state.units[i], state, dt);
     }
 
     // 덫

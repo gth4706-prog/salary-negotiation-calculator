@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v0.22';
+GAME.VERSION = 'v0.23';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -37,6 +37,8 @@ window.addEventListener('load', function () {
       expandParent: false
     },
     scene: [
+      // 첫 화면 = 로딩(3초, 탭하면 건너뜀). 모바일 뷰포트가 정착할 시간을 벌어주기도 한다.
+      GAME.LoadingScene,
       GAME.LoginScene,
       GAME.MenuScene,
       GAME.SelectScene,
@@ -51,6 +53,25 @@ window.addEventListener('load', function () {
       GAME.AdminScene
     ]
   });
+
+  // ── 화면 전환 애니메이션 (전역) ─────────────────────────────────────────
+  // 씬이 바뀔 때마다 짧게 페이드인시킨다. 씬 코드는 한 줄도 안 바꾸고
+  // Phaser 의 씬 생명주기 이벤트에 한 번만 걸어 전 화면에 적용한다.
+  // 값이 크면 조작이 굼떠 보인다 — 160ms 가 '부드럽지만 안 답답한' 선.
+  (function () {
+    var FADE = 160;
+    GAME.game.events.on('ready', function () { hook(); });
+    function hook() {
+      GAME.game.scene.scenes.forEach(function (sc) {
+        if (sc.__fadeHooked) return;
+        sc.__fadeHooked = true;
+        sc.events.on('create', function () {
+          if (sc.cameras && sc.cameras.main) sc.cameras.main.fadeIn(FADE, 0, 0, 0);
+        });
+      });
+    }
+    hook();
+  })();
 
   // ?diag=1 진단 오버레이 — 실기기(폰) 값을 눈으로 받기 위한 것.
   //   평상시엔 만들지 않는다. 실측 신고(캔버스가 작게 뜬다)의 원인을 폰에서 직접

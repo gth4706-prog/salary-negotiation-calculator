@@ -26,13 +26,17 @@
     "릴찌":"찌낚시", "부력":"찌낚시", "잠수":"찌낚시", "목줄":"찌낚시",
     "장대":"맥낚시", "민장대":"맥낚시"
   };
-  /* 이 데이터는 전부 '갯바위'인데 타깃은 초보다. 입문 가이드들은 초보에게
-     방파제를 먼저 권하고 갯바위는 경험자 동행을 조건으로 단다.
-     그 간극을 하단 팁 한 줄로 흘리지 말고 결과 맨 위에서 먼저 말한다. */
+  /* 결과 위 안전 고지. 실측 근거(1,076곳):
+       접근성 — 배 필요 648곳 / 차로 가능 277곳 / 불명 151곳
+       발판   — 갯바위 534곳 / 평평 85곳 / 위험(여·직벽) 53곳 / 불명 404곳
+     "모두 갯바위"라고 쓰면 안 되고("갯바위" 명시는 428곳뿐), 반대로 발판만
+     보고 권해도 안 된다 — 발판이 평평해도 배로 3~4시간 가는 섬이 섞여 있다.
+     그래서 전역 고지는 짧게, 판단 근거는 카드마다 개별 배지로 내린다. */
   var SAFETY_HTML='<div class="ft-safety">'
-    +'<b>⚠️ 여기 나오는 곳은 모두 갯바위예요.</b> 파도·너울 위험이 있어서 '
-    +'<b>처음이라면 경험자와 함께</b> 가세요. 구명조끼와 미끄럼 방지(펠트창) 신발은 꼭 챙기시고요. '
-    +'혼자 첫 출조라면 발판이 안정적인 <b>방파제</b>부터 권합니다. 가시기 전 물때와 기상 특보를 꼭 확인하세요.'
+    +'<b>⚠️ 곳마다 성격이 많이 달라요.</b> 절반은 갯바위라 파도·너울 위험이 있고, '
+    +'<b>60%는 배를 타야 하는 섬</b>이에요. 카드마다 <b>가는 방법·발판·수심</b>을 적어뒀으니 꼭 보고 고르세요. '
+    +'처음이라면 <b>차로 갈 수 있고 발판이 평평한 곳</b>부터, 그리고 <b>경험자와 함께</b> 가세요. '
+    +'구명조끼와 미끄럼 방지(펠트창) 신발은 어디를 가든 챙기시고요.'
     +'</div>';
 
   var QUESTIONS=[
@@ -74,12 +78,22 @@
     for(var i=0;i<sp.length;i++){ if(t.species.indexOf(sp[i])!==-1)return true; }
     return false;
   }
-  /* "아직 모르겠어요"용 — 얕고(6m 이하) 조위관측소가 가까운(20km 이내) 곳을 앞에 둔다.
-     초보에게는 발판·수심이 어종보다 중요하고, 관측소가 가까울수록 물때 시각도 정확하다. */
-  function beginnerFriendly(s){
-    var m=String(s.depth||"").match(/[\d.]+/g);
-    var deep=m?Math.max.apply(null,m.map(Number)):null;
-    return (deep===null||deep<=6) && (s.stationKm==null||s.stationKm<=20);
+  /* "아직 모르겠어요"용 초보 적합도 점수. 높을수록 앞에 둔다.
+     ⚠️ 발판만 보면 안 된다 — 발판이 평평해도 배로 3~4시간 가는 섬(굴업도·대청도)이
+     섞여 있어서, 접근성을 발판보다 무겁게 잡는다. 위험 신호는 뒤로 민다. */
+  function beginnerScore(s){
+    var sc=0;
+    if(s.access==="drive")sc+=5;
+    else if(s.access==="ferry")sc-=2;
+    if(s.footing==="flat"||s.footing==="sand")sc+=3;
+    else if(s.footing==="danger")sc-=6;
+    var d=s.deepM;
+    if(d!=null){
+      if(d<=6)sc+=2;
+      else if(d>=15)sc-=4;
+    }
+    if(s.stationKm!=null&&s.stationKm<=20)sc+=1;   // 물때 시각이 정확한 편
+    return sc;
   }
 
   var DATA=[], REGION_LIST=[], answers={}, qIdx=0, ranked=[], shownFrom=0, fallbackLevel=0;
@@ -201,11 +215,11 @@
     var region=DATA.filter(function(s){return s.region===answers.region});
 
     if(!t.species){
-      /* "아직 모르겠어요" — 초보가 가기 좋은 곳(얕고 관측소 가까움)을 앞으로. */
+      /* "아직 모르겠어요" — 초보 적합도 순으로 정렬한다. 동점이면 원래 순서 유지. */
       fallbackLevel=0;
-      var easy=[], rest=[];
-      region.forEach(function(s){ (beginnerFriendly(s)?easy:rest).push(s); });
-      return easy.concat(rest);
+      return region.map(function(s,i){return {s:s,i:i,sc:beginnerScore(s)}})
+        .sort(function(a,b){ return b.sc-a.sc || a.i-b.i; })
+        .map(function(x){return x.s});
     }
     var pool=region.filter(function(s){return hasTarget(s,t)});
     if(pool.length){ fallbackLevel=0; return pool; }
@@ -260,6 +274,81 @@
     return /m/i.test(tail) ? t : t+"m";
   }
 
+
+  /* ── 초보에게 "여기가 어떤 곳인지" 설명하는 조각들 ──────────────────────
+     발판·주차·화장실 같은 정보는 국내 어느 공개 데이터에도 없다. 지어내지 않고,
+     이름·좌표·수심에서 확실히 읽히는 것만 말한다. 모르면 모른다고 쓴다. */
+
+  var ACCESS_INFO={
+    drive:  {ic:"🚗", txt:"차로 갈 수 있어요", cls:"good"},
+    ferry:  {ic:"⛴️", txt:"섬이라 배를 타야 해요", cls:"warn"},
+    unknown:{ic:"🗺️", txt:"가는 방법은 지도로 확인하세요", cls:""}
+  };
+  var FOOTING_INFO={
+    flat:   {ic:"🧱", txt:"발판이 평평해요 (방파제·제방 계열)", cls:"good"},
+    sand:   {ic:"🏖️", txt:"모래 해변이라 발이 편해요", cls:"good"},
+    rock:   {ic:"🪨", txt:"울퉁불퉁한 갯바위 — 펠트창 신발 필수", cls:"warn"},
+    danger: {ic:"⛔", txt:"물에 잠기는 바위나 직벽 — 초보에겐 권하지 않아요", cls:"bad"},
+    unknown:{ic:"❓", txt:"발판은 이름만으론 알 수 없어요", cls:""}
+  };
+  /* 수심을 "2.1~5.0m"로 던지지 말고 발밑이 어떤지로 번역한다. */
+  function depthAdvice(s){
+    var d=s.deepM;
+    if(d==null)return null;
+    if(d>=15)return {ic:"🌊", txt:"발밑이 "+Math.round(d)+"m — 빠지면 혼자 못 올라와요", cls:"bad"};
+    if(d>=8) return {ic:"🌊", txt:"발밑이 "+Math.round(d)+"m로 깊은 편이에요", cls:"warn"};
+    if(d>=3) return {ic:"🌊", txt:"발밑 수심 "+Math.round(d)+"m 정도예요", cls:""};
+    return {ic:"🌊", txt:"수심이 얕아요 ("+d+"m 안팎)", cls:"good"};
+  }
+
+  /* ── 오늘 이 포인트가 맞는 날인가 ────────────────────────────────────────
+     포인트마다 "언제 좋은지"(조수물때내용)가 데이터에 있는데 지금까지
+     "물때 메모: 초들물~중날물"이라고 날것으로 뿌리고 있었다. 초보는 못 읽는다.
+     이미 계산하는 오늘 물때번호·만조간조 시각과 대조해 판정으로 바꾼다.
+     ⚠️ 동해는 조차가 10~20cm라 물때 판정이 사실상 무의미하다 → 하지 않는다. */
+  var EAST_COAST=["강원","경북","울산","부산"];
+  var PHASE_KO={early_flood:"물이 차오르기 시작할 때", mid_flood:"물이 한창 차오를 때",
+    early_ebb:"물이 빠지기 시작할 때", mid_ebb:"물이 한창 빠질 때",
+    late_ebb:"물이 다 빠질 무렵", high:"물이 가장 많이 찼을 때", low:"물이 가장 많이 빠졌을 때"};
+
+  function tideVerdict(s, tide){
+    if(EAST_COAST.indexOf(s.region)!==-1)
+      return {cls:"", txt:"동해는 물이 드나드는 폭이 작아서 물때 영향이 적어요"};
+    if(s.tideAny) return {cls:"good", txt:"물때를 크게 안 타는 곳이에요"};
+    if(!tide||!s.tideNums) return null;
+    var n=tide.n, list=s.tideNums;
+    if(list.indexOf(n)!==-1) return {cls:"good", txt:"오늘 물때가 잘 맞아요"};
+    var near=list.some(function(x){ var d=Math.abs(x-n); return Math.min(d,15-d)<=1; });
+    if(near) return {cls:"", txt:"오늘도 나쁘진 않아요"};
+    return {cls:"warn", txt:"오늘은 물때가 잘 안 맞아요"};
+  }
+  /* 만조·간조 시각에서 "몇 시에 가면 되는지"를 뽑는다. */
+  function bestHours(s, extremes){
+    if(!s.tidePhase||!extremes||!extremes.length)return null;
+    if(EAST_COAST.indexOf(s.region)!==-1)return null;
+    var high=extremes.filter(function(e){return e.type==="고조"});
+    var low=extremes.filter(function(e){return e.type==="저조"});
+    function plus(t,h){
+      var p=t.split(":"); var m=(+p[0])*60+(+p[1])+h*60;
+      m=((m%1440)+1440)%1440;
+      return (m/60|0<10?"0":"")+String(m/60|0).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+    }
+    var out=[];
+    s.tidePhase.forEach(function(ph){
+      if(ph==="early_flood"&&low[0]) out.push(low[0].time+"~"+plus(low[0].time,2));
+      if(ph==="mid_flood"&&low[0])   out.push(plus(low[0].time,2)+"~"+plus(low[0].time,4));
+      if(ph==="early_ebb"&&high[0])  out.push(high[0].time+"~"+plus(high[0].time,2));
+      if(ph==="mid_ebb"&&high[0])    out.push(plus(high[0].time,2)+"~"+plus(high[0].time,4));
+      if(ph==="high"&&high[0])       out.push(plus(high[0].time,-1)+"~"+plus(high[0].time,1));
+      if(ph==="low"&&low[0])         out.push(plus(low[0].time,-1)+"~"+plus(low[0].time,1));
+    });
+    return out.length?out.slice(0,2):null;
+  }
+  function phaseWords(s){
+    if(!s.tidePhase)return "";
+    return s.tidePhase.map(function(p){return PHASE_KO[p]}).filter(Boolean).slice(0,2).join(", ");
+  }
+
   function tideHtml(){
     var tide=tideNumberOf(new Date());
     if(!tide)return "";
@@ -300,15 +389,57 @@
         el.className="ft-tag time";
         el.textContent="🌊 "+ex.map(function(e){return e.type+" "+e.time}).join(" · ");
         el.title=nm+" 관측소 기준"+(km?" (약 "+km+"km 떨어짐)":"");
+        fillBestHours(el, st, ex);
       });
     });
   }
+
+  /* 같은 카드 안의 "몇 시에 가면 되는지" 자리를 실제 시각으로 채운다. */
+  function fillBestHours(timeEl, station, extremes){
+    var card=timeEl.closest? timeEl.closest(".ft-card") : null;
+    if(!card)return;
+    var slot=card.querySelector('[data-best-station="'+station+'"]');
+    if(!slot)return;
+    var fake={region:"", tidePhase:slot.getAttribute("data-best-phase").split(",")};
+    var hours=bestHours(fake, extremes);
+    if(!hours){ slot.remove(); return; }
+    slot.className="ft-guide-line good";
+    slot.innerHTML='<span class="gi">🕐</span><span>'+escapeHtml("오늘은 "+hours.join(", ")+"에 가면 좋아요")+'</span>';
+    slot.hidden=false;
+  }
+
   function timeHtml(s){
     if(!s.station)return "";
     return '<span class="ft-tag" data-tide-station="'+escapeHtml(s.station)+'"'
       +' data-tide-name="'+escapeHtml(s.stationName||"")+'"'
       +' data-tide-km="'+escapeHtml(String(s.stationKm||""))+'">🌊 만조·간조 불러오는 중…</span>';
   }
+
+  /* 카드 하단 — 초보에게 "여기가 어떤 곳인지"를 문장으로 설명한다.
+     확실한 것만 말하고, 모르는 건 모른다고 쓴다. */
+  function line(o){
+    if(!o)return "";
+    return '<div class="ft-guide-line '+(o.cls||"")+'"><span class="gi">'+o.ic+'</span>'
+      +'<span>'+escapeHtml(o.txt)+'</span></div>';
+  }
+  function guideHtml(s){
+    var out="";
+    out+=line(ACCESS_INFO[s.access]||ACCESS_INFO.unknown);
+    out+=line(FOOTING_INFO[s.footing]||FOOTING_INFO.unknown);
+    out+=line(depthAdvice(s));
+
+    var v=tideVerdict(s, tideNumberOf(new Date()));
+    if(v)out+=line({ic:"🌗", txt:v.txt, cls:v.cls});
+    var ph=phaseWords(s);
+    if(ph)out+=line({ic:"⏰", txt:"이 포인트는 "+ph+" 입질이 좋아요", cls:""});
+    /* 만조·간조 시각을 받아온 뒤 "몇 시에 가면 되는지"로 채운다(fillTideTimes에서). */
+    if(s.tidePhase&&s.station&&EAST_COAST.indexOf(s.region)===-1)
+      out+='<div class="ft-guide-line" data-best-station="'+escapeHtml(s.station)+'"'
+        +' data-best-phase="'+escapeHtml(s.tidePhase.join(","))+'" hidden></div>';
+    if(s.bottom)out+=line({ic:"🐚", txt:"물속 바닥은 "+s.bottom+" — 여기 사는 고기가 모여요", cls:""});
+    return '<div class="ft-guide">'+out+'</div>';
+  }
+
   function cardHtml(s){
     var speciesChips=(s.species||[]).slice(0,6).map(function(sp){return '<span class="ft-tag match">'+escapeHtml(sp)+'</span>'}).join("");
     var techChips=(s.techniques||[])
@@ -319,9 +450,9 @@
     var depth=depthText(s.depth);
     return '<div class="ft-card">'
       +'<div class="ft-name-row"><span class="ft-name">'+escapeHtml(s.name)+'</span><button type="button" class="ft-copy" data-name="'+escapeHtml(s.name)+'">📋 이름 복사</button></div>'
-      +'<div class="ft-meta">'+tideHtml()+timeHtml(s)+'<span class="ft-tag">'+escapeHtml(s.region)+'</span>'+(depth?'<span class="ft-tag">수심 '+escapeHtml(depth)+'</span>':'')+(s.bottom?'<span class="ft-tag">해저 '+escapeHtml(s.bottom)+'</span>':'')+'</div>'
+      +'<div class="ft-meta">'+tideHtml()+timeHtml(s)+'<span class="ft-tag">'+escapeHtml(s.region+(s.sigungu?" "+s.sigungu:""))+'</span>'+(depth?'<span class="ft-tag">수심 '+escapeHtml(depth)+'</span>':'')+'</div>'
       +'<div class="ft-meta" style="margin-top:6px">'+speciesChips+techChips+'</div>'
-      +(s.tideNote?'<div class="ft-desc">물때 메모: '+escapeHtml(s.tideNote)+'</div>':'')
+      +guideHtml(s)
       +'<div class="ft-actions"><a class="ft-maplink" href="'+mapLink(s)+'" target="_blank" rel="noopener">🗺️ 지도에서 위치 보기</a></div>'
       +'<div class="ft-src">출처: <a href="'+escapeHtml(s.sourceUrl)+'" target="_blank" rel="noopener">해양수산부 공공데이터</a></div>'
       +'</div>';

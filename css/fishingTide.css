@@ -227,3 +227,12 @@ body{
 .ft-more-tips[open]>summary::after{content:" ▴"}
 .ft-more-tips>summary:hover{border-color:var(--ft-teal)}
 .ft-tips b{color:var(--ft-ink)}
+
+/* ---------- 카드 안내 줄 (초보에게 여기가 어떤 곳인지 설명) ---------- */
+.ft-guide{margin-top:11px;display:flex;flex-direction:column;gap:5px}
+.ft-guide-line{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.55;color:var(--ft-muted)}
+.ft-guide-line[hidden]{display:none}
+.ft-guide-line .gi{flex:none;width:16px;text-align:center}
+.ft-guide-line.good{color:var(--ft-teal)}
+.ft-guide-line.warn{color:var(--ft-accent2)}
+.ft-guide-line.bad{color:var(--ft-accent);font-weight:700}

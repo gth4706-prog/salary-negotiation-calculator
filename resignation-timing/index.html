@@ -16,8 +16,8 @@
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%AA%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
-<link rel="stylesheet" href="../css/style.css?v=0.03">
-<link rel="stylesheet" href="../css/resignation.css?v=0.03">
+<link rel="stylesheet" href="../css/style.css?v=0.04">
+<link rel="stylesheet" href="../css/resignation.css?v=0.04">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"퇴사 타이밍 계산기","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"입사일을 기준으로 퇴직금·연차수당을 모두 챙길 수 있는 최적 퇴사일을 계산하는 무료 도구."}
 </script>
@@ -35,7 +35,7 @@
     <a href="../room-planner/">방 배치</a>
     <a href="../about.html">소개</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.03</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.04</span>
   </div>
 </div></nav>
 
@@ -89,18 +89,27 @@
     <button class="cta ghost" id="psy-restart" type="button" hidden style="margin-top:12px">↺ 다시 체크하기</button>
   </section>
 
-  <!-- 다른 도구 -->
+  <!-- 도구 설명: 어떻게 동작하는지·누구에게 맞는지·뭘 못 하는지.
+       도구 페이지는 텍스트가 얇아 검색·심사 양쪽에서 불리하다. 채우기용이 아니라
+       실제로 사용자가 궁금해하는 것만 적는다. "못 하는 것"을 빼지 말 것. -->
+  <section class="card tool-about">
+    <h2>퇴사일은 왜 하루 차이로 달라지나요</h2>
+    <h3>어떻게 계산하나요</h3>
+    <p>퇴직금은 <b>계속근로 1년</b>을 채워야 발생합니다. 하루라도 모자라면 한 푼도 안 나와요. 연차는 다릅니다 — 입사 1년 미만이면 <b>한 달 개근마다 1일씩(최대 11일)</b>, 1년을 넘기면 그때부터 <b>15일이 한꺼번에</b> 생기고 이후 2년마다 하루씩 늘어 최대 25일입니다. 이 도구는 입사일만 받아서 두 날짜를 각각 계산하고, <b>둘 다 챙기는 가장 이른 날</b>을 알려드려요.</p>
+    <h3>이런 분께 맞아요</h3>
+    <p>이직이 정해졌는데 언제 사표를 낼지 고르고 있는 분, 1년을 코앞에 두고 그만둘까 고민 중인 분, 연차를 남기고 나가면 얼마를 못 받는지 궁금한 분.</p>
+    <h3>이건 못 해요</h3>
+    <p>회사 내규가 법정 기준보다 유리한 경우(연차를 더 주거나 회계연도 기준으로 정산하는 곳)는 반영하지 못합니다. 퇴직금 예상액도 <b>세후 월급 기준 근사치</b>라 실제와 다릅니다 — 실제 퇴직금은 직전 3개월 평균임금으로 계산하고 상여·수당이 들어갑니다. 월말 입사자의 연차 발생일은 실무 관례가 갈리는 지점이라 노무사 확인을 권합니다.</p>
+  </section>
+
+  <!-- 연관 도구: 이유가 붙은 것만 -->
   <section class="card">
-    <h2>다른 도구</h2>
+    <h2>퇴사를 정했다면 이것도</h2>
     <ul class="guides">
-      <li><a href="../salary-calculator/">이직 연봉 협상 계산기<span>제안 연봉이 적정한지 · 실수령액 · 평균 대비 포지션</span></a></li>
-      <li><a href="../room-planner/">방 가구 배치 시뮬레이터<span>평수 입력하면 방 모양부터, 가전·가구까지 배치</span></a></li>
-      <li><a href="../couple-referee/">커플 재판<span>성향 다른 재판관 5명이 다툼을 판정</span></a></li>
-      <li><a href="../youtube-transcript/">유튜브 자막 추출기<span>링크 하나로 자막을 타임스탬프 텍스트로</span></a></li>
-      <li><a href="../keyword-checker/">키워드 진단기<span>내 페이지 SEO 키워드 진단 + 추천 키워드</span></a></li>
-      <li><a href="../minecraft-seeds/">마인크래프트 시드 추천기<span>질문 몇 개로 취향에 맞는 시드 추천</span></a></li>
-      <li><a href="../fishing-tide/">낚시 물때 가이드<span>지역·기법·어종만 고르면 실제 낚시 포인트 추천</span></a></li>
+      <li><a href="../salary-calculator/">이직 연봉 협상 계산기<span>다음 회사 제안이 지금보다 나은 조건인지 먼저 따져보세요.</span></a></li>
+      <li><a href="../salary-calculator/guide/why-take-home-differs.html">실수령액이 왜 다를까<span>연봉이 올라도 손에 쥐는 돈은 생각보다 적습니다. 그 차이를 계산해봤어요.</span></a></li>
     </ul>
+    <p class="more-tools"><a href="../index.html">← 다른 도구도 보기</a></p>
   </section>
 </main>
 
@@ -112,7 +121,7 @@
   <div class="cp">참고용 도구이며 법적 효력이 없습니다. © 각잡살림</div>
 </div></footer>
 
-<script src="../js/site.js?v=0.03"></script>
-<script src="../js/resignation.js?v=0.03"></script>
+<script src="../js/site.js?v=0.04"></script>
+<script src="../js/resignation.js?v=0.04"></script>
 </body>
 </html>

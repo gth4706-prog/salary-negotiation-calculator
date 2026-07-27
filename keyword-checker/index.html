@@ -16,8 +16,8 @@
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%8D%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
-<link rel="stylesheet" href="../css/style.css?v=0.03">
-<link rel="stylesheet" href="../css/keywordChecker.css?v=0.03">
+<link rel="stylesheet" href="../css/style.css?v=0.04">
+<link rel="stylesheet" href="../css/keywordChecker.css?v=0.04">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"키워드 진단기","applicationCategory":"UtilityApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"웹페이지 링크에서 SEO 키워드를 추출하고 추가 키워드 후보를 제시하는 무료 도구."}
 </script>
@@ -35,7 +35,7 @@
     <a href="../youtube-transcript/">유튜브 자막</a>
     <a href="../about.html">소개</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.03</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.04</span>
   </div>
 </div></nav>
 
@@ -75,18 +75,26 @@
     <button class="cta ghost" id="kc-restart" type="button" style="margin-top:18px">↺ 다른 페이지 진단하기</button>
   </section>
 
-  <!-- 다른 도구 -->
+  <!-- 도구 설명: 어떻게 동작하는지·누구에게 맞는지·뭘 못 하는지.
+       도구 페이지는 텍스트가 얇아 검색·심사 양쪽에서 불리하다. 채우기용이 아니라
+       실제로 사용자가 궁금해하는 것만 적는다. "못 하는 것"을 빼지 말 것. -->
+  <section class="card tool-about">
+    <h2>키워드 진단은 어떻게 하나요</h2>
+    <h3>어떻게 뽑나요</h3>
+    <p>주소를 넣으면 그 페이지를 가져와 <b>제목·H1·소제목·메타 설명·본문</b>을 나눠 읽고, 위치별로 다른 가중치를 줘서 어떤 단어가 실제로 강조돼 있는지 순위를 냅니다. 제목에 있는 단어가 본문에만 있는 단어보다 5배 무겁습니다. 조사는 <b>떼어낸 형태가 문서 안에 단독으로도 나올 때만</b> 정리해서, "처우협의" 같은 진짜 단어가 쪼개지지 않게 했어요.</p>
+    <h3>결과를 어떻게 쓰나요</h3>
+    <p>상위에 뜬 단어가 <b>내가 노리던 검색어와 다르다면</b> 그 글은 다른 주제로 읽히고 있다는 뜻입니다. 제목과 소제목을 먼저 고치세요 — 본문만 고치는 건 효과가 가장 약합니다.</p>
+    <h3>이건 못 해요</h3>
+    <p>검색량이나 경쟁 강도는 알려주지 못합니다. 이 도구는 <b>"내 페이지가 무슨 단어로 읽히는가"</b>만 봅니다. 자바스크립트로 나중에 그려지는 내용은 못 읽고, 로그인이 필요한 페이지도 안 됩니다.</p>
+  </section>
+
+  <!-- 연관 도구: 이유가 붙은 것만 -->
   <section class="card">
-    <h2>다른 도구</h2>
+    <h2>이어서 쓰면 좋은 도구</h2>
     <ul class="guides">
-      <li><a href="../salary-calculator/">이직 연봉 협상 계산기<span>제안 연봉이 적정한지 · 실수령액 · 평균 대비 포지션</span></a></li>
-      <li><a href="../room-planner/">방 가구 배치 시뮬레이터<span>평수 입력하면 방 모양부터, 가전·가구까지 배치</span></a></li>
-      <li><a href="../resignation-timing/">퇴사 타이밍 계산기<span>퇴직금·연차수당 다 챙기는 퇴사일 계산</span></a></li>
-      <li><a href="../couple-referee/">커플 재판<span>성향 다른 재판관 5명이 다툼을 판정</span></a></li>
-      <li><a href="../youtube-transcript/">유튜브 자막 추출기<span>링크 하나로 자막을 타임스탬프 텍스트로</span></a></li>
-      <li><a href="../minecraft-seeds/">마인크래프트 시드 추천기<span>질문 몇 개로 취향에 맞는 시드 추천</span></a></li>
-      <li><a href="../fishing-tide/">낚시 물때 가이드<span>지역·기법·어종만 고르면 실제 낚시 포인트 추천</span></a></li>
+      <li><a href="../youtube-transcript/">유튜브 자막 추출기<span>영상 내용을 글로 옮겨 쓸 때, 자막을 텍스트로 뽑아 여기에 넣어보세요.</span></a></li>
     </ul>
+    <p class="more-tools"><a href="../index.html">← 다른 도구도 보기</a></p>
   </section>
 </main>
 
@@ -98,7 +106,7 @@
   <div class="cp">참고용 도구이며 실제 검색 순위·검색량을 보장하지 않습니다. © 각잡살림</div>
 </div></footer>
 
-<script src="../js/site.js?v=0.03"></script>
-<script src="../js/keywordChecker.js?v=0.03"></script>
+<script src="../js/site.js?v=0.04"></script>
+<script src="../js/keywordChecker.js?v=0.04"></script>
 </body>
 </html>

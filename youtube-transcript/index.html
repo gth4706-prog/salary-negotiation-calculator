@@ -16,8 +16,8 @@
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%9D%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
-<link rel="stylesheet" href="../css/style.css?v=0.02">
-<link rel="stylesheet" href="../css/ytTranscript.css?v=0.02">
+<link rel="stylesheet" href="../css/style.css?v=0.03">
+<link rel="stylesheet" href="../css/ytTranscript.css?v=0.03">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"유튜브 자막 추출기","applicationCategory":"UtilityApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"유튜브 링크를 넣으면 자막을 타임스탬프와 함께 텍스트로 보여주는 무료 도구."}
 </script>
@@ -35,7 +35,7 @@
     <a href="../couple-referee/">커플 재판</a>
     <a href="../about.html">소개</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.02</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.03</span>
   </div>
 </div></nav>
 
@@ -76,18 +76,26 @@
     <button class="cta ghost" id="yt-restart" type="button" style="margin-top:16px">↺ 다른 영상 넣기</button>
   </section>
 
-  <!-- 다른 도구 -->
+  <!-- 도구 설명: 어떻게 동작하는지·누구에게 맞는지·뭘 못 하는지.
+       도구 페이지는 텍스트가 얇아 검색·심사 양쪽에서 불리하다. 채우기용이 아니라
+       실제로 사용자가 궁금해하는 것만 적는다. "못 하는 것"을 빼지 말 것. -->
+  <section class="card tool-about">
+    <h2>자막은 어디서 가져오나요</h2>
+    <h3>어떻게 동작하나요</h3>
+    <p>유튜브가 <b>이미 만들어둔 자막</b>(자동 생성 또는 제작자가 올린 것)을 가져와 타임스탬프와 함께 보여줍니다. 새로 음성인식을 하는 게 아니라서 <b>자막이 없는 영상은 지원하지 않습니다.</b> 자막을 클릭하면 영상이 그 구간으로 이동해요.</p>
+    <h3>이런 분께 맞아요</h3>
+    <p>긴 영상에서 필요한 부분만 찾아야 하는 분, 강의 내용을 글로 정리하려는 분, 영상 내용을 블로그 글로 옮기려는 분.</p>
+    <h3>지금은 쓸 수 없어요</h3>
+    <p>유튜브가 데이터센터에서 오는 요청을 차단하고 있어서 <b>현재 자막을 가져오지 못합니다.</b> 서버를 거쳐 요청하는 구조라 막히는 지점이고, 우회 방법을 찾는 중입니다. 고쳐지면 안내드릴게요.</p>
+  </section>
+
+  <!-- 연관 도구: 이유가 붙은 것만 -->
   <section class="card">
-    <h2>다른 도구</h2>
+    <h2>이어서 쓰면 좋은 도구</h2>
     <ul class="guides">
-      <li><a href="../salary-calculator/">이직 연봉 협상 계산기<span>제안 연봉이 적정한지 · 실수령액 · 평균 대비 포지션</span></a></li>
-      <li><a href="../room-planner/">방 가구 배치 시뮬레이터<span>평수 입력하면 방 모양부터, 가전·가구까지 배치</span></a></li>
-      <li><a href="../resignation-timing/">퇴사 타이밍 계산기<span>퇴직금·연차수당 다 챙기는 퇴사일 계산</span></a></li>
-      <li><a href="../couple-referee/">커플 재판<span>성향 다른 재판관 5명이 다툼을 판정</span></a></li>
-      <li><a href="../keyword-checker/">키워드 진단기<span>내 페이지 SEO 키워드 진단 + 추천 키워드</span></a></li>
-      <li><a href="../minecraft-seeds/">마인크래프트 시드 추천기<span>질문 몇 개로 취향에 맞는 시드 추천</span></a></li>
-      <li><a href="../fishing-tide/">낚시 물때 가이드<span>지역·기법·어종만 고르면 실제 낚시 포인트 추천</span></a></li>
+      <li><a href="../keyword-checker/">키워드 진단기<span>뽑은 자막으로 글을 썼다면, 검색에 걸릴 키워드가 실제로 잡혔는지 확인해보세요.</span></a></li>
     </ul>
+    <p class="more-tools"><a href="../index.html">← 다른 도구도 보기</a></p>
   </section>
 </main>
 
@@ -100,7 +108,7 @@
 </div></footer>
 
 <script src="https://www.youtube.com/iframe_api"></script>
-<script src="../js/site.js?v=0.02"></script>
-<script src="../js/ytTranscript.js?v=0.02"></script>
+<script src="../js/site.js?v=0.03"></script>
+<script src="../js/ytTranscript.js?v=0.03"></script>
 </body>
 </html>

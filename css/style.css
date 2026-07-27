@@ -251,3 +251,14 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 
 @media (max-width:520px){.row,.subtot,.cmp{grid-template-columns:1fr}.nav .links a{padding:8px 7px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- 도구 설명 블록 ----------
+   각 도구 페이지 하단의 "어떻게 동작하는지·누구에게 맞는지·뭘 못 하는지".
+   도구별 테마 CSS가 .card 를 각자 덮어쓰므로 여기선 안쪽 타이포만 정한다. */
+.tool-about h3{font-size:14px;margin:16px 0 6px}
+.tool-about h3:first-of-type{margin-top:12px}
+.tool-about p{font-size:13.5px;line-height:1.75;margin:0}
+
+/* 연관 도구 아래 허브 복귀 링크 */
+.more-tools{margin:14px 0 0;font-size:13px}
+.more-tools a{font-weight:700}

@@ -45,9 +45,34 @@
     +'</div>';
 
   var QUESTIONS=[
+    {id:"day", t:"언제 가세요?"},
     {id:"region", t:"어느 바다로 가세요?"},
-    {id:"target", t:"오늘 뭘 노려볼까요?"}
+    {id:"target", t:"뭘 노려볼까요?"}
   ];
+
+  /* 지금까지 "오늘"만 계산했는데 사람들은 대개 주말에 간다.
+     고른 날짜를 하나로 두고 물때번호·조석시각·판정이 전부 이걸 본다. */
+  var WEEKDAY=["일","월","화","수","목","금","토"];
+  function midnight(d){ var x=new Date(d); x.setHours(0,0,0,0); return x; }
+  function addDays(d,n){ var x=midnight(d); x.setDate(x.getDate()+n); return x; }
+  function ymd(d){ var p=function(n){return (n<10?"0":"")+n};
+    return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate()); }
+  function dayLabel(d){ return (d.getMonth()+1)+"월 "+d.getDate()+"일("+WEEKDAY[d.getDay()]+")"; }
+
+  var pickedDate=midnight(new Date());
+  function goDate(){ return pickedDate; }
+
+  /* 앞으로 7일 선택지. 오늘·내일은 그대로 부르고, 나머지는 요일로 부른다. */
+  function dayOptions(){
+    var out=[], base=midnight(new Date());
+    for(var i=0;i<7;i++){
+      var d=addDays(base,i);
+      var name = i===0 ? "오늘" : i===1 ? "내일" : WEEKDAY[d.getDay()]+"요일";
+      out.push([String(i), i===0?"📅":(d.getDay()===0||d.getDay()===6?"🌤️":"📆"),
+                name, (d.getMonth()+1)+"/"+d.getDate()]);
+    }
+    return out;
+  }
 
   /* 지역 버튼을 바다별 지리순으로 — 포인트 수 내림차순은 사용자 눈엔 무작위로 보인다. */
   var REGION_GROUPS=[
@@ -227,7 +252,7 @@
 
   /* 팝업 안에서 물때 시각을 채운다. 카드와 같은 캐시를 쓰므로 관측소당 1회. */
   function popupHtml(s){
-    var tide=tideNumberOf(new Date());
+    var tide=tideNumberOf(goDate());
     var head='<div class="ft-pop-name">'+escapeHtml(s.name)+'</div>'
       +'<div class="ft-pop-sub">'+escapeHtml(s.region+(s.sigungu?" "+s.sigungu:""))+'</div>';
     var chips="";
@@ -330,6 +355,7 @@
 
   function optsForCurrentQuestion(){
     var q=QUESTIONS[qIdx];
+    if(q.id==="day")return dayOptions();
     if(q.id==="region"){
       var opts=[];
       REGION_GROUPS.forEach(function(g){
@@ -370,6 +396,7 @@
         +(o[3]?'<span class="sub">'+escapeHtml(o[3])+'</span>':'');
       b.addEventListener("click",function(){
         answers[q.id]=o[0];
+        if(q.id==="day")pickedDate=addDays(new Date(), +o[0]||0);
         qIdx++;
         if(q.id==="region"){
           var pool=DATA.filter(function(x){return x.region===o[0]});
@@ -495,16 +522,19 @@
   function tideWord(t){
     return t==="고조" ? "물 가장 많이 찰 때" : t==="저조" ? "가장 많이 빠질 때" : t;
   }
-  var WEEKDAY=["일","월","화","수","목","금","토"];
-  /* 오늘이 안 맞으면 "언제 가라"까지 말해준다. 예전엔 "별로예요"에서 끝나
+  /* 고른 날이 안 맞으면 "언제 가라"까지 말해준다. 예전엔 "별로예요"에서 끝나
      사용자가 막다른 길에 놓였다. 물때번호는 음력 기반이라 앞날도 계산된다. */
+  /* 7일 띠는 오늘부터 그리는데 이 함수만 고른 날 이후를 훑으면,
+     띠는 "목요일 ◎"을 가리키는데 문장은 2주 뒤를 말하게 된다.
+     둘 다 사실이지만 사용자에겐 어긋나 보이므로 기준을 오늘로 맞춘다. */
   function nextGoodDay(s, maxDays){
     if(!s.tideNums)return null;
-    for(var i=1;i<=(maxDays||14);i++){
-      var d=new Date(); d.setDate(d.getDate()+i);
+    var base=midnight(new Date()), picked=ymd(goDate());
+    for(var i=0;i<=(maxDays||14);i++){
+      var d=addDays(base,i);
+      if(ymd(d)===picked)continue;          // 고른 날은 이미 "안 맞는다"고 말했다
       var t=tideNumberOf(d);
-      if(t&&s.tideNums.indexOf(t.n)!==-1)
-        return (d.getMonth()+1)+"월 "+d.getDate()+"일("+WEEKDAY[d.getDay()]+")";
+      if(t&&s.tideNums.indexOf(t.n)!==-1)return dayLabel(d);
     }
     return null;
   }
@@ -514,11 +544,11 @@
     if(s.tideAny) return {cls:"good", txt:"물때를 크게 안 타는 곳이에요"};
     if(!tide||!s.tideNums) return null;
     var n=tide.n, list=s.tideNums;
-    if(list.indexOf(n)!==-1) return {cls:"good", txt:"오늘 물때가 잘 맞아요"};
+    if(list.indexOf(n)!==-1) return {cls:"good", txt:"이 날 물때가 잘 맞아요"};
     var near=list.some(function(x){ var d=Math.abs(x-n); return Math.min(d,15-d)<=1; });
-    if(near) return {cls:"", txt:"오늘도 나쁘진 않아요"};
+    if(near) return {cls:"", txt:"이 날도 나쁘진 않아요"};
     var when=nextGoodDay(s);
-    return {cls:"warn", txt:"오늘은 물때가 잘 안 맞아요"
+    return {cls:"warn", txt:"이 날은 물때가 잘 안 맞아요"
       +(when?" — 이 자리는 "+when+"이 더 좋아요":"")};
   }
   /* 만조·간조 시각에서 "몇 시에 가면 되는지"를 뽑는다. */
@@ -553,7 +583,7 @@
   }
 
   function tideHtml(){
-    var tide=tideNumberOf(new Date());
+    var tide=tideNumberOf(goDate());
     if(!tide)return "";
     // label이 이미 "5물" 형태면 번호를 또 붙이면 "5물 (5물)"이 된다.
     // 숫자가 안 드러나는 "사리"/"조금"일 때만 괄호로 물때 번호를 덧붙인다.
@@ -566,20 +596,17 @@
      카드를 먼저 그려놓고 관측소별로 한 번씩만 조회해 나중에 채워 넣는다
      — 같은 관측소를 쓰는 포인트가 여러 개여도 호출은 1번이다.
      실패하면 그 자리만 조용히 비운다. 추천 자체는 서버 없이도 동작해야 한다. */
-  var tideTimeCache={};   // station -> Promise<extremes[] | null>
-  function todayYmd(){
-    var d=new Date(), p=function(n){return (n<10?"0":"")+n};
-    return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate());
-  }
-  function fetchTideTimes(station){
+  var tideTimeCache={};   // "station|date" -> Promise<extremes[] | null>
+  function fetchTideTimes(station, date){
     if(!station)return Promise.resolve(null);
-    if(!tideTimeCache[station]){
-      tideTimeCache[station]=fetch(API_BASE+"/tide?station="+encodeURIComponent(station)+"&date="+todayYmd())
+    var d=ymd(date||goDate()), key=station+"|"+d;
+    if(!tideTimeCache[key]){
+      tideTimeCache[key]=fetch(API_BASE+"/tide?station="+encodeURIComponent(station)+"&date="+d)
         .then(function(r){ return r.ok?r.json():null; })
         .then(function(d){ return (d&&d.extremes&&d.extremes.length)?d.extremes:null; })
         .catch(function(){ return null; });
     }
-    return tideTimeCache[station];
+    return tideTimeCache[key];
   }
   /* 카드가 DOM에 붙은 뒤 호출. 자리표시자를 실제 시각으로 바꾼다. */
   function fillTideTimes(){
@@ -607,7 +634,7 @@
     var hours=bestHours(fake, extremes);
     if(!hours){ slot.remove(); return; }
     slot.className="ft-guide-line good";
-    slot.innerHTML='<span class="gi">🕐</span><span>'+escapeHtml("오늘은 "+hours.join(", ")+"에 가면 좋아요")+'</span>';
+    slot.innerHTML='<span class="gi">🕐</span><span>'+escapeHtml(dayLabel(goDate())+"은 "+hours.join(", ")+"에 가면 좋아요")+'</span>';
     slot.hidden=false;
   }
 
@@ -633,14 +660,38 @@
       x=x.trim(); return BOTTOM_KO[x]||x;
     }).filter(Boolean).join("·");
   }
+  /* 이 자리가 앞으로 7일 중 어느 날이 좋은지 한 줄로 보여준다.
+     날짜를 하나 골라 들어왔더라도 "그럼 언제가 좋은데?"를 바로 확인할 수 있어야 한다.
+     ◎ 잘 맞음 · ○ 나쁘지 않음 · · 안 맞음. 동해는 물때 영향이 적어 띠를 안 그린다. */
+  function dayFit(s, d){
+    if(!s.tideNums)return null;
+    var t=tideNumberOf(d);
+    if(!t)return null;
+    if(s.tideNums.indexOf(t.n)!==-1)return "good";
+    var near=s.tideNums.some(function(x){var g=Math.abs(x-t.n);return Math.min(g,15-g)<=1;});
+    return near?"soso":"bad";
+  }
+  function weekStrip(s){
+    if(EAST_COAST.indexOf(s.region)!==-1)return "";
+    if(!s.tideNums)return "";
+    var base=midnight(new Date()), picked=ymd(goDate()), cells="";
+    for(var i=0;i<7;i++){
+      var d=addDays(base,i), f=dayFit(s,d);
+      var mark=f==="good"?"◎":f==="soso"?"○":"·";
+      cells+='<span class="ft-day '+(f||"")+(ymd(d)===picked?" on":"")+'"'
+        +' title="'+escapeHtml(dayLabel(d))+'">'
+        +'<b>'+WEEKDAY[d.getDay()]+'</b><i>'+mark+'</i></span>';
+    }
+    return '<div class="ft-week"><span class="ft-week-t">앞으로 7일</span>'+cells+'</div>';
+  }
+
   function guideHtml(s){
     var out="";
     out+=line(ACCESS_INFO[s.access]||ACCESS_INFO.unknown);
     out+=line(FOOTING_INFO[s.footing]||FOOTING_INFO.unknown);
     out+=line(depthAdvice(s));
 
-    var today=new Date();
-    var v=tideVerdict(s, tideNumberOf(today));
+    var v=tideVerdict(s, tideNumberOf(goDate()));
     if(v)out+=line({ic:"🌗", txt:v.txt, cls:v.cls});
     var ph=phaseWords(s);
     if(ph)out+=line({ic:"⏰", txt:"여기는 "+ph+" 고기가 잘 물어요", cls:""});
@@ -649,7 +700,7 @@
       out+='<div class="ft-guide-line" data-best-station="'+escapeHtml(s.station)+'"'
         +' data-best-phase="'+escapeHtml(s.tidePhase.join(","))+'" hidden></div>';
     if(s.bottom)out+=line({ic:"🐚", txt:"물속 바닥이 "+bottomKo(s.bottom)+"예요 — 여기 사는 고기가 모여요", cls:""});
-    return '<div class="ft-guide">'+out+'</div>';
+    return '<div class="ft-guide">'+out+weekStrip(s)+'</div>';
   }
 
   function cardHtml(s){
@@ -690,12 +741,10 @@
         $("ft-result-title").textContent=tg.label+" 노리기 좋은 포인트예요";
         var dc=driveCount(ranked);
         $("ft-result-sub").textContent = dc
-          ? "처음이시니까 차로 갈 수 있는 곳부터 보여드려요. (이 조건에서 차로 갈 수 있는 곳 "+dc+"곳)"
+          ? dayLabel(goDate())+" 기준이고, 차로 갈 수 있는 곳부터 보여드려요. (이 조건에서 차로 갈 수 있는 곳 "+dc+"곳)"
           : "이 조건은 전부 배를 타고 들어가야 하는 곳이에요. 처음이라면 다른 지역을 눌러보세요.";
       }
-      var d=new Date();
-      var stamp='<div class="ft-datestamp">📅 '+(d.getMonth()+1)+'월 '+d.getDate()+'일('
-        +WEEKDAY[d.getDay()]+') 기준이에요</div>';
+      var stamp='<div class="ft-datestamp">📅 '+dayLabel(goDate())+' 기준이에요</div>';
       $("ft-results").innerHTML=stamp+SAFETY_HTML+picks.map(cardHtml).join("");
       showMap(ranked, "추천 포인트 "+ranked.length+"곳",
         "①②③ 번호가 아래 카드와 같은 곳이에요. 마커를 누르면 상세 정보가 나와요.",

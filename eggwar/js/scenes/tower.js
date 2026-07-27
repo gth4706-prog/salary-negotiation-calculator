@@ -31,16 +31,23 @@ GAME.TowerScene.prototype.create = function () {
 
   GAME.UI.label(this, W / 2, u * 8, '통곡의 탑', P ? 30 : 46, C.text, 0.5);
   var heroBudget = GAME.Tower.heroBudgetFor(floor);
+  var bossDef = GAME.Tower.bossFor(floor);
   GAME.UI.label(this, W / 2, u * 15,
     floor + '층  ·  적 진형 ' + budget + '  vs  내 예산 ' + heroBudget +
     '  ·  최고 기록 ' + (rec.best || 0) + '층',
-    P ? 14 : 19, C.accent, 0.5).setWordWrapWidth(W - 40);
+    P ? 14 : 19, bossDef ? C.crit : C.accent, 0.5).setWordWrapWidth(W - 40);
+
+  if (bossDef) {
+    GAME.UI.label(this, W / 2, u * 19.5,
+      '☠  보스 층 — ' + bossDef.name,
+      P ? 15 : 20, C.hpBad ? '#ef4444' : C.warn, 0.5);
+  }
 
   var E = GAME.Tower.EARLY_FLOORS;
-  GAME.UI.label(this, W / 2, u * 21,
-    '1~' + E + '층은 연습 구간입니다. ' + (E + 1) + '층부터 적 진형 예산이 크게 뛰어 ' +
-    '**조작하지 않으면 이길 수 없습니다.**\n' +
-    'AI는 당신의 플레이를 분석해 배치를 바꿉니다. 지면 1층부터 다시 시작합니다.',
+  GAME.UI.label(this, W / 2, u * 23,
+    '꼭대기가 없는 무한의 탑입니다. 1~' + E + '층은 연습 구간, ' + (E + 1) +
+    '층부터는 조작하지 않으면 이길 수 없습니다.\n' +
+    GAME.Tower.BOSS_EVERY + '층마다 보스가 나옵니다. 지면 1층부터 다시 시작합니다.',
     P ? 11 : 14,
     floor > E ? C.warn : C.textDim, 0.5).setAlign('center').setLineSpacing(6).setWordWrapWidth(W - 60);
 

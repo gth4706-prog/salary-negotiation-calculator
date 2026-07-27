@@ -262,8 +262,19 @@ GAME.BattleScene.prototype.updateHud = function () {
   var shieldTxt = h.shield > 0 ? '  +보호막 ' + Math.ceil(h.shield) : '';
   this.hudHero.setText(h.hero.name + '   HP ' + hpTxt + shieldTxt);
 
+  // 보스가 살아 있으면 그 체력을 같이 보여준다 — 보스 층의 목표가 명확해진다
+  var bossTxt = '';
+  if (this.formation.boss) {
+    var bu = null;
+    for (var bi = 0; bi < this.state.units.length; bi++) {
+      if (this.state.units[bi].def.isBoss) { bu = this.state.units[bi]; break; }
+    }
+    bossTxt = bu && bu.alive
+      ? '   ☠ ' + bu.def.name + ' ' + Math.ceil(bu.hp) + '/' + bu.maxHp
+      : '   ☠ 보스 처치';
+  }
   this.hudEnemy.setText(this.formation.name + '   남은 적 ' +
-    GAME.Combat.aliveCount(this.state, 'strategist') + '기');
+    GAME.Combat.aliveCount(this.state, 'strategist') + '기' + bossTxt);
 
   var armed = this.ctrl.armedSkill;
   for (var i = 0; i < this.skillBoxes.length; i++) {
@@ -460,6 +471,15 @@ GAME.BattleScene.prototype.draw = function () {
     if (!u.isHero && !GAME.isNonTarget(u.def)) {
       g.lineStyle(2, 0xf0a86a, 0.9);
       GAME.UI.groundCircle(g, u.x, u.y, u.def.radius + 6);
+    }
+
+    // 보스 — 발밑에 붉은 이중 고리를 둘러 한눈에 구분되게 한다
+    if (GAME.isBoss(u.def)) {
+      var pulse = 0.55 + 0.25 * Math.sin(s.elapsed / 280);
+      g.lineStyle(3, 0xef4444, pulse);
+      GAME.UI.groundCircle(g, u.x, u.y, u.def.radius + 12);
+      g.lineStyle(1.5, 0xffd166, pulse * 0.8);
+      GAME.UI.groundCircle(g, u.x, u.y, u.def.radius + 20);
     }
 
     if (u.rootedFor > 0) {

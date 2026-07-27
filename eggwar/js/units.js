@@ -113,6 +113,46 @@ GAME.UNITS = {
   }
 };
 
+// ── 보스 (통곡의 탑 10층마다) ────────────────────────────────────────────
+// 플레이어가 배치할 수 없고 AI 도 뽑지 않는다 — UNIT_ORDER 에 넣지 않는 이유다.
+// 새 메커니즘을 만들지 않고 기존 공격 타입만 크게 굴린다(위험을 늘리지 않으려고).
+// 체급으로 존재감을 주되 **회피 가능한 논타겟**이라 실력으로 넘을 수 있어야 한다.
+GAME.BOSS_UNITS = {
+  bossChief: {
+    key: 'bossChief', name: '거대 족장', art: 'chieftain', isBoss: true,
+    desc: '부족을 이끄는 거대한 알. 주변 아군을 크게 강화하고 직접 후려친다.',
+    cost: 0, hp: 1500, armor: 26, speed: 96, range: 96, damage: 52, cooldown: 1300,
+    attack: 'melee', coneDeg: 110,
+    buffRadius: 250, buffDamageMul: 1.45,
+    radius: 27, shape: 'star', weapon: 'pistol',
+    chase: 420, aggro: 420
+  },
+
+  bossShell: {
+    key: 'bossShell', name: '껍질 골렘', art: 'guardian', isBoss: true,
+    desc: '두꺼운 껍질 덩어리. 느리지만 닿으면 밀려난다.',
+    cost: 0, hp: 1420, armor: 26, speed: 78, range: 104, damage: 68, cooldown: 1600,
+    attack: 'melee', coneDeg: 130,
+    radius: 30, shape: 'shield', weapon: 'riotShield',
+    chase: 460, aggro: 460
+  },
+
+  bossNest: {
+    key: 'bossNest', name: '둥지 포탑', art: 'ballista', isBoss: true,
+    desc: '움직이지 않는 거대 둥지. 맵 전체에 쉬지 않고 쏘아댄다.',
+    cost: 0, hp: 1500, armor: 22, speed: 0, range: 0, rangeSpan: true,
+    damage: 44, cooldown: 520,
+    attack: 'projectile', projectileSpeed: 300, projectileRadius: 8,
+    radius: 26, shape: 'bunker', weapon: 'mg',
+    chase: 0, aggro: 0, immobile: true
+  }
+};
+
+for (var _bk in GAME.BOSS_UNITS) GAME.UNITS[_bk] = GAME.BOSS_UNITS[_bk];
+
+GAME.isBoss = function (def) { return !!(def && def.isBoss); };
+
+// 플레이어 팔레트 · AI 뽑기 풀. **보스는 여기 없다.**
 GAME.UNIT_ORDER = [
   'bayonet', 'rifleman', 'grenadier', 'sniper',
   'shieldman', 'medic', 'sergeant', 'chemtrooper', 'mgnest', 'mine'

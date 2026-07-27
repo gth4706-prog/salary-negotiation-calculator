@@ -11,8 +11,14 @@ GAME.isTouch = (function () {
 GAME.isPortrait = (function () {
   var q = (location.search || '').match(/[?&]portrait=([01])/);
   if (q) return q[1] === '1';
-  var w = window.innerWidth || 1200, h = window.innerHeight || 800;
-  return h > w && w < 900;
+  // 레이아웃 뷰포트 폭(clientWidth)은 viewport 메타를 반영해 innerWidth 보다 안정적이다.
+  // 부팅 순간 innerWidth 가 잠깐 튀는 기기가 있어(예: 메타 적용 전 980 로 읽힘),
+  // 그걸로만 판단하면 세로 폰이 가로 레이아웃으로 굳는다. clientWidth 를 우선한다.
+  var d = document.documentElement || {};
+  var w = d.clientWidth || window.innerWidth || 1200;
+  var h = d.clientHeight || window.innerHeight || 800;
+  var portraitOrient = (window.matchMedia && window.matchMedia('(orientation: portrait)').matches) || (h > w);
+  return portraitOrient && w < 900;
 })();
 
 GAME.CONFIG = (function () {

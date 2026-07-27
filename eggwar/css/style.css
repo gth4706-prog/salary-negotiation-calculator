@@ -10,10 +10,22 @@ html, body {
 }
 
 /* 중앙정렬은 Phaser(autoCenter)가 전담한다.
-   여기서 flex 로 한 번 더 가운데 정렬하면 두 정렬이 겹쳐 화면이 한쪽으로 밀린다. */
+   여기서 flex 로 한 번 더 가운데 정렬하면 두 정렬이 겹쳐 화면이 한쪽으로 밀린다.
+
+   #game 은 **실제 보이는 뷰포트**에 고정한다.
+   왜: height:100% 는 모바일에서 주소창 유무에 따라 부모 높이가 흔들리고, Phaser 의
+   expandParent 가 그 부모를 다시 부풀리면 캔버스가 '실제보다 큰 화면'에 폭 기준으로
+   맞춰져 절반 크기로 위쪽에 떠 버린다(실측 신고). position:fixed + 100dvh 로 부모를
+   가시 영역에 못박아 그 되먹임을 끊는다. dvh 는 주소창을 뺀 실제 높이라 가장 안전하고,
+   미지원 브라우저를 위해 vh 를 앞줄에 남긴다(뒤 선언이 이기므로 순서 중요). */
 #game {
-  width: 100%;
-  height: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
 }
 
 #game canvas {

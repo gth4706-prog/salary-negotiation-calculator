@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v0.14';
+GAME.VERSION = 'v0.15';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -30,7 +30,11 @@ window.addEventListener('load', function () {
       autoCenter: Phaser.Scale.CENTER_BOTH,
       width: GAME.CONFIG.WIDTH,
       height: GAME.CONFIG.HEIGHT,
-      expandParent: true
+      // expandParent 를 켜면 Phaser 가 부모(#game/body)를 캔버스에 맞춰 부풀리는데,
+      // 모바일에서 그 되먹임 때문에 부모 높이가 실제 가시 영역보다 커져 캔버스가
+      // 절반 크기로 위쪽에 떠 버렸다(실측 신고). CSS 로 #game 을 가시 뷰포트에
+      // 못박았으므로 Phaser 는 부모를 건드리지 말고 그 크기에 맞추기만 하면 된다.
+      expandParent: false
     },
     scene: [
       GAME.LoginScene,
@@ -47,8 +51,16 @@ window.addEventListener('load', function () {
     ]
   });
 
-  // 창 크기·방향이 바뀌면 다시 맞춘다
-  window.addEventListener('resize', function () {
-    if (GAME.game && GAME.game.scale) GAME.game.scale.refresh();
-  });
+  // 창 크기·방향이 바뀌면 다시 맞춘다.
+  //
+  // 모바일은 뷰포트가 '늦게' 정착한다 — 부팅 순간엔 주소창이 펼쳐져 있거나 레이아웃이
+  // 덜 잡혀서 잘못된 크기로 fit 될 수 있고, 그 값이 그대로 굳으면 캔버스가 작게 뜬다.
+  // 그래서 resize 뿐 아니라 방향전환·탭 복귀·로드 완료에도 다시 맞추고,
+  // 부팅 직후 몇 차례 지연 refresh 로 늦게 오는 최종 뷰포트까지 잡는다.
+  function refit() { if (GAME.game && GAME.game.scale) GAME.game.scale.refresh(); }
+  window.addEventListener('resize', refit);
+  window.addEventListener('orientationchange', function () { refit(); setTimeout(refit, 300); });
+  window.addEventListener('pageshow', refit);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) refit(); });
+  [120, 400, 900].forEach(function (ms) { setTimeout(refit, ms); });
 });

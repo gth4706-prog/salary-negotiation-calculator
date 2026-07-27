@@ -20,7 +20,10 @@ GAME.LoadingScene.prototype.constructor = GAME.LoadingScene;
 
 GAME.LoadingScene.DURATION = 3200;      // 폴백(그림 인트로) 길이
 GAME.LoadingScene.CLASH_AT = 1150;      // 폴백에서 두 계란이 부딪치는 시각(ms)
-GAME.LoadingScene.VIDEO_SRC = 'assets/intro.mp4';
+// 영상은 화면 크기에 따라 고른다. 세로 영상이라 큰 화면에서 540p 를 늘리면 뭉개진다
+// (실측 신고: "PC 에서 너무 확대돼서 깨짐") → 넓은 화면엔 720p 원본화질을 준다.
+GAME.LoadingScene.VIDEO_SRC = 'assets/intro.mp4';        // 540x960 · 829KB (폰)
+GAME.LoadingScene.VIDEO_SRC_HQ = 'assets/intro-hq.mp4';  // 720x1280 · 2.1MB (PC)
 GAME.LoadingScene.BUTTON_AT = 5.2;      // 영상에서 제목이 뜨는 시각(초) — 버튼도 이때 올라온다
 
 GAME.LoadingScene.TIPS = [
@@ -62,7 +65,12 @@ GAME.LoadingScene.prototype._startVideo = function () {
     'position:fixed;inset:0;z-index:30;background:#fbf2df;' +
     'display:flex;align-items:center;justify-content:center;overflow:hidden;';
 
-  v.src = GAME.LoadingScene.VIDEO_SRC;
+  // 화면 폭에 맞춰 파일과 표시 방식을 정한다.
+  //  · 좁은 화면(폰): 540p 를 꽉 채워(cover) 몰입감 있게.
+  //  · 넓은 화면(PC): 720p 를 **폰 비율 액자 안에 축소**해서 보여준다. 세로 9:16 영상을
+  //    가로 모니터에 꽉 채우면 좌우가 잘리거나 늘어나 깨져 보인다(실측 신고).
+  var wide = (window.innerWidth || 0) >= 720;
+  v.src = wide ? GAME.LoadingScene.VIDEO_SRC_HQ : GAME.LoadingScene.VIDEO_SRC;
   v.setAttribute('poster', 'assets/intro-poster.webp');
   v.muted = true;                 // 자동재생 정책 — 소리가 있으면 모바일에서 안 뜬다
   v.defaultMuted = true;
@@ -71,8 +79,15 @@ GAME.LoadingScene.prototype._startVideo = function () {
   v.setAttribute('webkit-playsinline', '');
   v.autoplay = true;
   v.preload = 'auto';
-  // 세로 영상을 화면에 꽉 채우되 잘리는 쪽은 위아래(cover) — 레터박스보다 몰입이 낫다
-  v.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+  v.controls = false;
+  if (wide) {
+    // 화면 높이에 맞춰 세로로 꽉, 폭은 9:16 비율만큼만 — 가운데 액자처럼
+    v.style.cssText =
+      'height:100vh;height:100dvh;width:auto;max-width:100vw;aspect-ratio:9/16;' +
+      'object-fit:contain;display:block;';
+  } else {
+    v.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+  }
   wrap.appendChild(v);
 
   // ── '게임 시작' 버튼 — 제목이 뜨는 시점에 아래에서 스르륵 ──
@@ -98,6 +113,17 @@ GAME.LoadingScene.prototype._startVideo = function () {
     '-webkit-tap-highlight-color:transparent;';
   wrap.appendChild(skip);
 
+  // 자동재생이 막혔을 때만 뜨는 안내 (평상시 투명)
+  var hint = document.createElement('div');
+  hint.textContent = '▶  화면을 탭하면 인트로가 재생됩니다';
+  hint.style.cssText =
+    'position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);' +
+    'padding:12px 22px;border-radius:999px;pointer-events:none;' +
+    'font:600 15px "Malgun Gothic",sans-serif;color:#2a2114;' +
+    'background:rgba(255,252,240,.9);border:2px solid rgba(42,33,20,.4);' +
+    'opacity:0;transition:opacity .3s ease;';
+  wrap.appendChild(hint);
+
   document.body.appendChild(wrap);
   this._wrap = wrap;
   this._video = v;
@@ -109,6 +135,8 @@ GAME.LoadingScene.prototype._startVideo = function () {
     btn.style.transform = 'translate(-50%,0)';
   }
   this._revealButton = reveal;
+  // 재생이 시작되면 안내를 숨긴다
+  v.addEventListener('playing', function () { hint.style.opacity = '0'; });
 
   btn.addEventListener('click', function () { self._go(); });
   skip.addEventListener('click', function () { self._go(); });
@@ -125,18 +153,35 @@ GAME.LoadingScene.prototype._startVideo = function () {
   // 재생이 막히거나(자동재생 차단) 파일을 못 열면 폴백으로
   v.addEventListener('error', function () { self._videoFailed(); });
 
+  // 자동재생이 막힌 기기를 위해 — 화면 아무 데나 한 번 누르면 재생을 다시 시도한다.
+  // (모바일은 '사용자 제스처' 뒤에는 재생을 허용한다. 실측 신고: 폰에서 영상이 안 나왔다.)
+  function tryPlay() {
+    var pr = v.play();
+    if (pr && pr.catch) pr.catch(function () {});
+  }
+  wrap.addEventListener('click', function (e) {
+    if (e.target === btn || e.target === skip) return;
+    if (v.paused) tryPlay();
+  });
+  wrap.addEventListener('touchstart', function () { if (v.paused) tryPlay(); }, { passive: true });
+
   var p = v.play();
   if (p && p.catch) {
     p.catch(function () {
-      // 자동재생이 막힌 경우 — 영상은 포스터로 두고 버튼을 바로 띄워 진행 가능하게 한다
+      // 자동재생이 막힌 경우 — 포스터를 띄운 채 '탭하면 재생' 안내 + 시작 버튼을 바로 준다.
+      // 여기서 폴백으로 넘기지 않는다: 포스터만으로도 화면이 성립하고, 탭하면 영상이 돈다.
+      hint.style.opacity = '1';
       reveal();
     });
   }
 
-  // 영상이 아예 안 뜨는 상황 대비(네트워크 지연 등): 2.5초 안에 재생이 시작 안 되면 폴백
+  // 영상이 아예 안 뜨는 상황 대비(네트워크 지연·차단): 4초 안에 준비가 안 되면 폴백.
+  // 2.5초는 느린 모바일 회선에서 너무 짧아 멀쩡한 영상도 폴백으로 넘어갔다.
   this._videoGuard = setTimeout(function () {
-    if (!self.done && v.readyState < 2) self._videoFailed();
-  }, 2500);
+    if (self.done) return;
+    if (v.readyState < 2) self._videoFailed();
+    else if (v.paused) { hint.style.opacity = '1'; reveal(); }
+  }, 4000);
 
   return true;
 };

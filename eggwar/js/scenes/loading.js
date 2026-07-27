@@ -1,23 +1,27 @@
 window.GAME = window.GAME || {};
 
-// 첫 진입 인트로 + 로딩 화면.
+// 첫 진입 인트로.
 //
-// 세 가지를 동시에 해결한다:
-//  1) **인트로** — 계란 둘이 달려와 부딪치고 노른자가 터진다. 이 게임이 뭘 하는
-//     게임인지 3초 안에 보여준다(설명문보다 빠르다).
-//  2) **연출** — 바로 로그인 폼이 튀어나오는 것보다 한 박자 쉬는 편이 완성도가 높다.
-//  3) **실용** — 모바일은 부팅 직후 주소창이 접히며 뷰포트가 커진다. 그 사이 화면이
-//     작게 떴다가 커지는 게 보였다(실측 신고). 이 3초 동안 정착이 끝난다.
+// 두 갈래로 동작한다:
+//  1) **영상 인트로** — assets/intro.mp4 (8초, 829KB). 계란 둘이 격돌 → 영웅 환호 →
+//     EGG WAR 제목. 제목이 뜨는 시점(5.2초)에 '게임 시작' 버튼이 아래에서 스르륵 올라온다.
+//     캔버스 위에 DOM <video> 를 덮어 재생한다 — Phaser 로 영상을 로드하면 부팅이 그만큼
+//     늦어지는데, DOM 이면 게임은 뒤에서 이미 초기화를 끝내고 기다릴 수 있다.
+//  2) **폴백(그림 인트로)** — 영상이 못 열리거나(정책·네트워크) 재생이 막히면
+//     예전의 캔버스 인트로(계란 둘이 달려와 충돌)를 그대로 돌린다. 화면이 비지 않게.
 //
-// 탭하면 즉시 넘어간다 — 두 번째부터는 기다리기 싫은 사람이 대부분이다.
+// 또 실용적인 이유가 하나 더 있다: 모바일은 부팅 직후 주소창이 접히며 뷰포트가 커진다.
+// 이 인트로가 도는 동안 정착이 끝나 '작았다가 커지는' 순간을 플레이어가 보지 않는다.
 GAME.LoadingScene = function () {
   Phaser.Scene.call(this, { key: 'Loading' });
 };
 GAME.LoadingScene.prototype = Object.create(Phaser.Scene.prototype);
 GAME.LoadingScene.prototype.constructor = GAME.LoadingScene;
 
-GAME.LoadingScene.DURATION = 3200;
-GAME.LoadingScene.CLASH_AT = 1150;      // 두 계란이 부딪치는 시각(ms)
+GAME.LoadingScene.DURATION = 3200;      // 폴백(그림 인트로) 길이
+GAME.LoadingScene.CLASH_AT = 1150;      // 폴백에서 두 계란이 부딪치는 시각(ms)
+GAME.LoadingScene.VIDEO_SRC = 'assets/intro.mp4';
+GAME.LoadingScene.BUTTON_AT = 5.2;      // 영상에서 제목이 뜨는 시각(초) — 버튼도 이때 올라온다
 
 GAME.LoadingScene.TIPS = [
   '논타겟은 피할 수 있고, 타겟은 피할 수 없다.',
@@ -31,10 +35,7 @@ GAME.LoadingScene.TIPS = [
 
 GAME.LoadingScene.prototype.create = function () {
   var C = GAME.CONFIG.COLORS;
-  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
-  var P = GAME.CONFIG.PORTRAIT;
   var self = this;
-  var u = H / 100;
 
   this.cameras.main.setBackgroundColor(C.bg);
   this.done = false;
@@ -42,21 +43,150 @@ GAME.LoadingScene.prototype.create = function () {
   // 인트로는 기본 투영에서 그린다(전투 씬이 켠 전체화면 모드가 남아 있을 수 있다)
   GAME.Iso.setMode('default');
 
-  this.g = this.add.graphics();
+  // 씬을 어떤 경로로 떠나든 DOM 오버레이는 반드시 걷어낸다
+  this.events.once('shutdown', function () { self._teardownVideo(); });
 
-  // 두 계란이 만나는 지점(화면 좌표) — 제목 위쪽
+  if (!this._startVideo()) this._buildFallback();
+};
+
+// ── 영상 인트로 ─────────────────────────────────────────────────────────────
+// 성공하면 true. 브라우저가 mp4 를 못 다루면 false 를 돌려 폴백으로 넘긴다.
+GAME.LoadingScene.prototype._startVideo = function () {
+  var self = this;
+  var v = document.createElement('video');
+  if (!v.canPlayType || !v.canPlayType('video/mp4')) return false;
+
+  var wrap = document.createElement('div');
+  wrap.id = 'intro-wrap';
+  wrap.style.cssText =
+    'position:fixed;inset:0;z-index:30;background:#fbf2df;' +
+    'display:flex;align-items:center;justify-content:center;overflow:hidden;';
+
+  v.src = GAME.LoadingScene.VIDEO_SRC;
+  v.setAttribute('poster', 'assets/intro-poster.webp');
+  v.muted = true;                 // 자동재생 정책 — 소리가 있으면 모바일에서 안 뜬다
+  v.defaultMuted = true;
+  v.playsInline = true;
+  v.setAttribute('playsinline', '');
+  v.setAttribute('webkit-playsinline', '');
+  v.autoplay = true;
+  v.preload = 'auto';
+  // 세로 영상을 화면에 꽉 채우되 잘리는 쪽은 위아래(cover) — 레터박스보다 몰입이 낫다
+  v.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+  wrap.appendChild(v);
+
+  // ── '게임 시작' 버튼 — 제목이 뜨는 시점에 아래에서 스르륵 ──
+  var btn = document.createElement('button');
+  btn.textContent = '게임 시작';
+  btn.style.cssText =
+    'position:absolute;left:50%;bottom:8%;transform:translate(-50%,140%);' +
+    'padding:16px 46px;border-radius:999px;cursor:pointer;' +
+    'font:700 21px "Malgun Gothic",sans-serif;letter-spacing:1px;' +
+    'color:#fffcf0;background:#123f96;border:3px solid #2a2114;' +
+    'box-shadow:0 6px 0 #2a2114,0 10px 22px rgba(42,33,20,.35);' +
+    'opacity:0;transition:transform .55s cubic-bezier(.2,1.2,.3,1),opacity .45s ease;' +
+    '-webkit-tap-highlight-color:transparent;';
+  wrap.appendChild(btn);
+
+  // 건너뛰기 — 두 번째부터는 기다리기 싫은 사람이 대부분이다
+  var skip = document.createElement('button');
+  skip.textContent = '건너뛰기 ▸';
+  skip.style.cssText =
+    'position:absolute;right:14px;top:14px;padding:9px 16px;border-radius:999px;cursor:pointer;' +
+    'font:600 14px "Malgun Gothic",sans-serif;color:#2a2114;' +
+    'background:rgba(255,252,240,.82);border:2px solid rgba(42,33,20,.45);' +
+    '-webkit-tap-highlight-color:transparent;';
+  wrap.appendChild(skip);
+
+  document.body.appendChild(wrap);
+  this._wrap = wrap;
+  this._video = v;
+
+  function reveal() {
+    if (btn.dataset.on) return;
+    btn.dataset.on = '1';
+    btn.style.opacity = '1';
+    btn.style.transform = 'translate(-50%,0)';
+  }
+  this._revealButton = reveal;
+
+  btn.addEventListener('click', function () { self._go(); });
+  skip.addEventListener('click', function () { self._go(); });
+
+  // 제목 시점에 버튼 등장. 영상이 끝나면 마지막 화면에서 멈춘 채 버튼만 남긴다.
+  v.addEventListener('timeupdate', function () {
+    if (v.currentTime >= GAME.LoadingScene.BUTTON_AT) reveal();
+  });
+  v.addEventListener('ended', function () {
+    // 마지막 프레임에 정지 — 검은 화면으로 끊기지 않게
+    try { v.pause(); v.currentTime = Math.max(0, (v.duration || 8) - 0.05); } catch (e) {}
+    reveal();
+  });
+  // 재생이 막히거나(자동재생 차단) 파일을 못 열면 폴백으로
+  v.addEventListener('error', function () { self._videoFailed(); });
+
+  var p = v.play();
+  if (p && p.catch) {
+    p.catch(function () {
+      // 자동재생이 막힌 경우 — 영상은 포스터로 두고 버튼을 바로 띄워 진행 가능하게 한다
+      reveal();
+    });
+  }
+
+  // 영상이 아예 안 뜨는 상황 대비(네트워크 지연 등): 2.5초 안에 재생이 시작 안 되면 폴백
+  this._videoGuard = setTimeout(function () {
+    if (!self.done && v.readyState < 2) self._videoFailed();
+  }, 2500);
+
+  return true;
+};
+
+GAME.LoadingScene.prototype._videoFailed = function () {
+  if (this.done || this._fellBack) return;
+  this._fellBack = true;
+  this._teardownVideo();
+  this._buildFallback();
+};
+
+GAME.LoadingScene.prototype._teardownVideo = function () {
+  if (this._videoGuard) { clearTimeout(this._videoGuard); this._videoGuard = null; }
+  if (this._video) { try { this._video.pause(); this._video.removeAttribute('src'); this._video.load(); } catch (e) {} }
+  if (this._wrap && this._wrap.parentNode) this._wrap.parentNode.removeChild(this._wrap);
+  this._wrap = null; this._video = null;
+};
+
+GAME.LoadingScene.prototype._go = function () {
+  if (this.done) return;
+  this.done = true;
+  var self = this;
+  this._teardownVideo();
+  this.cameras.main.fadeOut(200, 0, 0, 0);
+  this.cameras.main.once('camerafadeoutcomplete', function () {
+    self.scene.start(GAME.Account.current() ? 'Menu' : 'Login');
+  });
+};
+
+// ── 폴백: 캔버스로 그리는 인트로 (영상이 안 될 때만) ────────────────────────
+GAME.LoadingScene.prototype._buildFallback = function () {
+  var C = GAME.CONFIG.COLORS;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var P = GAME.CONFIG.PORTRAIT;
+  var self = this;
+  var u = H / 100;
+
+  this.fallback = true;
+  this.t = 0;
+  this.g = this.add.graphics();
   this.stageY = H * (P ? 0.30 : 0.34);
   this.stageX = W / 2;
   this.yolks = [];
   this.clashed = false;
 
-  // ── 제목 (충돌 뒤에 등장) ──
   this.title = GAME.UI.label(this, W / 2, this.stageY + (P ? 92 : 118), 'EGG WAR',
     P ? 34 : 52, C.text, 0.5).setOrigin(0.5, 0).setAlpha(0);
   this.sub = GAME.UI.label(this, W / 2, this.title.y + (P ? 44 : 62),
     '계란 부족 비대칭 실시간 대전', P ? 15 : 18, C.textDim, 0.5).setOrigin(0.5, 0).setAlpha(0);
 
-  // ── 진행 바 ──
   var barW = Math.min(W - 80, 320), barH = 10;
   var barY = this.sub.y + (P ? 42 : 52);
   this.barGeo = { x: W / 2 - barW / 2, y: barY, w: barW, h: barH };
@@ -66,7 +196,6 @@ GAME.LoadingScene.prototype.create = function () {
     duration: GAME.LoadingScene.DURATION - 400, ease: 'Sine.easeInOut'
   });
 
-  // ── 팁 ──
   var tip = GAME.LoadingScene.TIPS[Math.floor(Math.random() * GAME.LoadingScene.TIPS.length)];
   this.tipLbl = GAME.UI.label(this, W / 2, barY + barH + u * 4, tip,
     P ? 13 : 14, GAME.CONFIG.COLORS.textFaint, 0.5)
@@ -79,18 +208,6 @@ GAME.LoadingScene.prototype.create = function () {
   this.time.delayedCall(GAME.LoadingScene.DURATION, function () { self._go(); });
 };
 
-GAME.LoadingScene.prototype._go = function () {
-  if (this.done) return;
-  this.done = true;
-  var self = this;
-  // 부드럽게 닫고 넘어간다 — 딱 끊기면 인트로를 넣은 의미가 반감된다.
-  this.cameras.main.fadeOut(220, 0, 0, 0);
-  this.cameras.main.once('camerafadeoutcomplete', function () {
-    self.scene.start(GAME.Account.current() ? 'Menu' : 'Login');
-  });
-};
-
-// 충돌 순간 — 노른자를 사방으로 튀긴다(게임 안의 죽음 연출과 같은 언어)
 GAME.LoadingScene.prototype._burst = function () {
   var n = 14;
   for (var i = 0; i < n; i++) {
@@ -106,10 +223,10 @@ GAME.LoadingScene.prototype._burst = function () {
 };
 
 GAME.LoadingScene.prototype.update = function (time, delta) {
+  if (!this.fallback || !this.g) return;      // 영상 인트로일 땐 그릴 게 없다
   var dt = Math.min(delta, 50);
   this.t += dt;
   var g = this.g;
-  if (!g) return;
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH;
   var P = GAME.CONFIG.PORTRAIT;
@@ -119,37 +236,29 @@ GAME.LoadingScene.prototype.update = function (time, delta) {
   var ink = (GAME.UI.FX && GAME.UI.FX.ink) || 0x2a2114;
   var R = P ? 30 : 38;
 
-  // ── 두 계란의 위치 ──
-  // 0 → CLASH: 양쪽 끝에서 달려와 가운데서 만난다. 이후엔 반동으로 살짝 물러난다.
   var meet = R * 0.92;
   var p = Math.min(1, this.t / CLASH);
-  var ease = 1 - Math.pow(1 - p, 2.2);                  // 가속해서 달려든다
+  var ease = 1 - Math.pow(1 - p, 2.2);
   var startOff = W * 0.62;
   var offset = startOff - (startOff - meet) * ease;
 
   if (this.t >= CLASH && !this.clashed) { this.clashed = true; this._burst(); }
   if (this.clashed) {
-    // 부딪친 뒤 튕겨 물러났다가 천천히 제자리 — 대치 상태로 남는다
     var k = Math.min(1, (this.t - CLASH) / 700);
     offset = meet + (R * 1.5) * Math.sin(Math.min(Math.PI, k * Math.PI)) * (1 - k * 0.4);
   }
 
   var lx = this.stageX - offset, rx = this.stageX + offset;
   var y = this.stageY;
-
-  // 달릴 때 위아래로 통통 (걸음걸이 대용)
   var bob = this.clashed ? 0 : Math.sin(this.t / 90) * R * 0.14;
 
-  // 그림자
   g.fillStyle(0x000000, 0.15);
   g.fillEllipse(lx, y + R * 1.15, R * 1.5, 10);
   g.fillEllipse(rx, y + R * 1.15, R * 1.5, 10);
 
-  // 계란 둘 — 진영색으로 구분(왼쪽 컨트롤러 / 오른쪽 전략가)
   this._egg(g, lx, y - bob, R, C.controller, ink, 1);
   this._egg(g, rx, y + bob, R, C.strategist, ink, -1);
 
-  // 충돌 섬광
   if (this.clashed) {
     var fk = Math.max(0, 1 - (this.t - CLASH) / 320);
     if (fk > 0) {
@@ -158,7 +267,6 @@ GAME.LoadingScene.prototype.update = function (time, delta) {
     }
   }
 
-  // 노른자 파편
   for (var i = this.yolks.length - 1; i >= 0; i--) {
     var q = this.yolks[i];
     q.x += q.vx * (dt / 16); q.y += q.vy * (dt / 16);
@@ -169,19 +277,16 @@ GAME.LoadingScene.prototype.update = function (time, delta) {
     g.fillCircle(q.x, q.y, q.r * (0.6 + q.life * 0.6));
   }
 
-  // ── 충돌 뒤 제목·팁 등장 ──
   var after = this.t - CLASH;
   if (after > 60) {
     var a1 = Math.min(1, (after - 60) / 320);
     this.title.setAlpha(a1);
-    // 살짝 커졌다 제자리로 — '쾅' 하고 박히는 느낌
     var s = 1 + 0.14 * Math.max(0, 1 - (after - 60) / 260);
     this.title.setScale(s);
     this.sub.setAlpha(Math.min(1, (after - 220) / 340));
     this.tipLbl.setAlpha(Math.min(1, (after - 420) / 420));
   }
 
-  // ── 진행 바 ──
   var b = this.barGeo;
   var track = (GAME.UI.COL && GAME.UI.COL.meterTrack) || 0x2a2a3a;
   g.fillStyle(track, 1);
@@ -195,7 +300,6 @@ GAME.LoadingScene.prototype.update = function (time, delta) {
   }
 };
 
-// 계란 하나. dir = 바라보는 쪽(1 오른쪽 / -1 왼쪽)
 GAME.LoadingScene.prototype._egg = function (g, cx, cy, R, tint, ink, dir) {
   var shell = (GAME.UI.MAT && GAME.UI.MAT.shell) || 0xf6e6c8;
   var rx = R * 0.78, ry = R * 1.06;
@@ -206,18 +310,14 @@ GAME.LoadingScene.prototype._egg = function (g, cx, cy, R, tint, ink, dir) {
     g.lineStyle(3, ink, 0.9);
     g.strokeEllipse(cx, cy, rx * 2, ry * 2);
   }
-  // 진영 띠 — 색으로 편을 읽게 한다(몸통은 둘 다 계란이라 색이 유일한 구분)
   g.fillStyle(tint, 0.9);
   g.fillEllipse(cx, cy + ry * 0.52, rx * 1.5, ry * 0.42);
-  // 광택
   g.fillStyle(0xffffff, 0.32);
   g.fillEllipse(cx - rx * 0.34, cy - ry * 0.5, rx * 0.4, ry * 0.34);
-  // 눈 — 서로를 노려본다
   g.fillStyle(ink, 1);
   var ex = cx + dir * rx * 0.16;
   g.fillCircle(ex - rx * 0.26, cy - ry * 0.12, Math.max(2, rx * 0.11));
   g.fillCircle(ex + rx * 0.26, cy - ry * 0.12, Math.max(2, rx * 0.11));
-  // 무기 — 앞쪽으로 뻗은 막대(전사 실루엣)
   g.lineStyle(Math.max(3, R * 0.13), ink, 0.92);
   g.lineBetween(cx + dir * rx * 0.7, cy + ry * 0.1,
                 cx + dir * rx * 1.9, cy - ry * 0.55);

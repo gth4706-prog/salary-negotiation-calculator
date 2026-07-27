@@ -375,7 +375,7 @@ GAME.DraftScene.prototype._redrawCompact = function () {
     var sd = GAME.HERO_STAT_DEFS[this.compactStats[i]];
     var frac = Math.max(0, Math.min(1, sd.get(live) / sd.max));
     var bh = 12, r = this.statRows[i];
-    g.fillStyle(0x2a2a3a, 1);
+    g.fillStyle(GAME.UI.COL.surfaceHi, 1);
     g.fillRect(this.statBarGeo.x, r.cy - bh / 2, this.statBarGeo.w, bh);
     g.fillStyle(C.controller, 1);
     g.fillRect(this.statBarGeo.x, r.cy - bh / 2, this.statBarGeo.w * frac, bh);

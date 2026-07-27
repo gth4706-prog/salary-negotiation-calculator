@@ -48,12 +48,17 @@ GAME.AdminScene.prototype.create = function () {
   for (var i = 0; i < slice.length; i++) {
     (function (rec, idx) {
       var y = top + idx * rowH;
-      var bg = rec.blocked ? 0x3a1f22 : (rec.reported ? 0x33301c : GAME.UI.COL.surfaceAlt);
-      self.add.rectangle(W / 2, y + rowH / 2 - 4, W - pad * 2, rowH - 8, bg)
-        .setStrokeStyle(1, rec.blocked ? 0xe24b4a : GAME.UI.COL.border);
+      // 상태(차단/신고)는 배경 하드코딩 대신 테마 토큰의 테두리·글자색으로 표시한다
+      // (하드코딩 다크 톤은 라이트 테마 크림 위에서 홀로 검게 떴다).
+      var cx = GAME.UI.cssToHex;
+      self.add.rectangle(W / 2, y + rowH / 2 - 4, W - pad * 2, rowH - 8, GAME.UI.COL.surfaceAlt)
+        .setStrokeStyle(rec.blocked || rec.reported ? 2 : 1,
+          rec.blocked ? cx(C.danger, 0xe24b4a)
+          : rec.reported ? cx(C.warn, 0xf0a86a)
+          : GAME.UI.COL.border);
 
       GAME.UI.label(self, pad + 10, y + 6, rec.id, P ? 15 : 16,
-        rec.blocked ? '#ff9f9f' : C.text, 0);
+        rec.blocked ? C.danger : C.text, 0);
 
       var bw = P ? 52 : 70, bh = P ? 28 : 32;
       var bx = W - pad - 10;
@@ -79,8 +84,9 @@ GAME.AdminScene.prototype.create = function () {
         rec.blocked ? '해제' : '차단', function () {
           GAME.Account.setBlocked(rec.id, !rec.blocked);
           self.scene.start('Admin', { page: self.page });
-        }, { fontSize: P ? 13 : 13, line: rec.blocked ? 0x4ade80 : 0xe24b4a,
-             color: rec.blocked ? '#8ff0b0' : '#ff9f9f' });
+        }, { fontSize: P ? 13 : 13,
+             line: rec.blocked ? cx(C.good, 0x4ade80) : cx(C.danger, 0xe24b4a),
+             color: rec.blocked ? C.good : C.danger });
       // 신고 표시 + 신고문 복사
       GAME.UI.button(self, bx - bw - 8 - bw / 2, y + rowH / 2 - 4, bw, bh,
         '신고문', function () {

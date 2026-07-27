@@ -339,7 +339,7 @@ GAME.DraftScene.prototype.redraw = function () {
     var sd = GAME.HERO_STAT_DEFS[i];
     var frac = Math.max(0, Math.min(1, sd.get(live) / sd.max));
     var bh = GAME.CONFIG.PORTRAIT ? 15 : 14;
-    g.fillStyle(0x2a2a3a, 1);
+    g.fillStyle(GAME.UI.COL.surfaceHi, 1);
     g.fillRect(this.statBarGeo.x, this.statRows[i].cy - bh / 2, this.statBarGeo.w, bh);
     g.fillStyle(C.controller, 1);
     g.fillRect(this.statBarGeo.x, this.statRows[i].cy - bh / 2, this.statBarGeo.w * frac, bh);
@@ -353,7 +353,7 @@ GAME.DraftScene.prototype.redraw = function () {
     var picked = this.items[cell.slot] === cell.item.key;
     var afford = picked || (this.spent() + cell.item.cost <= this.budget);
     cell.rect.setStrokeStyle(picked ? 2 : 1, picked ? C.controller : GAME.UI.COL.border);
-    cell.rect.setFillStyle(picked ? GAME.UI.COL.panelTeal : (afford ? GAME.UI.COL.surfaceAlt : 0x1a1a22));
+    cell.rect.setFillStyle(picked ? GAME.UI.COL.panelTeal : (afford ? GAME.UI.COL.surfaceAlt : GAME.UI.COL.bg));
   }
 
   // 스킬 탭 + 선택지
@@ -433,12 +433,13 @@ GAME.DraftScene.prototype.drawScout = function () {
     if (!def) continue;
     var sx = ox + (e.x - A.x) * sc, sy = oy + (e.y - A.y) * sc;
     // 지원 유닛 범위
-    if (def.healRadius) { g.lineStyle(1, 0x7ef0a0, 0.35); g.strokeCircle(sx, sy, def.healRadius * sc); }
-    if (def.buffRadius) { g.lineStyle(1, 0xffd166, 0.35); g.strokeCircle(sx, sy, def.buffRadius * sc); }
-    if (def.isMine) { g.lineStyle(1, 0xef4444, 0.6); g.strokeCircle(sx, sy, def.triggerRadius * sc); }
-    if (def.intercept) { g.lineStyle(1, 0x8fa0bb, 0.4); g.strokeCircle(sx, sy, def.intercept * sc); }
+    var FX = GAME.UI.FX;
+    if (def.healRadius) { g.lineStyle(1, FX.healRing, 0.35); g.strokeCircle(sx, sy, def.healRadius * sc); }
+    if (def.buffRadius) { g.lineStyle(1, FX.buffRing, 0.35); g.strokeCircle(sx, sy, def.buffRadius * sc); }
+    if (def.isMine) { g.lineStyle(1, FX.mineRing, 0.6); g.strokeCircle(sx, sy, def.triggerRadius * sc); }
+    if (def.intercept) { g.lineStyle(1, FX.guardRing, 0.4); g.strokeCircle(sx, sy, def.intercept * sc); }
     GAME.UI.drawUnitFlat(g, def, sx, sy, C.strategist, 1, Math.max(0.62, sc * 1.15));
-    if (!GAME.isNonTarget(def)) { g.lineStyle(1.5, 0xf0a86a, 0.9); g.strokeCircle(sx, sy, def.radius * sc + 4); }
+    if (!GAME.isNonTarget(def)) { g.lineStyle(1.5, FX.targetRing, 0.9); g.strokeCircle(sx, sy, def.radius * sc + 4); }
   }
 
   // 내 시작 위치 표시

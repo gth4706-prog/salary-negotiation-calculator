@@ -296,7 +296,7 @@ window.GAME = window.GAME || {};
         size: 'caption', color: TXT.textMid, origin: 1, originY: 0
       }));
       timeBar = UI.meter(scene, ix, top + 50, iw, 6, {
-        color: COL.controller, track: 0x0b0b12, danger: 0.17,
+        color: COL.controller, danger: 0.17,
         dangerColor: 0xf0a86a, radius: 3, gloss: false
       });
       objs.push(timeBar);
@@ -304,7 +304,7 @@ window.GAME = window.GAME || {};
         size: 'subhead', color: TXT.accent, origin: 0, originY: 0
       }));
       shieldTag = keep(UI.text(scene, ir, top + 70, '', {
-        size: 'caption', color: '#7ec8f0', origin: 1, originY: 0
+        size: 'caption', color: UI.IS_LIGHT ? TXT.accent : '#7ec8f0', origin: 1, originY: 0
       }));
       hpBar = UI.meter(scene, ix, top + 96, iw, 20, {
         color: COL.hpGood, seg: 4, danger: 0.3,
@@ -337,7 +337,7 @@ window.GAME = window.GAME || {};
         size: 'caption', color: TXT.textMid, origin: 1, originY: 0
       }));
       timeBar = UI.meter(scene, W / 2 - 260, top + 52, 520, 6, {
-        color: COL.controller, track: 0x0b0b12, danger: 0.17,
+        color: COL.controller, danger: 0.17,
         dangerColor: 0xf0a86a, radius: 3, gloss: false
       });
       objs.push(timeBar);
@@ -345,7 +345,7 @@ window.GAME = window.GAME || {};
         size: 'subhead', color: TXT.accent, origin: 0, originY: 0
       }));
       shieldTag = keep(UI.text(scene, ix + half, top + 50, '', {
-        size: 'caption', color: '#7ec8f0', origin: 1, originY: 0
+        size: 'caption', color: UI.IS_LIGHT ? TXT.accent : '#7ec8f0', origin: 1, originY: 0
       }));
       hpBar = UI.meter(scene, ix, top + 78, half, 20, {
         color: COL.hpGood, seg: 4, danger: 0.3,
@@ -420,7 +420,7 @@ window.GAME = window.GAME || {};
 
     keep(UI.panel(scene, x, y, w, h, {
       level: mine ? 3 : 2,
-      fill: mine ? 0x1c3a34 : COL.surfaceAlt,
+      fill: mine ? COL.panelTeal : COL.surfaceAlt,
       line: mine ? COL.controller : COL.border,
       lineWidth: mine ? 2 : 1,
       radius: UI.R.md,

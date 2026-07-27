@@ -72,7 +72,7 @@ GAME.MenuScene.prototype.create = function () {
   if (GAME.isAdmin) {
     GAME.UI.button(this, rc[2].cx, u * 78, rc[2].w, u * (GAME.UI.BTN_H_SM || 52) / u, '닉네임 관리', function () {
       self.scene.start('Admin', { page: 0 });
-    }, { fontSize: P ? 15 : 14, line: 0xf0a86a, color: '#f0a86a' });
+    }, { fontSize: P ? 15 : 14, line: GAME.UI.COL.focus, color: C.warn });
   }
 
   var hint = GAME.isTouch

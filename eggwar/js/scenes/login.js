@@ -71,6 +71,13 @@ GAME.LoginScene.prototype.create = function () {
 GAME.LoginScene.prototype._makeInput = function () {
   var self = this;
 
+  // DOM 입력창/버튼도 활성 테마를 따라간다. Phaser 캔버스 밖(HTML)이라
+  // 하드코딩하면 라이트 테마(크림)에서 홀로 검게 뜬다 → 토큰을 CSS 문자열로 변환해 쓴다.
+  var C = GAME.CONFIG.COLORS, COL = GAME.UI.COL;
+  function hx(n) { return '#' + ('000000' + (n >>> 0).toString(16)).slice(-6); }
+  var inBg = hx(COL.surfaceAlt), inLine = hx(COL.borderUi), inText = C.text;
+  var btnBg = hx(COL.panelTeal), btnLine = hx(C.controller || COL.controller), btnText = C.accent;
+
   var wrap = document.createElement('div');
   wrap.id = 'login-ui';
   wrap.style.cssText = 'position:fixed;z-index:20;display:flex;align-items:stretch;box-sizing:border-box;';
@@ -81,13 +88,13 @@ GAME.LoginScene.prototype._makeInput = function () {
   input.placeholder = '닉네임 (2~12자)';
   input.style.cssText =
     'font-family:"Malgun Gothic",sans-serif;box-sizing:border-box;' +
-    'border-radius:8px;border:1px solid #4a4a68;background:#1c1c28;color:#e8e8f0;outline:none;';
+    'border-radius:8px;border:1px solid ' + inLine + ';background:' + inBg + ';color:' + inText + ';outline:none;';
 
   var btn = document.createElement('button');
   btn.textContent = '시작';
   btn.style.cssText =
     'font-family:"Malgun Gothic",sans-serif;box-sizing:border-box;white-space:nowrap;' +
-    'border-radius:8px;cursor:pointer;border:1px solid #35d0a5;background:#1c3a34;color:#35d0a5;';
+    'border-radius:8px;cursor:pointer;border:1px solid ' + btnLine + ';background:' + btnBg + ';color:' + btnText + ';';
 
   wrap.appendChild(input); wrap.appendChild(btn);
   document.body.appendChild(wrap);

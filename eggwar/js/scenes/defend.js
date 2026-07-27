@@ -107,11 +107,15 @@ GAME.DefendScene.prototype.create = function () {
   }, { fontSize: P ? 15 : 15 });
 
   // 피해 숫자 풀 (전투 화면과 동일하게 보여준다)
+  // 흰 글자+검정 테두리는 어두운 배경 전제라 크림 목초지에서 안 읽힌다 → battle.js 와 같이 뒤집는다.
+  var numLight = GAME.UI.IS_LIGHT;
+  var numFill = numLight ? '#2A2114' : '#ffffff';
+  var numStroke = numLight ? (GAME.UI.TXT.textOutline || '#FFFCF0') : '#000000';
   this.numPool = [];
   for (var n = 0; n < 26; n++) {
     this.numPool.push(this.add.text(0, 0, '', {
-      fontFamily: GAME.CONFIG.FONT, fontSize: '18px', color: '#ffffff',
-      stroke: '#000000', strokeThickness: 4
+      fontFamily: GAME.CONFIG.FONT, fontSize: '18px', color: numFill,
+      stroke: numStroke, strokeThickness: 4
     }).setOrigin(0.5).setVisible(false));
   }
 };

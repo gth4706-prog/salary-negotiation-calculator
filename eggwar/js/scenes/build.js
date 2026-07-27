@@ -295,13 +295,14 @@ GAME.BuildScene.prototype.redraw = function () {
     var p = sorted[i];
     def = GAME.UNITS[p.type];
     // 지원 유닛의 영향 범위를 배치 중에 보여준다
-    if (def.healRadius) { g.lineStyle(1.5, 0x7ef0a0, 0.3); GAME.UI.groundCircle(g, p.x, p.y, def.healRadius); }
-    if (def.buffRadius) { g.lineStyle(1.5, 0xffd166, 0.3); GAME.UI.groundCircle(g, p.x, p.y, def.buffRadius); }
-    if (def.isMine) { g.lineStyle(1.5, 0xef4444, 0.5); GAME.UI.groundCircle(g, p.x, p.y, def.triggerRadius); }
-    if (def.intercept) { g.lineStyle(1.5, 0x8fa0bb, 0.35); GAME.UI.groundCircle(g, p.x, p.y, def.intercept); }
+    var FX = GAME.UI.FX;
+    if (def.healRadius) { g.lineStyle(1.5, FX.healRing, 0.3); GAME.UI.groundCircle(g, p.x, p.y, def.healRadius); }
+    if (def.buffRadius) { g.lineStyle(1.5, FX.buffRing, 0.3); GAME.UI.groundCircle(g, p.x, p.y, def.buffRadius); }
+    if (def.isMine) { g.lineStyle(1.5, FX.mineRing, 0.5); GAME.UI.groundCircle(g, p.x, p.y, def.triggerRadius); }
+    if (def.intercept) { g.lineStyle(1.5, FX.guardRing, 0.35); GAME.UI.groundCircle(g, p.x, p.y, def.intercept); }
     var pos = GAME.UI.drawUnit(g, def, p.x, p.y, this.myColor, 1, -Math.PI / 2);
     if (!GAME.isNonTarget(def)) {
-      g.lineStyle(2, 0xf0a86a, 0.9);
+      g.lineStyle(2, FX.targetRing, 0.9);
       GAME.UI.groundCircle(g, p.x, p.y, def.radius + 7);
     }
     // 선택한 유닛 — 빨간 화살표 + 체력바(배치 중이라 항상 만피)

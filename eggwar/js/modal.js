@@ -40,8 +40,8 @@ GAME.Modal = {
     veil.on('pointerdown', function () { self.close(); });
     objs.push(veil);
 
-    var panel = scene.add.rectangle(W / 2, panelY, panelW, panelH, 0x1a1a26)
-      .setOrigin(0.5, 0).setStrokeStyle(2, 0x4a4a68).setDepth(1001);
+    var panel = scene.add.rectangle(W / 2, panelY, panelW, panelH, UI.COL.surface)
+      .setOrigin(0.5, 0).setStrokeStyle(2, UI.COL.borderUi).setDepth(1001);
     objs.push(panel);
 
     objs.push(UI.label(scene, W / 2, panelY + 12, opts.title || '선택',
@@ -50,8 +50,8 @@ GAME.Modal = {
     var y = panelY + titleH;
     items.forEach(function (it, i) {
       var ry = y + i * (rowH + gap);
-      var fill = it.selected ? 0x1c3a34 : 0x242433;
-      var line = it.selected ? 0x35d0a5 : 0x3a3a52;
+      var fill = it.selected ? UI.COL.panelTeal : UI.COL.surfaceAlt;
+      var line = it.selected ? C.controller : UI.COL.borderUi;
       var row = scene.add.rectangle(W / 2, ry + rowH / 2, panelW - 24, rowH, fill)
         .setStrokeStyle(it.selected ? 2 : 1, line).setDepth(1002);
       if (it.disabled) row.setAlpha(0.4);

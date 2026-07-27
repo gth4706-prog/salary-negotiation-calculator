@@ -67,6 +67,16 @@ GAME.MenuScene.prototype.create = function () {
       hover: GAME.UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: P ? 17 : 21 },
     function () { self.scene.start('DefendTower'); });
 
+  // 대전 — 이 게임의 본체. 솔로(탑)는 연습장이고 여기가 목적지다.
+  // 근거: 페르소나 리포트에서 "겨룰 상대가 없음"이 최대 이탈 사유(11/50)였다.
+  var arena = GAME.Arena ? GAME.Arena.get() : null;
+  var unseen = GAME.Arena ? GAME.Arena.unseenCount() : 0;
+  modeButton('⚔ 대전' + (arena ? ('   🏅 ' + arena.trophy) : '') + (unseen ? ('   ● ' + unseen) : ''),
+    '내 진형을 기지로 두고 서로 공격 — 자리를 비운 사이에도 싸운다',
+    { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
+      hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 17 : 21 },
+    function () { self.scene.start('Versus'); });
+
   modeButton('컨트롤러로 도전', '저장된 진형을 격파 — 깰수록 그 진형이 강해진다',
     { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
       hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 17 : 20 },

@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v0.29';
+GAME.VERSION = 'v0.30';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -48,6 +48,7 @@ window.addEventListener('load', function () {
       GAME.BattleScene,
       GAME.DefendScene,
       GAME.DefendTowerScene,
+      GAME.VersusScene,
       GAME.ResultScene,
       GAME.RankScene,
       GAME.AdminScene

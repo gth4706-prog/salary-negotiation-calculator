@@ -33,6 +33,25 @@ GAME.Tower = {
     GAME.Store.set(this.KEY, all);
   },
 
+  // ── 진행 보존(체크포인트) ────────────────────────────────────────────────
+  //
+  // 근거(docs/PERSONAS.md): 50명 중 **7명이 "1층 리셋"으로 이탈**했다 —
+  // 4~5층까지 올린 걸 한 번 지면 전부 잃는다. 두 번째로 큰 이탈 사유였다.
+  // 그래서 **5층마다 체크포인트**를 준다: 최고 기록이 5층을 넘겼으면 그 아래
+  // 가장 가까운 5의 배수에서 다시 시작한다. 쌓아온 게 통째로 사라지지 않는다.
+  //
+  // 왜 '전부 보존'이 아니라 5층 단위인가:
+  //   져도 잃는 게 없으면 긴장이 사라진다. 한 구간을 다시 오르는 대가는 남긴다.
+  // 간격을 5로 뒀더니 **가장 많이 죽는 4층 이탈자를 하나도 못 구했다**(실측):
+  // best=4 면 5의 배수가 없어 1층으로 떨어진다. 난이도가 급증하는 지점이 정확히
+  // 4층(ENTRY_JUMP)인데 거기서 잃는 게 가장 커서는 안 된다. 3층 간격으로 좁힌다.
+  CHECKPOINT_EVERY: 3,
+  checkpointFor: function (best) {
+    var b = best || 0;
+    if (b < this.CHECKPOINT_EVERY) return 1;
+    return Math.floor(b / this.CHECKPOINT_EVERY) * this.CHECKPOINT_EVERY;
+  },
+
   // 탑은 두 구간으로 나뉜다.
   //
   //   1~3층 (연습 구간): 영웅 예산이 진형보다 많다. 조작을 몰라도 올라갈 수 있다.
@@ -167,7 +186,8 @@ GAME.Tower = {
   fail: function () {
     var rec = this.get();
     rec.runs = (rec.runs || 0) + 1;
-    rec.floor = 1;
+    // 1층이 아니라 **체크포인트**로 돌아간다(진행 보존). 위 CHECKPOINT_EVERY 주석 참조.
+    rec.floor = this.checkpointFor(rec.best || 0);
     this._save(rec);
     return rec;
   },

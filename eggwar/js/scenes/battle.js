@@ -12,6 +12,7 @@ GAME.BattleScene.prototype.init = function (data) {
   this.items = data.items || {};
   this.picks = data.picks || GAME.defaultSkillPicks();
   this.tower = data.tower || 0;      // 통곡의 탑 층수 (0이면 일반 대전)
+  this.versus = !!data.versus;       // 대전(비동기 PvP) 공격 — 승패로 트로피가 오간다
   this.startPos = data.startPos || { x: 600, y: 590 };
   this.ended = false;
   this.markers = [];
@@ -313,6 +314,13 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       }
     }
 
+    // 대전(비동기 PvP) — 트로피를 정산한다
+    var arenaResult = null;
+    if (this.versus && GAME.Arena) {
+      arenaResult = GAME.Arena.recordAttack(GAME.Arena.pendingOpponent, won);
+      GAME.Arena.pendingOpponent = null;
+    }
+
     this.time.delayedCall(1100, function () {
       self.scene.start('Result', {
         winner: self.state.winner,
@@ -324,6 +332,8 @@ GAME.BattleScene.prototype.update = function (time, delta) {
         towerRec: towerRec,
         runRec: runRec,
         goldGained: goldGained,
+        versus: self.versus,
+        arenaResult: arenaResult,
         learnNotes: learnRec.lastNotes || []
       });
     });

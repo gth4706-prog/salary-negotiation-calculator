@@ -19,6 +19,8 @@ GAME.BuildScene.prototype.init = function (data) {
   this.tier = GAME.CONFIG.DEFAULT_TIER;
   // 수성의 탑에서 들어오면 그 층의 고정 예산을 쓰고, 승패가 층에 반영된다.
   this.defendTower = (data && data.defendTower) || 0;
+  // 대전에서 '기지 만들기'로 들어왔는가 — 저장 시 그 배치도를 내 기지로 삼는다
+  this.pickBase = !!(data && data.pickBase);
   // 씬을 다시 들어오면 이전 타이머는 이미 죽어 있다 — 참조를 반드시 비운다
   this._holdTimer = null;
 };
@@ -278,14 +280,22 @@ GAME.BuildScene.prototype._save = function () {
     var n = GAME.Formations.normalize(p.x, GAME.mirrorY(p.y));
     return { type: p.type, nx: n.nx, ny: n.ny };
   });
+  var newId = GAME.Formations.newId();
   GAME.Formations.save({
-    id: GAME.Formations.newId(),
+    id: newId,
     name: name.slice(0, 20),
     author: '나', isAI: false,
     tier: this.tier, budget: this.budget, v: 2,
     vsHero: vsHero,
     units: units
   });
+  // 대전에서 '기지 만들기'로 들어왔으면 방금 저장한 배치도를 내 기지로 삼고 돌아간다.
+  // 저장만 하고 끝내면 유저가 기지를 지정하는 단계를 또 밟아야 한다.
+  if (this.pickBase && GAME.Arena) {
+    GAME.Arena.setBase(newId);
+    this.scene.start('Versus');
+    return;
+  }
   this.scene.start('Menu');
 };
 

@@ -20,6 +20,8 @@ GAME.ResultScene.prototype.init = function (data) {
   this.towerRec = data.towerRec || null;
   this.runRec = data.runRec || null;          // 통곡의 탑 도전 상태(골드·레벨)
   this.goldGained = data.goldGained || 0;
+  this.versus = !!data.versus;                // 대전(비동기 PvP) 공격이었는가
+  this.arenaResult = data.arenaResult || null;// { delta, trophy, league }
 };
 
 GAME.ResultScene.prototype.create = function () {
@@ -70,6 +72,18 @@ GAME.ResultScene.prototype.create = function () {
     } else {
       title = '시간 초과 방어'; color = C.warn;
       sub = 'AI가 시간 안에 뚫지 못했습니다. 방어 성공으로 봅니다.';
+    }
+  } else if (this.versus && this.arenaResult) {
+    // 대전(비동기 PvP) — 승패보다 **트로피가 얼마나 움직였는지**가 결과다
+    var ar = this.arenaResult;
+    if (this.winner === 'controller') {
+      title = '공격 성공'; color = C.accent;
+      sub = '상대 진형을 뚫었습니다. 트로피 ' + (ar.delta >= 0 ? '+' : '') + ar.delta +
+            ' → ' + ar.trophy + ' (' + ar.league.name + ')';
+    } else {
+      title = '공격 실패'; color = C.accentAlt;
+      sub = '상대 진형이 버텼습니다. 트로피 ' + ar.delta + ' → ' + ar.trophy +
+            ' (' + ar.league.name + '). 다른 상대를 노려보세요.';
     }
   } else {
     if (this.winner === 'controller') {
@@ -170,19 +184,22 @@ GAME.ResultScene.prototype.create = function () {
   var b1;
   if (this.tower) b1 = (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : '1층부터 다시');
   else if (this.defendTower) b1 = (this.winner === 'controller' ? '1층부터 다시' : (this.defendTower + 1) + '층 방어');
+  else if (this.versus) b1 = '다음 상대';
   else if (this.defendMode) b1 = '배치 고쳐 다시';
   else b1 = '같은 진형에 다시 도전';
   GAME.UI.button(this, W / 2, btnTop, bw, u * 7, b1, function () {
     if (self.tower) self.scene.start('Tower');
     else if (self.defendTower) self.scene.start('DefendTower');
+    else if (self.versus) self.scene.start('Versus');
     else if (self.defendMode) self.scene.start('Build');
     else self.scene.start('Draft', { formationId: self.formationId });
   }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 17 : 18 });
 
   GAME.UI.button(this, W / 2, btnTop + u * 9, bw, u * 6,
     this.tower ? '일반 대전으로'
-      : (this.defendTower ? '메뉴로' : (this.defendMode ? '컨트롤러로 도전' : '다른 진형 고르기')), function () {
-      self.scene.start(self.defendTower ? 'Menu' : 'Select');
+      : (this.defendTower ? '메뉴로'
+        : (this.versus ? '메뉴로' : (this.defendMode ? '컨트롤러로 도전' : '다른 진형 고르기'))), function () {
+      self.scene.start((self.defendTower || self.versus) ? 'Menu' : 'Select');
     }, { fontSize: P ? 15 : 16 });
 
   var rc = GAME.Layout.cols(2, { gap: 10, width: bw, left: (W - bw) / 2, pad: 0 });

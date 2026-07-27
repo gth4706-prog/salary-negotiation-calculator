@@ -46,6 +46,8 @@ GAME.TouchPad.prototype._build = function () {
   var sx = S.stickR + margin;
   this.stick.cx = sx;
   this.stick.cy = baseY;
+  this.stick.homeX = sx;      // 손을 떼면 돌아올 자리
+  this.stick.homeY = baseY;
 
   this.stickRing = scene.add.circle(sx, baseY, S.stickR, 0x000000, 0.22)
     .setStrokeStyle(2, 0xffffff, 0.30).setDepth(900).setScrollFactor(0);
@@ -54,11 +56,15 @@ GAME.TouchPad.prototype._build = function () {
   this.objects.push(this.stickRing, this.stickKnob);
 
   // 스틱은 링 밖에서 눌러도 잡히도록 넉넉한 판정 원을 따로 둔다
-  this.stickZone = scene.add.circle(sx, baseY, S.stickR * 1.6, 0xffffff, 0.001)
+  // 판정 구역은 **왼쪽 아래 넓은 사각형**이다. 엄지가 대충 닿아도 잡히도록
+  // 스틱 그림보다 훨씬 크게 잡는다(떠다니는 스틱이라 정확히 누를 필요가 없다).
+  var zoneW = Math.round(W * 0.52);
+  var zoneTop = Math.min(baseY - S.stickR * 1.7, H - S.stickR * 3.2);
+  var zoneH = H - zoneTop;
+  this.stickZoneRect = { x: 0, y: zoneTop, w: zoneW, h: zoneH };
+  this.stickZone = scene.add.rectangle(zoneW / 2, zoneTop + zoneH / 2, zoneW, zoneH, 0xffffff, 0.001)
     .setDepth(899).setScrollFactor(0);
-  this.stickZone.setInteractive(
-    new Phaser.Geom.Circle(S.stickR * 1.6, S.stickR * 1.6, S.stickR * 1.6),
-    Phaser.Geom.Circle.Contains);
+  this.stickZone.setInteractive();
   this.objects.push(this.stickZone);
 
   // ── 오른쪽: 액션 버튼 ──
@@ -161,9 +167,17 @@ GAME.TouchPad.prototype._bind = function () {
   var self = this;
   var S = GAME.TouchPad.SIZES();
 
+  // **떠다니는 스틱(floating joystick).** 고정 스틱은 엄지를 정확히 그 자리에 올려야 해서
+  // 모바일 게임에서 조작이 어렵다는 평의 가장 큰 원인이다. 업계 권장은
+  // "엄지가 닿은 자리에 스틱이 생기는" 방식 — 여기서는 판정 구역 안 아무 데나 눌러도
+  // 그 지점이 곧 스틱 중심이 된다. 손을 떼면 원래 자리로 돌아간다.
   this.stickZone.on('pointerdown', function (p) {
     self.stick.active = true;
     self.stick.id = p.id;
+    self.stick.cx = p.x;
+    self.stick.cy = p.y;
+    self.stickRing.setPosition(p.x, p.y);
+    self.stickKnob.setPosition(p.x, p.y);
     self._moveKnob(p);
   });
 
@@ -175,7 +189,11 @@ GAME.TouchPad.prototype._bind = function () {
     if (!self.stick.active || p.id !== self.stick.id) return;
     self.stick.active = false;
     self.stick.dx = 0; self.stick.dy = 0;
-    self.stickKnob.setPosition(self.stick.cx, self.stick.cy);
+    // 손을 떼면 스틱을 원래 홈 자리로 되돌린다(다음에 어디를 눌러야 할지 보이게)
+    self.stick.cx = self.stick.homeX;
+    self.stick.cy = self.stick.homeY;
+    self.stickRing.setPosition(self.stick.homeX, self.stick.homeY);
+    self.stickKnob.setPosition(self.stick.homeX, self.stick.homeY);
   };
   this.scene.input.on('pointerup', release);
   this.scene.input.on('pointerupoutside', release);
@@ -198,9 +216,8 @@ GAME.TouchPad.prototype._moveKnob = function (p) {
 
 // 이 좌표가 조작 패드 위인가 — 전장 탭과 구분하기 위해 쓴다
 GAME.TouchPad.prototype.hits = function (x, y) {
-  var S = GAME.TouchPad.SIZES();
-  var sdx = x - this.stick.cx, sdy = y - this.stick.cy;
-  if (sdx * sdx + sdy * sdy <= Math.pow(S.stickR * 1.6, 2)) return true;
+  var z = this.stickZoneRect;
+  if (z && x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h) return true;
   for (var i = 0; i < this.buttons.length; i++) {
     var b = this.buttons[i];
     var dx = x - b.circle.x, dy = y - b.circle.y;

@@ -43,7 +43,7 @@ GAME.DraftScene.prototype.create = function () {
   // 세로 모바일은 폭이 좁아 좌우 분할이 안 되므로 위(정찰)/아래(설정)로 나눈다.
   // 정찰도 아래의 '적 구성 요약'은 유닛 종류가 많으면 두 줄이 된다.
   // 그 높이를 명시적으로 잡아두지 않으면 아래 패널의 첫 줄(예산)과 겹친다(실제로 겪음).
-  var SUMMARY_H = P ? 38 : 20;
+  var SUMMARY_H = P ? 48 : 20;
   this.split = P
     ? { scoutX: 10, scoutY: 40, scoutW: W - 20, scoutH: Math.round(H * 0.20),
         panelX: 10, panelY: 40 + Math.round(H * 0.20) + 4 + SUMMARY_H, panelW: W - 20 }
@@ -84,6 +84,8 @@ GAME.DraftScene.prototype.create = function () {
 };
 
 GAME.DraftScene.prototype._buildPanel = function () {
+  // 세로 폰은 목록을 전부 펼칠 높이가 없다 → 요약 행 + 팝업(js/scenes/draft-mobile.js)
+  if (GAME.CONFIG.PORTRAIT) return this._buildPanelCompact();
   var C = GAME.CONFIG.COLORS;
   var self = this;
   var P = GAME.CONFIG.PORTRAIT;
@@ -301,12 +303,90 @@ GAME.DraftScene.prototype._skillDesc = function (sk) {
 };
 
 GAME.DraftScene.prototype.redraw = function () {
+  if (this.compact) return this._redrawCompact();
   var C = GAME.CONFIG.COLORS;
   var g = this.g;
   var S = this.split;
   var i;
   g.clear();
 
+  this.drawScout();
+
+  // ── 오른쪽(또는 아래): 설정 패널 ──
+  // hero 는 drawScout() 로 옮겨갔으므로 여기서 다시 잡는다
+  var hero = GAME.HEROES[this.heroKey];
+  var st = GAME.Items.applyTo(hero, this.items);
+
+  for (i = 0; i < this.heroCards.length; i++) {
+    var on = this.heroCards[i].key === this.heroKey;
+    this.heroCards[i].rect.setStrokeStyle(on ? 2 : 1, on ? C.controller : 0x3a3a52);
+    this.heroCards[i].rect.setFillStyle(on ? 0x1c3a34 : 0x22222f);
+  }
+
+  var live = { damage: st.damage, cooldown: hero.cooldown, hp: st.hp, armor: st.armor, speed: st.speed };
+  for (i = 0; i < this.statRows.length; i++) {
+    var sd = GAME.HERO_STAT_DEFS[i];
+    var frac = Math.max(0, Math.min(1, sd.get(live) / sd.max));
+    var bh = GAME.CONFIG.PORTRAIT ? 15 : 14;
+    g.fillStyle(0x2a2a3a, 1);
+    g.fillRect(this.statBarGeo.x, this.statRows[i].cy - bh / 2, this.statBarGeo.w, bh);
+    g.fillStyle(C.controller, 1);
+    g.fillRect(this.statBarGeo.x, this.statRows[i].cy - bh / 2, this.statBarGeo.w * frac, bh);
+    g.lineStyle(1, 0x3a3a52, 1);
+    g.strokeRect(this.statBarGeo.x, this.statRows[i].cy - bh / 2, this.statBarGeo.w, bh);
+    this.statRows[i].val.setText(sd.fmt(live));
+  }
+
+  for (i = 0; i < this.itemCells.length; i++) {
+    var cell = this.itemCells[i];
+    var picked = this.items[cell.slot] === cell.item.key;
+    var afford = picked || (this.spent() + cell.item.cost <= this.budget);
+    cell.rect.setStrokeStyle(picked ? 2 : 1, picked ? C.controller : 0x3a3a52);
+    cell.rect.setFillStyle(picked ? 0x1c3a34 : (afford ? 0x22222f : 0x1a1a22));
+  }
+
+  // 스킬 탭 + 선택지
+  for (i = 0; i < this.slotTabs.length; i++) {
+    var tab = this.slotTabs[i];
+    var active = tab.slot === this.editSlot;
+    tab.rect.setStrokeStyle(active ? 2 : 1, active ? C.controller : 0x3a3a52);
+    tab.rect.setFillStyle(active ? 0x1c3a34 : 0x22222f);
+    var pickIdx = this.picks[tab.slot] || 0;
+    // 세로 화면은 탭 폭이 ~98px 이라 스킬 이름까지 넣으면 옆 탭을 침범한다.
+    // 고른 스킬 이름은 아래 선택지 목록에 이미 강조돼 있으므로 슬롯 글자만 남긴다.
+    tab.label.setText(GAME.CONFIG.PORTRAIT
+      ? tab.slot
+      : tab.slot + ' · ' + hero.skillOptions[tab.slot][pickIdx].name);
+  }
+
+  var opts = hero.skillOptions[this.editSlot];
+  for (i = 0; i < this.optionRows.length; i++) {
+    var r = this.optionRows[i];
+    if (i >= opts.length) { r.rect.setVisible(false); r.name.setText(''); r.desc.setText(''); continue; }
+    r.rect.setVisible(true);
+    var sel = (this.picks[this.editSlot] || 0) === i;
+    r.rect.setStrokeStyle(sel ? 2 : 1, sel ? C.controller : 0x3a3a52);
+    r.rect.setFillStyle(sel ? 0x1c3a34 : 0x22222f);
+    r.name.setText((sel ? '● ' : '○ ') + opts[i].name);
+    r.desc.setText(this._skillDesc(opts[i]));
+  }
+
+  var note = hero.desc;
+  if (this.hoverItem) note = this.hoverItem.name + ' — ' + this.hoverItem.note;
+  if (st.lifesteal > 0) note += '   (흡혈 ' + Math.round(st.lifesteal * 100) + '%)';
+  this.noteText.setText(note);
+
+  this.budgetText.setText('예산  ' + this.spent() + ' / ' + this.budget +
+    '  (남음 ' + (this.budget - this.spent()) + ')   ·   상대와 동일');
+};
+
+
+// 정찰도(상대 진형 축소도) — 세로 compact 패널도 이걸 그대로 쓴다
+GAME.DraftScene.prototype.drawScout = function () {
+  var C = GAME.CONFIG.COLORS;
+  var g = this.g;
+  var S = this.split;
+  var i;
   // ── 왼쪽(또는 위): 상대 진형 정찰 화면 ──
   // 아레나 전체를 이 사각형에 맞춰 축소해 그린다. 세로 비율을 유지한다.
   var A = GAME.CONFIG.ARENA;
@@ -373,68 +453,4 @@ GAME.DraftScene.prototype.redraw = function () {
   }
   this.scoutSummary.setText('적 ' + this.formation.units.length + '기 — ' + summary);
 
-  // ── 오른쪽(또는 아래): 설정 패널 ──
-  var st = GAME.Items.applyTo(hero, this.items);
-
-  for (i = 0; i < this.heroCards.length; i++) {
-    var on = this.heroCards[i].key === this.heroKey;
-    this.heroCards[i].rect.setStrokeStyle(on ? 2 : 1, on ? C.controller : 0x3a3a52);
-    this.heroCards[i].rect.setFillStyle(on ? 0x1c3a34 : 0x22222f);
-  }
-
-  var live = { damage: st.damage, cooldown: hero.cooldown, hp: st.hp, armor: st.armor, speed: st.speed };
-  for (i = 0; i < this.statRows.length; i++) {
-    var sd = GAME.HERO_STAT_DEFS[i];
-    var frac = Math.max(0, Math.min(1, sd.get(live) / sd.max));
-    var bh = GAME.CONFIG.PORTRAIT ? 15 : 14;
-    g.fillStyle(0x2a2a3a, 1);
-    g.fillRect(this.statBarGeo.x, this.statRows[i].cy - bh / 2, this.statBarGeo.w, bh);
-    g.fillStyle(C.controller, 1);
-    g.fillRect(this.statBarGeo.x, this.statRows[i].cy - bh / 2, this.statBarGeo.w * frac, bh);
-    g.lineStyle(1, 0x3a3a52, 1);
-    g.strokeRect(this.statBarGeo.x, this.statRows[i].cy - bh / 2, this.statBarGeo.w, bh);
-    this.statRows[i].val.setText(sd.fmt(live));
-  }
-
-  for (i = 0; i < this.itemCells.length; i++) {
-    var cell = this.itemCells[i];
-    var picked = this.items[cell.slot] === cell.item.key;
-    var afford = picked || (this.spent() + cell.item.cost <= this.budget);
-    cell.rect.setStrokeStyle(picked ? 2 : 1, picked ? C.controller : 0x3a3a52);
-    cell.rect.setFillStyle(picked ? 0x1c3a34 : (afford ? 0x22222f : 0x1a1a22));
-  }
-
-  // 스킬 탭 + 선택지
-  for (i = 0; i < this.slotTabs.length; i++) {
-    var tab = this.slotTabs[i];
-    var active = tab.slot === this.editSlot;
-    tab.rect.setStrokeStyle(active ? 2 : 1, active ? C.controller : 0x3a3a52);
-    tab.rect.setFillStyle(active ? 0x1c3a34 : 0x22222f);
-    var pickIdx = this.picks[tab.slot] || 0;
-    // 세로 화면은 탭 폭이 ~98px 이라 스킬 이름까지 넣으면 옆 탭을 침범한다.
-    // 고른 스킬 이름은 아래 선택지 목록에 이미 강조돼 있으므로 슬롯 글자만 남긴다.
-    tab.label.setText(GAME.CONFIG.PORTRAIT
-      ? tab.slot
-      : tab.slot + ' · ' + hero.skillOptions[tab.slot][pickIdx].name);
-  }
-
-  var opts = hero.skillOptions[this.editSlot];
-  for (i = 0; i < this.optionRows.length; i++) {
-    var r = this.optionRows[i];
-    if (i >= opts.length) { r.rect.setVisible(false); r.name.setText(''); r.desc.setText(''); continue; }
-    r.rect.setVisible(true);
-    var sel = (this.picks[this.editSlot] || 0) === i;
-    r.rect.setStrokeStyle(sel ? 2 : 1, sel ? C.controller : 0x3a3a52);
-    r.rect.setFillStyle(sel ? 0x1c3a34 : 0x22222f);
-    r.name.setText((sel ? '● ' : '○ ') + opts[i].name);
-    r.desc.setText(this._skillDesc(opts[i]));
-  }
-
-  var note = hero.desc;
-  if (this.hoverItem) note = this.hoverItem.name + ' — ' + this.hoverItem.note;
-  if (st.lifesteal > 0) note += '   (흡혈 ' + Math.round(st.lifesteal * 100) + '%)';
-  this.noteText.setText(note);
-
-  this.budgetText.setText('예산  ' + this.spent() + ' / ' + this.budget +
-    '  (남음 ' + (this.budget - this.spent()) + ')   ·   상대와 동일');
 };

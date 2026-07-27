@@ -21,14 +21,14 @@ GAME.SelectScene.prototype.create = function () {
     .setWordWrapWidth(W - 30);
 
   var top = P ? 84 : 128;
-  GAME.UI.button(this, W / 2, top + 22, Math.min(W - 40, 260), 44, '🎲 랜덤 매칭', function () {
+  GAME.UI.button(this, W / 2, top + 26, Math.min(W - 40, 260), GAME.UI.BTN_H_SM || 52, '🎲 랜덤 매칭', function () {
     var f = GAME.Formations.random();
     if (f) self.scene.start('Draft', { formationId: f.id });
   }, { fill: 0x2a2440, line: 0x9b8cf0, hover: 0x372f52, color: C.accentAlt, fontSize: P ? 17 : 17 });
 
   var all = GAME.Formations.loadAll();
   var startY = top + 58;
-  var backH = 46;
+  var backH = GAME.UI.BTN_H_SM || 52;   // 최소 터치 타깃(화면 48px)
   var avail = H - startY - backH - 30;
   var rowH = P ? 74 : 82;
   var maxRows = Math.max(1, Math.floor(avail / rowH));
@@ -69,13 +69,13 @@ GAME.SelectScene.prototype._row = function (formation, x, y, w, h) {
     GAME.UI.label(this, x + 14 + (P ? 120 : 160), y + (P ? 15 : 16), vs,
       P ? 13 : 12, C.warn, 0);
   }
-  GAME.UI.label(this, x + 14, y + (P ? 28 : 36), isAI ? 'AI 배치' : '사람 배치',
+  GAME.UI.label(this, x + 14, y + (P ? 38 : 36), isAI ? 'AI 배치' : '사람 배치',
     P ? 13 : 13, isAI ? C.accentAlt : C.accent, 0);
-  GAME.UI.label(this, x + (P ? 76 : 110), y + (P ? 28 : 36),
+  GAME.UI.label(this, x + (P ? 76 : 110), y + (P ? 38 : 36),
     '유닛 ' + formation.units.length + '기 · 예산 ' + GAME.Formations.budgetOf(formation),
     P ? 13 : 13, C.textDim, 0);
 
-  GAME.UI.label(this, x + w - 14, y + (P ? 17 : 20), GAME.UI.winRateText(formation.id),
+  GAME.UI.label(this, x + w - 14, y + (P ? 9 : 20), GAME.UI.winRateText(formation.id),
     P ? 13 : 15, C.warn, 1).setOrigin(1, 0);
   GAME.UI.label(this, x + w - 14, y + (P ? 40 : 46), '도전 →', P ? 13 : 13, C.textDim, 1).setOrigin(1, 0);
 };

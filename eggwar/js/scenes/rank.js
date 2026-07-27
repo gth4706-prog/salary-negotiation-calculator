@@ -32,7 +32,7 @@ GAME.RankScene.prototype.create = function () {
   var tc = GAME.Layout.cols(3, { gap: 8, width: tw, left: (W - tw) / 2, pad: 0 });
   for (var i = 0; i < tabs.length; i++) {
     (function (t, idx) {
-      var b = GAME.UI.button(self, tc[idx].cx, P ? 84 : 112, tc[idx].w, P ? 36 : 42, t.n, function () {
+      var b = GAME.UI.button(self, tc[idx].cx, P ? 90 : 112, tc[idx].w, GAME.UI.BTN_H_SM || 52, t.n, function () {
         self.scene.start('Rank', { scope: t.k });
       }, { fontSize: P ? 15 : 14 });
       if (t.k === self.scope) {
@@ -77,10 +77,10 @@ GAME.RankScene.prototype.create = function () {
 
   var bw = Math.min(W - 24, 420);
   var bc = GAME.Layout.cols(2, { gap: 10, width: bw, left: (W - bw) / 2, pad: 0 });
-  GAME.UI.button(this, bc[0].cx, H - (P ? 28 : 36), bc[0].w, P ? 40 : 44, '← 메뉴', function () {
+  GAME.UI.button(this, bc[0].cx, H - (P ? 28 : 36), bc[0].w, GAME.UI.BTN_H_SM || 52, '← 메뉴', function () {
     self.scene.start('Menu');
   }, { fontSize: P ? 17 : 16 });
-  GAME.UI.button(this, bc[1].cx, H - (P ? 28 : 36), bc[1].w, P ? 40 : 44, '닉네임 바꾸기', function () {
+  GAME.UI.button(this, bc[1].cx, H - (P ? 28 : 36), bc[1].w, GAME.UI.BTN_H_SM || 52, '닉네임 바꾸기', function () {
     GAME.Account.logout();
     self.scene.start('Login');
   }, { fontSize: P ? 15 : 15 });

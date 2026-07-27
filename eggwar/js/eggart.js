@@ -30,6 +30,17 @@ GAME.UI = GAME.UI || {};
   //  'ivory'   : 껍질은 아이보리, 진영색은 굵은 외곽선 + 목도리 + 발밑 링  ← 확정
   UI.EGG_STYLE = 'ivory';
 
+  // ── 유닛을 '그리는' 크기 배율 (렌더 전용) ───────────────────────────────
+  //
+  // 세로(폰)에서는 월드가 632→402 로 줄면서 유닛 반지름도 sqrt(0.636)=0.80 배가 된다.
+  // 거기에 폰 화면 축소율(≈0.79)까지 겹치면 전사 반지름이 **실제 8px** 밖에 안 된다 —
+  // 난전에서 누가 누구인지 구분이 안 된다(실측 신고).
+  //
+  // 그래서 **그리는 크기만** 키운다. 히트박스(def.radius)는 그대로라 회피·명중 판정과
+  // 밸런스가 전혀 움직이지 않는다. 이 프로젝트가 지키는 '렌더와 로직 분리'의 정석 사용이다.
+  // 1.30 은 세로에서 잃은 0.80 배를 되돌리고 약간의 여유를 더한 값이다.
+  UI.UNIT_DRAW_SCALE = GAME.CONFIG.PORTRAIT ? 1.30 : 1.0;
+
   // 중립 재질색 — 진영색과 색역이 겹치지 않는 것만 고른다
   var M = UI.MAT = {
     wood: 0x8a6a45, woodDark: 0x5a452c,
@@ -1108,7 +1119,7 @@ GAME.UI = GAME.UI || {};
   UI.drawUnit = function (g, def, worldX, worldY, color, alpha, facing, walk) {
     var Iso = GAME.Iso;
     var sx = worldX, sy = Iso.toScreenY(worldY);
-    var r = def.radius;
+    var r = def.radius * (UI.UNIT_DRAW_SCALE || 1);   // 그리는 크기만 키운다(히트박스는 그대로)
     var a = alpha === undefined ? 1 : alpha;
     var art = UI.artOf(def);
     var f = facing === undefined ? Math.PI / 2 : facing;

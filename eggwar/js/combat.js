@@ -248,6 +248,8 @@ GAME.Combat = {
         var relief = (eff / Math.max(1, unit.maxHp * 0.02)) * 1000;
         state.noHitFor = Math.max(0, state.noHitFor - relief);
         state.telemetry.heroDamageTaken += eff;
+        // 내가 맞고 있다는 걸 소리로도 알린다(화면만 보면 놓친다)
+        if (GAME.Sound) GAME.Sound.play('heroHurt');
         if (!source.everEngaged) {
           source.everEngaged = true;
           state.telemetry.engagedUnits++;
@@ -293,6 +295,8 @@ GAME.Combat = {
 
   // 죽음 연출 — 피 대신 노른자. 12세 이용가 톤으로 짧고 귀엽게, 얼룩은 금방 사라진다.
   spawnYolk: function (state, unit) {
+    // 죽는 순간 소리 — 노른자가 터지는 '퐁'. Sound 가 없거나 막혀 있어도 조용히 넘어간다.
+    if (GAME.Sound) GAME.Sound.play('yolk');
     if (!state) return;
     var r = unit.def.radius;
     state.effects.push({
@@ -400,6 +404,10 @@ GAME.Combat = {
     var ang = Math.atan2(ty - u.y, tx - u.x);
     u.facing = ang;
     var dmg = this.effDamage(u, state);
+
+    // 공격음 — 근접은 둔탁하게, 원거리는 바람 가르는 소리로.
+    // **내 영웅의 공격만** 소리를 낸다: 진형 10기가 동시에 쏘면 소리가 뭉개져 시끄럽기만 하다.
+    if (GAME.Sound && u.isHero) GAME.Sound.play(def.attack === 'melee' ? 'hit' : 'shoot');
 
     if (def.attack === 'melee') {
       var half = ((def.coneDeg || 90) * Math.PI / 180) / 2;
@@ -524,6 +532,12 @@ GAME.Combat = {
     u.facing = ang;
     var self = this;
     var i2, o;
+
+    // 스킬 시전음 — 광역/폭발 계열은 묵직하게, 나머지는 솟는 톤으로
+    if (GAME.Sound) {
+      var boomy = (sk.type === 'aoeSelf' || sk.type === 'aoeTarget' || sk.type === 'trap');
+      GAME.Sound.play(boomy ? 'boom' : 'skill');
+    }
 
     if (sk.type === 'dash') {
       // backward = 마우스 반대 방향으로 물러나며 쏜다(반동 사격)

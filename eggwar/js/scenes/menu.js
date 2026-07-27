@@ -99,12 +99,24 @@ GAME.MenuScene.prototype.create = function () {
     GAME.Account.logout();
     self.scene.start('Login');
   }, { fontSize: P ? 15 : 14 });
+
+  // 사운드 켜기/끄기 — 소리가 있는 게임이 됐으니 끌 수단도 있어야 한다.
+  // 버튼 줄 아래에 작게 둔다(주요 동선을 밀어내지 않게).
+  if (GAME.Sound) {
+    var sndLbl = function () { return GAME.Sound.enabled ? '🔊 소리 켜짐' : '🔈 소리 꺼짐'; };
+    var sb = GAME.UI.button(this, W / 2, ry + smallH + u * 1.4, Math.min(W - 60, 200),
+      smallH * 0.86, sndLbl(), function () {
+        GAME.Sound.toggle();
+        sb.text.setText(sndLbl());
+      }, { fontSize: P ? 13 : 13 });
+    this._soundBtnBottom = ry + smallH + u * 1.4 + smallH * 0.43;
+  }
   if (GAME.isAdmin) {
     GAME.UI.button(this, rc[2].cx, ry, rc[2].w, smallH, '닉네임 관리', function () {
       self.scene.start('Admin', { page: 0 });
     }, { fontSize: P ? 15 : 14, line: GAME.UI.COL.focus, color: C.warn });
   }
-  this._menuBottom = ry + smallH / 2;
+  this._menuBottom = this._soundBtnBottom || (ry + smallH / 2);
 
   var hint = GAME.isTouch
     ? '조작  ─  한 번 탭: 이동하며 교전   |   두 번 탭: 이동만   |   스킬 버튼: 바라보는 방향 시전'

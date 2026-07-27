@@ -34,6 +34,15 @@ GAME.ResultScene.prototype.create = function () {
 
   this.cameras.main.setBackgroundColor(C.bg);
 
+  // 결과음 — 이겼는지 졌는지를 소리로 먼저 알린다.
+  // 방어전은 '내가 막았는가'가 승리이므로 판정이 반대다.
+  if (GAME.Sound) {
+    var good = this.defendMode || this.defendTower
+      ? (this.winner !== 'controller')
+      : (this.winner === 'controller');
+    GAME.Sound.play(good ? 'win' : 'lose');
+  }
+
   var title, sub, color;
   if (this.tower) {
     // 통곡의 탑

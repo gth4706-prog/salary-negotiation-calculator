@@ -482,6 +482,8 @@ window.GAME = window.GAME || {};
     rect.on('pointerdown', function () {
       if (st.disabled) return;
       st.down = true; redraw();
+      // 버튼 클릭음 — 모든 버튼에 한 곳에서 붙인다(씬마다 넣으면 빠뜨린다)
+      if (GAME.Sound) GAME.Sound.play('click');
       if (opts.fireOnUp) return;
       onClick();
     });

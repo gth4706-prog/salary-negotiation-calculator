@@ -60,7 +60,15 @@ GAME.SelectScene.prototype._row = function (formation, x, y, w, h) {
   rect.on('pointerout', function () { rect.setFillStyle(0x22222f); rect.setStrokeStyle(1, 0x3a3a52); });
   rect.on('pointerdown', function () { self.scene.start('Draft', { formationId: formation.id }); });
 
+  // 이 배치도가 특정 영웅을 상대로 짜였다면 솔직히 알린다 —
+  // 상성을 숨기면 '왜 졌는지 모르는 판'이 된다.
+  var vs = formation.vsHero && GAME.HEROES[formation.vsHero]
+    ? '  ⚔ ' + GAME.HEROES[formation.vsHero].name + ' 대비' : '';
   GAME.UI.label(this, x + 14, y + 8, formation.name, P ? 16 : 20, C.text, 0);
+  if (vs) {
+    GAME.UI.label(this, x + 14 + (P ? 120 : 160), y + (P ? 12 : 16), vs,
+      P ? 10 : 12, C.warn, 0);
+  }
   GAME.UI.label(this, x + 14, y + (P ? 30 : 36), isAI ? 'AI 배치' : '사람 배치',
     P ? 11 : 13, isAI ? C.accentAlt : C.accent, 0);
   GAME.UI.label(this, x + (P ? 76 : 110), y + (P ? 30 : 36),

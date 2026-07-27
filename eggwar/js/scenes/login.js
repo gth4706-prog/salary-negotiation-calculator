@@ -17,8 +17,8 @@ GAME.LoginScene.prototype.create = function () {
 
   this.cameras.main.setBackgroundColor(C.bg);
 
-  GAME.UI.label(this, W / 2, u * 18, '전략 vs 컨트롤', P ? 32 : 50, C.text, 0.5);
-  GAME.UI.label(this, W / 2, u * 26, '한국군 비대칭 실시간 대전', P ? 13 : 18, C.textDim, 0.5);
+  GAME.UI.label(this, W / 2, u * 18, '🥚 EGG WAR', P ? 32 : 50, C.text, 0.5);
+  GAME.UI.label(this, W / 2, u * 26, '계란 부족 비대칭 실시간 대전', P ? 13 : 18, C.textDim, 0.5);
   GAME.UI.label(this, W / 2, u * 38, '닉네임을 입력하고 시작하세요', P ? 14 : 18, C.text, 0.5);
   GAME.UI.label(this, W / 2, u * 43,
     '비밀번호는 없습니다. 닉네임이 그대로 랭킹에 표시됩니다.', P ? 11 : 13, C.textDim, 0.5);

@@ -11,6 +11,7 @@ GAME.BuildScene.prototype.constructor = GAME.BuildScene;
 
 GAME.BuildScene.prototype.init = function () {
   this.placed = [];
+  this.selected = null;      // 빨간 화살표로 표시할 유닛
   this.picked = 'bayonet';
   this.tier = GAME.CONFIG.DEFAULT_TIER;
 };
@@ -111,8 +112,13 @@ GAME.BuildScene.prototype.create = function () {
   this.input.on('pointerdown', function (p) {
     if (p.y > GAME.Iso.screenRect().bottom) return;
     var wpt = GAME.Iso.toWorld(p.x, p.y);
-    if (p.rightButtonDown()) self._removeAt(wpt.x, wpt.y);
-    else self._placeAt(wpt.x, wpt.y);
+    if (p.rightButtonDown()) { self._removeAt(wpt.x, wpt.y); return; }
+    // 이미 놓은 유닛을 누르면 '선택'이다 — 빨간 화살표와 체력바를 보여준다.
+    // 빈 자리를 누르면 새로 배치한다.
+    var hit = self._unitAt(wpt.x, wpt.y);
+    if (hit) { self.selected = (self.selected === hit) ? null : hit; self.redraw(); return; }
+    self.selected = null;
+    self._placeAt(wpt.x, wpt.y);
   });
 
   this.input.mouse.disableContextMenu();
@@ -123,6 +129,19 @@ GAME.BuildScene.prototype.spent = function () {
   var t = 0;
   for (var i = 0; i < this.placed.length; i++) t += GAME.UNITS[this.placed[i].type].cost;
   return t;
+};
+
+// 배치된 유닛 중 이 좌표를 누른 것 (가장 가까운 것 하나)
+GAME.BuildScene.prototype._unitAt = function (x, y) {
+  var best = null, bestD = Infinity;
+  for (var i = 0; i < this.placed.length; i++) {
+    var p = this.placed[i];
+    var def = GAME.UNITS[p.type];
+    var dx = p.x - x, dy = p.y - y;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    if (d <= def.radius + 10 && d < bestD) { bestD = d; best = p; }
+  }
+  return best;
 };
 
 GAME.BuildScene.prototype._trimToBudget = function () {
@@ -168,6 +187,7 @@ GAME.BuildScene.prototype._removeAt = function (x, y) {
     var dx = p.x - x, dy = p.y - y;
     if (Math.sqrt(dx * dx + dy * dy) <= GAME.UNITS[p.type].radius + 12) {
       this.placed.splice(i, 1);
+      if (this.selected === p) this.selected = null;
       this.warnText.setText('');
       this.redraw();
       return;
@@ -193,6 +213,19 @@ GAME.BuildScene.prototype._save = function () {
   }
   var name = window.prompt('배치도 이름을 입력하세요', '내 진형');
   if (!name) return;
+
+  // 한 배치가 모든 영웅을 커버할 수는 없다 → 이 배치도가 **어떤 영웅을 상대로 짠 것인지**
+  // 지정해 저장한다. 매칭할 때 그 영웅으로 오는 상대에게 우선 출전한다.
+  var order = GAME.HERO_ORDER;
+  var menu = order.map(function (k, i) {
+    return (i + 1) + '. ' + GAME.HEROES[k].name + ' (' + GAME.HEROES[k].trait + ')';
+  }).join('\n');
+  var ans = window.prompt(
+    '이 배치도는 어떤 영웅을 상대로 짠 것인가요?\n\n' + menu + '\n0. 특정 영웅 없음 (범용)\n\n번호 입력', '0');
+  if (ans === null) return;
+  var idx = parseInt(ans, 10);
+  var vsHero = (idx >= 1 && idx <= order.length) ? order[idx - 1] : null;
+
   // 아래에서 만든 걸 위쪽(전투 기준)으로 뒤집고, 정규화 좌표로 저장
   var units = this.placed.map(function (p) {
     var n = GAME.Formations.normalize(p.x, GAME.mirrorY(p.y));
@@ -203,6 +236,7 @@ GAME.BuildScene.prototype._save = function () {
     name: name.slice(0, 20),
     author: '나', isAI: false,
     tier: this.tier, budget: this.budget, v: 2,
+    vsHero: vsHero,
     units: units
   });
   this.scene.start('Menu');
@@ -237,10 +271,15 @@ GAME.BuildScene.prototype.redraw = function () {
     if (def.buffRadius) { g.lineStyle(1.5, 0xffd166, 0.3); GAME.UI.groundCircle(g, p.x, p.y, def.buffRadius); }
     if (def.isMine) { g.lineStyle(1.5, 0xef4444, 0.5); GAME.UI.groundCircle(g, p.x, p.y, def.triggerRadius); }
     if (def.intercept) { g.lineStyle(1.5, 0x8fa0bb, 0.35); GAME.UI.groundCircle(g, p.x, p.y, def.intercept); }
-    GAME.UI.drawUnit(g, def, p.x, p.y, this.myColor, 1, -Math.PI / 2);
+    var pos = GAME.UI.drawUnit(g, def, p.x, p.y, this.myColor, 1, -Math.PI / 2);
     if (!GAME.isNonTarget(def)) {
       g.lineStyle(2, 0xf0a86a, 0.9);
       GAME.UI.groundCircle(g, p.x, p.y, def.radius + 7);
+    }
+    // 선택한 유닛 — 빨간 화살표 + 체력바(배치 중이라 항상 만피)
+    if (this.selected === p && pos) {
+      GAME.UI.hpBar(g, pos.sx, pos.by, def.radius, 1, { width: Math.max(30, def.radius * 2.6) });
+      GAME.UI.selectArrow(g, pos.sx, pos.by - 8, def.radius, this.time.now);
     }
   }
 

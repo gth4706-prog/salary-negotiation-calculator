@@ -52,6 +52,9 @@ GAME.InputController.prototype._bind = function () {
 
     // ── 터치 조작 ──
     if (p.y > GAME.Iso.screenRect().bottom) return;   // 하단 버튼 영역은 버튼이 처리
+    // 조작 패드(스틱·버튼) 위를 누른 것은 전장 탭이 아니다.
+    // 패드가 전장 아래쪽에 겹쳐 있어서 이 판정이 없으면 스틱을 잡을 때마다 영웅이 튄다.
+    if (self.pad && self.pad.hits(p.x, p.y)) return;
 
     if (self.armedSkill) {
       GAME.Combat.castSkill(self.hero, self.armedSkill, w.x, w.y, self.state);
@@ -153,6 +156,9 @@ GAME.InputController.prototype.update = function (dtMs) {
   var h = this.hero;
   h.manual = false;
   if (!h.alive || h.rootedFor > 0) return;
+
+  // 모바일 조작 패드가 이동을 처리했으면 키보드 처리는 건너뛴다
+  if (this.pad && this.pad.update(dtMs)) return;
 
   var dt = dtMs / 1000;
   var dx = 0, dy = 0;

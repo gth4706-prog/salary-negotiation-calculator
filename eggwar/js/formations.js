@@ -5,7 +5,7 @@ window.GAME = window.GAME || {};
 // 한쪽에서 만든 배치도가 다른 쪽에서 화면 밖으로 나간다.
 GAME.SEED_FORMATIONS = [
   {
-    id: 'seed-wall', name: '방벽 진지', author: 'AI', isAI: true,
+    id: 'seed-wall', name: '통나무 방벽', author: 'AI', isAI: true,
     tier: '중예산', budget: 160, v: 2,
     units: [
       { type: 'rifleman', nx: 0.24, ny: 0.31 }, { type: 'rifleman', nx: 0.38, ny: 0.33 },
@@ -18,7 +18,7 @@ GAME.SEED_FORMATIONS = [
     ]
   },
   {
-    id: 'seed-crossfire', name: '십자포화', author: 'AI', isAI: true,
+    id: 'seed-crossfire', name: '십자 사격', author: 'AI', isAI: true,
     tier: '고예산', budget: 220, v: 2,
     units: [
       { type: 'rifleman', nx: 0.08, ny: 0.19 }, { type: 'rifleman', nx: 0.15, ny: 0.11 },
@@ -31,7 +31,7 @@ GAME.SEED_FORMATIONS = [
     ]
   },
   {
-    id: 'seed-sniper-nest', name: '저격 둥지', author: 'AI', isAI: true,
+    id: 'seed-sniper-nest', name: '투창 언덕', author: 'AI', isAI: true,
     tier: '고예산', budget: 220, v: 2,
     units: [
       { type: 'sniper', nx: 0.42, ny: 0.07 }, { type: 'sniper', nx: 0.58, ny: 0.07 },
@@ -44,7 +44,7 @@ GAME.SEED_FORMATIONS = [
     ]
   },
   {
-    id: 'seed-zone-lock', name: '봉쇄 작전', author: 'AI', isAI: true,
+    id: 'seed-zone-lock', name: '늪지 봉쇄', author: 'AI', isAI: true,
     tier: '고예산', budget: 220, v: 2,
     units: [
       { type: 'grenadier', nx: 0.28, ny: 0.13 }, { type: 'grenadier', nx: 0.50, ny: 0.08 },
@@ -57,7 +57,7 @@ GAME.SEED_FORMATIONS = [
     ]
   },
   {
-    id: 'seed-mg-nest', name: '기관총 진지', author: 'AI', isAI: true,
+    id: 'seed-mg-nest', name: '쇠뇌 둥지', author: 'AI', isAI: true,
     tier: '고예산', budget: 220, v: 2,
     units: [
       { type: 'mgnest', nx: 0.32, ny: 0.17 }, { type: 'mgnest', nx: 0.68, ny: 0.17 },

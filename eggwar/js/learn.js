@@ -82,10 +82,10 @@ GAME.Learn = {
   _candidate: function (rec, t, cap) {
     var c = [];
     if (t.medicPlaced && (t.medicHealed || 0) <= 0) {
-      c.push({ key: 'medicFollow', why: '위생병이 회복을 못 함 → 부상자를 따라가게' });
+      c.push({ key: 'medicFollow', why: '약초꾼이 회복을 못 함 → 부상자를 따라가게' });
     }
     if (t.guardPlaced && (t.guardBlocked || 0) <= 0) {
-      c.push({ key: 'guardFollow', why: '방탄병이 못 막음 → 영웅 앞을 가로막게' });
+      c.push({ key: 'guardFollow', why: '방패병이 못 막음 → 영웅 앞을 가로막게' });
     }
     if ((t.rangedDiedInMelee || 0) > 0) {
       c.push({ key: 'kite', why: '원거리가 붙어서 죽음 → 다치면 물러나게' });
@@ -184,8 +184,8 @@ GAME.Learn = {
     if (!rec.battles && !rec.escalation) return null;
     var a = rec.adapt, active = [];
     if (a.press > 0.1) active.push('적극 압박');
-    if (a.medicFollow > 0.1) active.push('위생병 추적');
-    if (a.guardFollow > 0.1) active.push('방탄병 차단');
+    if (a.medicFollow > 0.1) active.push('약초꾼 추적');
+    if (a.guardFollow > 0.1) active.push('방패병 차단');
     if (a.kite > 0.1) active.push('부상 시 이탈');
     if (Math.abs(a.rallyBias) > 0.2) active.push(a.rallyBias < 0 ? '좌측 대비' : '우측 대비');
     return {

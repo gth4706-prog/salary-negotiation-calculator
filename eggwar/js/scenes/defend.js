@@ -14,7 +14,7 @@ GAME.DefendScene.prototype.init = function (data) {
   this.tier = data.tier;
   this.budget = data.budget;
   this.ended = false;
-  this.speed = 1;
+  this.speed = 2;          // create() 에서 저장된 값으로 덮어쓴다
   this.markers = [];      // BattleScene.draw 가 참조한다
 };
 
@@ -54,6 +54,16 @@ GAME.DefendScene.prototype.create = function () {
   this.state.units.push(this.hero);
   this.ai = new GAME.AIHero(this.state, this.hero, this.aiSkill);
 
+  // 전략가는 조작하지 않지만, 특정 유닛을 눌러 추적할 수는 있어야 한다.
+  // 누르면 빨간 화살표가 그 유닛을 따라다니고 체력바가 굵게 표시된다.
+  this.arrowOn = null;
+  this.input.on('pointerdown', function (p) {
+    if (p.y > GAME.Iso.screenRect().bottom) return;
+    var w = GAME.Iso.toWorld(p.x, p.y);
+    var hit = GAME.Combat.unitAt(self.state, w.x, w.y, 'strategist');
+    self.arrowOn = (hit && hit === self.arrowOn) ? null : hit;
+  });
+
   this.state.adapt = { medicFollow: 0, guardFollow: 0, kite: 0, rallyBias: 0 };
   this.state.telemetry.medicPlaced = true;
   this.state.telemetry.guardPlaced = true;
@@ -71,10 +81,24 @@ GAME.DefendScene.prototype.create = function () {
   this.hudSub = GAME.UI.label(this, hud.pad, rows.b.y, '', P ? 12 : 14, C.textDim, 0);
 
   var bc = L.cols(3, { gap: 10 });
-  this.speedBtn = GAME.UI.button(this, bc[0].cx, rows.c.cy, bc[0].w, rows.c.h, '속도 x1', function () {
-    self.speed = self.speed === 1 ? 2 : (self.speed === 2 ? 4 : 1);
-    self.speedBtn.text.setText('속도 x' + self.speed);
-  }, { fontSize: P ? 14 : 16 });
+
+  // 방어전은 조작이 없어서 실측 60~68초를 그냥 지켜봐야 한다(컨트롤러 판은 19~32초).
+  // 그래서 **2배속을 기본값**으로 두고, 고른 배속은 다음 판에도 기억한다.
+  var SPEEDS = [1, 2, 4];
+  this.speed = GAME.Store.get('asymgame.defendSpeed', 2);
+  if (SPEEDS.indexOf(this.speed) === -1) this.speed = 2;
+
+  function speedLabel() { return '▶ ' + self.speed + '배속  (탭/스페이스)'; }
+  function cycleSpeed() {
+    self.speed = SPEEDS[(SPEEDS.indexOf(self.speed) + 1) % SPEEDS.length];
+    GAME.Store.set('asymgame.defendSpeed', self.speed);
+    self.speedBtn.text.setText(speedLabel());
+  }
+
+  this.speedBtn = GAME.UI.button(this, bc[0].cx, rows.c.cy, bc[0].w, rows.c.h,
+    speedLabel(), cycleSpeed,
+    { fontSize: P ? 13 : 15, line: 0x35d0a5, color: C.accent });
+  this.input.keyboard.on('keydown-SPACE', cycleSpeed);
   GAME.UI.button(this, bc[1].cx, rows.c.cy, bc[1].w, rows.c.h, '배치 다시', function () {
     self.scene.start('Build');
   }, { fontSize: P ? 13 : 15 });
@@ -122,6 +146,7 @@ GAME.DefendScene.prototype.update = function (time, delta) {
     }
   }
 
+  this._dt = dt;          // 걸음걸이 위상 (draw 는 BattleScene 것을 빌려 쓴다)
   this.draw();
   this.drawNumbers();
   this.updateHud();
@@ -166,7 +191,8 @@ GAME.DefendScene.prototype.updateHud = function () {
   this.hudTop.setText('내 진형 ' + GAME.Combat.aliveCount(this.state, 'strategist') + '기  vs  AI ' +
     this.hero.hero.name + ' (숙련도 ' + Math.round(this.aiSkill * 100) + '%)  HP ' +
     (this.hero.alive ? Math.ceil(this.hero.hp) : 0) + '/' + this.hero.maxHp);
-  this.hudSub.setText('전략가는 배치로 싸웁니다 — 지켜보세요. AI는 막힐수록 다음 판에 더 잘합니다.');
+  this.hudSub.setText('전략가는 배치로 싸웁니다 — 지켜보세요. AI는 막힐수록 다음 판에 더 잘합니다.  ·  현재 ' +
+    this.speed + '배속');
 };
 
 GAME.DefendScene.prototype.showMarker = function () { };

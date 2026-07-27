@@ -46,6 +46,7 @@ GAME.BattleScene.prototype.create = function () {
   this.hero = GAME.Combat.createHero(
     this.heroKey, this.startPos.x, this.startPos.y, 'controller', this.items, this.picks);
   this.state.units.push(this.hero);
+  this.arrowOn = this.hero;      // 내가 모는 유닛 위에 빨간 화살표
 
   // 학습형 AI: 이 배치도가 지금까지 배운 적응값을 전투에 적용한다
   this.state.adapt = GAME.Learn.get(this.formation.id).adapt;
@@ -122,10 +123,23 @@ GAME.BattleScene.prototype.create = function () {
     }).setOrigin(0.5).setVisible(false));
   }
 
-  this.events.on('shutdown', function () { if (self.ctrl) self.ctrl.destroy(); });
+  // 모바일 세로 — 로블록스식 조작 패드(왼쪽 스틱 + 오른쪽 원형 버튼).
+  // 가로에서는 마우스+키보드가 더 정확하므로 띄우지 않는다.
+  if (GAME.isTouch && P) {
+    this.pad = new GAME.TouchPad(this, this.ctrl);
+    this.ctrl.pad = this.pad;
+  }
+
+  this.events.on('shutdown', function () {
+    if (self.ctrl) self.ctrl.destroy();
+    if (self.pad) { self.pad.destroy(); self.pad = null; }
+  });
 };
 
 GAME.BattleScene.prototype._hintDefault = function () {
+  if (GAME.isTouch && GAME.CONFIG.PORTRAIT) {
+    return '왼쪽 스틱: 이동   ·   오른쪽 공격 버튼   ·   스킬 버튼 → 위치 탭   ·   전장 탭: 이동+교전';
+  }
   return GAME.isTouch
     ? '한 번 탭: 이동하며 교전   ·   두 번 탭: 이동만   ·   스킬 버튼 → 위치 탭'
     : '우클릭 이동 / 적 클릭 공격   ·   방향키 직접 이동   ·   Q W E R 스킬   ·   F 물약   ·   Space 기본공격';
@@ -171,6 +185,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     if (this.markers[i].t <= 0) this.markers.splice(i, 1);
   }
 
+  this._dt = dt;          // 걸음걸이 위상 계산용 (렌더에서만 쓴다)
   this.draw();
   this.drawNumbers();
   this.updateHud();
@@ -372,6 +387,15 @@ GAME.BattleScene.prototype.draw = function () {
       g.lineStyle(3, 0x8fa0bb, bl);
       g.strokeCircle(e.x, Iso.toScreenY(e.y) - 14, 12 + (1 - bl) * 10);
 
+    } else if (e.kind === 'yolkStain') {
+      // 노른자 얼룩 — 잠깐 남았다 사라진다
+      var yst = e.t / e.total;
+      g.fillStyle(0xffc233, 0.22 * yst);
+      GAME.UI.groundCircleFill(g, e.x, e.y, e.r * 1.35);
+
+    } else if (e.kind === 'yolk') {
+      GAME.UI.drawYolkBurst(g, e);
+
     } else if (e.kind === 'lob') {
       // 마법사 구체 — 예고 시간 동안 착탄점으로 날아간다
       var lp = 1 - e.t / e.total;
@@ -429,7 +453,9 @@ GAME.BattleScene.prototype.draw = function () {
       GAME.UI.groundCircle(g, u.x, u.y, u.def.intercept);
     }
 
-    var pos = GAME.UI.drawUnit(g, u.def, u.x, u.y, color, 1, u.facing);
+    // 이동량으로 보행 위상을 굴린다 — 걷는 동안만 다리가 움직인다
+    var walk = GAME.UI.updateGait(u, this._dt || 16);
+    var pos = GAME.UI.drawUnit(g, u.def, u.x, u.y, color, 1, u.facing, walk);
 
     if (!u.isHero && !GAME.isNonTarget(u.def)) {
       g.lineStyle(2, 0xf0a86a, 0.9);
@@ -459,6 +485,12 @@ GAME.BattleScene.prototype.draw = function () {
       var sw = Math.min(1, u.shield / u.maxHp);
       g.fillStyle(0x7ec8f0, 1);
       g.fillRect(pos.sx - bw / 2, by - 5, bw * sw, 4);
+    }
+
+    // 선택 표시. 전투에서는 내가 모는 영웅, 방어전에서는 전략가가 고른 유닛이다.
+    // (방어전의 this.hero 는 **적** AI 영웅이라 여기서 hero 를 직접 쓰면 안 된다)
+    if (u === this.arrowOn && u.alive) {
+      GAME.UI.selectArrow(g, pos.sx, by - 8, u.def.radius, s.elapsed);
     }
   }
 

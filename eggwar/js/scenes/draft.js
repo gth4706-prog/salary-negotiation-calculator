@@ -15,7 +15,13 @@ GAME.DraftScene.prototype.init = function (data) {
   // 탑에서는 영웅 예산이 진형보다 느리게 오른다 (난이도가 실제로 올라가게)
   this.budget = this.tower ? GAME.Tower.heroBudgetFor(this.tower)
                            : GAME.Formations.budgetOf(this.formation);
-  this.heroKey = 'vanguard';
+  // 탑에서는 로비에서 이미 영웅을 골랐다(AI 가 그 영웅을 보고 배치를 짰으므로
+  // 여기서 바꾸면 카운터가 어긋난다). 그래서 넘어온 영웅을 그대로 쓴다.
+  this.heroKey = (data && data.heroKey && GAME.HEROES[data.heroKey])
+    ? data.heroKey
+    : GAME.Store.get('asymgame.lastHero', 'vanguard');
+  if (!GAME.HEROES[this.heroKey]) this.heroKey = 'vanguard';
+  this.heroLocked = !!(this.tower && data && data.heroKey);
   this.items = { weapon: null, armor: null, boots: null, potion: null };
   this.picks = GAME.defaultSkillPicks();
   this.editSlot = 'Q';
@@ -92,8 +98,11 @@ GAME.DraftScene.prototype._buildPanel = function () {
   var rWarn = row(P ? 16 : 18, 8);
   this.warnText = GAME.UI.label(this, px, rWarn.y, '', P ? 11 : 13, C.warn, 0);
 
-  // 영웅 카드
-  GAME.UI.label(this, px, y, '영웅', P ? 11 : 13, C.textDim, 0);
+  // 영웅 카드. 탑에서는 로비에서 이미 고른 뒤 AI 가 그 영웅의 카운터로 배치를 짰으므로
+  // 여기서 바꾸면 '영웅을 보고 배치한다'는 규칙이 깨진다 → 잠근다.
+  GAME.UI.label(this, px, y,
+    this.heroLocked ? '영웅 (탑 로비에서 선택 — 적이 이 영웅에 맞춰 배치했습니다)' : '영웅',
+    P ? 11 : 13, this.heroLocked ? C.warn : C.textDim, 0).setWordWrapWidth(pw);
   y += P ? 16 : 18;
   var rHero = row(P ? 66 : 78, 10);
   this.heroCards = [];
@@ -102,10 +111,16 @@ GAME.DraftScene.prototype._buildPanel = function () {
     (function (key, idx) {
       var h = GAME.HEROES[key], c = hc[idx];
       var rect = self.add.rectangle(c.cx, rHero.cy, c.w, rHero.h, 0x22222f).setStrokeStyle(1, 0x3a3a52);
-      rect.setInteractive({ useHandCursor: true });
-      rect.on('pointerdown', function () {
-        self.heroKey = key; self.picks = GAME.defaultSkillPicks(); self._trim(); self.redraw();
-      });
+      if (!self.heroLocked) {
+        rect.setInteractive({ useHandCursor: true });
+        rect.on('pointerdown', function () {
+          self.heroKey = key;
+          GAME.Store.set('asymgame.lastHero', key);
+          self.picks = GAME.defaultSkillPicks(); self._trim(); self.redraw();
+        });
+      } else if (key !== self.heroKey) {
+        rect.setAlpha(0.35);
+      }
       GAME.UI.label(self, c.cx, rHero.y + 6, h.name, P ? 14 : 16, C.text, 0.5).setOrigin(0.5, 0);
       GAME.UI.label(self, c.cx, rHero.y + (P ? 24 : 28), h.trait, P ? 10 : 12, C.textDim, 0.5).setOrigin(0.5, 0);
       GAME.UI.label(self, c.cx, rHero.bottom - 18, '비용 ' + h.cost, P ? 11 : 12, C.accent, 0.5).setOrigin(0.5, 0);
@@ -326,7 +341,10 @@ GAME.DraftScene.prototype.redraw = function () {
   var hero = GAME.HEROES[this.heroKey];
   g.lineStyle(1.5, C.controller, 0.6);
   g.strokeCircle(hx, hy, hero.range * sc);
-  GAME.UI.drawUnitFlat(g, { radius: hero.radius, shape: hero.shape }, hx, hy, C.controller, 1, Math.max(0.7, sc * 1.2));
+  // art 를 같이 넘겨야 한다 — 영웅과 유닛이 shape 를 공유해서, 빼먹으면
+  // 정찰도의 내 영웅이 엉뚱한 유닛 모양으로 그려진다.
+  GAME.UI.drawUnitFlat(g, { radius: hero.radius, shape: hero.shape, art: hero.art },
+    hx, hy, C.controller, 1, Math.max(0.7, sc * 1.2));
 
   // 적 구성 요약
   var counts = {};

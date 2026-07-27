@@ -18,8 +18,8 @@ GAME.MenuScene.prototype.create = function () {
   this.cameras.main.setBackgroundColor(C.bg);
   var u = H / 100;
 
-  GAME.UI.label(this, W / 2, u * 12, '전략 vs 컨트롤', P ? 32 : 50, C.text, 0.5);
-  GAME.UI.label(this, W / 2, u * 18, '한국군 비대칭 실시간 대전', P ? 13 : 18, C.textDim, 0.5);
+  GAME.UI.label(this, W / 2, u * 12, '🥚 EGG WAR', P ? 32 : 50, C.text, 0.5);
+  GAME.UI.label(this, W / 2, u * 18, '계란 부족 비대칭 실시간 대전', P ? 13 : 18, C.textDim, 0.5);
 
   var me = GAME.Account.current();
   var rec = GAME.Score.of(me);
@@ -37,7 +37,7 @@ GAME.MenuScene.prototype.create = function () {
     self.scene.start('Tower');
   }, { fill: 0x3a2a1c, line: 0xf0a86a, hover: 0x4a3524, color: C.warn, fontSize: P ? 17 : 21 });
   GAME.UI.label(this, W / 2, u * 39.5,
-    'AI가 당신을 분석해 배치를 짠다 — 한 층씩 적 예산 +' + GAME.Tower.BUDGET_STEP +
+    'AI가 당신을 분석해 배치를 짠다 — ' + (GAME.Tower.EARLY_FLOORS + 1) + '층부터는 조작 없이 못 이긴다' +
     (tower.best ? '   (최고 ' + tower.best + '층)' : ''),
     P ? 10 : 13, C.textDim, 0.5).setWordWrapWidth(W - 40);
 

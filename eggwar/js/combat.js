@@ -206,6 +206,7 @@ GAME.Combat = {
     unit.flash = 130;
     if (unit.hp <= 0) {
       unit.hp = 0; unit.alive = false;
+      this.spawnYolk(state, unit);   // 죽으면 노른자가 터진다
       // 관측: 원거리 유닛이 근접 공격에 죽었나 (kite 학습 신호)
       if (state && unit.side === 'strategist' && (unit.def.range || 0) > 150 &&
           source && source.def && source.def.attack === 'melee') {
@@ -215,9 +216,15 @@ GAME.Combat = {
 
     if (state) {
       this.pushNumber(state, unit, eff, crit);
-      // 전략가가 영웅을 때렸다 → 교착 압박을 초기화하고 '교전했다'로 기록
+      // 전략가가 영웅을 때렸다 → 압박을 그만큼 덜어내고 '교전했다'로 기록.
+      //
+      // 한 번이라도 맞으면 압박을 0 으로 되돌리던 예전 방식은 구멍이었다. 저격수 하나가
+      // 가끔 긁기만 해도 압박이 영원히 0 이라, 나머지 진형은 집에 앉아 있고 영웅은
+      // 90초 동안 피해 112 만 받으며 쉬었다(실측). 그래서 '맞았는가'가 아니라
+      // **'충분히 위협받고 있는가'** 로 바꾼다 — 초당 최대체력 2% 를 기준으로 삼는다.
       if (unit.isHero && source && source.side === 'strategist') {
-        state.noHitFor = 0;
+        var relief = (eff / Math.max(1, unit.maxHp * 0.02)) * 1000;
+        state.noHitFor = Math.max(0, state.noHitFor - relief);
         state.telemetry.heroDamageTaken += eff;
         if (!source.everEngaged) {
           source.everEngaged = true;
@@ -226,12 +233,38 @@ GAME.Combat = {
       }
     }
 
-    // 흡혈 — 실제로 들어간 피해 기준
+    // 흡혈 — 실제로 들어간 피해 기준.
+    //
+    // opts.lsScale 은 **광역으로 여러 기를 동시에 때렸을 때** 두 번째 대상부터 걸리는 감쇠다.
+    // 이게 없으면 흡혈이 명중 수에 그대로 비례해서, 부채꼴이 넓은 영웅은
+    // 표기 흡혈 25% 가 실측 79% 로 뛴다(헌병대: 한 방에 평균 3.16기 명중).
+    // 그 결과 **전략가가 물량을 늘릴수록 영웅을 더 회복시켜 주는** 역전이 생겼다.
     if (source && source.alive && eff > 0) {
-      var ls = (source.def.lifesteal || 0) * (source._lsMul || 1);
+      var ls = (source.def.lifesteal || 0) * (source._lsMul || 1) *
+               ((opts && opts.lsScale !== undefined) ? opts.lsScale : 1);
       if (ls > 0) this.heal(source, eff * ls);
     }
     return eff;
+  },
+
+  // 광역 공격의 n 번째 대상에 걸리는 흡혈 배수. 첫 대상만 온전히 받는다.
+  _ls: function (hitIndex) {
+    return hitIndex === 0 ? 1 : GAME.CONFIG.AOE_LIFESTEAL;
+  },
+
+  // 죽음 연출 — 피 대신 노른자. 12세 이용가 톤으로 짧고 귀엽게, 얼룩은 금방 사라진다.
+  spawnYolk: function (state, unit) {
+    if (!state) return;
+    var r = unit.def.radius;
+    state.effects.push({
+      kind: 'yolk', x: unit.x, y: unit.y, r: r,
+      hero: !!unit.isHero, seed: Math.random() * 6.283,
+      t: 480, total: 480, side: unit.side
+    });
+    state.effects.push({
+      kind: 'yolkStain', x: unit.x, y: unit.y, r: r,
+      t: 1600, total: 1600, side: unit.side
+    });
   },
 
   pushNumber: function (state, unit, amount, crit) {
@@ -316,13 +349,20 @@ GAME.Combat = {
 
     if (def.attack === 'melee') {
       var half = ((def.coneDeg || 90) * Math.PI / 180) / 2;
+      // 부채꼴에 여러 기가 걸려도 흡혈은 첫 대상만 온전히 받는다(AOE_LIFESTEAL 참조)
+      var meleeHit = 0;
       for (var i = 0; i < state.units.length; i++) {
         var o = state.units[i];
         if (!o.alive || o.side === u.side) continue;
         if (this.dist(u, o) > def.range + o.def.radius) continue;
         var a = Math.atan2(o.y - u.y, o.x - u.x);
         var diff = Math.atan2(Math.sin(a - ang), Math.cos(a - ang));
-        if (Math.abs(diff) <= half) this.applyDamage(o, dmg, u, state);
+        if (Math.abs(diff) <= half) {
+          this.applyDamage(o, dmg, u, state, {
+            lsScale: meleeHit === 0 ? 1 : GAME.CONFIG.AOE_LIFESTEAL
+          });
+          meleeHit++;
+        }
       }
       state.effects.push({
         kind: 'slash', x: u.x, y: u.y, angle: ang,
@@ -404,11 +444,12 @@ GAME.Combat = {
       u.x = nx; u.y = ny;
       this.clampToArena(u);
       if (sk.damage > 0) {
+        var dashHit = 0;
         for (i2 = 0; i2 < state.units.length; i2++) {
           o = state.units[i2];
           if (!o.alive || o.side === u.side) continue;
           if (this._distToSegment(o, fromX, fromY, u.x, u.y) <= sk.radius + o.def.radius) {
-            this.applyDamage(o, sk.damage, u, state);
+            this.applyDamage(o, sk.damage, u, state, { lsScale: this._ls(dashHit++) });
           }
         }
       }
@@ -418,12 +459,13 @@ GAME.Combat = {
       });
 
     } else if (sk.type === 'aoeSelf') {
+      var aoeHit = 0;
       for (i2 = 0; i2 < state.units.length; i2++) {
         o = state.units[i2];
         if (!o.alive || o.side === u.side) continue;
         var d = this.dist(u, o);
         if (d <= sk.radius + o.def.radius) {
-          this.applyDamage(o, sk.damage, u, state);
+          this.applyDamage(o, sk.damage, u, state, { lsScale: this._ls(aoeHit++) });
           if (sk.rootMs) o.rootedFor = Math.max(o.rootedFor, sk.rootMs);
           if (sk.knockback && d > 0.1) {
             var kx = (o.x - u.x) / d, ky = (o.y - u.y) / d;
@@ -502,6 +544,7 @@ GAME.Combat = {
 
     } else if (sk.type === 'pull') {
       var halfP = (sk.coneDeg * Math.PI / 180) / 2;
+      var pullHit = 0;
       for (i2 = 0; i2 < state.units.length; i2++) {
         o = state.units[i2];
         if (!o.alive || o.side === u.side) continue;
@@ -510,7 +553,7 @@ GAME.Combat = {
         var aa = Math.atan2(o.y - u.y, o.x - u.x);
         var df = Math.atan2(Math.sin(aa - ang), Math.cos(aa - ang));
         if (Math.abs(df) > halfP) continue;
-        this.applyDamage(o, sk.damage, u, state);
+        this.applyDamage(o, sk.damage, u, state, { lsScale: this._ls(pullHit++) });
         // 영웅 쪽으로 끌어당긴다 (leash는 그대로 적용되어 진형이 무너지진 않는다)
         var pullTo = Math.max(0, dd - 120);
         o.x = u.x + Math.cos(aa) * pullTo;
@@ -562,16 +605,26 @@ GAME.Combat = {
     return Math.min(1, (idle - 5000) / 11000);
   },
 
+  // 압박이 가득 차면 추격·반응 범위가 **맵 전체**까지 늘어난다.
+  // 곱셈으로 늘리기만 하면 상한이 유닛마다 달라서 "닿을 수 없는 구석"이 남는다.
+  // 그래서 압박에 비례해 MAP_SPAN 쪽으로 직접 보간한다 —
+  // 영웅이 멀리 서서 쉬는 순간 반드시 누군가 오게 만드는 장치다.
+  _reach: function (base, p, pressAdd) {
+    var span = GAME.CONFIG.MAP_SPAN;
+    var v = base + (span - base) * p;
+    return Math.min(span, v + pressAdd);
+  },
+
   effAggro: function (u, state) {
     var p = this.pressureOf(state);
     var press = (state.adapt && state.adapt.press) || 0;
-    return (u.def.aggro || 300) * (1 + 2.6 * p) + press * 220;
+    return this._reach(u.def.aggro || 300, p, press * 220);
   },
 
   effChase: function (u, state) {
     var p = this.pressureOf(state);
     var press = (state.adapt && state.adapt.press) || 0;
-    return (u.def.chase || GAME.CONFIG.LEASH) * (1 + 1.9 * p) + press * 160;
+    return this._reach(u.def.chase || GAME.CONFIG.LEASH, p, press * 160);
   },
 
   // 전략가 유닛의 진형 이탈/복귀 판정.
@@ -804,12 +857,14 @@ GAME.Combat = {
         au.tick -= dtMs;
         if (au.tick <= 0) {
           au.tick = 250;
+          var auraHit = 0;
           for (var m = 0; m < state.units.length; m++) {
             var v = state.units[m];
             if (!v.alive || v.side === u.side) continue;
             if (this.dist(u, v) <= au.radius + v.def.radius) {
               // 지속 피해는 크리티컬 판정을 하지 않는다(숫자가 폭주함)
-              this.applyDamage(v, au.dps * 0.25, u, state, { noCrit: true });
+              this.applyDamage(v, au.dps * 0.25, u, state,
+                { noCrit: true, lsScale: this._ls(auraHit++) });
             }
           }
         }
@@ -851,13 +906,14 @@ GAME.Combat = {
           var pct = vic.maxHp * u.def.pctMaxHp;
           // 방어력을 무시하고 비율로 깎는다 — 지뢰는 방탄복으로 막는 게 아니다
           vic.hp -= pct; vic.flash = 200;
-          if (vic.hp <= 0) { vic.hp = 0; vic.alive = false; }
+          if (vic.hp <= 0) { vic.hp = 0; vic.alive = false; this.spawnYolk(state, vic); }
           this.pushNumber(state, vic, pct, true);
           state.effects.push({
             kind: 'blast', x: u.x, y: u.y, r: u.def.blastRadius,
             t: 320, total: 320, side: u.side
           });
           u.alive = false;   // 1회용
+          this.spawnYolk(state, u);
           break;
         }
         if (!u.alive) continue;

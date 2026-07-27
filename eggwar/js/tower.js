@@ -29,9 +29,22 @@ GAME.Tower = {
     GAME.Store.set(this.KEY, all);
   },
 
-  // 진형(탑) 예산 — 한 층에 +10
+  // 탑은 두 구간으로 나뉜다.
+  //
+  //   1~3층 (연습 구간): 영웅 예산이 진형보다 많다. 조작을 몰라도 올라갈 수 있다.
+  //   4층부터 (본 구간): 진형 예산이 **영웅을 확 앞지른다.**
+  //     "4층부터는 컨트롤 안 하면 진다"가 이 게임이 지켜야 할 약속이라,
+  //     그 경계에서 예산을 한 번 크게 점프시킨다. 완만히 올리면 8~10층까지
+  //     무조작으로 뚫려서(실측 67%) 약속이 깨진다.
+  //   점프 폭은 실측으로 정했다: 110 이면 헌병대가 무조작으로 4층을 67% 뚫고,
+  //   160 이면 숙련자도 못 넘는 벽이 된다. 135 에서 무조작 0% / 프로 44% 가 나온다.
+  EARLY_FLOORS: 3,
+  ENTRY_JUMP: 135,
+
   budgetFor: function (floor) {
-    return this.BASE_BUDGET + (floor - 1) * this.BUDGET_STEP;
+    var early = this.BASE_BUDGET + (Math.min(floor, this.EARLY_FLOORS) - 1) * this.BUDGET_STEP;
+    if (floor <= this.EARLY_FLOORS) return early;
+    return early + this.ENTRY_JUMP + (floor - this.EARLY_FLOORS - 1) * this.BUDGET_STEP;
   },
 
   // 영웅 예산은 **더 높게 시작해서 더 느리게** 오른다.
@@ -71,14 +84,18 @@ GAME.Tower = {
   },
 
   // 이 층의 배치도를 만든다. 1~2층은 성향 반영을 약하게 해서 진입 장벽을 낮춘다.
-  formationFor: function (floor) {
+  //
+  // heroKey 를 받는 게 중요하다 — 한 배치가 모든 영웅을 커버할 수는 없다.
+  // **어떤 영웅으로 올라오는지 먼저 보고** 그 영웅의 카운터로 짠다.
+  formationFor: function (floor, heroKey) {
     var budget = this.budgetFor(floor);
     var prof = GAME.Profile.read();
     var useProfile = floor >= 3 && prof.battles >= 1;
     return GAME.AutoFormation.generate(budget, useProfile ? prof : null, {
       id: 'tower-' + floor,
       name: floor + '층',
-      tier: '탑 ' + floor + '층'
+      tier: '탑 ' + floor + '층',
+      heroKey: heroKey || null
     });
   },
 

@@ -120,16 +120,6 @@ body{
 }
 .hero.mc-theme b{color:var(--mc-gold)}
 
-/* ---------- 안내 배너 (사인판) ---------- */
-.note.mc-theme{
-  background:var(--mc-oak);
-  color:var(--mc-oak-ink);
-  border:3px solid #000;
-  border-radius:0;
-  border-left:8px solid var(--mc-redstone);
-  box-shadow:inset 2px 2px 0 rgba(255,255,255,.25),inset -2px -2px 0 rgba(0,0,0,.2);
-}
-.note.mc-theme b{color:#5a3d10}
 
 /* ---------- 카드(질문지·결과 패널) ---------- */
 .step.mc-theme{

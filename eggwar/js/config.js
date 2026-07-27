@@ -11,14 +11,24 @@ GAME.isTouch = (function () {
 GAME.isPortrait = (function () {
   var q = (location.search || '').match(/[?&]portrait=([01])/);
   if (q) return q[1] === '1';
-  // 레이아웃 뷰포트 폭(clientWidth)은 viewport 메타를 반영해 innerWidth 보다 안정적이다.
-  // 부팅 순간 innerWidth 가 잠깐 튀는 기기가 있어(예: 메타 적용 전 980 로 읽힘),
-  // 그걸로만 판단하면 세로 폰이 가로 레이아웃으로 굳는다. clientWidth 를 우선한다.
+
+  // 물리적 세로 방향이 1차 신호다. 폭 조건은 '진짜 큰 화면(데스크톱/태블릿 가로)'만
+  // 거르는 보조로만 쓴다.
+  //
+  // 왜 이렇게까지 하나(실측 신고): 어떤 폰은 CSS 뷰포트 폭을 물리 픽셀에 가깝게(예 1080)
+  // 보고한다 — 디스플레이 배율/줌 설정으로 devicePixelRatio 가 낮게 잡히는 경우다.
+  // 그때 예전 `w < 900` 조건이 깨져 **세로 폰이 가로 레이아웃(1340×900)으로 굳고**,
+  // 그 가로 캔버스가 세로 화면에 폭 기준으로 욱여넣어져 화면 한가운데 작게 떠 버렸다.
+  // 폭 보고값에 기대지 말고, 터치 기기가 세로 방향이면 무조건 세로로 간다.
+  var mqPortrait = window.matchMedia && window.matchMedia('(orientation: portrait)').matches;
   var d = document.documentElement || {};
   var w = d.clientWidth || window.innerWidth || 1200;
   var h = d.clientHeight || window.innerHeight || 800;
-  var portraitOrient = (window.matchMedia && window.matchMedia('(orientation: portrait)').matches) || (h > w);
-  return portraitOrient && w < 900;
+
+  // 터치 기기(폰·태블릿)가 세로 방향 → 무조건 세로 레이아웃.
+  if (GAME.isTouch && (mqPortrait || h > w)) return true;
+  // 비터치(데스크톱) → 창이 세로로 길고 좁을 때만 세로.
+  return h > w && w < 900;
 })();
 
 GAME.CONFIG = (function () {
@@ -87,6 +97,15 @@ GAME.CONFIG = (function () {
     // 1.0 이면 명중 수만큼 흡혈이 그대로 곱해져서, 진형이 촘촘할수록 영웅이 더 회복한다
     // (= 전략가의 물량이 영웅의 밥이 된다). 그 역전을 막는 값이다.
     AOE_LIFESTEAL: 0.25,
+
+    // 흡혈 스윙 총량 상한 — **한 번 휘두르기(부채꼴·광역 스킬)에서 회복할 수 있는 총량**을
+    // 최대체력의 이 비율로 묶는다. 감쇠(AOE_LIFESTEAL)만으로는 대상이 많아질수록 총 회복이
+    // 계속 늘어(1.0 + 0.25×n) 촘촘한 진형이 파수꾼을 무한정 살려줬다 — 스탯을 아무리 깎아도
+    // 8층 방어 0% 가 안 잡힌 근본 원인. 대상이 3기든 10기든 스윙당 회복이 같아지도록
+    // '천장'을 둔다. 최대체력 비율이라 층 강화(heroMods)에 자동으로 함께 커진다.
+    // 0 이면 상한 없음(옛 동작 그대로). 배선만 넣어두고, 실제 값은 수성의 탑 곡선과
+    // 컨트롤러 탑(라이브) 회귀검증을 마친 뒤 켠다 — 검증 전엔 0 으로 비활성.
+    LIFESTEAL_SWING_CAP: 0,
 
     FONT: '"Malgun Gothic", "맑은 고딕", sans-serif',
 

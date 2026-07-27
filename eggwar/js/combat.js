@@ -264,7 +264,17 @@ GAME.Combat = {
     if (source && source.alive && eff > 0) {
       var ls = (source.def.lifesteal || 0) * (source._lsMul || 1) *
                ((opts && opts.lsScale !== undefined) ? opts.lsScale : 1);
-      if (ls > 0) this.heal(source, eff * ls);
+      if (ls > 0) {
+        var want = eff * ls;
+        // 스윙 총량 상한 — 한 번 휘두르기의 회복 합계를 opts.lsBudget 이 묶는다.
+        // 대상 수에 비례해 회복이 무한정 늘던 것을 여기서 자른다(CONFIG.LIFESTEAL_SWING_CAP).
+        if (opts && opts.lsBudget) {
+          var room = opts.lsBudget.cap - opts.lsBudget.used;
+          want = room <= 0 ? 0 : Math.min(want, room);
+          opts.lsBudget.used += want;
+        }
+        if (want > 0) this.heal(source, want);
+      }
     }
     return eff;
   },
@@ -272,6 +282,13 @@ GAME.Combat = {
   // 광역 공격의 n 번째 대상에 걸리는 흡혈 배수. 첫 대상만 온전히 받는다.
   _ls: function (hitIndex) {
     return hitIndex === 0 ? 1 : GAME.CONFIG.AOE_LIFESTEAL;
+  },
+
+  // 한 번 휘두르기(부채꼴·광역)의 흡혈 회복 총량 상한 주머니.
+  // cap = 시전자 최대체력 × CONFIG.LIFESTEAL_SWING_CAP. 0 이면 무제한(상한 없음).
+  _lsBudget: function (source) {
+    var frac = GAME.CONFIG.LIFESTEAL_SWING_CAP || 0;
+    return { cap: frac > 0 ? source.maxHp * frac : Infinity, used: 0 };
   },
 
   // 죽음 연출 — 피 대신 노른자. 12세 이용가 톤으로 짧고 귀엽게, 얼룩은 금방 사라진다.
@@ -371,8 +388,9 @@ GAME.Combat = {
 
     if (def.attack === 'melee') {
       var half = ((def.coneDeg || 90) * Math.PI / 180) / 2;
-      // 부채꼴에 여러 기가 걸려도 흡혈은 첫 대상만 온전히 받는다(AOE_LIFESTEAL 참조)
-      var meleeHit = 0;
+      // 부채꼴에 여러 기가 걸려도 흡혈은 첫 대상만 온전히 받고(AOE_LIFESTEAL),
+      // 이 한 번 휘두르기의 회복 총량은 lsBudget 이 묶는다(LIFESTEAL_SWING_CAP).
+      var meleeHit = 0, meleeLs = this._lsBudget(u);
       for (var i = 0; i < state.units.length; i++) {
         var o = state.units[i];
         if (!o.alive || o.side === u.side) continue;
@@ -381,7 +399,8 @@ GAME.Combat = {
         var diff = Math.atan2(Math.sin(a - ang), Math.cos(a - ang));
         if (Math.abs(diff) <= half) {
           this.applyDamage(o, dmg, u, state, {
-            lsScale: meleeHit === 0 ? 1 : GAME.CONFIG.AOE_LIFESTEAL
+            lsScale: meleeHit === 0 ? 1 : GAME.CONFIG.AOE_LIFESTEAL,
+            lsBudget: meleeLs
           });
           meleeHit++;
         }
@@ -466,12 +485,12 @@ GAME.Combat = {
       u.x = nx; u.y = ny;
       this.clampToArena(u);
       if (sk.damage > 0) {
-        var dashHit = 0;
+        var dashHit = 0, dashLs = this._lsBudget(u);
         for (i2 = 0; i2 < state.units.length; i2++) {
           o = state.units[i2];
           if (!o.alive || o.side === u.side) continue;
           if (this._distToSegment(o, fromX, fromY, u.x, u.y) <= sk.radius + o.def.radius) {
-            this.applyDamage(o, sk.damage, u, state, { lsScale: this._ls(dashHit++) });
+            this.applyDamage(o, sk.damage, u, state, { lsScale: this._ls(dashHit++), lsBudget: dashLs });
           }
         }
       }
@@ -481,13 +500,13 @@ GAME.Combat = {
       });
 
     } else if (sk.type === 'aoeSelf') {
-      var aoeHit = 0;
+      var aoeHit = 0, aoeLs = this._lsBudget(u);
       for (i2 = 0; i2 < state.units.length; i2++) {
         o = state.units[i2];
         if (!o.alive || o.side === u.side) continue;
         var d = this.dist(u, o);
         if (d <= sk.radius + o.def.radius) {
-          this.applyDamage(o, sk.damage, u, state, { lsScale: this._ls(aoeHit++) });
+          this.applyDamage(o, sk.damage, u, state, { lsScale: this._ls(aoeHit++), lsBudget: aoeLs });
           if (sk.rootMs) o.rootedFor = Math.max(o.rootedFor, sk.rootMs);
           if (sk.knockback && d > 0.1) {
             var kx = (o.x - u.x) / d, ky = (o.y - u.y) / d;
@@ -566,7 +585,7 @@ GAME.Combat = {
 
     } else if (sk.type === 'pull') {
       var halfP = (sk.coneDeg * Math.PI / 180) / 2;
-      var pullHit = 0;
+      var pullHit = 0, pullLs = this._lsBudget(u);
       for (i2 = 0; i2 < state.units.length; i2++) {
         o = state.units[i2];
         if (!o.alive || o.side === u.side) continue;
@@ -575,7 +594,7 @@ GAME.Combat = {
         var aa = Math.atan2(o.y - u.y, o.x - u.x);
         var df = Math.atan2(Math.sin(aa - ang), Math.cos(aa - ang));
         if (Math.abs(df) > halfP) continue;
-        this.applyDamage(o, sk.damage, u, state, { lsScale: this._ls(pullHit++) });
+        this.applyDamage(o, sk.damage, u, state, { lsScale: this._ls(pullHit++), lsBudget: pullLs });
         // 영웅 쪽으로 끌어당긴다 (leash는 그대로 적용되어 진형이 무너지진 않는다)
         var pullTo = Math.max(0, dd - 120);
         o.x = u.x + Math.cos(aa) * pullTo;
@@ -879,14 +898,14 @@ GAME.Combat = {
         au.tick -= dtMs;
         if (au.tick <= 0) {
           au.tick = 250;
-          var auraHit = 0;
+          var auraHit = 0, auraLs = this._lsBudget(u);
           for (var m = 0; m < state.units.length; m++) {
             var v = state.units[m];
             if (!v.alive || v.side === u.side) continue;
             if (this.dist(u, v) <= au.radius + v.def.radius) {
               // 지속 피해는 크리티컬 판정을 하지 않는다(숫자가 폭주함)
               this.applyDamage(v, au.dps * 0.25, u, state,
-                { noCrit: true, lsScale: this._ls(auraHit++) });
+                { noCrit: true, lsScale: this._ls(auraHit++), lsBudget: auraLs });
             }
           }
         }

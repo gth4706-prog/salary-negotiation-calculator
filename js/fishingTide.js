@@ -154,6 +154,113 @@
       return !t.species || targetCount(region,t)>=MIN_SPOTS_FOR_BUTTON;
     });
   }
+
+  /* ══ 지도 ══════════════════════════════════════════════════════════════
+     지역을 고르면 그 지역 포인트를 전부 찍고, 선택을 좁힐 때마다 마커를 줄인다.
+     마커를 누르면 그 자리의 상세 정보와 오늘 물때가 팝업으로 뜬다.
+
+     Leaflet + OSM 타일 — API 키가 필요 없어 태현님이 등록할 게 없다.
+     ⚠️ Leaflet이 안 뜨면(CDN 차단·구형 브라우저) 지도만 접고 카드 목록으로
+     그대로 쓸 수 있어야 한다. 지도는 덤이지 필수 경로가 아니다. */
+  var map=null, markerLayer=null, mapFailed=false;
+
+  function mapReady(){ return typeof L!=="undefined" && !mapFailed; }
+
+  function initMap(){
+    if(map||!mapReady())return map;
+    try{
+      map=L.map("ft-map",{scrollWheelZoom:false, attributionControl:true});
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{
+        maxZoom:18,
+        attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(map);
+      markerLayer=L.layerGroup().addTo(map);
+    }catch(e){ mapFailed=true; map=null; }
+    return map;
+  }
+
+  /* 마커 색 = 초보에게 어떤 곳인지. 범례와 짝을 이룬다. */
+  function markerStyle(s){
+    if(s.footing==="danger"||(s.deepM!=null&&s.deepM>=15))
+      return {color:"#FF4B3E", label:"초보에겐 어려운 곳"};
+    if(s.access==="drive"&&(s.footing==="flat"||s.footing==="sand"))
+      return {color:"#2EC4B6", label:"처음 가기 좋은 곳"};
+    if(s.access==="drive") return {color:"#FFC93C", label:"차로 갈 수 있는 곳"};
+    return {color:"#9FB3C8", label:"배를 타야 하거나 확인 필요"};
+  }
+  var LEGEND=[
+    ["#2EC4B6","처음 가기 좋아요"],
+    ["#FFC93C","차로 갈 수 있어요"],
+    ["#9FB3C8","배를 타야 하거나 확인 필요"],
+    ["#FF4B3E","초보에겐 어려워요"]
+  ];
+  function renderLegend(){
+    var el=$("ft-legend");
+    if(!el)return;
+    el.innerHTML=LEGEND.map(function(l){
+      return '<span class="ft-lg"><i style="background:'+l[0]+'"></i>'+escapeHtml(l[1])+'</span>';
+    }).join("");
+  }
+
+  /* 팝업 안에서 물때 시각을 채운다. 카드와 같은 캐시를 쓰므로 관측소당 1회. */
+  function popupHtml(s){
+    var tide=tideNumberOf(new Date());
+    var head='<div class="ft-pop-name">'+escapeHtml(s.name)+'</div>'
+      +'<div class="ft-pop-sub">'+escapeHtml(s.region+(s.sigungu?" "+s.sigungu:""))+'</div>';
+    var chips="";
+    if(tide)chips+='<span class="ft-pop-chip">오늘 '+escapeHtml(tide.label)+'</span>';
+    (s.species||[]).slice(0,4).forEach(function(sp){
+      chips+='<span class="ft-pop-chip">'+escapeHtml(sp)+'</span>';
+    });
+    return head
+      +(chips?'<div class="ft-pop-chips">'+chips+'</div>':'')
+      +guideHtml(s)
+      +'<div class="ft-pop-time" data-pop-station="'+escapeHtml(s.station||"")+'">만조·간조 불러오는 중…</div>'
+      +'<a class="ft-pop-map" href="'+mapLink(s)+'" target="_blank" rel="noopener">🗺️ 카카오맵으로 열기</a>';
+  }
+
+  function showMap(spots, title, sub){
+    var sec=$("stepMap");
+    if(!sec)return;
+    if(!mapReady()){ sec.hidden=true; return; }
+    sec.hidden=false;
+    if($("ft-map-title"))$("ft-map-title").textContent=title||"포인트 위치";
+    if($("ft-map-sub"))$("ft-map-sub").textContent=sub||"마커를 누르면 그 자리의 정보와 오늘 물때가 나와요.";
+    renderLegend();
+    if(!initMap()){ sec.hidden=true; return; }
+
+    markerLayer.clearLayers();
+    var pts=[];
+    spots.forEach(function(s){
+      if(!(isFinite(s.lat)&&isFinite(s.lon)))return;
+      var st=markerStyle(s);
+      var m=L.circleMarker([s.lat,s.lon],{
+        radius:6, weight:2, color:st.color, fillColor:st.color, fillOpacity:.65
+      });
+      m.bindPopup(function(){ return popupHtml(s); },{maxWidth:300, className:"ft-pop"});
+      m.on("popupopen",function(e){
+        var node=e.popup.getElement();
+        var slot=node&&node.querySelector("[data-pop-station]");
+        if(!slot)return;
+        var station=slot.getAttribute("data-pop-station");
+        if(!station){ slot.remove(); return; }
+        fetchTideTimes(station).then(function(ex){
+          if(!slot.parentNode)return;
+          if(!ex){ slot.remove(); return; }
+          slot.textContent="🌊 "+ex.map(function(x){return x.type+" "+x.time}).join(" · ");
+          slot.className="ft-pop-time on";
+        });
+      });
+      m.addTo(markerLayer);
+      pts.push([s.lat,s.lon]);
+    });
+    if(pts.length){
+      try{ map.fitBounds(pts,{padding:[24,24], maxZoom:12}); }catch(e){}
+      /* 섹션이 hidden이었다가 열리면 Leaflet이 크기를 잘못 잡는다. */
+      setTimeout(function(){ try{ map.invalidateSize(); }catch(e){} },60);
+    }
+  }
+
   function optsForCurrentQuestion(){
     var q=QUESTIONS[qIdx];
     if(q.id==="region"){
@@ -197,6 +304,11 @@
       b.addEventListener("click",function(){
         answers[q.id]=o[0];
         qIdx++;
+        if(q.id==="region"){
+          var pool=DATA.filter(function(x){return x.region===o[0]});
+          showMap(pool, o[0]+" 낚시 포인트 "+pool.length+"곳",
+            "고르실수록 이 지도가 좁혀져요. 마커를 누르면 상세 정보가 나와요.");
+        }
         renderQuestion();
       });
       box.appendChild(b);
@@ -479,6 +591,8 @@
         $("ft-result-sub").textContent=tg.sub+" 같은 고기가 잡히는 실제 포인트예요.";
       }
       $("ft-results").innerHTML=SAFETY_HTML+picks.map(cardHtml).join("");
+      showMap(ranked, "추천 포인트 "+ranked.length+"곳",
+        "아래 카드는 이 중 앞에서 3곳이에요. 지도에서 아무 마커나 눌러도 상세 정보가 나와요.");
       $("ft-more").hidden = !(ranked.length>shownFrom+3);
       bindCopy();
       fillTideTimes();
@@ -522,6 +636,7 @@
   $("ft-restart").addEventListener("click",function(){
     answers={}; qIdx=0; ranked=[]; shownFrom=0; fallbackLevel=0;
     $("stepResult").hidden=true;
+    if($("stepMap"))$("stepMap").hidden=true;
     $("stepQuiz").hidden=false;
     renderQuestion();
     $("stepQuiz").scrollIntoView({behavior:"smooth",block:"start"});

@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v0.31';
+GAME.VERSION = 'v0.32';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -23,6 +23,19 @@ window.addEventListener('load', function () {
   // 사운드 — 자동재생 정책 때문에 첫 사용자 입력에서 열린다(init 은 리스너만 건다)
   if (GAME.Sound) GAME.Sound.init();
 
+  // ── 폰트가 도착한 뒤에 게임을 만든다 ──────────────────────────────────────
+  //  Phaser 의 Text 는 캔버스에 **한 번 구워지고 다시 안 그려진다.** 웹폰트가 늦게
+  //  오면 첫 화면 글자가 폴백 폰트로 굳어버린다(스크롤로 고칠 수 있는 DOM 과 다르다).
+  //  그래서 만들기 전에 기다리되, **기다림에 상한을 둔다** — 구글이 막힌 망에서
+  //  게임이 통째로 안 뜨는 것보다 폴백 폰트로라도 뜨는 게 낫다.
+  //  config.js 가 스크립트 파싱 시점에 이미 요청을 걸어뒀으므로 보통은 즉시 통과한다.
+  var fontGate = (GAME.Font && GAME.Font.ready) ? GAME.Font.ready : Promise.resolve('none');
+  Promise.race([
+    fontGate,
+    new Promise(function (r) { setTimeout(function () { r('cap'); }, 1200); })
+  ]).then(boot);
+
+  function boot() {
   GAME.game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: 'game',
@@ -76,6 +89,7 @@ window.addEventListener('load', function () {
     }
     hook();
   })();
+  }   // ── boot() 끝 ──
 
   // ?diag=1 진단 오버레이 — 실기기(폰) 값을 눈으로 받기 위한 것.
   //   평상시엔 만들지 않는다. 실측 신고(캔버스가 작게 뜬다)의 원인을 폰에서 직접

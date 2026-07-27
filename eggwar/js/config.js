@@ -107,7 +107,9 @@ GAME.CONFIG = (function () {
     // 컨트롤러 탑(라이브) 회귀검증을 마친 뒤 켠다 — 검증 전엔 0 으로 비활성.
     LIFESTEAL_SWING_CAP: 0,
 
-    FONT: '"Malgun Gothic", "맑은 고딕", sans-serif',
+    // 게임 폰트 — 아래 GAME.Font 가 Jua(구글 폰트, 정확 서브셋 1파일)를 미리 받아둔다.
+    // Jua 가 못 오면 이 스택의 다음 후보로 자동 폴백하므로 화면이 깨지지 않는다.
+    FONT: '"Jua", "Malgun Gothic", "Apple SD Gothic Neo", "맑은 고딕", sans-serif',
 
     COLORS: {
       bg: 0x101018,
@@ -139,3 +141,83 @@ GAME.mirrorY = function (y) {
   var A = GAME.CONFIG.ARENA;
   return Math.round(2 * (A.y + A.h / 2) - y);
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  게임 폰트 — Jua (구글 폰트, 정확 서브셋)
+//  ---------------------------------------------------------------------------
+//  왜 웹폰트인가: 기본값이던 "Malgun Gothic" 은 윈도우의 **문서용** UI 폰트다.
+//  캐주얼 게임 톤과 안 맞는다는 지적이 실제로 나왔다.
+//
+//  왜 Jua 인가: 둥근 종결·두툼한 획이라 계란 아트와 톤이 맞고, 같은 px 에서
+//  Malgun 보다 **줄 폭이 0.81 배**로 좁아 좁은 세로 화면에서 줄바꿈이 줄어든다
+//  (실측: '예산 유닛 배치' 100px 기준 advance 670→544). 메뉴 설명문이 2줄로
+//  넘쳐 다음 버튼을 덮던 겹침 3건이 이 폭 차이만으로 사라진다.
+//
+//  왜 text= 정확 서브셋인가 (빌드 단계 없이 GitHub Pages 로 나가는 게임이라 중요):
+//    · 동적 서브셋(unicode-range)  = woff2 25개 / 491 KB
+//    · text= 정확 서브셋           = woff2  1개 / 146 KB   ← 이걸 쓴다
+//  캔버스(Phaser) 텍스트는 폰트가 늦게 와도 **다시 그려지지 않는다.** 그래서 어차피
+//  화면에 쓸 글자를 전부 미리 받아둬야 하고, 그러면 동적 서브셋의 이점이 사라진다.
+//  (실측치는 dz2-fontsize2.js. 게임 자체 첫 로딩이 약 3 MB(인트로 영상)라 5% 수준.)
+//
+//  SUBSET 구성: 소스 문자열 리터럴의 글자 610자 + 남는 자리에 흔한 받침 없는 조합 190자.
+//  ⚠ **구글 폰트 text= 는 고유 800자까지만 파일 하나로 준다**(실측: 800 → @font-face 1개,
+//    802 → 87개로 동적 서브셋 복귀). 지금이 정확히 800자로 꽉 찬 상태다.
+//    글자를 더 넣으려면 다른 글자를 빼거나, @font-face 수가 1인지 반드시 확인할 것.
+//  여기 없는 글자(예: 사용자 닉네임의 드문 음절)는 **그 글자만** 폴백 폰트로 그려진다
+//  — 깨지지 않는다. 재생성: scratchpad/dz2-mksubset.js
+// ═══════════════════════════════════════════════════════════════════════════
+GAME.Font = (function () {
+  var FAMILY = 'Jua';
+  var SUBSET =
+    ', KEY_RG:MINL2AX1BD[oieast$.gWr]k-Uhp/jlcmwPSOT()bd?=u&y>0*;}fHv' +
+    'x3+64#895<7{q!%QF|"@zCVZ~닉네임을입력해주세요자이상하로한글영문숫만쓸수있습니다사용할없는표현포함돼차단' +
+    '된신고생성최근접속횟여부됨미설정점전송실패컬기록은유지흙바닥풀숲돌담청동벽황금알의둥떠광웃족냥꾼늪약탈언덕파름도붉목리깨진껍질흡' +
+    '혈버틴뭉치않넓게벌려붙에원거녹인든가시덫투석으응징방병막를린창과화망칠곳앤예산당궁배대아직보어균형조합했드두쇠뇌멀서명중물량둔회' +
+    '피능숙공격비올림논타겟늘좌측우많그쪽강닛크덜줄폰너무작면뭘안율교맞았충분히위협받퐁절계쓰적순간날닿구루각집갈저래스넉백걸음친통나' +
+    '십봉쇄뼈볏뛰양손검꺼워관박먼후모뿌죽르폭초씹내낙살연불뒷끈장풍일프헌련축였체채꼴긴싼낮페널티야데값라오됐효었남되씩떼낸핵심찍밀던' +
+    '철숨역경톳발칼끼흑갑옷북등짚깃털킬쿨옹달샘복말열매머압못따웅앞러제뱅잡반더극난랐왼른들와향빠승률렸험추뚫웠퇴활컨트롤선택닫브감필' +
+    '총개메뉴엇급탑층칸터같둘좁큼번탭며튼클릭키본략겼호처준짐디까탁베밟눈갖뜨운것온길놓깝소옵랭킹켜싸웁힐판잘재확눌변착범학찰람뒤춰슬' +
+    '롯즉끌김촘쏜곡곧끊깎건됩란칭토누짠센겨룰깰짜꾸렬침외골꿉락끝났새팅쳐봅텼노섬멸결획득솔랜덤왜졌첫빌때께읽마종냈냄삼플레랑뜻텔빛블' +
+    '딸색테월캔팝탕젤굵곽큰쑥펠흰잉덮엄틱얼셋존앉갔텍군킨맵식움렘쉬쏘댄쟁카띠삐씨찌코꼬또뽀쪼쿠푸뚜쑤쭈허커퍼뻐써쩌느므즈흐츠끄쁘쯔애' +
+    '캐태빼쌔째헤케뻬쎄쩨녀뎌벼셔져혀텨펴껴뗘쎠쪄뇨됴료묘뵤쇼죠쵸쿄툐꾜뚀뾰쑈쬬갸냐댜랴먀뱌샤쟈햐챠캬탸퍄꺄땨뺘쌰쨔규듀류뮤뷰슈쥬휴츄' +
+    '큐튜퓨뀨뜌쀼쓔쮸괴뢰뫼뵈죄쾨푀꾀뙤뾔쐬쬐놔돠롸뫄봐솨촤콰톼퐈꽈똬뽜쏴쫘귀뉘뤼뮈뷔쥐휘취퀴튀퓌뀌쀠쒸쮜궈눠둬뤄뭐붜숴줘훠쿼퉈풔꿔뚸' +
+    '뿨쒀쭤긔늬듸릐믜븨싀즤희츼킈틔픠끠띄쁴씌쯰녜뎨례몌볘셰졔혜쳬켸톄';
+
+
+  var d = document, head = d.head || d.getElementsByTagName('head')[0];
+
+  function addLink(rel, href, cross) {
+    var l = d.createElement('link');
+    l.rel = rel; l.href = href;
+    if (cross) l.crossOrigin = 'anonymous';
+    head.appendChild(l);
+    return l;
+  }
+
+  // 핸드셰이크를 미리 열어둔다 — 첫 화면(인트로 영상)이 도는 동안 폰트가 도착하게.
+  addLink('preconnect', 'https://fonts.googleapis.com');
+  addLink('preconnect', 'https://fonts.gstatic.com', true);
+
+  var href = 'https://fonts.googleapis.com/css2?family=' + FAMILY.replace(/ /g, '+') +
+    '&display=swap&text=' + encodeURIComponent(SUBSET);
+  var sheet = addLink('stylesheet', href);
+
+  // 준비 완료 약속. **절대 영원히 pending 이 되지 않는다** — 오프라인이거나 구글이
+  // 막힌 망(사내망 등)에서 게임이 통째로 안 뜨는 게 최악이므로 상한을 둔다.
+  var ready = new Promise(function (resolve) {
+    var settled = false;
+    function done(why) { if (!settled) { settled = true; GAME.Font.state = why; resolve(why); } }
+    setTimeout(function () { done('timeout'); }, 2500);
+    sheet.onerror = function () { done('error'); };
+    sheet.onload = function () {
+      if (!d.fonts || !d.fonts.load) return done('no-font-api');
+      // 서브셋이 파일 하나라 글자 몇 개만 요청해도 통째로 받아진다.
+      d.fonts.load('16px "' + FAMILY + '"', '가나다ABC123')
+        .then(function () { done('ok'); })
+        .catch(function () { done('load-failed'); });
+    };
+  });
+
+  return { FAMILY: FAMILY, SUBSET: SUBSET, ready: ready, state: 'pending' };
+})();

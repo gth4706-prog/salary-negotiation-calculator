@@ -238,6 +238,27 @@ GAME.BattleScene.prototype.drawNumbers = function () {
 GAME.BattleScene.prototype.update = function (time, delta) {
   var dt = Math.min(delta, 50);
 
+  // ── 타격감(juice) ──────────────────────────────────────────────────────
+  // "타격감이 없다"는 실측 신고에 대한 대응. 지금 공격은 예비동작·타격·여파가 없이
+  // 즉발이라 데미지 숫자만 뜨고 끝난다. 아래 세 가지를 **렌더 계층에서만** 붙인다:
+  //   ① 히트스톱 — 맞는 순간 게임을 아주 잠깐 멈춘다(가장 큰 한 방)
+  //   ② 화면 흔들림 — 무게감
+  //   ③ 피격 플래시 + 휘청임 — eggart 가 그린다(u._hurt 를 읽는다)
+  //
+  // **체력 감소를 프레임 간 비교로 감지**한다. combat.js 를 건드리지 않으므로
+  // 전투 판정·밸런스가 전혀 움직이지 않는다(이 프로젝트의 렌더/로직 분리 원칙).
+  this._juice(dt);
+
+  // 히트스톱 중에는 시뮬을 진행시키지 않는다 — 화면이 '멎었다가' 터지는 느낌을 만든다
+  if (this._hitStop > 0) {
+    this._hitStop -= delta;
+    this._dt = 0;
+    this.draw();
+    this.drawNumbers();
+    this.updateHud();
+    return;
+  }
+
   if (!this.state.over) {
     this.ctrl.update(dt);
     GAME.Combat.update(this.state, dt);
@@ -337,6 +358,46 @@ GAME.BattleScene.prototype.update = function (time, delta) {
         learnNotes: learnRec.lastNotes || []
       });
     });
+  }
+};
+
+// 체력이 줄어든 유닛을 찾아 타격 연출을 붙인다. **렌더 전용** — 상태를 읽기만 한다.
+GAME.BattleScene.prototype._juice = function (dt) {
+  if (this._hitStop === undefined) this._hitStop = 0;
+  if (!this._prevHp) this._prevHp = {};
+
+  var units = this.state.units;
+  var biggest = 0, heroHit = false;
+
+  for (var i = 0; i < units.length; i++) {
+    var u = units[i];
+    var key = u.__jid;
+    if (key === undefined) { key = u.__jid = 'u' + i + '-' + (u.type || '') + '-' + Math.random().toString(36).slice(2, 7); }
+
+    // 피격 타이머는 매 프레임 줄인다(eggart 가 이걸 보고 흔들고 번쩍인다)
+    if (u._hurt > 0) u._hurt = Math.max(0, u._hurt - dt);
+
+    var prev = this._prevHp[key];
+    if (prev !== undefined && u.alive && u.hp < prev - 0.01) {
+      var dmg = prev - u.hp;
+      var pct = u.maxHp ? dmg / u.maxHp : 0;
+      // 맞은 정도에 비례해 휘청임 시간을 준다(최소 120ms, 최대 320ms)
+      u._hurt = Math.min(320, 120 + pct * 900);
+      u._hurtDir = (u.facing === undefined ? 0 : u.facing) + Math.PI;   // 맞은 반작용 방향
+      if (pct > biggest) biggest = pct;
+      if (u === this.hero) heroHit = true;
+    }
+    this._prevHp[key] = u.alive ? u.hp : 0;
+  }
+
+  if (biggest > 0) {
+    // ① 히트스톱 — 큰 타격일수록 길게. 너무 길면 조작이 끊겨 답답하다(최대 70ms).
+    var stop = Math.min(70, 18 + biggest * 420);
+    if (stop > this._hitStop) this._hitStop = stop;
+
+    // ② 화면 흔들림 — 내가 맞았을 때 더 세게(내 피해를 놓치지 않게)
+    var amp = Math.min(0.010, (heroHit ? 0.004 : 0.0016) + biggest * 0.03);
+    if (this.cameras && this.cameras.main) this.cameras.main.shake(heroHit ? 140 : 90, amp);
   }
 };
 
@@ -696,7 +757,29 @@ GAME.BattleScene.prototype.draw = function () {
 
     // 이동량으로 보행 위상을 굴린다 — 걷는 동안만 다리가 움직인다
     var walk = GAME.UI.updateGait(u, this._dt || 16);
-    var pos = GAME.UI.drawUnit(g, u.def, u.x, u.y, color, 1, u.facing, walk);
+    // 피격 휘청임 — 계란은 무게중심이 위에 있는 오뚝이라 맞으면 흔들려야 한다.
+    // 맞은 반대 방향으로 밀렸다가 감쇠 진동으로 돌아온다. **그리는 좌표만** 흔들고
+    // 월드 좌표(u.x/u.y)는 건드리지 않는다 — 판정·밸런스 불변.
+    var hurt = u._hurt || 0;
+    var dx = 0, dy = 0;
+    if (hurt > 0) {
+      var k = hurt / 320;                                  // 1 → 0 으로 잦아든다
+      var amp = u.def.radius * 0.42 * k;
+      var osc = Math.sin(hurt / 26);                       // 감쇠 진동
+      var hd = u._hurtDir || 0;
+      dx = Math.cos(hd) * amp * osc;
+      dy = Math.sin(hd) * amp * osc * 0.5;                 // 세로는 절반(투영 때문)
+    }
+
+    var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, 1, u.facing, walk);
+
+    // 껍질 금 + 피격 번쩍 — 체력을 '읽지 않고 보게' 한다
+    if (pos && GAME.UI.eggDamage && !GAME.isNonTarget(u.def)) {
+      if (u.__crackSeed === undefined) u.__crackSeed = Math.floor(Math.random() * 997);
+      GAME.UI.eggDamage(g, pos.sx, pos.by,
+        u.def.radius * (GAME.UI.UNIT_DRAW_SCALE || 1),
+        u.maxHp ? u.hp / u.maxHp : 1, u.__crackSeed, hurt);
+    }
 
     if (!u.isHero && !GAME.isNonTarget(u.def)) {
       g.lineStyle(2, FX.targetRing, Math.min(1, 0.9 * RA));

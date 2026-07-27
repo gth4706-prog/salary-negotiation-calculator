@@ -1150,6 +1150,49 @@ GAME.UI = GAME.UI || {};
     return { sx: sx, sy: sy, by: by };
   };
 
+  // ── 껍질 금 + 피격 번쩍 ──────────────────────────────────────
+  //
+  // "에그 느낌이 안 든다"는 지적의 핵심 대응.
+  // 계란의 정체성은 **깨진다**는 것이다. 지금까지는 체력을 체력바 숫자로만 읽었는데,
+  // 체력이 줄수록 껍질에 금이 누적되면 **읽지 않고 보고** 알 수 있다.
+  // 금 모양은 유닛마다 고정(seed 기반)이라 프레임마다 튀지 않는다.
+  //
+  //   g, sx, by : 화면 좌표(drawUnit 이 돌려준 값)
+  //   r         : 그린 반지름
+  //   hpRatio   : 0~1
+  //   seed      : 유닛마다 다른 정수(모양 고정용)
+  //   hurt      : 피격 잔여 시간(ms) — 0보다 크면 흰색으로 번쩍인다
+  UI.eggDamage = function (g, sx, by, r, hpRatio, seed, hurt) {
+    var ink = UI.ART_INK_COLOR !== undefined ? UI.ART_INK_COLOR : 0x2a2114;
+    var dmg = 1 - Math.max(0, Math.min(1, hpRatio));
+    // 체력이 20% 넘게 깎여야 첫 금이 보인다 — 스치기만 해도 금이 가면 지저분하다
+    var cracks = dmg < 0.2 ? 0 : Math.min(4, Math.floor((dmg - 0.2) / 0.2) + 1);
+
+    for (var i = 0; i < cracks; i++) {
+      // seed 로 고정된 각도·길이 — 같은 유닛은 항상 같은 자리에 금이 간다
+      var a0 = ((seed * 13 + i * 97) % 360) * Math.PI / 180;
+      var len = r * (0.5 + ((seed * 7 + i * 31) % 40) / 100);
+      var x0 = sx + Math.cos(a0) * r * 0.30;
+      var y0 = by + Math.sin(a0) * r * 0.34;
+      g.lineStyle(Math.max(1.2, r * 0.09), ink, 0.72);
+      g.beginPath();
+      g.moveTo(x0, y0);
+      // 두 번 꺾어 번개 모양으로 — 직선이면 금이 아니라 흠집처럼 보인다
+      var bx = x0 + Math.cos(a0) * len * 0.5 + Math.cos(a0 + 1.4) * r * 0.16;
+      var byy = y0 + Math.sin(a0) * len * 0.5 + Math.sin(a0 + 1.4) * r * 0.16;
+      g.lineTo(bx, byy);
+      g.lineTo(x0 + Math.cos(a0) * len, y0 + Math.sin(a0) * len * 0.9);
+      g.strokePath();
+    }
+
+    // 피격 번쩍 — 맞은 직후 짧게 흰빛이 덮인다(명중했다는 확인)
+    if (hurt > 0) {
+      var k = Math.min(1, hurt / 220);
+      g.fillStyle(0xffffff, 0.55 * k);
+      g.fillEllipse(sx, by, r * 1.7, r * 2.0);
+    }
+  };
+
   // ── UI 패널용 (투영 없음) ─────────────────────────────────────
   //  기존 시그니처 + walk: (g, def, sx, sy, color, alpha, scale, facing, walk)
   //  칩·미니맵에 들어가므로 무기 사거리를 줄여(reach 0.72) 박스를 벗어나지 않게 한다.

@@ -96,7 +96,7 @@ GAME.LoadingScene.prototype._startVideo = function () {
   btn.style.cssText =
     'position:absolute;left:50%;bottom:8%;transform:translate(-50%,140%);' +
     'padding:16px 46px;border-radius:999px;cursor:pointer;' +
-    'font:700 21px "Malgun Gothic",sans-serif;letter-spacing:1px;' +
+    'font:700 21px var(--egg-font);letter-spacing:1px;' +
     'color:#fffcf0;background:#123f96;border:3px solid #2a2114;' +
     'box-shadow:0 6px 0 #2a2114,0 10px 22px rgba(42,33,20,.35);' +
     'opacity:0;transition:transform .55s cubic-bezier(.2,1.2,.3,1),opacity .45s ease;' +
@@ -108,7 +108,7 @@ GAME.LoadingScene.prototype._startVideo = function () {
   skip.textContent = '건너뛰기 ▸';
   skip.style.cssText =
     'position:absolute;right:14px;top:14px;padding:9px 16px;border-radius:999px;cursor:pointer;' +
-    'font:600 14px "Malgun Gothic",sans-serif;color:#2a2114;' +
+    'font:600 14px var(--egg-font);color:#2a2114;' +
     'background:rgba(255,252,240,.82);border:2px solid rgba(42,33,20,.45);' +
     '-webkit-tap-highlight-color:transparent;';
   wrap.appendChild(skip);
@@ -119,7 +119,7 @@ GAME.LoadingScene.prototype._startVideo = function () {
   hint.style.cssText =
     'position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);' +
     'padding:12px 22px;border-radius:999px;pointer-events:none;' +
-    'font:600 15px "Malgun Gothic",sans-serif;color:#2a2114;' +
+    'font:600 15px var(--egg-font);color:#2a2114;' +
     'background:rgba(255,252,240,.9);border:2px solid rgba(42,33,20,.4);' +
     'opacity:0;transition:opacity .3s ease;';
   wrap.appendChild(hint);

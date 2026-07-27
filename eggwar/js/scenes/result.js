@@ -18,6 +18,8 @@ GAME.ResultScene.prototype.init = function (data) {
   this.escalation = data.escalation || 0;
   this.tower = data.tower || 0;
   this.towerRec = data.towerRec || null;
+  this.runRec = data.runRec || null;          // 통곡의 탑 도전 상태(골드·레벨)
+  this.goldGained = data.goldGained || 0;
 };
 
 GAME.ResultScene.prototype.create = function () {
@@ -36,11 +38,10 @@ GAME.ResultScene.prototype.create = function () {
     if (this.winner === 'controller') {
       title = this.tower + '층 돌파'; color = C.accent;
       sub = '다음은 ' + (this.tower + 1) + '층 — 적 진형 ' + GAME.Tower.budgetFor(this.tower + 1) +
-            ' vs 내 예산 ' + GAME.Tower.heroBudgetFor(this.tower + 1) +
-            '. AI가 이번 전투를 분석해 배치를 바꿉니다.';
+            '. 골드로 능력치를 올리고 올라가세요. AI는 이번 전투 양상을 보고 배치를 바꿉니다.';
     } else {
       title = this.tower + '층에서 탈락'; color = C.accentAlt;
-      sub = '1층부터 다시 시작합니다.' +
+      sub = '도전이 끝났습니다 — 1층부터 새로 세팅합니다.' +
             (this.towerRec ? ' 최고 기록 ' + (this.towerRec.best || 0) + '층.' : '');
     }
   } else if (this.defendTower) {
@@ -118,6 +119,13 @@ GAME.ResultScene.prototype.create = function () {
   }
 
   if (this.tower) {
+    // 도전 보상 — 골드가 올랐다는 걸 점수와 같은 무게로 보여준다
+    if (this.goldGained > 0 && this.runRec) {
+      var gr = GAME.UI.rewardRow(this, bx, ry, bw, '획득 골드',
+        '+' + this.goldGained + '  (보유 ' + this.runRec.gold + ')',
+        { accent: 0xffd166, valueSize: 'heading', valueColor: GAME.UI.TXT.crit });
+      blocks.push(gr); ry = gr.bottom + 8;
+    }
     var prof = GAME.Profile.read();
     var r = GAME.UI.rewardRow(this, bx, ry, bw, 'AI가 읽은 당신',
       prof.styleLabel + ' · ' + prof.dodgeLabel,

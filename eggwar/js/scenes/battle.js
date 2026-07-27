@@ -45,6 +45,23 @@ GAME.BattleScene.prototype.create = function () {
 
   this.hero = GAME.Combat.createHero(
     this.heroKey, this.startPos.x, this.startPos.y, 'controller', this.items, this.picks);
+
+  // 통곡의 탑 도전 중이면 **층을 깨며 올린 능력치 레벨**을 얹는다.
+  // 장비(items)는 이미 createHero 가 반영했고, 레벨업은 그 위에 더해지는 성장분이다.
+  if (this.tower && GAME.TowerRun && GAME.TowerRun.get()) {
+    var bonus = GAME.TowerRun.statBonus();
+    var d = this.hero.def;
+    if (bonus.damage) d.damage += bonus.damage;
+    if (bonus.armor) d.armor += bonus.armor;
+    if (bonus.speed) d.speed += bonus.speed;
+    if (bonus.hp) {
+      d.hp += bonus.hp;
+      this.hero.maxHp = d.hp;
+      this.hero.hp = d.hp;
+    }
+    this.runBonus = bonus;
+  }
+
   this.state.units.push(this.hero);
   this.arrowOn = this.hero;      // 내가 모는 유닛 위에 빨간 화살표
 
@@ -282,9 +299,18 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     GAME.Profile.record(this.heroKey, t);
 
     // 통곡의 탑 진행 처리
-    var towerRec = null;
+    var towerRec = null, runRec = null, goldGained = 0;
     if (this.tower) {
       towerRec = won ? GAME.Tower.clear(this.tower) : GAME.Tower.fail();
+      // 도전(run) — 이기면 골드를 주고, 지면 도전이 끝난다(다음엔 처음부터 고른다)
+      if (GAME.TowerRun && GAME.TowerRun.get()) {
+        if (won) {
+          goldGained = GAME.TowerRun.goldFor(this.tower);
+          runRec = GAME.TowerRun.clear(this.tower);
+        } else {
+          GAME.TowerRun.end();
+        }
+      }
     }
 
     this.time.delayedCall(1100, function () {
@@ -296,6 +322,8 @@ GAME.BattleScene.prototype.update = function (time, delta) {
         score: score,
         tower: self.tower,
         towerRec: towerRec,
+        runRec: runRec,
+        goldGained: goldGained,
         learnNotes: learnRec.lastNotes || []
       });
     });

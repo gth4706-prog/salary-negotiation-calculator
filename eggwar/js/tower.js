@@ -126,11 +126,20 @@ GAME.Tower = {
 
     var prof = GAME.Profile.read();
     var useProfile = floor >= 3 && prof.battles >= 1;
+
+    // 영웅 카운터를 쓸지 말지.
+    //
+    // 도전(TowerRun)이 진행 중이면 영웅은 **도전 내내 고정**이다. 그런 상황에서 매 층
+    // 그 영웅의 카운터를 얹으면 같은 상성이 층마다 반복돼 '벽'처럼 느껴진다.
+    // 그래서 도전 중에는 카운터를 끄고 **그 사람의 전투 양상**(Profile — 교전거리·회피·
+    // 진입 방향)만으로 배치를 짠다. 매 층 영웅을 다시 고르던 예전 방식에서는
+    // '무엇을 들고 오는지'가 가장 확실한 정보였으니 그때는 카운터를 그대로 쓴다.
+    var runActive = !!(GAME.TowerRun && GAME.TowerRun.get());
     var f = GAME.AutoFormation.generate(budget, useProfile ? prof : null, {
       id: 'tower-' + floor,
       name: floor + '층',
       tier: '탑 ' + floor + '층',
-      heroKey: heroKey || null
+      heroKey: runActive ? null : (heroKey || null)
     });
 
     if (bossKey) {

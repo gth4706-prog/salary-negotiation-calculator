@@ -12,9 +12,11 @@ GAME.DraftScene.prototype.constructor = GAME.DraftScene;
 GAME.DraftScene.prototype.init = function (data) {
   this.formation = GAME.Formations.getById(data.formationId);
   this.tower = (data && data.tower) || 0;    // 통곡의 탑 층수 (0이면 일반 대전)
-  // 탑에서는 영웅 예산이 진형보다 느리게 오른다 (난이도가 실제로 올라가게)
-  this.budget = this.tower ? GAME.Tower.heroBudgetFor(this.tower)
-                           : GAME.Formations.budgetOf(this.formation);
+  // 탑은 **도전 시작 예산**으로 한 번만 세팅한다(이후 성장은 골드로).
+  // 일반 대전은 배치도가 선언한 예산을 그대로 쓴다(양쪽 동일 조건).
+  this.budget = this.tower
+    ? (GAME.TowerRun ? GAME.TowerRun.START_BUDGET : GAME.Tower.heroBudgetFor(this.tower))
+    : GAME.Formations.budgetOf(this.formation);
   // 탑에서는 로비에서 이미 영웅을 골랐다(AI 가 그 영웅을 보고 배치를 짰으므로
   // 여기서 바꾸면 카운터가 어긋난다). 그래서 넘어온 영웅을 그대로 쓴다.
   this.heroKey = (data && data.heroKey && GAME.HEROES[data.heroKey])
@@ -284,6 +286,11 @@ GAME.DraftScene.prototype._start = function () {
   if (this.spent() > this.budget) {
     this.warnText.setText('예산을 초과했습니다.');
     return;
+  }
+  // 통곡의 탑: 여기서 고른 것이 **도전 내내 유지되는 세팅**이다.
+  // 이 뒤로는 층마다 다시 고르지 않고, 골드로 능력치를 올리거나 장비를 보강한다.
+  if (this.tower && GAME.TowerRun && !GAME.TowerRun.get()) {
+    GAME.TowerRun.start(this.heroKey, this.items, this.picks);
   }
   var Z = GAME.CONFIG.ZONE_CONTROLLER;
   this.scene.start('Battle', {

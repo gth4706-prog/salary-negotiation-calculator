@@ -23,9 +23,11 @@ GAME.TowerScene.prototype.create = function () {
   var budget = GAME.Tower.budgetFor(floor);
   var prof = GAME.Profile.read();
 
-  // 영웅을 먼저 고른다 — AI 전략가는 **그 영웅을 보고** 배치를 짠다.
-  // 그래서 영웅을 바꾸면 아래 배치도 즉시 다시 그려진다.
-  this.heroKey = GAME.Store.get('asymgame.lastHero', GAME.HERO_ORDER[0]);
+  // 진행 중인 도전이 있으면 그 세팅을 그대로 쓴다(층마다 다시 고르지 않는다).
+  // 없으면 새 도전이므로 여기서 영웅을 고르고, 준비 화면에서 장비·스킬을 확정한다.
+  this.run = (GAME.TowerRun && GAME.TowerRun.get()) || null;
+  this.heroKey = this.run ? this.run.heroKey
+                          : GAME.Store.get('asymgame.lastHero', GAME.HERO_ORDER[0]);
   if (!GAME.HEROES[this.heroKey]) this.heroKey = GAME.HERO_ORDER[0];
   this.formation = GAME.Tower.formationFor(floor, this.heroKey);
 
@@ -61,7 +63,10 @@ GAME.TowerScene.prototype.create = function () {
   }
 
   stack(GAME.UI.label(this, W / 2, y,
-    '적 진형 ' + budget + '   vs   내 예산 ' + heroBudget + '   ·   최고 ' + (rec.best || 0) + '층',
+    this.run
+      ? ('적 진형 ' + budget + '   ·   내 빌드 유지 중   ·   최고 ' + (rec.best || 0) + '층')
+      : ('적 진형 ' + budget + '   vs   시작 예산 ' + GAME.TowerRun.START_BUDGET +
+         '   ·   최고 ' + (rec.best || 0) + '층'),
     P ? 15 : 19, C.text, 0.5)
     .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 30));
 
@@ -75,39 +80,80 @@ GAME.TowerScene.prototype.create = function () {
       .setOrigin(0.5, 0).setAlign('center').setLineSpacing(4).setWordWrapWidth(W - 40));
   }
 
-  // ── 영웅 선택 (배치보다 먼저다) ──
   var pw = Math.min(W - 30, 640);
-  stack(GAME.UI.label(this, W / 2, y,
-    '내 영웅을 먼저 고르세요 — AI가 이걸 보고 배치합니다',
-    P ? 13 : 13, C.text, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 30), u * 1.0);
-
-  var hc = GAME.Layout.cols(GAME.HERO_ORDER.length, {
-    gap: 8, width: pw, left: (W - pw) / 2, pad: 0
-  });
-  var heroH = u * 7;
   this.heroBtns = [];
-  GAME.HERO_ORDER.forEach(function (hk, i) {
-    var h = GAME.HEROES[hk];
-    var b = GAME.UI.button(self, hc[i].cx, y + heroH / 2, hc[i].w, heroH,
-      h.name + '\n' + h.trait, function () {
-        self.heroKey = hk;
-        GAME.Store.set('asymgame.lastHero', hk);
-        // 영웅이 바뀌면 상대 배치도 다시 짜인다
-        self.formation = GAME.Tower.formationFor(floor, hk);
-        self._refresh();
-      }, { fontSize: P ? 13 : 13 });
-    b.text.setAlign('center');
-    self.heroBtns.push({ key: hk, btn: b });
-  });
-  y += heroH + u * 1.8;
+
+  if (this.run) {
+    // ── 도전 진행 중: 골드로 능력치를 올린다 ──
+    // 영웅·스킬은 도전 내내 고정이므로 고르는 UI 를 두지 않는다. 여기서 하는 건 성장뿐.
+    var hero = GAME.HEROES[this.heroKey];
+    stack(GAME.UI.label(this, W / 2, y,
+      '내 영웅  ' + hero.name + '  (' + hero.trait + ')  —  도전 내내 유지됩니다',
+      P ? 14 : 16, GAME.UI.TXT.crit, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 30), u * 0.8);
+
+    this.goldLabel = GAME.UI.label(this, W / 2, y, '', P ? 20 : 24, C.accent, 0.5).setOrigin(0.5, 0);
+    y = this.goldLabel.y + this.goldLabel.height + u * 1.2;
+
+    var sc = GAME.Layout.cols(2, { gap: 8, width: pw, left: (W - pw) / 2, pad: 0 });
+    var rowH = Math.max(GAME.UI.BTN_H_SM || 52, u * 6);
+    this.statBtns = [];
+    GAME.TowerRun.STATS.forEach(function (d, i) {
+      var col = sc[i % 2];
+      var ry = y + Math.floor(i / 2) * (rowH + 8);
+      var b = GAME.UI.button(self, col.cx, ry + rowH / 2, col.w, rowH, '', function () {
+        if (GAME.TowerRun.levelUp(d.key)) {
+          self.run = GAME.TowerRun.get();
+          self._refreshRun(true);
+        }
+      }, { fontSize: P ? 13 : 14 });
+      b.text.setAlign('center');
+      self.statBtns.push({ def: d, btn: b });
+    });
+    y += Math.ceil(GAME.TowerRun.STATS.length / 2) * (rowH + 8) + u * 0.6;
+
+    // 이 문구는 장비 이름 길이에 따라 1~2줄이 된다. **먼저 채워 넣고 실제 높이만큼** 밀어야
+    // 아래 성향 패널을 파고들지 않는다(빈 문자열 높이로 밀었더니 실제로 겹쳤다).
+    this.runHint = GAME.UI.label(this, W / 2, y,
+      this._runHintText(), P ? 13 : 13, C.textDim, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 40);
+    y = this.runHint.y + this.runHint.height + u * 1.6;
+  } else {
+    // ── 새 도전: 영웅을 먼저 고른다 ──
+    stack(GAME.UI.label(this, W / 2, y,
+      '영웅을 고르세요 — 이 도전이 끝날 때까지 함께 갑니다',
+      P ? 13 : 13, C.text, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 30), u * 1.0);
+
+    var hc = GAME.Layout.cols(GAME.HERO_ORDER.length, {
+      gap: 8, width: pw, left: (W - pw) / 2, pad: 0
+    });
+    var heroH = u * 7;
+    GAME.HERO_ORDER.forEach(function (hk, i) {
+      var h = GAME.HEROES[hk];
+      var b = GAME.UI.button(self, hc[i].cx, y + heroH / 2, hc[i].w, heroH,
+        h.name + '\n' + h.trait, function () {
+          self.heroKey = hk;
+          GAME.Store.set('asymgame.lastHero', hk);
+          self._refresh();
+        }, { fontSize: P ? 13 : 13 });
+      b.text.setAlign('center');
+      self.heroBtns.push({ key: hk, btn: b });
+    });
+    y += heroH + u * 1.8;
+  }
 
   // AI가 읽은 내 성향 + 이 영웅에 대한 대응 (내용 길이에 맞춰 패널을 그린다)
+  //
+  // 도전 중에는 위에 골드 상점(4칸)이 들어가 세로가 빠듯하다. 그래서 성향 문장은
+  // **한 줄로 짧게** 줄인다 — 길게 두면 아래 '전투 시작' 버튼을 파고든다(실측 확인).
+  // 정작 중요한 '적 구성'(compText)은 남겨야 하므로 이쪽을 줄이는 게 맞다.
   var panelTop = y;
   var lx = W / 2 - pw / 2 + 14;
-  var l1 = GAME.UI.label(this, lx, y + 10,
-    prof.battles ? ('AI가 읽은 당신 — ' + prof.styleLabel + ' · ' + prof.dodgeLabel +
-                    ' (교전거리 ' + prof.avgDist + ', ' + prof.battles + '전)')
-                 : 'AI가 읽은 당신 — 아직 분석할 기록이 없습니다',
+  var profLine = this.run
+    ? (prof.battles ? ('내 성향 — ' + prof.styleLabel + ' · ' + prof.dodgeLabel)
+                    : '내 성향 — 아직 기록 없음')
+    : (prof.battles ? ('AI가 읽은 당신 — ' + prof.styleLabel + ' · ' + prof.dodgeLabel +
+                       ' (교전거리 ' + prof.avgDist + ', ' + prof.battles + '전)')
+                    : 'AI가 읽은 당신 — 아직 분석할 기록이 없습니다');
+  var l1 = GAME.UI.label(this, lx, y + 10, profLine,
     P ? 13 : 13, C.crit, 0).setWordWrapWidth(pw - 28);
   this.rationaleText = GAME.UI.label(this, lx, l1.y + l1.height + 6,
     '', P ? 13 : 12, C.textDim, 0).setWordWrapWidth(pw - 28);
@@ -139,12 +185,26 @@ GAME.TowerScene.prototype.create = function () {
   // 패널(위에서 자람)과 버튼(아래에서 올라옴)이 만나는 지점.
   // 진형 구성 문구 길이가 매번 달라 **간헐적으로만** 겹쳤다 — 이 선을 넘지 않게 맞춘다.
   this.panelMaxBottom = byBottom - bh * 2.5 - gap * 2 - (bh + u * 0.8) / 2 - 8;
-  GAME.UI.button(this, W / 2, byBottom - bh * 2.5 - gap * 2, bw, bh + u * 0.8, floor + '층 도전', function () {
-    // 이 배치도를 임시 등록해 기존 흐름(Draft → Battle)을 그대로 쓴다
+  GAME.UI.button(this, W / 2, byBottom - bh * 2.5 - gap * 2, bw, bh + u * 0.8,
+    this.run ? (floor + '층 전투 시작') : (floor + '층 도전 — 장비 고르기'), function () {
+    // 이 배치도를 임시 등록해 기존 흐름을 그대로 쓴다
     GAME.Tower.pending = self.formation;
-    self.scene.start('Draft', {
-      formationId: self.formation.id, tower: floor, heroKey: self.heroKey
-    });
+    if (self.run) {
+      // 도전 중 — 다시 고르지 않고 저장된 세팅으로 곧장 전투로
+      var Z = GAME.CONFIG.ZONE_CONTROLLER;
+      self.scene.start('Battle', {
+        formationId: self.formation.id,
+        heroKey: self.run.heroKey,
+        items: self.run.items,
+        picks: self.run.picks,
+        tower: floor,
+        startPos: { x: Z.x + Z.w / 2, y: Z.y + Z.h * 0.55 }
+      });
+    } else {
+      self.scene.start('Draft', {
+        formationId: self.formation.id, tower: floor, heroKey: self.heroKey
+      });
+    }
   }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 20 : 22 });
 
   // 버튼을 다 만든 뒤에 그린다 — _refresh 가 panelMaxBottom(버튼 최상단)을 봐야 하는데
@@ -155,9 +215,54 @@ GAME.TowerScene.prototype.create = function () {
 };
 
 // 고른 영웅에 맞춰 선택 표시·대응 근거·적 구성을 다시 그린다
+// 도전 중 골드·능력치 표시 갱신. bump=true 면 골드 숫자가 튕기는 연출을 준다.
+GAME.TowerScene.prototype._refreshRun = function (bump) {
+  if (!this.run || !this.goldLabel) return;
+  var C = GAME.CONFIG.COLORS;
+  var self = this;
+  var TR = GAME.TowerRun;
+
+  this.goldLabel.setText('💰 골드  ' + this.run.gold);
+  if (bump) {
+    // 돈이 줄어든 게 눈에 보이게 — 숫자가 한 번 커졌다 돌아온다
+    this.goldLabel.setScale(1.25);
+    this.tweens.add({ targets: this.goldLabel, scale: 1, duration: 260, ease: 'Back.easeOut' });
+  }
+
+  var bonus = TR.statBonus(this.run);
+  this.statBtns.forEach(function (s) {
+    var d = s.def;
+    var lv = self.run.levels[d.key] || 0;
+    var maxed = lv >= d.max;
+    var cost = TR.costOf(d.key, lv);
+    var can = !maxed && self.run.gold >= cost;
+    s.btn.text.setText(d.name + '  Lv.' + lv + (maxed ? ' (최대)' : '')
+      + '\n' + (maxed ? ('+' + bonus[d.key]) : ('+' + bonus[d.key] + '  →  ' + cost + '골드')));
+    s.btn.text.setColor(can ? C.accent : C.textDim);
+    s.btn.rect.setStrokeStyle(can ? 2 : 1, can ? C.controller : GAME.UI.COL.borderUi);
+    s.btn.rect.setFillStyle(can ? GAME.UI.COL.panelTeal : GAME.UI.COL.surfaceAlt);
+  });
+
+  if (this.runHint) this.runHint.setText(this._runHintText());
+};
+
+// 도전 중 장비 요약 한 줄
+GAME.TowerScene.prototype._runHintText = function () {
+  var rec = this.run || (GAME.TowerRun && GAME.TowerRun.get());
+  if (!rec) return '';
+  var it = rec.items || {};
+  var worn = GAME.ITEM_SLOTS.map(function (s) {
+    var k = it[s.key];
+    return k ? GAME.Items.find(s.key, k).name : null;
+  }).filter(Boolean);
+  return '장비 ' + (worn.length ? worn.join(' · ') : '없음') + '  ·  층을 깰 때마다 골드 획득';
+};
+
 GAME.TowerScene.prototype._refresh = function () {
   var C = GAME.CONFIG.COLORS;
   var self = this;
+
+  if (this.run) { this._refreshRun(false); }
 
   this.heroBtns.forEach(function (h) {
     var on = h.key === self.heroKey;
@@ -166,18 +271,20 @@ GAME.TowerScene.prototype._refresh = function () {
     h.btn.text.setColor(on ? C.accent : C.text);
   });
 
-  this.rationaleText.setText('이 층의 대응: ' + this.formation.rationale);
+  // 도전 중에는 골드 상점이 세로를 먹으므로 대응 근거를 접는다(적 구성이 더 중요하다)
+  this.rationaleText.setText(this.run ? '' : ('이 층의 대응: ' + this.formation.rationale));
 
   var counts = {};
   this.formation.units.forEach(function (x) { counts[x.type] = (counts[x.type] || 0) + 1; });
   // 유닛 종류가 10종까지 가면 이 줄이 3~4줄로 늘어나 아래 버튼을 밀어낸다.
   // 진형 구성이 매번 랜덤이라 **간헐적으로만** 터져서 더 위험하다 — 길이를 상한으로 묶는다.
   var keys = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+  // 'x3' 처럼 개수를 붙여 한눈에 읽히게 (요청 반영)
   function compFor(n) {
     var t = keys.slice(0, n).map(function (k) {
-      return GAME.UNITS[k].name + ' ' + counts[k];
-    }).join(' · ');
-    if (keys.length > n) t += ' 외 ' + (keys.length - n) + '종';
+      return GAME.UNITS[k].name + ' ×' + counts[k];
+    }).join('   ');
+    if (keys.length > n) t += '  외 ' + (keys.length - n) + '종';
     return t;
   }
   var comp = compFor(keys.length);

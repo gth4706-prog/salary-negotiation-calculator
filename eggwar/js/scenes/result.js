@@ -137,8 +137,10 @@ GAME.ResultScene.prototype.create = function () {
     GAME.UI.countUp(this, scoreRow.value, this.score, { suffix: '점', duration: 800, delay: 320 });
   }
 
-  // 버튼은 위 블록 길이에 따라 밀린다 — 고정 y 로 두면 긴 결과에서 겹친다
-  var btnTop = Math.max(u * 60, ry + u * 2);
+  // 액션 스택은 화면 하단에 정박시킨다(썸 리치 + 바닥 여백 흡수). 3행이 u*90 근처에서
+  // 끝나도록 아래에서 위로 잡되, 위 정보 블록과는 절대 겹치지 않게 ry 아래로 clamp 한다.
+  //   예전엔 고정 u*60 에서 아래로 뻗어 바닥 ~19% 가 비고 정보-버튼 사이 띠가 남았다.
+  var btnTop = Math.max(ry + u * 3, u * 68);
 
   var b1 = this.tower ? (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : '1층부터 다시')
          : (this.defendMode ? '배치 고쳐 다시' : '같은 진형에 다시 도전');

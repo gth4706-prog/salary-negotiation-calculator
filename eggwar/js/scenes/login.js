@@ -13,36 +13,50 @@ GAME.LoginScene.prototype.create = function () {
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var P = GAME.CONFIG.PORTRAIT;
   var self = this;
-  var u = H / 100;
+  var u = H / 100;   // 세로 1%
 
   this.cameras.main.setBackgroundColor(C.bg);
 
-  GAME.UI.label(this, W / 2, u * 18, '🥚 EGG WAR', P ? 28 : 50, C.text, 0.5);
-  GAME.UI.label(this, W / 2, u * 26, '계란 부족 비대칭 실시간 대전', P ? 15 : 18, C.textDim, 0.5);
-  GAME.UI.label(this, W / 2, u * 38, '닉네임을 입력하고 시작하세요', P ? 17 : 18, C.text, 0.5);
+  // ── 상단: 간판 ──────────────────────────────────────────────────────────
+  //    12%~92% 를 고른 리듬으로 채운다 — 예전엔 상단·중앙에 큰 빈 띠가 남았다.
+  GAME.UI.label(this, W / 2, u * 15, '🥚 EGG WAR', P ? 'display' : 50, C.text, 0.5);
+  GAME.UI.label(this, W / 2, u * 22, '계란 부족 비대칭 실시간 대전', P ? 'caption' : 18, C.textDim, 0.5);
+  if (GAME.UI.titleRule) GAME.UI.titleRule(this, W / 2, u * 26, P ? 170 : 240);
+
+  // ── 중앙: 핵심 상호작용 (입력 + 시작) ────────────────────────────────────
+  //    입력창은 DOM 이라 캔버스 밖에서 논다. 캔버스 스케일에 맞춰 크기/위치를 잡는다.
+  //    아래 안내문은 입력 바로 위에 붙여 '무엇을 하는 칸인지'를 명확히 한다.
+  this.inputY = 0.51;      // 캔버스 세로 비율 (place() 와 공유)
+  GAME.UI.label(this, W / 2, u * 38, '닉네임을 입력하고 시작하세요', P ? 'subhead' : 18, C.text, 0.5);
   GAME.UI.label(this, W / 2, u * 43,
-    '비밀번호는 없습니다. 닉네임이 그대로 랭킹에 표시됩니다.', P ? 13 : 13, C.textDim, 0.5);
+    '비밀번호는 없습니다. 닉네임이 그대로 랭킹에 표시됩니다.', P ? 'micro' : 13, C.textDim, 0.5)
+    .setAlign('center').setWordWrapWidth(W - 48);
 
-  this.msg = GAME.UI.label(this, W / 2, u * 62, '', P ? 15 : 14, C.warn, 0.5)
-    .setAlign('center').setWordWrapWidth(W - 60);
+  this.msg = GAME.UI.label(this, W / 2, u * 61, '', P ? 'caption' : 14, C.warn, 0.5)
+    .setAlign('center').setWordWrapWidth(W - 48);
 
-  // 최근에 쓴 닉네임 빠른 선택
+  // ── 하단: 최근 닉네임 빠른 선택 ──────────────────────────────────────────
   var recent = GAME.Account.list().filter(function (r) { return !r.blocked; }).slice(0, 3);
   if (recent.length) {
-    GAME.UI.label(this, W / 2, u * 70, '최근 사용', P ? 13 : 13, C.textDim, 0.5);
-    var cols = GAME.Layout.cols(recent.length, { gap: 10, width: Math.min(W, 520), left: (W - Math.min(W, 520)) / 2 });
+    GAME.UI.label(this, W / 2, u * 71, '최근 사용', P ? 'micro' : 13, C.textDim, 0.5);
+    // 화면 좌우 여백(pagePad)을 두고 균등 분할 — 예전엔 가장자리에 딱 붙어 잘려 보였다.
+    var pad = (GAME.UI.SP && GAME.UI.SP.pagePad) || 16;
+    var cols = GAME.Layout.cols(recent.length, { gap: 10, width: W, left: 0, pad: pad });
+    var rowH = (GAME.UI.BTN_H_SM || 52);
     for (var i = 0; i < recent.length; i++) {
       (function (rec, idx) {
-        GAME.UI.button(self, cols[idx].cx, u * 76, cols[idx].w, u * 5.5, rec.id, function () {
+        GAME.UI.button(self, cols[idx].cx, u * 78, cols[idx].w, rowH, rec.id, function () {
           self._submit(rec.id);
-        }, { fontSize: P ? 15 : 15 });
+        }, { fontSize: P ? 'buttonSm' : 15 });
       })(recent[i], i);
     }
   }
 
+  // ── 푸터: 안내문 ────────────────────────────────────────────────────────
   GAME.UI.label(this, W / 2, u * 92,
     '닉네임은 관리자가 검토할 수 있으며, 부적절한 닉네임은 차단됩니다.',
-    P ? 13 : 12, GAME.CONFIG.COLORS.textFaint, 0.5).setWordWrapWidth(W - 60);
+    P ? 'micro' : 12, C.textFaint || C.textDim, 0.5)
+    .setAlign('center').setWordWrapWidth(W - 48);
   // 버전 표시는 DOM 배지(#ver) 하나로 통일했다 — 캔버스에도 그리면 우하단에서 겹친다.
 
   this._makeInput();
@@ -50,46 +64,67 @@ GAME.LoginScene.prototype.create = function () {
   this.events.on('shutdown', function () { self._removeInput(); });
 };
 
-// 캔버스 스케일에 맞춰 DOM input 을 정확한 위치에 띄운다
+// 캔버스 스케일에 맞춰 DOM input 을 정확한 위치·크기로 띄운다.
+//  고정 220px 를 쓰면 폰마다 캔버스 배율과 따로 놀아 너무 크거나 작아 보였다
+//  (시작 버튼이 '시/작' 으로 줄바꿈되던 것도 이 어긋남 때문). 그래서 크기까지
+//  캔버스 렌더 배율(sx)로 함께 굴린다 — 설계 px 가 캔버스 글자와 같은 비율로 찍힌다.
 GAME.LoginScene.prototype._makeInput = function () {
   var self = this;
-  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
 
   var wrap = document.createElement('div');
   wrap.id = 'login-ui';
-  wrap.style.cssText = 'position:fixed;z-index:20;display:flex;gap:8px;align-items:center;';
+  wrap.style.cssText = 'position:fixed;z-index:20;display:flex;align-items:stretch;box-sizing:border-box;';
 
   var input = document.createElement('input');
   input.type = 'text';
   input.maxLength = GAME.Account.MAX_LEN;
   input.placeholder = '닉네임 (2~12자)';
   input.style.cssText =
-    'font:16px "Malgun Gothic",sans-serif;padding:10px 12px;border-radius:8px;' +
-    'border:1px solid #4a4a68;background:#1c1c28;color:#e8e8f0;outline:none;width:220px;';
+    'font-family:"Malgun Gothic",sans-serif;box-sizing:border-box;' +
+    'border-radius:8px;border:1px solid #4a4a68;background:#1c1c28;color:#e8e8f0;outline:none;';
 
   var btn = document.createElement('button');
   btn.textContent = '시작';
   btn.style.cssText =
-    'font:16px "Malgun Gothic",sans-serif;padding:10px 20px;border-radius:8px;cursor:pointer;' +
-    'border:1px solid #35d0a5;background:#1c3a34;color:#35d0a5;';
+    'font-family:"Malgun Gothic",sans-serif;box-sizing:border-box;white-space:nowrap;' +
+    'border-radius:8px;cursor:pointer;border:1px solid #35d0a5;background:#1c3a34;color:#35d0a5;';
 
   wrap.appendChild(input); wrap.appendChild(btn);
   document.body.appendChild(wrap);
   this._wrap = wrap;
 
+  // 설계 px 기준 크기 — place() 에서 캔버스 배율(sx)을 곱한다.
+  var DESIGN = { inputW: 214, btnW: 96, gap: 10, h: 56, font: 19, radius: 10 };
+
   function place() {
     var canvas = document.querySelector('#game canvas');
     if (!canvas) return;
     var r = canvas.getBoundingClientRect();
-    // 캔버스 좌표 (W/2, H*0.52) 위치로 옮긴다
-    var sx = r.width / W, sy = r.height / H;
+    var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+    var sx = r.width / W;               // 캔버스가 화면에서 얼마나 커졌나
+    function px(v) { return Math.round(v * sx) + 'px'; }
+
+    wrap.style.gap = px(DESIGN.gap);
+    input.style.width = px(DESIGN.inputW);
+    input.style.height = px(DESIGN.h);
+    input.style.padding = '0 ' + px(12);
+    input.style.fontSize = px(DESIGN.font);
+    input.style.borderRadius = px(DESIGN.radius);
+    btn.style.minWidth = px(DESIGN.btnW);
+    btn.style.height = px(DESIGN.h);
+    btn.style.padding = '0 ' + px(16);
+    btn.style.fontSize = px(DESIGN.font);
+    btn.style.borderRadius = px(DESIGN.radius);
+
+    // 캔버스 좌표 (W/2, H*inputY) 로 옮긴다.
     wrap.style.left = (r.left + (W / 2) * sx) + 'px';
-    wrap.style.top = (r.top + (H * 0.52) * sy) + 'px';
+    wrap.style.top = (r.top + (H * self.inputY) * sx) + 'px';
     wrap.style.transform = 'translate(-50%, -50%)';
   }
   place();
   this._place = place;
   window.addEventListener('resize', place);
+  window.addEventListener('orientationchange', place);
 
   btn.addEventListener('click', function () { self._submit(input.value); });
   input.addEventListener('keydown', function (e) {
@@ -100,7 +135,10 @@ GAME.LoginScene.prototype._makeInput = function () {
 };
 
 GAME.LoginScene.prototype._removeInput = function () {
-  if (this._place) window.removeEventListener('resize', this._place);
+  if (this._place) {
+    window.removeEventListener('resize', this._place);
+    window.removeEventListener('orientationchange', this._place);
+  }
   if (this._wrap && this._wrap.parentNode) this._wrap.parentNode.removeChild(this._wrap);
   this._wrap = null;
 };

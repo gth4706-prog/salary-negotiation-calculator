@@ -32,11 +32,16 @@
      "모두 갯바위"라고 쓰면 안 되고("갯바위" 명시는 428곳뿐), 반대로 발판만
      보고 권해도 안 된다 — 발판이 평평해도 배로 3~4시간 가는 섬이 섞여 있다.
      그래서 전역 고지는 짧게, 판단 근거는 카드마다 개별 배지로 내린다. */
+  /* 예전 문구는 "갯바위·너울·펠트창"으로 겁만 주고 뭘 하라는 말이 없었다.
+     초보가 실제로 사고 나는 상황(물이 차올라 서 있던 바위가 잠겨 고립)을
+     이 도구는 만조 시각까지 계산해놓고 말하지 않고 있었다. */
   var SAFETY_HTML='<div class="ft-safety">'
-    +'<b>⚠️ 곳마다 성격이 많이 달라요.</b> 절반은 갯바위라 파도·너울 위험이 있고, '
-    +'<b>60%는 배를 타야 하는 섬</b>이에요. 카드마다 <b>가는 방법·발판·수심</b>을 적어뒀으니 꼭 보고 고르세요. '
-    +'처음이라면 <b>차로 갈 수 있고 발판이 평평한 곳</b>부터, 그리고 <b>경험자와 함께</b> 가세요. '
-    +'구명조끼와 미끄럼 방지(펠트창) 신발은 어디를 가든 챙기시고요.'
+    +'<b>⚠️ 처음이라면 이 3가지만 지키세요.</b>'
+    +'<div class="ft-safe-l"><b>① 구명조끼는 무조건.</b> 낚시점에서 5~8만원, 대여는 1만원대예요. 방파제여도 입으세요.</div>'
+    +'<div class="ft-safe-l"><b>② 물이 차오르는 시간을 꼭 보세요.</b> 서 있던 바위가 잠겨서 못 나오는 사고가 가장 많아요. '
+    +'카드에 적힌 <b>"물 가장 많이 찰 때"</b> 시각 2시간 전에는 뭍으로 나오세요.</div>'
+    +'<div class="ft-safe-l"><b>③ 가기 전날 밤 날씨 확인.</b> 풍랑주의보가 뜨면 가지 마세요. 사고가 나면 <b>해양경찰 122</b>.</div>'
+    +'<div class="ft-safe-l">배를 타고 들어가는 섬은 처음엔 권하지 않아요. 아래는 <b>차로 갈 수 있는 곳부터</b> 보여드려요.</div>'
     +'</div>';
 
   var QUESTIONS=[
@@ -94,6 +99,20 @@
     }
     if(s.stationKm!=null&&s.stationKm<=20)sc+=1;   // 물때 시각이 정확한 편
     return sc;
+  }
+
+  /* 목표를 골랐든 안 골랐든 항상 초보 적합도 순으로 정렬한다.
+     예전엔 "아직 모르겠어요"일 때만 정렬해서, 성실하게 어종을 고른 사람이
+     오히려 배로만 가는 섬을 먼저 보게 됐다. 동점이면 원래 순서를 지킨다. */
+  function sortForBeginner(list){
+    return list.map(function(s,i){return {s:s,i:i,sc:beginnerScore(s)}})
+      .sort(function(a,b){ return b.sc-a.sc || a.i-b.i; })
+      .map(function(x){return x.s});
+  }
+  function driveCount(list){
+    var n=0;
+    for(var i=0;i<list.length;i++){ if(list[i].access==="drive")n++; }
+    return n;
   }
 
   var DATA=[], REGION_LIST=[], answers={}, qIdx=0, ranked=[], shownFrom=0, fallbackLevel=0;
@@ -182,16 +201,20 @@
   /* 마커 색 = 초보에게 어떤 곳인지. 범례와 짝을 이룬다. */
   function markerStyle(s){
     if(s.footing==="danger"||(s.deepM!=null&&s.deepM>=15))
-      return {color:"#FF4B3E", label:"초보에겐 어려운 곳"};
+      return {color:"#FF4B3E"};
     if(s.access==="drive"&&(s.footing==="flat"||s.footing==="sand"))
-      return {color:"#2EC4B6", label:"처음 가기 좋은 곳"};
-    if(s.access==="drive") return {color:"#FFC93C", label:"차로 갈 수 있는 곳"};
-    return {color:"#9FB3C8", label:"배를 타야 하거나 확인 필요"};
+      return {color:"#2EC4B6"};
+    if(s.access==="drive") return {color:"#FFC93C"};
+    if(s.access==="ferry") return {color:"#7A9BB8"};
+    return {color:"#4A6480"};   // 정보 부족 — 배 필요와 섞으면 안 된다
   }
+  /* "배를 타야 함"과 "정보가 부족함"은 완전히 다른 얘긴데 같은 회색이었다.
+     전남 505곳 중 355곳(70%)이 그 애매한 회색이라 지도를 켜는 의미가 없었다. */
   var LEGEND=[
     ["#2EC4B6","처음 가기 좋아요"],
     ["#FFC93C","차로 갈 수 있어요"],
-    ["#9FB3C8","배를 타야 하거나 확인 필요"],
+    ["#7A9BB8","배를 타야 해요"],
+    ["#4A6480","정보가 부족해요"],
     ["#FF4B3E","초보에겐 어려워요"]
   ];
   function renderLegend(){
@@ -208,18 +231,44 @@
     var head='<div class="ft-pop-name">'+escapeHtml(s.name)+'</div>'
       +'<div class="ft-pop-sub">'+escapeHtml(s.region+(s.sigungu?" "+s.sigungu:""))+'</div>';
     var chips="";
-    if(tide)chips+='<span class="ft-pop-chip">오늘 '+escapeHtml(tide.label)+'</span>';
+    if(tide)chips+='<span class="ft-pop-chip" title="1~15물은 물이 얼마나 세게 드나드는지예요. 숫자가 클수록 세게 드나들고 고기가 잘 뭅니다.">오늘 '+escapeHtml(tide.label)+'</span>';
     (s.species||[]).slice(0,4).forEach(function(sp){
       chips+='<span class="ft-pop-chip">'+escapeHtml(sp)+'</span>';
     });
     return head
       +(chips?'<div class="ft-pop-chips">'+chips+'</div>':'')
       +guideHtml(s)
-      +'<div class="ft-pop-time" data-pop-station="'+escapeHtml(s.station||"")+'">만조·간조 불러오는 중…</div>'
+      +'<div class="ft-pop-time" data-pop-station="'+escapeHtml(s.station||"")+'"'
+        +' data-pop-phase="'+escapeHtml((s.tidePhase||[]).join(","))+'"'
+        +' data-pop-region="'+escapeHtml(s.region)+'">물때 시각 불러오는 중…</div>'
       +'<a class="ft-pop-map" href="'+mapLink(s)+'" target="_blank" rel="noopener">🗺️ 카카오맵으로 열기</a>';
   }
 
-  function showMap(spots, title, sub){
+  /* 지도를 지역 전체에 맞추면(fitBounds) 너무 멀어진다 — 전남은 좌표가 244km,
+     경북 193km, 인천 164km에 걸쳐 있어서 점 수백 개가 좁쌀로 보인다.
+     그래서 "가장 갈 만한 곳" 하나를 중심으로 확대해서 시작하고,
+     전체를 보고 싶으면 버튼으로 넓히게 한다. */
+  var mapAll=[], mapPicks=[];
+
+  function fitAll(){
+    if(!map||!mapAll.length)return;
+    try{ map.fitBounds(mapAll.map(function(s){return [s.lat,s.lon]}),{padding:[24,24], maxZoom:12}); }catch(e){}
+  }
+  /* 추천 3곳이 전부 화면에 들어오게 맞춘다. 한 곳만 확대하면 나머지 두 곳이
+     화면 밖으로 나가서 "①②③를 보세요"라고 써놓고 ①만 보이게 된다.
+     3곳이 멀리 떨어져 있으면 자동으로 넓게, 가까우면 가깝게 잡힌다. */
+  function fitPicks(){
+    if(!map||!mapPicks.length)return;
+    if(mapPicks.length===1){ try{ map.setView([mapPicks[0].lat,mapPicks[0].lon],13); }catch(e){} return; }
+    try{ map.fitBounds(mapPicks.map(function(s){return [s.lat,s.lon]}),{padding:[45,45], maxZoom:13}); }catch(e){}
+  }
+  function bindMapButtons(){
+    var a=$("ft-map-all"), b=$("ft-map-focus");
+    if(a&&!a.__b){ a.__b=1; a.addEventListener("click",fitAll); }
+    if(b&&!b.__b){ b.__b=1; b.addEventListener("click",fitPicks); }
+  }
+
+  function showMap(spots, title, sub, picks){
     var sec=$("stepMap");
     if(!sec)return;
     if(!mapReady()){ sec.hidden=true; return; }
@@ -227,16 +276,25 @@
     if($("ft-map-title"))$("ft-map-title").textContent=title||"포인트 위치";
     if($("ft-map-sub"))$("ft-map-sub").textContent=sub||"마커를 누르면 그 자리의 정보와 오늘 물때가 나와요.";
     renderLegend();
+    bindMapButtons();
     if(!initMap()){ sec.hidden=true; return; }
 
     markerLayer.clearLayers();
+    mapAll=spots.filter(function(s){return isFinite(s.lat)&&isFinite(s.lon)});
+    mapPicks=(picks||[]).filter(function(s){return isFinite(s.lat)&&isFinite(s.lon)});
+    var pickIdx={};
+    mapPicks.forEach(function(s,i){ pickIdx[s.lat+","+s.lon]=i+1; });
     var pts=[];
     spots.forEach(function(s){
       if(!(isFinite(s.lat)&&isFinite(s.lon)))return;
       var st=markerStyle(s);
-      var m=L.circleMarker([s.lat,s.lon],{
-        radius:6, weight:2, color:st.color, fillColor:st.color, fillOpacity:.65
-      });
+      /* 번호는 카드에 실제로 나온 곳에만 붙인다. 지역만 고른 단계에서
+         파일 순서대로 ①②③을 붙이면 아무 의미도 없는데 제일 눈에 띈다. */
+      var top=pickIdx[s.lat+","+s.lon]||0;
+      var m=top
+        ? L.circleMarker([s.lat,s.lon],{radius:11, weight:3, color:"#fff", fillColor:st.color, fillOpacity:.95})
+        : L.circleMarker([s.lat,s.lon],{radius:6, weight:2, color:st.color, fillColor:st.color, fillOpacity:.65});
+      if(top)m.bindTooltip(String(top),{permanent:true, direction:"center", className:"ft-mk-num"});
       m.bindPopup(function(){ return popupHtml(s); },{maxWidth:300, className:"ft-pop"});
       m.on("popupopen",function(e){
         var node=e.popup.getElement();
@@ -244,10 +302,17 @@
         if(!slot)return;
         var station=slot.getAttribute("data-pop-station");
         if(!station){ slot.remove(); return; }
+        var phase=(slot.getAttribute("data-pop-phase")||"").split(",").filter(Boolean);
+        var region=slot.getAttribute("data-pop-region")||"";
         fetchTideTimes(station).then(function(ex){
           if(!slot.parentNode)return;
           if(!ex){ slot.remove(); return; }
-          slot.textContent="🌊 "+ex.map(function(x){return x.type+" "+x.time}).join(" · ");
+          var html="🌊 "+ex.map(function(x){return tideWord(x.type)+" "+x.time}).join(" · ");
+          /* 카드에는 있는 "몇 시에 가면 좋아요"가 팝업엔 빠져 있었다.
+             숫자 네 개만 던지고 뭘 하라는 말이 없으면 초보에겐 쓸모가 없다. */
+          var hrs=bestHours({region:region, tidePhase:phase}, ex);
+          if(hrs)html+='<div class="ft-pop-go">🕐 오늘은 '+escapeHtml(hrs.join(", "))+'에 가면 좋아요</div>';
+          slot.innerHTML=html;
           slot.className="ft-pop-time on";
         });
       });
@@ -255,9 +320,11 @@
       pts.push([s.lat,s.lon]);
     });
     if(pts.length){
-      try{ map.fitBounds(pts,{padding:[24,24], maxZoom:12}); }catch(e){}
+      if(mapPicks.length)fitPicks(); else fitAll();
       /* 섹션이 hidden이었다가 열리면 Leaflet이 크기를 잘못 잡는다. */
-      setTimeout(function(){ try{ map.invalidateSize(); }catch(e){} },60);
+      setTimeout(function(){
+        try{ map.invalidateSize(); if(mapPicks.length)fitPicks(); else fitAll(); }catch(e){}
+      },60);
     }
   }
 
@@ -307,7 +374,7 @@
         if(q.id==="region"){
           var pool=DATA.filter(function(x){return x.region===o[0]});
           showMap(pool, o[0]+" 낚시 포인트 "+pool.length+"곳",
-            "고르실수록 이 지도가 좁혀져요. 마커를 누르면 상세 정보가 나와요.");
+            "초록색이 처음 가기 좋은 곳이에요. 다음 질문에 답하면 추천 3곳으로 좁혀드려요.");
         }
         renderQuestion();
       });
@@ -327,16 +394,13 @@
     var region=DATA.filter(function(s){return s.region===answers.region});
 
     if(!t.species){
-      /* "아직 모르겠어요" — 초보 적합도 순으로 정렬한다. 동점이면 원래 순서 유지. */
       fallbackLevel=0;
-      return region.map(function(s,i){return {s:s,i:i,sc:beginnerScore(s)}})
-        .sort(function(a,b){ return b.sc-a.sc || a.i-b.i; })
-        .map(function(x){return x.s});
+      return sortForBeginner(region);
     }
     var pool=region.filter(function(s){return hasTarget(s,t)});
-    if(pool.length){ fallbackLevel=0; return pool; }
-    fallbackLevel=2;
-    return region;
+    if(!pool.length){ fallbackLevel=2; return sortForBeginner(region); }
+    fallbackLevel=0;
+    return sortForBeginner(pool);
   }
 
   function finish(){
@@ -381,6 +445,8 @@
   function depthText(v){
     var t=(v==null?"":String(v)).replace(/^\s+|\s+$/g,"");
     if(!t)return "";
+    if(/-/.test(t))return "";           // 음수 수심(60건)은 태그로 보여주지 않는다
+    t=t.replace(/\.(?=\s*$|\s*[~\-])/g,"");   // "0.1~3." 처럼 소수점만 남은 값 정리
     // 마지막 숫자 뒤에 오는 꼬리 문자열에 m이 있으면 이미 단위가 붙은 값
     var tail=t.replace(/^[\s\S]*[0-9]/,"");
     return /m/i.test(tail) ? t : t+"m";
@@ -399,14 +465,16 @@
   var FOOTING_INFO={
     flat:   {ic:"🧱", txt:"발판이 평평해요 (방파제·제방 계열)", cls:"good"},
     sand:   {ic:"🏖️", txt:"모래 해변이라 발이 편해요", cls:"good"},
-    rock:   {ic:"🪨", txt:"울퉁불퉁한 갯바위 — 펠트창 신발 필수", cls:"warn"},
-    danger: {ic:"⛔", txt:"물에 잠기는 바위나 직벽 — 초보에겐 권하지 않아요", cls:"bad"},
+    rock:   {ic:"🪨", txt:"울퉁불퉁한 바닷가 바위(갯바위)예요 — 바닥이 융단(펠트) 재질인 미끄럼 방지 신발이 꼭 필요해요", cls:"warn"},
+    danger: {ic:"⛔", txt:"물이 차면 잠기는 바위거나 벽처럼 깎아지른 곳이에요 — 초보는 가지 마세요", cls:"bad"},
     unknown:{ic:"❓", txt:"발판은 이름만으론 알 수 없어요", cls:""}
   };
   /* 수심을 "2.1~5.0m"로 던지지 말고 발밑이 어떤지로 번역한다. */
   function depthAdvice(s){
     var d=s.deepM;
-    if(d==null)return null;
+    /* 원본에 음수 수심이 60건 있다. 물 깊이가 마이너스면 말이 안 되므로
+       추측해서 보정하지 않고 "확인 필요"로 넘긴다. */
+    if(d==null||d<0)return {ic:"🌊", txt:"수심 정보가 정확하지 않아요 — 현장에서 확인하세요", cls:""};
     if(d>=15)return {ic:"🌊", txt:"발밑이 "+Math.round(d)+"m — 빠지면 혼자 못 올라와요", cls:"bad"};
     if(d>=8) return {ic:"🌊", txt:"발밑이 "+Math.round(d)+"m로 깊은 편이에요", cls:"warn"};
     if(d>=3) return {ic:"🌊", txt:"발밑 수심 "+Math.round(d)+"m 정도예요", cls:""};
@@ -423,6 +491,23 @@
     early_ebb:"물이 빠지기 시작할 때", mid_ebb:"물이 한창 빠질 때",
     late_ebb:"물이 다 빠질 무렵", high:"물이 가장 많이 찼을 때", low:"물이 가장 많이 빠졌을 때"};
 
+  /* "고조/저조"는 초보가 모른다. 안내문에서 쓰는 말과도 달랐다. */
+  function tideWord(t){
+    return t==="고조" ? "물 가장 많이 찰 때" : t==="저조" ? "가장 많이 빠질 때" : t;
+  }
+  var WEEKDAY=["일","월","화","수","목","금","토"];
+  /* 오늘이 안 맞으면 "언제 가라"까지 말해준다. 예전엔 "별로예요"에서 끝나
+     사용자가 막다른 길에 놓였다. 물때번호는 음력 기반이라 앞날도 계산된다. */
+  function nextGoodDay(s, maxDays){
+    if(!s.tideNums)return null;
+    for(var i=1;i<=(maxDays||14);i++){
+      var d=new Date(); d.setDate(d.getDate()+i);
+      var t=tideNumberOf(d);
+      if(t&&s.tideNums.indexOf(t.n)!==-1)
+        return (d.getMonth()+1)+"월 "+d.getDate()+"일("+WEEKDAY[d.getDay()]+")";
+    }
+    return null;
+  }
   function tideVerdict(s, tide){
     if(EAST_COAST.indexOf(s.region)!==-1)
       return {cls:"", txt:"동해는 물이 드나드는 폭이 작아서 물때 영향이 적어요"};
@@ -432,7 +517,9 @@
     if(list.indexOf(n)!==-1) return {cls:"good", txt:"오늘 물때가 잘 맞아요"};
     var near=list.some(function(x){ var d=Math.abs(x-n); return Math.min(d,15-d)<=1; });
     if(near) return {cls:"", txt:"오늘도 나쁘진 않아요"};
-    return {cls:"warn", txt:"오늘은 물때가 잘 안 맞아요"};
+    var when=nextGoodDay(s);
+    return {cls:"warn", txt:"오늘은 물때가 잘 안 맞아요"
+      +(when?" — 이 자리는 "+when+"이 더 좋아요":"")};
   }
   /* 만조·간조 시각에서 "몇 시에 가면 되는지"를 뽑는다. */
   function bestHours(s, extremes){
@@ -443,7 +530,8 @@
     function plus(t,h){
       var p=t.split(":"); var m=(+p[0])*60+(+p[1])+h*60;
       m=((m%1440)+1440)%1440;
-      return (m/60|0<10?"0":"")+String(m/60|0).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+      /* (m/60|0<10) 은 0<10 이 먼저 평가돼 항상 참이 된다 — "012:00"이 나오던 원인. */
+      return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
     }
     var out=[];
     s.tidePhase.forEach(function(ph){
@@ -454,7 +542,10 @@
       if(ph==="high"&&high[0])       out.push(plus(high[0].time,-1)+"~"+plus(high[0].time,1));
       if(ph==="low"&&low[0])         out.push(plus(low[0].time,-1)+"~"+plus(low[0].time,1));
     });
-    return out.length?out.slice(0,2):null;
+    if(!out.length)return null;
+    out=out.filter(function(v,i,a){return a.indexOf(v)===i})
+           .sort(function(a,b){return a.localeCompare(b)});
+    return out.slice(0,2);
   }
   function phaseWords(s){
     if(!s.tidePhase)return "";
@@ -499,7 +590,7 @@
         var km=el.getAttribute("data-tide-km");
         var nm=el.getAttribute("data-tide-name");
         el.className="ft-tag time";
-        el.textContent="🌊 "+ex.map(function(e){return e.type+" "+e.time}).join(" · ");
+        el.textContent="🌊 "+ex.map(function(e){return tideWord(e.type)+" "+e.time}).join(" · ");
         el.title=nm+" 관측소 기준"+(km?" (약 "+km+"km 떨어짐)":"");
         fillBestHours(el, st, ex);
       });
@@ -534,21 +625,30 @@
     return '<div class="ft-guide-line '+(o.cls||"")+'"><span class="gi">'+o.ic+'</span>'
       +'<span>'+escapeHtml(o.txt)+'</span></div>';
   }
+  /* "암", "펄/ 조개껍질" 같은 원본 표기는 초보가 못 읽는다(오타나 병 이름처럼 보임). */
+  var BOTTOM_KO={"암":"바위","바위":"바위","펄":"갯벌 진흙","모래":"모래","자갈":"자갈",
+    "조개껍질":"조개껍질","가는 모래":"고운 모래","침니":"진흙"};
+  function bottomKo(b){
+    return String(b||"").split("/").map(function(x){
+      x=x.trim(); return BOTTOM_KO[x]||x;
+    }).filter(Boolean).join("·");
+  }
   function guideHtml(s){
     var out="";
     out+=line(ACCESS_INFO[s.access]||ACCESS_INFO.unknown);
     out+=line(FOOTING_INFO[s.footing]||FOOTING_INFO.unknown);
     out+=line(depthAdvice(s));
 
-    var v=tideVerdict(s, tideNumberOf(new Date()));
+    var today=new Date();
+    var v=tideVerdict(s, tideNumberOf(today));
     if(v)out+=line({ic:"🌗", txt:v.txt, cls:v.cls});
     var ph=phaseWords(s);
-    if(ph)out+=line({ic:"⏰", txt:"이 포인트는 "+ph+" 입질이 좋아요", cls:""});
+    if(ph)out+=line({ic:"⏰", txt:"여기는 "+ph+" 고기가 잘 물어요", cls:""});
     /* 만조·간조 시각을 받아온 뒤 "몇 시에 가면 되는지"로 채운다(fillTideTimes에서). */
     if(s.tidePhase&&s.station&&EAST_COAST.indexOf(s.region)===-1)
       out+='<div class="ft-guide-line" data-best-station="'+escapeHtml(s.station)+'"'
         +' data-best-phase="'+escapeHtml(s.tidePhase.join(","))+'" hidden></div>';
-    if(s.bottom)out+=line({ic:"🐚", txt:"물속 바닥은 "+s.bottom+" — 여기 사는 고기가 모여요", cls:""});
+    if(s.bottom)out+=line({ic:"🐚", txt:"물속 바닥이 "+bottomKo(s.bottom)+"예요 — 여기 사는 고기가 모여요", cls:""});
     return '<div class="ft-guide">'+out+'</div>';
   }
 
@@ -588,11 +688,18 @@
         $("ft-result-sub").textContent="수심이 얕고 물때 시각이 정확한 곳을 앞에 뒀어요.";
       }else{
         $("ft-result-title").textContent=tg.label+" 노리기 좋은 포인트예요";
-        $("ft-result-sub").textContent=tg.sub+" 같은 고기가 잡히는 실제 포인트예요.";
+        var dc=driveCount(ranked);
+        $("ft-result-sub").textContent = dc
+          ? "처음이시니까 차로 갈 수 있는 곳부터 보여드려요. (이 조건에서 차로 갈 수 있는 곳 "+dc+"곳)"
+          : "이 조건은 전부 배를 타고 들어가야 하는 곳이에요. 처음이라면 다른 지역을 눌러보세요.";
       }
-      $("ft-results").innerHTML=SAFETY_HTML+picks.map(cardHtml).join("");
+      var d=new Date();
+      var stamp='<div class="ft-datestamp">📅 '+(d.getMonth()+1)+'월 '+d.getDate()+'일('
+        +WEEKDAY[d.getDay()]+') 기준이에요</div>';
+      $("ft-results").innerHTML=stamp+SAFETY_HTML+picks.map(cardHtml).join("");
       showMap(ranked, "추천 포인트 "+ranked.length+"곳",
-        "아래 카드는 이 중 앞에서 3곳이에요. 지도에서 아무 마커나 눌러도 상세 정보가 나와요.");
+        "①②③ 번호가 아래 카드와 같은 곳이에요. 마커를 누르면 상세 정보가 나와요.",
+        picks);
       $("ft-more").hidden = !(ranked.length>shownFrom+3);
       bindCopy();
       fillTideTimes();
@@ -605,11 +712,11 @@
 
   /* 입문 가이드들이 공통으로 쓰는 바다낚시 4분류. 버튼으로 묻지 않고 여기서 알려준다. */
   var BASIC_METHODS=[
-    ["원투","봉돌을 멀리 던져 바닥에 두고 기다리는 방식이에요. 던져놓고 입질을 기다리면 돼서 <b>처음 시작하기 가장 쉬워요.</b> 우럭·붕장어·광어처럼 바닥에 있는 고기를 노릴 때 씁니다."],
-    ["찌낚시","찌를 띄워 중간 수심을 노려요. 찌가 쑥 들어가는 순간이 보여서 재미있고, <b>감성돔·참돔 같은 돔 종류</b>가 주 대상이에요. 원투보다 채비가 조금 복잡해요."],
-    ["맥낚시","릴 없이 긴 대만 써서 발밑을 노려요. 구조가 가장 단순해서 <b>장비 부담이 제일 적어요.</b> 대신 던질 수 있는 거리가 짧아 포인트를 잘 골라야 해요."],
-    ["루어","가짜 미끼를 던지고 감아 들여요. <b>살아있는 미끼를 만질 필요가 없어서</b> 처음 하는 분들이 좋아해요. 농어·삼치처럼 빠르게 움직이는 고기에 씁니다."],
-    ["에깅","에기라는 가짜 미끼로 오징어류를 노리는 루어낚시예요. 장비가 간단하고 시즌에 맞춰 가면 초보도 잡을 수 있어요."]
+    ["원투","무거운 추를 멀리 던져 바닥에 두고 기다리는 방식이에요. 던져놓고 기다리기만 하면 돼서 <b>처음 시작하기 가장 쉬워요.</b> 우럭·붕장어·광어처럼 바닥에 있는 고기를 노릴 때 씁니다."],
+    ["찌낚시","물에 뜨는 <b>찌</b>를 띄워 중간 깊이를 노려요. 찌가 쑥 잠기는 순간이 눈에 보여서 재미있고, <b>감성돔·참돔 같은 돔 종류</b>가 주 대상이에요. 원투보다 준비가 조금 복잡해요."],
+    ["맥낚시","릴 없이 긴 대만 써서 발밑을 노려요. 가장 단순해서 <b>장비 부담이 제일 적어요.</b> 대신 멀리 못 던져서 자리를 잘 골라야 해요."],
+    ["루어","물고기 모양 가짜 미끼를 던지고 감아 들여요. <b>살아있는 미끼(지렁이 등)를 만질 필요가 없어서</b> 처음 하는 분들이 좋아해요. 농어·삼치처럼 빠르게 움직이는 고기에 씁니다."],
+    ["에깅","오징어용 가짜 미끼를 쓰는 루어낚시예요. 장비가 간단하고 시즌에 맞춰 가면 초보도 잡을 수 있어요."]
   ];
   function methodName(n){ return /낚시$/.test(n) ? n : n+"낚시"; }
   function renderTips(){
@@ -622,6 +729,13 @@
       '<h3 style="margin:0 0 8px">이렇게 준비하세요</h3>'
       /* "찌낚시"·"맥낚시"는 이미 낚시로 끝난다 — 그냥 붙이면 "찌낚시낚시"가 된다. */
       + '<div class="ft-tip-item"><b>'+escapeHtml(methodName(picked[0]))+'</b>로 하시면 돼요. '+picked[1]+'</div>'
+      + '<div class="ft-tip-item ft-tip-buy"><b>처음 한 번은 이 정도면 됩니다 — 대략 8~12만원</b>'
+      + '<br>· 낚싯대+릴 세트 5~8만원. 낚시점에서 <b>"'+escapeHtml(methodName(picked[0]))+' 초보 세트 주세요"</b>라고 하면 됩니다. 하루 5천~1만원에 빌릴 수도 있어요.'
+      + '<br>· 미끼 5천~1만원. '+(picked[0]==="루어"||picked[0]==="에깅"
+          ? '가짜 미끼를 쓰니까 <b>살아있는 벌레를 만질 일이 없어요.</b>'
+          : '보통 <b>갯지렁이</b>를 씁니다. 손으로 만지기 싫으면 가짜 미끼를 쓰는 <b>루어</b> 쪽으로 바꾸셔도 돼요.')
+      + '<br>· 구명조끼 5~8만원 (대여 가능)'
+      + '<br>낚시점은 <b>포인트 근처 항구 앞</b>에 대부분 있어요. 가서 "○○ 갈 건데요"라고 하면 그날 뭐가 잡히는지도 알려줍니다.</div>'
       + '<details class="ft-more-tips"><summary>바다낚시 다른 방법도 볼래요</summary>'
       + others.map(function(m){
           return '<div class="ft-tip-item"><b>'+escapeHtml(methodName(m[0]))+'</b> — '+m[1]+'</div>';

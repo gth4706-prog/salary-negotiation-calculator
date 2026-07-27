@@ -270,3 +270,38 @@ body{
 /* 팝업 안에서는 안내 줄 여백을 좁힌다 */
 .ft-pop .ft-guide{margin-top:9px;gap:4px}
 .ft-pop .ft-guide-line{font-size:12px}
+
+/* 지도 위 이동 버튼 — 확대해서 시작하되 전체도 볼 수 있게 */
+.ft-map-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.ft-mbtn{font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;padding:8px 13px;
+  border-radius:999px;border:1px solid var(--ft-line);background:#0C2C4B;color:var(--ft-teal)}
+.ft-mbtn:hover{border-color:var(--ft-teal);background:#123a61}
+
+/* 추천 1~3번 마커 번호 */
+.ft-mk-num{background:transparent;border:0;box-shadow:none;color:#fff;
+  font-weight:800;font-size:12px;padding:0}
+.ft-mk-num::before{display:none}
+
+/* 출처 안내를 접어둔다 — 330자 면책 문구가 첫 버튼보다 위에서 한 화면을 잡아먹었다 */
+.ft-src-note{background:#0C2C4B;border:1px solid var(--ft-line);border-left:4px solid var(--ft-teal);
+  border-radius:12px;padding:12px 15px}
+.ft-src-note>summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--ft-teal);list-style:none}
+.ft-src-note>summary::-webkit-details-marker{display:none}
+.ft-src-note>summary::after{content:" ▾"}
+.ft-src-note[open]>summary::after{content:" ▴"}
+.ft-src-note>div{margin-top:9px;font-size:12.5px;line-height:1.7;color:var(--ft-muted)}
+.ft-src-note b{color:var(--ft-ink)}
+
+/* 안전 안내를 행동 3가지로 */
+.ft-safe-l{margin-top:8px;font-size:12.5px;line-height:1.65}
+.ft-safety b{color:var(--ft-accent2)}
+
+/* 준비물·비용 */
+.ft-tip-buy{border-color:var(--ft-teal);background:rgba(46,196,182,.08)}
+.ft-tip-buy b{color:var(--ft-teal)}
+
+/* 팝업 안 "몇 시에 가면 좋아요" */
+.ft-pop-go{margin-top:6px;color:var(--ft-accent2);font-weight:700}
+
+/* 오늘이 며칠인지 밝힌다 — "오늘 기준"이라면서 날짜가 없었다 */
+.ft-datestamp{font-size:12.5px;font-weight:700;color:var(--ft-accent2);margin-bottom:10px}

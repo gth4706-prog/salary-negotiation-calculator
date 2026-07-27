@@ -88,6 +88,10 @@ GAME.DraftScene.prototype.create = function () {
   }
 
   this.redraw();
+
+  // 탑(세로): 영웅은 로비에서 이미 확정됐으니, 예산 → 장비(한 번에) → 스킬 QWER(하나씩)
+  // 순서의 가이드 팝업을 그 위에 띄운다. 요약 패널은 뒤에 그대로 있어(닫으면 폴백) 동기화된다.
+  if (this.tower && P && this._towerWizard) this._towerWizard();
 };
 
 GAME.DraftScene.prototype._buildPanel = function () {

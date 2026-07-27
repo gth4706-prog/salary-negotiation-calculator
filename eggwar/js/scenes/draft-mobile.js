@@ -167,6 +167,189 @@ GAME.DraftScene.skillNote = function (o) {
   return bits.join(' · ');
 };
 
+// ── 탑 준비 가이드 위저드 (세로) ──────────────────────────────────────────
+// 흐름: 예산 안내 → ① 장비 한 번에(4칸을 한 팝업에서) → ②~⑤ 스킬 Q·W·E·R 하나씩.
+// 각 단계에 '이전' 버튼(첫 단계는 '탑으로', 마지막은 '전투 시작').
+// 선택은 self.items / self.picks 에 바로 반영하고 뒤의 요약 패널도 redraw 로 동기화한다.
+GAME.DraftScene.prototype._towerWizard = function () {
+  this._wizIdx = 0;
+  this._wizObjs = [];
+  this._wizStep(0);
+  var self = this;
+  // 씬을 나갈 때 팝업 잔여물 정리
+  this.events.once('shutdown', function () { self._wizClose(); });
+};
+
+GAME.DraftScene.prototype._wizClose = function () {
+  if (!this._wizObjs) return;
+  for (var i = 0; i < this._wizObjs.length; i++) {
+    if (this._wizObjs[i] && this._wizObjs[i].destroy) this._wizObjs[i].destroy();
+  }
+  this._wizObjs = [];
+};
+
+// 위저드 공통 뼈대(가림막·패널·제목·단계·예산·이전/다음 버튼)를 그리고
+// 콘텐츠를 채울 y 구간을 돌려준다.
+GAME.DraftScene.prototype._wizChrome = function (title, stepText, leftLabel, leftTap, rightLabel, rightTap, contentH) {
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI, COL = UI.COL;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var self = this;
+  var pad = 14, panelW = W - pad * 2, px = pad;
+  var titleH = 40, stepH = 22, budgetH = 26, navH = UI.BTN_H || 58;
+  var panelH = Math.min(H - 24, titleH + stepH + budgetH + contentH + navH + 40);
+  var panelY = (H - panelH) / 2;
+
+  var veil = this.add.rectangle(W / 2, H / 2, W, H, 0x05050a, 0.82).setDepth(1000).setInteractive();
+  // 가림막 탭은 막기만 한다(위저드는 이전/다음으로만 이동) — 오조작 방지.
+  veil.on('pointerdown', function () {});
+  this._wizObjs.push(veil);
+
+  var panel = this.add.rectangle(W / 2, panelY, panelW, panelH, COL.surface)
+    .setOrigin(0.5, 0).setStrokeStyle(2, COL.borderUi || 0x4a4a68).setDepth(1001);
+  this._wizObjs.push(panel);
+
+  this._wizObjs.push(UI.label(this, px + 4, panelY + 12, title, 'subhead', C.text, 0).setDepth(1003));
+  this._wizObjs.push(UI.label(this, px + panelW - 4, panelY + 14, stepText, 'caption', C.textDim, 1)
+    .setOrigin(1, 0).setDepth(1003));
+
+  // 예산 줄 — 실시간
+  var left = this.budget - this.spent();
+  var bt = UI.label(this, px + 4, panelY + titleH + stepH - 6,
+    '예산  ' + this.spent() + ' / ' + this.budget + '   남음 ' + left,
+    'caption', left < 0 ? (C.danger || C.hpBad) : C.accent, 0).setDepth(1003);
+  this._wizObjs.push(bt);
+  this._wizBudgetText = bt;
+
+  // 이전 / 다음 버튼 (아래 한 줄)
+  var navY = panelY + panelH - navH - 12;
+  var gap = 8, halfW = Math.round((panelW - gap) / 2);
+  var lb = UI.button(this, px + halfW / 2, navY + navH / 2, halfW, navH, leftLabel, leftTap, { fontSize: 'button' });
+  var rb = UI.button(this, px + halfW + gap + halfW / 2, navY + navH / 2, halfW, navH, rightLabel, rightTap,
+    { fill: COL.panelTeal, line: C.controller, hover: COL.panelTealHi, color: C.accent, fontSize: 'button' });
+  [lb, rb].forEach(function (b) {
+    b.rect.setDepth(1002); b.text.setDepth(1003); if (b.gfx) b.gfx.setDepth(1002);
+    self._wizObjs.push(b.rect, b.text); if (b.gfx) self._wizObjs.push(b.gfx);
+  });
+
+  return { px: px, panelW: panelW, top: panelY + titleH + stepH + budgetH, bottom: navY - 8, depthBase: 1002 };
+};
+
+GAME.DraftScene.prototype._wizUpdateBudget = function () {
+  if (!this._wizBudgetText) return;
+  var C = GAME.CONFIG.COLORS;
+  var left = this.budget - this.spent();
+  this._wizBudgetText.setText('예산  ' + this.spent() + ' / ' + this.budget + '   남음 ' + left);
+  this._wizBudgetText.setColor(left < 0 ? (C.danger || C.hpBad) : C.accent);
+};
+
+GAME.DraftScene.prototype._wizStep = function (idx) {
+  this._wizClose();
+  this._wizIdx = idx;
+  if (idx === 0) this._wizItems();
+  else this._wizSkill(['Q', 'W', 'E', 'R'][idx - 1], idx);
+};
+
+// ① 장비 — 4칸(무기/방어구/신발/물약)을 한 팝업에서 2열 그리드로. 칸마다 없음+3종.
+GAME.DraftScene.prototype._wizItems = function () {
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI, COL = UI.COL;
+  var self = this;
+  var slots = GAME.ITEM_SLOTS;
+  // 콘텐츠 높이 추정: 슬롯마다 (헤더 24 + 2행×56 + 간격)
+  var rowH = 54, rGap = 6, hdrH = 24, blockGap = 10;
+  var slotBlockH = hdrH + 2 * rowH + rGap + blockGap;
+  var contentH = slots.length * slotBlockH;
+
+  var ch = this._wizChrome('장비 선택', '1 / 5',
+    '← 탑으로', function () { self.scene.start('Tower'); },
+    '다음 →', function () { self._wizStep(1); }, contentH);
+
+  var y = ch.top + 4;
+  var colGap = 8, colW = Math.floor((ch.panelW - 24 - colGap) / 2);
+  var x0 = ch.px + 12;
+
+  slots.forEach(function (slot) {
+    self._wizObjs.push(UI.label(self, x0, y, slot.name, 'micro', C.textDim, 0).setDepth(1003));
+    y += hdrH;
+    // 옵션: 없음 + 3종
+    var opts = [{ key: null, name: '없음', cost: 0 }].concat(GAME.ITEMS[slot.key]);
+    var cur = self.items[slot.key];
+    var baseCost = self.spent() - (cur ? GAME.Items.find(slot.key, cur).cost : 0);
+    opts.forEach(function (it, i) {
+      var col = i % 2, rowN = Math.floor(i / 2);
+      var cx = x0 + col * (colW + colGap);
+      var ry = y + rowN * (rowH + rGap);
+      var selected = (cur || null) === (it.key || null);
+      var over = it.key && (baseCost + it.cost > self.budget);
+      var rect = self.add.rectangle(cx + colW / 2, ry + rowH / 2, colW, rowH,
+        selected ? COL.panelTeal : COL.surfaceAlt)
+        .setStrokeStyle(selected ? 2 : 1, selected ? C.controller : (COL.borderUi || 0x3a3a52))
+        .setDepth(1002);
+      if (over) rect.setAlpha(0.4);
+      else {
+        rect.setInteractive({ useHandCursor: true });
+        rect.on('pointerdown', function (p) {
+          if (p && p.event && p.event.stopPropagation) p.event.stopPropagation();
+          self.items[slot.key] = it.key;      // 같은 걸 다시 눌러도 유지(없음은 해제)
+          self.redraw();
+          self._wizStep(0);                    // 다시 그려 강조·예산 갱신
+        });
+      }
+      self._wizObjs.push(rect);
+      self._wizObjs.push(UI.label(self, cx + 10, ry + rowH / 2, it.name,
+        'caption', over ? C.textDim : C.text, 0).setOrigin(0, 0.5).setDepth(1003)
+        .setWordWrapWidth(colW - 40));
+      if (it.key) {
+        self._wizObjs.push(UI.label(self, cx + colW - 8, ry + rowH / 2, String(it.cost),
+          'micro', over ? C.textDim : C.accent, 1).setOrigin(1, 0.5).setDepth(1003));
+      }
+    });
+    y += 2 * rowH + rGap + blockGap;
+  });
+};
+
+// ②~⑤ 스킬 — Q/W/E/R 를 하나씩. 3지선다 단일 선택, 이전/다음.
+GAME.DraftScene.prototype._wizSkill = function (slot, idx) {
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI, COL = UI.COL;
+  var self = this;
+  var opts = GAME.HEROES[this.heroKey].skillOptions[slot];
+  var rowH = 76, rGap = 8;
+  var contentH = 26 + opts.length * rowH + (opts.length - 1) * rGap;
+
+  var last = idx === 4;
+  var ch = this._wizChrome(slot + ' 스킬 선택', (idx + 1) + ' / 5',
+    '← 이전', function () { self._wizStep(idx - 1); },
+    last ? '전투 시작' : '다음 →',
+    last ? function () { self._wizClose(); self._start(); } : function () { self._wizStep(idx + 1); },
+    contentH);
+
+  var y = ch.top + 2;
+  self._wizObjs.push(UI.label(self, ch.px + 12, y, GAME.HEROES[self.heroKey].name + ' — ' + slot + ' 스킬',
+    'micro', C.textDim, 0).setDepth(1003));
+  y += 26;
+
+  var px = ch.px + 12, w = ch.panelW - 24;
+  opts.forEach(function (o, i) {
+    var ry = y + i * (rowH + rGap);
+    var selected = (self.picks[slot] || 0) === i;
+    var rect = self.add.rectangle(px + w / 2, ry + rowH / 2, w, rowH,
+      selected ? COL.panelTeal : COL.surfaceAlt)
+      .setStrokeStyle(selected ? 2 : 1, selected ? C.controller : (COL.borderUi || 0x3a3a52))
+      .setDepth(1002);
+    rect.setInteractive({ useHandCursor: true });
+    rect.on('pointerdown', function (p) {
+      if (p && p.event && p.event.stopPropagation) p.event.stopPropagation();
+      self.picks[slot] = i;
+      self.redraw();
+      self._wizStep(idx);      // 강조 갱신
+    });
+    self._wizObjs.push(rect);
+    self._wizObjs.push(UI.label(self, px + 12, ry + 12, (selected ? '● ' : '○ ') + o.name,
+      'subhead', C.text, 0).setDepth(1003));
+    self._wizObjs.push(UI.label(self, px + 12, ry + rowH - 26, GAME.DraftScene.skillNote(o),
+      'caption', C.textDim, 0).setDepth(1003).setWordWrapWidth(w - 24));
+  });
+};
+
 GAME.DraftScene.prototype._redrawCompact = function () {
   var C = GAME.CONFIG.COLORS;
   var hero = GAME.HEROES[this.heroKey];

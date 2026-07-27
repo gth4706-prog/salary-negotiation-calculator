@@ -241,22 +241,17 @@ body{
    Leaflet 기본 스타일이 밝은 톤이라 이 페이지의 심해 네이비와 안 맞는다.
    컨테이너와 팝업만 어둡게 맞추고 타일 자체는 건드리지 않는다. */
 .ft-map-wrap{margin-top:14px;border-radius:14px;overflow:hidden;border:1px solid var(--ft-line)}
-#ft-map{height:340px;width:100%;background:#0C2C4B}
-@media(min-width:700px){#ft-map{height:440px}}
+#ft-map{height:300px;width:100%;background:#0C2C4B}
+@media(min-width:700px){#ft-map{height:420px}}
 
 .ft-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
 .ft-lg{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ft-muted)}
 .ft-lg i{width:10px;height:10px;border-radius:50%;flex:none}
 
-/* 팝업 */
-.ft-pop .leaflet-popup-content-wrapper{
+/* 상세 패널 안에서 쓰는 조각 */
   background:var(--ft-panel);color:var(--ft-ink);
   border:1px solid var(--ft-line);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.45);
 }
-.ft-pop .leaflet-popup-tip{background:var(--ft-panel);border:1px solid var(--ft-line)}
-.ft-pop .leaflet-popup-content{margin:14px 15px;font-size:13px;line-height:1.5}
-.ft-pop a.leaflet-popup-close-button{color:var(--ft-muted)}
-.ft-pop a.leaflet-popup-close-button:hover{color:var(--ft-accent2)}
 .ft-pop-name{font-size:15px;font-weight:800;color:#fff;line-height:1.35}
 .ft-pop-sub{font-size:11.5px;color:var(--ft-muted);margin-top:2px}
 .ft-pop-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
@@ -267,9 +262,6 @@ body{
 .ft-pop-map{display:inline-block;margin-top:10px;font-size:12.5px;font-weight:700;
   color:var(--ft-teal);border:1px solid var(--ft-teal);border-radius:999px;padding:6px 12px}
 .ft-pop-map:hover{background:rgba(46,196,182,.12);text-decoration:none}
-/* 팝업 안에서는 안내 줄 여백을 좁힌다 */
-.ft-pop .ft-guide{margin-top:9px;gap:4px}
-.ft-pop .ft-guide-line{font-size:12px}
 
 /* 지도 위 이동 버튼 — 확대해서 시작하되 전체도 볼 수 있게 */
 .ft-map-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
@@ -318,3 +310,14 @@ body{
 .ft-day.good i,.ft-day.good b{color:var(--ft-teal)}
 .ft-day.soso i{color:var(--ft-accent2)}
 .ft-day.on{outline:2px solid var(--ft-accent2);outline-offset:1px}
+
+/* 포인트 위치 한 줄 — 긴 이름을 제목에서 빼고 여기로 내렸다 */
+.ft-where{font-size:12px;color:var(--ft-muted);margin-top:4px;line-height:1.45;word-break:keep-all}
+
+/* 마커를 누르면 지도 아래에 펼쳐지는 상세 패널.
+   Leaflet 팝업은 지도 위에 뜨는데 내용이 지도 높이보다 길어 지도를 덮었다. */
+.ft-map-detail{margin-top:12px;padding:15px 16px;border-radius:14px;
+  background:#0C2C4B;border:1px solid var(--ft-teal);
+  box-shadow:0 0 0 2px rgba(46,196,182,.15)}
+.ft-map-detail[hidden]{display:none}
+.ft-map-detail .ft-guide{margin-top:10px}

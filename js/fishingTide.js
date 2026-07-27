@@ -251,10 +251,10 @@
   }
 
   /* 팝업 안에서 물때 시각을 채운다. 카드와 같은 캐시를 쓰므로 관측소당 1회. */
-  function popupHtml(s){
+  function detailHtml(s){
     var tide=tideNumberOf(goDate());
-    var head='<div class="ft-pop-name">'+escapeHtml(s.name)+'</div>'
-      +'<div class="ft-pop-sub">'+escapeHtml(s.region+(s.sigungu?" "+s.sigungu:""))+'</div>';
+    var head='<div class="ft-pop-name">'+escapeHtml(spotName(s))+'</div>'
+      +'<div class="ft-pop-sub">📍 '+escapeHtml(spotWhere(s))+'</div>';
     var chips="";
     if(tide)chips+='<span class="ft-pop-chip" title="1~15물은 물이 얼마나 세게 드나드는지예요. 숫자가 클수록 세게 드나들고 고기가 잘 뭅니다.">오늘 '+escapeHtml(tide.label)+'</span>';
     (s.species||[]).slice(0,4).forEach(function(sp){
@@ -293,18 +293,69 @@
     if(b&&!b.__b){ b.__b=1; b.addEventListener("click",fitPicks); }
   }
 
+
+  /* 고른 마커를 지도 아래 패널에 펼친다. 팝업이 지도를 덮던 문제 해결.
+     지도에서는 어느 걸 골랐는지 테두리로만 표시한다. */
+  var selectedMarker=null;
+  function paintMarker(m, on){
+    if(!m||!m.setStyle)return;
+    try{
+      m.setStyle(on
+        ? {color:"#FFC93C", weight:4, radius:m.__top?13:9, fillOpacity:1}
+        : (m.__top ? {color:"#fff", weight:3, radius:11, fillOpacity:.95}
+                   : {color:m.__base, weight:2, radius:6, fillOpacity:.65}));
+    }catch(e){}
+  }
+  function selectSpot(m, s){
+    var box=$("ft-map-detail");
+    if(!box)return;
+    if(selectedMarker&&selectedMarker!==m)paintMarker(selectedMarker,false);
+    selectedMarker=m; paintMarker(m,true);
+
+    box.innerHTML=detailHtml(s);
+    box.hidden=false;
+    var slot=box.querySelector("[data-pop-station]");
+    if(slot){
+      var station=slot.getAttribute("data-pop-station");
+      if(!station){ slot.remove(); }
+      else{
+        var phase=(slot.getAttribute("data-pop-phase")||"").split(",").filter(Boolean);
+        var region=slot.getAttribute("data-pop-region")||"";
+        fetchTideTimes(station).then(function(ex){
+          if(!slot.parentNode)return;
+          if(!ex){ slot.remove(); return; }
+          var html="🌊 "+ex.map(function(x){return tideWord(x.type)+" "+x.time}).join(" · ");
+          var hrs=bestHours({region:region, tidePhase:phase}, ex);
+          if(hrs)html+='<div class="ft-pop-go">🕐 '+escapeHtml(dayLabel(goDate()))+'은 '
+            +escapeHtml(hrs.join(", "))+'에 가면 좋아요</div>';
+          slot.innerHTML=html;
+          slot.className="ft-pop-time on";
+        });
+      }
+    }
+    /* 지도를 가리지 않으면서 패널이 보이게 — 지도 아래로 살짝만 내린다. */
+    if(box.scrollIntoView)box.scrollIntoView({behavior:"smooth", block:"nearest"});
+  }
+  function clearSelection(){
+    if(selectedMarker)paintMarker(selectedMarker,false);
+    selectedMarker=null;
+    var box=$("ft-map-detail");
+    if(box){ box.hidden=true; box.innerHTML=""; }
+  }
+
   function showMap(spots, title, sub, picks){
     var sec=$("stepMap");
     if(!sec)return;
     if(!mapReady()){ sec.hidden=true; return; }
     sec.hidden=false;
     if($("ft-map-title"))$("ft-map-title").textContent=title||"포인트 위치";
-    if($("ft-map-sub"))$("ft-map-sub").textContent=sub||"마커를 누르면 그 자리의 정보와 오늘 물때가 나와요.";
+    if($("ft-map-sub"))$("ft-map-sub").textContent=sub||"마커를 누르면 지도 아래에 그 자리 정보가 펼쳐져요.";
     renderLegend();
     bindMapButtons();
     if(!initMap()){ sec.hidden=true; return; }
 
     markerLayer.clearLayers();
+    clearSelection();
     mapAll=spots.filter(function(s){return isFinite(s.lat)&&isFinite(s.lon)});
     mapPicks=(picks||[]).filter(function(s){return isFinite(s.lat)&&isFinite(s.lon)});
     var pickIdx={};
@@ -320,27 +371,10 @@
         ? L.circleMarker([s.lat,s.lon],{radius:11, weight:3, color:"#fff", fillColor:st.color, fillOpacity:.95})
         : L.circleMarker([s.lat,s.lon],{radius:6, weight:2, color:st.color, fillColor:st.color, fillOpacity:.65});
       if(top)m.bindTooltip(String(top),{permanent:true, direction:"center", className:"ft-mk-num"});
-      m.bindPopup(function(){ return popupHtml(s); },{maxWidth:300, className:"ft-pop"});
-      m.on("popupopen",function(e){
-        var node=e.popup.getElement();
-        var slot=node&&node.querySelector("[data-pop-station]");
-        if(!slot)return;
-        var station=slot.getAttribute("data-pop-station");
-        if(!station){ slot.remove(); return; }
-        var phase=(slot.getAttribute("data-pop-phase")||"").split(",").filter(Boolean);
-        var region=slot.getAttribute("data-pop-region")||"";
-        fetchTideTimes(station).then(function(ex){
-          if(!slot.parentNode)return;
-          if(!ex){ slot.remove(); return; }
-          var html="🌊 "+ex.map(function(x){return tideWord(x.type)+" "+x.time}).join(" · ");
-          /* 카드에는 있는 "몇 시에 가면 좋아요"가 팝업엔 빠져 있었다.
-             숫자 네 개만 던지고 뭘 하라는 말이 없으면 초보에겐 쓸모가 없다. */
-          var hrs=bestHours({region:region, tidePhase:phase}, ex);
-          if(hrs)html+='<div class="ft-pop-go">🕐 오늘은 '+escapeHtml(hrs.join(", "))+'에 가면 좋아요</div>';
-          slot.innerHTML=html;
-          slot.className="ft-pop-time on";
-        });
-      });
+      /* 팝업으로 띄우면 지도를 덮어버린다. 지도 아래 패널에 펼치고
+         지도에서는 어느 마커를 골랐는지만 표시한다. */
+      m.__spot=s; m.__base=st.color; m.__top=top;
+      m.on("click",function(){ selectSpot(m,s); });
       m.addTo(markerLayer);
       pts.push([s.lat,s.lon]);
     });
@@ -401,7 +435,7 @@
         if(q.id==="region"){
           var pool=DATA.filter(function(x){return x.region===o[0]});
           showMap(pool, o[0]+" 낚시 포인트 "+pool.length+"곳",
-            "초록색이 처음 가기 좋은 곳이에요. 다음 질문에 답하면 추천 3곳으로 좁혀드려요.");
+            "초록색이 처음 가기 좋은 곳이에요. 마커를 누르면 지도 아래에 정보가 펼쳐져요.");
         }
         renderQuestion();
       });
@@ -703,6 +737,41 @@
     return '<div class="ft-guide">'+out+weekStrip(s)+'</div>';
   }
 
+
+  /* 포인트 이름은 전부 "섬그룹 · 실제지점" 두 조각이다.
+     "영종도·용유도 · 모래 채집장"을 통째로 띄우면 읽기 힘들다.
+     제목엔 실제 지점만 크게 쓰고, 어느 섬인지·주소는 아래 줄로 내린다. */
+  function spotName(s){
+    var p=String(s.name||"").split(" · ");
+    var nm=(p.length>1 ? p.slice(1).join(" · ") : p[0]).trim();
+    /* "대청도·소청도 · 대청도 기름아가리"처럼 지점 이름이 섬 이름으로 시작하면
+       아래 위치 줄과 겹치니 덜어낸다.
+       단 그룹에 섬이 여럿이면("백아도·굴업도") 이름의 섬이 유일한 단서라 남긴다. */
+    if(p.length>1){
+      var islands=p[0].split("·");
+      if(islands.length===1){
+        var isl=islands[0].trim();
+        if(isl && nm.indexOf(isl+" ")===0 && nm.length>isl.length+2)
+          nm=nm.slice(isl.length+1).trim();
+      }
+    }
+    return nm;
+  }
+  function spotArea(s){
+    var p=String(s.name||"").split(" · ");
+    return p.length>1 ? p[0].trim() : "";
+  }
+  /* 어디인지 한 줄로. 도로명이 있으면 그게 제일 익숙하고,
+     없으면 읍면동/리까지, 그것도 없으면 시군구만. */
+  function spotWhere(s){
+    var head=(s.region||"")+(s.sigungu?" "+s.sigungu:"");
+    var tail=s.road || s.dong || "";
+    var area=spotArea(s);
+    var out=head+(tail?" "+tail:"");
+    if(area && out.indexOf(area)===-1) out+=" · "+area;
+    return out;
+  }
+
   function cardHtml(s){
     var speciesChips=(s.species||[]).slice(0,6).map(function(sp){return '<span class="ft-tag match">'+escapeHtml(sp)+'</span>'}).join("");
     var techChips=(s.techniques||[])
@@ -712,8 +781,10 @@
       .map(function(t){return '<span class="ft-tag">'+escapeHtml(t)+'</span>'}).join("");
     var depth=depthText(s.depth);
     return '<div class="ft-card">'
-      +'<div class="ft-name-row"><span class="ft-name">'+escapeHtml(s.name)+'</span><button type="button" class="ft-copy" data-name="'+escapeHtml(s.name)+'">📋 이름 복사</button></div>'
-      +'<div class="ft-meta">'+tideHtml()+timeHtml(s)+'<span class="ft-tag">'+escapeHtml(s.region+(s.sigungu?" "+s.sigungu:""))+'</span>'+(depth?'<span class="ft-tag">수심 '+escapeHtml(depth)+'</span>':'')+'</div>'
+      +'<div class="ft-name-row"><span class="ft-name">'+escapeHtml(spotName(s))+'</span>'
+      +'<button type="button" class="ft-copy" data-name="'+escapeHtml(s.name)+'">📋 이름 복사</button></div>'
+      +'<div class="ft-where">📍 '+escapeHtml(spotWhere(s))+'</div>'
+      +'<div class="ft-meta">'+tideHtml()+timeHtml(s)+(depth?'<span class="ft-tag">수심 '+escapeHtml(depth)+'</span>':'')+'</div>'
       +'<div class="ft-meta" style="margin-top:6px">'+speciesChips+techChips+'</div>'
       +guideHtml(s)
       +'<div class="ft-actions"><a class="ft-maplink" href="'+mapLink(s)+'" target="_blank" rel="noopener">🗺️ 지도에서 위치 보기</a></div>'
@@ -747,7 +818,7 @@
       var stamp='<div class="ft-datestamp">📅 '+dayLabel(goDate())+' 기준이에요</div>';
       $("ft-results").innerHTML=stamp+SAFETY_HTML+picks.map(cardHtml).join("");
       showMap(ranked, "추천 포인트 "+ranked.length+"곳",
-        "①②③ 번호가 아래 카드와 같은 곳이에요. 마커를 누르면 상세 정보가 나와요.",
+        "①②③ 번호가 아래 카드와 같은 곳이에요. 마커를 누르면 지도 아래에 상세 정보가 나와요.",
         picks);
       $("ft-more").hidden = !(ranked.length>shownFrom+3);
       bindCopy();

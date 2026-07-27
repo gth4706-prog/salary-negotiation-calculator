@@ -13,6 +13,38 @@ GAME.Iso = {
   // 아레나 상단이 화면에서 시작하는 y 좌표
   SCREEN_TOP: GAME.CONFIG.PORTRAIT ? 40 : 66,
 
+  // ── 전투 전용 '전체 화면' 배치 ──────────────────────────────────────────
+  // 세로 폰에서 전장을 화면 거의 전체로 키운다. HUD 는 위로 올리고 조작 버튼은
+  // 전장 위에 겹쳐 놓으므로, 아레나가 쓸 수 있는 세로가 훨씬 넓어진다.
+  //
+  // **월드 좌표는 건드리지 않는다.** 여기서 바꾸는 건 압축비(TILT)와 시작 y 뿐이라
+  // 순수 렌더 계층 변경이다(거리·회피 판정은 그대로). 그래서 밸런스가 움직이지 않는다.
+  // 배치·준비 화면은 HUD 를 아레나 **아래**에 두므로 이 모드를 쓰면 안 된다 → 씬별로 켠다.
+  FULL_TOP: 96,          // 기본값 — 실제로는 위쪽 HUD 의 **실측 바닥**을 받아 쓴다
+  BOTTOM_GAP: 96,        // 폰 하단바와 띄우는 간격(설계 px)
+
+  _base: {
+    tilt: GAME.CONFIG.PORTRAIT ? 0.72 : 0.60,
+    top: GAME.CONFIG.PORTRAIT ? 40 : 66
+  },
+
+  // mode: 'full' = 전투용 전체화면(세로 전용) / 그 외 = 기본
+  // topY: HUD 바닥(여기부터 아레나가 시작한다). 안 주면 FULL_TOP.
+  //   HUD 높이는 보스 유무로 128↔158 로 달라진다 → **실측값을 받아야** 겹치지 않는다.
+  setMode: function (mode, topY) {
+    var A = GAME.CONFIG.ARENA;
+    if (mode === 'full' && GAME.CONFIG.PORTRAIT) {
+      this.SCREEN_TOP = (topY === undefined) ? this.FULL_TOP : Math.round(topY);
+      // 남은 세로를 꽉 채우되 1.0(정탑다운)을 넘지 않는다 — 넘기면 원이 세로로 늘어난다.
+      var avail = GAME.CONFIG.HEIGHT - this.SCREEN_TOP - this.BOTTOM_GAP;
+      this.TILT = Math.max(0.45, Math.min(1, avail / A.h));
+    } else {
+      this.SCREEN_TOP = this._base.top;
+      this.TILT = this._base.tilt;
+    }
+    return this;
+  },
+
   // 유닛이 지면에서 떠 보이는 정도(빌보드 높이 배율)
   LIFT: 1.15,
 

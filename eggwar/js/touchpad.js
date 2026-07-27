@@ -38,14 +38,17 @@ GAME.TouchPad.palette = function () {
 GAME.TouchPad.SIZES = function () {
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var shortSide = Math.min(W, H);
+  // 조작부가 **전장 위에 겹쳐** 놓이게 되면서 전장을 잡아먹지 않는다 →
+  // 그만큼 버튼을 키울 수 있다(실기기에서 "버튼이 작다" 신고). 지름 기준으로
+  // 스킬 0.058→0.072(≈60px, 화면 ~48px), 공격 0.070→0.086 으로 올렸다.
   return {
-    stickR: Math.round(shortSide * 0.105),   // 바깥 링 반지름 (지름 = 짧은 변의 21%)
-    knobR: Math.round(shortSide * 0.048),
-    mainR: Math.round(shortSide * 0.070),    // 기본공격
+    stickR: Math.round(shortSide * 0.118),   // 바깥 링 반지름
+    knobR: Math.round(shortSide * 0.054),
+    mainR: Math.round(shortSide * 0.086),    // 기본공격
     // QWER·물약도 **최소 터치 타깃 44 CSS px** 을 넘겨야 한다.
     // 0.046 이면 폰에서 지름 35px 라 자꾸 빗나간다(실측).
-    skillR: Math.round(shortSide * 0.058),
-    potionR: Math.round(shortSide * 0.056)
+    skillR: Math.round(shortSide * 0.072),
+    potionR: Math.round(shortSide * 0.068)
   };
 };
 
@@ -56,8 +59,11 @@ GAME.TouchPad.prototype._build = function () {
   var S = GAME.TouchPad.SIZES();
   var PAD = GAME.TouchPad.palette();
 
+  // 조작부는 전장 **위에 겹쳐** 놓는다(전장을 화면 거의 전체로 쓰기 위함).
+  // 다만 폰 하단바(제스처 바)와는 반드시 띄운다 — 안 그러면 스틱을 잡다가 홈으로 나간다.
   var margin = Math.round(Math.min(W, H) * 0.055);
-  var baseY = H - S.stickR - margin;
+  var bottomGap = (GAME.CONFIG.PORTRAIT && GAME.Iso.BOTTOM_GAP) ? GAME.Iso.BOTTOM_GAP * 0.55 : 0;
+  var baseY = H - S.stickR - margin - bottomGap;
 
   // ── 왼쪽: 가상 스틱 ──
   var sx = S.stickR + margin;

@@ -13,6 +13,7 @@ GAME.DefendScene.prototype.init = function (data) {
   this.placed = data.placed;          // [{type,x,y}] 아래 구역 좌표
   this.tier = data.tier;
   this.budget = data.budget;
+  this.defendTower = data.defendTower || 0;   // 수성의 탑 층수(0이면 일반 방어전)
   this.ended = false;
   this.speed = 2;          // create() 에서 저장된 값으로 덮어쓴다
   this.markers = [];      // BattleScene.draw 가 참조한다
@@ -26,6 +27,9 @@ GAME.DefendScene.prototype.create = function () {
   var L = GAME.Layout;
 
   this.cameras.main.setBackgroundColor(C.bg);
+  // 방어전 HUD·버튼은 아레나 **아래**에 있으므로 전투용 전체화면 모드를 쓰면 안 된다.
+  // 전투 씬에서 켠 모드가 새어 들어오지 않게 여기서 기본값을 확정한다.
+  GAME.Iso.setMode('default');
   this.g = this.add.graphics();
   this.state = GAME.Combat.createState();
 
@@ -36,21 +40,39 @@ GAME.DefendScene.prototype.create = function () {
     this.state.units.push(GAME.Combat.createUnit(p.type, p.x, GAME.mirrorY(p.y), 'strategist'));
   }
 
-  // AI 컨트롤러 — 이 ID 가 지금까지 학습시킨 숙련도로 공격해 온다
-  var ctrl = GAME.Learn.getCtrl();
-  this.aiSkill = ctrl.skill || 0;
+  // AI 컨트롤러가 공격해 온다.
+  //  · 일반 방어전 : 이 ID 가 학습시킨 숙련도로.
+  //  · 수성의 탑   : 그 층의 숙련·영웅·예산·강화 배수로(층이 오를수록 세짐).
+  var heroMods = null;
+  if (this.defendTower) {
+    var DT = GAME.DefendTower;
+    this.aiSkill = DT.skillFor(this.defendTower);
+    this.budget = DT.heroBudgetFor(this.defendTower);      // 층 고정 영웅 예산
+    heroMods = DT.heroModsFor(this.defendTower);
+  } else {
+    var ctrl = GAME.Learn.getCtrl();
+    this.aiSkill = ctrl.skill || 0;
+  }
 
   // 숙련도가 오르면 더 좋은 영웅·장비를 골라 온다.
   // 수색대(원거리)는 얇아서 숙련도가 충분히 높을 때만 쓴다 — 어설프게 들면
   // 오히려 낮은 숙련도보다 약해지는 역전이 생긴다(실측으로 확인).
-  var heroKey = this.aiSkill < 0.3 ? 'vanguard'
-              : (this.aiSkill < 0.78 ? 'warden' : 'ranger');
+  var heroKey = this.defendTower
+    ? GAME.DefendTower.heroKeyFor(this.defendTower, this.aiSkill)
+    : (this.aiSkill < 0.3 ? 'vanguard' : (this.aiSkill < 0.78 ? 'warden' : 'ranger'));
   var items = this._pickItems(heroKey, this.budget);
   var picks = { Q: 0, W: 0, E: 0, R: 0 };
   if (this.aiSkill > 0.5) { picks.Q = 1; picks.R = 1; }
 
   var Z = GAME.CONFIG.ZONE_CONTROLLER;
   this.hero = GAME.Combat.createHero(heroKey, Z.x + Z.w / 2, Z.y + Z.h * 0.55, 'controller', items, picks);
+  // 층 강화 — 통곡의 탑이 진형을 강화하듯, 수성의 탑은 공격 영웅을 강화한다.
+  if (heroMods) {
+    this.hero.def.hp = Math.round(this.hero.def.hp * (heroMods.hp || 1));
+    this.hero.def.damage = Math.round(this.hero.def.damage * (heroMods.damage || 1));
+    this.hero.maxHp = this.hero.def.hp;
+    this.hero.hp = this.hero.def.hp;
+  }
   this.state.units.push(this.hero);
   this.ai = new GAME.AIHero(this.state, this.hero, this.aiSkill);
 
@@ -100,7 +122,7 @@ GAME.DefendScene.prototype.create = function () {
     { fontSize: P ? 15 : 15, line: GAME.CONFIG.COLORS.controller, color: C.accent });
   this.input.keyboard.on('keydown-SPACE', cycleSpeed);
   GAME.UI.button(this, bc[1].cx, rows.c.cy, bc[1].w, rows.c.h, '배치 다시', function () {
-    self.scene.start('Build');
+    self.scene.start('Build', self.defendTower ? { defendTower: self.defendTower } : undefined);
   }, { fontSize: P ? 15 : 15 });
   GAME.UI.button(this, bc[2].cx, rows.c.cy, bc[2].w, rows.c.h, '메뉴', function () {
     self.scene.start('Menu');
@@ -160,17 +182,31 @@ GAME.DefendScene.prototype.update = function (time, delta) {
     var self = this;
     // AI 컨트롤러가 이겼는가 = 내 진형이 뚫렸는가
     var aiWon = this.state.winner === 'controller';
-    var rec = GAME.Learn.recordCtrl(aiWon, { timedOut: this.state.winner === 'draw' });
+    var defended = !aiWon;   // 무승부(시간초과)도 방어 성공으로 본다
+
+    // 수성의 탑: 승패를 층에 반영한다. 숙련도는 층이 정하므로 Learn 은 건드리지 않는다.
+    var towerRec = null, learnNotes = [];
+    if (this.defendTower) {
+      towerRec = defended
+        ? GAME.DefendTower.clear(this.defendTower, this.placed.slice(), this.tier)
+        : GAME.DefendTower.fail();
+    } else {
+      var rec = GAME.Learn.recordCtrl(aiWon, { timedOut: this.state.winner === 'draw' });
+      this.aiSkill = rec.skill;
+      learnNotes = rec.lastNotes || [];
+    }
 
     var id = GAME.Account.current();
+    // 수성의 탑은 층수를, 일반 방어전은 AI 숙련을 난이도(escalation)로 점수에 반영한다.
+    var esc = this.defendTower ? this.defendTower : Math.round((this.aiSkill || 0) * 10);
     var score = GAME.Score.forResult({
-      won: !aiWon, asStrategist: true, budget: this.budget,
-      escalation: Math.round((this.aiSkill || 0) * 10)
+      won: defended, asStrategist: true, budget: this.budget, escalation: esc
     });
     if (id) {
       GAME.Score.add(id, {
-        score: score, won: !aiWon, asStrategist: true,
-        escalation: Math.round((this.aiSkill || 0) * 10), formationName: '내 진형(방어)'
+        score: score, won: defended, asStrategist: true,
+        escalation: esc,
+        formationName: this.defendTower ? ('수성의 탑 ' + this.defendTower + '층') : '내 진형(방어)'
       });
     }
 
@@ -178,9 +214,11 @@ GAME.DefendScene.prototype.update = function (time, delta) {
       self.scene.start('Result', {
         winner: self.state.winner,
         defendMode: true,
-        aiSkill: rec.skill,
+        defendTower: self.defendTower,
+        towerRec: towerRec,
+        aiSkill: self.aiSkill,
         score: score,
-        learnNotes: rec.lastNotes || []
+        learnNotes: learnNotes
       });
     });
   }

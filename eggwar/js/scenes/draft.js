@@ -38,6 +38,8 @@ GAME.DraftScene.prototype.create = function () {
   var P = GAME.CONFIG.PORTRAIT;
 
   this.cameras.main.setBackgroundColor(C.bg);
+  // 준비 화면은 정찰도를 축소해 그리므로 전투용 전체화면 투영이 새어 들어오면 안 된다.
+  GAME.Iso.setMode('default');
 
   // ── 화면 분할 ──
   // 세로 모바일은 폭이 좁아 좌우 분할이 안 되므로 위(정찰)/아래(설정)로 나눈다.

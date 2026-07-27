@@ -12,6 +12,7 @@ GAME.ResultScene.prototype.init = function (data) {
   this.heroKey = data.heroKey;
   this.learnNotes = data.learnNotes || [];
   this.defendMode = !!data.defendMode;
+  this.defendTower = data.defendTower || 0;   // 수성의 탑 층수
   this.aiSkill = data.aiSkill || 0;
   this.score = data.score || 0;
   this.escalation = data.escalation || 0;
@@ -42,6 +43,21 @@ GAME.ResultScene.prototype.create = function () {
       sub = '1층부터 다시 시작합니다.' +
             (this.towerRec ? ' 최고 기록 ' + (this.towerRec.best || 0) + '층.' : '');
     }
+  } else if (this.defendTower) {
+    // 수성의 탑 — 영웅을 막아냈으면 한 층 올라간다
+    var DT = GAME.DefendTower;
+    if (this.winner === 'controller') {
+      title = this.defendTower + '층 방어 실패'; color = C.accentAlt;
+      sub = '영웅에게 뚫렸습니다. 1층부터 다시 시작합니다.' +
+            (this.towerRec ? ' 최고 기록 ' + (this.towerRec.best || 0) + '층.' : '');
+    } else {
+      var nf = this.defendTower + 1;
+      title = this.defendTower + '층 방어 성공'; color = C.accent;
+      sub = (this.winner === 'draw' ? '시간 안에 뚫지 못했습니다 — 방어 성공. ' : '영웅을 격퇴했습니다. ') +
+            '다음은 ' + nf + '층 — 오는 영웅 ' +
+            GAME.HEROES[DT.heroKeyFor(nf, DT.skillFor(nf))].name +
+            ' (예산 ' + DT.heroBudgetFor(nf) + ') vs 내 배치 ' + DT.budgetFor(nf) + '.';
+    }
   } else if (this.defendMode) {
     // 전략가 방어전 — AI 컨트롤러가 이겼으면 내 진형이 뚫린 것
     if (this.winner === 'controller') {
@@ -70,8 +86,9 @@ GAME.ResultScene.prototype.create = function () {
   // ── 판정 · 보상 (탕탕특공대의 결과 배너 + 운빨존많겜의 단계적 공개) ──
   // 한 번에 다 띄우지 않고 순서대로 들여보낸다. 다만 **먼저 다 만들고 alpha 0 → tween** 이다.
   // 나중에 생성하면 씬이 내려간 뒤 파괴된 객체를 건드린다(전에 겪은 사고).
-  var tierObj = this.tower ? GAME.UI.tierForFloor(this.tower)
-                           : GAME.UI.tierForEscalation(this.escalation);
+  var tierObj = (this.tower || this.defendTower)
+    ? GAME.UI.tierForFloor(this.tower || this.defendTower)
+    : GAME.UI.tierForEscalation(this.escalation);
 
   var plate = GAME.UI.verdictPlate(this, W / 2, u * 9, bw, title, sub, {
     tierIndex: tierObj.i,
@@ -142,17 +159,22 @@ GAME.ResultScene.prototype.create = function () {
   //   예전엔 고정 u*60 에서 아래로 뻗어 바닥 ~19% 가 비고 정보-버튼 사이 띠가 남았다.
   var btnTop = Math.max(ry + u * 3, u * 68);
 
-  var b1 = this.tower ? (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : '1층부터 다시')
-         : (this.defendMode ? '배치 고쳐 다시' : '같은 진형에 다시 도전');
+  var b1;
+  if (this.tower) b1 = (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : '1층부터 다시');
+  else if (this.defendTower) b1 = (this.winner === 'controller' ? '1층부터 다시' : (this.defendTower + 1) + '층 방어');
+  else if (this.defendMode) b1 = '배치 고쳐 다시';
+  else b1 = '같은 진형에 다시 도전';
   GAME.UI.button(this, W / 2, btnTop, bw, u * 7, b1, function () {
     if (self.tower) self.scene.start('Tower');
+    else if (self.defendTower) self.scene.start('DefendTower');
     else if (self.defendMode) self.scene.start('Build');
     else self.scene.start('Draft', { formationId: self.formationId });
   }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 17 : 18 });
 
   GAME.UI.button(this, W / 2, btnTop + u * 9, bw, u * 6,
-    this.tower ? '일반 대전으로' : (this.defendMode ? '컨트롤러로 도전' : '다른 진형 고르기'), function () {
-      self.scene.start('Select');
+    this.tower ? '일반 대전으로'
+      : (this.defendTower ? '메뉴로' : (this.defendMode ? '컨트롤러로 도전' : '다른 진형 고르기')), function () {
+      self.scene.start(self.defendTower ? 'Menu' : 'Select');
     }, { fontSize: P ? 15 : 16 });
 
   var rc = GAME.Layout.cols(2, { gap: 10, width: bw, left: (W - bw) / 2, pad: 0 });

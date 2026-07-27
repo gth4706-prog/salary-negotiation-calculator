@@ -12,11 +12,13 @@ GAME.BuildScene.prototype.constructor = GAME.BuildScene;
 // 길게 눌러 제거로 판정하는 시간. 터치에는 우클릭이 없어서 이게 **유일한** 삭제 수단이다.
 GAME.BuildScene.HOLD_MS = 450;
 
-GAME.BuildScene.prototype.init = function () {
+GAME.BuildScene.prototype.init = function (data) {
   this.placed = [];
   this.selected = null;      // 빨간 화살표로 표시할 유닛
   this.picked = 'bayonet';
   this.tier = GAME.CONFIG.DEFAULT_TIER;
+  // 수성의 탑에서 들어오면 그 층의 고정 예산을 쓰고, 승패가 층에 반영된다.
+  this.defendTower = (data && data.defendTower) || 0;
   // 씬을 다시 들어오면 이전 타이머는 이미 죽어 있다 — 참조를 반드시 비운다
   this._holdTimer = null;
 };
@@ -30,13 +32,23 @@ GAME.BuildScene.prototype.create = function () {
   var hud = L.hud();
 
   this.cameras.main.setBackgroundColor(C.bg);
-  this.budget = GAME.CONFIG.BUDGETS[this.tier];
+  // 배치 화면은 팔레트·버튼이 아레나 **아래**에 있다 → 전투용 전체화면 투영이 새어 들어오면
+  // 아레나가 화면을 다 먹어 팔레트가 잘린다. 진입할 때마다 기본 투영으로 확정한다.
+  GAME.Iso.setMode('default');
+  // 수성의 탑은 층 고정 예산, 일반 방어전은 티어 예산.
+  this.budget = this.defendTower ? GAME.DefendTower.budgetFor(this.defendTower)
+                                 : GAME.CONFIG.BUDGETS[this.tier];
   this.zone = GAME.CONFIG.ZONE_CONTROLLER;
   this.myColor = C.strategist;
 
   this.g = this.add.graphics();
 
-  GAME.UI.label(this, hud.pad, 18, '상대에게 보일 모습 (위)', P ? 15 : 15, C.accentAlt, 0);
+  var topLabel = '상대에게 보일 모습 (위)';
+  if (this.defendTower) {
+    var dtHeroKey = GAME.DefendTower.heroKeyFor(this.defendTower, GAME.DefendTower.skillFor(this.defendTower));
+    topLabel = this.defendTower + '층 방어 — 오는 영웅: ' + GAME.HEROES[dtHeroKey].name;
+  }
+  GAME.UI.label(this, hud.pad, 18, topLabel, P ? 15 : 15, C.accentAlt, 0);
   GAME.UI.label(this, hud.pad, GAME.Iso.toScreenY(this.zone.y) - 20,
     '내 진형 배치 (아래) — 탭 배치 / 우클릭·길게 제거', P ? 15 : 15, C.accentAlt, 0);
 
@@ -76,22 +88,27 @@ GAME.BuildScene.prototype.create = function () {
     })(GAME.UNIT_ORDER[i], i);
   }
 
-  // 예산 티어
-  var tcols = L.cols(3, { gap: 8, width: Math.min(W, 420), left: hud.pad });
+  // 예산 티어 — 수성의 탑은 층 고정 예산이라 티어 선택을 숨기고 층 정보를 보여준다.
   this.tierButtons = [];
-  var tiers = GAME.CONFIG.BUDGET_TIERS;
-  for (var t = 0; t < tiers.length; t++) {
-    (function (tier, idx) {
-      var c = tcols[idx];
-      var b = GAME.UI.button(self, c.cx, rows.tier.cy, c.w, rows.tier.h,
-        tier.replace('예산', '') + ' ' + GAME.CONFIG.BUDGETS[tier], function () {
-          self.tier = tier;
-          self.budget = GAME.CONFIG.BUDGETS[tier];
-          self._trimToBudget();
-          self.redraw();
-        }, { fontSize: P ? 15 : 15 });
-      self.tierButtons.push({ tier: tier, ui: b });
-    })(tiers[t], t);
+  if (this.defendTower) {
+    GAME.UI.label(this, hud.pad, rows.tier.cy, '수성의 탑 ' + this.defendTower + '층  ·  고정 예산 ' + this.budget,
+      P ? 15 : 15, C.accentAlt, 0).setOrigin(0, 0.5);
+  } else {
+    var tcols = L.cols(3, { gap: 8, width: Math.min(W, 420), left: hud.pad });
+    var tiers = GAME.CONFIG.BUDGET_TIERS;
+    for (var t = 0; t < tiers.length; t++) {
+      (function (tier, idx) {
+        var c = tcols[idx];
+        var b = GAME.UI.button(self, c.cx, rows.tier.cy, c.w, rows.tier.h,
+          tier.replace('예산', '') + ' ' + GAME.CONFIG.BUDGETS[tier], function () {
+            self.tier = tier;
+            self.budget = GAME.CONFIG.BUDGETS[tier];
+            self._trimToBudget();
+            self.redraw();
+          }, { fontSize: P ? 15 : 15 });
+        self.tierButtons.push({ tier: tier, ui: b });
+      })(tiers[t], t);
+    }
   }
 
   // 유닛 설명(티어 버튼 오른쪽 남은 공간)
@@ -112,9 +129,10 @@ GAME.BuildScene.prototype.create = function () {
   GAME.UI.button(this, acols[2].cx, rows.act.cy, acols[2].w, rows.act.h, '전부 지우기', function () {
     self.placed = []; self.warnText.setText(''); self.redraw();
   }, { fontSize: P ? 15 : 14 });
-  GAME.UI.button(this, acols[3].cx, rows.act.cy, acols[3].w, rows.act.h, '메뉴', function () {
-    self.scene.start('Menu');
-  }, { fontSize: P ? 15 : 14 });
+  GAME.UI.button(this, acols[3].cx, rows.act.cy, acols[3].w, rows.act.h,
+    this.defendTower ? '← 탑' : '메뉴', function () {
+      self.scene.start(self.defendTower ? 'DefendTower' : 'Menu');
+    }, { fontSize: P ? 15 : 14 });
 
   this.input.on('pointerdown', function (p) {
     if (p.y > GAME.Iso.screenRect().bottom) return;
@@ -230,7 +248,8 @@ GAME.BuildScene.prototype._defend = function () {
     return;
   }
   this.scene.start('Defend', {
-    placed: this.placed.slice(), tier: this.tier, budget: this.budget
+    placed: this.placed.slice(), tier: this.tier, budget: this.budget,
+    defendTower: this.defendTower
   });
 };
 

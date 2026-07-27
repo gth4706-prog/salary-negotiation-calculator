@@ -67,9 +67,21 @@ GAME.BattleScene.prototype.create = function () {
   // 레퍼런스(탕탕특공대)의 구조: **타이머를 가장 큰 숫자로 두고 그 아래 진행 바**,
   // 체력은 글자가 아니라 칸막이 게이지로 읽는다. 보스가 있으면 전용 바가 하나 더 붙어
   // "무엇을 죽여야 하는지"가 목표로 보인다.
+  var P = GAME.CONFIG.PORTRAIT;
+  var padMode0 = GAME.isTouch && P;
+
+  // 세로 터치: 전장을 화면 거의 전체로 키우고(HUD 위 · 버튼은 전장 위에 겹침),
+  // 손가락 두 개 이상을 동시에 받도록 포인터를 늘린다(이동+스킬 동시 입력).
+  // 씬을 나갈 때 반드시 되돌린다 — 배치 화면은 HUD 가 아레나 아래에 있어 이 모드면 깨진다.
+  // (아레나 시작 y 는 HUD 를 만든 뒤 **실측 바닥**으로 다시 잡는다 — 아래 참조)
+  GAME.Iso.setMode('default');
+  if (padMode0) {
+    this.events.once('shutdown', function () { GAME.Iso.setMode('default'); });
+    this.input.addPointer(2);          // 기본 1개 + 2개 = 스틱 + 버튼 2개 동시
+  }
+
   var L = GAME.Layout;
   var hud = L.hud();
-  var P = GAME.CONFIG.PORTRAIT;
   var W = GAME.CONFIG.WIDTH;
 
   // 이번 판의 '등급'. 뽑기가 없는 게임이라 등급은 **난이도**에 붙인다.
@@ -80,12 +92,17 @@ GAME.BattleScene.prototype.create = function () {
     ? ('탑 ' + this.tower + '층 · ' + tierObj.name)
     : ('난이도 ' + this.escalation + '단계 · ' + tierObj.name);
 
+  // 세로 터치에서는 HUD 를 **맨 위**에 둔다(전장과 겹치지 않게, 아레나는 그 아래에서 시작).
   this.hud = GAME.UI.battleHud(this, {
-    top: hud.top,
+    top: padMode0 ? 6 : hud.top,
     boss: !!this.formation.boss,
     tierIndex: tierObj.i,
     tierLabel: tierLabel
   });
+
+  // HUD 를 위에 깔았으니 그 **실측 바닥** 아래부터 아레나를 펼친다.
+  // 보스 층은 HUD 가 30px 더 높다 — 고정값으로 잡으면 그때만 전장이 HUD 를 파고든다.
+  if (padMode0) GAME.Iso.setMode('full', this.hud.bottom + 8);
 
   // HUD 높이는 보스 유무로 달라진다 → **실측 높이**를 첫 행으로 넣어 아래를 밀어낸다.
   // 손으로 y 를 박으면 보스 층에서만 조용히 겹친다.

@@ -83,5 +83,5 @@ GAME.MenuScene.prototype.create = function () {
       : '논타겟 공격은 피할 수 있고, 타겟 공격은 피할 수 없다. 그것이 이 게임의 균형이다.',
     P ? 13 : 13, '#6f6f88', 0.5).setWordWrapWidth(W - 40);
 
-  GAME.UI.label(this, W - 12, H - 10, GAME.VERSION || '', 12, '#6f6f88', 1).setOrigin(1, 1);
+  // 버전 표시는 DOM 배지(#ver) 하나로 통일했다 — 캔버스에도 그리면 우하단에서 겹친다.
 };

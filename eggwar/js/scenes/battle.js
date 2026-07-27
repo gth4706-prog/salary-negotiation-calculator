@@ -63,32 +63,46 @@ GAME.BattleScene.prototype.create = function () {
   this.input.mouse.disableContextMenu();
   this.ctrl = new GAME.InputController(this, this.state, this.hero);
 
-  // ── HUD: 좌표를 계산으로 배분해 겹침을 구조적으로 막는다 ──
+  // ── HUD ──
+  // 레퍼런스(탕탕특공대)의 구조: **타이머를 가장 큰 숫자로 두고 그 아래 진행 바**,
+  // 체력은 글자가 아니라 칸막이 게이지로 읽는다. 보스가 있으면 전용 바가 하나 더 붙어
+  // "무엇을 죽여야 하는지"가 목표로 보인다.
   var L = GAME.Layout;
   var hud = L.hud();
   var P = GAME.CONFIG.PORTRAIT;
-  var rows = L.rows(P
-    ? [{ name: 'status', h: 24, gap: 4 }, { name: 'status2', h: 24, gap: 10 },
-       { name: 'skills', h: 92, gap: 10 }, { name: 'hint', h: 34, gap: 0 }]
-    : [{ name: 'status', h: 26, gap: 14 },
-       { name: 'skills', h: 96, gap: 14 }, { name: 'hint', h: 20, gap: 0 }]);
   var W = GAME.CONFIG.WIDTH;
 
-  this.hudHero = GAME.UI.label(this, hud.pad, rows.status.y, '', P ? 17 : 17, C.accent, 0);
-  if (P) {
-    this.hudTimer = GAME.UI.label(this, hud.pad, rows.status2.y, '', 20, C.text, 0);
-    this.hudEnemy = GAME.UI.label(this, W - hud.pad, rows.status2.y, '', 15, C.accentAlt, 0).setOrigin(1, 0);
-  } else {
-    this.hudTimer = GAME.UI.label(this, W / 2, rows.status.y - 2, '', 26, C.text, 0.5).setOrigin(0.5, 0);
-    this.hudEnemy = GAME.UI.label(this, W - hud.pad, rows.status.y, '', 17, C.accentAlt, 0).setOrigin(1, 0);
-  }
+  // 이번 판의 '등급'. 뽑기가 없는 게임이라 등급은 **난이도**에 붙인다.
+  var tierObj = this.tower
+    ? GAME.UI.tierForFloor(this.tower, !!this.formation.boss)
+    : GAME.UI.tierForEscalation(this.escalation);
+  var tierLabel = this.tower
+    ? ('탑 ' + this.tower + '층 · ' + tierObj.name)
+    : ('난이도 ' + this.escalation + '단계 · ' + tierObj.name);
+
+  this.hud = GAME.UI.battleHud(this, {
+    top: hud.top,
+    boss: !!this.formation.boss,
+    tierIndex: tierObj.i,
+    tierLabel: tierLabel
+  });
+
+  // HUD 높이는 보스 유무로 달라진다 → **실측 높이**를 첫 행으로 넣어 아래를 밀어낸다.
+  // 손으로 y 를 박으면 보스 층에서만 조용히 겹친다.
+  //
+  // padMode(세로 터치)는 스킬바를 안 만드므로 **높이를 예약하지도 않는다.**
+  // 예약해 두는 바람에 힌트가 조작 패드 쪽으로 102px 밀려 있었다.
+  var padMode = GAME.isTouch && P;
+  var rowSpec = [{ name: 'hudBlock', h: this.hud.height, gap: P ? 10 : 12 }];
+  if (!padMode) rowSpec.push({ name: 'skills', h: P ? 92 : 96, gap: P ? 10 : 12 });
+  rowSpec.push({ name: 'hint', h: P ? 34 : 20, gap: 0 });
+  var rows = L.rows(rowSpec);
 
   // 스킬 바 5칸(QWER + 물약).
   // **세로 터치에서는 만들지 않는다** — 오른쪽 원형 패드가 같은 역할을 하고,
   // 둘 다 두면 좁은 세로 화면에서 전장이 그만큼 줄어든다(중복 조작면).
-  var padMode = GAME.isTouch && P;
   var cols = L.cols(5, { gap: P ? 6 : 10, max: 104 });
-  var boxH = rows.skills.h;
+  var boxH = rows.skills ? rows.skills.h : 0;
   this.skillBoxes = [];
   var slots = padMode ? [] : ['Q', 'W', 'E', 'R'];
   for (var s = 0; s < slots.length; s++) {
@@ -138,13 +152,15 @@ GAME.BattleScene.prototype.create = function () {
   this.events.on('shutdown', function () {
     if (self.ctrl) self.ctrl.destroy();
     if (self.pad) { self.pad.destroy(); self.pad = null; }
+    if (self.hud) { self.hud.destroy(); self.hud = null; }
   });
 };
 
 GAME.BattleScene.prototype._hintDefault = function () {
-  if (GAME.isTouch && GAME.CONFIG.PORTRAIT) {
-    return '왼쪽 스틱: 이동   ·   오른쪽 공격 버튼   ·   스킬 버튼 → 위치 탭   ·   전장 탭: 이동+교전';
-  }
+  // 세로 터치에서는 상시 안내를 두지 않는다. 버튼에 '공격/Q/W/E/R/물약' 이 이미 적혀 있고,
+  // 보스 층은 HUD 가 158px 로 커져서 이 문구가 스킬 버튼 위로 내려앉는다.
+  // (조준 대기 같은 **일시적 안내**는 계속 이 라벨을 쓴다)
+  if (GAME.isTouch && GAME.CONFIG.PORTRAIT) return '';
   return GAME.isTouch
     ? '한 번 탭: 이동하며 교전   ·   두 번 탭: 이동만   ·   스킬 버튼 → 위치 탭'
     : '우클릭 이동 / 적 클릭 공격   ·   방향키 직접 이동   ·   Q W E R 스킬   ·   F 물약   ·   Space 기본공격';
@@ -169,7 +185,7 @@ GAME.BattleScene.prototype.drawNumbers = function () {
     var prog = 1 - n.t / n.total;
     t.setVisible(true);
     t.setText(n.crit ? n.value + '!' : String(n.value));
-    t.setFontSize(n.crit ? 26 : 17);
+    t.setFontSize(n.crit ? (GAME.CONFIG.PORTRAIT ? 30 : 28) : (GAME.CONFIG.PORTRAIT ? 20 : 18));
     t.setColor(n.crit ? C.crit : (n.onHero ? '#ff8f8f' : '#ffffff'));
     t.setAlpha(Math.max(0, 1 - prog * prog));
     t.setPosition(n.x + (n.drift || 0) * prog, Iso.toScreenY(n.y) - 26 - prog * 46);
@@ -256,30 +272,36 @@ GAME.BattleScene.prototype.update = function (time, delta) {
 };
 
 GAME.BattleScene.prototype.updateHud = function () {
-  var C = GAME.CONFIG.COLORS;
   var h = this.hero;
-  var remain = Math.max(0, GAME.CONFIG.BATTLE_TIME - this.state.elapsed / 1000);
+  var TOTAL = GAME.CONFIG.BATTLE_TIME;
+  var remain = Math.max(0, TOTAL - this.state.elapsed / 1000);
 
-  this.hudTimer.setText(remain.toFixed(1) + '초');
-  this.hudTimer.setColor(remain < 15 ? C.warn : C.text);
-
-  var hpTxt = h.alive ? Math.ceil(h.hp) + ' / ' + h.maxHp : '전사';
-  var shieldTxt = h.shield > 0 ? '  +보호막 ' + Math.ceil(h.shield) : '';
-  this.hudHero.setText(h.hero.name + '   HP ' + hpTxt + shieldTxt);
-
-  // 보스가 살아 있으면 그 체력을 같이 보여준다 — 보스 층의 목표가 명확해진다
-  var bossTxt = '';
+  // 보스가 살아 있으면 전용 바로 보여준다 — 보스 층의 목표가 눈에 박힌다
+  var bossU = null;
   if (this.formation.boss) {
-    var bu = null;
     for (var bi = 0; bi < this.state.units.length; bi++) {
-      if (this.state.units[bi].def.isBoss) { bu = this.state.units[bi]; break; }
+      if (this.state.units[bi].def.isBoss) { bossU = this.state.units[bi]; break; }
     }
-    bossTxt = bu && bu.alive
-      ? '   ☠ ' + bu.def.name + ' ' + Math.ceil(bu.hp) + '/' + bu.maxHp
-      : '   ☠ 보스 처치';
   }
-  this.hudEnemy.setText(this.formation.name + '   남은 적 ' +
-    GAME.Combat.aliveCount(this.state, 'strategist') + '기' + bossTxt);
+  var bossAlive = !!(bossU && bossU.alive);
+
+  this.hud.update({
+    heroName:   h.hero.name,
+    hpFrac:     (h.alive && h.maxHp) ? h.hp / h.maxHp : 0,
+    shieldFrac: h.maxHp ? (h.shield || 0) / h.maxHp : 0,
+    hpText:     h.alive ? (Math.ceil(h.hp) + ' / ' + h.maxHp) : '전사',
+    shieldText: h.shield > 0 ? ('보호막 +' + Math.ceil(h.shield)) : '',
+
+    timeFrac:   TOTAL ? remain / TOTAL : 0,
+    timeText:   remain.toFixed(1) + '초',
+    timeLow:    remain < 15,
+
+    enemyText:  '남은 적 ' + GAME.Combat.aliveCount(this.state, 'strategist') + '기',
+
+    bossName:   bossAlive ? bossU.def.name : '보스 처치',
+    bossFrac:   (bossAlive && bossU.maxHp) ? bossU.hp / bossU.maxHp : 0,
+    bossText:   bossAlive ? (Math.ceil(bossU.hp) + ' / ' + bossU.maxHp) : '처치'
+  });
 
   var armed = this.ctrl.armedSkill;
   for (var i = 0; i < this.skillBoxes.length; i++) {

@@ -420,6 +420,9 @@ window.GAME = window.GAME || {};
       g.strokeRoundedRect(x + 0.5, y + 0.5, w - 1, h - 1, h / 2);
     }
     t.setPosition(x + w / 2, y + h / 2);
+    // Graphics 를 Text 뒤에 add 했으므로 그대로 두면 **배경이 글자를 덮는다**(실제로 겪음).
+    // 폭을 재려면 Text 가 먼저 있어야 해서 순서를 못 바꾸니, 그린 뒤 글자를 위로 올린다.
+    if (scene.children && scene.children.bringToTop) scene.children.bringToTop(t);
     return { gfx: g, text: t, w: w, h: h };
   };
 

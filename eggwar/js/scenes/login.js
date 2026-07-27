@@ -87,13 +87,13 @@ GAME.LoginScene.prototype._makeInput = function () {
   input.maxLength = GAME.Account.MAX_LEN;
   input.placeholder = '닉네임 (2~12자)';
   input.style.cssText =
-    'font-family:"Malgun Gothic",sans-serif;box-sizing:border-box;' +
+    'font-family:var(--egg-font);box-sizing:border-box;' +
     'border-radius:8px;border:1px solid ' + inLine + ';background:' + inBg + ';color:' + inText + ';outline:none;';
 
   var btn = document.createElement('button');
   btn.textContent = '시작';
   btn.style.cssText =
-    'font-family:"Malgun Gothic",sans-serif;box-sizing:border-box;white-space:nowrap;' +
+    'font-family:var(--egg-font);box-sizing:border-box;white-space:nowrap;' +
     'border-radius:8px;cursor:pointer;border:1px solid ' + btnLine + ';background:' + btnBg + ';color:' + btnText + ';';
 
   wrap.appendChild(input); wrap.appendChild(btn);

@@ -23,22 +23,25 @@ GAME.AdminScene.prototype.create = function () {
 
   GAME.UI.label(this, W / 2, P ? 16 : 20, '닉네임 관리', P ? 22 : 30, C.text, 0.5).setOrigin(0.5, 0);
   // 제목·설명 모두 위 기준(origin y=0)으로 쌓아야 글자 크기가 바뀌어도 안 겹친다
-  GAME.UI.label(this, W / 2, P ? 48 : 62,
+  var desc = GAME.UI.label(this, W / 2, P ? 48 : 62,
     '이 브라우저에 기록된 닉네임 목록입니다. 전역 감시는 서버 연동이 필요합니다.',
     P ? 13 : 12, C.textDim, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 40);
 
   var list = GAME.Account.list();
-  // 세로에서는 위 설명문이 개수 표시(top-20)와 겹쳤다 — 그만큼 아래로 민다
-  var top = P ? 118 : 110;
+  // 개수 표시는 설명문의 **실제로 그려진 높이만큼** 밀어낸다.
+  // 예전에는 `top - 20` 으로 손으로 박아뒀는데, 폰트를 바꾸자 설명문이 2줄이 되면서
+  // 4px 겹쳤다(실측). 좌표를 손으로 박으면 폰트·문구가 바뀔 때마다 이 사고가 반복된다.
+  var countY = desc.y + desc.height + (P ? 6 : 8);
+  var top = Math.max(P ? 118 : 110, countY + (P ? 28 : 30));
   var rowH = P ? 46 : 52;
   var perPage = Math.max(3, Math.floor((H - top - (P ? 100 : 120)) / rowH));
   var pages = Math.max(1, Math.ceil(list.length / perPage));
   if (this.page >= pages) this.page = pages - 1;
   var slice = list.slice(this.page * perPage, this.page * perPage + perPage);
 
-  GAME.UI.label(this, W / 2, top - 20,
+  GAME.UI.label(this, W / 2, countY,
     '총 ' + list.length + '개' + (pages > 1 ? '  ·  ' + (this.page + 1) + '/' + pages + ' 페이지' : ''),
-    P ? 13 : 12, C.textDim, 0.5);
+    P ? 13 : 12, C.textDim, 0.5).setOrigin(0.5, 0);
 
   if (!list.length) {
     GAME.UI.label(this, W / 2, top + 40, '기록된 닉네임이 없습니다.', P ? 15 : 15, C.textDim, 0.5);

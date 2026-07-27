@@ -100,6 +100,9 @@ GAME.DefendScene.prototype.create = function () {
 
   this.hudTop = GAME.UI.label(this, hud.pad, rows.a.y, '', P ? 17 : 18, C.accentAlt, 0);
   this.hudTimer = GAME.UI.label(this, W - hud.pad, rows.a.y, '', P ? 17 : 22, C.text, 1).setOrigin(1, 0);
+  // 왼쪽 문구가 **오른쪽 정렬된 타이머 자리까지 밀고 들어가 겹쳤다**(세로, 실측 74px).
+  // 타이머('88.8초')가 쓸 폭을 미리 떼어놓고, 넘치면 잘라 넣는다.
+  this.hudTopMaxW = W - hud.pad * 2 - (P ? 62 : 96);
   this.hudSub = GAME.UI.label(this, hud.pad, rows.b.y, '', P ? 15 : 14, C.textDim, 0);
 
   var bc = L.cols(3, { gap: 10 });
@@ -230,11 +233,32 @@ GAME.DefendScene.prototype.updateHud = function () {
   this.hudTimer.setText(remain.toFixed(1) + '초');
   this.hudTimer.setColor(remain < 15 ? C.warn : C.text);
 
-  this.hudTop.setText('내 진형 ' + GAME.Combat.aliveCount(this.state, 'strategist') + '기  vs  AI ' +
-    this.hero.hero.name + ' (숙련도 ' + Math.round(this.aiSkill * 100) + '%)  HP ' +
-    (this.hero.alive ? Math.ceil(this.hero.hp) : 0) + '/' + this.hero.maxHp);
-  this.hudSub.setText('전략가는 배치로 싸웁니다 — 지켜보세요. AI는 막힐수록 다음 판에 더 잘합니다.  ·  현재 ' +
-    this.speed + '배속');
+  // 세로는 폭이 420 뿐이라 '숙련도'는 아랫줄로 내린다 — 윗줄은 타이머와 자리를 나눠 쓴다.
+  var P = GAME.CONFIG.PORTRAIT;
+  var hp = (this.hero.alive ? Math.ceil(this.hero.hp) : 0) + '/' + this.hero.maxHp;
+  this.hudTop.setText(P
+    ? ('내 진형 ' + GAME.Combat.aliveCount(this.state, 'strategist') + '기  ·  ' +
+       this.hero.hero.name + '  HP ' + hp)
+    : ('내 진형 ' + GAME.Combat.aliveCount(this.state, 'strategist') + '기  vs  AI ' +
+       this.hero.hero.name + ' (숙련도 ' + Math.round(this.aiSkill * 100) + '%)  HP ' + hp));
+  // 그래도 넘치면 잘라낸다 — 문구·폰트가 바뀌어도 겹치지 않는다는 보장은 여기서 나온다.
+  // (보통 한 번도 안 돈다)
+  var guard = 0;
+  while (this.hudTop.width > this.hudTopMaxW && guard++ < 40) {
+    var s = this.hudTop.text;
+    this.hudTop.setText(s.slice(0, Math.max(4, s.length - 2 - (s.slice(-1) === '…' ? 1 : 0))) + '…');
+  }
+  this.hudSub.setText(P
+    ? ('AI 숙련도 ' + Math.round(this.aiSkill * 100) + '%  ·  배치로 싸웁니다 — 지켜보세요  ·  ' +
+       this.speed + '배속')
+    : ('전략가는 배치로 싸웁니다 — 지켜보세요. AI는 막힐수록 다음 판에 더 잘합니다.  ·  현재 ' +
+       this.speed + '배속'));
+  var subMax = GAME.CONFIG.WIDTH - (P ? 24 : 48);
+  var guard2 = 0;
+  while (this.hudSub.width > subMax && guard2++ < 60) {
+    var s2 = this.hudSub.text;
+    this.hudSub.setText(s2.slice(0, Math.max(4, s2.length - 2 - (s2.slice(-1) === '…' ? 1 : 0))) + '…');
+  }
 };
 
 GAME.DefendScene.prototype.showMarker = function () { };

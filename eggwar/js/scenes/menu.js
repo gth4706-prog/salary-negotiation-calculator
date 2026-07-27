@@ -44,10 +44,16 @@ GAME.MenuScene.prototype.create = function () {
   var by = u * 31 + BH / 2;
   function modeButton(label, desc, opts, onTap) {
     GAME.UI.button(self, W / 2, by, bw, BH, label, onTap, opts);
-    // 설명문은 **위 기준(origin y=0)**으로 버튼 바로 아래에 붙인다.
-    // 가운데 기준이면 두 줄이 될 때 위쪽 절반이 버튼을 파고든다.
-    GAME.UI.label(self, W / 2, by + BH / 2 + 6, desc, P ? 13 : 13, C.textDim, 0.5)
-      .setOrigin(0.5, 0).setWordWrapWidth(W - 40);
+    // 설명문은 **위 기준(origin y=0)**으로 버튼 바로 아래에 붙이고, **반드시 한 줄**로 둔다.
+    // 두 줄이 되면 아래 버튼을 덮었다(세로에서 3건 실측). 행 간격(SUB)은 한 줄 기준이라
+    // 줄이 늘어나는 순간 그만큼 그대로 겹친다 → 넘치면 줄을 늘리지 말고 잘라 넣는다.
+    var lbl = GAME.UI.label(self, W / 2, by + BH / 2 + 6, desc, P ? 13 : 13, C.textDim, 0.5)
+      .setOrigin(0.5, 0);
+    var maxW = W - 40, guard = 0;
+    while (lbl.width > maxW && guard++ < 80) {
+      var t = lbl.text;
+      lbl.setText(t.slice(0, Math.max(6, t.length - 2 - (t.slice(-1) === '…' ? 1 : 0))) + '…');
+    }
     by += BH + SUB;
   }
 

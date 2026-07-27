@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v0.19';
+GAME.VERSION = 'v0.20';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -89,18 +89,48 @@ window.addEventListener('load', function () {
 
   // 창 크기·방향이 바뀌면 다시 맞춘다.
   //
-  // 모바일은 뷰포트가 '늦게' 정착한다 — 부팅 순간엔 주소창이 펼쳐져 있거나 레이아웃이
-  // 덜 잡혀서 잘못된 크기로 fit 될 수 있고, 그 값이 그대로 굳으면 캔버스가 작게 뜬다.
-  // 그래서 resize 뿐 아니라 방향전환·탭 복귀·로드 완료에도 다시 맞추고,
-  // 부팅 직후 몇 차례 지연 refresh 로 늦게 오는 최종 뷰포트까지 잡는다.
+  // 모바일은 뷰포트가 '늦게' 정착한다 — 부팅 순간엔 주소창이 펼쳐져 있어서 보이는 높이가
+  // 작고, 스크롤/로딩 뒤에 주소창이 접히며 높이가 커진다. 처음의 작은 값으로 fit 되면
+  // 캔버스가 화면 한가운데 작게 떴다가, 뒤늦은 refit 에서야 커진다(실측 신고: "로딩 지나니 확대됨").
+  //
+  // 해법 둘:
+  //  1) #game 을 **실제 보이는 뷰포트**(visualViewport)에 매번 맞춰 못박는다.
+  //     CSS 의 100dvh 는 '주소창 접힌 최대 높이'라 주소창이 보일 땐 실제보다 커서 어긋난다.
+  //  2) visualViewport 의 resize/scroll(=주소창 접힘 이벤트)에 바로 다시 맞추고,
+  //     부팅 직후 ~3초간 크기 변화를 폴링해 즉시 따라잡는다.
+  function pinGame() {
+    var g = document.getElementById('game');
+    if (!g) return;
+    var vv = window.visualViewport;
+    var w = vv ? Math.round(vv.width) : window.innerWidth;
+    var h = vv ? Math.round(vv.height) : window.innerHeight;
+    g.style.width = w + 'px';
+    g.style.height = h + 'px';
+  }
   function refit() {
+    pinGame();
     if (GAME.game && GAME.game.scale) GAME.game.scale.refresh();
     updateDiag();
   }
   window.addEventListener('resize', refit);
   window.addEventListener('orientationchange', function () { refit(); setTimeout(refit, 300); });
   window.addEventListener('pageshow', refit);
+  window.addEventListener('scroll', refit, { passive: true });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) refit(); });
-  [120, 400, 900].forEach(function (ms) { setTimeout(refit, ms); });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', refit);
+    window.visualViewport.addEventListener('scroll', refit);
+  }
+  // 부팅 직후 뷰포트가 정착할 때까지(주소창 접힘 등) 크기 변화를 감지해 즉시 다시 맞춘다.
+  (function settle() {
+    var lastW = -1, lastH = -1, until = Date.now() + 3000;
+    (function tick() {
+      var vv = window.visualViewport;
+      var w = vv ? Math.round(vv.width) : window.innerWidth;
+      var h = vv ? Math.round(vv.height) : window.innerHeight;
+      if (w !== lastW || h !== lastH) { lastW = w; lastH = h; refit(); }
+      if (Date.now() < until) setTimeout(tick, 100);
+    })();
+  })();
   if (diag) setInterval(updateDiag, 500);
 });

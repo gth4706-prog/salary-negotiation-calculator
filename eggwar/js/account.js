@@ -135,13 +135,27 @@ GAME.Account = {
     var r = this.registry()[id];
     if (!r) return '';
     return [
-      '[전략 vs 컨트롤 — 닉네임 신고]',
+      '[Egg War — 닉네임 신고]',
       '닉네임: ' + r.id,
       '생성: ' + new Date(r.createdAt).toLocaleString('ko-KR'),
       '최근 접속: ' + new Date(r.lastSeen).toLocaleString('ko-KR'),
       '접속 횟수: ' + (r.logins || 1),
       '차단 여부: ' + (r.blocked ? '차단됨' : '미차단'),
-      'URL: https://joeltool.com/arena/'
+      // /arena/ 는 2026-07-27 에 /eggwar/ 로 옮겼고 **리다이렉트가 없다** — 죽은 주소였다
+      'URL: https://joeltool.com/eggwar/'
     ].join('\n');
+  },
+
+  // 클립보드 복사. http·비보안 컨텍스트나 권한 거부 시 조용히 실패해야 한다
+  // (잡지 않으면 unhandledrejection 이 뜬다). 호출부는 prompt 로 대체 수단을 준다.
+  copy: function (text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        var p = navigator.clipboard.writeText(text);
+        if (p && p.catch) p.catch(function () { });
+        return true;
+      }
+    } catch (e) { }
+    return false;
   }
 };

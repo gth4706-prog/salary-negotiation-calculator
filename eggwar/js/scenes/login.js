@@ -42,7 +42,7 @@ GAME.LoginScene.prototype.create = function () {
 
   GAME.UI.label(this, W / 2, u * 92,
     '닉네임은 관리자가 검토할 수 있으며, 부적절한 닉네임은 차단됩니다.',
-    P ? 13 : 12, '#6f6f88', 0.5).setWordWrapWidth(W - 60);
+    P ? 13 : 12, GAME.CONFIG.COLORS.textFaint, 0.5).setWordWrapWidth(W - 60);
   // 버전 표시는 DOM 배지(#ver) 하나로 통일했다 — 캔버스에도 그리면 우하단에서 겹친다.
 
   this._makeInput();

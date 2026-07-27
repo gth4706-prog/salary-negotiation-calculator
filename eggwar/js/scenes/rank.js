@@ -36,7 +36,7 @@ GAME.RankScene.prototype.create = function () {
         self.scene.start('Rank', { scope: t.k });
       }, { fontSize: P ? 15 : 14 });
       if (t.k === self.scope) {
-        b.rect.setStrokeStyle(2, 0x35d0a5); b.rect.setFillStyle(0x1c3a34);
+        b.rect.setStrokeStyle(2, GAME.CONFIG.COLORS.controller); b.rect.setFillStyle(GAME.UI.COL.panelTeal);
         b.text.setColor(C.accent);
       }
     })(tabs[i], i);

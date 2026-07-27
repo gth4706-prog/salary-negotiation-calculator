@@ -113,7 +113,10 @@ window.GAME = window.GAME || {};
       frac2: 0,
       color: opts.color === undefined ? COL.hpGood : opts.color,
       color2: opts.color2 === undefined ? 0x7ec8f0 : opts.color2,
-      track: opts.track === undefined ? 0x0b0b12 : opts.track,
+      // 트랙을 순검정으로 박아두면 크림 패널에 구멍이 뚫린 것처럼 보인다(라이트 테마).
+      // COL.meterTrack 을 테마가 채우고, 없으면 예전 값 그대로.
+      track: opts.track === undefined
+        ? (COL.meterTrack === undefined ? 0x0b0b12 : COL.meterTrack) : opts.track,
       line: opts.line === undefined ? COL.border : opts.line,
       seg: Math.max(0, num(opts.seg, 0)),
       danger: clamp(num(opts.danger, -1), -1, 1),
@@ -132,10 +135,12 @@ window.GAME = window.GAME || {};
       });
       if (text.setResolution && UI.TEXT_RES > 1) text.setResolution(UI.TEXT_RES);
       if (text.setLineSpacing) text.setLineSpacing(0);
-      // 게이지 위 글자는 채워진 색 위에 얹히므로 외곽선이 없으면 안 읽힌다
+      // 게이지 위 글자는 채워진 색 위에 얹히므로 외곽선이 없으면 안 읽힌다.
+      // 단, 테두리를 테마값으로 고정하면 밝은 글자에 밝은 테두리가 붙어 사라진다
+      // (보스 바의 '보스 처치' 가 크림 테두리에 먹혀 실제로 안 보였다) → 글자색에서 정한다.
       if (lp.outline !== false) {
-        text.setStroke('#0b0b12', 3);
-        text.setShadow(0, 1, 'rgba(0,0,0,0.8)', 2, false, true);
+        text.setStroke(UI.outlineFor(lp.color || TXT.text), 3);
+        text.setShadow(0, 1, UI.IS_LIGHT ? 'rgba(50,36,16,0.55)' : 'rgba(0,0,0,0.8)', 2, false, true);
       }
       st.align = lp.align || 'center';
       placeText();
@@ -181,9 +186,10 @@ window.GAME = window.GAME || {};
         }
       }
 
-      // 칸막이 — "몇 칸 남았나"가 한눈에 읽힌다
+      // 칸막이 — "몇 칸 남았나"가 한눈에 읽힌다.
+      // 트랙색을 따라가야 라이트 테마에서 검은 빗금이 튀지 않는다.
       if (st.seg > 1 && st.h >= 8) {
-        gfx.fillStyle(0x0b0b12, 0.75);
+        gfx.fillStyle(st.track, 0.85);
         for (var i = 1; i < st.seg; i++) {
           gfx.fillRect(st.x + (st.w / st.seg) * i - 1, st.y + 1, 2, st.h - 2);
         }
@@ -200,7 +206,13 @@ window.GAME = window.GAME || {};
       set: function (frac, frac2) {
         var f = clamp(num(frac, 0), 0, 1);
         var f2 = clamp(num(frac2, 0), 0, 1);
-        if (Math.abs(f - last.frac) < 0.0015 && Math.abs(f2 - last.frac2) < 0.0015
+        // 0(비었다)·1(가득)은 상태 변화라 엡실론으로 뭉개면 안 된다.
+        // 체력이 0.06% 남았다가 죽으면 변화량이 0.0015 미만이라 다시 그리지 않았고,
+        // 필 최소 폭(높이의 60%) 때문에 **죽은 뒤에도 게이지 조각이 남아 있었다**
+        // (보스 처치 후 보스 바에 빨간 조각이 계속 보였다 — 실측).
+        var edge = (f === 0 && last.frac !== 0) || (f === 1 && last.frac !== 1)
+                || (f2 === 0 && last.frac2 !== 0) || (f2 === 1 && last.frac2 !== 1);
+        if (!edge && Math.abs(f - last.frac) < 0.0015 && Math.abs(f2 - last.frac2) < 0.0015
             && st.color === last.color) return api;
         st.frac = f; st.frac2 = f2;
         last.frac = f; last.frac2 = f2; last.color = st.color;
@@ -236,9 +248,18 @@ window.GAME = window.GAME || {};
   //             timeFrac, timeText, timeLow, enemyText,
   //             bossFrac, bossText, bossName }
   // ───────────────────────────────────────────────────────────────────────
+  // 보스 바 색 — 라이트 테마에서 밝은 빨강(#ef4444)에 밝은 분홍 글자(#ffe0e0)를 올려
+  // 두 값이 붙어 있었다(대비 2.0:1). 아래 헬퍼가 테마에 맞는 짝을 돌려준다.
+  function bossPalette() {
+    if (!UI.IS_LIGHT) return { fill: 0xef4444, line: 0xff7b7b, css: '#ffe0e0' };
+    // 크림 패널 위 — 딸기 진영과 같은 계열의 깊은 붉은색 + 크림 글자(5.9:1)
+    return { fill: 0xB01F35, line: 0x7A1224, css: '#FFF0E4' };
+  }
+
   UI.battleHud = function (scene, opts) {
     opts = opts || {};
     var W = CFG.WIDTH;
+    var BOSS = bossPalette();
     var hud = GAME.Layout.hud();
     var pad = hud.pad;
     var top = opts.top === undefined ? hud.top : num(opts.top, hud.top);
@@ -292,12 +313,12 @@ window.GAME = window.GAME || {};
       objs.push(hpBar);
       if (boss) {
         bossBar = UI.meter(scene, ix, top + 124, iw, 22, {
-          color: 0xef4444, seg: 5, danger: -1, line: 0xff7b7b,
-          label: { size: 'micro', align: 'left', color: '#ffe0e0' }
+          color: BOSS.fill, seg: 5, danger: -1, line: BOSS.line,
+          label: { size: 'micro', align: 'left', color: BOSS.css }
         });
         objs.push(bossBar);
         bossBar.hpText = keep(UI.text(scene, ir - 8, top + 135, '', {
-          size: 'micro', color: '#ffe0e0', origin: 1, originY: 0.5, outline: true
+          size: 'micro', color: BOSS.css, origin: 1, originY: 0.5, outline: true
         }));
       }
     } else {
@@ -333,12 +354,12 @@ window.GAME = window.GAME || {};
       objs.push(hpBar);
       if (boss) {
         bossBar = UI.meter(scene, ix + half + 40, top + 78, half, 20, {
-          color: 0xef4444, seg: 5, danger: -1, line: 0xff7b7b,
-          label: { size: 'micro', align: 'left', color: '#ffe0e0' }
+          color: BOSS.fill, seg: 5, danger: -1, line: BOSS.line,
+          label: { size: 'micro', align: 'left', color: BOSS.css }
         });
         objs.push(bossBar);
         bossBar.hpText = keep(UI.text(scene, ix + half * 2 + 32, top + 88, '', {
-          size: 'micro', color: '#ffe0e0', origin: 1, originY: 0.5, outline: true
+          size: 'micro', color: BOSS.css, origin: 1, originY: 0.5, outline: true
         }));
       }
     }
@@ -473,16 +494,32 @@ window.GAME = window.GAME || {};
     var plateH = num(opts.height, titlePx + (P ? 34 : 40));
     var x = cx - w / 2;
 
+    // ── 리본 꼬리 — 판을 '현수막'으로 만드는 한 수 ──────────────────────
+    //  판 좌우로 삼각 꼬리가 삐져나오게 그린다. 패널보다 먼저 그려야 뒤로 깔린다.
+    //  꼬리는 판 밖 12px 까지만 나가므로 감사(겹침 검사) 경계에 걸리지 않는다.
+    var tail = keep(scene.add.graphics());
+    var ty = y + plateH * 0.30, th = plateH * 0.40, tw = P ? 14 : 18;
+    tail.fillStyle(UI.COL.shadow === undefined ? 0x000000 : UI.COL.shadow, UI.IS_LIGHT ? 0.14 : 0.26);
+    tail.fillTriangle(x - tw, ty + 3, x + 6, ty + 3, x + 6, ty + th + 3);
+    tail.fillTriangle(x + w + tw, ty + 3, x + w - 6, ty + 3, x + w - 6, ty + th + 3);
+    tail.fillStyle(accent, 0.9);
+    tail.fillTriangle(x - tw, ty, x + 6, ty, x + 6, ty + th);
+    tail.fillTriangle(x + w + tw, ty, x + w - 6, ty, x + w - 6, ty + th);
+
     keep(UI.panel(scene, x, y, w, plateH, {
       fill: opts.panelHex === undefined ? tier.panel : opts.panelHex,
       line: accent, lineWidth: 2, radius: UI.R.lg
     }));
-    // 위아래 얇은 광선 — 이미지 없이 '판정'의 무게를 만든다
+    // 위아래 얇은 광선 + 귀퉁이 못 — 이미지 없이 '판정'의 무게를 만든다
     var g = keep(scene.add.graphics());
     g.fillStyle(accent, 0.85);
     g.fillRect(x + w * 0.14, y + plateH - 3, w * 0.72, 3);
     g.fillStyle(accent, 0.35);
     g.fillRect(x + w * 0.28, y, w * 0.44, 2);
+    g.fillStyle(accent, 0.7);
+    var pn = P ? 10 : 13;
+    [[x + pn, y + pn], [x + w - pn, y + pn], [x + pn, y + plateH - pn], [x + w - pn, y + plateH - pn]]
+      .forEach(function (p) { g.fillCircle(p[0], p[1], 2.6); });
 
     var t = keep(UI.text(scene, cx, y + plateH / 2, String(title || ''), {
       size: opts.titleSize || 'display', color: accentCss, origin: 0.5, outline: true
@@ -522,12 +559,22 @@ window.GAME = window.GAME || {};
       line: opts.line === undefined ? COL.divider : opts.line,
       accent: opts.accent
     }));
-    keep(UI.text(scene, x + 14, y + h / 2, String(label || ''), {
+    // 진영 띠(accent)는 폭 4px 다. 라벨을 x+14 에 두면 띠 바로 옆에 붙어 갑갑했다
+    // (결과 화면에서 'AI가 읽은 당신' 이 띠에 올라탄 것처럼 보였다) → 띠가 있으면 4px 더 민다.
+    var lx = x + (opts.accent === undefined ? 14 : 18);
+    var lab = keep(UI.text(scene, lx, y + h / 2, String(label || ''), {
       size: 'caption', color: opts.labelColor || TXT.textDim, origin: 0, originY: 0.5
     }));
     var v = keep(UI.text(scene, x + w - 14, y + h / 2, String(value === undefined ? '' : value), {
       size: opts.valueSize || 'num', color: opts.valueColor || TXT.crit, origin: 1, originY: 0.5
     }));
+    // 값은 오른쪽에서 왼쪽으로 뻗는다 — 길면 왼쪽 라벨을 파고든다.
+    // (배치도 이름은 20자까지 가능해서 결과 화면에서 실제로 겹쳤다)
+    var limit = (x + w - 14) - (lx + lab.width + 12);
+    if (limit > 24 && v.width > limit) {
+      var s = String(value);
+      while (s.length > 1 && v.width > limit) { s = s.slice(0, -1); v.setText(s + '…'); }
+    }
     return {
       objs: objs, value: v, bottom: y + h,
       destroy: function () {
@@ -599,24 +646,49 @@ window.GAME = window.GAME || {};
   //     "지금 어느 구간의 몇 번째인지, 다음 이벤트까지 얼마나 남았는지"를
   //     한 덩어리로 보여준다는 점이다.
   // ───────────────────────────────────────────────────────────────────────
+  //  층수 배지 — 밋밋한 사각 패널이었다. 세 가지를 얹어 '현판'처럼 만든다:
+  //   ① 위쪽 어깨 리본 — 등급색 띠가 배지 위로 살짝 튀어나온다
+  //   ② 네 귀퉁이 못 — 나무 현판에 박힌 징. 목장/원시 세계관과 붙는다
+  //   ③ 숫자 뒤 옅은 원반 — 큰 숫자가 허공에 뜨지 않고 자리를 잡는다
+  //  전부 Graphics 도형이라 애셋이 늘지 않는다.
   UI.floorBadge = function (scene, cx, y, floor, opts) {
     opts = opts || {};
     var f = Math.max(1, num(floor, 1));
     var isBoss = !!opts.boss;
     var tier = UI.tierForFloor(f, isBoss);
     var w = num(opts.width, P ? 132 : 168);
-    var h = num(opts.height, P ? 74 : 84);
+    // display(세로 42px) 숫자 + micro 라벨이 둘 다 들어가야 한다.
+    // 74 로 두면 숫자 아랫단과 라벨이 9px 겹친다(실측).
+    var h = num(opts.height, P ? 84 : 94);
     var x = cx - w / 2;
     var objs = [];
     function keep(o) { objs.push(o); return o; }
 
+    // ① 어깨 리본 — 배지보다 먼저 그려야 뒤로 깔린다
+    var rib = keep(scene.add.graphics());
+    var rw = w * 0.52, rh = 10;
+    rib.fillStyle(tier.hex, 1);
+    rib.fillRoundedRect(cx - rw / 2, y - rh + 4, rw, rh + 10, { tl: 6, tr: 6, bl: 0, br: 0 });
+    rib.fillStyle(UI.COL.shadow === undefined ? 0x000000 : UI.COL.shadow, UI.IS_LIGHT ? 0.16 : 0.3);
+    rib.fillRect(cx - rw / 2, y + 2, rw, 3);
+
     keep(UI.panel(scene, x, y, w, h, {
       fill: tier.panel, line: tier.hex, lineWidth: 2, radius: UI.R.lg
     }));
-    keep(UI.text(scene, cx, y + h * 0.42, String(f), {
+
+    // ③ 숫자 자리 원반 + ② 귀퉁이 못
+    var deco = keep(scene.add.graphics());
+    deco.fillStyle(tier.hex, UI.IS_LIGHT ? 0.14 : 0.16);
+    deco.fillCircle(cx, y + h * 0.36, Math.min(w, h) * 0.30);
+    deco.fillStyle(tier.hex, 0.85);
+    var nx = 11, ny = 11;
+    [[x + nx, y + ny], [x + w - nx, y + ny], [x + nx, y + h - ny], [x + w - nx, y + h - ny]]
+      .forEach(function (p) { deco.fillCircle(p[0], p[1], 2.4); });
+
+    keep(UI.text(scene, cx, y + h * 0.36, String(f), {
       size: 'display', color: tier.css, origin: 0.5, outline: true
     }));
-    keep(UI.text(scene, cx, y + h - (P ? 15 : 17), (isBoss ? '☠ 보스 층' : '층 · ' + tier.name), {
+    keep(UI.text(scene, cx, y + h - (P ? 12 : 14), (isBoss ? '☠ 보스 층' : '층 · ' + tier.name), {
       size: 'micro', color: isBoss ? TXT.danger : TXT.textDim, origin: 0.5
     }));
 
@@ -629,37 +701,85 @@ window.GAME = window.GAME || {};
     };
   };
 
-  // 다음 보스까지의 진행 — every 층마다 보스라는 규칙을 눈으로 보여준다
+  // 다음 보스까지의 진행 — every 층마다 보스라는 규칙을 눈으로 보여준다.
+  //
+  //  ※ 여기 글자가 **완전히 안 읽히고 있었다.** 라벨색이 '#e8e8f0'(거의 흰색)로 박혀 있는데
+  //    A안의 글자 테두리는 크림(#FFFCF0)이라 흰 글자에 흰 테두리가 붙었고,
+  //    바탕은 금색(#ffd166) 게이지였다 — 세 색이 전부 밝아 글자가 사라졌다(스크린샷 확인).
+  //    게다가 높이 12px 안에 micro(가로 13 / 세로 15px) 글자를 넣어 위아래가 잘렸다.
+  //  → 글자는 게이지 **밖 아래**로 빼고, 색은 테마 본문색을 쓴다. 높이도 14 로 올렸다.
   UI.bandMeter = function (scene, x, y, w, floor, every, opts) {
     opts = opts || {};
     var f = Math.max(1, num(floor, 1));
     var e = Math.max(2, num(every, 10));
     var into = ((f - 1) % e);
-    var m = UI.meter(scene, x, y, w, num(opts.height, 12), {
-      color: 0xffd166, seg: e, danger: -1, radius: 6,
-      label: { size: 'micro', align: 'center', color: '#e8e8f0' }
+    var h = num(opts.height, 14);
+    var m = UI.meter(scene, x, y, w, h, {
+      color: UI.tier(4).hex, seg: e, danger: -1, radius: h / 2
     });
     m.set(into / e);
-    m.setText(opts.text === undefined
-      ? ('다음 보스까지 ' + (e - into) + '층')
-      : opts.text);
+
+    var cap = UI.text(scene, x + w / 2, y + h + 5,
+      opts.text === undefined ? ('다음 보스까지 ' + (e - into) + '층') : opts.text, {
+        size: 'micro', color: TXT.textMid, origin: 0.5, originY: 0
+      });
+    var baseDestroy = m.destroy;
+    var bottom = y + h + 5 + cap.height;
+    m.caption = cap;
+    m.bottom = bottom;
+    // 호출부(tower.js)는 bounds().bottom 으로 다음 블록 y 를 잡는다.
+    // 글자를 게이지 밖으로 뺐으니 bounds 도 그만큼 늘려야 아래 문구와 겹치지 않는다.
+    m.bounds = function () { return { x: x, y: y, w: w, h: bottom - y, bottom: bottom }; };
+    m.setText = function (s) { cap.setText(s === undefined ? '' : String(s)); return m; };
+    m.destroy = function () { baseDestroy(); if (cap) cap.destroy(); };
     return m;
   };
 
   // ───────────────────────────────────────────────────────────────────────
   //  7. 구역 제목 — 밋밋한 텍스트 줄 대신 좌측 등급 바 + 제목
   // ───────────────────────────────────────────────────────────────────────
+  //  씬 제목 밑 장식 — 짧은 선 · 마름모 · 짧은 선.
+  //  큰 제목만 덩그러니 있으면 '앱 화면'이지 '게임 간판'이 아니다. 애셋 없이
+  //  기울인 사각형 하나로 목판 간판 느낌을 낸다. Graphics 뿐이라 글자 겹침 감사에 안 걸린다.
+  UI.titleRule = function (scene, cx, y, w, opts) {
+    opts = opts || {};
+    var color = opts.hex === undefined ? COL.borderUi : opts.hex;
+    var g = scene.add.graphics();
+    var half = Math.max(18, num(w, 120) / 2);
+    var gap = 11, th = 2;
+    g.fillStyle(color, opts.alpha === undefined ? 0.55 : opts.alpha);
+    g.fillRoundedRect(cx - half, y, half - gap, th, th / 2);
+    g.fillRoundedRect(cx + gap, y, half - gap, th, th / 2);
+    // 가운데 마름모 (45° 회전한 정사각형을 점 4개로)
+    var d = 4.5;
+    g.fillStyle(color, opts.alpha === undefined ? 0.85 : opts.alpha);
+    g.fillPoints([{ x: cx, y: y + th / 2 - d }, { x: cx + d, y: y + th / 2 },
+                  { x: cx, y: y + th / 2 + d }, { x: cx - d, y: y + th / 2 }], true);
+    return { gfx: g, bottom: y + th, destroy: function () { g.destroy(); } };
+  };
+
+  //  구역 제목 — 왼쪽 막대 하나였다. 막대를 **알약**으로 바꾸고 그 아래 옅은 밑줄을 깐다.
+  //  밑줄은 제목 폭에 정확히 맞춰 그린다(고정 폭으로 그리면 짧은 제목에서 혼자 튀어나온다).
+  //  글자를 먼저 만들어 폭을 재고, Graphics 는 그 뒤에 만들되 **글자를 위로 올려** 덮이지 않게 한다
+  //  (Graphics 를 Text 뒤에 add 하면 배경이 글자를 덮는 문제 — 이 파일 chip 에서 이미 겪었다).
   UI.sectionTitle = function (scene, x, y, text, opts) {
     opts = opts || {};
     var color = opts.hex === undefined ? COL.controller : opts.hex;
-    var g = scene.add.graphics();
     var barH = UI.size(opts.size || 'heading');
-    g.fillStyle(color, 1);
-    g.fillRoundedRect(x, y + 2, 4, barH, 2);
-    var t = UI.text(scene, x + 12, y, String(text || ''), {
+    var t = UI.text(scene, x + 14, y, String(text || ''), {
       size: opts.size || 'heading', color: opts.color || TXT.text, origin: 0, originY: 0
     });
-    return { gfx: g, text: t, bottom: y + t.height,
+    var g = scene.add.graphics();
+    // 알약 막대
+    g.fillStyle(color, 1);
+    g.fillRoundedRect(x, y + 3, 5, Math.max(8, barH - 4), 2.5);
+    // 밑줄 — 제목 실제 폭 + 막대까지
+    if (opts.rule !== false) {
+      g.fillStyle(color, UI.IS_LIGHT ? 0.28 : 0.22);
+      g.fillRoundedRect(x, y + t.height + 3, Math.max(24, t.width + 14), 2, 1);
+    }
+    if (scene.children && scene.children.bringToTop) scene.children.bringToTop(t);
+    return { gfx: g, text: t, bottom: y + t.height + (opts.rule === false ? 0 : 5),
       destroy: function () { g.destroy(); t.destroy(); } };
   };
 })();

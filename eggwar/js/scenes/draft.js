@@ -52,16 +52,23 @@ GAME.DraftScene.prototype.create = function () {
 
   this.g = this.add.graphics();
 
-  GAME.UI.label(this, 16, 14,
-    '상대 진형 정찰 — ' + this.formation.name + (this.formation.isAI ? ' (AI)' : ' (사람)'),
-    P ? 15 : 16, C.accentAlt, 0);
-  GAME.UI.label(this, 16, P ? 36 : 32, GAME.UI.winRateText(this.formation.id), P ? 13 : 13, C.warn, 0);
-
+  // 오른쪽 학습 표시를 먼저 그려 실제 왼쪽 끝을 재고, 제목을 그 앞까지만 쓴다.
+  // 배치도 이름이 20자까지 되는데 제목을 그냥 이어붙였더니 화면 밖으로 나가면서
+  // 오른쪽 표시와 겹쳤다(세로 411px, 화면 420px).
   var learned = GAME.Learn.summary(this.formation.id);
-  GAME.UI.label(this, W - 16, 14,
+  var learnLbl = GAME.UI.label(this, W - 16, 14,
     learned ? ('학습 ' + learned.battles + '전' + (learned.learned.length ? ' · ' + learned.learned.join(', ') : ''))
             : '학습 기록 없음',
     P ? 13 : 13, learned && learned.learned.length ? C.crit : C.textDim, 1).setOrigin(1, 0);
+
+  var head = '상대 진형 정찰 — ' + this.formation.name + (this.formation.isAI ? ' (AI)' : ' (사람)');
+  var headLbl = GAME.UI.label(this, 16, 14, head, P ? 15 : 16, C.accentAlt, 0);
+  var headMax = learnLbl.getBounds().x - 10 - 16;
+  if (headLbl.width > headMax && headMax > 40) {
+    var hs = head;
+    while (hs.length > 1 && headLbl.width > headMax) { hs = hs.slice(0, -1); headLbl.setText(hs + '…'); }
+  }
+  GAME.UI.label(this, 16, P ? 36 : 32, GAME.UI.winRateText(this.formation.id), P ? 13 : 13, C.warn, 0);
 
   this._buildPanel();
 
@@ -122,7 +129,7 @@ GAME.DraftScene.prototype._buildPanel = function () {
   for (var i = 0; i < GAME.HERO_ORDER.length; i++) {
     (function (key, idx) {
       var h = GAME.HEROES[key], c = hc[idx];
-      var rect = self.add.rectangle(c.cx, rHero.cy, c.w, rHero.h, 0x22222f).setStrokeStyle(1, 0x3a3a52);
+      var rect = self.add.rectangle(c.cx, rHero.cy, c.w, rHero.h, GAME.UI.COL.surfaceAlt).setStrokeStyle(1, GAME.UI.COL.border);
       if (!self.heroLocked) {
         rect.setInteractive({ useHandCursor: true });
         rect.on('pointerdown', function () {
@@ -170,7 +177,7 @@ GAME.DraftScene.prototype._buildPanel = function () {
       for (var m = 0; m < list.length; m++) {
         (function (item, ci) {
           var c = ic[ci];
-          var rect = self.add.rectangle(c.cx, ri.cy, c.w, ri.h, 0x22222f).setStrokeStyle(1, 0x3a3a52);
+          var rect = self.add.rectangle(c.cx, ri.cy, c.w, ri.h, GAME.UI.COL.surfaceAlt).setStrokeStyle(1, GAME.UI.COL.border);
           rect.setInteractive({ useHandCursor: true });
           rect.on('pointerover', function () { self.hoverItem = item; self.redraw(); });
           rect.on('pointerout', function () { if (self.hoverItem === item) { self.hoverItem = null; self.redraw(); } });
@@ -193,7 +200,7 @@ GAME.DraftScene.prototype._buildPanel = function () {
   for (var t = 0; t < GAME.SKILL_SLOTS.length; t++) {
     (function (slot, idx) {
       var c = tc[idx];
-      var rect = self.add.rectangle(c.cx, rTabs.cy, c.w, rTabs.h, 0x22222f).setStrokeStyle(1, 0x3a3a52);
+      var rect = self.add.rectangle(c.cx, rTabs.cy, c.w, rTabs.h, GAME.UI.COL.surfaceAlt).setStrokeStyle(1, GAME.UI.COL.border);
       rect.setInteractive({ useHandCursor: true });
       rect.on('pointerdown', function () { self.editSlot = slot; self.redraw(); });
       var lbl = GAME.UI.label(self, c.cx, rTabs.cy, slot, P ? 15 : 15, C.accent, 0.5).setOrigin(0.5);
@@ -204,7 +211,7 @@ GAME.DraftScene.prototype._buildPanel = function () {
   this.optionRows = [];
   for (var o = 0; o < 3; o++) {
     var ro = row(P ? 34 : 46, 4);
-    var rect = this.add.rectangle(px + pw / 2, ro.cy, pw, ro.h, 0x22222f).setStrokeStyle(1, 0x3a3a52);
+    var rect = this.add.rectangle(px + pw / 2, ro.cy, pw, ro.h, GAME.UI.COL.surfaceAlt).setStrokeStyle(1, GAME.UI.COL.border);
     rect.setInteractive({ useHandCursor: true });
     (function (idx) {
       rect.on('pointerdown', function () { self.picks[self.editSlot] = idx; self.redraw(); });
@@ -229,7 +236,7 @@ GAME.DraftScene.prototype._buildPanel = function () {
   var startCx = P ? (px + this._backW + 8 + startW / 2) : (px + pw / 2);
   GAME.UI.button(this, startCx, rAct.cy, startW, rAct.h, '전투 시작', function () {
     self._start();
-  }, { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: P ? 17 : 20 });
+  }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 17 : 20 });
 
   this.panelEnd = y;
 };
@@ -319,8 +326,8 @@ GAME.DraftScene.prototype.redraw = function () {
 
   for (i = 0; i < this.heroCards.length; i++) {
     var on = this.heroCards[i].key === this.heroKey;
-    this.heroCards[i].rect.setStrokeStyle(on ? 2 : 1, on ? C.controller : 0x3a3a52);
-    this.heroCards[i].rect.setFillStyle(on ? 0x1c3a34 : 0x22222f);
+    this.heroCards[i].rect.setStrokeStyle(on ? 2 : 1, on ? C.controller : GAME.UI.COL.border);
+    this.heroCards[i].rect.setFillStyle(on ? GAME.UI.COL.panelTeal : GAME.UI.COL.surfaceAlt);
   }
 
   var live = { damage: st.damage, cooldown: hero.cooldown, hp: st.hp, armor: st.armor, speed: st.speed };
@@ -332,7 +339,7 @@ GAME.DraftScene.prototype.redraw = function () {
     g.fillRect(this.statBarGeo.x, this.statRows[i].cy - bh / 2, this.statBarGeo.w, bh);
     g.fillStyle(C.controller, 1);
     g.fillRect(this.statBarGeo.x, this.statRows[i].cy - bh / 2, this.statBarGeo.w * frac, bh);
-    g.lineStyle(1, 0x3a3a52, 1);
+    g.lineStyle(1, GAME.UI.COL.border, 1);
     g.strokeRect(this.statBarGeo.x, this.statRows[i].cy - bh / 2, this.statBarGeo.w, bh);
     this.statRows[i].val.setText(sd.fmt(live));
   }
@@ -341,16 +348,16 @@ GAME.DraftScene.prototype.redraw = function () {
     var cell = this.itemCells[i];
     var picked = this.items[cell.slot] === cell.item.key;
     var afford = picked || (this.spent() + cell.item.cost <= this.budget);
-    cell.rect.setStrokeStyle(picked ? 2 : 1, picked ? C.controller : 0x3a3a52);
-    cell.rect.setFillStyle(picked ? 0x1c3a34 : (afford ? 0x22222f : 0x1a1a22));
+    cell.rect.setStrokeStyle(picked ? 2 : 1, picked ? C.controller : GAME.UI.COL.border);
+    cell.rect.setFillStyle(picked ? GAME.UI.COL.panelTeal : (afford ? GAME.UI.COL.surfaceAlt : 0x1a1a22));
   }
 
   // 스킬 탭 + 선택지
   for (i = 0; i < this.slotTabs.length; i++) {
     var tab = this.slotTabs[i];
     var active = tab.slot === this.editSlot;
-    tab.rect.setStrokeStyle(active ? 2 : 1, active ? C.controller : 0x3a3a52);
-    tab.rect.setFillStyle(active ? 0x1c3a34 : 0x22222f);
+    tab.rect.setStrokeStyle(active ? 2 : 1, active ? C.controller : GAME.UI.COL.border);
+    tab.rect.setFillStyle(active ? GAME.UI.COL.panelTeal : GAME.UI.COL.surfaceAlt);
     var pickIdx = this.picks[tab.slot] || 0;
     // 세로 화면은 탭 폭이 ~98px 이라 스킬 이름까지 넣으면 옆 탭을 침범한다.
     // 고른 스킬 이름은 아래 선택지 목록에 이미 강조돼 있으므로 슬롯 글자만 남긴다.
@@ -365,8 +372,8 @@ GAME.DraftScene.prototype.redraw = function () {
     if (i >= opts.length) { r.rect.setVisible(false); r.name.setText(''); r.desc.setText(''); continue; }
     r.rect.setVisible(true);
     var sel = (this.picks[this.editSlot] || 0) === i;
-    r.rect.setStrokeStyle(sel ? 2 : 1, sel ? C.controller : 0x3a3a52);
-    r.rect.setFillStyle(sel ? 0x1c3a34 : 0x22222f);
+    r.rect.setStrokeStyle(sel ? 2 : 1, sel ? C.controller : GAME.UI.COL.border);
+    r.rect.setFillStyle(sel ? GAME.UI.COL.panelTeal : GAME.UI.COL.surfaceAlt);
     r.name.setText((sel ? '● ' : '○ ') + opts[i].name);
     r.desc.setText(this._skillDesc(opts[i]));
   }

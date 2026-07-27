@@ -97,7 +97,7 @@ GAME.DefendScene.prototype.create = function () {
 
   this.speedBtn = GAME.UI.button(this, bc[0].cx, rows.c.cy, bc[0].w, rows.c.h,
     speedLabel(), cycleSpeed,
-    { fontSize: P ? 15 : 15, line: 0x35d0a5, color: C.accent });
+    { fontSize: P ? 15 : 15, line: GAME.CONFIG.COLORS.controller, color: C.accent });
   this.input.keyboard.on('keydown-SPACE', cycleSpeed);
   GAME.UI.button(this, bc[1].cx, rows.c.cy, bc[1].w, rows.c.h, '배치 다시', function () {
     self.scene.start('Build');

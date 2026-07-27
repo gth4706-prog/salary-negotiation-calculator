@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v0.13';
+GAME.VERSION = 'v0.14';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -15,6 +15,10 @@ window.addEventListener('load', function () {
 
   var badge = document.getElementById('ver');
   if (badge) badge.textContent = GAME.VERSION;
+
+  // 저장된 테마 선택을 씬이 만들어지기 **전에** 적용한다.
+  // 씬이 생긴 뒤에 바꾸면 이미 그려진 색이 남는다.
+  if (GAME.UI && GAME.UI.bootTheme) GAME.UI.bootTheme();
 
   GAME.game = new Phaser.Game({
     type: Phaser.AUTO,

@@ -19,6 +19,22 @@ GAME.TouchPad = function (scene, ctrl) {
   this._build();
 };
 
+// 조작 패드 색. **테마를 따라간다** — 밝은 테마에서 검은 원을 그리면 화면에 구멍이 뚫린 것처럼 보인다.
+GAME.TouchPad.palette = function () {
+  var UI = GAME.UI || {};
+  var th = (UI.THEMES && UI.currentTheme) ? UI.THEMES[UI.currentTheme()] : null;
+  var light = !!(th && th.dark === false);
+  var C = GAME.CONFIG.COLORS;
+  return {
+    face:   light ? 0xffffff : 0x11131c,   // 버튼 면
+    faceHi: light ? 0xd9d2c2 : 0x2a2f42,   // 눌렸을 때
+    ink:    light ? 0x33291b : 0xffffff,   // 스틱 노브·테두리
+    ring:   light ? 0x8a8272 : 0x000000,   // 스틱 바깥 링·쿨다운 덮개
+    amber:  (UI.COL && UI.COL.panelAmberHi) || 0xf0a86a,
+    armed:  UI.cssToHex ? UI.cssToHex(C.crit, 0xffd166) : 0xffd166
+  };
+};
+
 GAME.TouchPad.SIZES = function () {
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var shortSide = Math.min(W, H);
@@ -38,6 +54,7 @@ GAME.TouchPad.prototype._build = function () {
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var S = GAME.TouchPad.SIZES();
+  var PAD = GAME.TouchPad.palette();
 
   var margin = Math.round(Math.min(W, H) * 0.055);
   var baseY = H - S.stickR - margin;
@@ -49,10 +66,10 @@ GAME.TouchPad.prototype._build = function () {
   this.stick.homeX = sx;      // 손을 떼면 돌아올 자리
   this.stick.homeY = baseY;
 
-  this.stickRing = scene.add.circle(sx, baseY, S.stickR, 0x000000, 0.22)
-    .setStrokeStyle(2, 0xffffff, 0.30).setDepth(900).setScrollFactor(0);
-  this.stickKnob = scene.add.circle(sx, baseY, S.knobR, 0xffffff, 0.30)
-    .setStrokeStyle(2, 0xffffff, 0.55).setDepth(901).setScrollFactor(0);
+  this.stickRing = scene.add.circle(sx, baseY, S.stickR, PAD.ring, 0.22)
+    .setStrokeStyle(2, PAD.ink, 0.30).setDepth(900).setScrollFactor(0);
+  this.stickKnob = scene.add.circle(sx, baseY, S.knobR, PAD.ink, 0.30)
+    .setStrokeStyle(2, PAD.ink, 0.55).setDepth(901).setScrollFactor(0);
   this.objects.push(this.stickRing, this.stickKnob);
 
   // 스틱은 링 밖에서 눌러도 잡히도록 넉넉한 판정 원을 따로 둔다
@@ -71,7 +88,7 @@ GAME.TouchPad.prototype._build = function () {
   var cx = W - S.mainR - margin;
   var cy = baseY;
 
-  this._addButton('ATK', cx, cy, S.mainR, '공격', 0x35d0a5, function () {
+  this._addButton('ATK', cx, cy, S.mainR, '공격', GAME.CONFIG.COLORS.controller, function () {
     self._attack();
   });
 
@@ -93,11 +110,11 @@ GAME.TouchPad.prototype._build = function () {
   GAME.SKILL_SLOTS.forEach(function (slot, i) {
     var a = (startDeg * Math.PI / 180) + stepRad * i;
     self._addButton(slot, cx - Math.cos(a) * arcR, cy - Math.sin(a) * arcR,
-      S.skillR, slot, 0x9b8cf0, function () { self._skill(slot); });
+      S.skillR, slot, GAME.CONFIG.COLORS.strategist, function () { self._skill(slot); });
   });
 
   // 물약 — 스틱 위쪽(왼손 엄지로 닿는 자리)
-  this._addButton('POTION', sx, baseY - S.stickR - S.potionR - 10, S.potionR, '물약', 0xf0a86a,
+  this._addButton('POTION', sx, baseY - S.stickR - S.potionR - 10, S.potionR, '물약', PAD.amber,
     function () { GAME.Combat.usePotion(self.hero); });
 
   this._bind();
@@ -111,27 +128,28 @@ GAME.TouchPad.prototype._addButton = function (key, x, y, r, label, color, onTap
   var pad = 4;
   x = Math.max(r + pad, Math.min(GAME.CONFIG.WIDTH - r - pad, x));
   y = Math.max(r + pad, Math.min(GAME.CONFIG.HEIGHT - r - pad, y));
-  var circle = scene.add.circle(x, y, r, 0x11131c, 0.55)
+  var PAD = GAME.TouchPad.palette();
+  var circle = scene.add.circle(x, y, r, PAD.face, 0.55)
     .setStrokeStyle(2, color, 0.75).setDepth(900).setScrollFactor(0);
   circle.setInteractive(new Phaser.Geom.Circle(r, r, r), Phaser.Geom.Circle.Contains);
 
   var text = scene.add.text(x, y, label, {
     fontFamily: GAME.CONFIG.FONT,
     fontSize: Math.max(10, Math.round(r * 0.62)) + 'px',
-    color: '#e8e8f0'
+    color: GAME.CONFIG.COLORS.text
   }).setOrigin(0.5).setDepth(902).setScrollFactor(0);
 
   // 쿨다운 표시 — 원을 덮는 어두운 원판의 알파로 남은 시간을 보여준다
-  var cool = scene.add.circle(x, y, r - 1, 0x000000, 0).setDepth(901).setScrollFactor(0);
+  var cool = scene.add.circle(x, y, r - 1, PAD.ring, 0).setDepth(901).setScrollFactor(0);
 
   var self = this;
   circle.on('pointerdown', function (p) {
     p.event && p.event.preventDefault && p.event.preventDefault();
-    circle.setFillStyle(0x2a2f42, 0.8);
+    circle.setFillStyle(PAD.faceHi, 0.8);
     onTap();
   });
-  circle.on('pointerup', function () { circle.setFillStyle(0x11131c, 0.55); });
-  circle.on('pointerout', function () { circle.setFillStyle(0x11131c, 0.55); });
+  circle.on('pointerup', function () { circle.setFillStyle(PAD.face, 0.55); });
+  circle.on('pointerout', function () { circle.setFillStyle(PAD.face, 0.55); });
 
   var b = { key: key, circle: circle, text: text, cool: cool, r: r, color: color };
   this.buttons.push(b);
@@ -229,19 +247,33 @@ GAME.TouchPad.prototype.hits = function (x, y) {
 // 쿨다운·조준 상태를 버튼에 반영
 GAME.TouchPad.prototype.refresh = function () {
   var h = this.hero;
+  var PAD = GAME.TouchPad.palette();
   for (var i = 0; i < this.buttons.length; i++) {
     var b = this.buttons[i];
     if (GAME.SKILL_SLOTS.indexOf(b.key) === -1) continue;
     var ready = GAME.Combat.skillReady(h, b.key);
     var armed = this.ctrl.armedSkill === b.key;
-    b.circle.setStrokeStyle(armed ? 3 : 2, armed ? 0xffd166 : b.color, ready ? 0.85 : 0.30);
+    b.circle.setStrokeStyle(armed ? 3 : 2, armed ? PAD.armed : b.color, ready ? 0.85 : 0.30);
     b.text.setAlpha(ready ? 1 : 0.35);
     var left = h.skillCd ? (h.skillCd[b.key] || 0) : 0;
-    var total = (h.skills && h.skills[b.key]) ? h.skills[b.key].cooldown : 1;
-    b.cool.setFillStyle(0x000000, left > 0 ? Math.min(0.6, left / total * 0.6) : 0);
+    // h.skills 는 **배열**이다(슬롯은 각 원소의 .slot). 'Q' 로 색인하면 항상 undefined 라
+    // total 이 1 이 되고 어두움이 늘 최대(0.6)에 붙어 **남은 쿨이 전혀 안 보였다**.
+    var total = this._cooldownOf(h, b.key);
+    b.cool.setFillStyle(PAD.ring, left > 0 ? Math.min(0.6, (left / total) * 0.6) : 0);
   }
   var pot = this._find('POTION');
   if (pot) pot.text.setAlpha(h.potionCharges > 0 ? 1 : 0.3);
+};
+
+// 이 슬롯 스킬의 전체 쿨다운(ms). skillCd 에 들어가는 값과 같은 기준이어야
+// '남은 비율'이 맞는다 — Combat 이 cdrMul 을 곱해서 넣는다.
+GAME.TouchPad.prototype._cooldownOf = function (h, slot) {
+  if (h.skills) {
+    for (var i = 0; i < h.skills.length; i++) {
+      if (h.skills[i].slot === slot) return Math.max(1, h.skills[i].cooldown * (h.cdrMul || 1));
+    }
+  }
+  return 1;
 };
 
 GAME.TouchPad.prototype._find = function (key) {

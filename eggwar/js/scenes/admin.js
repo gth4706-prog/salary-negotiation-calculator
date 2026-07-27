@@ -48,20 +48,32 @@ GAME.AdminScene.prototype.create = function () {
   for (var i = 0; i < slice.length; i++) {
     (function (rec, idx) {
       var y = top + idx * rowH;
-      var bg = rec.blocked ? 0x3a1f22 : (rec.reported ? 0x33301c : 0x22222f);
+      var bg = rec.blocked ? 0x3a1f22 : (rec.reported ? 0x33301c : GAME.UI.COL.surfaceAlt);
       self.add.rectangle(W / 2, y + rowH / 2 - 4, W - pad * 2, rowH - 8, bg)
-        .setStrokeStyle(1, rec.blocked ? 0xe24b4a : 0x3a3a52);
+        .setStrokeStyle(1, rec.blocked ? 0xe24b4a : GAME.UI.COL.border);
 
       GAME.UI.label(self, pad + 10, y + 6, rec.id, P ? 15 : 16,
         rec.blocked ? '#ff9f9f' : C.text, 0);
-      var d = new Date(rec.createdAt);
-      GAME.UI.label(self, pad + 10, y + (P ? 24 : 30),
-        d.toLocaleString('ko-KR') + '  ·  접속 ' + (rec.logins || 1) + '회' +
-        (rec.blocked ? '  ·  차단됨' : '') + (rec.reported ? '  ·  신고표시' : ''),
-        P ? 13 : 11, C.textDim, 0);
 
       var bw = P ? 52 : 70, bh = P ? 28 : 32;
       var bx = W - pad - 10;
+      // 두 버튼(차단·신고문)이 오른쪽에서 왼쪽으로 뻗는다 — 날짜 줄이 그 밑으로
+      // 파고들어 세로에서 화면 밖까지 나갔다(404px / 420px). 여기서 폭을 제한한다.
+      var infoMax = (bx - bw * 2 - 16) - (pad + 10);
+      var d = new Date(rec.createdAt);
+      // 세로는 연도를 빼고 짧은 형식으로 — 전체 형식은 물리적으로 안 들어간다
+      var when = P
+        ? d.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric',
+            hour: '2-digit', minute: '2-digit' })
+        : d.toLocaleString('ko-KR');
+      var info = GAME.UI.label(self, pad + 10, y + (P ? 24 : 30),
+        when + '  ·  접속 ' + (rec.logins || 1) + '회' +
+        (rec.blocked ? '  ·  차단됨' : '') + (rec.reported ? '  ·  신고' : ''),
+        P ? 13 : 11, C.textDim, 0);
+      if (infoMax > 40 && info.width > infoMax) {
+        var is = info.text;
+        while (is.length > 1 && info.width > infoMax) { is = is.slice(0, -1); info.setText(is + '…'); }
+      }
       // 차단 토글
       GAME.UI.button(self, bx - bw / 2, y + rowH / 2 - 4, bw, bh,
         rec.blocked ? '해제' : '차단', function () {
@@ -74,7 +86,9 @@ GAME.AdminScene.prototype.create = function () {
         '신고문', function () {
           GAME.Account.setReported(rec.id, true);
           var txt = GAME.Account.reportText(rec.id);
-          if (navigator.clipboard) navigator.clipboard.writeText(txt);
+          // http·비보안 컨텍스트에서는 clipboard 가 거절된다. 잡지 않으면
+          // unhandledrejection 이 뜬다 — 아래 prompt 가 이미 대체 수단이다.
+          GAME.Account.copy(txt);
           window.prompt('신고용 내용입니다. 복사해서 사용하세요.', txt);
           self.scene.start('Admin', { page: self.page });
         }, { fontSize: P ? 13 : 13 });
@@ -94,7 +108,7 @@ GAME.AdminScene.prototype.create = function () {
       return [r.id, new Date(r.createdAt).toLocaleString('ko-KR'), '접속' + (r.logins || 1),
               r.blocked ? '차단' : '', r.reported ? '신고' : ''].filter(Boolean).join('\t');
     }).join('\n');
-    if (navigator.clipboard) navigator.clipboard.writeText(txt);
+    GAME.Account.copy(txt);
     window.prompt('닉네임 로그 전체입니다.', txt);
   }, { fontSize: P ? 15 : 14 });
   GAME.UI.button(this, bc[3].cx, by, bc[3].w, P ? 38 : 42, '메뉴', function () {

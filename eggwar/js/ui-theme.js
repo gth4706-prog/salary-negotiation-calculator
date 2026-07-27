@@ -52,6 +52,10 @@ window.GAME = window.GAME || {};
     panelTeal:   0x16302b,  // 컨트롤러(청록) 계열 패널
     panelPurple: 0x241f38,  // 전략가(보라) 계열 패널
     panelAmber:  0x33241a,  // 탑·경고 계열 패널
+    // hover/눌림용 밝은 짝 — 씬이 이 값을 직접 박아 쓰고 있었다(테마를 켜면 남색이 남는다)
+    panelTealHi:   0x235045,
+    panelPurpleHi: 0x372f52,
+    panelAmberHi:  0x4a3524,
 
     // ── 선 ──
     divider:  0x2e2e40,     // 장식용 구분선 (정보를 담지 않는 선)
@@ -65,8 +69,73 @@ window.GAME = window.GAME || {};
     controller: 0x35d0a5,
     strategist: 0x9b8cf0,
     hpGood:     0x4ade80,
-    hpBad:      0xef4444
+    hpBad:      0xef4444,
+
+    // 게이지 트랙 · 그림자 — 어두운 테마 기준값.
+    // 라이트 테마는 순검정을 쓰면 크림 패널에 구멍이 뚫린 것처럼 보인다 → 테마가 덮어쓴다.
+    meterTrack: 0x0b0b12,
+    shadow:     0x000000
   };
+
+  // ───────────────────────────────────────────────────────────────────────
+  //  1-b. 라이트 테마 여부
+  //     버튼 눌림 방향(밝히기 vs 어둡게)·그림자 세기·아트 잉크선이 전부 이 하나로 갈린다.
+  //     theme-switch.js 가 테마를 적용할 때 갱신한다. 기본(stock)은 어두운 테마다.
+  // ───────────────────────────────────────────────────────────────────────
+  UI.IS_LIGHT = false;
+
+  // ───────────────────────────────────────────────────────────────────────
+  //  1-c. 전투 이펙트 팔레트 (FX)
+  //     battle.js 가 하드코딩해 두었던 색을 전부 여기로 끌어냈다.
+  //     **기본값은 지금까지 쓰던 값 그대로**라 어두운 테마 3종은 한 픽셀도 안 바뀐다.
+  //     라이트 테마(A)만 theme-a.js 에서 이 표를 통째로 갈아끼운다.
+  //
+  //     라이트 테마에서 이펙트가 안 보이는 이유는 단순하다:
+  //     목초지 화면색이 #a6b77f~#c1d493 (상대휘도 0.47~0.61) 인데
+  //     기존 이펙트색은 전부 **그보다 밝다**. 밝은 것 위에 밝은 것을 얹었으니 사라진다.
+  //     그래서 A안에서는 이펙트를 '빛'이 아니라 '잉크'로 다시 잡고,
+  //     에너지감은 ink 윤곽 + 밝은 core 의 2단 구조로 되살린다.
+  // ───────────────────────────────────────────────────────────────────────
+  var FX = UI.FX = {
+    ink:        0x0b0b12,   // 모든 이펙트의 어두운 윤곽 (라이트에서 실루엣을 책임진다)
+    inkAlpha:   0.0,        // 어두운 테마에서는 윤곽을 그리지 않는다(0)
+
+    telegraph:  0xef4444,   // 예고 원
+    blast:      0xffd166,   // 착탄 섬광
+    beam:       0xf0a86a,   // 예광
+    spark:      0xffffff,   // 타격 불꽃
+    sparkCore:  0xffffff,
+    heal:       0x7ef0a0,   // 회복 파동
+    block:      0x8fa0bb,   // 투사체 차단
+    lob:        0x9fd0ff,   // 포물선 구체
+    lobCore:    0xffffff,
+    trap:       0x7ef0d0,   // 설치 덫 범위
+    root:       0x7ef0d0,   // 속박
+
+    projController: 0x7ef0d0,
+    projStrategist: 0xffb06a,
+    projCore:       0xffffff,
+
+    yolk:       0xffc233,   // 노른자 얼룩
+    yolkAlpha:  0.22,
+
+    markerMove: 0x7ed957,
+    markerAtk:  0xef4444,
+
+    healRing:   0x7ef0a0,   // 약초꾼 치유 반경
+    buffRing:   0xffd166,   // 족장 강화 반경
+    mineRing:   0xef4444,   // 가시덫 발동 반경
+    guardRing:  0x8fa0bb,   // 방패병 차단 반경
+    targetRing: 0xf0a86a,   // 조준 가능 표시
+    bossRing:   0xef4444,
+    bossRing2:  0xffd166,
+
+    // 지면 위 얇은 링의 알파는 라이트 테마에서 그대로 두면 전부 증발한다.
+    // 씬은 `FX.ringAlpha * 기존값` 으로 곱해 쓴다.
+    ringAlpha:  1.0,
+    fillAlpha:  1.0
+  };
+  UI.FX_BASE = (function () { var o = {}; for (var k in FX) o[k] = FX[k]; return o; })();
 
   // 텍스트 색 (문자열) — 괄호 안은 #101018 배경 대비비
   var TXT = UI.TXT = {
@@ -184,6 +253,29 @@ window.GAME = window.GAME || {};
   // ───────────────────────────────────────────────────────────────────────
   UI.TEXT_RES = Math.min(2.5, Math.max(1, window.devicePixelRatio || 1));
 
+  // ── 글자 테두리 색 고르기 ───────────────────────────────────────────────
+  //  전장·게이지 위 글자는 테두리가 있어야 읽힌다. 그런데 테두리를 테마 하나로 고정하면
+  //  **밝은 글자에 밝은 테두리**가 붙어 통째로 뭉개진다 — 실제로 보스 체력바의
+  //  '보스 처치'(#ffe0e0)에 A안의 크림 테두리(#FFFCF0)가 붙어 글자가 사라졌다.
+  //  그래서 테두리는 테마가 아니라 **글자 자신의 밝기**에서 정한다.
+  var DARK_OUTLINE = '#14100A';
+  function lum(css) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(String(css || '').trim());
+    if (!m) return 1;
+    var n = parseInt(m[1], 16);
+    var c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (v) {
+      v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+  UI.lum = lum;
+  UI.outlineFor = function (css) {
+    var themed = UI.TXT.textOutline;           // 라이트 테마의 크림 테두리
+    if (!themed) return DARK_OUTLINE;
+    // 글자가 밝으면 테마 테두리(밝은 크림)와 붙어버린다 → 어두운 테두리로 뒤집는다
+    return lum(css) > 0.42 ? DARK_OUTLINE : themed;
+  };
+
   function styleOf(px, color, extra) {
     var s = {
       fontFamily: CFG.FONT,
@@ -199,10 +291,12 @@ window.GAME = window.GAME || {};
     if (UI.TEXT_RES > 1 && t.setResolution) t.setResolution(UI.TEXT_RES);
     if (t.setLineSpacing) t.setLineSpacing(opts.lineSpacing === undefined
       ? UI.lineGap(px) : opts.lineSpacing);
-    // 전장 위에 얹히는 글자는 외곽선을 줘야 배경 색과 상관없이 읽힌다
+    // 전장 위에 얹히는 글자는 외곽선을 줘야 배경 색과 상관없이 읽힌다.
+    // 외곽선 색은 글자 밝기에서 정한다(밝은 글자 + 밝은 테두리 = 뭉개짐).
     if (opts.outline) {
-      t.setStroke('#0b0b12', px >= FS.heading ? 4 : 3);
-      t.setShadow(0, 1, 'rgba(0,0,0,0.75)', 2, false, true);
+      var oc = UI.outlineFor(t.style && t.style.color);
+      t.setStroke(oc, px >= FS.heading ? 4 : 3);
+      t.setShadow(0, 1, UI.IS_LIGHT ? 'rgba(60,44,20,0.45)' : 'rgba(0,0,0,0.75)', 2, false, true);
     }
     if (opts.wrap) t.setWordWrapWidth(opts.wrap);
     if (opts.align) t.setAlign(opts.align);
@@ -257,14 +351,30 @@ window.GAME = window.GAME || {};
     b = Math.max(0, Math.min(255, Math.round(b + 255 * amt)));
     return (r << 16) | (g << 8) | b;
   }
+  UI.shade = shade;
+
+  // ── 눌림 방향은 **테마 밝기에 따라 뒤집힌다** ────────────────────────────
+  //  어두운 테마: 눌리면 밝아진다(빛이 든다).
+  //  라이트 테마: 눌리면 **어두워진다**. 크림색 버튼을 더 밝히면 흰 종이에 가까워져
+  //               "눌렸다"가 아니라 "비활성"으로 읽힌다 — A안 스스로 지적한 문제다.
+  //  밝기 차이만으로는 약해서 눌림에는 세 가지 신호를 함께 준다:
+  //    ① 면이 어두워진다  ② 그림자가 사라지고 2px 내려앉는다  ③ 위쪽 안쪽 그늘이 생긴다
+  //  ※ 어둡게 하는 폭은 **대비비가 정한다.** 라이트 테마의 파스텔 패널은 이미
+  //    글자 대비가 5.5~6.4:1 밖에 없어서, 면을 12% 어둡게 하면 경고 버튼이 4.17:1 로
+  //    AA(4.5) 아래로 내려간다(계산 확인). 6개 버튼 조합을 전부 재보니 **-0.08 이 한계**다.
+  //    밝기로 못 채우는 만큼은 아래 redraw() 의 기하 신호(2px 침강·그림자·안쪽 그늘·테두리)로 낸다.
+  function hoverOf(fill) { return shade(fill, UI.IS_LIGHT ? -0.035 : 0.06); }
+  function pressOf(fill) { return shade(fill, UI.IS_LIGHT ? -0.080 : 0.12); }
+  UI.hoverShade = hoverOf;
+  UI.pressShade = pressOf;
 
   UI.button = function (scene, x, y, w, h, label, onClick, opts) {
     opts = opts || {};
 
     var fill  = opts.fill  !== undefined ? opts.fill  : COL.surfaceAlt;
     var line  = opts.line  !== undefined ? opts.line  : COL.borderUi;
-    var hover = opts.hover !== undefined ? opts.hover : shade(fill, 0.06);
-    var press = opts.press !== undefined ? opts.press : shade(fill, 0.12);
+    var hover = opts.hover !== undefined ? opts.hover : hoverOf(fill);
+    var press = opts.press !== undefined ? opts.press : pressOf(fill);
     var color = opts.color || TXT.text;
     var radius = opts.radius === undefined ? UI.R.md : opts.radius;
     var px = UI.size(opts.fontSize, FS.button);
@@ -279,30 +389,65 @@ window.GAME = window.GAME || {};
     var st = { fill: fill, line: line, lw: 1, over: false, down: false, disabled: !!opts.disabled };
 
     function redraw() {
+      var light = UI.IS_LIGHT;
       var f = st.fill;
-      if (st.disabled) f = shade(COL.surface, -0.01);
+      if (st.disabled) f = shade(COL.surface, light ? -0.045 : -0.01);
       else if (st.down) f = press;
       else if (st.over) f = hover;
 
-      var dy = st.down && !st.disabled ? 1 : 0;
+      // 눌림 이동은 2px — 1px 는 라이트 테마의 옅은 명도차와 겹쳐 거의 안 보였다.
+      // 그림자 높이(3px)보다 작아야 버튼이 바닥을 뚫고 내려가지 않는다.
+      var dy = st.down && !st.disabled ? 2 : 0;
       var lw = Math.max(1, st.lw);
+      var x0 = x - w / 2, y0 = y - h / 2;
       gfx.clear();
 
-      // 바닥 그림자 — 눌리면 사라져서 '내려앉은' 느낌이 난다
-      if (!st.down && !st.disabled && opts.flat !== true) {
-        gfx.fillStyle(0x000000, 0.35);
-        gfx.fillRoundedRect(x - w / 2, y - h / 2 + 3, w, h, radius);
+      // 바닥 그림자 — 눌리면 사라져서 '내려앉은' 느낌이 난다.
+      // 라이트 테마의 크림 위에서 순검정 0.35 는 때가 낀 것처럼 보인다 → 웜 그림자를 옅게.
+      if (!st.disabled && opts.flat !== true) {
+        var shCol = COL.shadow === undefined ? 0x000000 : COL.shadow;
+        var shA = light ? 0.20 : 0.35;
+        if (st.down) {
+          // 눌린 상태에도 얇은 그림자 한 줄만 남긴다 — 완전히 없애면 버튼이 '떠 있는 판'이 아니라
+          // 배경에 인쇄된 그림처럼 보인다.
+          gfx.fillStyle(shCol, shA * 0.55);
+          gfx.fillRoundedRect(x0, y0 + dy + 1, w, h, radius);
+        } else {
+          gfx.fillStyle(shCol, shA);
+          gfx.fillRoundedRect(x0, y0 + 3, w, h, radius);
+        }
       }
       gfx.fillStyle(f, st.disabled ? 0.55 : 1);
-      gfx.fillRoundedRect(x - w / 2, y - h / 2 + dy, w, h, radius);
-      // 위쪽 하이라이트 — 평평한 사각형에 입체감을 준다(이미지 애셋 없이)
+      gfx.fillRoundedRect(x0, y0 + dy, w, h, radius);
+
       if (!st.disabled) {
-        gfx.fillStyle(0xffffff, st.down ? 0.03 : 0.06);
-        gfx.fillRoundedRect(x - w / 2 + 1, y - h / 2 + dy + 1, w - 2, Math.max(6, h * 0.42),
-          { tl: radius, tr: radius, bl: 0, br: 0 });
+        if (light) {
+          // 라이트 — 위쪽에 아주 옅은 흰 김서림, 아래쪽에 웜 그늘.
+          // 흰 하이라이트만 쓰면 크림 위에서 아무 일도 일어나지 않는다(대비 1.02).
+          gfx.fillStyle(0xffffff, st.down ? 0.10 : 0.34);
+          gfx.fillRoundedRect(x0 + 1, y0 + dy + 1, w - 2, Math.max(5, h * 0.34),
+            { tl: radius, tr: radius, bl: 0, br: 0 });
+          gfx.fillStyle(shade(f, -0.11), st.down ? 0.55 : 0.35);
+          gfx.fillRoundedRect(x0 + 1, y0 + dy + h - Math.max(4, h * 0.20) - 1,
+            w - 2, Math.max(4, h * 0.20), { tl: 0, tr: 0, bl: radius, br: radius });
+          // 눌림 — 위 안쪽 그늘. "손가락에 눌려 안으로 들어갔다"의 결정적 신호다.
+          // 면 밝기 변화를 AA 때문에 -0.08 로 묶었으므로 이쪽을 세게 쓴다.
+          // 높이의 18% 만 덮으므로 가운데 정렬된 라벨은 이 위에 얹히지 않는다.
+          if (st.down) {
+            gfx.fillStyle(shade(f, -0.22), 0.7);
+            gfx.fillRoundedRect(x0 + 1, y0 + dy + 1, w - 2, Math.max(3, h * 0.18),
+              { tl: radius, tr: radius, bl: 0, br: 0 });
+          }
+        } else {
+          gfx.fillStyle(0xffffff, st.down ? 0.03 : 0.06);
+          gfx.fillRoundedRect(x0 + 1, y0 + dy + 1, w - 2, Math.max(6, h * 0.42),
+            { tl: radius, tr: radius, bl: 0, br: 0 });
+        }
       }
-      gfx.lineStyle(lw, st.line, st.disabled ? 0.35 : 1);
-      gfx.strokeRoundedRect(x - w / 2 + lw / 2, y - h / 2 + dy + lw / 2, w - lw, h - lw, radius);
+      // 눌리면 테두리도 한 단계 진해진다 — 세 번째 신호
+      gfx.lineStyle(lw, st.down && !st.disabled ? shade(st.line, light ? -0.10 : 0.10) : st.line,
+        st.disabled ? 0.35 : 1);
+      gfx.strokeRoundedRect(x0 + lw / 2, y0 + dy + lw / 2, w - lw, h - lw, radius);
 
       if (txt) txt.setY(y + dy).setAlpha(st.disabled ? 0.45 : 1);
     }
@@ -378,7 +523,8 @@ window.GAME = window.GAME || {};
     var radius = opts.radius === undefined ? UI.R.lg : opts.radius;
     var g = scene.add.graphics();
     if (opts.shadow !== false) {
-      g.fillStyle(0x000000, 0.28);
+      // 라이트 테마에서 순검정 0.28 은 크림 위에 회색 때처럼 앉는다 → 웜 그림자를 옅게.
+      g.fillStyle(COL.shadow === undefined ? 0x000000 : COL.shadow, UI.IS_LIGHT ? 0.16 : 0.28);
       g.fillRoundedRect(x, y + 3, w, h, radius);
     }
     g.fillStyle(fill, opts.alpha === undefined ? 1 : opts.alpha);
@@ -403,23 +549,40 @@ window.GAME = window.GAME || {};
     return g;
   };
 
-  // 작은 태그(진영/상태) — 텍스트만 있는 것보다 훨씬 빨리 읽힌다
+  // 작은 태그(진영/상태) — 텍스트만 있는 것보다 훨씬 빨리 읽힌다.
+  //
+  //  아기자기함은 세 가지에서 나온다:
+  //   ① 완전한 알약(높이의 절반 반경) ② 왼쪽 점 하나 ③ 아래로 1px 웜 그림자
+  //  점은 등급 색을 **면이 아니라 점으로** 한 번 더 보여준다. 배지 안 글자는 micro(13~15px)라
+  //  색만으로는 등급이 잘 안 읽혔는데, 점을 붙이면 글자를 안 읽어도 색 사다리가 보인다.
+  //  opts.dot: false 로 끌 수 있다(폭이 12px 늘어난다).
   UI.chip = function (scene, x, y, text, opts) {
     opts = opts || {};
     var px = UI.size(opts.size, FS.micro);
     var t = scene.add.text(0, 0, text, styleOf(px, opts.color || TXT.text)).setOrigin(0.5);
     finish(t, px, { lineSpacing: 0 });
-    var padX = 8, padY = 4;
-    var w = Math.max(opts.minWidth || 0, Math.ceil(t.width) + padX * 2);
+    var dotOn = opts.dot !== false && opts.line !== undefined && opts.line !== null;
+    var padX = 9, padY = 4;
+    var dotW = dotOn ? 12 : 0;
+    var w = Math.max(opts.minWidth || 0, Math.ceil(t.width) + padX * 2 + dotW);
     var h = Math.ceil(t.height) + padY * 2;
+    var r = h / 2;
     var g = scene.add.graphics();
-    g.fillStyle(opts.fill === undefined ? COL.surfaceAlt : opts.fill, 1);
-    g.fillRoundedRect(x, y, w, h, h / 2);
-    if (opts.line !== undefined && opts.line !== null) {
-      g.lineStyle(1, opts.line, 1);
-      g.strokeRoundedRect(x + 0.5, y + 0.5, w - 1, h - 1, h / 2);
+    if (opts.shadow !== false) {
+      g.fillStyle(COL.shadow === undefined ? 0x000000 : COL.shadow, UI.IS_LIGHT ? 0.14 : 0.26);
+      g.fillRoundedRect(x, y + 2, w, h, r);
     }
-    t.setPosition(x + w / 2, y + h / 2);
+    g.fillStyle(opts.fill === undefined ? COL.surfaceAlt : opts.fill, 1);
+    g.fillRoundedRect(x, y, w, h, r);
+    if (opts.line !== undefined && opts.line !== null) {
+      g.lineStyle(UI.IS_LIGHT ? 1.5 : 1, opts.line, 1);
+      g.strokeRoundedRect(x + 0.75, y + 0.75, w - 1.5, h - 1.5, r);
+    }
+    if (dotOn) {
+      g.fillStyle(opts.line, 1);
+      g.fillCircle(x + padX + 2, y + h / 2, Math.max(2.5, h * 0.16));
+    }
+    t.setPosition(x + (w + dotW) / 2, y + h / 2);
     // Graphics 를 Text 뒤에 add 했으므로 그대로 두면 **배경이 글자를 덮는다**(실제로 겪음).
     // 폭을 재려면 Text 가 먼저 있어야 해서 순서를 못 바꾸니, 그린 뒤 글자를 위로 올린다.
     if (scene.children && scene.children.bringToTop) scene.children.bringToTop(t);

@@ -43,6 +43,88 @@ GAME.UI = GAME.UI || {};
     eye: 0x2b2233
   };
 
+  // 테마가 MAT 을 갈아끼운 뒤 되돌아올 자리. theme-switch.js 가 읽는다.
+  // (이 파일은 theme-switch.js **뒤에** 로드되므로 stock 스냅숏에는 못 넣는다)
+  UI.MAT_BASE = (function () { var o = {}; for (var k in M) o[k] = M[k]; return o; })();
+
+  // ============================================================================
+  //  잉크 윤곽 (artInk)
+  // ============================================================================
+  //  라이트 테마(A안)에서 장비가 안 보이는 문제의 **구조적 해결**이다.
+  //
+  //  왜 색만 바꿔서는 안 되는가:
+  //    칼날(#dfe4ee)·뼈(#eae3cd)·짚(#d9c9a2)은 **밝아야 그 재질로 읽힌다.**
+  //    목초지 대비를 맞추겠다고 회색으로 낮추면 강철은 돌이 되고 뼈는 진흙이 된다.
+  //    실제로 낮춰보면 계란들이 전부 칙칙해진다 — 파스텔 테마의 성격을 잃는다.
+  //
+  //  그래서 대비를 **색이 아니라 선**에 맡긴다. 장비를 한 번 더, 잉크색으로,
+  //  조금 부풀려서 뒤에 찍는다(스티커 테두리). 그러면
+  //    · 재질색은 밝게 유지되고(강철은 강철로 보이고)
+  //    · 실루엣은 잉크(필드 대비 9.88:1)가 책임진다
+  //  이것이 A안이 스스로 정한 원칙 — "밝은 면 + 진한 윤곽선" — 을 아트에 적용한 것이다.
+  //
+  //  구현: Graphics 의 그리기 명령을 가로채는 얇은 프록시를 만들어
+  //  **같은 그리기 함수를 두 번** 부른다. 도형 정의를 복제하지 않으므로
+  //  나중에 무기 모양을 고쳐도 윤곽이 자동으로 따라온다(두 벌이 생기지 않는다).
+  //
+  //  비용: 장비·투구·등짐 레이어만 한 번 더 그린다(몸통은 이미 진영색 외곽선이 있다).
+  //  r < 8 이면 건너뛴다 — 그 크기에서는 윤곽이 형태를 뭉갠다.
+  UI.ART_INK = false;        // theme-switch.js 가 라이트 테마에서 켠다
+  UI.ART_INK_COLOR = 0x2A2114;
+  UI.ART_INK_ALPHA = 0.9;
+
+  function pushOut(pts, k) {
+    var cx = 0, cy = 0, i, n = pts.length;
+    for (i = 0; i < n; i++) { cx += pts[i].x; cy += pts[i].y; }
+    cx /= n; cy /= n;
+    var out = [];
+    for (i = 0; i < n; i++) {
+      var dx = pts[i].x - cx, dy = pts[i].y - cy;
+      var d = Math.sqrt(dx * dx + dy * dy) || 1;
+      out.push({ x: pts[i].x + dx / d * k, y: pts[i].y + dy / d * k });
+    }
+    return out;
+  }
+
+  // g 의 도형 명령을 받아 '잉크색 + k 만큼 부푼' 같은 도형으로 바꿔 흘려보낸다.
+  // 색·알파 지정은 전부 무시하고 잉크 하나로 통일한다 → 납작한 그림자 실루엣이 된다.
+  function inkProxy(g, col, a, k) {
+    var lw = 1;
+    function set() { g.fillStyle(col, a); }
+    return {
+      fillStyle: function () { set(); },
+      lineStyle: function (w) { lw = (typeof w === 'number' ? w : 1) + k * 2; g.lineStyle(lw, col, a); },
+      fillCircle: function (x, y, r) { set(); g.fillCircle(x, y, r + k); },
+      strokeCircle: function (x, y, r) { g.strokeCircle(x, y, r); },
+      fillEllipse: function (x, y, w, h) { set(); g.fillEllipse(x, y, w + k * 2, h + k * 2); },
+      strokeEllipse: function (x, y, w, h) { g.strokeEllipse(x, y, w, h); },
+      fillRect: function (x, y, w, h) { set(); g.fillRect(x - k, y - k, w + k * 2, h + k * 2); },
+      fillRoundedRect: function (x, y, w, h, r) {
+        set(); g.fillRoundedRect(x - k, y - k, w + k * 2, h + k * 2, r);
+      },
+      strokeRoundedRect: function (x, y, w, h, r) {
+        g.strokeRoundedRect(x - k, y - k, w + k * 2, h + k * 2, r);
+      },
+      fillTriangle: function (x1, y1, x2, y2, x3, y3) {
+        var p = pushOut([{ x: x1, y: y1 }, { x: x2, y: y2 }, { x: x3, y: y3 }], k);
+        set(); g.fillTriangle(p[0].x, p[0].y, p[1].x, p[1].y, p[2].x, p[2].y);
+      },
+      fillPoints: function (pts, closed) { set(); g.fillPoints(pushOut(pts, k), closed !== false); },
+      strokePoints: function (pts, closed, auto) { g.strokePoints(pts, closed, auto); },
+      lineBetween: function (x1, y1, x2, y2) { g.lineBetween(x1, y1, x2, y2); }
+    };
+  }
+
+  // 한 레이어를 잉크로 먼저 찍고, 그 위에 원래대로 그린다.
+  //  fn(gfx) 형태로 그리기 호출을 넘긴다.
+  UI.inkLayer = function (g, r, fn) {
+    if (UI.ART_INK && r >= 8) {
+      var k = Math.max(1.15, r * 0.115);
+      fn(inkProxy(g, UI.ART_INK_COLOR, UI.ART_INK_ALPHA, k));
+    }
+    fn(g);
+  };
+
   // ── 색 보정 ───────────────────────────────────────────────────
   UI.tint = function (c, f) {
     var r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
@@ -712,24 +794,56 @@ GAME.UI = GAME.UI || {};
     var hx = X(0.82, 0.30), hy = Y(0.82, 0.30, 0.05);   // 주손 위치
     var side = D.lat >= 0 ? 1 : -1;
 
+    // ── 칼날 방향 ────────────────────────────────────────────────────────
+    //  지면 정면축(fx, fy)만으로 무기를 뻗으면 **관객 쪽·반대쪽을 볼 때 길이가 0 으로 눌린다.**
+    //  실제로 광전사 대검이 정면에서 턱 밑의 짧은 막대가 돼 있었다(스크린샷 확인).
+    //  정면축에 '화면 위쪽'을 섞어 어느 방향에서도 최소 길이를 확보한다.
+    //  up 이 클수록 세워 들고, 작을수록 앞으로 겨눈다.
+    //  옆으로도 밀어준다: 정면·정배면일수록 칼이 얼굴 한가운데를 세로로 가른다.
+    //  lateral 은 옆모습(|fx|=1)에서 0, 정면(|fx|=0)에서 최대가 된다.
+    function bladeDir(up) {
+      var lateral = (1 - Math.abs(fx)) * 0.55;
+      var dx = fx + px * lateral, dy = fy - up + py * lateral;
+      var l = Math.sqrt(dx * dx + dy * dy) || 1;
+      return { x: dx / l, y: dy / l };
+    }
+    // 자루→끝까지 좁아지는 사각 날. 어느 각도에서도 '칼'로 읽힌다.
+    function taperBlade(x0, y0, dir, len, w0, w1, fill, edge) {
+      var nx = -dir.y, ny = dir.x;
+      var x1 = x0 + dir.x * len, y1 = y0 + dir.y * len;
+      var pts = [
+        { x: x0 + nx * w0, y: y0 + ny * w0 },
+        { x: x1 + nx * w1, y: y1 + ny * w1 },
+        { x: x1 + dir.x * w1 * 1.6, y: y1 + dir.y * w1 * 1.6 },   // 뾰족한 끝
+        { x: x1 - nx * w1, y: y1 - ny * w1 },
+        { x: x0 - nx * w0, y: y0 - ny * w0 }
+      ];
+      g.fillStyle(fill, a);
+      g.fillPoints(pts, true);
+      if (edge !== false && r >= 10) {           // 날 능선 — 강철에 입체감
+        g.lineStyle(Math.max(0.9, r * 0.07), UI.tint(fill, -0.30), a * 0.85);
+        g.lineBetween(x0, y0, x1 + dir.x * w1, y1 + dir.y * w1);
+      }
+    }
+
     if (kind === 'sword') {                  // 전사 — 짧은 청동검 + 나무 버클러
       var bx = X(0.52, -0.62), byy = Y(0.52, -0.62, 0.02);
       g.fillStyle(M.wood, a); g.fillCircle(bx, byy, r * 0.50);
       g.lineStyle(lw(0.09), M.woodDark, a); g.strokeCircle(bx, byy, r * 0.50);
       g.fillStyle(M.bronze, a); g.fillCircle(bx, byy, r * 0.17);
 
-      g.lineStyle(lw(0.16), M.woodDark, a);
-      g.lineBetween(X(0.48, 0.30), Y(0.48, 0.30, 0.05), hx, hy);
-      // 날은 선이 아니라 끝으로 갈수록 좁아지는 삼각형 — 작을 때 '칼'로 읽힌다
-      var tipX = X(2.05, 0.30), tipY = Y(2.05, 0.30, 0.05);
-      var bdx = tipX - hx, bdy = tipY - hy, bl = Math.sqrt(bdx * bdx + bdy * bdy) || 1;
-      var bnx = -bdy / bl * r * 0.22, bny = bdx / bl * r * 0.22;
-      g.fillStyle(M.blade, a);
-      g.fillTriangle(hx + bnx, hy + bny, hx - bnx, hy - bny, tipX, tipY);
-      g.lineStyle(Math.max(0.8, r * 0.06), UI.tint(M.blade, -0.35), a * 0.8);
-      g.lineBetween(hx, hy, tipX, tipY);
-      g.lineStyle(lw(0.12), M.bronze, a);
-      g.lineBetween(X(0.86, 0.02), Y(0.86, 0.02, 0.05), X(0.86, 0.58), Y(0.86, 0.58, 0.05));
+      // 자루 — 손 아래로 짧게
+      var swDir = bladeDir(0.95);
+      g.lineStyle(lw(0.17), M.woodDark, a);
+      g.lineBetween(hx - swDir.x * r * 0.34, hy - swDir.y * r * 0.34, hx, hy);
+      // 날 — 손에서 앞·위로. 예전엔 지면축으로만 뻗어 정면에서 사라졌다.
+      taperBlade(hx, hy, swDir, r * 1.35, r * 0.24, r * 0.11, M.blade);
+      // 날밑(코등이) — 자루와 날 사이 가로 막대. 이게 있어야 '검'으로 읽힌다.
+      g.lineStyle(lw(0.15), M.bronze, a);
+      g.lineBetween(hx + swDir.y * r * 0.34, hy - swDir.x * r * 0.34,
+                    hx - swDir.y * r * 0.34, hy + swDir.x * r * 0.34);
+      g.fillStyle(M.bronze, a);              // 자루 끝 구슬
+      g.fillCircle(hx - swDir.x * r * 0.38, hy - swDir.y * r * 0.38, Math.max(1, r * 0.11));
 
     } else if (kind === 'bow' || kind === 'longbow') {   // 궁수/사냥꾼 — 세로 C
       var big = kind === 'longbow' ? 1.30 : 1.0;
@@ -854,14 +968,25 @@ GAME.UI = GAME.UI || {};
       g.fillRect(sx - r * 1.32, by + r * 0.04, r * 2.64, Math.max(1.4, r * 0.16));
 
     } else if (kind === 'greatsword') {      // 광전사 — 양손 대검
-      g.lineStyle(lw(0.17), M.woodDark, a);
-      g.lineBetween(X(0.30, 0.34), Y(0.30, 0.34, -0.30), hx, hy);
-      g.lineStyle(lw(0.30), M.blade, a);
-      g.lineBetween(hx, hy, X(1.85, 0.34), Y(1.85, 0.34, 1.70));
-      g.lineStyle(lw(0.12), UI.tint(M.blade, 0.35), a * 0.8);
-      g.lineBetween(hx, hy, X(1.75, 0.30), Y(1.75, 0.30, 1.62));
-      g.lineStyle(lw(0.14), M.bronze, a);    // 날밑
-      g.lineBetween(X(0.66, -0.10), Y(0.66, -0.10, 0.14), X(1.02, 0.72), Y(1.02, 0.72, 0.02));
+      // 영웅 중 가장 큰 무기다. 여기가 눌리면 광전사가 '아무것도 안 든 계란'이 된다
+      // — 예전 구현은 정면에서 정확히 그 상태였다(길이 1r 짜리 막대).
+      // 어깨 위로 크게 세워 들어 어느 각도에서도 실루엣이 남게 했다.
+      var gsDir = bladeDir(1.55);
+      var gsGripX = hx - gsDir.x * r * 0.30, gsGripY = hy - gsDir.y * r * 0.30;
+      // 두 손 자루
+      g.lineStyle(lw(0.20), M.woodDark, a);
+      g.lineBetween(gsGripX - gsDir.x * r * 0.55, gsGripY - gsDir.y * r * 0.55, gsGripX, gsGripY);
+      g.fillStyle(M.bronze, a);              // 자루 끝 구슬
+      g.fillCircle(gsGripX - gsDir.x * r * 0.62, gsGripY - gsDir.y * r * 0.62, Math.max(1.2, r * 0.15));
+      // 날 — 몸 높이의 2배 남짓
+      taperBlade(gsGripX + gsDir.x * r * 0.34, gsGripY + gsDir.y * r * 0.34,
+                 gsDir, r * 2.15, r * 0.34, r * 0.17, M.blade);
+      // 날밑 — 자루에 직교하는 굵은 막대
+      g.lineStyle(lw(0.17), M.bronze, a);
+      g.lineBetween(gsGripX + gsDir.y * r * 0.52 + gsDir.x * r * 0.30,
+                    gsGripY - gsDir.x * r * 0.52 + gsDir.y * r * 0.30,
+                    gsGripX - gsDir.y * r * 0.52 + gsDir.x * r * 0.30,
+                    gsGripY + gsDir.x * r * 0.52 + gsDir.y * r * 0.30);
 
     } else if (kind === 'hookShield') {      // 파수꾼 — 연꼴 방패 + 갈고리 창
       g.lineStyle(lw(0.13), M.wood, a);      // 갈고리 창 (E = 끌어당김)
@@ -960,15 +1085,22 @@ GAME.UI = GAME.UI || {};
     var backFirst = !D.back;                                     // 등을 보이면 등짐이 앞으로
     var gearBehind = D.back && !UI.GEAR_ALWAYS_FRONT[art.gear];  // 뒤쪽 무기는 몸통에 가린다
 
-    if (backFirst) UI.eggBack(g, art.back, cx, cy, r, color, a, D);
-    if (gearBehind) UI.eggGear(g, art.gear, cx + lean * 0.5, cy, r, color, a, D, rch);
+    // 잉크 윤곽은 **장비 3층에만** 두른다.
+    // 몸통은 ivory 시안에서 이미 진영색 외곽선(r*0.17)이 실루엣을 맡고 있어
+    // 잉크를 한 겹 더 두르면 진영색이 눌려 아군/적군 구분이 흐려진다.
+    var back = function (gg) { UI.eggBack(gg, art.back, cx, cy, r, color, a, D); };
+    var gear = function (gg) { UI.eggGear(gg, art.gear, cx + lean * 0.5, cy, r, color, a, D, rch); };
+    var helm = function (gg) { UI.eggHelm(gg, art.helm, cx + lean, cy, r, color, a, D); };
+
+    if (backFirst) UI.inkLayer(g, r, back);
+    if (gearBehind) UI.inkLayer(g, r, gear);
     UI.eggBody(g, art, cx, cy, r, color, a, lean);
-    if (!backFirst) UI.eggBack(g, art.back, cx, cy, r, color, a, D);
+    if (!backFirst) UI.inkLayer(g, r, back);
     // 맨눈은 투구보다 먼저(챙이 이마를 덮게), 투구 틈의 눈은 투구보다 나중에 그린다
     if (art.face !== 'slit') UI.eggFace(g, art, cx + lean * 0.62, cy, r, a, D);
-    UI.eggHelm(g, art.helm, cx + lean, cy, r, color, a, D);
+    UI.inkLayer(g, r, helm);
     if (art.face === 'slit') UI.eggFace(g, art, cx + lean * 0.62, cy, r, a, D);
-    if (!gearBehind) UI.eggGear(g, art.gear, cx + lean * 0.5, cy, r, color, a, D, rch);
+    if (!gearBehind) UI.inkLayer(g, r, gear);
   };
 
   // ── 전장용 ────────────────────────────────────────────────────
@@ -1060,15 +1192,23 @@ GAME.UI = GAME.UI || {};
 //     }
 
 GAME.UI.drawYolkBurst = function (g, e) {
-  var Iso = GAME.Iso, M = GAME.UI.MAT;
+  var Iso = GAME.Iso, M = GAME.UI.MAT, FX = GAME.UI.FX || {};
   var p = 1 - e.t / e.total;                  // 0 → 1
   var r = e.r;
   var gy = Iso.toScreenY(e.y);                // 지면 y
   var i, ang, dist, ex, ey;
+  // 밝은 목초지에서는 흰자(#fff6e2)도 껍질(#f6eeda)도 배경과 1.4:1 이라 안 보인다.
+  // 죽음이 안 보이면 "몇 기 남았나"를 눈으로 셀 수 없다 — 잉크 테두리로 붙잡는다.
+  var ink = (FX.inkAlpha > 0) ? FX.ink : null;
 
   // ① 흰자 — 지면에 퍼진다
-  g.fillStyle(M.albumen, 0.75 * (1 - p * 0.85));
-  GAME.UI.groundCircleFill(g, e.x, e.y, r * (0.45 + p * 1.30));
+  var wr = r * (0.45 + p * 1.30);
+  if (ink !== null) {
+    g.lineStyle(2, ink, 0.45 * (1 - p * 0.85));
+    GAME.UI.groundCircle(g, e.x, e.y, wr);
+  }
+  g.fillStyle(M.albumen, 0.85 * (1 - p * 0.85));
+  GAME.UI.groundCircleFill(g, e.x, e.y, wr);
 
   // ② 껍질 조각 — 사방으로 튀며 떨어진다
   var shards = e.hero ? 9 : 6;
@@ -1077,23 +1217,40 @@ GAME.UI.drawYolkBurst = function (g, e) {
     dist = r * (0.5 + p * 2.1);
     ex = e.x + Math.cos(ang) * dist;
     ey = Iso.toScreenY(e.y + Math.sin(ang) * dist) - Math.sin((1 - p) * Math.PI * 0.5) * r * 0.9;
+    var sr = Math.max(1, r * 0.19 * (1 - p * 0.4));
+    if (ink !== null) {
+      g.fillStyle(ink, 0.7 * (1 - p * p));
+      g.fillCircle(ex, ey, sr + 1.2);
+    }
     g.fillStyle(M.shell, 0.95 * (1 - p * p));
-    g.fillCircle(ex, ey, Math.max(1, r * 0.19 * (1 - p * 0.4)));
+    g.fillCircle(ex, ey, sr);
   }
 
   // ③ 노른자 — 통 튀어올랐다가 지면에 내려앉는다
   var hop = Math.sin(Math.min(1, p * 1.3) * Math.PI) * r * 1.6;
   var yr = r * (0.58 + p * 0.10);
   var yx = e.x, yy = gy - hop - r * 0.28;
-  g.fillStyle(M.yolk, 0.95);
-  g.fillEllipse(yx, yy, yr * 2 * (1 + p * 0.25), yr * 2 * (1 - p * 0.30));
+  var yw = yr * 2 * (1 + p * 0.25), yh = yr * 2 * (1 - p * 0.30);
+  if (ink !== null) {
+    g.fillStyle(ink, 0.8);
+    g.fillEllipse(yx, yy, yw + 3, yh + 3);
+  }
+  g.fillStyle(M.yolk, 0.98);
+  g.fillEllipse(yx, yy, yw, yh);
   g.fillStyle(M.yolkLite, 0.9);
   g.fillEllipse(yx - yr * 0.30, yy - yr * 0.32, yr * 0.80, yr * 0.62);
 
-  // ④ 노른자에도 눈 — 이 게임에서 죽음은 아프지 않다
-  if (r >= 10 && p < 0.75) {
-    g.fillStyle(M.eye, 0.8 * (1 - p / 0.75));
-    g.fillCircle(yx - yr * 0.28, yy + yr * 0.05, Math.max(1, yr * 0.13));
-    g.fillCircle(yx + yr * 0.28, yy + yr * 0.05, Math.max(1, yr * 0.13));
+  // ④ 노른자에도 눈 — 이 게임에서 죽음은 아프지 않다.
+  //    ×자 눈으로 바꿨다. 점 두 개는 살아 있는 계란의 눈과 같아서
+  //    "죽었다"가 아니라 "굴러다닌다"로 읽혔다. 만화 관용이라 12세 톤도 유지된다.
+  if (r >= 9 && p < 0.8) {
+    var ea = 0.85 * (1 - p / 0.8);
+    var ew = Math.max(1.4, yr * 0.30);
+    g.lineStyle(Math.max(1.4, yr * 0.15), M.eye, ea);
+    for (var s2 = -1; s2 <= 1; s2 += 2) {
+      var exx = yx + s2 * yr * 0.32, eyy = yy + yr * 0.02;
+      g.lineBetween(exx - ew, eyy - ew, exx + ew, eyy + ew);
+      g.lineBetween(exx - ew, eyy + ew, exx + ew, eyy - ew);
+    }
   }
 };

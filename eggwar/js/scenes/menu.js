@@ -20,6 +20,8 @@ GAME.MenuScene.prototype.create = function () {
 
   GAME.UI.label(this, W / 2, u * 12, '🥚 EGG WAR', P ? 28 : 50, C.text, 0.5);
   GAME.UI.label(this, W / 2, u * 18, '계란 부족 비대칭 실시간 대전', P ? 15 : 18, C.textDim, 0.5);
+  // 제목 밑 작은 장식 — 간판처럼 보이게. Graphics 라 글자 겹침에 영향이 없다.
+  GAME.UI.titleRule(this, W / 2, u * 21, P ? 170 : 240);
 
   var me = GAME.Account.current();
   var rec = GAME.Score.of(me);
@@ -36,7 +38,8 @@ GAME.MenuScene.prototype.create = function () {
   var BH = (GAME.UI.BTN_H || 58) / u;      // 버튼 높이를 u 단위로
   GAME.UI.button(this, W / 2, u * 34, bw, u * BH, '🗼 통곡의 탑  ' + tower.floor + '층', function () {
     self.scene.start('Tower');
-  }, { fill: 0x3a2a1c, line: 0xf0a86a, hover: 0x4a3524, color: C.warn, fontSize: P ? 17 : 21 });
+    // line 을 0xf0a86a 로 박아뒀더니 크림 배경에서 1.08:1 로 사라졌다 → focus 토큰(테마별 값)
+  }, { fill: GAME.UI.COL.panelAmber, line: GAME.UI.COL.focus, hover: GAME.UI.COL.panelAmberHi, color: C.warn, fontSize: P ? 17 : 21 });
   // 설명문은 **위 기준(origin y=0)**으로 버튼 바로 아래에 붙인다.
   // 가운데 기준이면 두 줄이 될 때 위쪽 절반이 버튼을 파고든다.
   GAME.UI.label(this, W / 2, u * 34 + u * BH / 2 + 6,
@@ -46,13 +49,13 @@ GAME.MenuScene.prototype.create = function () {
 
   GAME.UI.button(this, W / 2, u * 49, bw, u * BH, '컨트롤러로 도전', function () {
     self.scene.start('Select');
-  }, { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: P ? 17 : 20 });
+  }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 17 : 20 });
   GAME.UI.label(this, W / 2, u * 49 + u * BH / 2 + 6, '저장된 진형을 격파 — 깰수록 그 진형이 강해진다',
     P ? 13 : 13, C.textDim, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 40);
 
   GAME.UI.button(this, W / 2, u * 63, bw, u * BH, '전략가로 방어전', function () {
     self.scene.start('Build');
-  }, { fill: 0x2a2440, line: 0x9b8cf0, hover: 0x372f52, color: C.accentAlt, fontSize: P ? 17 : 20 });
+  }, { fill: GAME.UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist, hover: GAME.UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: P ? 17 : 20 });
   GAME.UI.label(this, W / 2, u * 63 + u * BH / 2 + 6, '진형을 짜고 AI 공격을 막아라 — 막을수록 AI가 강해진다',
     P ? 13 : 13, C.textDim, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 40);
 
@@ -81,7 +84,7 @@ GAME.MenuScene.prototype.create = function () {
   GAME.UI.label(this, W / 2, u * 94,
     P ? '논타겟은 피할 수 있고, 타겟은 피할 수 없다.'
       : '논타겟 공격은 피할 수 있고, 타겟 공격은 피할 수 없다. 그것이 이 게임의 균형이다.',
-    P ? 13 : 13, '#6f6f88', 0.5).setWordWrapWidth(W - 40);
+    P ? 13 : 13, GAME.CONFIG.COLORS.textFaint, 0.5).setWordWrapWidth(W - 40);
 
   // 버전 표시는 DOM 배지(#ver) 하나로 통일했다 — 캔버스에도 그리면 우하단에서 겹친다.
 };

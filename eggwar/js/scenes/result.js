@@ -67,69 +67,97 @@ GAME.ResultScene.prototype.create = function () {
     }
   }
 
-  GAME.UI.label(this, W / 2, u * 17, title, P ? 30 : 54, color, 0.5);
-  GAME.UI.label(this, W / 2, u * 26, sub, P ? 15 : 16, C.textDim, 0.5)
-    .setAlign('center').setWordWrapWidth(W - 50);
+  // ── 판정 · 보상 (탕탕특공대의 결과 배너 + 운빨존많겜의 단계적 공개) ──
+  // 한 번에 다 띄우지 않고 순서대로 들여보낸다. 다만 **먼저 다 만들고 alpha 0 → tween** 이다.
+  // 나중에 생성하면 씬이 내려간 뒤 파괴된 객체를 건드린다(전에 겪은 사고).
+  var tierObj = this.tower ? GAME.UI.tierForFloor(this.tower)
+                           : GAME.UI.tierForEscalation(this.escalation);
 
-  // 획득 점수
+  var plate = GAME.UI.verdictPlate(this, W / 2, u * 9, bw, title, sub, {
+    tierIndex: tierObj.i,
+    accentCss: color,
+    titleSize: P ? 'title' : 'display'
+  });
+
+  var bx = (W - bw) / 2;
+  var ry = plate.bottom + u * 1.5;
+  var blocks = [];
+
+  var scoreRow = null;
   if (this.score > 0) {
-    GAME.UI.label(this, W / 2, u * 34, '+' + this.score.toLocaleString('ko-KR') + '점',
-      P ? 22 : 30, C.crit, 0.5);
+    scoreRow = GAME.UI.rewardRow(this, bx, ry, bw, '획득 점수', '0', {
+      accent: 0xffd166, valueSize: 'heading'
+    });
+    blocks.push(scoreRow); ry = scoreRow.bottom + 8;
+
     var me = GAME.Account.current();
     if (me) {
       var rec = GAME.Score.of(me);
-      GAME.UI.label(this, W / 2, u * 40,
-        '누적 ' + rec.total.toLocaleString('ko-KR') + '점 · 격파 ' + rec.rounds + '회',
-        P ? 13 : 14, C.textDim, 0.5);
+      var totalRow = GAME.UI.rewardRow(this, bx, ry, bw, '누적 점수',
+        rec.total.toLocaleString('ko-KR') + '점  ·  격파 ' + rec.rounds + '회',
+        { valueSize: 'body', valueColor: GAME.UI.TXT.textMid });
+      blocks.push(totalRow); ry = totalRow.bottom + 8;
     }
   }
 
-  var y = 46;
   if (this.tower) {
     var prof = GAME.Profile.read();
-    GAME.UI.label(this, W / 2, u * y,
-      'AI가 읽은 당신 — ' + prof.styleLabel + ' · ' + prof.dodgeLabel +
-      ' (평균 교전거리 ' + prof.avgDist + ')', P ? 15 : 15, C.crit, 0.5)
-      .setWordWrapWidth(W - 50);
-    y += 5;
+    var r = GAME.UI.rewardRow(this, bx, ry, bw, 'AI가 읽은 당신',
+      prof.styleLabel + ' · ' + prof.dodgeLabel,
+      { valueSize: 'body', valueColor: GAME.UI.TXT.crit, accent: tierObj.hex });
+    blocks.push(r); ry = r.bottom + 8;
   } else if (this.defendMode) {
-    GAME.UI.label(this, W / 2, u * y, 'AI 컨트롤러 숙련도 ' + Math.round(this.aiSkill * 100) + '%',
-      P ? 15 : 17, C.text, 0.5);
-    y += 5;
+    var r2 = GAME.UI.rewardRow(this, bx, ry, bw, 'AI 컨트롤러 숙련도',
+      Math.round(this.aiSkill * 100) + '%', { valueSize: 'body' });
+    blocks.push(r2); ry = r2.bottom + 8;
   } else if (this.formationId) {
     var f = GAME.Formations.getById(this.formationId);
     var sum = GAME.Learn.summary(this.formationId);
-    GAME.UI.label(this, W / 2, u * y, '상대 진형: ' + (f ? f.name : '?') +
-      (sum ? '  ·  난이도 ' + sum.escalation + '단계' : ''), P ? 15 : 17, C.text, 0.5);
-    y += 4.5;
-    GAME.UI.label(this, W / 2, u * y, GAME.UI.winRateText(this.formationId), P ? 13 : 14, C.warn, 0.5);
-    y += 5;
+    var r3 = GAME.UI.rewardRow(this, bx, ry, bw, '상대 진형',
+      (f ? f.name : '?') + (sum ? '  ·  ' + sum.escalation + '단계' : ''),
+      { valueSize: 'body', valueColor: GAME.UI.TXT.text, accent: tierObj.hex });
+    blocks.push(r3); ry = r3.bottom + 8;
+    var r4 = GAME.UI.rewardRow(this, bx, ry, bw, '이 진형 상대 전적',
+      GAME.UI.winRateText(this.formationId),
+      { valueSize: 'caption', valueColor: GAME.UI.TXT.warn });
+    blocks.push(r4); ry = r4.bottom + 8;
   }
 
-  // 학습 내용 — 보이지 않으면 학습이 있는지 알 수 없다
+  var noteObjs = [];
   if (this.learnNotes.length) {
-    GAME.UI.label(this, W / 2, u * y, '🧠 ' + this.learnNotes.join('  /  '),
-      P ? 13 : 13, C.crit, 0.5).setAlign('center').setWordWrapWidth(W - 60);
+    noteObjs.push(GAME.UI.text(this, W / 2, ry + 4, '🧠 ' + this.learnNotes.join('  /  '), {
+      size: 'micro', color: GAME.UI.TXT.crit, origin: 0.5, originY: 0,
+      align: 'center', wrap: bw
+    }));
+    ry += u * 4;
   }
+
+  GAME.UI.revealIn(this, [plate].concat(blocks).concat([noteObjs]), { stagger: 140 });
+  if (scoreRow) {
+    GAME.UI.countUp(this, scoreRow.value, this.score, { suffix: '점', duration: 800, delay: 320 });
+  }
+
+  // 버튼은 위 블록 길이에 따라 밀린다 — 고정 y 로 두면 긴 결과에서 겹친다
+  var btnTop = Math.max(u * 60, ry + u * 2);
 
   var b1 = this.tower ? (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : '1층부터 다시')
          : (this.defendMode ? '배치 고쳐 다시' : '같은 진형에 다시 도전');
-  GAME.UI.button(this, W / 2, u * 64, bw, u * 7, b1, function () {
+  GAME.UI.button(this, W / 2, btnTop, bw, u * 7, b1, function () {
     if (self.tower) self.scene.start('Tower');
     else if (self.defendMode) self.scene.start('Build');
     else self.scene.start('Draft', { formationId: self.formationId });
-  }, { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: P ? 17 : 18 });
+  }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 17 : 18 });
 
-  GAME.UI.button(this, W / 2, u * 73, bw, u * 6,
+  GAME.UI.button(this, W / 2, btnTop + u * 9, bw, u * 6,
     this.tower ? '일반 대전으로' : (this.defendMode ? '컨트롤러로 도전' : '다른 진형 고르기'), function () {
       self.scene.start('Select');
     }, { fontSize: P ? 15 : 16 });
 
   var rc = GAME.Layout.cols(2, { gap: 10, width: bw, left: (W - bw) / 2, pad: 0 });
-  GAME.UI.button(this, rc[0].cx, u * 82, rc[0].w, u * 6, '🏆 랭킹', function () {
+  GAME.UI.button(this, rc[0].cx, btnTop + u * 18, rc[0].w, u * 6, '🏆 랭킹', function () {
     self.scene.start('Rank', { scope: 'live' });
   }, { fontSize: P ? 15 : 15 });
-  GAME.UI.button(this, rc[1].cx, u * 82, rc[1].w, u * 6, '메뉴', function () {
+  GAME.UI.button(this, rc[1].cx, btnTop + u * 18, rc[1].w, u * 6, '메뉴', function () {
     self.scene.start('Menu');
   }, { fontSize: P ? 15 : 15 });
 };

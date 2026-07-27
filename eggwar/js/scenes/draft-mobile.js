@@ -29,8 +29,8 @@ GAME.DraftScene.prototype._buildPanelCompact = function () {
 
   // 요약 행 — 위에 분류, 아래에 현재 선택값
   function summaryRow(key, x, w, caption, onTap) {
-    var rect = self.add.rectangle(x + w / 2, y + TAP / 2, w, TAP, 0x242433)
-      .setStrokeStyle(1, 0x4a4a68);
+    var rect = self.add.rectangle(x + w / 2, y + TAP / 2, w, TAP, GAME.UI.COL.surfaceAlt)
+      .setStrokeStyle(1, GAME.UI.COL.borderUi);
     rect.setInteractive({ useHandCursor: true });
     rect.on('pointerdown', onTap);
     var cap = UI.label(self, x + 12, y + 7, caption, 'micro', C.textDim, 0)
@@ -143,7 +143,7 @@ GAME.DraftScene.prototype._buildPanelCompact = function () {
   var startW = pw - this._backW - GAP;
   UI.button(this, px + this._backW + GAP + startW / 2, this._rAct.cy, startW, actH,
     '전투 시작', function () { self._start(); },
-    { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: 'button' });
+    { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: 'button' });
 
   // 가로 전용 참조들 — 공용 redraw 루프가 안전하게 비도록 빈 배열로 둔다
   this.heroCards = [];
@@ -179,7 +179,7 @@ GAME.DraftScene.prototype._redrawCompact = function () {
 
   var left = this.budget - this.spent();
   this.budgetText.setText('예산 ' + this.spent() + ' / ' + this.budget + '   남음 ' + left);
-  this.budgetText.setColor(left < 0 ? C.hpBad : C.text);
+  this.budgetText.setColor(left < 0 ? (C.danger || C.hpBad) : C.text);
 
   var R = this.rowRefs;
   R.hero.val.setText(hero.name + '  ' + hero.cost);
@@ -205,7 +205,7 @@ GAME.DraftScene.prototype._redrawCompact = function () {
     var ref = R['item_' + slot.key];
     ref.val.setText(it ? it.name : '없음');
     ref.val.setColor(it ? C.text : C.textDim);
-    ref.rect.setStrokeStyle(it ? 2 : 1, it ? 0x35d0a5 : 0x4a4a68);
+    ref.rect.setStrokeStyle(it ? 2 : 1, it ? GAME.CONFIG.COLORS.controller : GAME.UI.COL.borderUi);
   });
 
   GAME.SKILL_SLOTS.forEach(function (slot) {

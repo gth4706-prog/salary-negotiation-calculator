@@ -113,18 +113,69 @@ GAME.UI = {
     g.fillTriangle(sx - w * 0.42, tipY - h, sx + w * 0.42, tipY - h, sx, tipY - h * 0.32);
   },
 
-  // 체력 바 — 전투 화면과 배치 화면이 같은 모양을 쓰도록 한 곳에 둔다
+  // ── 전장 위 체력 바 ─────────────────────────────────────────
+  //  전투 화면과 배치 화면이 같은 모양을 쓰도록 한 곳에 둔다.
+  //  battle.js / defend.js 의 인라인 렌더도 GAME.UI.fieldHpBar 를 거쳐 같은 그림을 그린다.
+  //
+  //  ※ 라이트 테마(목장)에서 이 바가 **초록 들판에 통째로 묻히는** 문제가 있었다.
+  //    hpGood(#9CDE33) 상대휘도 0.596 vs 목초지 0.605 → 대비 1.02:1. 같은 밝기다.
+  //    어떤 초록을 골라도 초록 위에서는 이길 수 없어서 구조를 바꿨다:
+  //      크림 트랙 + 잉크 테두리 + 진한 채움 (아래 casing 분기)
+  //    어두운 테마는 casing 토큰이 없으므로 **예전과 픽셀 단위로 동일**하게 그려진다.
   hpBar: function (g, sx, by, radius, ratio, opts) {
     opts = opts || {};
-    var C = GAME.CONFIG.COLORS;
     var bw = opts.width || Math.max(26, radius * 2.3);
     var bh = opts.height || 5;
     var y = by - radius - (opts.lift === undefined ? 10 : opts.lift);
+    GAME.UI.fieldHpBar(g, sx - bw / 2, y, bw, bh, ratio, opts);
+    return y;
+  },
+
+  // 좌상단 기준 체력 바. shield(0~1)를 주면 바로 위에 보호막 줄이 붙는다.
+  fieldHpBar: function (g, x, y, bw, bh, ratio, opts) {
+    opts = opts || {};
+    var C = GAME.CONFIG.COLORS;
+    var COL = (GAME.UI && GAME.UI.COL) || {};
     ratio = Math.max(0, Math.min(1, ratio));
-    g.fillStyle(0x000000, 0.6);
-    g.fillRect(sx - bw / 2, y, bw, bh);
-    g.fillStyle(ratio > 0.35 ? C.hpGood : C.hpBad, 1);
-    g.fillRect(sx - bw / 2, y, bw * ratio, bh);
+
+    var casing = COL.hpCasing;
+    if (casing === undefined) {
+      // ── 어두운 테마 (기존 그대로) ──
+      g.fillStyle(0x000000, 0.6);
+      g.fillRect(x, y, bw, bh);
+      g.fillStyle(ratio > 0.35 ? C.hpGood : C.hpBad, 1);
+      g.fillRect(x, y, bw * ratio, bh);
+      if (opts.shield > 0) {
+        g.fillStyle(0x7ec8f0, 1);
+        g.fillRect(x, y - bh - 1, bw * Math.min(1, opts.shield), Math.max(3, bh - 1));
+      }
+      return y;
+    }
+
+    // ── 라이트 테마 — 크림 캡슐 + 잉크 테두리 ──
+    var track = COL.hpTrack === undefined ? 0xF7EEDA : COL.hpTrack;
+    var good = COL.hpFieldGood === undefined ? C.hpGood : COL.hpFieldGood;
+    var bad = COL.hpFieldBad === undefined ? C.hpBad : COL.hpFieldBad;
+    var r = Math.min(bh, bw) / 2;
+    var t = Math.max(1, Math.round(bh * 0.30));      // 테두리 두께
+
+    g.fillStyle(casing, 0.95);
+    g.fillRoundedRect(x - t, y - t, bw + t * 2, bh + t * 2, r + t);
+    g.fillStyle(track, 1);
+    g.fillRoundedRect(x, y, bw, bh, r);
+    if (ratio > 0) {
+      var fw = Math.max(bh, bw * ratio);
+      g.fillStyle(ratio > 0.35 ? good : bad, 1);
+      g.fillRoundedRect(x, y, Math.min(fw, bw), bh, Math.min(r, fw / 2));
+    }
+    if (opts.shield > 0) {
+      var sh = Math.max(3, bh - 1), sy = y - t - sh - 1;
+      var sw = bw * Math.min(1, opts.shield);
+      g.fillStyle(casing, 0.95);
+      g.fillRoundedRect(x - t, sy - t, sw + t * 2, sh + t * 2, sh / 2 + t);
+      g.fillStyle(COL.hpFieldShield === undefined ? 0x1B6FA8 : COL.hpFieldShield, 1);
+      g.fillRoundedRect(x, sy, sw, sh, sh / 2);
+    }
     return y;
   },
 
@@ -142,6 +193,16 @@ GAME.UI = {
     var total = s.win + s.loss + s.draw;
     if (rate === null) return '전적 없음 — 첫 도전자';
     return '방어 승률 ' + rate + '%  (' + total + '전 ' + s.win + '승 ' + s.loss + '패 ' + s.draw + '무)';
+  },
+
+  // 좁은 목록 행(세로 420) 전용 짧은 형태.
+  // 긴 형태는 229px 라 420 폭 행의 절반을 넘게 먹어서 옆 칸(유닛·예산)이 통째로 잘렸다.
+  winRateShort: function (id) {
+    var rate = GAME.Formations.winRate(id);
+    var s = GAME.Formations.getStats(id);
+    var total = s.win + s.loss + s.draw;
+    if (rate === null) return '첫 도전자';
+    return '방어 ' + rate + '% · ' + total + '전';
   },
 
   // 가로 스탯 막대 (영웅/유닛 공용)

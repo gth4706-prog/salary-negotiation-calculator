@@ -9,11 +9,16 @@ GAME.BuildScene = function () {
 GAME.BuildScene.prototype = Object.create(Phaser.Scene.prototype);
 GAME.BuildScene.prototype.constructor = GAME.BuildScene;
 
+// 길게 눌러 제거로 판정하는 시간. 터치에는 우클릭이 없어서 이게 **유일한** 삭제 수단이다.
+GAME.BuildScene.HOLD_MS = 450;
+
 GAME.BuildScene.prototype.init = function () {
   this.placed = [];
   this.selected = null;      // 빨간 화살표로 표시할 유닛
   this.picked = 'bayonet';
   this.tier = GAME.CONFIG.DEFAULT_TIER;
+  // 씬을 다시 들어오면 이전 타이머는 이미 죽어 있다 — 참조를 반드시 비운다
+  this._holdTimer = null;
 };
 
 GAME.BuildScene.prototype.create = function () {
@@ -61,7 +66,7 @@ GAME.BuildScene.prototype.create = function () {
       var def = GAME.UNITS[key];
       var r = Math.floor(idx / perRow), c = cols[idx % perRow];
       var rowY = (r === 0 ? rows.pal0 : rows.pal1);
-      var rect = self.add.rectangle(c.cx, rowY.cy, c.w, chipH, 0x22222f).setStrokeStyle(1, 0x3a3a52);
+      var rect = self.add.rectangle(c.cx, rowY.cy, c.w, chipH, GAME.UI.COL.surfaceAlt).setStrokeStyle(1, GAME.UI.COL.border);
       rect.setInteractive({ useHandCursor: true });
       rect.on('pointerdown', function () { self.picked = key; self.redraw(); });
       GAME.UI.label(self, c.cx + (P ? 8 : 10), rowY.y + 8, def.name, P ? 15 : 14, C.text, 0.5).setOrigin(0.5, 0);
@@ -100,10 +105,10 @@ GAME.BuildScene.prototype.create = function () {
   var acols = L.cols(4, { gap: 8 });
   GAME.UI.button(this, acols[0].cx, rows.act.cy, acols[0].w, rows.act.h, '방어전 시작', function () {
     self._defend();
-  }, { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: P ? 17 : 17 });
+  }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 17 : 17 });
   GAME.UI.button(this, acols[1].cx, rows.act.cy, acols[1].w, rows.act.h, '배치도 저장', function () {
     self._save();
-  }, { fill: 0x2a2440, line: 0x9b8cf0, hover: 0x372f52, color: C.accentAlt, fontSize: P ? 17 : 17 });
+  }, { fill: GAME.UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist, hover: GAME.UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: P ? 17 : 17 });
   GAME.UI.button(this, acols[2].cx, rows.act.cy, acols[2].w, rows.act.h, '전부 지우기', function () {
     self.placed = []; self.warnText.setText(''); self.redraw();
   }, { fontSize: P ? 15 : 14 });
@@ -118,13 +123,34 @@ GAME.BuildScene.prototype.create = function () {
     // 이미 놓은 유닛을 누르면 '선택'이다 — 빨간 화살표와 체력바를 보여준다.
     // 빈 자리를 누르면 새로 배치한다.
     var hit = self._unitAt(wpt.x, wpt.y);
-    if (hit) { self.selected = (self.selected === hit) ? null : hit; self.redraw(); return; }
+    if (hit) {
+      self.selected = (self.selected === hit) ? null : hit;
+      self.redraw();
+      // 길게 누르면 제거. 안내 문구가 '우클릭·길게 제거'라고 약속하고 있는데
+      // 이 처리가 없어서 **폰에서는 잘못 놓은 유닛을 지울 방법이 아예 없었다**
+      // ('전부 지우기' 말고는). 우클릭은 터치에 존재하지 않는다.
+      self._cancelHold();
+      self._holdTimer = self.time.delayedCall(GAME.BuildScene.HOLD_MS, function () {
+        self._holdTimer = null;
+        self._removeAt(wpt.x, wpt.y);
+      });
+      return;
+    }
     self.selected = null;
     self._placeAt(wpt.x, wpt.y);
   });
 
+  var cancelHold = function () { self._cancelHold(); };
+  this.input.on('pointerup', cancelHold);
+  this.input.on('pointerupoutside', cancelHold);
+  this.events.on('shutdown', cancelHold);
+
   this.input.mouse.disableContextMenu();
   this.redraw();
+};
+
+GAME.BuildScene.prototype._cancelHold = function () {
+  if (this._holdTimer) { this._holdTimer.remove(false); this._holdTimer = null; }
 };
 
 GAME.BuildScene.prototype.spent = function () {
@@ -289,16 +315,16 @@ GAME.BuildScene.prototype.redraw = function () {
   for (var c = 0; c < this.chips.length; c++) {
     var chip = this.chips[c];
     var on = chip.key === this.picked;
-    chip.rect.setStrokeStyle(on ? 2 : 1, on ? this.myColor : 0x3a3a52);
-    chip.rect.setFillStyle(on ? 0x2c2c3e : 0x22222f);
+    chip.rect.setStrokeStyle(on ? 2 : 1, on ? this.myColor : GAME.UI.COL.border);
+    chip.rect.setFillStyle(on ? GAME.UI.COL.surfaceHi : GAME.UI.COL.surfaceAlt);
     GAME.UI.drawUnitFlat(g, GAME.UNITS[chip.key], chip.x + 14, chip.cy, this.myColor, 1, 0.8);
   }
 
   for (var b = 0; b < this.tierButtons.length; b++) {
     var tb = this.tierButtons[b];
     var active = tb.tier === this.tier;
-    tb.ui.rect.setStrokeStyle(active ? 2 : 1, active ? this.myColor : 0x4a4a68);
-    tb.ui.rect.setFillStyle(active ? 0x2c2c3e : 0x262637);
+    tb.ui.rect.setStrokeStyle(active ? 2 : 1, active ? this.myColor : GAME.UI.COL.borderUi);
+    tb.ui.rect.setFillStyle(active ? GAME.UI.COL.surfaceHi : GAME.UI.COL.surfaceAlt);
   }
 
   var sel = GAME.UNITS[this.picked];

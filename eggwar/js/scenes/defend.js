@@ -72,13 +72,13 @@ GAME.DefendScene.prototype.create = function () {
   var hud = L.hud();
   var rows = L.rows([
     { name: 'a', h: P ? 22 : 26, gap: 6 },
-    { name: 'b', h: P ? 20 : 24, gap: 10 },
+    { name: 'b', h: P ? 22 : 24, gap: 10 },
     { name: 'c', h: P ? 42 : 46, gap: 0 }
   ]);
 
-  this.hudTop = GAME.UI.label(this, hud.pad, rows.a.y, '', P ? 15 : 18, C.accentAlt, 0);
+  this.hudTop = GAME.UI.label(this, hud.pad, rows.a.y, '', P ? 17 : 18, C.accentAlt, 0);
   this.hudTimer = GAME.UI.label(this, W - hud.pad, rows.a.y, '', P ? 17 : 22, C.text, 1).setOrigin(1, 0);
-  this.hudSub = GAME.UI.label(this, hud.pad, rows.b.y, '', P ? 12 : 14, C.textDim, 0);
+  this.hudSub = GAME.UI.label(this, hud.pad, rows.b.y, '', P ? 15 : 14, C.textDim, 0);
 
   var bc = L.cols(3, { gap: 10 });
 
@@ -97,14 +97,14 @@ GAME.DefendScene.prototype.create = function () {
 
   this.speedBtn = GAME.UI.button(this, bc[0].cx, rows.c.cy, bc[0].w, rows.c.h,
     speedLabel(), cycleSpeed,
-    { fontSize: P ? 13 : 15, line: 0x35d0a5, color: C.accent });
+    { fontSize: P ? 15 : 15, line: 0x35d0a5, color: C.accent });
   this.input.keyboard.on('keydown-SPACE', cycleSpeed);
   GAME.UI.button(this, bc[1].cx, rows.c.cy, bc[1].w, rows.c.h, '배치 다시', function () {
     self.scene.start('Build');
-  }, { fontSize: P ? 13 : 15 });
+  }, { fontSize: P ? 15 : 15 });
   GAME.UI.button(this, bc[2].cx, rows.c.cy, bc[2].w, rows.c.h, '메뉴', function () {
     self.scene.start('Menu');
-  }, { fontSize: P ? 13 : 15 });
+  }, { fontSize: P ? 15 : 15 });
 
   // 피해 숫자 풀 (전투 화면과 동일하게 보여준다)
   this.numPool = [];

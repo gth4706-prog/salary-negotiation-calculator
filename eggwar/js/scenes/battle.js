@@ -74,7 +74,7 @@ GAME.BattleScene.prototype.create = function () {
        { name: 'skills', h: 96, gap: 14 }, { name: 'hint', h: 20, gap: 0 }]);
   var W = GAME.CONFIG.WIDTH;
 
-  this.hudHero = GAME.UI.label(this, hud.pad, rows.status.y, '', P ? 15 : 17, C.accent, 0);
+  this.hudHero = GAME.UI.label(this, hud.pad, rows.status.y, '', P ? 17 : 17, C.accent, 0);
   if (P) {
     this.hudTimer = GAME.UI.label(this, hud.pad, rows.status2.y, '', 20, C.text, 0);
     this.hudEnemy = GAME.UI.label(this, W - hud.pad, rows.status2.y, '', 15, C.accentAlt, 0).setOrigin(1, 0);
@@ -83,11 +83,14 @@ GAME.BattleScene.prototype.create = function () {
     this.hudEnemy = GAME.UI.label(this, W - hud.pad, rows.status.y, '', 17, C.accentAlt, 0).setOrigin(1, 0);
   }
 
-  // 스킬 바 5칸(QWER + 물약) — 터치에서는 눌러서 조준하는 버튼이 된다
+  // 스킬 바 5칸(QWER + 물약).
+  // **세로 터치에서는 만들지 않는다** — 오른쪽 원형 패드가 같은 역할을 하고,
+  // 둘 다 두면 좁은 세로 화면에서 전장이 그만큼 줄어든다(중복 조작면).
+  var padMode = GAME.isTouch && P;
   var cols = L.cols(5, { gap: P ? 6 : 10, max: 104 });
   var boxH = rows.skills.h;
   this.skillBoxes = [];
-  var slots = ['Q', 'W', 'E', 'R'];
+  var slots = padMode ? [] : ['Q', 'W', 'E', 'R'];
   for (var s = 0; s < slots.length; s++) {
     (function (slot, idx) {
       var c = cols[idx], cy = rows.skills.cy;
@@ -97,21 +100,23 @@ GAME.BattleScene.prototype.create = function () {
       self.skillBoxes.push({
         slot: slot, rect: rect,
         key: GAME.UI.label(self, c.x + 6, rows.skills.y + 4, GAME.isTouch ? '' : slot, 14, C.accent, 0),
-        name: GAME.UI.label(self, c.cx, rows.skills.bottom - 14, '', P ? 11 : 12, C.text, 0.5).setOrigin(0.5),
+        name: GAME.UI.label(self, c.cx, rows.skills.bottom - 14, '', P ? 13 : 12, C.text, 0.5).setOrigin(0.5),
         cd: GAME.UI.label(self, c.cx, cy, '', P ? 17 : 20, C.text, 0.5).setOrigin(0.5)
       });
     })(slots[s], s);
   }
 
-  var pc = cols[4];
-  var prect = this.add.rectangle(pc.cx, rows.skills.cy, pc.w, boxH, 0x1c1c28).setStrokeStyle(1, 0x3a3a52);
-  prect.setInteractive({ useHandCursor: true });
-  prect.on('pointerdown', function () { GAME.Combat.usePotion(self.hero); });
-  GAME.UI.label(this, pc.x + 6, rows.skills.y + 4, GAME.isTouch ? '' : 'F', 14, C.accent, 0);
-  this.potionText = GAME.UI.label(this, pc.cx, rows.skills.cy, '', P ? 14 : 15, C.text, 0.5).setOrigin(0.5);
-  GAME.UI.label(this, pc.cx, rows.skills.bottom - 14, '물약', P ? 11 : 12, C.text, 0.5).setOrigin(0.5);
+  if (!padMode) {
+    var pc = cols[4];
+    var prect = this.add.rectangle(pc.cx, rows.skills.cy, pc.w, boxH, 0x1c1c28).setStrokeStyle(1, 0x3a3a52);
+    prect.setInteractive({ useHandCursor: true });
+    prect.on('pointerdown', function () { GAME.Combat.usePotion(self.hero); });
+    GAME.UI.label(this, pc.x + 6, rows.skills.y + 4, GAME.isTouch ? '' : 'F', 14, C.accent, 0);
+    this.potionText = GAME.UI.label(this, pc.cx, rows.skills.cy, '', P ? 17 : 15, C.text, 0.5).setOrigin(0.5);
+    GAME.UI.label(this, pc.cx, rows.skills.bottom - 14, '물약', P ? 13 : 12, C.text, 0.5).setOrigin(0.5);
+  }
 
-  this.hintText = GAME.UI.label(this, W / 2, rows.hint.y, this._hintDefault(), P ? 11 : 13, '#6f6f88', 0.5)
+  this.hintText = GAME.UI.label(this, W / 2, rows.hint.y, this._hintDefault(), P ? 13 : 13, '#6f6f88', 0.5)
     .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - hud.pad * 2);
 
   // 떠오르는 피해 숫자 — Text 를 미리 만들어 돌려 쓴다(매 프레임 생성은 비싸다)
@@ -297,8 +302,9 @@ GAME.BattleScene.prototype.updateHud = function () {
     this.hintText.setColor('#6f6f88');
   }
 
-  this.potionText.setText(h.potionCharges > 0 ? h.potionCharges + '회' : '없음');
-  this.potionText.setColor(h.potionCharges > 0 ? C.text : C.textDim);
+  // 세로 터치에서는 하단 스킬바를 안 만든다 → 물약 표시도 없다(원형 패드가 대신한다)
+  if (this.potionText) this.potionText.setText(h.potionCharges > 0 ? h.potionCharges + '회' : '없음');
+  if (this.potionText) this.potionText.setColor(h.potionCharges > 0 ? C.text : C.textDim);
 };
 
 GAME.BattleScene.prototype.draw = function () {

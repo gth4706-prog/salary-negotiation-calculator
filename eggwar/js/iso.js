@@ -11,7 +11,7 @@ GAME.Iso = {
   TILT: GAME.CONFIG.PORTRAIT ? 0.72 : 0.60,
 
   // 아레나 상단이 화면에서 시작하는 y 좌표
-  SCREEN_TOP: GAME.CONFIG.PORTRAIT ? 52 : 66,
+  SCREEN_TOP: GAME.CONFIG.PORTRAIT ? 40 : 66,
 
   // 유닛이 지면에서 떠 보이는 정도(빌보드 높이 배율)
   LIFT: 1.15,

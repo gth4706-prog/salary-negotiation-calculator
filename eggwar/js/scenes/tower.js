@@ -29,89 +29,107 @@ GAME.TowerScene.prototype.create = function () {
   if (!GAME.HEROES[this.heroKey]) this.heroKey = GAME.HERO_ORDER[0];
   this.formation = GAME.Tower.formationFor(floor, this.heroKey);
 
-  GAME.UI.label(this, W / 2, u * 8, '통곡의 탑', P ? 30 : 46, C.text, 0.5);
+  // 세로 화면에서는 문구가 줄바꿈돼 고정 좌표(u*N)로는 계속 겹친다.
+  // 그래서 위쪽 블록은 **실제로 그려진 높이만큼 내려가는 흐름 배치**로 쌓는다.
+  var y = u * 5;
+  function stack(label, gap) {
+    y = label.y + label.height + (gap === undefined ? u * 1.6 : gap);
+    return label;
+  }
+
+  stack(GAME.UI.label(this, W / 2, y, '통곡의 탑', P ? 28 : 46, C.text, 0.5).setOrigin(0.5, 0), u * 1.2);
+
   var heroBudget = GAME.Tower.heroBudgetFor(floor);
   var bossDef = GAME.Tower.bossFor(floor);
-  GAME.UI.label(this, W / 2, u * 15,
+  stack(GAME.UI.label(this, W / 2, y,
     floor + '층  ·  적 진형 ' + budget + '  vs  내 예산 ' + heroBudget +
-    '  ·  최고 기록 ' + (rec.best || 0) + '층',
-    P ? 14 : 19, bossDef ? C.crit : C.accent, 0.5).setWordWrapWidth(W - 40);
+    '  ·  최고 ' + (rec.best || 0) + '층',
+    P ? 15 : 19, bossDef ? C.crit : C.accent, 0.5)
+    .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 30));
 
   if (bossDef) {
-    GAME.UI.label(this, W / 2, u * 19.5,
-      '☠  보스 층 — ' + bossDef.name,
-      P ? 15 : 20, C.hpBad ? '#ef4444' : C.warn, 0.5);
+    stack(GAME.UI.label(this, W / 2, y, '☠  보스 층 — ' + bossDef.name,
+      P ? 17 : 20, '#ef4444', 0.5).setOrigin(0.5, 0));
   }
 
   var E = GAME.Tower.EARLY_FLOORS;
-  GAME.UI.label(this, W / 2, u * 23,
-    '꼭대기가 없는 무한의 탑입니다. 1~' + E + '층은 연습 구간, ' + (E + 1) +
-    '층부터는 조작하지 않으면 이길 수 없습니다.\n' +
-    GAME.Tower.BOSS_EVERY + '층마다 보스가 나옵니다. 지면 1층부터 다시 시작합니다.',
-    P ? 11 : 14,
-    floor > E ? C.warn : C.textDim, 0.5).setAlign('center').setLineSpacing(6).setWordWrapWidth(W - 60);
+  stack(GAME.UI.label(this, W / 2, y,
+    '꼭대기가 없는 무한의 탑. 1~' + E + '층은 연습 구간, ' + (E + 1) +
+    '층부터는 조작 없이는 이길 수 없습니다.\n' +
+    GAME.Tower.BOSS_EVERY + '층마다 보스. 지면 1층부터 다시.',
+    P ? 13 : 14, floor > E ? C.warn : C.textDim, 0.5)
+    .setOrigin(0.5, 0).setAlign('center').setLineSpacing(4).setWordWrapWidth(W - 40));
 
   // ── 영웅 선택 (배치보다 먼저다) ──
-  var pw = Math.min(W - 60, 640);
-  GAME.UI.label(this, W / 2, u * 27.5,
-    '내 영웅을 먼저 고르세요 — AI 전략가가 이걸 보고 배치를 짭니다',
-    P ? 11 : 13, C.text, 0.5).setWordWrapWidth(W - 40);
+  var pw = Math.min(W - 30, 640);
+  stack(GAME.UI.label(this, W / 2, y,
+    '내 영웅을 먼저 고르세요 — AI가 이걸 보고 배치합니다',
+    P ? 13 : 13, C.text, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 30), u * 1.0);
 
   var hc = GAME.Layout.cols(GAME.HERO_ORDER.length, {
     gap: 8, width: pw, left: (W - pw) / 2, pad: 0
   });
+  var heroH = u * 7;
   this.heroBtns = [];
   GAME.HERO_ORDER.forEach(function (hk, i) {
     var h = GAME.HEROES[hk];
-    var b = GAME.UI.button(self, hc[i].cx, u * 33, hc[i].w, u * 6.5,
+    var b = GAME.UI.button(self, hc[i].cx, y + heroH / 2, hc[i].w, heroH,
       h.name + '\n' + h.trait, function () {
         self.heroKey = hk;
         GAME.Store.set('asymgame.lastHero', hk);
         // 영웅이 바뀌면 상대 배치도 다시 짜인다
         self.formation = GAME.Tower.formationFor(floor, hk);
         self._refresh();
-      }, { fontSize: P ? 11 : 13 });
+      }, { fontSize: P ? 13 : 13 });
     b.text.setAlign('center');
     self.heroBtns.push({ key: hk, btn: b });
   });
+  y += heroH + u * 1.8;
 
-  // AI가 읽은 내 성향 + 이 영웅에 대한 대응
-  this.add.rectangle(W / 2, u * 47, pw, u * 16, 0x22222f).setStrokeStyle(1, 0x3a3a52);
-  GAME.UI.label(this, W / 2 - pw / 2 + 16, u * 41,
+  // AI가 읽은 내 성향 + 이 영웅에 대한 대응 (내용 길이에 맞춰 패널을 그린다)
+  var panelTop = y;
+  var lx = W / 2 - pw / 2 + 14;
+  var l1 = GAME.UI.label(this, lx, y + 10,
     prof.battles ? ('AI가 읽은 당신 — ' + prof.styleLabel + ' · ' + prof.dodgeLabel +
-                    ' (평균 교전거리 ' + prof.avgDist + ', ' + prof.battles + '전 분석)')
-                 : 'AI가 읽은 당신 — 아직 분석할 전투 기록이 없습니다',
-    P ? 11 : 13, C.crit, 0).setWordWrapWidth(pw - 32);
-  this.rationaleText = GAME.UI.label(this, W / 2 - pw / 2 + 16, u * 45,
-    '', P ? 10 : 12, C.textDim, 0).setWordWrapWidth(pw - 32);
-  this.compText = GAME.UI.label(this, W / 2 - pw / 2 + 16, u * 51,
-    '', P ? 10 : 12, C.accentAlt, 0).setWordWrapWidth(pw - 32);
+                    ' (교전거리 ' + prof.avgDist + ', ' + prof.battles + '전)')
+                 : 'AI가 읽은 당신 — 아직 분석할 기록이 없습니다',
+    P ? 13 : 13, C.crit, 0).setWordWrapWidth(pw - 28);
+  this.rationaleText = GAME.UI.label(this, lx, l1.y + l1.height + 6,
+    '', P ? 13 : 12, C.textDim, 0).setWordWrapWidth(pw - 28);
+  this.compText = GAME.UI.label(this, lx, 0, '', P ? 13 : 12, C.accentAlt, 0)
+    .setWordWrapWidth(pw - 28);
+  this.panelGeo = { top: panelTop, x: W / 2, w: pw, lx: lx };
+  this.panelRect = this.add.rectangle(W / 2, panelTop, pw, 10, 0x22222f)
+    .setStrokeStyle(1, 0x3a3a52).setOrigin(0.5, 0);
+  this.panelRect.setDepth(-1);
 
   this._refresh();
 
-  var bw = Math.min(W - 60, 420);
-  GAME.UI.button(this, W / 2, u * 61, bw, u * 7.5, floor + '층 도전', function () {
+  var bw = Math.min(W - 30, 420);
+  var bh = u * 7;
+  var gap = u * 1.4;
+  var restH = floor > 1 ? (u * 5 + gap) : 0;
+  var byBottom = H - u * 2 - restH;
+
+  if (floor > 1) {
+    GAME.UI.button(this, W / 2, H - u * 2 - u * 2.5, Math.min(W - 60, 240), u * 5, '1층부터 다시', function () {
+      GAME.Tower.fail();
+      self.scene.restart();
+    }, { fontSize: P ? 13 : 13 });
+  }
+  GAME.UI.button(this, W / 2, byBottom - bh * 0.5, bw, bh, '← 메뉴', function () {
+    self.scene.start('Menu');
+  }, { fontSize: P ? 15 : 15 });
+  GAME.UI.button(this, W / 2, byBottom - bh * 1.5 - gap, bw, bh, '🏆 랭킹', function () {
+    self.scene.start('Rank', { scope: 'live' });
+  }, { fontSize: P ? 17 : 16 });
+  GAME.UI.button(this, W / 2, byBottom - bh * 2.5 - gap * 2, bw, bh + u * 0.8, floor + '층 도전', function () {
     // 이 배치도를 임시 등록해 기존 흐름(Draft → Battle)을 그대로 쓴다
     GAME.Tower.pending = self.formation;
     self.scene.start('Draft', {
       formationId: self.formation.id, tower: floor, heroKey: self.heroKey
     });
-  }, { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: P ? 18 : 22 });
-
-  GAME.UI.button(this, W / 2, u * 68, bw, u * 6, '🏆 랭킹', function () {
-    self.scene.start('Rank', { scope: 'live' });
-  }, { fontSize: P ? 14 : 16 });
-
-  GAME.UI.button(this, W / 2, u * 78, bw, u * 6, '← 메뉴', function () {
-    self.scene.start('Menu');
-  }, { fontSize: P ? 13 : 15 });
-
-  if (floor > 1) {
-    GAME.UI.button(this, W / 2, u * 88, Math.min(W - 60, 240), u * 5, '1층부터 다시', function () {
-      GAME.Tower.fail();
-      self.scene.restart();
-    }, { fontSize: P ? 12 : 13 });
-  }
+  }, { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: P ? 20 : 22 });
 
   GAME.UI.label(this, W - 12, H - 10, GAME.VERSION || '', 12, '#6f6f88', 1).setOrigin(1, 1);
 };
@@ -135,5 +153,13 @@ GAME.TowerScene.prototype._refresh = function () {
   var comp = Object.keys(counts).map(function (k) {
     return GAME.UNITS[k].name + ' ' + counts[k];
   }).join(' · ');
+  // 대응 근거와 적 구성은 길이가 매번 다르다 → 앞 글자의 실제 높이만큼 밀고,
+  // 패널 배경도 내용에 맞춰 다시 그린다. 고정 높이로 두면 긴 문구가 삐져나온다.
+  this.compText.setY(this.rationaleText.y + this.rationaleText.height + 6);
   this.compText.setText('적 ' + this.formation.units.length + '기 — ' + comp);
+
+  if (this.panelRect && this.panelGeo) {
+    var bottom = this.compText.y + this.compText.height + 10;
+    this.panelRect.setSize(this.panelGeo.w, Math.max(20, bottom - this.panelGeo.top));
+  }
 };

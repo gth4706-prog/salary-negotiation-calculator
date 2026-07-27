@@ -139,6 +139,14 @@ GAME.buildSkills = function (heroKey, picks) {
     if (idx < 0 || idx >= list.length) idx = 0;
     var sk = {};
     for (var k in list[idx]) sk[k] = list[idx][k];
+    // 스킬의 거리·범위도 전장 크기에 맞춰 환산한다(세로에서만 1 이 아니다)
+    var K = GAME.CONFIG.WORLD_SCALE;
+    if (K && K !== 1) {
+      ['dist', 'radius', 'speed', 'coneDeg'].forEach(function (key) {
+        if (key === 'coneDeg') return;               // 각도는 거리 아님
+        if (typeof sk[key] === 'number' && sk[key] > 0) sk[key] = sk[key] * K;
+      });
+    }
     sk.slot = slot;
     out.push(sk);
   }

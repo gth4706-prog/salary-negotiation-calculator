@@ -31,9 +31,9 @@ GAME.BuildScene.prototype.create = function () {
 
   this.g = this.add.graphics();
 
-  GAME.UI.label(this, hud.pad, 18, '상대에게 보일 모습 (위)', P ? 12 : 15, C.accentAlt, 0);
+  GAME.UI.label(this, hud.pad, 18, '상대에게 보일 모습 (위)', P ? 15 : 15, C.accentAlt, 0);
   GAME.UI.label(this, hud.pad, GAME.Iso.toScreenY(this.zone.y) - 20,
-    '내 진형 배치 (아래) — 탭 배치 / 우클릭·길게 제거', P ? 12 : 15, C.accentAlt, 0);
+    '내 진형 배치 (아래) — 탭 배치 / 우클릭·길게 제거', P ? 15 : 15, C.accentAlt, 0);
 
   // 팔레트가 10종이라 2행 그리드로 배치한다
   var perRow = 5;
@@ -50,8 +50,8 @@ GAME.BuildScene.prototype.create = function () {
   ]);
   this.rowsRef = rows;
 
-  this.budgetText = GAME.UI.label(this, hud.pad, rows.info.y, '', P ? 14 : 17, C.text, 0);
-  this.warnText = GAME.UI.label(this, hud.pad, rows.warn.y, '', P ? 12 : 14, C.warn, 0);
+  this.budgetText = GAME.UI.label(this, hud.pad, rows.info.y, '', P ? 17 : 17, C.text, 0);
+  this.warnText = GAME.UI.label(this, hud.pad, rows.warn.y, '', P ? 15 : 14, C.warn, 0);
 
   // 유닛 팔레트
   this.chips = [];
@@ -64,9 +64,9 @@ GAME.BuildScene.prototype.create = function () {
       var rect = self.add.rectangle(c.cx, rowY.cy, c.w, chipH, 0x22222f).setStrokeStyle(1, 0x3a3a52);
       rect.setInteractive({ useHandCursor: true });
       rect.on('pointerdown', function () { self.picked = key; self.redraw(); });
-      GAME.UI.label(self, c.cx + (P ? 8 : 10), rowY.y + 8, def.name, P ? 12 : 14, C.text, 0.5).setOrigin(0.5, 0);
+      GAME.UI.label(self, c.cx + (P ? 8 : 10), rowY.y + 8, def.name, P ? 15 : 14, C.text, 0.5).setOrigin(0.5, 0);
       GAME.UI.label(self, c.cx + (P ? 8 : 10), rowY.bottom - 18, String(def.cost),
-        P ? 11 : 12, C.accent, 0.5).setOrigin(0.5, 0);
+        P ? 13 : 12, C.accent, 0.5).setOrigin(0.5, 0);
       self.chips.push({ key: key, rect: rect, cx: c.cx, cy: rowY.cy, x: c.x });
     })(GAME.UNIT_ORDER[i], i);
   }
@@ -84,30 +84,32 @@ GAME.BuildScene.prototype.create = function () {
           self.budget = GAME.CONFIG.BUDGETS[tier];
           self._trimToBudget();
           self.redraw();
-        }, { fontSize: P ? 13 : 15 });
+        }, { fontSize: P ? 15 : 15 });
       self.tierButtons.push({ tier: tier, ui: b });
     })(tiers[t], t);
   }
 
   // 유닛 설명(티어 버튼 오른쪽 남은 공간)
-  var descX = Math.min(W, 420) + hud.pad + 10;
-  this.unitDesc = GAME.UI.label(this, descX, rows.tier.y - 2, '', P ? 11 : 13, C.textDim, 0)
-    .setWordWrapWidth(Math.max(80, W - descX - hud.pad));
+  // 세로에서는 티어 버튼 오른쪽에 남는 폭이 없다 → 설명을 경고문 줄에 겹쳐 쓴다
+  var descX = P ? hud.pad : Math.min(W, 420) + hud.pad + 10;
+  var descY = P ? rows.warn.y : rows.tier.y - 2;
+  this.unitDesc = GAME.UI.label(this, descX, descY, '', P ? 13 : 13, C.textDim, 0)
+    .setWordWrapWidth(P ? (W - hud.pad * 2) : Math.max(80, W - descX - hud.pad));
 
   // 액션
   var acols = L.cols(4, { gap: 8 });
   GAME.UI.button(this, acols[0].cx, rows.act.cy, acols[0].w, rows.act.h, '방어전 시작', function () {
     self._defend();
-  }, { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: P ? 14 : 17 });
+  }, { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: P ? 17 : 17 });
   GAME.UI.button(this, acols[1].cx, rows.act.cy, acols[1].w, rows.act.h, '배치도 저장', function () {
     self._save();
-  }, { fill: 0x2a2440, line: 0x9b8cf0, hover: 0x372f52, color: C.accentAlt, fontSize: P ? 14 : 17 });
+  }, { fill: 0x2a2440, line: 0x9b8cf0, hover: 0x372f52, color: C.accentAlt, fontSize: P ? 17 : 17 });
   GAME.UI.button(this, acols[2].cx, rows.act.cy, acols[2].w, rows.act.h, '전부 지우기', function () {
     self.placed = []; self.warnText.setText(''); self.redraw();
-  }, { fontSize: P ? 12 : 14 });
+  }, { fontSize: P ? 15 : 14 });
   GAME.UI.button(this, acols[3].cx, rows.act.cy, acols[3].w, rows.act.h, '메뉴', function () {
     self.scene.start('Menu');
-  }, { fontSize: P ? 12 : 14 });
+  }, { fontSize: P ? 15 : 14 });
 
   this.input.on('pointerdown', function (p) {
     if (p.y > GAME.Iso.screenRect().bottom) return;
@@ -302,6 +304,9 @@ GAME.BuildScene.prototype.redraw = function () {
   var sel = GAME.UNITS[this.picked];
   this.unitDesc.setText(sel.name + ' (' + sel.cost + ') — ' + sel.desc);
 
-  this.budgetText.setText('예산  ' + this.spent() + ' / ' + this.budget +
-    '  (' + this.tier + ')   ·   유닛 ' + this.placed.length + '기   ·   컨트롤러도 같은 예산');
+  // 세로는 폭이 420 이라 긴 문구가 화면을 넘는다 — 핵심만 남긴다
+  this.budgetText.setText(GAME.CONFIG.PORTRAIT
+    ? ('예산 ' + this.spent() + '/' + this.budget + ' · 유닛 ' + this.placed.length + '기')
+    : ('예산  ' + this.spent() + ' / ' + this.budget +
+       '  (' + this.tier + ')   ·   유닛 ' + this.placed.length + '기   ·   컨트롤러도 같은 예산'));
 };

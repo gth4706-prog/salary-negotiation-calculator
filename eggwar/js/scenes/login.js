@@ -17,32 +17,32 @@ GAME.LoginScene.prototype.create = function () {
 
   this.cameras.main.setBackgroundColor(C.bg);
 
-  GAME.UI.label(this, W / 2, u * 18, '🥚 EGG WAR', P ? 32 : 50, C.text, 0.5);
-  GAME.UI.label(this, W / 2, u * 26, '계란 부족 비대칭 실시간 대전', P ? 13 : 18, C.textDim, 0.5);
-  GAME.UI.label(this, W / 2, u * 38, '닉네임을 입력하고 시작하세요', P ? 14 : 18, C.text, 0.5);
+  GAME.UI.label(this, W / 2, u * 18, '🥚 EGG WAR', P ? 28 : 50, C.text, 0.5);
+  GAME.UI.label(this, W / 2, u * 26, '계란 부족 비대칭 실시간 대전', P ? 15 : 18, C.textDim, 0.5);
+  GAME.UI.label(this, W / 2, u * 38, '닉네임을 입력하고 시작하세요', P ? 17 : 18, C.text, 0.5);
   GAME.UI.label(this, W / 2, u * 43,
-    '비밀번호는 없습니다. 닉네임이 그대로 랭킹에 표시됩니다.', P ? 11 : 13, C.textDim, 0.5);
+    '비밀번호는 없습니다. 닉네임이 그대로 랭킹에 표시됩니다.', P ? 13 : 13, C.textDim, 0.5);
 
-  this.msg = GAME.UI.label(this, W / 2, u * 62, '', P ? 12 : 14, C.warn, 0.5)
+  this.msg = GAME.UI.label(this, W / 2, u * 62, '', P ? 15 : 14, C.warn, 0.5)
     .setAlign('center').setWordWrapWidth(W - 60);
 
   // 최근에 쓴 닉네임 빠른 선택
   var recent = GAME.Account.list().filter(function (r) { return !r.blocked; }).slice(0, 3);
   if (recent.length) {
-    GAME.UI.label(this, W / 2, u * 70, '최근 사용', P ? 11 : 13, C.textDim, 0.5);
+    GAME.UI.label(this, W / 2, u * 70, '최근 사용', P ? 13 : 13, C.textDim, 0.5);
     var cols = GAME.Layout.cols(recent.length, { gap: 10, width: Math.min(W, 520), left: (W - Math.min(W, 520)) / 2 });
     for (var i = 0; i < recent.length; i++) {
       (function (rec, idx) {
         GAME.UI.button(self, cols[idx].cx, u * 76, cols[idx].w, u * 5.5, rec.id, function () {
           self._submit(rec.id);
-        }, { fontSize: P ? 13 : 15 });
+        }, { fontSize: P ? 15 : 15 });
       })(recent[i], i);
     }
   }
 
   GAME.UI.label(this, W / 2, u * 92,
     '닉네임은 관리자가 검토할 수 있으며, 부적절한 닉네임은 차단됩니다.',
-    P ? 10 : 12, '#6f6f88', 0.5).setWordWrapWidth(W - 60);
+    P ? 13 : 12, '#6f6f88', 0.5).setWordWrapWidth(W - 60);
   GAME.UI.label(this, W - 12, H - 10, GAME.VERSION || '', 12, '#6f6f88', 1).setOrigin(1, 1);
 
   this._makeInput();

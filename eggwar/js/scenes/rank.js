@@ -22,10 +22,10 @@ GAME.RankScene.prototype.create = function () {
 
   this.cameras.main.setBackgroundColor(C.bg);
 
-  GAME.UI.label(this, W / 2, P ? 22 : 34, '랭킹', P ? 24 : 34, C.text, 0.5);
+  GAME.UI.label(this, W / 2, P ? 22 : 34, '랭킹', P ? 26 : 34, C.text, 0.5);
   this.scopeLabel = GAME.UI.label(this, W / 2, P ? 52 : 74,
     GAME.Api.enabled() ? '서버 확인 중…' : GAME.Score.scopeNote(),
-    P ? 10 : 12, C.textDim, 0.5).setWordWrapWidth(W - 40);
+    P ? 13 : 12, C.textDim, 0.5).setWordWrapWidth(W - 40);
 
   var tabs = [{ k: 'live', n: '실시간 (1시간)' }, { k: 'week', n: '주간 (7일)' }, { k: 'all', n: '전체' }];
   var tw = Math.min(W - 24, 560);
@@ -34,7 +34,7 @@ GAME.RankScene.prototype.create = function () {
     (function (t, idx) {
       var b = GAME.UI.button(self, tc[idx].cx, P ? 84 : 112, tc[idx].w, P ? 36 : 42, t.n, function () {
         self.scene.start('Rank', { scope: t.k });
-      }, { fontSize: P ? 12 : 14 });
+      }, { fontSize: P ? 15 : 14 });
       if (t.k === self.scope) {
         b.rect.setStrokeStyle(2, 0x35d0a5); b.rect.setFillStyle(0x1c3a34);
         b.text.setColor(C.accent);
@@ -45,8 +45,8 @@ GAME.RankScene.prototype.create = function () {
   this.geo = {
     // 탭 버튼 아래 끝(세로 102 / 가로 133)보다 열 제목(top-18)이 더 내려가야 한다
     top: P ? 134 : 152,
-    rowH: P ? 34 : 40,
-    pad: P ? 14 : 60
+    rowH: P ? 30 : 40,
+    pad: P ? 17 : 60
   };
   this.geo.maxRows = Math.max(3, Math.floor((H - this.geo.top - (P ? 96 : 110)) / this.geo.rowH));
 
@@ -73,17 +73,17 @@ GAME.RankScene.prototype.create = function () {
           (myRec.towerBest ? ' · 탑 ' + myRec.towerBest + '층' : '') +
           (myRank ? ' · 이번 순위 ' + myRank + '위' : ''))
        : '로그인하지 않았습니다',
-    P ? 11 : 14, C.text, 0.5).setWordWrapWidth(W - 40);
+    P ? 13 : 14, C.text, 0.5).setWordWrapWidth(W - 40);
 
   var bw = Math.min(W - 24, 420);
   var bc = GAME.Layout.cols(2, { gap: 10, width: bw, left: (W - bw) / 2, pad: 0 });
-  GAME.UI.button(this, bc[0].cx, H - (P ? 30 : 36), bc[0].w, P ? 40 : 44, '← 메뉴', function () {
+  GAME.UI.button(this, bc[0].cx, H - (P ? 28 : 36), bc[0].w, P ? 40 : 44, '← 메뉴', function () {
     self.scene.start('Menu');
-  }, { fontSize: P ? 14 : 16 });
-  GAME.UI.button(this, bc[1].cx, H - (P ? 30 : 36), bc[1].w, P ? 40 : 44, '닉네임 바꾸기', function () {
+  }, { fontSize: P ? 17 : 16 });
+  GAME.UI.button(this, bc[1].cx, H - (P ? 28 : 36), bc[1].w, P ? 40 : 44, '닉네임 바꾸기', function () {
     GAME.Account.logout();
     self.scene.start('Login');
-  }, { fontSize: P ? 13 : 15 });
+  }, { fontSize: P ? 15 : 15 });
 };
 
 GAME.RankScene.prototype._renderRows = function (rows, fromServer) {
@@ -103,7 +103,7 @@ GAME.RankScene.prototype._renderRows = function (rows, fromServer) {
   if (!rows.length) {
     add(GAME.UI.label(this, W / 2, g.top + 40,
       '아직 기록이 없습니다.\n컨트롤러로 진형을 격파하거나 전략가로 방어에 성공하면 점수가 쌓입니다.',
-      P ? 12 : 15, C.textDim, 0.5).setAlign('center').setLineSpacing(8));
+      P ? 15 : 15, C.textDim, 0.5).setAlign('center').setLineSpacing(8));
     return;
   }
 
@@ -116,11 +116,11 @@ GAME.RankScene.prototype._renderRows = function (rows, fromServer) {
   // 닉네임 칸은 그 왼쪽 끝보다 더 왼쪽에서 끝나야 한다.
   var nameRight = xTower - colW - 8;
 
-  add(GAME.UI.label(this, g.pad + 8, g.top - 18, '순위', P ? 10 : 12, C.textDim, 0));
-  add(GAME.UI.label(this, g.pad + 58, g.top - 18, '닉네임', P ? 10 : 12, C.textDim, 0));
-  add(GAME.UI.label(this, xTower, g.top - 18, '탑', P ? 10 : 12, C.textDim, 1).setOrigin(1, 0));
-  add(GAME.UI.label(this, xRounds, g.top - 18, '격파', P ? 10 : 12, C.textDim, 1).setOrigin(1, 0));
-  add(GAME.UI.label(this, xScore, g.top - 18, '점수', P ? 10 : 12, C.textDim, 1).setOrigin(1, 0));
+  add(GAME.UI.label(this, g.pad + 8, g.top - 18, '순위', P ? 13 : 12, C.textDim, 0));
+  add(GAME.UI.label(this, g.pad + 58, g.top - 18, '닉네임', P ? 13 : 12, C.textDim, 0));
+  add(GAME.UI.label(this, xTower, g.top - 18, '탑', P ? 13 : 12, C.textDim, 1).setOrigin(1, 0));
+  add(GAME.UI.label(this, xRounds, g.top - 18, '격파', P ? 13 : 12, C.textDim, 1).setOrigin(1, 0));
+  add(GAME.UI.label(this, xScore, g.top - 18, '점수', P ? 13 : 12, C.textDim, 1).setOrigin(1, 0));
 
   for (var i = 0; i < Math.min(rows.length, g.maxRows); i++) {
     var r = rows[i];
@@ -129,21 +129,21 @@ GAME.RankScene.prototype._renderRows = function (rows, fromServer) {
     add(this.add.rectangle(W / 2, y + g.rowH / 2 - 3, W - g.pad * 2, g.rowH - 6,
       mine ? 0x1c3a34 : 0x22222f).setStrokeStyle(1, mine ? 0x35d0a5 : 0x3a3a52));
     var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : String(i + 1);
-    add(GAME.UI.label(this, g.pad + 8, y + g.rowH / 2 - 3, medal, P ? 13 : 15, C.text, 0).setOrigin(0, 0.5));
-    add(GAME.UI.label(this, g.pad + 58, y + g.rowH / 2 - 3, r.id, P ? 13 : 16,
+    add(GAME.UI.label(this, g.pad + 8, y + g.rowH / 2 - 3, medal, P ? 15 : 15, C.text, 0).setOrigin(0, 0.5));
+    add(GAME.UI.label(this, g.pad + 58, y + g.rowH / 2 - 3, r.id, P ? 15 : 16,
       mine ? C.accent : C.text, 0).setOrigin(0, 0.5)
       .setFixedSize(Math.max(60, nameRight - (g.pad + 58)), 0));
     // 서버 랭킹에는 아직 탑 기록 칸이 없다 — 없으면 '-' 로 정직하게 비운다
     add(GAME.UI.label(this, xTower, y + g.rowH / 2 - 3,
-      r.tower ? r.tower + '층' : '-', P ? 12 : 14, r.tower ? C.warn : '#55556b', 1).setOrigin(1, 0.5));
+      r.tower ? r.tower + '층' : '-', P ? 15 : 14, r.tower ? C.warn : '#55556b', 1).setOrigin(1, 0.5));
     add(GAME.UI.label(this, xRounds, y + g.rowH / 2 - 3, String(r.rounds || 0),
-      P ? 12 : 14, C.textDim, 1).setOrigin(1, 0.5));
+      P ? 15 : 14, C.textDim, 1).setOrigin(1, 0.5));
     add(GAME.UI.label(this, xScore, y + g.rowH / 2 - 3, (r.score || 0).toLocaleString('ko-KR'),
-      P ? 13 : 16, C.crit, 1).setOrigin(1, 0.5));
+      P ? 15 : 16, C.crit, 1).setOrigin(1, 0.5));
   }
 
   if (rows.length > g.maxRows) {
     add(GAME.UI.label(this, W / 2, g.top + g.maxRows * g.rowH - 2,
-      '외 ' + (rows.length - g.maxRows) + '명 더 있음', P ? 10 : 12, C.textDim, 0.5));
+      '외 ' + (rows.length - g.maxRows) + '명 더 있음', P ? 13 : 12, C.textDim, 0.5));
   }
 };

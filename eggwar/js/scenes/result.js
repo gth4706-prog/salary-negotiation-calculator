@@ -67,8 +67,8 @@ GAME.ResultScene.prototype.create = function () {
     }
   }
 
-  GAME.UI.label(this, W / 2, u * 17, title, P ? 34 : 54, color, 0.5);
-  GAME.UI.label(this, W / 2, u * 26, sub, P ? 12 : 16, C.textDim, 0.5)
+  GAME.UI.label(this, W / 2, u * 17, title, P ? 30 : 54, color, 0.5);
+  GAME.UI.label(this, W / 2, u * 26, sub, P ? 15 : 16, C.textDim, 0.5)
     .setAlign('center').setWordWrapWidth(W - 50);
 
   // 획득 점수
@@ -80,7 +80,7 @@ GAME.ResultScene.prototype.create = function () {
       var rec = GAME.Score.of(me);
       GAME.UI.label(this, W / 2, u * 40,
         '누적 ' + rec.total.toLocaleString('ko-KR') + '점 · 격파 ' + rec.rounds + '회',
-        P ? 11 : 14, C.textDim, 0.5);
+        P ? 13 : 14, C.textDim, 0.5);
     }
   }
 
@@ -89,27 +89,27 @@ GAME.ResultScene.prototype.create = function () {
     var prof = GAME.Profile.read();
     GAME.UI.label(this, W / 2, u * y,
       'AI가 읽은 당신 — ' + prof.styleLabel + ' · ' + prof.dodgeLabel +
-      ' (평균 교전거리 ' + prof.avgDist + ')', P ? 12 : 15, C.crit, 0.5)
+      ' (평균 교전거리 ' + prof.avgDist + ')', P ? 15 : 15, C.crit, 0.5)
       .setWordWrapWidth(W - 50);
     y += 5;
   } else if (this.defendMode) {
     GAME.UI.label(this, W / 2, u * y, 'AI 컨트롤러 숙련도 ' + Math.round(this.aiSkill * 100) + '%',
-      P ? 13 : 17, C.text, 0.5);
+      P ? 15 : 17, C.text, 0.5);
     y += 5;
   } else if (this.formationId) {
     var f = GAME.Formations.getById(this.formationId);
     var sum = GAME.Learn.summary(this.formationId);
     GAME.UI.label(this, W / 2, u * y, '상대 진형: ' + (f ? f.name : '?') +
-      (sum ? '  ·  난이도 ' + sum.escalation + '단계' : ''), P ? 13 : 17, C.text, 0.5);
+      (sum ? '  ·  난이도 ' + sum.escalation + '단계' : ''), P ? 15 : 17, C.text, 0.5);
     y += 4.5;
-    GAME.UI.label(this, W / 2, u * y, GAME.UI.winRateText(this.formationId), P ? 11 : 14, C.warn, 0.5);
+    GAME.UI.label(this, W / 2, u * y, GAME.UI.winRateText(this.formationId), P ? 13 : 14, C.warn, 0.5);
     y += 5;
   }
 
   // 학습 내용 — 보이지 않으면 학습이 있는지 알 수 없다
   if (this.learnNotes.length) {
     GAME.UI.label(this, W / 2, u * y, '🧠 ' + this.learnNotes.join('  /  '),
-      P ? 10 : 13, C.crit, 0.5).setAlign('center').setWordWrapWidth(W - 60);
+      P ? 13 : 13, C.crit, 0.5).setAlign('center').setWordWrapWidth(W - 60);
   }
 
   var b1 = this.tower ? (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : '1층부터 다시')
@@ -118,18 +118,18 @@ GAME.ResultScene.prototype.create = function () {
     if (self.tower) self.scene.start('Tower');
     else if (self.defendMode) self.scene.start('Build');
     else self.scene.start('Draft', { formationId: self.formationId });
-  }, { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: P ? 15 : 18 });
+  }, { fill: 0x1c3a34, line: 0x35d0a5, hover: 0x235045, color: C.accent, fontSize: P ? 17 : 18 });
 
   GAME.UI.button(this, W / 2, u * 73, bw, u * 6,
     this.tower ? '일반 대전으로' : (this.defendMode ? '컨트롤러로 도전' : '다른 진형 고르기'), function () {
       self.scene.start('Select');
-    }, { fontSize: P ? 13 : 16 });
+    }, { fontSize: P ? 15 : 16 });
 
   var rc = GAME.Layout.cols(2, { gap: 10, width: bw, left: (W - bw) / 2, pad: 0 });
   GAME.UI.button(this, rc[0].cx, u * 82, rc[0].w, u * 6, '🏆 랭킹', function () {
     self.scene.start('Rank', { scope: 'live' });
-  }, { fontSize: P ? 13 : 15 });
+  }, { fontSize: P ? 15 : 15 });
   GAME.UI.button(this, rc[1].cx, u * 82, rc[1].w, u * 6, '메뉴', function () {
     self.scene.start('Menu');
-  }, { fontSize: P ? 13 : 15 });
+  }, { fontSize: P ? 15 : 15 });
 };

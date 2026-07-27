@@ -25,9 +25,11 @@ GAME.TouchPad.SIZES = function () {
   return {
     stickR: Math.round(shortSide * 0.105),   // 바깥 링 반지름 (지름 = 짧은 변의 21%)
     knobR: Math.round(shortSide * 0.048),
-    mainR: Math.round(shortSide * 0.068),    // 기본공격
-    skillR: Math.round(shortSide * 0.046),   // QWER
-    potionR: Math.round(shortSide * 0.036)
+    mainR: Math.round(shortSide * 0.070),    // 기본공격
+    // QWER·물약도 **최소 터치 타깃 44 CSS px** 을 넘겨야 한다.
+    // 0.046 이면 폰에서 지름 35px 라 자꾸 빗나간다(실측).
+    skillR: Math.round(shortSide * 0.058),
+    potionR: Math.round(shortSide * 0.056)
   };
 };
 
@@ -71,14 +73,19 @@ GAME.TouchPad.prototype._build = function () {
   //
   // 각도를 손으로 박으면 버튼 크기가 바뀔 때 조용히 겹친다(실제로 41px 간격에
   // 60px 이 필요해 겹쳤다). 그래서 **반지름에서 필요한 각도를 역산**한다.
+  // 호는 **공격 버튼의 왼쪽~위쪽 90° 안에만** 둔다. 오른쪽으로 넘어가면 화면 밖이다.
+  // 그리고 각도를 고정하고 반지름을 정하면 버튼이 커질 때 겹치므로, 반대로
+  // **필요한 간격(지름+여백)에서 호 반지름을 역산**한다. 이러면 크기를 바꿔도 안 겹친다.
   var n = GAME.SKILL_SLOTS.length;
-  var gap = Math.round(S.skillR * 0.20);
-  var arcR = S.mainR + S.skillR + Math.round(S.skillR * 1.15);
-  // 이웃한 두 버튼의 중심 거리가 (반지름 합 + 여백) 이상이 되는 최소 각도
-  var need = 2 * Math.asin(Math.min(1, (S.skillR * 2 + gap) / (2 * arcR)));
-  var start = 6 * Math.PI / 180;
+  var gap = Math.round(S.skillR * 0.22);
+  var startDeg = 6, endDeg = 90;
+  var stepRad = ((endDeg - startDeg) / (n - 1)) * Math.PI / 180;
+  var arcR = Math.max(
+    S.mainR + S.skillR + 8,
+    (S.skillR * 2 + gap) / (2 * Math.sin(stepRad / 2))
+  );
   GAME.SKILL_SLOTS.forEach(function (slot, i) {
-    var a = start + need * i;
+    var a = (startDeg * Math.PI / 180) + stepRad * i;
     self._addButton(slot, cx - Math.cos(a) * arcR, cy - Math.sin(a) * arcR,
       S.skillR, slot, 0x9b8cf0, function () { self._skill(slot); });
   });
@@ -93,6 +100,11 @@ GAME.TouchPad.prototype._build = function () {
 
 GAME.TouchPad.prototype._addButton = function (key, x, y, r, label, color, onTap) {
   var scene = this.scene;
+  // 호 위에 배치하다 보면 마지막 버튼이 화면 밖으로 밀린다(R 버튼이 실제로 잘렸다).
+  // 버튼 크기를 키울 때마다 다시 터지므로 여기서 한 번에 가둔다.
+  var pad = 4;
+  x = Math.max(r + pad, Math.min(GAME.CONFIG.WIDTH - r - pad, x));
+  y = Math.max(r + pad, Math.min(GAME.CONFIG.HEIGHT - r - pad, y));
   var circle = scene.add.circle(x, y, r, 0x11131c, 0.55)
     .setStrokeStyle(2, color, 0.75).setDepth(900).setScrollFactor(0);
   circle.setInteractive(new Phaser.Geom.Circle(r, r, r), Phaser.Geom.Circle.Contains);

@@ -23,6 +23,28 @@ GAME.Combat = {
     };
   },
 
+  // 거리성 스탯에 WORLD_SCALE 을 곱한다.
+  // 세로 화면은 전장이 좁아서(면적 46%) 원래 값을 그대로 쓰면 사거리 하나가
+  // 맵 전체를 덮는다. 여기서 한 번에 환산해 상대 기하를 보존한다.
+  // hp/damage/cooldown 같은 비거리 스탯은 건드리지 않는다.
+  DIST_KEYS: ['range', 'speed', 'chase', 'aggro', 'healRadius', 'buffRadius',
+              'intercept', 'triggerRadius', 'blastRadius', 'aoeRadius',
+              'projectileSpeed', 'bulletSpeed'],
+
+  scaleDef: function (def) {
+    var K = GAME.CONFIG.WORLD_SCALE;
+    if (!K || K === 1) return def;
+    var out = {};
+    for (var k in def) out[k] = def[k];
+    for (var i = 0; i < this.DIST_KEYS.length; i++) {
+      var key = this.DIST_KEYS[i];
+      if (typeof out[key] === 'number' && out[key] > 0) out[key] = out[key] * K;
+    }
+    // 유닛 크기는 덜 줄인다 — 폰에서 너무 작아지면 뭘 상대하는지 안 보인다
+    if (typeof out.radius === 'number') out.radius = Math.max(6, out.radius * Math.sqrt(K));
+    return out;
+  },
+
   // mods: { hp, damage } — 난이도 단계(escalation)에 따른 능력 배수
   createUnit: function (typeKey, x, y, side, mods) {
     var base = GAME.UNITS[typeKey];
@@ -33,7 +55,7 @@ GAME.Combat = {
       def.hp = Math.round(base.hp * (mods.hp || 1));
       def.damage = Math.round(base.damage * (mods.damage || 1));
     }
-    return this._baseUnit(def, x, y, side, typeKey);
+    return this._baseUnit(this.scaleDef(def), x, y, side, typeKey);
   },
 
   // 영웅 = 아이템 보정을 반영한 합성 def를 가진 특수 유닛
@@ -60,7 +82,7 @@ GAME.Combat = {
       cost: h.cost
     };
 
-    var u = this._baseUnit(def, x, y, side, heroKey);
+    var u = this._baseUnit(this.scaleDef(def), x, y, side, heroKey);
     u.isHero = true;
     u.hero = h;
     // QWER 슬롯마다 고른 선택지로 실제 스킬 세트를 구성한다

@@ -21,14 +21,15 @@ GAME.AdminScene.prototype.create = function () {
 
   this.cameras.main.setBackgroundColor(C.bg);
 
-  GAME.UI.label(this, W / 2, P ? 20 : 30, '닉네임 관리', P ? 22 : 30, C.text, 0.5);
-  GAME.UI.label(this, W / 2, P ? 46 : 64,
+  GAME.UI.label(this, W / 2, P ? 16 : 20, '닉네임 관리', P ? 22 : 30, C.text, 0.5).setOrigin(0.5, 0);
+  // 제목·설명 모두 위 기준(origin y=0)으로 쌓아야 글자 크기가 바뀌어도 안 겹친다
+  GAME.UI.label(this, W / 2, P ? 48 : 62,
     '이 브라우저에 기록된 닉네임 목록입니다. 전역 감시는 서버 연동이 필요합니다.',
-    P ? 10 : 12, C.textDim, 0.5).setWordWrapWidth(W - 40);
+    P ? 13 : 12, C.textDim, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 40);
 
   var list = GAME.Account.list();
   // 세로에서는 위 설명문이 개수 표시(top-20)와 겹쳤다 — 그만큼 아래로 민다
-  var top = P ? 88 : 100;
+  var top = P ? 118 : 110;
   var rowH = P ? 46 : 52;
   var perPage = Math.max(3, Math.floor((H - top - (P ? 100 : 120)) / rowH));
   var pages = Math.max(1, Math.ceil(list.length / perPage));
@@ -37,13 +38,13 @@ GAME.AdminScene.prototype.create = function () {
 
   GAME.UI.label(this, W / 2, top - 20,
     '총 ' + list.length + '개' + (pages > 1 ? '  ·  ' + (this.page + 1) + '/' + pages + ' 페이지' : ''),
-    P ? 10 : 12, C.textDim, 0.5);
+    P ? 13 : 12, C.textDim, 0.5);
 
   if (!list.length) {
-    GAME.UI.label(this, W / 2, top + 40, '기록된 닉네임이 없습니다.', P ? 12 : 15, C.textDim, 0.5);
+    GAME.UI.label(this, W / 2, top + 40, '기록된 닉네임이 없습니다.', P ? 15 : 15, C.textDim, 0.5);
   }
 
-  var pad = P ? 12 : 40;
+  var pad = P ? 15 : 40;
   for (var i = 0; i < slice.length; i++) {
     (function (rec, idx) {
       var y = top + idx * rowH;
@@ -51,13 +52,13 @@ GAME.AdminScene.prototype.create = function () {
       self.add.rectangle(W / 2, y + rowH / 2 - 4, W - pad * 2, rowH - 8, bg)
         .setStrokeStyle(1, rec.blocked ? 0xe24b4a : 0x3a3a52);
 
-      GAME.UI.label(self, pad + 10, y + 6, rec.id, P ? 13 : 16,
+      GAME.UI.label(self, pad + 10, y + 6, rec.id, P ? 15 : 16,
         rec.blocked ? '#ff9f9f' : C.text, 0);
       var d = new Date(rec.createdAt);
-      GAME.UI.label(self, pad + 10, y + (P ? 26 : 30),
+      GAME.UI.label(self, pad + 10, y + (P ? 24 : 30),
         d.toLocaleString('ko-KR') + '  ·  접속 ' + (rec.logins || 1) + '회' +
         (rec.blocked ? '  ·  차단됨' : '') + (rec.reported ? '  ·  신고표시' : ''),
-        P ? 9 : 11, C.textDim, 0);
+        P ? 13 : 11, C.textDim, 0);
 
       var bw = P ? 52 : 70, bh = P ? 28 : 32;
       var bx = W - pad - 10;
@@ -66,7 +67,7 @@ GAME.AdminScene.prototype.create = function () {
         rec.blocked ? '해제' : '차단', function () {
           GAME.Account.setBlocked(rec.id, !rec.blocked);
           self.scene.start('Admin', { page: self.page });
-        }, { fontSize: P ? 11 : 13, line: rec.blocked ? 0x4ade80 : 0xe24b4a,
+        }, { fontSize: P ? 13 : 13, line: rec.blocked ? 0x4ade80 : 0xe24b4a,
              color: rec.blocked ? '#8ff0b0' : '#ff9f9f' });
       // 신고 표시 + 신고문 복사
       GAME.UI.button(self, bx - bw - 8 - bw / 2, y + rowH / 2 - 4, bw, bh,
@@ -76,18 +77,18 @@ GAME.AdminScene.prototype.create = function () {
           if (navigator.clipboard) navigator.clipboard.writeText(txt);
           window.prompt('신고용 내용입니다. 복사해서 사용하세요.', txt);
           self.scene.start('Admin', { page: self.page });
-        }, { fontSize: P ? 11 : 13 });
+        }, { fontSize: P ? 13 : 13 });
     })(slice[i], i);
   }
 
   var bc = GAME.Layout.cols(4, { gap: 8, width: Math.min(W - 24, 620), left: (W - Math.min(W - 24, 620)) / 2, pad: 0 });
-  var by = H - (P ? 30 : 38);
+  var by = H - (P ? 28 : 38);
   GAME.UI.button(this, bc[0].cx, by, bc[0].w, P ? 38 : 42, '◀ 이전', function () {
     if (self.page > 0) self.scene.start('Admin', { page: self.page - 1 });
-  }, { fontSize: P ? 12 : 14 });
+  }, { fontSize: P ? 15 : 14 });
   GAME.UI.button(this, bc[1].cx, by, bc[1].w, P ? 38 : 42, '다음 ▶', function () {
     if (self.page < pages - 1) self.scene.start('Admin', { page: self.page + 1 });
-  }, { fontSize: P ? 12 : 14 });
+  }, { fontSize: P ? 15 : 14 });
   GAME.UI.button(this, bc[2].cx, by, bc[2].w, P ? 38 : 42, '전체 복사', function () {
     var txt = GAME.Account.list().map(function (r) {
       return [r.id, new Date(r.createdAt).toLocaleString('ko-KR'), '접속' + (r.logins || 1),
@@ -95,8 +96,8 @@ GAME.AdminScene.prototype.create = function () {
     }).join('\n');
     if (navigator.clipboard) navigator.clipboard.writeText(txt);
     window.prompt('닉네임 로그 전체입니다.', txt);
-  }, { fontSize: P ? 12 : 14 });
+  }, { fontSize: P ? 15 : 14 });
   GAME.UI.button(this, bc[3].cx, by, bc[3].w, P ? 38 : 42, '메뉴', function () {
     self.scene.start('Menu');
-  }, { fontSize: P ? 12 : 14 });
+  }, { fontSize: P ? 15 : 14 });
 };

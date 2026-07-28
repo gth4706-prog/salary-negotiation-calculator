@@ -242,6 +242,7 @@ GAME.BattleScene.prototype.create = function () {
     self._sirenG = null;
     self._sirenArmed = undefined;
     self._shakeAt = undefined;
+    self._stopAt = undefined;
     self._prevCd = null;
     // 줌은 씬을 떠날 때 반드시 1.0 으로 되돌린다(투영을 안 되돌려 겪은 사고가 이미 있다).
     self.resetZoom();
@@ -394,10 +395,17 @@ GAME.BattleScene.prototype.drawNumbers = function () {
     var size;
     if (n.crit) size = mine ? (SM ? 34 : 32) : (SM ? 21 : 20);
     else        size = mine ? (SM ? 25 : 23) : (SM ? 16 : 15);
-    t.setFontSize(size);
+    // ⚠ Phaser 의 Text 스타일 세터(setFontSize/setColor/setStroke)는 값이 같아도
+    //   **매번 캔버스를 다시 굽는다**(updateText). 매 프레임 부르면 숫자 하나당
+    //   프레임마다 3~4회 재래스터가 일어난다 — 실측: 숫자 4개에서 22.8회/프레임,
+    //   세터를 빼면 7.4회/프레임. 사냥꾼 연사처럼 숫자가 한꺼번에 뜨면 이게 곧 렉이다.
+    //   스타일은 **숫자가 새로 뜰 때만** 바뀌므로 슬롯별로 캐시해 달라질 때만 부른다.
+    var color = n.crit ? C.crit : (mine ? this.numFill : this.numTakenFill);
+    var sw = mine ? 5 : 3;
+    if (t.__sz !== size) { t.setFontSize(size); t.__sz = size; }
     // 크리티컬은 맞은 쪽이어도 색을 남긴다 — '치명타를 맞았다'는 건 알아야 할 정보다.
-    t.setColor(n.crit ? C.crit : (mine ? this.numFill : this.numTakenFill));
-    t.setStroke(this.numStroke, mine ? 5 : 3);
+    if (t.__col !== color) { t.setColor(color); t.__col = color; }
+    if (t.__sw !== sw) { t.setStroke(this.numStroke, sw); t.__sw = sw; }
     t.setAlpha(Math.max(0, 1 - prog * prog) * (mine ? 1 : 0.78));
     t.setPosition(n.x + (n.drift || 0) * prog, Iso.toScreenY(n.y) - 26 - prog * 46);
   }
@@ -563,9 +571,23 @@ GAME.BattleScene.prototype._juice = function (dt) {
   }
 
   // ① 히트스톱 — 큰 타격일수록 길게. 너무 길면 조작이 끊겨 답답하다(최대 70ms).
-  // 이건 '흔들림'이 아니라 순간 정지라 매 타격에 그대로 둔다.
-  if (biggest > 0) {
-    var stop = Math.min(70, 18 + biggest * 420);
+  //
+  // **아껴 쓴다.** 예전엔 피해가 들어올 때마다 걸었더니, 사냥꾼 연사(3연사)나
+  // 광역 폭격처럼 짧은 사이에 여러 번 맞히는 조작에서 정지가 연달아 재장전되어
+  // 프레임의 14%에서 시뮬이 멎었다(실측). 플레이어에게는 '렉'으로 느껴진다.
+  //  · 작은 타격(최대체력 4% 미만)은 건너뛴다 — 스치는 화살까지 멈출 이유가 없다
+  //  · 내가 맞은 건 예외 — 그건 알아야 할 정보다
+  //  · 최소 간격 220ms — 연사가 정지를 사슬처럼 잇지 못하게
+  //  실측: 문턱 0.04 · 간격 220 · 최대 70ms 에서도 시뮬 정지 프레임이 12% 였다.
+  //  정지 '횟수'보다 '길이'가 지배적이라 최대 길이를 함께 줄인다.
+  var HITSTOP_MIN_PCT = 0.06;
+  var HITSTOP_GAP = 300;
+  var HITSTOP_MAX = 45;
+  if (this._stopAt === undefined) this._stopAt = -HITSTOP_GAP;
+  if (biggest > 0 && (heroHit || biggest >= HITSTOP_MIN_PCT) &&
+      this.state.elapsed - this._stopAt >= HITSTOP_GAP) {
+    this._stopAt = this.state.elapsed;
+    var stop = Math.min(HITSTOP_MAX, 14 + biggest * 300);
     if (stop > this._hitStop) this._hitStop = stop;
   }
 

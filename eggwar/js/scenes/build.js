@@ -73,7 +73,12 @@ GAME.BuildScene.PHONE = {
   BAR_H: 60,
   METER_X: 10, METER_Y: 15, METER_W: 300, METER_H: 30,
   INFO_X: 320,
-  BTN_H: 48, BTN_CY: 30,
+  // 48 로 뒀더니 아이폰 SE(FIT 0.813)에서 화면 39px 이라 터치 하한(44)에 미달했다(실측).
+  // 55 × 0.813 = 44.7 → 상단 바(60) 안에 2.5~57.5 로 들어가고 보드(66~)를 안 밀어낸다.
+  BTN_H: 55, BTN_CY: 30,
+  // 대칭 토글은 **메뉴가 아니라 모드 표시**다 — ☰ 안에 숨겼더니
+  // "왜 배치가 2개씩 되지?"라는 신고가 왔다. 항상 보이는 자리로 꺼낸다.
+  MIRROR_CX: 530, MIRROR_W: 116,
   START_CX: 675, START_W: 138,
   MENU_CX: 782, MENU_W: 56,
   BOARD_TOP: 66,
@@ -104,6 +109,7 @@ GAME.BuildScene.prototype.init = function (data) {
   this.powerText = null;
   this.infoText = null;
   this.mirrorBtn = null;
+  this.phMirrorBtn = null;
   this.tierButtons = [];
 };
 
@@ -321,6 +327,10 @@ GAME.BuildScene.prototype.create = function () {
         color: C.accent, fontSize: 'buttonSm', hitPad: 4 });
     this.menuBtn = UI.button(this, PHL.MENU_CX, PHL.BTN_CY, PHL.MENU_W, PHL.BTN_H,
       '☰', function () { self._toggleSheet(); }, { fontSize: 'button', hitPad: 4 });
+    // 켜져 있으면 한 번 탭에 좌우 2기가 놓인다 — 그 사실이 화면에 항상 떠 있어야 한다.
+    this.phMirrorBtn = UI.button(this, PHL.MIRROR_CX, PHL.BTN_CY, PHL.MIRROR_W, PHL.BTN_H,
+      '', function () { self.mirror = !self.mirror; self._status(); self.redraw(); },
+      { fontSize: 'buttonSm', hitPad: 4 });
   } else {
     // ── 도구: 되돌리기 · 대칭 · 전부 지우기 ───────────────────────────────
     var toolW = P ? hud.w : Math.round(hud.w * 0.52);
@@ -436,7 +446,7 @@ GAME.BuildScene.prototype.create = function () {
   this._status();
   this.redraw();
   if (PH) {
-    this._hint('아래 파란 칸을 탭하면 배치  ·  놓인 유닛을 탭하면 ✕ 로 삭제  ·  ☰ 에 되돌리기 · 대칭 · 저장',
+    this._hint('대칭이 켜져 있어 한 번 탭에 좌우로 2기가 놓입니다 (상단 ⇄ 로 끄기)  ·  놓인 유닛을 탭하면 ✕ 로 삭제',
       GAME.BuildScene.HINT_MS);
   }
 };
@@ -993,6 +1003,14 @@ GAME.BuildScene.prototype.redraw = function () {
     var active = tb.tier === this.tier;
     tb.ui.rect.setStrokeStyle(active ? 2 : 1, active ? this.myColor : UI.COL.borderUi);
     tb.ui.rect.setFillStyle(active ? UI.COL.surfaceHi : UI.COL.surfaceAlt);
+  }
+
+  if (this.phMirrorBtn) {
+    // '2기'를 라벨에 박아 둔다 — 켜짐/꺼짐만으로는 무슨 일이 일어나는지 알 수 없다.
+    this.phMirrorBtn.setLabel(this.mirror ? '⇄ 대칭 2기' : '⇄ 대칭 끔');
+    this.phMirrorBtn.rect.setStrokeStyle(this.mirror ? 2 : 1,
+      this.mirror ? this.myColor : UI.COL.borderUi);
+    this.phMirrorBtn.rect.setFillStyle(this.mirror ? UI.COL.surfaceHi : UI.COL.surfaceAlt);
   }
 
   if (this.mirrorBtn) {

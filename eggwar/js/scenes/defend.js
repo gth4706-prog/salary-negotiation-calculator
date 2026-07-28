@@ -9,6 +9,24 @@ GAME.DefendScene = function () {
 GAME.DefendScene.prototype = Object.create(Phaser.Scene.prototype);
 GAME.DefendScene.prototype.constructor = GAME.DefendScene;
 
+// ── 폰 가로(820×390) 전용 좌표 — 전투 화면 문법(battle.js 와 같다) ────────────
+//  전장이 화면을 채우고 정보는 **가장자리에 겹친다.** 다만 전략가는 조작하지 않으므로
+//  조이스틱·스킬 버튼이 없다 → 그 자리를 전부 전장에 내줬다.
+//   0..56    상단 얇은 띠 : [내 진형 잔존] [남은 시간] [적 영웅 체력]
+//   58..366  전장         : Iso.setMode('full') 로 남은 세로를 다 쓴다(272px → 308px)
+//   328..378 왼쪽 아래    : [▶ N배속] [☰]  — 전장 위에 겹치는 두 칸이 전부다.
+//                           배속은 '지금 상태를 바꾸는 토글'이라 시트에 숨기지 않는다.
+//  오른쪽 아래는 DOM 버전 배지(#ver) 자리라 비운다.
+GAME.DefendScene.PHONE = {
+  PAD: 10,
+  BAR_H: 56,
+  FIELD_TOP: 58,
+  SIDE_W: 252, SIDE_Y: 2, SIDE_H: 52,
+  // 버튼 56 → 아이폰 SE(FIT 0.813)에서 화면 45.5px. 50 이면 40.7px 로 미달한다(실측).
+  BTN_Y: 322, BTN_H: 56,
+  SPEED_W: 132, MENU_W: 56
+};
+
 GAME.DefendScene.prototype.init = function (data) {
   this.placed = data.placed;          // [{type,x,y}] 아래 구역 좌표
   this.tier = data.tier;
@@ -17,6 +35,16 @@ GAME.DefendScene.prototype.init = function (data) {
   this.ended = false;
   this.speed = 2;          // create() 에서 저장된 값으로 덮어쓴다
   this.markers = [];      // BattleScene.draw 가 참조한다
+  // 재진입 때 이미 파괴된 객체를 참조하지 않도록 캐시를 전부 비운다.
+  this.sheet = null;
+  this.hudTop = null;
+  this.hudSub = null;
+  this.hudTimer = null;
+  this.phTimer = null;
+  this.phTimeBar = null;
+  this.phUnits = null;
+  this.phHeroBar = null;
+  this.speedBtn = null;
 };
 
 GAME.DefendScene.prototype.create = function () {
@@ -80,6 +108,9 @@ GAME.DefendScene.prototype.create = function () {
   // 누르면 빨간 화살표가 그 유닛을 따라다니고 체력바가 굵게 표시된다.
   this.arrowOn = null;
   this.input.on('pointerdown', function (p) {
+    // ☰ 시트가 열려 있으면 전장은 잠긴다. 상단 띠·좌하단 버튼 위의 탭도 전장 탭이 아니다.
+    if (self.sheet) return;
+    if (self._hudEats(p.x, p.y)) return;
     if (p.y > GAME.Iso.screenRect().bottom) return;
     var w = GAME.Iso.toWorld(p.x, p.y);
     var hit = GAME.Combat.unitAt(self.state, w.x, w.y, 'strategist');
@@ -90,41 +121,12 @@ GAME.DefendScene.prototype.create = function () {
   this.state.telemetry.medicPlaced = true;
   this.state.telemetry.guardPlaced = true;
 
-  // HUD
-  // 폰 가로(820×390)는 아레나 아래가 78px 뿐이라(실측: 아레나 바닥 312) 세 줄을 쌓을 수 없다.
-  // 글자 두 줄은 **아레나 위쪽 여백에 겹쳐** 올리고(외곽선으로 읽히게), 아래 78px 은 버튼 줄만 쓴다.
+  // ── HUD ────────────────────────────────────────────────────────────────
   var PH = GAME.CONFIG.PHONE;
+  var UI = GAME.UI;
+  var K = GAME.DefendScene.PHONE;
   var hud = L.hud();
-  var pad = PH ? 12 : hud.pad;
-  var rows = PH
-    ? { a: { y: 2, h: 23 }, b: { y: 27, h: 22 }, c: { y: 318, h: 56, cy: 346 } }
-    : L.rows([
-        { name: 'a', h: P ? 22 : 26, gap: 6 },
-        { name: 'b', h: P ? 22 : 24, gap: 10 },
-        { name: 'c', h: P ? 42 : 46, gap: 0 }
-      ]);
-
-  this.hudTop = GAME.UI.label(this, pad, rows.a.y, '', PH ? 'caption' : (P ? 17 : 18), C.accentAlt, 0);
-  this.hudTimer = GAME.UI.label(this, W - pad, rows.a.y, '', PH ? 'num' : (P ? 17 : 22), C.text, 1).setOrigin(1, 0);
-  // 왼쪽 문구가 **오른쪽 정렬된 타이머 자리까지 밀고 들어가 겹쳤다**(세로, 실측 74px).
-  // 타이머('88.8초')가 쓸 폭을 미리 떼어놓고, 넘치면 잘라 넣는다.
-  this.hudTopMaxW = W - pad * 2 - (PH ? 110 : (P ? 62 : 96));
-  this.hudSub = GAME.UI.label(this, pad, rows.b.y, '', PH ? 'micro' : (P ? 15 : 14), C.textDim, 0);
-  this.hudSubMaxW = W - pad * 2 - (PH ? 110 : 0);
-  if (PH) {
-    // 전장 위에 얹히므로 외곽선이 없으면 격자에 묻힌다.
-    [this.hudTop, this.hudTimer, this.hudSub].forEach(function (t) {
-      t.setStroke(GAME.UI.outlineFor(t.style && t.style.color), 3);
-      t.setShadow(0, 1, GAME.UI.IS_LIGHT ? 'rgba(60,44,20,0.45)' : 'rgba(0,0,0,0.75)', 2, false, true);
-    });
-  }
-
-  // 아래 버튼 줄 — 우하단 DOM 버전 배지(#ver) 자리 52px 는 비운다.
-  var bc = PH ? (function () {
-    var total = W - pad - 52 - pad, bw = Math.floor((total - 20) / 3), out = [];
-    for (var i = 0; i < 3; i++) { var x = pad + i * (bw + 10); out.push({ x: x, w: bw, cx: x + bw / 2 }); }
-    return out;
-  })() : L.cols(3, { gap: 10 });
+  var pad = PH ? K.PAD : hud.pad;
 
   // 방어전은 조작이 없어서 실측 60~68초를 그냥 지켜봐야 한다(컨트롤러 판은 19~32초).
   // 그래서 **2배속을 기본값**으로 두고, 고른 배속은 다음 판에도 기억한다.
@@ -132,23 +134,96 @@ GAME.DefendScene.prototype.create = function () {
   this.speed = GAME.Store.get('asymgame.defendSpeed', 2);
   if (SPEEDS.indexOf(this.speed) === -1) this.speed = 2;
 
-  function speedLabel() { return PH ? ('▶ ' + self.speed + '배속') : ('▶ ' + self.speed + '배속  (탭/스페이스)'); }
+  function speedLabel() {
+    // 작은 화면(폰 가로·세로)은 짧게. 세로에서 '(탭/스페이스)'까지 넣으면 라벨이
+    // 버튼(125px)을 넘어 삐져나온다(실측 — 예전부터 그랬다).
+    return (PH || P) ? ('▶ ' + self.speed + '배속') : ('▶ ' + self.speed + '배속  (탭/스페이스)');
+  }
   function cycleSpeed() {
     self.speed = SPEEDS[(SPEEDS.indexOf(self.speed) + 1) % SPEEDS.length];
     GAME.Store.set('asymgame.defendSpeed', self.speed);
-    self.speedBtn.text.setText(speedLabel());
+    if (self.speedBtn) self.speedBtn.text.setText(speedLabel());
   }
 
-  this.speedBtn = GAME.UI.button(this, bc[0].cx, rows.c.cy, bc[0].w, rows.c.h,
-    speedLabel(), cycleSpeed,
-    { fontSize: PH ? 'buttonSm' : 15, line: GAME.CONFIG.COLORS.controller, color: C.accent });
+  if (PH) {
+    // ── 폰 가로 — 전장이 주인공. 정보는 위 띠에 겹치고, 버튼은 좌하단 두 칸뿐 ──
+    // 내 진형 총원(전투 시작 시점) — '몇 기 남았나'를 비율로 읽게 한다.
+    this.myTotal = Math.max(1, GAME.Combat.aliveCount(this.state, 'strategist'));
+
+    UI.panel(this, 8, K.SIDE_Y, K.SIDE_W, K.SIDE_H,
+      { level: 1, radius: UI.R.md, alpha: 0.9, shadow: false });
+    UI.text(this, 18, K.SIDE_Y + 4,
+      '내 진형' + (this.defendTower ? ('  ·  수성의 탑 ' + this.defendTower + '층') : ''),
+      { size: 'caption', color: C.accentAlt });
+    this.phUnits = UI.meter(this, 18, K.SIDE_Y + 28, K.SIDE_W - 20, 20, {
+      color: C.strategist, seg: Math.min(12, this.myTotal), danger: 0.25,
+      label: { size: 'caption', align: 'center' }
+    });
+
+    var rx = GAME.CONFIG.WIDTH - 8 - K.SIDE_W;
+    UI.panel(this, rx, K.SIDE_Y, K.SIDE_W, K.SIDE_H,
+      { level: 1, radius: UI.R.md, alpha: 0.9, shadow: false });
+    UI.text(this, rx + 10, K.SIDE_Y + 4,
+      '침입 ' + this.hero.hero.name + '  ·  숙련 ' + Math.round(this.aiSkill * 100) + '%',
+      { size: 'caption', color: UI.TXT.danger });
+    this.phHeroBar = UI.meter(this, rx + 10, K.SIDE_Y + 28, K.SIDE_W - 20, 20, {
+      color: UI.COL.hpBad, danger: -1, label: { size: 'caption', align: 'center' }
+    });
+
+    // 남은 시간 — 이 화면에서 가장 자주 보는 숫자라 가장 크게, 정중앙에(battle.js 와 동일).
+    this.phTimer = UI.text(this, GAME.CONFIG.WIDTH / 2, 1, '', {
+      size: 'numLg', color: C.text, origin: 0.5, originY: 0, outline: true, lineSpacing: 0
+    });
+    this.phTimeBar = UI.meter(this, GAME.CONFIG.WIDTH / 2 - 100,
+      1 + Math.max(34, Math.ceil(this.phTimer.height)) + 3, 200, 5, {
+        color: UI.COL.controller, danger: 0.17, dangerColor: 0xf0a86a,
+        radius: 2.5, gloss: false
+      });
+
+    // 좌하단 두 칸 — 배속(모드 토글이라 항상 보인다)과 ☰
+    var bcy = K.BTN_Y + K.BTN_H / 2;
+    this.speedBtn = UI.button(this, K.PAD + K.SPEED_W / 2, bcy, K.SPEED_W, K.BTN_H,
+      speedLabel(), cycleSpeed,
+      { fontSize: 'buttonSm', line: C.controller, color: C.accent, hitPad: 6 });
+    UI.button(this, K.PAD + K.SPEED_W + 8 + K.MENU_W / 2, bcy, K.MENU_W, K.BTN_H, '☰',
+      function () { self._toggleSheet(); }, { fontSize: 'button', hitPad: 6 });
+
+    // 전장을 남은 세로 전부로 넓힌다 — 조작 패드가 없으니 아래를 비워둘 이유가 없다.
+    // **씬을 떠날 때 반드시 되돌린다**(아래 shutdown) — 안 그러면 배치 화면이 깨진다.
+    GAME.Iso.setMode('full', K.FIELD_TOP);
+  } else {
+    var rows = L.rows([
+      { name: 'a', h: P ? 22 : 26, gap: 6 },
+      { name: 'b', h: P ? 22 : 24, gap: 10 },
+      { name: 'c', h: P ? 42 : 46, gap: 0 }
+    ]);
+
+    this.hudTop = UI.label(this, pad, rows.a.y, '', P ? 17 : 18, C.accentAlt, 0);
+    this.hudTimer = UI.label(this, W - pad, rows.a.y, '', P ? 17 : 22, C.text, 1).setOrigin(1, 0);
+    // 왼쪽 문구가 **오른쪽 정렬된 타이머 자리까지 밀고 들어가 겹쳤다**(세로, 실측 74px).
+    // 타이머('88.8초')가 쓸 폭을 미리 떼어놓고, 넘치면 잘라 넣는다.
+    this.hudTopMaxW = W - pad * 2 - (P ? 62 : 96);
+    this.hudSub = UI.label(this, pad, rows.b.y, '', P ? 15 : 14, C.textDim, 0);
+    this.hudSubMaxW = W - pad * 2;
+
+    var bc = L.cols(3, { gap: 10 });
+    this.speedBtn = UI.button(this, bc[0].cx, rows.c.cy, bc[0].w, rows.c.h,
+      speedLabel(), cycleSpeed,
+      { fontSize: 15, line: GAME.CONFIG.COLORS.controller, color: C.accent });
+    UI.button(this, bc[1].cx, rows.c.cy, bc[1].w, rows.c.h, '배치 다시', function () {
+      self.scene.start('Build', self.defendTower ? { defendTower: self.defendTower } : undefined);
+    }, { fontSize: 15 });
+    UI.button(this, bc[2].cx, rows.c.cy, bc[2].w, rows.c.h, '메뉴', function () {
+      self.scene.start('Menu');
+    }, { fontSize: 15 });
+  }
   this.input.keyboard.on('keydown-SPACE', cycleSpeed);
-  GAME.UI.button(this, bc[1].cx, rows.c.cy, bc[1].w, rows.c.h, '배치 다시', function () {
-    self.scene.start('Build', self.defendTower ? { defendTower: self.defendTower } : undefined);
-  }, { fontSize: PH ? 'buttonSm' : 15 });
-  GAME.UI.button(this, bc[2].cx, rows.c.cy, bc[2].w, rows.c.h, '메뉴', function () {
-    self.scene.start('Menu');
-  }, { fontSize: PH ? 'buttonSm' : 15 });
+
+  this.events.on('shutdown', function () {
+    self._closeSheet();
+    // ★ 폰 가로에서 이 씬은 투영을 직접 바꿔 쓴다 — 되돌리지 않으면 배치 화면이 깨진다.
+    GAME.Iso.setMode('default');
+  });
 
   // 피해 숫자 풀 (전투 화면과 동일하게 보여준다)
   // 흰 글자+검정 테두리는 어두운 배경 전제라 크림 목초지에서 안 읽힌다 → battle.js 와 같이 뒤집는다.
@@ -258,13 +333,27 @@ GAME.DefendScene.prototype.update = function (time, delta) {
 GAME.DefendScene.prototype.updateHud = function () {
   var C = GAME.CONFIG.COLORS;
   var remain = Math.max(0, GAME.CONFIG.BATTLE_TIME - this.state.elapsed / 1000);
+  var P = GAME.CONFIG.PORTRAIT;
+  var PH = GAME.CONFIG.PHONE;
+  var SM = P || PH;
+
+  // ── 폰 가로 — 상단 얇은 띠 세 칸(내 진형 / 남은 시간 / 적 영웅) ──────────
+  if (PH) {
+    var alive = GAME.Combat.aliveCount(this.state, 'strategist');
+    this.phUnits.set(alive / this.myTotal).setText(alive + ' / ' + this.myTotal + '기');
+    this.phTimer.setText(remain.toFixed(1) + '초');
+    this.phTimer.setColor(remain < 15 ? C.warn : C.text);
+    this.phTimeBar.set(GAME.CONFIG.BATTLE_TIME ? remain / GAME.CONFIG.BATTLE_TIME : 0);
+    var hAlive = this.hero.alive;
+    this.phHeroBar.set(hAlive && this.hero.maxHp ? this.hero.hp / this.hero.maxHp : 0);
+    this.phHeroBar.setText(hAlive ? (Math.ceil(this.hero.hp) + ' / ' + this.hero.maxHp) : '격퇴');
+    return;
+  }
+
   this.hudTimer.setText(remain.toFixed(1) + '초');
   this.hudTimer.setColor(remain < 15 ? C.warn : C.text);
 
   // 세로는 폭이 420 뿐이라 '숙련도'는 아랫줄로 내린다 — 윗줄은 타이머와 자리를 나눠 쓴다.
-  var P = GAME.CONFIG.PORTRAIT;
-  var PH = GAME.CONFIG.PHONE;
-  var SM = P || PH;
   var hp = (this.hero.alive ? Math.ceil(this.hero.hp) : 0) + '/' + this.hero.maxHp;
   this.hudTop.setText(SM
     ? ('내 진형 ' + GAME.Combat.aliveCount(this.state, 'strategist') + '기  ·  ' +
@@ -289,6 +378,78 @@ GAME.DefendScene.prototype.updateHud = function () {
     var s2 = this.hudSub.text;
     this.hudSub.setText(s2.slice(0, Math.max(4, s2.length - 2 - (s2.slice(-1) === '…' ? 1 : 0))) + '…');
   }
+};
+
+// 상단 띠·좌하단 버튼 위의 탭은 전장 탭이 아니다.
+// 이 가드가 없으면 배속을 누를 때마다 그 아래 유닛이 같이 선택된다.
+GAME.DefendScene.prototype._hudEats = function (x, y) {
+  if (!GAME.CONFIG.PHONE) return false;
+  var K = GAME.DefendScene.PHONE;
+  if (y < K.FIELD_TOP) return true;
+  if (y >= K.BTN_Y - 6 && x <= K.PAD + K.SPEED_W + 8 + K.MENU_W + 6) return true;
+  return false;
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ☰ 시트 (폰 가로 전용) — 배치 다시 · 메뉴
+//  배속은 여기 넣지 않는다. 지금 상태를 바꾸는 토글은 항상 보여야 한다.
+// ═══════════════════════════════════════════════════════════════════════════
+GAME.DefendScene.prototype._toggleSheet = function () {
+  if (this.sheet) this._closeSheet(); else this._openSheet();
+};
+
+GAME.DefendScene.prototype._closeSheet = function () {
+  if (!this.sheet) return;
+  var o = this.sheet;
+  this.sheet = null;
+  for (var i = 0; i < o.length; i++) if (o[i] && o[i].destroy) o[i].destroy();
+};
+
+GAME.DefendScene.prototype._openSheet = function () {
+  var self = this;
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  this._closeSheet();
+
+  var objs = [];
+  var pw = 520, px0 = Math.round((W - pw) / 2), py0 = 74, phh = 190;
+  var bw = Math.floor((pw - 40 - 24) / 3), bh = 56;
+  var cy = py0 + phh - 42;
+
+  var veil = this.add.rectangle(W / 2, H / 2, W, H, UI.COL.bg, 0.74).setDepth(900);
+  veil.setInteractive();
+  veil.on('pointerdown', function () { self._closeSheet(); });
+  objs.push(veil);
+  objs.push(UI.panel(this, px0, py0, pw, phh, { level: 1 }).setDepth(901));
+
+  objs.push(UI.text(this, W / 2, py0 + 12, '방어전',
+    { size: 'subhead', color: C.text, origin: 0.5, originY: 0 }).setDepth(902));
+  objs.push(UI.text(this, W / 2, py0 + 46,
+    '전략가는 배치로 싸웁니다 — 지켜보세요.',
+    { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 }).setDepth(902));
+  objs.push(UI.text(this, W / 2, py0 + 70,
+    this.defendTower
+      ? ('수성의 탑 ' + this.defendTower + '층  ·  막아내면 다음 층')
+      : ('AI는 막힐수록 다음 판에 더 잘합니다  ·  숙련도 ' +
+         Math.round((this.aiSkill || 0) * 100) + '%'),
+    { size: 'micro', color: UI.TXT.crit, origin: 0.5, originY: 0 }).setDepth(902));
+
+  function mk(i, label, fn, opts) {
+    var b = UI.button(self, px0 + 20 + i * (bw + 12) + bw / 2, cy, bw, bh, label, fn, opts);
+    b.setDepth(902);
+    objs.push(b);
+    return b;
+  }
+  mk(0, '배치 다시', function () {
+    self._closeSheet();
+    self.scene.start('Build', self.defendTower ? { defendTower: self.defendTower } : undefined);
+  }, { fontSize: 'buttonSm' });
+  mk(1, '← 메뉴', function () {
+    self._closeSheet(); self.scene.start('Menu');
+  }, { fontSize: 'buttonSm' });
+  mk(2, '닫기', function () { self._closeSheet(); }, { fontSize: 'buttonSm' });
+
+  this.sheet = objs;
 };
 
 GAME.DefendScene.prototype.showMarker = function () { };

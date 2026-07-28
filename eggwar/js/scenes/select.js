@@ -15,6 +15,10 @@ GAME.SelectScene.prototype.create = function () {
 
   this.cameras.main.setBackgroundColor(C.bg);
 
+  // 폰 가로: 세로로 한 줄씩 쌓으면 목록이 **한 개**밖에 안 들어간다(실측 844×390).
+  // 머리를 한 줄로 접고 목록을 2열로 펼쳐 8개를 보여준다.
+  if (GAME.CONFIG.PHONE) { this._buildPhone(); return; }
+
   GAME.UI.label(this, W / 2, P ? 28 : 46, '도전할 진형 선택', P ? 22 : 32, C.text, 0.5);
   GAME.UI.label(this, W / 2, P ? 58 : 90,
     'AI 진형은 솔직히 표시합니다. 예산은 상대와 동일합니다.', P ? 15 : 15, C.textDim, 0.5)
@@ -46,9 +50,51 @@ GAME.SelectScene.prototype.create = function () {
   }, { fontSize: P ? 17 : 17 });
 };
 
+// ── 폰 가로 (820×390) ────────────────────────────────────────────────────
+GAME.SelectScene.prototype._buildPhone = function () {
+  var C = GAME.CONFIG.COLORS;
+  var UI = GAME.UI;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var self = this;
+  var PAD = 20;
+
+  UI.label(this, PAD, 10, '도전할 진형 선택', 26, C.text, 0).setOrigin(0, 0);
+  UI.label(this, PAD, 46,
+    'AI 진형은 솔직히 표시합니다. 예산은 상대와 동일합니다.', 15, C.textDim, 0).setOrigin(0, 0);
+
+  var btnH = 56, btnCy = 38;
+  UI.button(this, W - PAD - 100, btnCy, 200, btnH, '🎲 랜덤 매칭', function () {
+    var f = GAME.Formations.random();
+    if (f) self.scene.start('Draft', { formationId: f.id });
+  }, { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
+       hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: 17 });
+
+  UI.button(this, W - PAD - 210 - 75, btnCy, 150, btnH, '← 메뉴로', function () {
+    self.scene.start('Menu');
+  }, { fontSize: 16 });
+
+  // ── 목록 2열 ──
+  var all = GAME.Formations.loadAll();
+  var cols = GAME.Layout.cols(2, { gap: 14, width: W - PAD * 2, left: PAD, pad: 0 });
+  var top = 80, rowH = 60, gap = 10;
+  var rows = Math.max(1, Math.floor((H - 12 - top + gap) / (rowH + gap)));
+  var shown = Math.min(all.length, rows * 2);
+
+  for (var i = 0; i < shown; i++) {
+    var col = cols[i % 2];
+    var ry = top + Math.floor(i / 2) * (rowH + gap);
+    this._row(all[i], col.x, ry, col.w, rowH);
+  }
+  if (all.length > shown) {
+    UI.label(this, W / 2, H - 8, '외 ' + (all.length - shown) + '개 더 있음', 15, C.textDim, 0.5)
+      .setOrigin(0.5, 1);
+  }
+};
+
 GAME.SelectScene.prototype._row = function (formation, x, y, w, h) {
   var C = GAME.CONFIG.COLORS;
-  var P = GAME.CONFIG.PORTRAIT;
+  // '작은 화면'(세로 + 폰 가로)은 2줄 압축 행을 쓴다 — 폭이 좁아 한 줄에 다 못 넣는다.
+  var P = GAME.CONFIG.SMALL;
   var self = this;
 
   var isAI = !!formation.isAI;

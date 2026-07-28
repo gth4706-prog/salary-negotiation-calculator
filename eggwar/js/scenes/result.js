@@ -114,6 +114,10 @@ GAME.ResultScene.prototype.create = function () {
     ? GAME.UI.tierForFloor(this.tower || this.defendTower)
     : GAME.UI.tierForEscalation(this.escalation);
 
+  // 폰 가로: 판정 → 보상 → 버튼 3단을 세로로 쌓으면 아래 두 단이 통째로 화면 밖으로
+  // 나간다(실측 화면밖 11건). 왼쪽 = 무슨 일이 있었나, 오른쪽 = 무엇을 받았고 다음은 뭔가.
+  if (GAME.CONFIG.PHONE) { this._buildPhone(title, sub, color, tierObj); return; }
+
   var plate = GAME.UI.verdictPlate(this, W / 2, u * 9, bw, title, sub, {
     tierIndex: tierObj.i,
     accentCss: color,
@@ -121,55 +125,8 @@ GAME.ResultScene.prototype.create = function () {
   });
 
   var bx = (W - bw) / 2;
-  var ry = plate.bottom + u * 1.5;
-  var blocks = [];
-
-  var scoreRow = null;
-  if (this.score > 0) {
-    scoreRow = GAME.UI.rewardRow(this, bx, ry, bw, '획득 점수', '0', {
-      accent: 0xffd166, valueSize: 'heading'
-    });
-    blocks.push(scoreRow); ry = scoreRow.bottom + 8;
-
-    var me = GAME.Account.current();
-    if (me) {
-      var rec = GAME.Score.of(me);
-      var totalRow = GAME.UI.rewardRow(this, bx, ry, bw, '누적 점수',
-        rec.total.toLocaleString('ko-KR') + '점  ·  격파 ' + rec.rounds + '회',
-        { valueSize: 'body', valueColor: GAME.UI.TXT.textMid });
-      blocks.push(totalRow); ry = totalRow.bottom + 8;
-    }
-  }
-
-  if (this.tower) {
-    // 도전 보상 — 골드가 올랐다는 걸 점수와 같은 무게로 보여준다
-    if (this.goldGained > 0 && this.runRec) {
-      var gr = GAME.UI.rewardRow(this, bx, ry, bw, '획득 골드',
-        '+' + this.goldGained + '  (보유 ' + this.runRec.gold + ')',
-        { accent: 0xffd166, valueSize: 'heading', valueColor: GAME.UI.TXT.crit });
-      blocks.push(gr); ry = gr.bottom + 8;
-    }
-    var prof = GAME.Profile.read();
-    var r = GAME.UI.rewardRow(this, bx, ry, bw, 'AI가 읽은 당신',
-      prof.styleLabel + ' · ' + prof.dodgeLabel,
-      { valueSize: 'body', valueColor: GAME.UI.TXT.crit, accent: tierObj.hex });
-    blocks.push(r); ry = r.bottom + 8;
-  } else if (this.defendMode) {
-    var r2 = GAME.UI.rewardRow(this, bx, ry, bw, 'AI 컨트롤러 숙련도',
-      Math.round(this.aiSkill * 100) + '%', { valueSize: 'body' });
-    blocks.push(r2); ry = r2.bottom + 8;
-  } else if (this.formationId) {
-    var f = GAME.Formations.getById(this.formationId);
-    var sum = GAME.Learn.summary(this.formationId);
-    var r3 = GAME.UI.rewardRow(this, bx, ry, bw, '상대 진형',
-      (f ? f.name : '?') + (sum ? '  ·  ' + sum.escalation + '단계' : ''),
-      { valueSize: 'body', valueColor: GAME.UI.TXT.text, accent: tierObj.hex });
-    blocks.push(r3); ry = r3.bottom + 8;
-    var r4 = GAME.UI.rewardRow(this, bx, ry, bw, '이 진형 상대 전적',
-      GAME.UI.winRateText(this.formationId),
-      { valueSize: 'caption', valueColor: GAME.UI.TXT.warn });
-    blocks.push(r4); ry = r4.bottom + 8;
-  }
+  var rw = this._rewards(bx, plate.bottom + u * 1.5, bw, tierObj);
+  var blocks = rw.blocks, scoreRow = rw.scoreRow, ry = rw.bottom;
 
   var noteObjs = [];
   if (this.learnNotes.length) {
@@ -218,4 +175,127 @@ GAME.ResultScene.prototype.create = function () {
   GAME.UI.button(this, rc[1].cx, btnTop + u * 18, rc[1].w, u * 6, '메뉴', function () {
     self.scene.start('Menu');
   }, { fontSize: P ? 15 : 15 });
+};
+
+// 보상/지표 줄 묶음 — 가로·세로·폰 가로가 **같은 내용을 같은 순서로** 보여줘야 하므로
+// 좌표만 받아 한 곳에서 만든다(예전엔 이 블록이 create 안에 박혀 있어 재배치가 불가능했다).
+GAME.ResultScene.prototype._rewards = function (bx, ry, bw, tierObj) {
+  var blocks = [];
+  var scoreRow = null;
+
+  if (this.score > 0) {
+    scoreRow = GAME.UI.rewardRow(this, bx, ry, bw, '획득 점수', '0', {
+      accent: 0xffd166, valueSize: 'heading'
+    });
+    blocks.push(scoreRow); ry = scoreRow.bottom + 8;
+
+    var me = GAME.Account.current();
+    if (me) {
+      var rec = GAME.Score.of(me);
+      var totalRow = GAME.UI.rewardRow(this, bx, ry, bw, '누적 점수',
+        rec.total.toLocaleString('ko-KR') + '점  ·  격파 ' + rec.rounds + '회',
+        { valueSize: 'body', valueColor: GAME.UI.TXT.textMid });
+      blocks.push(totalRow); ry = totalRow.bottom + 8;
+    }
+  }
+
+  if (this.tower) {
+    // 도전 보상 — 골드가 올랐다는 걸 점수와 같은 무게로 보여준다
+    if (this.goldGained > 0 && this.runRec) {
+      var gr = GAME.UI.rewardRow(this, bx, ry, bw, '획득 골드',
+        '+' + this.goldGained + '  (보유 ' + this.runRec.gold + ')',
+        { accent: 0xffd166, valueSize: 'heading', valueColor: GAME.UI.TXT.crit });
+      blocks.push(gr); ry = gr.bottom + 8;
+    }
+    var prof = GAME.Profile.read();
+    var r = GAME.UI.rewardRow(this, bx, ry, bw, 'AI가 읽은 당신',
+      prof.styleLabel + ' · ' + prof.dodgeLabel,
+      { valueSize: 'body', valueColor: GAME.UI.TXT.crit, accent: tierObj.hex });
+    blocks.push(r); ry = r.bottom + 8;
+  } else if (this.defendMode) {
+    var r2 = GAME.UI.rewardRow(this, bx, ry, bw, 'AI 컨트롤러 숙련도',
+      Math.round(this.aiSkill * 100) + '%', { valueSize: 'body' });
+    blocks.push(r2); ry = r2.bottom + 8;
+  } else if (this.formationId) {
+    var f = GAME.Formations.getById(this.formationId);
+    var sum = GAME.Learn.summary(this.formationId);
+    var r3 = GAME.UI.rewardRow(this, bx, ry, bw, '상대 진형',
+      (f ? f.name : '?') + (sum ? '  ·  ' + sum.escalation + '단계' : ''),
+      { valueSize: 'body', valueColor: GAME.UI.TXT.text, accent: tierObj.hex });
+    blocks.push(r3); ry = r3.bottom + 8;
+    var r4 = GAME.UI.rewardRow(this, bx, ry, bw, '이 진형 상대 전적',
+      GAME.UI.winRateText(this.formationId),
+      { valueSize: 'caption', valueColor: GAME.UI.TXT.warn });
+    blocks.push(r4); ry = r4.bottom + 8;
+  }
+
+  return { blocks: blocks, scoreRow: scoreRow, bottom: ry };
+};
+
+// ── 폰 가로 (820×390) ────────────────────────────────────────────────────
+//  왼쪽 = 판정 현수막 + 설명 + 학습 노트, 오른쪽 = 보상 줄 + 다음 행동 버튼.
+//  버튼은 **바닥에서 위로** 잡는다 — 보상 줄 개수가 2~4개로 변해도 안 밀린다.
+GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
+  var C = GAME.CONFIG.COLORS;
+  var UI = GAME.UI;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var self = this;
+
+  var PAD = 16;
+  var LW = 404;
+  var rx = PAD + LW + 16, rw = W - PAD - rx;
+
+  var plate = UI.verdictPlate(this, PAD + LW / 2, 12, LW, title, sub, {
+    tierIndex: tierObj.i, accentCss: color, titleSize: 'title'
+  });
+
+  var noteObjs = [];
+  if (this.learnNotes.length) {
+    noteObjs.push(UI.text(this, PAD + LW / 2, plate.bottom + 2,
+      '🧠 ' + this.learnNotes.join('  /  '), {
+        size: 'micro', color: UI.TXT.crit, origin: 0.5, originY: 0,
+        align: 'center', wrap: LW
+      }));
+  }
+
+  // ── 오른쪽: 보상 → 다음 행동 ──
+  // 55 는 아이폰 SE(FIT 0.813)에서 화면 44.7px — 44px 하한을 넘기는 최소값이다.
+  var secH = 55, secTop = H - 12 - secH;
+  var mainH = 62, mainTop = secTop - 10 - mainH;
+  var rw2 = this._rewards(rx, 14, rw, tierObj);
+  var blocks = rw2.blocks, scoreRow = rw2.scoreRow;
+
+  UI.revealIn(this, [plate].concat(blocks).concat([noteObjs]), { stagger: 120 });
+  if (scoreRow) {
+    UI.countUp(this, scoreRow.value, this.score, { suffix: '점', duration: 800, delay: 300 });
+  }
+
+  var b1;
+  if (this.tower) b1 = (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : '1층부터 다시');
+  else if (this.defendTower) b1 = (this.winner === 'controller' ? '1층부터 다시' : (this.defendTower + 1) + '층 방어');
+  else if (this.versus) b1 = '다음 상대';
+  else if (this.defendMode) b1 = '배치 고쳐 다시';
+  else b1 = '같은 진형에 다시 도전';
+
+  UI.button(this, rx + rw / 2, mainTop + mainH / 2, rw, mainH, b1, function () {
+    if (self.tower) self.scene.start('Tower');
+    else if (self.defendTower) self.scene.start('DefendTower');
+    else if (self.versus) self.scene.start('Versus');
+    else if (self.defendMode) self.scene.start('Build');
+    else self.scene.start('Draft', { formationId: self.formationId });
+  }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
+       hover: UI.COL.panelTealHi, color: C.accent, fontSize: 19 });
+
+  var b2 = this.tower ? '일반 대전으로'
+    : (this.defendTower ? '메뉴로' : (this.versus ? '메뉴로' : (this.defendMode ? '컨트롤러로 도전' : '다른 진형')));
+  var bc = GAME.Layout.cols(3, { gap: 10, width: rw, left: rx, pad: 0 });
+  UI.button(this, bc[0].cx, secTop + secH / 2, bc[0].w, secH, b2, function () {
+    self.scene.start((self.defendTower || self.versus) ? 'Menu' : 'Select');
+  }, { fontSize: 15 });
+  UI.button(this, bc[1].cx, secTop + secH / 2, bc[1].w, secH, '🏆 랭킹', function () {
+    self.scene.start('Rank', { scope: 'live' });
+  }, { fontSize: 15 });
+  UI.button(this, bc[2].cx, secTop + secH / 2, bc[2].w, secH, '메뉴', function () {
+    self.scene.start('Menu');
+  }, { fontSize: 15 });
 };

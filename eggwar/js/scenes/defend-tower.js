@@ -22,6 +22,11 @@ GAME.DefendTowerScene.prototype.create = function () {
   if (!GAME.Account.current()) { this.scene.start('Login'); return; }
 
   this.cameras.main.setBackgroundColor(C.bg);
+  GAME.Iso.setMode('default');
+
+  // 폰 가로(820×390)는 한 열로 흘릴 높이가 없다 — 아래에서 올라오는 버튼과
+  // 위에서 내려오는 문구가 만난다(실측: 겹침 4건, 27px 버튼).
+  if (GAME.CONFIG.PHONE) return this._createPhone();
 
   var rec = DT.get();
   var floor = rec.floor;
@@ -108,4 +113,87 @@ GAME.DefendTowerScene.prototype.create = function () {
       self.scene.start('Build', { defendTower: floor });
     }, { fill: GAME.UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
          hover: GAME.UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: P ? 20 : 22 });
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  폰 가로 (820×390) — 3열
+//   왼쪽 = 지금 몇 층인가(현판 + 보스까지 게이지)
+//   가운데 = **이번 층에 오는 영웅**(이걸 보고 배치를 짠다 — 이 화면의 존재 이유다)
+//   오른쪽 = 버튼
+// ═══════════════════════════════════════════════════════════════════════════
+GAME.DefendTowerScene.prototype._createPhone = function () {
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var self = this;
+  var DT = GAME.DefendTower;
+
+  var rec = DT.get();
+  var floor = rec.floor;
+  var budget = DT.budgetFor(floor);
+  var skill = DT.skillFor(floor);
+  var heroKey = DT.heroKeyFor(floor, skill);
+  var hero = GAME.HEROES[heroKey];
+  var heroBudget = DT.heroBudgetFor(floor);
+  var boss = DT.isBossFloor(floor);
+  var mods = DT.heroModsFor(floor);
+
+  var PAD = 12, BTN_W = 216, GAP = 14;
+  var bx = W - PAD - BTN_W;                 // 592
+  var lx = PAD, lw = 200;                   // 왼쪽 열
+  var mx = lx + lw + GAP, mw = bx - GAP - mx;
+
+  UI.text(this, lx, 4, '수성의 탑', { size: 'heading', color: C.text });
+  // 오른쪽 끝에 붙인다 — 왼쪽 열 폭(200)에 맞춰 오른쪽 정렬하면 제목과 겹친다(실측 144px²).
+  UI.text(this, W - PAD, 8,
+    '최고 ' + (rec.best || 0) + '층 · 격파 ' + (rec.kills || 0) + '회',
+    { size: 'micro', color: C.textDim, origin: 1, originY: 0 });
+
+  // ── 왼쪽: 층 현판 + 보스까지 ─────────────────────────────────────────────
+  var badge = UI.floorBadge(this, lx + lw / 2, 44, floor, { boss: !!boss, width: 172, height: 94 });
+  var band = UI.bandMeter(this, lx + 8, badge.bottom + 16, lw - 16, floor, DT.BOSS_EVERY);
+  var y = band.bounds().bottom + 12;
+  if (boss) {
+    UI.text(this, lx + lw / 2, y, '☠ 보스 층 — 더 강한 영웅', {
+      size: 'micro', color: UI.TXT.danger, origin: 0.5, originY: 0,
+      wrap: lw, align: 'center'
+    });
+  }
+
+  // ── 가운데: 이번 층에 오는 영웅 ─────────────────────────────────────────
+  var my = 36;
+  function line(text, opts) {
+    var t = UI.text(self, mx, my, text, opts);
+    my = t.y + t.height + (opts && opts.gap !== undefined ? opts.gap : 8);
+    return t;
+  }
+  line('이번 층 공격 영웅 —  ' + hero.name + '  (' + hero.trait + ')',
+    { size: 'subhead', color: UI.TXT.crit, wrap: mw });
+  line(hero.desc, { size: 'caption', color: C.textDim, wrap: mw, gap: 14 });
+  line('영웅 예산 ' + heroBudget + '  ·  체력 +' + Math.round((mods.hp - 1) * 100) +
+    '% · 공격 +' + Math.round((mods.damage - 1) * 100) + '%  ·  숙련 ' + Math.round(skill * 100) + '%',
+    { size: 'caption', color: C.text, wrap: mw });
+  line('내 배치 예산 ' + budget, { size: 'caption', color: C.accent, wrap: mw, gap: 14 });
+  var E = DT.EARLY_FLOORS;
+  if (floor <= E) {
+    line('1~' + E + '층은 연습 구간. ' + (E + 1) + '층부터는 제대로 배치하지 않으면 뚫립니다.',
+      { size: 'micro', color: C.textDim, wrap: mw });
+  }
+
+  // ── 오른쪽: 버튼 (위에서 아래로) ────────────────────────────────────────
+  var by = 34, BH = 84, SH = 68, g2 = 14;
+  UI.button(this, bx + BTN_W / 2, by + BH / 2, BTN_W, BH, floor + '층 방어 — 배치하기',
+    function () { self.scene.start('Build', { defendTower: floor }); },
+    { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
+      color: C.accentAlt, fontSize: 'button' });
+  by += BH + g2;
+  UI.button(this, bx + BTN_W / 2, by + SH / 2, BTN_W, SH, '🏆 랭킹',
+    function () { self.scene.start('Rank', { scope: 'live' }); }, { fontSize: 'buttonSm' });
+  by += SH + g2;
+  UI.button(this, bx + BTN_W / 2, by + SH / 2, BTN_W, SH, '← 메뉴',
+    function () { self.scene.start('Menu'); }, { fontSize: 'buttonSm' });
+  by += SH + g2;
+  if (floor > 1 && by + SH < H - 8) {
+    UI.button(this, bx + BTN_W / 2, by + SH / 2, BTN_W, SH, '1층부터 다시',
+      function () { DT.fail(); self.scene.restart(); }, { fontSize: 'buttonSm' });
+  }
 };

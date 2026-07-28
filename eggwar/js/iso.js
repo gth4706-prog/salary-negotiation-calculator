@@ -8,10 +8,11 @@ window.GAME = window.GAME || {};
 // → 롤토체스식 비스듬한 뷰를 얻으면서도 논타겟 회피 판정의 공정성은 손상되지 않는다.
 GAME.Iso = {
   // y축 압축 비율. 1이면 정탑다운, 작을수록 더 눕는다.
-  TILT: GAME.CONFIG.PORTRAIT ? 0.72 : 0.60,
+  // 작은 화면(세로·폰 가로)은 덜 눕혀야 유닛이 크게 보이고 겹침도 덜하다.
+  TILT: GAME.CONFIG.SMALL ? 0.72 : 0.60,
 
   // 아레나 상단이 화면에서 시작하는 y 좌표
-  SCREEN_TOP: GAME.CONFIG.PORTRAIT ? 40 : 66,
+  SCREEN_TOP: GAME.CONFIG.SMALL ? 40 : 66,
 
   // ── 전투 전용 '전체 화면' 배치 ──────────────────────────────────────────
   // 세로 폰에서 전장을 화면 거의 전체로 키운다. HUD 는 위로 올리고 조작 버튼은
@@ -21,11 +22,13 @@ GAME.Iso = {
   // 순수 렌더 계층 변경이다(거리·회피 판정은 그대로). 그래서 밸런스가 움직이지 않는다.
   // 배치·준비 화면은 HUD 를 아레나 **아래**에 두므로 이 모드를 쓰면 안 된다 → 씬별로 켠다.
   FULL_TOP: 96,          // 기본값 — 실제로는 위쪽 HUD 의 **실측 바닥**을 받아 쓴다
-  BOTTOM_GAP: 96,        // 폰 하단바와 띄우는 간격(설계 px)
+  // 폰 하단바와 띄우는 간격(설계 px). 가로에서는 화면 높이가 390 뿐이라 96 이면
+  // 화면의 25% 를 버린다 → 엄지 조작 버튼이 전장 위에 겹치는 구성이므로 짧게 잡는다.
+  BOTTOM_GAP: (GAME.CONFIG.PHONE ? 24 : 96),
 
   _base: {
-    tilt: GAME.CONFIG.PORTRAIT ? 0.72 : 0.60,
-    top: GAME.CONFIG.PORTRAIT ? 40 : 66
+    tilt: GAME.CONFIG.SMALL ? 0.72 : 0.60,
+    top: GAME.CONFIG.SMALL ? 40 : 66
   },
 
   // mode: 'full' = 전투용 전체화면(세로 전용) / 그 외 = 기본
@@ -33,7 +36,8 @@ GAME.Iso = {
   //   HUD 높이는 보스 유무로 128↔158 로 달라진다 → **실측값을 받아야** 겹치지 않는다.
   setMode: function (mode, topY) {
     var A = GAME.CONFIG.ARENA;
-    if (mode === 'full' && GAME.CONFIG.PORTRAIT) {
+    // 폰 가로도 이 모드를 쓴다 — 높이 390 에 HUD 를 쌓을 자리가 없어 전장 위에 겹친다.
+    if (mode === 'full' && GAME.CONFIG.SMALL) {
       this.SCREEN_TOP = (topY === undefined) ? this.FULL_TOP : Math.round(topY);
       // 남은 세로를 꽉 채우되 1.0(정탑다운)을 넘지 않는다 — 넘기면 원이 세로로 늘어난다.
       var avail = GAME.CONFIG.HEIGHT - this.SCREEN_TOP - this.BOTTOM_GAP;

@@ -75,6 +75,17 @@ GAME.DraftScene.prototype.init = function (data) {
   // redraw 의 `if (!this.scoutSummary)` 가 파괴된 객체를 재사용해 터진다.
   this.scoutSummary = null;
   this.compact = false;
+  this._warnOn = false;
+  // 폰 가로 2단계 레이아웃 상태 (씬 재진입 시 반드시 되돌린다)
+  this.phone = false;
+  this._phObjs = [];
+  this._phStepIdx = 0;
+  this._phCells = [];
+  this._phTabs = [];
+  this._phOpts = [];
+  this._phRail = null;
+  this._phBtnL = null;
+  this._phBtnR = null;
 
   // 미리보기 / 골드 롤링 상태 (씬 재진입 시 반드시 초기화)
   this.pg = null;
@@ -108,6 +119,15 @@ GAME.DraftScene.prototype.create = function () {
   this.cameras.main.setBackgroundColor(C.bg);
   // 준비 화면은 정찰도를 축소해 그리므로 전투용 전체화면 투영이 새어 들어오면 안 된다.
   GAME.Iso.setMode('default');
+
+  // 폰 가로(820×390)는 PC 도 세로도 아니다 — 높이 390 에 PC 구성을 그대로 쓰면
+  // 아이템 줄 아래가 통째로 화면 밖으로 나간다(실측: 요소 50개 화면 밖).
+  // 전용 2단계 레이아웃으로 간다(js/scenes/draft-mobile.js 아래쪽).
+  if (GAME.CONFIG.PHONE) {
+    this.events.once('shutdown', function () { self._teardown(); self._phClearStep(); });
+    this._createPhone();
+    return;
+  }
 
   // ── 화면 분할 ──
   // 세로 모바일은 폭이 좁아 좌우 분할이 안 되므로 위(정찰)/아래(설정)로 나눈다.
@@ -202,13 +222,10 @@ GAME.DraftScene.prototype.update = function (time, delta) {
 // ════════════════════════════════════════════════════════════════════════════
 //  왼쪽 — 적 편성표 (가로 전용)
 // ════════════════════════════════════════════════════════════════════════════
-GAME.DraftScene.prototype._buildRoster = function () {
-  var C = GAME.CONFIG.COLORS;
-  var S = this.split;
-  var i;
-
-  // 종류별로 묶고 수량 많은 순으로. 같으면 비싼(=위협적인) 쪽이 위로.
-  var counts = {};
+// 적 편성표의 원자료 — 가로(PC)와 폰 가로가 같은 집계를 쓴다.
+// 두 곳에서 따로 세면 "PC 는 7종인데 폰은 6종" 같은 어긋남이 조용히 생긴다.
+GAME.DraftScene.prototype._rosterData = function () {
+  var counts = {}, i;
   for (i = 0; i < this.formation.units.length; i++) {
     var ty = this.formation.units[i].type;
     counts[ty] = (counts[ty] || 0) + 1;
@@ -229,6 +246,18 @@ GAME.DraftScene.prototype._buildRoster = function () {
     if (b.n !== a.n) return b.n - a.n;
     return (b.def.cost || 0) - (a.def.cost || 0);
   });
+  return { rows: rows, hp: Math.round(totHp), dps: Math.round(totDps),
+           boss: bossN, total: this.formation.units.length };
+};
+
+GAME.DraftScene.prototype._buildRoster = function () {
+  var C = GAME.CONFIG.COLORS;
+  var S = this.split;
+  var i;
+
+  var rd = this._rosterData();
+  var rows = rd.rows;
+  var totHp = rd.hp, totDps = rd.dps, bossN = rd.boss;
 
   var pad = 12;
   var x0 = S.scoutX + pad, rw = S.scoutW - pad * 2;
@@ -528,6 +557,13 @@ GAME.DraftScene.prototype.spent = function () {
   return GAME.Items.totalCost(this.items);
 };
 
+// 경고 줄. 폰 가로는 경고와 설명이 **같은 객체**를 쓰므로(겹침 방지),
+// 지금 찍힌 글자가 경고인지 설명인지 이 플래그로 구분한다.
+GAME.DraftScene.prototype._warn = function (msg) {
+  this._warnOn = !!msg;
+  if (this.warnText) this.warnText.setText(msg || '');
+};
+
 GAME.DraftScene.prototype._toggleItem = function (slotKey, item) {
   if (this.items[slotKey] === item.key) {
     this.items[slotKey] = null;
@@ -536,12 +572,12 @@ GAME.DraftScene.prototype._toggleItem = function (slotKey, item) {
     this.items[slotKey] = item.key;
     if (this.spent() > this.itemBudget) {
       this.items[slotKey] = prev;
-      this.warnText.setText('장비 예산이 부족합니다.');
+      this._warn('장비 예산이 부족합니다.');
       this.redraw();
       return;
     }
   }
-  this.warnText.setText('');
+  this._warn('');
   this.redraw();
 };
 
@@ -559,7 +595,7 @@ GAME.DraftScene.prototype._trim = function () {
 
 GAME.DraftScene.prototype._start = function () {
   if (this.spent() > this.itemBudget) {
-    this.warnText.setText('장비 예산을 초과했습니다.');
+    this._warn('장비 예산을 초과했습니다.');
     return;
   }
   // 통곡의 탑: 여기서 고른 것이 **도전 내내 유지되는 세팅**이다.
@@ -910,9 +946,20 @@ GAME.DraftScene.prototype._drawPreview = function () {
 
     // 부채꼴 안의 적이 영웅 쪽으로 빨려온다.
     case 'pull':
-      hx = st.x + st.w * 0.24; hy = st.cy + 8;
       R = (sk.dist || 200) * k;
       half = Math.min(Math.PI, (sk.coneDeg || 120) * Math.PI / 360);
+      // 360°(주변 전체)는 부채꼴이 아니라 원이다 — 왼쪽 1/4 지점에 두면 원이 무대를
+      // 왼쪽으로 42px 뚫고 나간다(실측). 원일 때만 무대 한가운데에 놓고 반경을 가둔다.
+      if ((sk.coneDeg || 0) >= 360) {
+        hx = st.cx; hy = st.cy;
+        R = Math.min(R, st.w * 0.42, st.h * 0.42);
+      } else {
+        hx = st.x + st.w * 0.24; hy = st.cy + 8;
+        // 부채꼴의 세로 반높이는 R·sin(half) 다. PC 무대는 높이 184 뿐이라 이걸 안 가두면
+        // 위아래로 14~48px 잘려 나간다(실측). 마스크가 가려줄 뿐 그림은 잘린 채다.
+        var vh = Math.abs(Math.sin(half)) || 1;
+        R = Math.min(R, (st.h * 0.42) / vh, st.w * 0.68);
+      }
       if ((sk.coneDeg || 0) >= 360) {
         g.fillStyle(C.controller, 0.10); g.fillCircle(hx, hy, R);
         g.lineStyle(1, C.controller, 0.45); g.strokeCircle(hx, hy, R);
@@ -996,6 +1043,7 @@ GAME.DraftScene.prototype._drawPreview = function () {
 //  redraw
 // ════════════════════════════════════════════════════════════════════════════
 GAME.DraftScene.prototype.redraw = function () {
+  if (this.phone) return this._redrawPhone();
   if (this.compact) return this._redrawCompact();
   var C = GAME.CONFIG.COLORS;
   var COL = GAME.UI.COL;

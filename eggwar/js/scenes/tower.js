@@ -80,6 +80,8 @@ GAME.TowerScene.prototype.create = function (data) {
 GAME.TowerScene.prototype._buildLanding = function () {
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var P = GAME.CONFIG.PORTRAIT;
+  // 폰 가로 — PC 와 **같은 구도**(좌 버튼 기둥 / 우 계란전사)가 성립한다. 비율만 다르다.
+  var PH = GAME.CONFIG.PHONE;
   var self = this;
   var u = H / 100;
   var rec = this._rec, floor = this._floor;
@@ -94,7 +96,7 @@ GAME.TowerScene.prototype._buildLanding = function () {
   var g = this.add.graphics();
 
   // ── 하늘 ── 위로 갈수록 짙어지는 밤하늘(밴드로 그라디언트를 흉내)
-  var groundY = H * (P ? 0.70 : 0.66);
+  var groundY = H * (P ? 0.70 : (PH ? 0.74 : 0.66));
   var skyBands = 14;
   for (var i = 0; i < skyBands; i++) {
     var t = i / (skyBands - 1);
@@ -111,15 +113,17 @@ GAME.TowerScene.prototype._buildLanding = function () {
   }
 
   // ── 탑 — 피사의 사탑처럼 살짝 기운 채, 밑동을 축으로 회전한 컨테이너에 그린다 ──
-  var pivotX = W * 0.5, pivotY = groundY + 4;
+  // 폰 가로는 왼쪽 버튼 기둥이 화면 폭의 절반을 넘게 차지한다 → 탑을 오른쪽으로 밀어
+  // 기둥과 계란전사 사이 틈에 세운다(기둥 뒤에 숨으면 '탑 랜딩'이 아니게 된다).
+  var pivotX = W * (PH ? 0.62 : 0.5), pivotY = groundY + 4;
   var towerCont = this.add.container(pivotX, pivotY);
   var tg = this.add.graphics();
   towerCont.add(tg);
   towerCont.setRotation(Phaser.Math.DegToRad(4.2));   // 살짝 왼쪽으로 기욺 — 불안정하고 오래된 느낌
   this._towerCont = towerCont;
 
-  var towerH = H * (P ? 0.60 : 0.56);
-  var baseW = Math.min(W * 0.30, 172);
+  var towerH = H * (P ? 0.60 : (PH ? 0.50 : 0.56));
+  var baseW = PH ? Math.min(W * 0.20, 118) : Math.min(W * 0.30, 172);
   var topW = baseW * 0.5;
   var segs = 8;
   for (var s = 0; s < segs; s++) {
@@ -171,8 +175,20 @@ GAME.TowerScene.prototype._buildLanding = function () {
   // 아래로 약 1.8r** 만큼 뻗는다(치켜든 무기 끝 ~ 알 몸통 바닥) — 총 높이가 5r 이다.
   // 0.235/1.00 → 머리와 검만, 0.21/0.845 → 몸통 바닥이 화면 밖. 두 번 다 잘렸다.
   // 5r + 위쪽 제목 자리(~150px)가 H 안에 들어가야 한다 → r ≤ 0.15·min(W,H).
-  var heroR = Math.min(W, H) * (P ? 0.20 : 0.15);
-  var heroX = W * (P ? 0.50 : 0.755), heroY = H * (P ? 1.00 : 0.72);
+  //
+  // 폰 가로(820×390)는 높이가 곧 한계다. 위 3.2r + 아래 1.8r = 5r 을 **화면 안에 그대로**
+  // 넣으려면 r 을 세로 여유에서 역산해야 한다(비율로 잡으면 발밑이 잘린다 — 실측).
+  var heroR, heroX, heroY;
+  if (PH) {
+    var bandTop = 96, bandBot = H - 16;
+    heroR = (bandBot - bandTop) / 5;                 // 390 에서 56.8
+    heroY = bandTop + heroR * 3.2;
+    heroX = W * 0.80;                                // 가로 반폭 2.1r 이 화면 안에 들어간다
+  } else {
+    heroR = Math.min(W, H) * (P ? 0.20 : 0.15);
+    heroX = W * (P ? 0.50 : 0.755);
+    heroY = H * (P ? 1.00 : 0.72);
+  }
   // 인물은 탑(towerCont)보다 **뒤에 만든 그래픽스**에 그려야 앞에 선다.
   // g 는 towerCont 보다 먼저 만들어졌으므로 g 에 그리면 탑에 가린다.
   var hg = this.add.graphics();
@@ -193,9 +209,10 @@ GAME.TowerScene.prototype._buildLanding = function () {
 
   // ── 텍스트(양피지 톤) ──
   var y = u * 4;
+  if (PH) y = 6;
   var title = GAME.UI.text(this, W / 2, y, '통곡의 탑',
     { size: P ? 'display' : 'display', color: INK.parchment, origin: 0.5 }).setOrigin(0.5, 0);
-  title.setFontSize((P ? 30 : 44));
+  title.setFontSize(P ? 30 : (PH ? 28 : 44));
   title.setShadow(0, 3, '#000000', 6, false, true);
   y = title.y + title.height + u * 0.6;
   var sub = GAME.UI.text(this, W / 2, y,
@@ -213,14 +230,18 @@ GAME.TowerScene.prototype._buildLanding = function () {
   // ── 버튼 기둥 ──
   // PC 는 인물을 오른쪽에 크게 세웠으므로 버튼을 **왼쪽 기둥**으로 몰아 겹침을 없앤다.
   // 세로는 폭이 없으니 예전처럼 화면 폭 전체를 쓴다.
-  var bw = P ? Math.min(W - 30, 420) : 430;
-  var colCx = P ? (W / 2) : (56 + bw / 2);
-  var bh = u * 7;
-  var gap = u * 1.4;
-  var byBottom = H - u * 2;
-  var bigH = bh + u * 0.8;
-  var challengeCy = byBottom - bh * 2.5 - gap * 2;
-  var textBottom = challengeCy - bigH / 2 - u * 1.6;
+  //
+  // 폰 가로: 세로로 3단을 쌓으면 한 칸이 27px(화면 27px)이 되어 손가락이 안 들어간다
+  // (실측: 430×27.3). '랭킹·메뉴'를 **한 줄 2칸**으로 접어 높이를 도전 버튼에 몰아준다.
+  var bw = P ? Math.min(W - 30, 420) : (PH ? 420 : 430);
+  var colCx = P ? (W / 2) : (PH ? (36 + bw / 2) : (56 + bw / 2));
+  var bh = PH ? 58 : u * 7;
+  var gap = PH ? 10 : u * 1.4;
+  var byBottom = H - (PH ? 10 : u * 2);
+  var bigH = PH ? 64 : bh + u * 0.8;
+  var challengeCy = PH ? (byBottom - bh - gap - bigH / 2)
+                       : (byBottom - bh * 2.5 - gap * 2);
+  var textBottom = challengeCy - bigH / 2 - (PH ? 12 : u * 1.6);
 
   // ── 세계관 + 이 모드가 무엇인지 (버튼 바로 위) ──
   // 요청: "통곡의 탑 설명에 세계관 + 진화하는 AI 전장에서 컨트롤러 훈련하라는 문구".
@@ -244,11 +265,15 @@ GAME.TowerScene.prototype._buildLanding = function () {
   var loreLbl = null;
   if (!P) {
     // 세로에서는 이 문단이 들어갈 세로 여유가 없다(버튼 4줄이 이미 화면을 채운다).
+    // 폰 가로도 4줄은 사치다 — 같은 내용을 **2줄로 축약**한다.
     loreLbl = GAME.UI.text(this, colCx - bw / 2, 0,
-      '알에서 깨어난 자들의 전쟁.\n' +
-      '통곡의 탑은 패배한 부족의 울음으로 쌓아 올린 탑이다.\n' +
-      '탑은 당신의 싸움을 기억한다 — 한 층을 오를 때마다,\n' +
-      '당신을 더 잘 아는 진형이 내려온다.',
+      PH
+        ? ('알에서 깨어난 자들의 전쟁 — 패배한 부족의 울음으로 쌓아 올린 탑.\n' +
+           '탑은 당신의 싸움을 기억한다. 오를수록 더 잘 아는 진형이 내려온다.')
+        : ('알에서 깨어난 자들의 전쟁.\n' +
+           '통곡의 탑은 패배한 부족의 울음으로 쌓아 올린 탑이다.\n' +
+           '탑은 당신의 싸움을 기억한다 — 한 층을 오를 때마다,\n' +
+           '당신을 더 잘 아는 진형이 내려온다.'),
       { size: 'caption', color: INK.parchment, origin: 0, align: 'left', wrap: textW });
     loreLbl.setOrigin(0, 0).setAlpha(0.86).setLineSpacing(5);
     loreLbl.setY(ctaLbl.y - loreLbl.height - u * 1.4);
@@ -296,19 +321,30 @@ GAME.TowerScene.prototype._buildLanding = function () {
     color: INK.parchment, radius: GAME.UI.R ? GAME.UI.R.md : 10
   };
 
-  GAME.UI.button(this, colCx, byBottom - bh * 0.5, bw, bh, '← 메뉴', function () {
-    self.scene.start('Menu');
-  }, Object.assign({ fontSize: P ? 15 : 15 }, darkBtnOpts));
+  if (PH) {
+    // 두 보조 버튼을 한 줄 2칸으로 — 높이를 아껴 터치 타깃(58)을 확보한다.
+    var sc = GAME.Layout.cols(2, { gap: 10, width: bw, left: colCx - bw / 2, pad: 0 });
+    GAME.UI.button(this, sc[0].cx, byBottom - bh * 0.5, sc[0].w, bh, '🏆 랭킹', function () {
+      self.scene.start('Rank', { scope: 'live' });
+    }, Object.assign({ fontSize: 17 }, darkBtnOpts));
+    GAME.UI.button(this, sc[1].cx, byBottom - bh * 0.5, sc[1].w, bh, '← 메뉴', function () {
+      self.scene.start('Menu');
+    }, Object.assign({ fontSize: 17 }, darkBtnOpts));
+  } else {
+    GAME.UI.button(this, colCx, byBottom - bh * 0.5, bw, bh, '← 메뉴', function () {
+      self.scene.start('Menu');
+    }, Object.assign({ fontSize: P ? 15 : 15 }, darkBtnOpts));
 
-  GAME.UI.button(this, colCx, byBottom - bh * 1.5 - gap, bw, bh, '🏆 랭킹', function () {
-    self.scene.start('Rank', { scope: 'live' });
-  }, Object.assign({ fontSize: P ? 17 : 16 }, darkBtnOpts));
+    GAME.UI.button(this, colCx, byBottom - bh * 1.5 - gap, bw, bh, '🏆 랭킹', function () {
+      self.scene.start('Rank', { scope: 'live' });
+    }, Object.assign({ fontSize: P ? 17 : 16 }, darkBtnOpts));
+  }
 
   var challengeLabel = this.run ? ('도전 계속하기  —  ' + floor + '층') : '도전';
   GAME.UI.button(this, colCx, challengeCy, bw, bigH, challengeLabel,
     function () { self.scene.restart({ step: 'challenge' }); },
     { fill: 0x2a2016, line: 0xffd166, hover: 0x352a1e, press: 0x1e1710,
-      color: '#ffd166', fontSize: P ? 20 : 22, radius: GAME.UI.R ? GAME.UI.R.md : 10 });
+      color: '#ffd166', fontSize: P ? 20 : (PH ? 21 : 22), radius: GAME.UI.R ? GAME.UI.R.md : 10 });
 };
 
 // 두 색을 f(0~1) 비율로 섞는다 — 하늘 그라디언트용
@@ -386,6 +422,8 @@ GAME.TowerScene.prototype._buildHeroSelect = function () {
   var self = this;
   var u = H / 100;
   var rec = this._rec, floor = this._floor;
+
+  if (GAME.CONFIG.PHONE) { this._buildHeroSelectPhone(); return; }
 
   this.cameras.main.setBackgroundColor(C.bg);
 
@@ -525,6 +563,128 @@ GAME.TowerScene.prototype._buildHeroSelect = function () {
   this._refreshHeroSelect();
 };
 
+// ── 폰 가로 전용 캐릭터 선택 (820×390) ──────────────────────────────────
+//  PC 판은 [머리 / 설명 패널 / 카드 4장 / 상세 2줄 / 버튼줄] 5단이라 높이 390 에서
+//  아래 3단이 통째로 겹쳤다(실측 겹침 10건). 폰에서는 단을 3개로 줄인다:
+//    ① 한 줄 머리(뒤로·제목·슬롯수) + 한 줄 정보(층·보스·규칙)
+//    ② 카드 4장 — 화면 높이의 절반 이상을 여기에 준다
+//    ③ 상세 2줄 + 버튼 한 줄
+//  설명 패널(3문장)은 오른쪽 정렬 한 줄로 접었다.
+GAME.TowerScene.prototype._buildHeroSelectPhone = function () {
+  var C = GAME.CONFIG.COLORS;
+  var UI = GAME.UI;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var self = this;
+  var rec = this._rec, floor = this._floor;
+
+  this.cameras.main.setBackgroundColor(C.bg);
+
+  var PAD = 20;
+  var panelW = W - PAD * 2;
+  var bossDef = GAME.Tower.bossFor(floor);
+  var E = GAME.Tower.EARLY_FLOORS;
+  var slots = GAME.HERO_ORDER.length + 1;
+
+  // ── ① 머리 ──
+  UI.label(this, PAD, 12, '←  탑 소개', 15, C.textDim, 0)
+    .setInteractive({ useHandCursor: true })
+    .on('pointerdown', function () { self.scene.restart({ step: 'landing' }); });
+
+  UI.label(this, W / 2, 6, '캐릭터 선택', 26, C.text, 0.5).setOrigin(0.5, 0);
+  UI.label(this, W - PAD, 12, GAME.HERO_ORDER.length + ' / ' + slots, 17, C.accent, 1)
+    .setOrigin(1, 0);
+
+  var infoY = 44;
+  UI.label(this, PAD, infoY,
+    '통곡의 탑 ' + floor + '층' + (bossDef ? ('   ☠ ' + bossDef.name) : '') +
+    (rec.best ? ('   ·   최고 ' + rec.best + '층') : '   ·   첫 도전'),
+    15, bossDef ? UI.TXT.danger : C.text, 0);
+  UI.label(this, W - PAD, infoY,
+    (floor <= E ? ('1~' + E + '층 연습 · ' + (E + 1) + '층부터 조작 필수   ·   ')
+                : '영웅·장비는 도전 시작에 한 번만   ·   ') +
+    GAME.Tower.CHECKPOINT_EVERY + '층마다 체크포인트',
+    15, UI.TXT.crit, 1).setOrigin(1, 0);
+
+  // ── ② 카드 ──
+  var actH = 56;
+  var actCy = H - 10 - actH / 2;
+  var cardsTop = 68;
+  var cardsBottom = actCy - actH / 2 - 8 - 44;      // 상세 2줄(44) 자리를 빼둔다
+  var cardH = cardsBottom - cardsTop;
+  var gap = 10;
+  var cardW = Math.floor((panelW - gap * (slots - 1)) / slots);
+
+  var cg = this.add.graphics();
+  this._heroCardG = cg;
+  this._heroCards = [];
+
+  for (var i = 0; i < slots; i++) {
+    var cx = PAD + i * (cardW + gap);
+    var locked = i >= GAME.HERO_ORDER.length;
+    var key = locked ? null : GAME.HERO_ORDER[i];
+    var card = { key: key, locked: locked, x: cx, y: cardsTop, w: cardW, h: cardH,
+                 cx: cx + cardW / 2, artTop: cardsTop + 28, artBot: cardsTop + cardH - 42 };
+    if (!locked) {
+      (function (k) {
+        var zone = self.add.zone(card.cx, cardsTop + cardH / 2, cardW, cardH)
+          .setInteractive({ useHandCursor: true });
+        zone.on('pointerover', function () { self._hoverHero = k; self._refreshHeroSelect(); });
+        zone.on('pointerout', function () {
+          if (self._hoverHero === k) { self._hoverHero = null; self._refreshHeroSelect(); }
+        });
+        zone.on('pointerdown', function () {
+          if (self.heroKey === k) return;
+          self.heroKey = k;
+          GAME.Store.set('asymgame.lastHero', k);
+          self.formation = GAME.Tower.formationFor(self._floor, k);
+          if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('click');
+          self._refreshHeroSelect();
+        });
+      })(key);
+    }
+    this._heroCards.push(card);
+  }
+
+  for (var j = 0; j < this._heroCards.length; j++) {
+    var c = this._heroCards[j];
+    var h = c.locked ? null : GAME.HEROES[c.key];
+    c.role = UI.label(this, c.x + 10, c.y + 8, h ? h.trait : '준비 중',
+      15, h ? C.accent : C.textFaint, 0);
+    c.name = UI.label(this, c.cx, c.y + c.h - 30, h ? h.name : '???',
+      19, h ? C.text : C.textFaint, 0.5).setOrigin(0.5, 0);
+  }
+
+  // ── ③ 상세 2줄 ──
+  var dy = cardsBottom + 6;
+  this._heroDesc = UI.label(this, W / 2, dy, '', 15, C.text, 0.5)
+    .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(panelW);
+  this._heroStats = UI.label(this, W / 2, dy + 22, '', 15, C.textDim, 0.5)
+    .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(panelW);
+
+  // ── 버튼 한 줄 ──
+  UI.button(this, PAD + 70, actCy, 140, actH, '← 탑 소개', function () {
+    self.scene.restart({ step: 'landing' });
+  }, { fontSize: 16 });
+
+  this._startBtn = UI.button(this, W / 2, actCy, 380, actH, '', function () {
+    GAME.Tower.pending = self.formation;
+    self.scene.start('Draft', {
+      formationId: self.formation.id, tower: floor, heroKey: self.heroKey
+    });
+  }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
+       hover: UI.COL.panelTealHi, color: C.accent, fontSize: 19 });
+
+  if (floor > 1) {
+    UI.button(this, W - PAD - 80, actCy, 160, actH, '1층부터 다시', function () {
+      GAME.Tower.fail();
+      if (GAME.TowerRun && GAME.TowerRun.get()) GAME.TowerRun.end();
+      self.scene.restart({ step: 'landing' });
+    }, { fontSize: 16 });
+  }
+
+  this._refreshHeroSelect();
+};
+
 GAME.TowerScene.prototype._refreshHeroSelect = function () {
   var C = GAME.CONFIG.COLORS;
   var g = this._heroCardG;
@@ -559,7 +719,9 @@ GAME.TowerScene.prototype._refreshHeroSelect = function () {
     //  · 세로: sy 기준 위 3.2r ~ 아래 1.8r → 총 5r (치켜든 무기 끝 ~ 알 몸통 바닥)
     //  · 가로: 대검을 든 광전사가 가장 넓다 — 중심에서 약 2.2r
     // 처음엔 r 을 카드 높이의 20% 로 뒀다가 이름·설명문을 통째로 덮었다(실측 확인).
-    var artTop = c.y + 36, artBot = c.y + c.h - 50;
+    // 폰 가로는 카드가 납작해 위/아래 여백 규칙이 달라진다 → 카드가 직접 지정할 수 있게 한다.
+    var artTop = (c.artTop === undefined) ? c.y + 36 : c.artTop;
+    var artBot = (c.artBot === undefined) ? c.y + c.h - 50 : c.artBot;
     var r = Math.min((artBot - artTop) / 5.2, (c.w * 0.5 - 8) / 2.05);
     var feetY = (artTop + artBot) / 2 + r * 0.7;   // 도형 중심이 sy - 0.7r 이라 되돌린다
 
@@ -590,7 +752,9 @@ GAME.TowerScene.prototype._refreshHeroSelect = function () {
       (sel.lifesteal ? ('   ·   흡혈 ' + Math.round(sel.lifesteal * 100) + '%') : ''));
   }
   if (this._startBtn) {
-    this._startBtn.text.setText(this._floor + '층 도전  —  장비 & 스킬 세팅');
+    this._startBtn.text.setText(GAME.CONFIG.PHONE
+      ? (this._floor + '층 도전  —  장비 세팅')
+      : (this._floor + '층 도전  —  장비 & 스킬 세팅'));
   }
 };
 
@@ -603,6 +767,13 @@ GAME.TowerScene.prototype._buildChallenge = function () {
   var P = GAME.CONFIG.PORTRAIT;
   var self = this;
   var u = H / 100;
+
+  if (GAME.CONFIG.PHONE) {
+    // 새 도전이면 캐릭터 선택 화면이 담당한다(create 에서 이미 갈라지지만, 안전망).
+    if (!this.run) { this._buildHeroSelectPhone(); return; }
+    this._buildChallengePhone();
+    return;
+  }
 
   // 랜딩은 연출용 어두운 배경을 쓴다 — 여기서는 게임 본연의 테마로 되돌린다.
   this.cameras.main.setBackgroundColor(C.bg);
@@ -778,6 +949,122 @@ GAME.TowerScene.prototype._buildChallenge = function () {
   this._refresh();
 };
 
+// ── 폰 가로 전용 도전 화면 (820×390, 도전 진행 중) ───────────────────────
+//  PC 판은 [제목·배지·게이지·예산·영웅·골드·능력치4·힌트·성향패널·버튼3] 을 한 기둥에
+//  세로로 쌓는다. 높이 390 에서는 절반이 화면 밖으로 나갔다(실측 겹침 26 · 화면밖 7).
+//  좌우로 나눈다: **왼쪽 = 이번 층이 무엇인가(읽는 것), 오른쪽 = 무엇을 할 것인가(누르는 것).**
+GAME.TowerScene.prototype._buildChallengePhone = function () {
+  var C = GAME.CONFIG.COLORS;
+  var UI = GAME.UI;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var self = this;
+  var rec = this._rec, floor = this._floor;
+  var budget = GAME.Tower.budgetFor(floor);
+  var bossDef = GAME.Tower.bossFor(floor);
+
+  this.cameras.main.setBackgroundColor(C.bg);
+
+  var PAD = 18;
+  var LW = 250;                        // 왼쪽 정보 기둥
+  var rx = PAD + LW + 20, rw = W - PAD - rx;
+  var lcx = PAD + LW / 2;
+
+  // ── 왼쪽: 이번 층 ──
+  UI.label(this, PAD, 8, '←  탑 소개', 15, C.textDim, 0)
+    .setInteractive({ useHandCursor: true })
+    .on('pointerdown', function () { self.scene.restart({ step: 'landing' }); });
+
+  var badge = UI.floorBadge(this, lcx, 32, floor, { boss: !!bossDef });
+  var ly = badge.bottom + 8;
+  var band = UI.bandMeter(this, PAD, ly, LW, floor, GAME.Tower.BOSS_EVERY);
+  ly = band.bounds().bottom + 8;
+
+  if (bossDef) {
+    var bl = UI.label(this, lcx, ly, '☠  ' + bossDef.name, 17, UI.TXT.danger, 0.5)
+      .setOrigin(0.5, 0).setWordWrapWidth(LW);
+    ly = bl.y + bl.height + 4;
+  }
+  var bl2 = UI.label(this, lcx, ly,
+    '적 진형 ' + budget + '   ·   최고 ' + (rec.best || 0) + '층',
+    15, C.text, 0.5).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(LW);
+  ly = bl2.y + bl2.height + 4;
+
+  // 적 구성 — _refresh 가 채운다. rationale 은 도전 중에는 빈 문자열이라 자리만 잡아둔다.
+  this.rationaleText = UI.label(this, PAD, ly, '', 15, C.textDim, 0).setWordWrapWidth(LW);
+  this.compText = UI.label(this, PAD, ly, '', 15, C.accentAlt, 0).setWordWrapWidth(LW);
+  this.panelGeo = null;
+  this.panelRect = null;
+  this.panelMaxBottom = H - 10;
+
+  // ── 오른쪽: 무엇을 할 것인가 ──
+  var hero = GAME.HEROES[this.heroKey];
+  UI.label(this, rx, 10,
+    '내 영웅  ' + hero.name + '  (' + hero.trait + ')  —  도전 내내 유지', 15, UI.TXT.crit, 0)
+    .setWordWrapWidth(rw);
+
+  this.goldLabel = UI.label(this, rx, 32, '', 24, C.accent, 0);
+  this.runHint = UI.label(this, W - PAD, 40, '', 15, C.textDim, 1).setOrigin(1, 0);
+
+  var secH = 56, secTop = H - 12 - secH;
+  var mainH = 66, mainTop = secTop - 10 - mainH;
+  var rowH = 62, rowGap = 10;
+  var gridTop = mainTop - 12 - (rowH * 2 + rowGap);
+  var sc = GAME.Layout.cols(2, { gap: 12, width: rw, left: rx, pad: 0 });
+
+  this.statBtns = [];
+  GAME.TowerRun.STATS.forEach(function (d, i) {
+    var col = sc[i % 2];
+    var ry = gridTop + Math.floor(i / 2) * (rowH + rowGap);
+    var b = UI.button(self, col.cx, ry + rowH / 2, col.w, rowH, '', function () {
+      if (GAME.TowerRun.levelUp(d.key)) {
+        self.run = GAME.TowerRun.get();
+        self._refreshRun(true);
+      }
+    }, { fontSize: 15 });
+    b.text.setAlign('center');
+    self.statBtns.push({ def: d, btn: b });
+  });
+
+  UI.button(this, rx + rw / 2, mainTop + mainH / 2, rw, mainH, floor + '층 전투 시작', function () {
+    GAME.Tower.pending = self.formation;
+    var Z = GAME.CONFIG.ZONE_CONTROLLER;
+    self.scene.start('Battle', {
+      formationId: self.formation.id,
+      heroKey: self.run.heroKey,
+      items: self.run.items,
+      picks: self.run.picks,
+      tower: floor,
+      startPos: { x: Z.x + Z.w / 2, y: Z.y + Z.h * 0.55 }
+    });
+  }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
+       hover: UI.COL.panelTealHi, color: C.accent, fontSize: 21 });
+
+  var keys = ['rank', 'menu'];
+  if (floor > 1) keys.push('reset');
+  var bc = GAME.Layout.cols(keys.length, { gap: 10, width: rw, left: rx, pad: 0 });
+  for (var i = 0; i < keys.length; i++) {
+    (function (k, col) {
+      if (k === 'rank') {
+        UI.button(self, col.cx, secTop + secH / 2, col.w, secH, '🏆 랭킹', function () {
+          self.scene.start('Rank', { scope: 'live' });
+        }, { fontSize: 16 });
+      } else if (k === 'menu') {
+        UI.button(self, col.cx, secTop + secH / 2, col.w, secH, '← 메뉴', function () {
+          self.scene.start('Menu');
+        }, { fontSize: 16 });
+      } else {
+        UI.button(self, col.cx, secTop + secH / 2, col.w, secH, '1층부터 다시', function () {
+          GAME.Tower.fail();
+          if (GAME.TowerRun && GAME.TowerRun.get()) GAME.TowerRun.end();
+          self.scene.restart({ step: 'landing' });
+        }, { fontSize: 16 });
+      }
+    })(keys[i], bc[i]);
+  }
+
+  this._refresh();
+};
+
 // 도전 중 골드·능력치 표시 갱신. bump=true 면 골드 숫자가 튕기는 연출을 준다.
 GAME.TowerScene.prototype._refreshRun = function (bump) {
   if (!this.run || !this.goldLabel) return;
@@ -846,7 +1133,10 @@ GAME.TowerScene.prototype._refresh = function () {
     return t;
   }
   var comp = compFor(keys.length);
-  this.compText.setY(this.rationaleText.y + this.rationaleText.height + 6);
+  // 빈 라벨도 Phaser 에서는 한 줄 높이를 갖는다 — 도전 중(rationale 없음)에 그 25px 가
+  // 그대로 빈 띠로 남았다. 내용이 있을 때만 밀어낸다.
+  var ratH = String(this.rationaleText.text) ? (this.rationaleText.height + 6) : 0;
+  this.compText.setY(this.rationaleText.y + ratH);
   this.compText.setText('적 ' + this.formation.units.length + '기 — ' + comp);
 
   if (this.panelMaxBottom) {

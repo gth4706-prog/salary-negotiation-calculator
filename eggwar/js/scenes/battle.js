@@ -86,7 +86,10 @@ GAME.BattleScene.prototype.create = function () {
   // 체력은 글자가 아니라 칸막이 게이지로 읽는다. 보스가 있으면 전용 바가 하나 더 붙어
   // "무엇을 죽여야 하는지"가 목표로 보인다.
   var P = GAME.CONFIG.PORTRAIT;
-  var padMode0 = GAME.isTouch && P;
+  // 폰 가로(820×390). 세로와 **같은 겹침 구성**을 쓰지만 배치가 다르다 —
+  // 높이 390 에는 아레나 아래로 HUD 를 쌓을 자리가 아예 없다(체력바가 화면 밖으로 잘렸다).
+  var PHONE = GAME.CONFIG.PHONE;
+  var padMode0 = GAME.isTouch && (P || PHONE);
 
   // 세로 터치: 전장을 화면 거의 전체로 키우고(HUD 위 · 버튼은 전장 위에 겹침),
   // 손가락 두 개 이상을 동시에 받도록 포인터를 늘린다(이동+스킬 동시 입력).
@@ -110,9 +113,9 @@ GAME.BattleScene.prototype.create = function () {
     ? ('탑 ' + this.tower + '층 · ' + tierObj.name)
     : ('난이도 ' + this.escalation + '단계 · ' + tierObj.name);
 
-  // 세로 터치에서는 HUD 를 **맨 위**에 둔다(전장과 겹치지 않게, 아레나는 그 아래에서 시작).
+  // 세로 터치·폰 가로에서는 HUD 를 **맨 위**에 둔다(아레나는 그 아래에서 시작).
   this.hud = GAME.UI.battleHud(this, {
-    top: padMode0 ? 6 : hud.top,
+    top: PHONE ? 2 : (padMode0 ? 6 : hud.top),
     boss: !!this.formation.boss,
     tierIndex: tierObj.i,
     tierLabel: tierLabel
@@ -120,14 +123,14 @@ GAME.BattleScene.prototype.create = function () {
 
   // HUD 를 위에 깔았으니 그 **실측 바닥** 아래부터 아레나를 펼친다.
   // 보스 층은 HUD 가 30px 더 높다 — 고정값으로 잡으면 그때만 전장이 HUD 를 파고든다.
-  if (padMode0) GAME.Iso.setMode('full', this.hud.bottom + 8);
+  if (padMode0) GAME.Iso.setMode('full', this.hud.bottom + (PHONE ? 4 : 8));
 
   // HUD 높이는 보스 유무로 달라진다 → **실측 높이**를 첫 행으로 넣어 아래를 밀어낸다.
   // 손으로 y 를 박으면 보스 층에서만 조용히 겹친다.
   //
   // padMode(세로 터치)는 스킬바를 안 만드므로 **높이를 예약하지도 않는다.**
   // 예약해 두는 바람에 힌트가 조작 패드 쪽으로 102px 밀려 있었다.
-  var padMode = GAME.isTouch && P;
+  var padMode = GAME.isTouch && (P || PHONE);
   var rowSpec = [{ name: 'hudBlock', h: this.hud.height, gap: P ? 10 : 12 }];
   if (!padMode) rowSpec.push({ name: 'skills', h: P ? 92 : 96, gap: P ? 10 : 12 });
   rowSpec.push({ name: 'hint', h: P ? 34 : 20, gap: 0 });
@@ -165,8 +168,12 @@ GAME.BattleScene.prototype.create = function () {
     GAME.UI.label(this, pc.cx, rows.skills.bottom - 14, '물약', P ? 13 : 12, C.text, 0.5).setOrigin(0.5);
   }
 
-  this.hintText = GAME.UI.label(this, W / 2, rows.hint.y, this._hintDefault(), P ? 13 : 13, GAME.CONFIG.COLORS.textFaint, 0.5)
-    .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - hud.pad * 2);
+  // 폰 가로에서는 상시 안내를 아예 만들지 않는다. 아레나가 화면을 다 쓰므로
+  // rows.hint 는 화면 밖(y≈440)이고, 버튼에 '공격/Q/W/E/R/물약' 이 이미 적혀 있다.
+  if (!PHONE) {
+    this.hintText = GAME.UI.label(this, W / 2, rows.hint.y, this._hintDefault(), P ? 13 : 13, GAME.CONFIG.COLORS.textFaint, 0.5)
+      .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - hud.pad * 2);
+  }
 
   // 떠오르는 피해 숫자 — Text 를 미리 만들어 돌려 쓴다(매 프레임 생성은 비싸다).
   // 흰 글자 + 검정 테두리는 어두운 배경 전제였다. 밝은 목초지 위에서는
@@ -184,9 +191,9 @@ GAME.BattleScene.prototype.create = function () {
     }).setOrigin(0.5).setVisible(false));
   }
 
-  // 모바일 세로 — 로블록스식 조작 패드(왼쪽 스틱 + 오른쪽 원형 버튼).
-  // 가로에서는 마우스+키보드가 더 정확하므로 띄우지 않는다.
-  if (GAME.isTouch && P) {
+  // 모바일 조작 패드(왼쪽 스틱 + 오른쪽 원형 버튼) — 세로와 **폰 가로** 둘 다.
+  // 데스크톱 가로에서는 마우스+키보드가 더 정확하므로 띄우지 않는다.
+  if (GAME.isTouch && (P || PHONE)) {
     this.pad = new GAME.TouchPad(this, this.ctrl);
     this.ctrl.pad = this.pad;
   }
@@ -202,7 +209,7 @@ GAME.BattleScene.prototype._hintDefault = function () {
   // 세로 터치에서는 상시 안내를 두지 않는다. 버튼에 '공격/Q/W/E/R/물약' 이 이미 적혀 있고,
   // 보스 층은 HUD 가 158px 로 커져서 이 문구가 스킬 버튼 위로 내려앉는다.
   // (조준 대기 같은 **일시적 안내**는 계속 이 라벨을 쓴다)
-  if (GAME.isTouch && GAME.CONFIG.PORTRAIT) return '';
+  if (GAME.isTouch && (GAME.CONFIG.PORTRAIT || GAME.CONFIG.PHONE)) return '';
   return GAME.isTouch
     ? '한 번 탭: 이동하며 교전   ·   두 번 탭: 이동만   ·   스킬 버튼: 바라보는 방향 시전'
     : '우클릭 이동 / 적 클릭 공격   ·   방향키 직접 이동   ·   Q W E R 바라보는 방향 시전   ·   F 물약   ·   Space 기본공격';
@@ -448,8 +455,11 @@ GAME.BattleScene.prototype.updateHud = function () {
     b.rect.setFillStyle(GAME.UI.COL.surface);
   }
 
-  this.hintText.setText(this._hintDefault());
-  this.hintText.setColor(GAME.CONFIG.COLORS.textFaint);
+  // 폰 가로에서는 힌트 라벨 자체를 만들지 않는다
+  if (this.hintText) {
+    this.hintText.setText(this._hintDefault());
+    this.hintText.setColor(GAME.CONFIG.COLORS.textFaint);
+  }
 
   // 세로 터치에서는 하단 스킬바를 안 만든다 → 물약 표시도 없다(원형 패드가 대신한다)
   if (this.potionText) this.potionText.setText(h.potionCharges > 0 ? h.potionCharges + '회' : '없음');

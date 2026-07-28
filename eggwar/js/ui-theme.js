@@ -22,7 +22,9 @@ window.GAME = window.GAME || {};
 (function () {
   var UI = GAME.UI = GAME.UI || {};
   var CFG = GAME.CONFIG;
-  var P = CFG.PORTRAIT;
+  // 'P' 는 원래 세로 플래그였지만, 이 파일이 쓰는 용도는 **글자·간격을 작은 화면에
+  // 맞출 것인가**다. 폰 가로(820×390)도 작은 화면이므로 SMALL 을 본다.
+  var P = CFG.SMALL !== undefined ? CFG.SMALL : CFG.PORTRAIT;
 
   // ───────────────────────────────────────────────────────────────────────
   //  0. 화면 배율 — 설계 px 가 실제 화면에서 몇 px 로 찍히는지

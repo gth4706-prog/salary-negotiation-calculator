@@ -401,3 +401,487 @@ GAME.DraftScene.prototype._redrawCompact = function () {
 
   this.noteText.setText(hero.desc);
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  폰 가로 (820×390) — 준비 화면 2단계
+//  ---------------------------------------------------------------------------
+//  왜 '한 화면'이 아니라 '2단계'인가 (계산 근거)
+//    폰 가로에서 글자 하한은 UI.FS.MIN = 15 설계px 이고 한 줄 상자는 19px 다.
+//    · 왼쪽 레일(적 편성표)은 최소 폭 224 — "쇠뇌 진지 ×2" 한 줄이 들어가는 최소치.
+//    · 남는 폭 572 안에서
+//        장비  : 슬롯 4줄 × 카드 3장. 카드 한 장에 아이콘 40 + 이름/설명 2줄이 들어가야
+//                하므로 카드 55 높이 × 4줄 = 235.
+//        스킬  : 탭 4개(터치 56) + 3지선다(이름+설명 2줄 = 75) × 3 = 238.
+//        미리보기 무대 : 폭 264 × 높이 220 이하로는 9종 이펙트가 무대를 넘친다.
+//      → 장비 235 + 스킬 238 = 473 이 필요한데 본문 높이는 298 뿐이다.
+//        가로로 더 쪼개도 (572 − 스킬 300 − 무대 264 = 8) 장비가 들어갈 폭이 없다.
+//    한 화면에 욱여넣으려면 글자를 하한 밑으로 내려야 하는데, 그게 이 저장소에서
+//    반복해서 사고를 낸 바로 그 선택이다. 그래서 **장비 → 스킬** 2단계로 나눈다.
+//    적 편성표(왼쪽 레일)와 예산/골드(아래 띠)는 두 단계에서 **그대로 유지**되므로
+//    "무엇을 상대로 얼마를 쓰고 있는가"는 어느 단계에서도 사라지지 않는다.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// 설계 상수 — 전부 820×390 기준. SE(667×375)는 FIT 0.813 이므로
+// 터치 타깃은 설계 55px 이상이어야 화면 44px 를 넘는다(55×0.813 = 44.7).
+GAME.DraftScene.PH = {
+  PAD: 8,
+  HEAD_Y: 3, HEAD_H: 21,
+  BODY_Y: 26, BODY_H: 298,
+  BAR_Y: 328, BTN_H: 56, BTN_W: 148,
+  RAIL_W: 224, GAP: 8,
+  VER_W: 52          // 우하단 DOM 버전 배지(#ver)가 덮는 폭 — 버튼을 여기까지 밀지 않는다
+};
+
+GAME.DraftScene.prototype._createPhone = function () {
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI;
+  var self = this;
+  var W = GAME.CONFIG.WIDTH;
+  var K = GAME.DraftScene.PH;
+
+  this.phone = true;
+  this.compact = false;
+  this._phObjs = [];
+  this._phCells = [];
+  this._phTabs = [];
+  this._phOpts = [];
+  // 공용 Graphics — 표시 목록 맨 앞이라 뒤에 만드는 글자·카드가 항상 이 위에 온다.
+  this.g = this.add.graphics();
+
+  // ── 머리줄 ──────────────────────────────────────────────────────────────
+  // 오른쪽 표시를 먼저 만들어 실제 왼쪽 끝을 재고, 제목을 그 앞까지만 쓴다.
+  this.phStepLbl = UI.label(this, W - K.PAD, K.HEAD_Y, '', 'micro', C.accent, 0).setOrigin(1, 0);
+  var learned = GAME.Learn.summary(this.formation.id);
+  var head = this.formation.name + (this.formation.isAI ? ' (AI)' : ' (사람)') +
+    '  ·  ' + GAME.UI.winRateText(this.formation.id) +
+    (learned ? ('  ·  학습 ' + learned.battles + '전') : '');
+  this.phHeadLbl = UI.label(this, K.PAD, K.HEAD_Y, '', 'micro', C.accentAlt, 0);
+  GAME.DraftScene.fitText(this.phHeadLbl, head, W - K.PAD * 2 - 180, UI.FS.micro, UI.FS.micro);
+
+  // ── 왼쪽 레일: 적 편성표 (두 단계 공통) ──────────────────────────────────
+  this._phBuildRail();
+
+  // ── 아래 띠: 예산 · 남은 골드 · 이전/다음 ────────────────────────────────
+  var barCy = K.BAR_Y + K.BTN_H / 2;
+  this.budgetText = UI.label(this, K.PAD, K.BAR_Y + 2, '', 'micro', C.textDim, 0);
+  // 설명과 경고는 **같은 객체**를 쓴다 — 두 객체를 같은 줄에 두면 겹친다(이 저장소의 상습 사고).
+  // 경고가 비어 있을 때만 설명으로 되돌린다(_redrawPhone).
+  this.warnText = UI.label(this, K.PAD, K.BAR_Y + 26, '', 'micro', C.warn, 0);
+  this.noteText = this.warnText;
+
+  var goldX = 452;
+  UI.label(this, goldX, K.BAR_Y + 2, '남은 골드', 'micro', C.textDim, 0).setOrigin(1, 0);
+  this.goldText = UI.label(this, goldX, K.BAR_Y + 24, '0', 'num', C.accent, 0).setOrigin(1, 0);
+
+  // 오른쪽 끝 44px 는 DOM 버전 배지(#ver, right:10 bottom:8)의 자리다 — 비워둔다.
+  var rx = W - K.VER_W - K.BTN_W;
+  var lx = rx - K.GAP - K.BTN_W;
+  this._phBtnL = UI.button(this, lx + K.BTN_W / 2, barCy, K.BTN_W, K.BTN_H, '',
+    function () { self._phBack(); }, { fontSize: 'buttonSm' });
+  this._phBtnR = UI.button(this, rx + K.BTN_W / 2, barCy, K.BTN_W, K.BTN_H, '',
+    function () { self._phNext(); },
+    { fill: UI.COL.panelTeal, line: C.controller, hover: UI.COL.panelTealHi,
+      color: C.accent, fontSize: 'button' });
+
+  this._phStep(0);
+};
+
+GAME.DraftScene.prototype._phBack = function () {
+  if (this._phStepIdx > 0) { this._phStep(this._phStepIdx - 1); return; }
+  this.scene.start(this.tower ? 'Tower' : (this.versus ? 'Versus' : 'Select'));
+};
+
+GAME.DraftScene.prototype._phNext = function () {
+  if (this._phStepIdx === 0) { this._phStep(1); return; }
+  this._start();
+};
+
+// ── 왼쪽 레일 ───────────────────────────────────────────────────────────────
+//  TFT 의 '플레이어 목록' 자리다. 준비 화면에서 정말 필요한 정보는 "어디에 서 있나"가
+//  아니라 "무엇이 몇 기 있나" — 그래서 미니맵이 아니라 표다.
+//  종류가 8종을 넘으면 행 높이가 글자 상자(19)보다 얇아지므로 2열로 접는다.
+GAME.DraftScene.prototype._phBuildRail = function () {
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI;
+  var K = GAME.DraftScene.PH;
+  var rd = this._rosterData();
+  var rows = rd.rows;
+  var i;
+
+  var x = K.PAD, y = K.BODY_Y, w = K.RAIL_W, h = K.BODY_H;
+  var ix = x + 8, iw = w - 16;
+  this._phRail = { x: x, y: y, w: w, h: h, rows: [] };
+
+  UI.label(this, ix, y + 6, '적 편성  ' + rd.total + '기 · ' + rows.length + '종',
+    'micro', rd.boss ? C.crit : C.accentAlt, 0);
+  var l2 = UI.label(this, ix, y + 26, '', 'micro', C.textDim, 0);
+  GAME.DraftScene.fitText(l2, '체력 ' + rd.hp + ' · 화력 ' + rd.dps + '/초' +
+    (rd.boss ? ' · 보스 ' + rd.boss : ''), iw, UI.FS.micro, UI.FS.micro);
+
+  var top = y + 50;
+  var legendH = 21;
+  var avail = (y + h - 8 - legendH) - top;
+  var cols = 1, perCol = rows.length;
+  var rowH = rows.length ? Math.floor(avail / rows.length) - 3 : 30;
+  if (rowH < 24 && rows.length > 1) {
+    cols = 2;
+    perCol = Math.ceil(rows.length / 2);
+    rowH = Math.floor(avail / perCol) - 3;
+  }
+  rowH = Math.max(21, Math.min(34, rowH));
+  var colW = Math.floor((iw - (cols - 1) * 6) / cols);
+  this._phRail.top = top;
+
+  for (i = 0; i < rows.length; i++) {
+    var r = rows[i], d = r.def;
+    var ci = Math.floor(i / perCol), ri = i % perCol;
+    if (ci >= cols) break;
+    var rx2 = ix + ci * (colW + 6);
+    var ry = top + ri * (rowH + 3);
+    if (ry + rowH > y + h - legendH) break;
+    var boss = GAME.isBoss(d);
+    var auto = !GAME.isNonTarget(d);
+
+    var cnt = UI.label(this, rx2 + colW - 4, ry + (rowH - 19) / 2, '×' + r.n,
+      'micro', C.accent, 0).setOrigin(1, 0);
+    var nm = UI.label(this, rx2 + 34, ry + (rowH - 19) / 2, '', 'micro',
+      boss ? C.crit : (auto ? (C.danger || C.warn) : C.text), 0);
+    GAME.DraftScene.fitText(nm, (boss ? '★' : '') + d.name,
+      colW - 34 - Math.ceil(cnt.width) - 6, UI.FS.micro, UI.FS.micro);
+
+    this._phRail.rows.push({
+      def: d, x: rx2, y: ry, w: colW, h: rowH,
+      tone: boss ? UI.COL.focus : (auto ? UI.COL.hpBad : UI.COL.controller),
+      strong: boss || auto
+    });
+  }
+
+  var lg = UI.label(this, ix, y + h - legendH - 4, '', 'micro', C.textDim, 0);
+  GAME.DraftScene.fitText(lg, '붉은 띠 = 자동명중 · 금 = 보스', iw, UI.FS.micro, UI.FS.micro);
+};
+
+GAME.DraftScene.prototype._phDrawRail = function () {
+  var C = GAME.CONFIG.COLORS, COL = GAME.UI.COL;
+  var g = this.g, R = this._phRail;
+  if (!R) return;
+  g.fillStyle(COL.surface, 1);
+  g.fillRoundedRect(R.x, R.y, R.w, R.h, 10);
+  g.lineStyle(1, COL.border, 1);
+  g.strokeRoundedRect(R.x + 0.5, R.y + 0.5, R.w - 1, R.h - 1, 10);
+  g.fillStyle(COL.divider, 1);
+  g.fillRect(R.x + 8, R.top - 6, R.w - 16, 1);
+
+  for (var i = 0; i < R.rows.length; i++) {
+    var r = R.rows[i];
+    g.fillStyle(COL.surfaceAlt, 1);
+    g.fillRoundedRect(r.x, r.y, r.w, r.h, 6);
+    g.fillStyle(r.tone, r.strong ? 0.95 : 0.55);
+    g.fillRoundedRect(r.x, r.y + 3, 3, r.h - 6, 2);
+    var sc = Math.min(9.5, r.h * 0.32) / r.def.radius;
+    GAME.UI.drawUnitFlat(g, r.def, r.x + 17, r.y + r.h / 2 + 5, C.strategist, 1, sc);
+  }
+};
+
+// ── 단계 전환 ───────────────────────────────────────────────────────────────
+GAME.DraftScene.prototype._phClearStep = function () {
+  if (this.pg && this.pg.clearMask) this.pg.clearMask(true);
+  if (this._pvMask && this._pvMask.destroy) this._pvMask.destroy();
+  this._pvMask = null;
+  this.pg = null;
+  this.pvStage = null;
+  this._pvSkill = null;
+  this.pvName = null;
+  this.pvDesc = null;
+  if (!this._phObjs) { this._phObjs = []; return; }
+  for (var i = 0; i < this._phObjs.length; i++) {
+    var o = this._phObjs[i];
+    if (o && o.destroy) o.destroy();
+  }
+  this._phObjs = [];
+  this._phCells = [];
+  this._phTabs = [];
+  this._phOpts = [];
+};
+
+GAME.DraftScene.prototype._phKeep = function (o) { this._phObjs.push(o); return o; };
+
+GAME.DraftScene.prototype._phStep = function (idx) {
+  var C = GAME.CONFIG.COLORS;
+  // 이 2단계 흐름은 **폰 가로 전용**이다. PC·세로에서는 _createPhone 이 돌지 않아
+  // _phBtnL/R·phStepLbl 이 없다 → 그 상태로 들어오면 'setLabel of null' 로 죽는다.
+  // (실측: 검증 스크립트가 프로필을 안 가리고 불러서 걸렸다. 지금 UI 경로는 없지만
+  //  씬 재진입·외부 호출에서 언제든 재현될 수 있는 형태라 입구에서 막는다.)
+  if (!this._phBtnL || !this._phBtnR || !this.phStepLbl) return;
+  this._phClearStep();
+  this._phStepIdx = idx;
+  this.hoverItem = null;
+  if (idx === 0) this._phItems(); else this._phSkills();
+
+  var backLabel = this.tower ? '← 탑으로' : (this.versus ? '← 대전' : '← 진형 선택');
+  this._phBtnL.setLabel(idx === 0 ? backLabel : '← 장비');
+  this._phBtnR.setLabel(idx === 0 ? '스킬 →' : '전투 시작');
+  this.phStepLbl.setText(idx === 0 ? '1 / 2  장비' :
+    ('2 / 2  스킬  ·  ' + GAME.HEROES[this.heroKey].name));
+  this._warn('');
+  this.redraw();
+  this._pvSyncPick();
+};
+
+// ── ① 장비 ─────────────────────────────────────────────────────────────────
+//  슬롯 4줄 × 카드 3장. TFT 의 상점 줄을 슬롯마다 하나씩 둔 꼴이다.
+//  좌우 스크롤을 쓰지 않은 이유: 12종은 '한 줄'이 아니라 **4개 슬롯 × 3단계 가격표**라,
+//  한 줄로 늘어놓으면 슬롯 묶음이 사라지고 같은 슬롯끼리 비교하려면 스크롤이 필요해진다.
+//  스크롤 없이 다 들어가면 스크롤보다 항상 낫다.
+GAME.DraftScene.prototype._phItems = function () {
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI, COL = UI.COL;
+  var self = this;
+  var K = GAME.DraftScene.PH;
+  var W = GAME.CONFIG.WIDTH;
+  var px = K.PAD + K.RAIL_W + K.GAP;          // 240
+  var pw = W - K.PAD - px;                    // 572
+  var y = K.BODY_Y;
+
+  var hero = GAME.HEROES[this.heroKey];
+
+  // 영웅 확인 줄 (고를 수 없다 — 이전 화면에서 확정됐다)
+  this.heroStripL = this._phKeep(UI.label(this, px, y, '', 'micro', C.accentAlt, 0));
+  this.heroStripR = this._phKeep(UI.label(this, px + pw, y, '', 'micro', C.textDim, 0).setOrigin(1, 0));
+
+  // 능력치 막대 — 장비를 고르면 바로 움직인다
+  var sy = y + 21;
+  var n = GAME.HERO_STAT_DEFS.length;
+  var cw = Math.floor((pw - (n - 1) * 6) / n);
+  this.statRows = [];
+  this.statCols = [];
+  for (var i = 0; i < n; i++) {
+    var cx = px + i * (cw + 6);
+    this.statRows.push({
+      name: null,
+      val: this._phKeep(UI.label(this, cx, sy, '', 'micro', C.textDim, 0)),
+      cy: sy + 26
+    });
+    this.statCols.push({ x: cx, w: cw, cy: sy + 26 });
+  }
+
+  // 슬롯 4줄 — 카드 높이는 SE(FIT 0.813)에서도 화면 44px 를 넘어야 한다 → 설계 55 이상.
+  var top = sy + 38;                            // 85
+  var bottom = K.BODY_Y + K.BODY_H;             // 324
+  var slots = GAME.ITEM_SLOTS;
+  var gap = 5;
+  var rowH = Math.floor((bottom - top - gap * (slots.length - 1)) / slots.length);
+  var gutter = 48;
+  var cardLeft = px + gutter + 4;
+  var cardW = Math.floor((W - K.PAD - cardLeft - 16) / 3);
+
+  this.itemCells = [];
+  for (var k = 0; k < slots.length; k++) {
+    (function (slot, si) {
+      var ry = top + si * (rowH + gap);
+      var cy = ry + rowH / 2;
+      var sl = self._phKeep(UI.label(self, px, cy - 10, '', 'micro', C.textDim, 0));
+      GAME.DraftScene.fitText(sl, slot.name, gutter, UI.FS.micro, UI.FS.micro);
+      var list = GAME.ITEMS[slot.key];
+      for (var m = 0; m < list.length; m++) {
+        (function (item, ci) {
+          var cx = cardLeft + ci * (cardW + 8);
+          var rect = self._phKeep(self.add.rectangle(cx + cardW / 2, cy, cardW, rowH, COL.surfaceAlt)
+            .setStrokeStyle(1, COL.border).setDepth(-1));
+          rect.setInteractive({ useHandCursor: true });
+          rect.on('pointerdown', function () { self.hoverItem = item; self._toggleItem(slot.key, item); });
+
+          var tx = cx + 46;
+          var nm = self._phKeep(UI.label(self, tx, cy - 20, '', 'micro', C.text, 0));
+          var cs = self._phKeep(UI.label(self, cx + cardW - 6, cy - 20, String(item.cost),
+            'micro', C.accent, 0).setOrigin(1, 0));
+          var nt = self._phKeep(UI.label(self, tx, cy + 1, '', 'micro', C.textDim, 0));
+          GAME.DraftScene.fitText(nm, item.name,
+            cardW - 46 - Math.ceil(cs.width) - 8, UI.FS.micro, UI.FS.micro);
+          GAME.DraftScene.fitText(nt, item.note, cardW - 52, UI.FS.micro, UI.FS.micro);
+
+          self.itemCells.push({
+            slot: slot.key, item: item, rect: rect, name: nm, cost: cs, note: nt,
+            ix: cx + 24, iy: cy, isz: 38,
+            x: cx, y: ry, w: cardW, h: rowH
+          });
+        })(list[m], m);
+      }
+    })(slots[k], k);
+  }
+
+  // 가로/세로 전용 참조는 비워둔다 — 공용 코드가 안전하게 돌게
+  this.heroCards = [];
+  this.slotTabs = [];
+  this.optionRows = [];
+};
+
+// ── ② 스킬 + 미리보기 무대 ─────────────────────────────────────────────────
+GAME.DraftScene.prototype._phSkills = function () {
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI, COL = UI.COL;
+  var self = this;
+  var K = GAME.DraftScene.PH;
+  var W = GAME.CONFIG.WIDTH;
+  var px = K.PAD + K.RAIL_W + K.GAP;          // 240
+  var y = K.BODY_Y;
+  var bottom = K.BODY_Y + K.BODY_H;           // 324
+
+  var stW = 264;                               // 무대 폭 — 9종 이펙트가 넘치지 않는 최소치
+  var lw = W - K.PAD - px - stW - K.GAP;       // 스킬 목록 폭 300
+  var rx = px + lw + K.GAP;
+
+  // 탭 QWER — 폭 71 에 스킬 이름까지 넣으면 두 글자밖에 안 남는다.
+  // 고른 스킬 이름은 아래 목록(● 표시)과 무대 이름표에서 읽히므로 탭은 글자 하나로 크게.
+  var tabH = 56;
+  var tabW = Math.floor((lw - 3 * 5) / 4);
+  this.slotTabs = [];
+  for (var t = 0; t < GAME.SKILL_SLOTS.length; t++) {
+    (function (slot, idx) {
+      var cx = px + idx * (tabW + 5);
+      var rect = self._phKeep(self.add.rectangle(cx + tabW / 2, y + tabH / 2, tabW, tabH, COL.surfaceAlt)
+        .setStrokeStyle(1, COL.border).setDepth(-1));
+      rect.setInteractive({ useHandCursor: true });
+      rect.on('pointerdown', function () {
+        self.editSlot = slot; self._pvHover = false; self.redraw();
+      });
+      var lbl = self._phKeep(UI.label(self, cx + tabW / 2, y + tabH / 2 - 16, slot,
+        'subhead', C.accent, 0.5).setOrigin(0.5, 0));
+      var sub = self._phKeep(UI.label(self, cx + tabW / 2, y + tabH - 22, '',
+        'micro', C.textDim, 0.5).setOrigin(0.5, 0));
+      self.slotTabs.push({ slot: slot, rect: rect, label: lbl, sub: sub, w: tabW });
+    })(GAME.SKILL_SLOTS[t], t);
+  }
+
+  // 3지선다
+  var oy = y + tabH + 6;
+  var oGap = 5;
+  var oh = Math.floor((bottom - oy - oGap * 2) / 3);
+  this.optionRows = [];
+  for (var o = 0; o < 3; o++) {
+    var ry = oy + o * (oh + oGap);
+    var rect2 = this._phKeep(this.add.rectangle(px + lw / 2, ry + oh / 2, lw, oh, COL.surfaceAlt)
+      .setStrokeStyle(1, COL.border).setDepth(-1));
+    rect2.setInteractive({ useHandCursor: true });
+    (function (idx, rr) {
+      rr.on('pointerdown', function () {
+        var opts = GAME.HEROES[self.heroKey].skillOptions[self.editSlot];
+        if (!opts[idx]) return;
+        self.picks[self.editSlot] = idx; self._pvHover = false; self.redraw();
+      });
+    })(o, rect2);
+    this.optionRows.push({
+      rect: rect2,
+      name: this._phKeep(UI.label(this, px + 10, ry + 6, '', 'micro', C.text, 0)),
+      desc: this._phKeep(UI.label(this, px + 10, ry + 28, '', 'micro', C.textDim, 0)
+        .setWordWrapWidth(lw - 20))
+    });
+  }
+
+  // 미리보기 무대 — 사용자가 직접 요청한 기능이라 폰에서도 살린다.
+  var stH = 220;
+  this.pvStage = { x: rx, y: y, w: stW, h: stH, cx: rx + stW / 2, cy: y + stH / 2 };
+  this.pg = this._phKeep(this.add.graphics());
+  var mg = this.make.graphics({ add: false });
+  mg.fillStyle(0xffffff, 1);
+  mg.fillRoundedRect(rx, y, stW, stH, 10);
+  this._pvMask = mg;
+  this.pg.setMask(mg.createGeometryMask());
+
+  this.pvName = this._phKeep(UI.label(this, rx, y + stH + 4, '', 'micro', C.accent, 0));
+  this.pvDesc = this._phKeep(UI.label(this, rx, y + stH + 26, '', 'micro', C.textDim, 0)
+    .setWordWrapWidth(stW));
+
+  this.heroCards = [];
+  this.itemCells = [];
+};
+
+// ── 폰 redraw ───────────────────────────────────────────────────────────────
+GAME.DraftScene.prototype._redrawPhone = function () {
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI, COL = UI.COL;
+  var g = this.g;
+  var i;
+  g.clear();
+
+  this._phDrawRail();
+
+  var hero = GAME.HEROES[this.heroKey];
+  var st = GAME.Items.applyTo(hero, this.items);
+  var left = this.itemBudget - this.spent();
+
+  if (this._phStepIdx === 0) {
+    this.heroStripL.setText('영웅 확정 — ' + hero.name + ' · ' + hero.trait);
+    GAME.DraftScene.fitText(this.heroStripR,
+      '공격 ' + st.damage + ' · 체력 ' + st.hp + ' · 방어 ' + st.armor + ' · 이동 ' + st.speed +
+      (st.lifesteal > 0 ? ' · 흡혈 ' + Math.round(st.lifesteal * 100) + '%' : ''),
+      330, UI.FS.micro, UI.FS.micro);
+
+    var live = { damage: st.damage, cooldown: hero.cooldown, hp: st.hp, armor: st.armor, speed: st.speed };
+    for (i = 0; i < this.statRows.length; i++) {
+      var sd = GAME.HERO_STAT_DEFS[i];
+      var frac = Math.max(0, Math.min(1, sd.get(live) / sd.max));
+      var bc = this.statCols[i], bh = 9;
+      g.fillStyle(COL.surfaceHi, 1);
+      g.fillRoundedRect(bc.x, bc.cy - bh / 2, bc.w, bh, 4);
+      if (frac > 0) {
+        g.fillStyle(C.controller, 1);
+        g.fillRoundedRect(bc.x, bc.cy - bh / 2, Math.max(bh, bc.w * frac), bh, 4);
+      }
+      g.lineStyle(1, COL.border, 1);
+      g.strokeRoundedRect(bc.x + 0.5, bc.cy - bh / 2 + 0.5, bc.w - 1, bh - 1, 4);
+      GAME.DraftScene.fitText(this.statRows[i].val, sd.key + ' ' + sd.fmt(live),
+        bc.w, UI.FS.micro, UI.FS.micro);
+    }
+
+    for (i = 0; i < this.itemCells.length; i++) {
+      var cell = this.itemCells[i];
+      var picked = this.items[cell.slot] === cell.item.key;
+      var afford = picked || (cell.item.cost <= left);
+      cell.rect.setStrokeStyle(picked ? 2 : 1, picked ? C.controller : COL.border);
+      cell.rect.setFillStyle(picked ? COL.panelTeal : (afford ? COL.surfaceAlt : COL.bg));
+      if (UI.drawItem) UI.drawItem(g, cell.slot, cell.item.key, cell.ix, cell.iy, cell.isz);
+      if (!afford) {
+        g.fillStyle(COL.bg, 0.58);
+        g.fillRoundedRect(cell.x + 1, cell.y + 1, cell.w - 2, cell.h - 2, 6);
+      }
+      cell.name.setAlpha(afford ? 1 : 0.42);
+      cell.cost.setAlpha(afford ? 1 : 0.42);
+      cell.note.setAlpha(afford ? 1 : 0.35);
+      cell.cost.setColor(picked ? C.accent : (afford ? C.crit : C.textDim));
+      if (picked) {
+        g.lineStyle(2, C.controller, 0.9);
+        g.strokeRoundedRect(cell.x + 1, cell.y + 1, cell.w - 2, cell.h - 2, 7);
+      }
+    }
+  } else {
+    for (i = 0; i < this.slotTabs.length; i++) {
+      var tab = this.slotTabs[i];
+      var active = tab.slot === this.editSlot;
+      tab.rect.setStrokeStyle(active ? 2 : 1, active ? C.controller : COL.border);
+      tab.rect.setFillStyle(active ? COL.panelTeal : COL.surfaceAlt);
+      var pickIdx = this.picks[tab.slot] || 0;
+      GAME.DraftScene.fitText(tab.sub, hero.skillOptions[tab.slot][pickIdx].name,
+        tab.w - 6, UI.FS.micro, UI.FS.micro);
+    }
+    var opts = hero.skillOptions[this.editSlot];
+    for (i = 0; i < this.optionRows.length; i++) {
+      var r = this.optionRows[i];
+      if (i >= opts.length) { r.rect.setVisible(false); r.name.setText(''); r.desc.setText(''); continue; }
+      r.rect.setVisible(true);
+      var sel = (this.picks[this.editSlot] || 0) === i;
+      r.rect.setStrokeStyle(sel ? 2 : 1, sel ? C.controller : COL.border);
+      r.rect.setFillStyle(sel ? COL.panelTeal : COL.surfaceAlt);
+      r.name.setText((sel ? '● ' : '○ ') + opts[i].name);
+      r.desc.setText(this._skillDesc(opts[i]));
+    }
+    this._pvSyncPick();
+  }
+
+  // 아래 띠 — 경고가 있으면 경고, 없으면 영웅 설명(같은 객체라 겹칠 수가 없다)
+  if (this._warnOn) {
+    this.warnText.setColor(C.warn);
+  } else {
+    this.warnText.setColor(C.textDim);
+    GAME.DraftScene.fitText(this.warnText, hero.desc, 420, UI.FS.micro, UI.FS.micro);
+  }
+  GAME.DraftScene.fitText(this.budgetText,
+    '장비 예산 ' + this.spent() + ' / ' + this.itemBudget + '  ·  상대와 동일 조건',
+    420, UI.FS.micro, UI.FS.micro);
+  this.budgetText.setColor(left < 0 ? (C.danger || C.hpBad) : C.textDim);
+  this._rollGold(left);
+};

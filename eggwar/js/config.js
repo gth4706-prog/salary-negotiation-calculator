@@ -31,8 +31,44 @@ GAME.isPortrait = (function () {
   return h > w && w < 900;
 })();
 
+// 지금 기기를 세로로 들고 있는가 — **레이아웃 판단이 아니라 '돌려주세요' 안내용**이다.
+// (레이아웃은 아래 PROFILE 이 정한다. 모바일은 가로 전용이다.)
+GAME.heldPortrait = function () {
+  var d = document.documentElement || {};
+  var w = d.clientWidth || window.innerWidth || 1200;
+  var h = d.clientHeight || window.innerHeight || 800;
+  var mq = window.matchMedia && window.matchMedia('(orientation: portrait)').matches;
+  return !!(mq || h > w);
+};
+
 GAME.CONFIG = (function () {
-  var P = GAME.isPortrait;
+  // ── 레이아웃 프로필 ───────────────────────────────────────────────────────
+  //  'pc'    데스크톱 · 태블릿 가로   1340×900
+  //  'phone' 폰 가로 (터치)           820×390
+  //  'tall'  세로 (은퇴 예정)          420×900   — ?portrait=1 로만 진입한다
+  //
+  //  2026-07-28 결정: **모바일은 가로 전용**(롤토체스와 같은 방식).
+  //  근거(실측):
+  //   · 세로 전장은 면적이 46% 라 기동 공간이 없어 **같은 층이 두 배 어렵다**
+  //     (1층 무조작 88%→50%, 프로 20층 50%→25%). 논타겟을 피하는 게 이 게임의
+  //     핵심인데 피할 자리가 없다.
+  //   · 회귀 스위트가 `?portrait=0`(가로)만 봐 왔다 → 폰 사용자는 측정된 적 없는
+  //     더 어려운 게임을 하고 있었다. 가로로 통일하면 측정과 실제가 일치한다.
+  //  세로로 든 폰에는 '돌려주세요' 안내를 띄운다(index.html #rotate).
+  //  판별에 `isTouch` 만 쓰면 **터치 노트북**이 폰으로 잡힌다(윈도우 터치 랩톱에서
+  //  창을 반만 띄우면 max 변이 1100 미만이 된다). `(pointer: coarse)` 를 함께 본다 —
+  //  손가락이 주 포인터인 기기만 true 다. 마우스가 달린 터치 랩톱은 fine 이라 걸러진다.
+  //  이 조건이 틀리면 기기별로 화면이 통째로 어긋나므로, `?diag=1` 에 PROFILE 을 찍는다.
+  var forced = (location.search || '').match(/[?&]portrait=([01])/);
+  var coarse = !(window.matchMedia && window.matchMedia('(pointer: fine)').matches);
+  var maxDim = Math.max(window.innerWidth || 0, window.innerHeight || 0,
+                        (screen && screen.width) || 0, (screen && screen.height) || 0);
+  var PROFILE;
+  if (forced) PROFILE = forced[1] === '1' ? 'tall' : 'pc';
+  else if (GAME.isTouch && coarse && maxDim < 1100) PROFILE = 'phone';
+  else PROFILE = 'pc';
+
+  var P = (PROFILE === 'tall');
 
   // 설계 해상도.
   //
@@ -43,17 +79,33 @@ GAME.CONFIG = (function () {
   // 420×900 은 폰 비율(≈0.46)에 맞아 letterbox 가 8px 로 줄고 축소율이 0.93 이 된다
   // → 설계 px 가 거의 그대로 화면 px 다. **세로 폰트는 이 전제 위에서 잡는다.**
   // 이 값을 다시 키우려면 폰에서 실측한 글자 크기부터 확인할 것.
-  var W = P ? 420 : 1340;
-  var H = P ? 900 : 900;
+  //
+  // 폰 가로(820×390)는 실제 폰 가로 뷰포트에 맞춰 잡았다. FIT 배율 실측:
+  //   iPhone 14 844×390 → 1.00 · 15 Pro Max 932×430 → 1.10
+  //   iPhone SE 667×375 → 0.81 (최악) · iPad 1024×768 → 1.25
+  // 1340×900 을 그대로 쓰면 폰 가로에서 배율 0.43 이라 13px 글자가 5.6px 이 된다(실측).
+  var PHONE = (PROFILE === 'phone');
+  var W = P ? 420 : (PHONE ? 820 : 1340);
+  var H = P ? 900 : (PHONE ? 390 : 900);
+  // 폰 가로는 HUD·조작을 전장 **위에 겹쳐** 올린다(롤토체스 방식) — 높이 390 에
+  // 막대를 쌓을 여유가 없다. 그래서 아레나가 캔버스를 거의 다 쓴다.
   var arena = P
     ? { x: 9, y: 9, w: 402, h: 694 }
-    : { x: 20, y: 20, w: 1300, h: 760 };
+    : (PHONE ? { x: 6, y: 6, w: 808, h: 378 }
+             : { x: 20, y: 20, w: 1300, h: 760 });
 
   // 배치 구역: 위 30%가 전략가, 아래 30%가 컨트롤러
   var zoneH = Math.round(arena.h * 0.30);
 
   return {
+    PROFILE: PROFILE,
     PORTRAIT: P,
+    // '작은 화면' — 글자를 상대적으로 크게, 터치 타깃을 두껍게 가져가야 하는가.
+    // PORTRAIT 와 분리한 이유: 폰 가로는 **세로 레이아웃이 아니지만 작은 화면**이다.
+    // 예전엔 이 둘이 한 플래그(PORTRAIT)에 뭉쳐 있어서, 가로로 바꾸는 순간
+    // 폰이 데스크톱용 글자 크기를 받게 된다.
+    SMALL: P || PHONE,
+    PHONE: PHONE,
     WIDTH: W,
     HEIGHT: H,
     ARENA: arena,
@@ -80,7 +132,13 @@ GAME.CONFIG = (function () {
     // 그래서 거리성 스탯(사거리·이동속도·추격·범위)에 이 배율을 곱해
     // **아레나 대비 상대 기하를 예전 그대로 보존**한다. 밸런스 수치를 다시 안 뽑아도 된다.
     // 기준은 예전 세로 아레나 폭 632.
-    WORLD_SCALE: P ? arena.w / 632 : 1,
+    // 폰 가로 아레나(808×378)는 PC(1300×760)보다 **면적이 31%** 다. 폭만 보고 환산하면
+    // (808/1300 = 0.62) 세로 방향 여유가 실제보다 크게 잡혀 접근 거리가 짧아진다.
+    // 면적의 제곱근으로 환산해 상대 기하를 보존한다 → 0.556.
+    // ⚠ 가로세로 비(2.14 vs 1.71)까지 같아지는 건 아니다. 이 프로필의 곡선은
+    //   `SIM_PHONE=1 node tools/regress.js` 로 **따로 측정해야 한다.**
+    WORLD_SCALE: P ? arena.w / 632
+                   : (PHONE ? Math.sqrt((arena.w * arena.h) / (1300 * 760)) : 1),
 
     // 맵 대각선 = '맵 끝까지 닿는다'의 기준값.
     // 원칙: **영웅에게 쉬는 시간도 사각지대도 없다.** 모든 전략가 유닛은 둘 중 하나여야 한다
@@ -243,4 +301,15 @@ GAME.Font = (function () {
   });
 
   return { FAMILY: FAMILY, SUBSET: SUBSET, ready: ready, state: 'pending' };
+})();
+
+// 문서 루트에 상태 클래스를 심는다 — CSS 가 '터치 기기인가'를 알 방법이 없기 때문.
+//   .touch          터치 기기 (폰·태블릿)
+//   .allow-portrait 세로 레이아웃을 명시적으로 허용(?portrait=1) — 회전 안내를 띄우지 않는다
+// 이 두 클래스로 index.html 의 #rotate(가로로 돌려주세요) 노출을 제어한다.
+(function () {
+  var el = document.documentElement;
+  if (!el || !el.classList) return;
+  if (GAME.isTouch) el.classList.add('touch');
+  if (GAME.CONFIG.PORTRAIT) el.classList.add('allow-portrait');
 })();

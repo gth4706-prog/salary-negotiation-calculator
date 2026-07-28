@@ -32,6 +32,21 @@ GAME.BuildScene.HOLD_MS = 450;
 // 경고를 띄운 뒤 설명으로 되돌아가는 시간
 GAME.BuildScene.WARN_MS = 2200;
 
+// ── 폰 가로(820×390) 전용 좌표 ──────────────────────────────────────────────
+//  아레나 화면 사각형은 y 40..312 (실측), 아래에 남는 건 78px 뿐이다.
+//  그래서 정보·팔레트는 전장 **위에 겹치고**(OVERLAY_H 까지), 액션만 아래에 둔다.
+//  터치 타깃은 전부 설계 55px 이상 — SE(667×375, FIT 0.813)에서 화면 44px 를 넘어야 한다.
+GAME.BuildScene.PHONE = {
+  PAD: 12,
+  POWER_Y: 3, STATUS_Y: 24,
+  CTRL_Y: 47, CTRL_H: 56,        // 예산 게이지 + 티어 버튼이 같은 줄
+  METER_Y: 62, METER_W: 466,
+  PAL_Y: 107,
+  OVERLAY_H: 172,                // 여기까지는 HUD 다 — 전장 탭으로 오인하면 안 된다
+  ACT_Y: 318, ACT_H: 56,
+  VER_W: 52                      // 우하단 DOM 버전 배지(#ver) 자리
+};
+
 GAME.BuildScene.prototype.init = function (data) {
   this.placed = [];
   this.history = [];         // 되돌리기 — 한 번의 배치가 만든 유닛들을 묶어 쌓는다
@@ -54,6 +69,11 @@ GAME.BuildScene.prototype.create = function () {
   var UI = GAME.UI;
   var self = this;
   var P = GAME.CONFIG.PORTRAIT;
+  // 폰 가로(820×390)는 아레나 아래에 78px 밖에 안 남는다(실측: 아레나 바닥 312).
+  // 예전 가로 배치(행 합계 344px)를 그대로 쓰면 팔레트부터 전부 화면 밖이었다.
+  // 롤토체스처럼 **HUD 를 전장 위에 겹쳐** 올리고, 아래 78px 은 액션 줄에만 쓴다.
+  var PH = GAME.CONFIG.PHONE;
+  var SM = P || PH;                       // 칩을 세로형(아이콘 위·이름 아래)으로 그리는가
   var W = GAME.CONFIG.WIDTH;
   var L = GAME.Layout;
   var hud = L.hud();
@@ -70,20 +90,37 @@ GAME.BuildScene.prototype.create = function () {
 
   this.g = this.add.graphics();
 
-  // ── 아레나 위 한 줄 안내 ────────────────────────────────────────────────
-  //  예전에는 이 안내가 전장 **안**에 있어서 유닛 그림 위에 얹혔다. 밖으로 뺀다.
-  var topLabel = P ? '위 = 상대가 보는 모습  ·  아래 파란 칸 = 내 진형'
-                   : '위 = 상대가 보게 될 모습  ·  아래 파란 칸이 내 진형 배치 구역';
+  var dtHeroName = '';
   if (this.defendTower) {
     var dtHeroKey = GAME.DefendTower.heroKeyFor(this.defendTower, GAME.DefendTower.skillFor(this.defendTower));
-    topLabel = this.defendTower + '층 방어 — 오는 영웅: ' + GAME.HEROES[dtHeroKey].name;
+    dtHeroName = GAME.HEROES[dtHeroKey].name;
   }
-  UI.text(this, hud.pad, 16, topLabel, { size: 'caption', color: C.accentAlt });
+
+  // ── 아레나 위 한 줄 안내 ────────────────────────────────────────────────
+  //  예전에는 이 안내가 전장 **안**에 있어서 유닛 그림 위에 얹혔다. 밖으로 뺀다.
+  //  폰 가로에서는 HUD 가 이미 전장 위를 덮으므로 이 줄을 따로 두지 않는다
+  //  (덮인 위쪽에 '상대가 보게 될 모습'을 안내해봐야 볼 수가 없다).
+  if (!PH) {
+    var topLabel = P ? '위 = 상대가 보는 모습  ·  아래 파란 칸 = 내 진형'
+                     : '위 = 상대가 보게 될 모습  ·  아래 파란 칸이 내 진형 배치 구역';
+    if (this.defendTower) topLabel = this.defendTower + '층 방어 — 오는 영웅: ' + dtHeroName;
+    UI.text(this, hud.pad, 16, topLabel, { size: 'caption', color: C.accentAlt });
+  }
 
   // ── 행 배분 ────────────────────────────────────────────────────────────
   //  손으로 좌표를 박지 않는다. 세로는 HUD 352px 안에 342px 를 쓴다(여유 10).
-  var chipH = P ? 62 : 62;
-  var rows = L.rows(P ? [
+  var chipH = 62;
+  var PHL = GAME.BuildScene.PHONE;
+  var rows = PH ? {
+    power:  { y: PHL.POWER_Y,  h: 19, cy: PHL.POWER_Y + 9.5,  bottom: PHL.POWER_Y + 19 },
+    status: { y: PHL.STATUS_Y, h: 19, cy: PHL.STATUS_Y + 9.5, bottom: PHL.STATUS_Y + 19 },
+    budget: { y: PHL.METER_Y,  h: 26, cy: PHL.METER_Y + 13,   bottom: PHL.METER_Y + 26 },
+    tier:   { y: PHL.CTRL_Y,   h: PHL.CTRL_H, cy: PHL.CTRL_Y + PHL.CTRL_H / 2, bottom: PHL.CTRL_Y + PHL.CTRL_H },
+    tools:  { y: PHL.ACT_Y,    h: PHL.ACT_H,  cy: PHL.ACT_Y + PHL.ACT_H / 2,   bottom: PHL.ACT_Y + PHL.ACT_H },
+    act:    { y: PHL.ACT_Y,    h: PHL.ACT_H,  cy: PHL.ACT_Y + PHL.ACT_H / 2,   bottom: PHL.ACT_Y + PHL.ACT_H },
+    pal0:   { y: PHL.PAL_Y,    h: chipH, cy: PHL.PAL_Y + chipH / 2, bottom: PHL.PAL_Y + chipH },
+    pal1:   { y: PHL.PAL_Y,    h: chipH, cy: PHL.PAL_Y + chipH / 2, bottom: PHL.PAL_Y + chipH }
+  } : L.rows(P ? [
     { name: 'budget', h: 26, gap: 4 },
     { name: 'power',  h: 19, gap: 3 },
     { name: 'status', h: 20, gap: 5 },
@@ -107,32 +144,35 @@ GAME.BuildScene.prototype.create = function () {
 
   // ── 예산 게이지 ─────────────────────────────────────────────────────────
   //  "예산이 얼마 남았는지 감이 안 온다"는 지적. 숫자만으로는 남은 양이 안 읽힌다.
-  var meterW = Math.min(hud.w - hud.pad * 2, P ? 396 : 620);
-  this.budgetMeter = UI.meter(this, hud.pad, rows.budget.y, meterW, rows.budget.h, {
+  var pad = PH ? PHL.PAD : hud.pad;
+  var meterW = PH ? PHL.METER_W : Math.min(hud.w - hud.pad * 2, P ? 396 : 620);
+  this.budgetMeter = UI.meter(this, pad, rows.budget.y, meterW, rows.budget.h, {
     frac: 0, color: C.strategist, track: UI.COL.meterTrack,
-    label: { size: P ? 'caption' : 'body', color: C.text, align: 'center' }
+    label: { size: SM ? 'caption' : 'body', color: C.text, align: 'center' }
   });
 
   // ── 진형 전력 요약 ──────────────────────────────────────────────────────
   //  "지금 진형이 얼마나 센지 감이 안 온다" → 체력 총합·초당 피해·구성 세 가지.
   //  전투 로직은 손대지 않는다. units.js 의 값을 읽어 **보여주기만** 한다.
-  this.powerText = UI.text(this, hud.pad, rows.power.y, '', {
-    size: P ? 'micro' : 'caption', color: C.textMid
+  this.powerText = UI.text(this, pad, rows.power.y, '', {
+    size: SM ? 'micro' : 'caption', color: C.textMid, outline: PH
   });
 
   // ── 상태 한 줄 (안내 ↔ 유닛 설명 ↔ 경고 겸용) ───────────────────────────
   //  예전에는 설명과 경고가 **다른 두 객체로 같은 줄에** 찍혀 겹쳤다. 하나로 합쳤다.
-  this.statusText = UI.text(this, hud.pad, rows.status.y, '', {
-    size: P ? 'micro' : 'caption', color: C.textDim
+  this.statusText = UI.text(this, pad, rows.status.y, '', {
+    size: SM ? 'micro' : 'caption', color: C.textDim, outline: PH
   });
   // 줄바꿈을 허용하면 두 번째 줄이 팔레트를 덮는다(예전 화면이 정확히 그 상태였다).
   // 대신 **한 줄에 맞게 잘라 넣는다** — 웹폰트가 안 와서 폭 넓은 폴백으로 그려져도 안전하다.
-  this.lineMaxW = hud.w - hud.pad * 2;
+  this.lineMaxW = hud.w - pad * 2;
 
   // ── 유닛 팔레트 ─────────────────────────────────────────────────────────
-  var perRow = 5;
+  //  폰 가로는 **한 줄 10칸**이다. 두 줄로 쌓으면 전장을 62px 더 덮는데,
+  //  칸 폭 76 이면 세로형 칩(아이콘 위·이름 아래)이 그대로 들어간다.
+  var perRow = PH ? GAME.UNIT_ORDER.length : 5;
   this.chips = [];
-  var cols = L.cols(perRow, { gap: P ? 5 : 8 });
+  var cols = L.cols(perRow, { gap: PH ? 4 : (P ? 5 : 8), pad: pad });
   var chipRects = [];
   for (var i = 0; i < GAME.UNIT_ORDER.length; i++) {
     var key = GAME.UNIT_ORDER[i];
@@ -154,8 +194,8 @@ GAME.BuildScene.prototype.create = function () {
   for (var j = 0; j < chipRects.length; j++) {
     var ch = chipRects[j];
     var def = GAME.UNITS[ch.key];
-    if (P) {
-      // 세로(칸 75×62): 아이콘이 칸을 거의 다 쓰고 이름은 바닥에, 숫자는 모서리에.
+    if (SM) {
+      // 세로(칸 75×62) · 폰 가로(칸 76×62): 아이콘이 칸을 거의 다 쓰고 이름은 바닥에, 숫자는 모서리에.
       // **그림이 1순위 식별자**다 — 좁은 칸에서 이름 4~5글자보다 실루엣이 빨리 읽힌다.
       // drawUnitFlat 의 y 는 '발밑'이라 이름 윗줄에 발이 닿게 잡는다.
       ch.iconX = ch.cx;
@@ -190,9 +230,20 @@ GAME.BuildScene.prototype.create = function () {
     this.chips.push(ch);
   }
 
+  // 폰 가로: 아래 78px 한 줄에 도구 3 + 액션 3 = 6칸을 나눠 담는다.
+  // 오른쪽 끝은 DOM 버전 배지 자리라 비운다.
+  function phSlots(n, left, total, gap) {
+    var w = Math.floor((total - gap * (n - 1)) / n);
+    var out = [];
+    for (var i = 0; i < n; i++) { var x = left + i * (w + gap); out.push({ x: x, w: w, cx: x + w / 2 }); }
+    return out;
+  }
+  var phBar = PH ? phSlots(6, PHL.PAD, W - PHL.PAD - PHL.VER_W, 6) : null;
+
   // ── 도구: 되돌리기 · 대칭 · 전부 지우기 ─────────────────────────────────
   var toolW = P ? hud.w : Math.round(hud.w * 0.52);
-  var tcols = L.cols(3, { gap: 8, width: toolW, left: hud.pad });
+  var tcols = PH ? [phBar[0], phBar[1], phBar[2]]
+                 : L.cols(3, { gap: 8, width: toolW, left: hud.pad });
   UI.button(this, tcols[0].cx, rows.tools.cy, tcols[0].w, rows.tools.h, '되돌리기',
     function () { self._undo(); }, { fontSize: 'buttonSm' });
   this.mirrorBtn = UI.button(this, tcols[1].cx, rows.tools.cy, tcols[1].w, rows.tools.h, '',
@@ -206,13 +257,23 @@ GAME.BuildScene.prototype.create = function () {
   // ── 예산 티어 ───────────────────────────────────────────────────────────
   //  수성의 탑은 층 고정 예산이라 티어 선택을 숨기고 층 정보를 보여준다.
   this.tierButtons = [];
-  var tierLeft = P ? hud.pad : (toolW + hud.pad);
-  var tierW = P ? hud.w : (hud.w - toolW - hud.pad);
+  var tierLeft = PH ? (PHL.PAD + PHL.METER_W + 12) : (P ? hud.pad : (toolW + hud.pad));
+  var tierW = PH ? (W - tierLeft - PHL.PAD) : (P ? hud.w : (hud.w - toolW - hud.pad));
   if (this.defendTower) {
-    UI.text(this, tierLeft, rows.tier.cy, '수성의 탑 ' + this.defendTower + '층  ·  고정 예산 ' + this.budget,
-      { size: 'caption', color: C.accentAlt, origin: 0, originY: 0.5 });
+    if (PH) {
+      // 폰은 이 자리가 좁다 — 층·예산과 '오는 영웅'을 두 줄로 나눈다(전략가가 보고 배치한다).
+      UI.text(this, tierLeft, rows.tier.y + 6,
+        '수성의 탑 ' + this.defendTower + '층 · 예산 ' + this.budget,
+        { size: 'micro', color: C.accentAlt, outline: true });
+      UI.text(this, tierLeft, rows.tier.y + 28, '오는 영웅 — ' + dtHeroName,
+        { size: 'micro', color: C.crit, outline: true });
+    } else {
+      UI.text(this, tierLeft, rows.tier.cy, '수성의 탑 ' + this.defendTower + '층  ·  고정 예산 ' + this.budget,
+        { size: 'caption', color: C.accentAlt, origin: 0, originY: 0.5 });
+    }
   } else {
-    var tcols2 = L.cols(3, { gap: 8, width: tierW, left: tierLeft });
+    var tcols2 = PH ? phSlots(3, tierLeft, tierW, 6)
+                    : L.cols(3, { gap: 8, width: tierW, left: tierLeft });
     var tiers = GAME.CONFIG.BUDGET_TIERS;
     for (var t = 0; t < tiers.length; t++) {
       (function (tier, idx) {
@@ -231,19 +292,20 @@ GAME.BuildScene.prototype.create = function () {
 
   // ── 액션 ────────────────────────────────────────────────────────────────
   //  '전부 지우기'를 도구 줄로 옮겨 세 칸이 됐다 → 버튼이 넓어져 오탭이 준다.
-  var acols = L.cols(3, { gap: 8 });
+  var acols = PH ? [phBar[3], phBar[4], phBar[5]] : L.cols(3, { gap: 8 });
+  var actFs = PH ? 'buttonSm' : 'button';
   UI.button(this, acols[0].cx, rows.act.cy, acols[0].w, rows.act.h, '방어전 시작', function () {
     self._defend();
   }, { fill: UI.COL.panelTeal, line: C.controller, hover: UI.COL.panelTealHi,
-       color: C.accent, fontSize: 'button' });
+       color: C.accent, fontSize: actFs });
   UI.button(this, acols[1].cx, rows.act.cy, acols[1].w, rows.act.h, '배치도 저장', function () {
     self._save();
   }, { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
-       color: C.accentAlt, fontSize: 'button' });
+       color: C.accentAlt, fontSize: actFs });
   UI.button(this, acols[2].cx, rows.act.cy, acols[2].w, rows.act.h,
     this.defendTower ? '← 탑' : '메뉴', function () {
       self.scene.start(self.defendTower ? 'DefendTower' : 'Menu');
-    }, { fontSize: 'button' });
+    }, { fontSize: actFs });
 
   // ── 삭제 배지(✕) 글자 — 맨 위에 얹히도록 마지막에 만든다 ────────────────
   this.delTxt = UI.text(this, 0, 0, '✕', {
@@ -251,12 +313,17 @@ GAME.BuildScene.prototype.create = function () {
   }).setVisible(false);
 
   // ── 입력 ────────────────────────────────────────────────────────────────
+  // 폰 가로는 HUD 가 전장 **위에** 얹혀 있다 → 그 띠 안의 탭은 전장 탭이 아니다.
+  // 이 가드가 없으면 팔레트를 누를 때마다 '아래 파란 칸 안에만…' 경고가 같이 뜬다.
+  this.hudTopBand = PH ? PHL.OVERLAY_H : 0;
+
   this.input.on('pointerdown', function (p) {
     // ① ✕ 배지가 먼저다 — 배지를 눌렀는데 그 아래 유닛이 다시 선택되면 안 된다
     if (self._hitDelete(p.x, p.y)) {
       self._removeUnit(self.selected);
       return;
     }
+    if (p.y < self.hudTopBand) return;
     if (p.y > GAME.Iso.screenRect().bottom) return;
     var wpt = GAME.Iso.toWorld(p.x, p.y);
     if (p.rightButtonDown()) { self._removeAt(wpt.x, wpt.y); return; }
@@ -551,10 +618,21 @@ GAME.BuildScene.prototype.redraw = function () {
   var g = this.g;
   var Iso = GAME.Iso;
   var P = GAME.CONFIG.PORTRAIT;
+  var PH = GAME.CONFIG.PHONE;
   var i, def;
   g.clear();
 
   UI.drawArena(g, { zones: true });
+
+  // 폰 가로 — HUD 를 전장 위에 겹치므로 그 띠에 불투명 판을 깐다.
+  // 판이 없으면 전장 격자 위에 글자가 얹혀 읽히지 않는다.
+  if (PH) {
+    var K = GAME.BuildScene.PHONE;
+    g.fillStyle(UI.COL.surface, 0.94);
+    g.fillRoundedRect(4, -14, GAME.CONFIG.WIDTH - 8, K.OVERLAY_H + 8, 12);
+    g.lineStyle(1, UI.COL.border, 1);
+    g.strokeRoundedRect(4.5, -14, GAME.CONFIG.WIDTH - 9, K.OVERLAY_H + 8, 12);
+  }
 
   g.lineStyle(2, this.myColor, 0.85);
   g.strokeRect(this.zone.x + 2, Iso.toScreenY(this.zone.y) + 2,
@@ -569,9 +647,12 @@ GAME.BuildScene.prototype.redraw = function () {
   }
 
   // 위쪽: 상대가 볼 모습(뒤집힌 미리보기)
-  for (i = 0; i < this.placed.length; i++) {
-    var pv = this.placed[i];
-    UI.drawUnit(g, GAME.UNITS[pv.type], pv.x, GAME.mirrorY(pv.y), C.strategist, 0.3, Math.PI / 2);
+  // 폰 가로에서는 이 구역이 HUD 판 아래로 완전히 들어간다 → 그리지 않는다(가려서 안 보인다).
+  if (!PH) {
+    for (i = 0; i < this.placed.length; i++) {
+      var pv = this.placed[i];
+      UI.drawUnit(g, GAME.UNITS[pv.type], pv.x, GAME.mirrorY(pv.y), C.strategist, 0.3, Math.PI / 2);
+    }
   }
 
   // 아래쪽: 내가 놓은 것 (깊이 정렬)
@@ -605,10 +686,13 @@ GAME.BuildScene.prototype.redraw = function () {
     var br = P ? 15 : 17;
     var bx = selPos.pos.sx + selPos.def.radius + br * 0.8;
     var by = selPos.pos.by - selPos.def.radius * 1.9 - br * 0.6;
-    // 화면(아레나) 밖으로 나가지 않게 가둔다
+    // 화면(아레나) 밖으로 나가지 않게 가둔다.
+    // 폰 가로는 아레나 위쪽이 HUD 판에 덮여 있으므로 그 아래로도 가둔다 — 안 그러면
+    // 배지가 판 뒤로 숨어 "지울 수 없는 유닛"이 된다.
     var rect = Iso.screenRect();
+    var topLimit = Math.max(rect.y, this.hudTopBand || 0);
     bx = Math.max(rect.x + br + 2, Math.min(rect.right - br - 2, bx));
-    by = Math.max(rect.y + br + 2, Math.min(rect.bottom - br - 2, by));
+    by = Math.max(topLimit + br + 2, Math.min(rect.bottom - br - 2, by));
     g.fillStyle(UI.COL.shadow === undefined ? 0x000000 : UI.COL.shadow, 0.3);
     g.fillCircle(bx, by + 2, br);
     g.fillStyle(C.hpBad, 1);

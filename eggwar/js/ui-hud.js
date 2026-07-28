@@ -34,7 +34,8 @@ window.GAME = window.GAME || {};
 (function () {
   var UI = GAME.UI = GAME.UI || {};
   var CFG = GAME.CONFIG;
-  var P = CFG.PORTRAIT;
+  // ui-theme.js 와 같은 이유로 SMALL(작은 화면)을 본다 — 폰 가로도 포함된다.
+  var P = CFG.SMALL !== undefined ? CFG.SMALL : CFG.PORTRAIT;
 
   // ui-theme.js 가 먼저 로드됐는지 확인 — 순서가 뒤집히면 조용히 이상해진다
   if (!UI.FS || !UI.COL) {
@@ -272,16 +273,84 @@ window.GAME = window.GAME || {};
     var iw = pw - (P ? 28 : 48);            // 내용 폭
     var ir = px + pw - (P ? 14 : 24);       // 내용 오른쪽
 
-    var H = P ? (boss ? 158 : 128) : 112;
+    // 폰 가로(820×390)는 **쌓을 자리가 없다** → 화면 위 모서리에 얹는 얇은 띠.
+    // 높이는 아래에서 만든 부품의 **실측 바닥**으로 다시 잡는다(고정값 금지).
+    var PHONE = !!CFG.PHONE;
+    var H = PHONE ? 58 : (P ? (boss ? 158 : 128) : 112);
 
     // ── 패널 ──
-    keep(UI.panel(scene, px, top, pw, H, { level: 1, radius: UI.R.lg }));
+    // 폰 가로는 전면 패널을 깔지 않는다 — 전장이 이 띠 **아래**에서 시작하므로
+    // 뒤가 이미 비어 있고, 큰 판을 하나 더 깔면 좁은 화면이 더 답답해진다.
+    if (!PHONE) keep(UI.panel(scene, px, top, pw, H, { level: 1, radius: UI.R.lg }));
 
     var tier = UI.tier(opts.tierIndex === undefined ? 0 : opts.tierIndex);
 
     var timer, timeBar, heroName, shieldTag, hpBar, enemyTxt, bossBar, chip;
 
-    if (P) {
+    if (PHONE) {
+      // ── 폰 가로 820×390 — 쌓지 말고 겹친다(롤토체스/와일드리프트 방식) ──
+      //   좌상: 층 배지 + 영웅 체력바   중상: 남은 시간(가장 큰 숫자)   우상: 남은 적 · 보스 바
+      //   하단 좌우 모서리는 **엄지가 점유**하므로(touchpad.js) 정보는 위로만 올린다.
+      //   전장은 api.bottom 아래에서 시작한다 — battle.js 가 Iso.setMode('full', bottom) 로 맞춘다.
+      //   영웅 이름은 폰에서 뺐다: 방금 고른 영웅이라 정보 가치가 낮은데 한 줄을 통째로 먹는다.
+      var lpx = 10, lpw = 274, lpy = top + 2, lph = 54;
+      keep(UI.panel(scene, lpx, lpy, lpw, lph, {
+        level: 1, radius: UI.R.md, alpha: 0.88, shadow: false
+      }));
+      var lin = lpx + 8;
+      // 글자 크기는 micro(15)가 아니라 caption(16)을 쓴다.
+      // 폰 가로의 최악 배율은 **아이폰 SE 의 0.813** 이라 micro 15 는 화면 12.2px 로 떨어진다
+      // (설계 하한 13px 미만). caption 16 이면 13.0px 로 딱 하한에 선다.
+      if (opts.tierLabel) {
+        chip = UI.chip(scene, lin, lpy + 3, UI.ellipsize(opts.tierLabel, 11), {
+          size: 'caption', color: tier.css, fill: tier.panel, line: tier.hex, shadow: false
+        });
+        keep(chip.gfx); keep(chip.text);
+      }
+      shieldTag = keep(UI.text(scene, lpx + lpw - 8, lpy + 6, '', {
+        size: 'caption', color: UI.IS_LIGHT ? TXT.accent : '#7ec8f0',
+        origin: 1, originY: 0, lineSpacing: 0
+      }));
+      hpBar = UI.meter(scene, lin, lpy + 34, lpw - 16, 18, {
+        color: COL.hpGood, seg: 4, danger: 0.3,
+        label: { size: 'caption', align: 'center' }
+      });
+      objs.push(hpBar);
+
+      // 남은 시간 — 이 화면에서 가장 자주 보는 숫자라 가장 크게, 정중앙에.
+      timer = keep(UI.text(scene, W / 2, top, '', {
+        size: 34, color: TXT.text, origin: 0.5, originY: 0, outline: true, lineSpacing: 0
+      }));
+      // 시간 바는 타이머의 **실측 바닥** 아래에 붙인다(고정 y 를 박으면 폰트가 바뀔 때 겹친다)
+      var tbY = top + Math.max(30, Math.ceil(timer.height)) + 2;
+      timeBar = UI.meter(scene, W / 2 - 100, tbY, 200, 5, {
+        color: COL.controller, danger: 0.17,
+        dangerColor: 0xf0a86a, radius: 2.5, gloss: false
+      });
+      objs.push(timeBar);
+
+      var rrx = W - 14;
+      enemyTxt = keep(UI.text(scene, rrx, top + 4, '', {
+        size: 'subhead', color: TXT.textMid, origin: 1, originY: 0, outline: true, lineSpacing: 0
+      }));
+      // 보스 바는 오른쪽 묶음에 **끼워 넣는다** — 아래로 쌓으면 보스 층만 전장이 줄어든다.
+      var rBottom = top + 4 + Math.max(20, Math.ceil(enemyTxt.height));
+      if (boss) {
+        var bbw = 250, bbx = rrx - bbw, bby = rBottom + 3;
+        bossBar = UI.meter(scene, bbx, bby, bbw, 20, {
+          color: BOSS.fill, seg: 5, danger: -1, line: BOSS.line,
+          label: { size: 'caption', align: 'left', color: BOSS.css }
+        });
+        objs.push(bossBar);
+        bossBar.hpText = keep(UI.text(scene, bbx + bbw - 8, bby + 10, '', {
+          size: 'caption', color: BOSS.css, origin: 1, originY: 0.5, outline: true, lineSpacing: 0
+        }));
+        rBottom = bby + 20;
+      }
+      // 실측 바닥으로 높이를 확정한다 → 아레나가 이 아래에서 시작한다
+      H = Math.max(lpy + lph, tbY + 5, rBottom) - top + 2;
+
+    } else if (P) {
       // ── 세로 420 ──
       if (opts.tierLabel) {
         chip = UI.chip(scene, ix, top + 10, UI.ellipsize(opts.tierLabel, 10), {
@@ -374,7 +443,8 @@ window.GAME = window.GAME || {};
         timer.setColor(info.timeLow ? TXT.warn : TXT.text);
         timeBar.set(num(info.timeFrac, 0));
 
-        heroName.setText(info.heroName === undefined ? '' : String(info.heroName));
+        // 폰 가로는 영웅 이름을 두지 않는다(자리가 없다) → 있을 때만 쓴다
+        if (heroName) heroName.setText(info.heroName === undefined ? '' : String(info.heroName));
         shieldTag.setText(info.shieldText === undefined ? '' : String(info.shieldText));
 
         hpBar.set(num(info.hpFrac, 0), num(info.shieldFrac, 0));
@@ -384,7 +454,7 @@ window.GAME = window.GAME || {};
 
         if (bossBar) {
           bossBar.set(num(info.bossFrac, 0));
-          bossBar.setText(UI.ellipsize(info.bossName || '', P ? 12 : 20));
+          bossBar.setText(UI.ellipsize(info.bossName || '', PHONE ? 8 : (P ? 12 : 20)));
           if (bossBar.hpText) bossBar.hpText.setText(info.bossText || '');
         }
         return api;

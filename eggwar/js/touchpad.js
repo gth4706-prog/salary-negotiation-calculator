@@ -38,6 +38,23 @@ GAME.TouchPad.palette = function () {
 GAME.TouchPad.SIZES = function () {
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var shortSide = Math.min(W, H);
+
+  // ── 폰 가로(820×390) ──────────────────────────────────────────────────
+  // 짧은 변이 곧 화면 높이라 세로용 비율(짧은 변 대비)을 그대로 쓰면 버튼이 작아진다.
+  // 모바일 MOBA(와일드리프트) 기준: 스틱은 화면 높이의 20% 안팎 반경, 공격 버튼이 가장 크고
+  // 스킬은 그 주위 부채꼴. 스킬이 4개라 롤토체스식 '한 줄'로는 담기지 않는다.
+  //
+  // 터치 타깃 규율: 설계 px = 화면 px 이지만 **아이폰 SE(667×375)는 FIT 0.81 배**라
+  // 설계 54px 이 화면 44px 이다 → 모든 버튼을 설계 지름 56px 이상으로 잡는다.
+  if (GAME.CONFIG.PHONE) {
+    return {
+      stickR: Math.round(H * 0.21),    // 82 — 엄지 사정권(왼쪽 아래)
+      knobR: Math.round(H * 0.095),    // 37
+      mainR: Math.round(H * 0.108),    // 42 · 지름 84 → SE 68px
+      skillR: Math.round(H * 0.075),   // 29 · 지름 58 → SE 47px
+      potionR: Math.round(H * 0.072)   // 28 · 지름 56 → SE 45px
+    };
+  }
   // 조작부가 **전장 위에 겹쳐** 놓이게 되면서 전장을 잡아먹지 않는다 →
   // 그만큼 버튼을 키울 수 있다(실기기에서 "버튼이 작다" 신고). 지름 기준으로
   // 스킬 0.058→0.072(≈60px, 화면 ~48px), 공격 0.070→0.086 으로 올렸다.
@@ -61,7 +78,8 @@ GAME.TouchPad.prototype._build = function () {
 
   // 조작부는 전장 **위에 겹쳐** 놓는다(전장을 화면 거의 전체로 쓰기 위함).
   // 다만 폰 하단바(제스처 바)와는 반드시 띄운다 — 안 그러면 스틱을 잡다가 홈으로 나간다.
-  var margin = Math.round(Math.min(W, H) * 0.055);
+  var PHONE = GAME.CONFIG.PHONE;
+  var margin = PHONE ? 16 : Math.round(Math.min(W, H) * 0.055);
   var bottomGap = (GAME.CONFIG.PORTRAIT && GAME.Iso.BOTTOM_GAP) ? GAME.Iso.BOTTOM_GAP * 0.55 : 0;
   var baseY = H - S.stickR - margin - bottomGap;
 
@@ -72,27 +90,42 @@ GAME.TouchPad.prototype._build = function () {
   this.stick.homeX = sx;      // 손을 떼면 돌아올 자리
   this.stick.homeY = baseY;
 
-  this.stickRing = scene.add.circle(sx, baseY, S.stickR, PAD.ring, 0.22)
-    .setStrokeStyle(2, PAD.ink, 0.30).setDepth(900).setScrollFactor(0);
-  this.stickKnob = scene.add.circle(sx, baseY, S.knobR, PAD.ink, 0.30)
-    .setStrokeStyle(2, PAD.ink, 0.55).setDepth(901).setScrollFactor(0);
+  // 스틱은 **선으로 읽히게** 한다. 폰 가로는 반지름이 82(화면 높이의 21%)라
+  // 세로와 같은 알파(면 0.22 / 노브 0.30)를 쓰면 전장 왼쪽에 커다란 진흙 웅덩이가 생긴다
+  // (실측 스크린샷). 면을 옅게 깔고 테두리를 굵게 살리면 같은 크기로도 전장이 보인다.
+  var fillA = PHONE ? 0.07 : 0.22, lineA = PHONE ? 0.5 : 0.30;
+  var knobA = PHONE ? 0.16 : 0.30;
+  this.stickRing = scene.add.circle(sx, baseY, S.stickR, PAD.ring, fillA)
+    .setStrokeStyle(PHONE ? 3 : 2, PAD.ink, lineA).setDepth(900).setScrollFactor(0);
+  this.stickKnob = scene.add.circle(sx, baseY, S.knobR, PAD.ink, knobA)
+    .setStrokeStyle(PHONE ? 3 : 2, PAD.ink, 0.55).setDepth(901).setScrollFactor(0);
   this.objects.push(this.stickRing, this.stickKnob);
 
   // 스틱은 링 밖에서 눌러도 잡히도록 넉넉한 판정 원을 따로 둔다
   // 판정 구역은 **왼쪽 아래 넓은 사각형**이다. 엄지가 대충 닿아도 잡히도록
   // 스틱 그림보다 훨씬 크게 잡는다(떠다니는 스틱이라 정확히 누를 필요가 없다).
-  var zoneW = Math.round(W * 0.52);
-  var zoneTop = Math.min(baseY - S.stickR * 1.7, H - S.stickR * 3.2);
+  // 폰 가로는 스틱 반경이 크고 화면이 낮다 → 판정 구역을 왼쪽 아래에 좁게 가둔다.
+  // 넓게 잡으면 하단 중앙 물약 버튼까지 삼켜 오조작이 난다(폭 0.52 면 실제로 겹쳤다).
+  var zoneW = Math.round(W * (PHONE ? 0.40 : 0.52));
+  var zoneTop = PHONE ? Math.max(0, H - Math.round(S.stickR * 2.6))
+                      : Math.min(baseY - S.stickR * 1.7, H - S.stickR * 3.2);
   var zoneH = H - zoneTop;
   this.stickZoneRect = { x: 0, y: zoneTop, w: zoneW, h: zoneH };
   this.stickZone = scene.add.rectangle(zoneW / 2, zoneTop + zoneH / 2, zoneW, zoneH, 0xffffff, 0.001)
     .setDepth(899).setScrollFactor(0);
   this.stickZone.setInteractive();
   this.objects.push(this.stickZone);
+  // 감사용 표식 — 판정 구역은 **보이지 않는 손가락 영역**이라 겹침 검사에서 뺀다.
+  // 스틱 그림(링·노브)은 이 안에 있는 게 정상이다.
+  this.stickZone.__padZone = true;
+  this.stickRing.__padStick = true;
+  this.stickKnob.__padStick = true;
 
   // ── 오른쪽: 액션 버튼 ──
+  // 스틱과 공격 버튼은 반지름이 다르다 → 같은 baseY 를 쓰면 오른쪽만 40px 떠 보인다.
+  // 각자 **화면 아래에서** 자기 반지름만큼 띄운다.
   var cx = W - S.mainR - margin;
-  var cy = baseY;
+  var cy = PHONE ? (H - S.mainR - margin) : baseY;
 
   this._addButton('ATK', cx, cy, S.mainR, '공격', GAME.CONFIG.COLORS.controller, function () {
     self._attack();
@@ -119,9 +152,16 @@ GAME.TouchPad.prototype._build = function () {
       S.skillR, slot, GAME.CONFIG.COLORS.strategist, function () { self._skill(slot); });
   });
 
-  // 물약 — 스틱 위쪽(왼손 엄지로 닿는 자리)
-  this._addButton('POTION', sx, baseY - S.stickR - S.potionR - 10, S.potionR, '물약', PAD.amber,
-    function () { GAME.Combat.usePotion(self.hero); });
+  // 물약 — 세로에서는 스틱 위쪽(왼손 엄지 자리).
+  // 폰 가로에서는 **하단 중앙**으로 뺀다: 자주 안 쓰는 버튼이라 두 엄지의 사정권
+  // 한가운데(= 가장 덜 붐비는 자리)에 두는 편이 스틱·스킬 오조작을 줄인다.
+  if (PHONE) {
+    this._addButton('POTION', W / 2, H - S.potionR - margin, S.potionR, '물약', PAD.amber,
+      function () { GAME.Combat.usePotion(self.hero); });
+  } else {
+    this._addButton('POTION', sx, baseY - S.stickR - S.potionR - 10, S.potionR, '물약', PAD.amber,
+      function () { GAME.Combat.usePotion(self.hero); });
+  }
 
   this._bind();
   this.refresh();
@@ -156,6 +196,12 @@ GAME.TouchPad.prototype._addButton = function (key, x, y, r, label, color, onTap
   });
   circle.on('pointerup', function () { circle.setFillStyle(PAD.face, 0.55); });
   circle.on('pointerout', function () { circle.setFillStyle(PAD.face, 0.55); });
+
+  // 겹침 감사용 표식 — 버튼과 **자기 라벨/쿨다운 덮개** 쌍만 정확히 제외하려면
+  // 도구가 소속을 알아야 한다(UI.button 의 rect.__uiBtn 과 같은 방식).
+  circle.__padKey = key;
+  text.__padOwner = key;
+  cool.__padOwner = key;
 
   var b = { key: key, circle: circle, text: text, cool: cool, r: r, color: color };
   this.buttons.push(b);

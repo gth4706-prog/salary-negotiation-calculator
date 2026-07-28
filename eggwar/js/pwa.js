@@ -193,7 +193,28 @@ GAME.PWA = (function () {
     }
   }
 
+  // ── '가로로 돌려주세요' 안내의 전체화면 버튼 ──
+  // 여기서만은 **가로로 잠그는 게 맞다** — 사용자가 원하는 방향이 가로이기 때문.
+  // 안드로이드는 전체화면 진입 후 잠금이 먹혀 화면이 실제로 돌아간다.
+  // iOS 는 잠금을 거절하므로 버튼을 눌러도 그대로다 → 그래서 안내 문구를 남겨 둔다.
+  function wireRotatePrompt() {
+    var btn = document.getElementById('rotate-fs');
+    if (!btn) return;
+    if (!canFullscreen() || isStandalone()) return;   // 설치본은 이미 주소창이 없다
+    btn.hidden = false;
+    btn.addEventListener('click', function () {
+      toggleFullscreen(function (ok) {
+        if (!ok) btn.hidden = true;                   // 안 되는 기기에서는 조용히 치운다
+      });
+    });
+  }
+
   registerSW();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wireRotatePrompt);
+  } else {
+    wireRotatePrompt();
+  }
 
   return {
     isStandalone: isStandalone,

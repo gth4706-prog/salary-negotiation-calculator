@@ -1,0 +1,20 @@
+{
+  "name": "Egg War — 계란 부족 비대칭 실시간 대전",
+  "short_name": "Egg War",
+  "description": "진형을 짜는 전략가와 영웅을 조작하는 컨트롤러가 맞붙는 비대칭 실시간 대전.",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "any",
+  "background_color": "#fbf2df",
+  "theme_color": "#123f96",
+  "categories": ["games", "strategy"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

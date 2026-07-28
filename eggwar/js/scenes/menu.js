@@ -106,16 +106,42 @@ GAME.MenuScene.prototype.create = function () {
     self.scene.start('Login');
   }, { fontSize: P ? 15 : 14 });
 
-  // 사운드 켜기/끄기 — 소리가 있는 게임이 됐으니 끌 수단도 있어야 한다.
-  // 버튼 줄 아래에 작게 둔다(주요 동선을 밀어내지 않게).
+  // 사운드 켜기/끄기 + 전체화면. 버튼 줄 아래에 작게 둔다(주요 동선을 밀어내지 않게).
+  //
+  // 전체화면은 **보조 수단**이다. 지원하지 않는 브라우저에서는 버튼을 아예 만들지 않고,
+  // 눌렀는데 실패하면 조용히 지운다 — 에러를 띄우지 않는다. iOS 사파리는 이 API 가
+  // 부분 지원이고 입력창 포커스에서 풀리는 문제가 있어, 닉네임 입력이 끝난
+  // **메뉴 이후에만** 노출한다(이 화면이 그 첫 지점이다).
+  // 자세한 근거: docs/proposals/2026-07-28-mobile-strategy.md
+  var utilY = ry + smallH + u * 1.4;
+  var utilH = smallH * 0.86;
+  var hasFs = GAME.PWA && GAME.PWA.canFullscreen() && !GAME.PWA.isStandalone();
+  var utilW = Math.min(W - 60, hasFs ? 320 : 200);
+  var uc = hasFs
+    ? GAME.Layout.cols(2, { gap: 10, width: utilW, left: (W - utilW) / 2, pad: 0 })
+    : [{ cx: W / 2, w: utilW }];
+
   if (GAME.Sound) {
     var sndLbl = function () { return GAME.Sound.enabled ? '🔊 소리 켜짐' : '🔈 소리 꺼짐'; };
-    var sb = GAME.UI.button(this, W / 2, ry + smallH + u * 1.4, Math.min(W - 60, 200),
-      smallH * 0.86, sndLbl(), function () {
-        GAME.Sound.toggle();
-        sb.text.setText(sndLbl());
-      }, { fontSize: P ? 13 : 13 });
-    this._soundBtnBottom = ry + smallH + u * 1.4 + smallH * 0.43;
+    var sb = GAME.UI.button(this, uc[0].cx, utilY, uc[0].w, utilH, sndLbl(), function () {
+      GAME.Sound.toggle();
+      sb.text.setText(sndLbl());
+    }, { fontSize: P ? 13 : 13 });
+    this._soundBtnBottom = utilY + utilH / 2;
+  }
+
+  if (hasFs) {
+    var fsLbl = function () { return GAME.PWA.isFullscreen() ? '⤡ 전체화면 해제' : '⛶ 전체화면'; };
+    var fb = GAME.UI.button(this, uc[1].cx, utilY, uc[1].w, utilH, fsLbl(), function () {
+      GAME.PWA.toggleFullscreen(function (ok) {
+        if (!fb.text || !fb.text.scene) return;
+        // 껐다 켜기 둘 다 실패(= 브라우저가 거부)면 이 버튼은 쓸모가 없다 → 치운다.
+        if (!ok && !fb._everOn) { fb.rect.destroy(); fb.text.destroy(); return; }
+        fb._everOn = fb._everOn || ok;
+        fb.text.setText(fsLbl());
+      });
+    }, { fontSize: P ? 13 : 13 });
+    this._soundBtnBottom = utilY + utilH / 2;
   }
   if (GAME.isAdmin) {
     GAME.UI.button(this, rc[2].cx, ry, rc[2].w, smallH, '닉네임 관리', function () {
@@ -139,4 +165,11 @@ GAME.MenuScene.prototype.create = function () {
     .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 40);
 
   // 버전 표시는 DOM 배지(#ver) 하나로 통일했다 — 캔버스에도 그리면 우하단에서 겹친다.
+
+  // 설치 유도 배너 — 인트로·닉네임 입력을 가로막지 않도록 여기서 처음 띄운다.
+  // 잠깐 뜸을 들여야 화면 전환과 겹쳐 튀지 않는다. 메뉴를 떠날 때 반드시 걷어낸다.
+  if (GAME.PWA) {
+    this.time.delayedCall(1400, function () { GAME.PWA.maybeShowInstall(); });
+    this.events.once('shutdown', function () { GAME.PWA.hideInstall(); });
+  }
 };

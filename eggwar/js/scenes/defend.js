@@ -155,6 +155,15 @@ GAME.DefendScene.prototype.create = function () {
   var numLight = GAME.UI.IS_LIGHT;
   var numFill = numLight ? '#2A2114' : '#ffffff';
   var numStroke = numLight ? (GAME.UI.TXT.textOutline || '#FFFCF0') : '#000000';
+  // drawNumbers 는 BattleScene 것을 그대로 쓴다(defend.js:292) — 그런데 그 함수는
+  // `this.numFill` 을 읽는다. 여기서는 지역변수로만 두고 있어서 실제로는
+  // setColor(undefined) 가 호출되고 있었다(풀 기본색이라 티가 안 났을 뿐).
+  this.numFill = numFill;
+  this.numStroke = numStroke;
+  this.numHeroFill = numLight ? '#8E1520' : '#ff8f8f';
+  this.numTakenFill = numLight ? '#7A6A58' : '#9a8f8c';
+  // 방어전의 플레이어는 **전략가**다 — 영웅은 적이므로 강조 대상이 뒤집힌다.
+  this._heroIsPlayer = false;
   this.numPool = [];
   for (var n = 0; n < 26; n++) {
     this.numPool.push(this.add.text(0, 0, '', {

@@ -183,6 +183,12 @@ GAME.BattleScene.prototype.create = function () {
   this.numFill = numLight ? '#2A2114' : '#ffffff';
   this.numStroke = numLight ? (GAME.UI.TXT.textOutline || '#FFFCF0') : '#000000';
   this.numHeroFill = numLight ? '#8E1520' : '#ff8f8f';
+  // **내가 맞은 피해**는 일부러 눈에 덜 띄게 한다(요청). 읽히기는 해야 하므로
+  // 크림 배경 대비 4.6:1 을 유지하는 선에서 채도를 뺀 흙색을 쓴다.
+  this.numTakenFill = numLight ? '#7A6A58' : '#9a8f8c';
+  // 이 화면에서 '영웅'이 곧 플레이어인가. 수성의 탑/방어전은 플레이어가 전략가라
+  // 영웅이 적이다 → 강조 대상이 뒤집힌다(defend.js 가 false 로 덮어쓴다).
+  this._heroIsPlayer = true;
   this.numPool = [];
   for (var n = 0; n < 26; n++) {
     this.numPool.push(this.add.text(0, 0, '', {
@@ -199,6 +205,12 @@ GAME.BattleScene.prototype.create = function () {
   }
 
   this.events.on('shutdown', function () {
+    // 파괴된 Phaser 객체는 여전히 truthy 라 `_sirenG || _buildSiren()` 가드를 통과한다.
+    // 이 저장소에서 이미 한 번 터진 유형이라 참조를 반드시 끊는다.
+    self._sirenG = null;
+    self._sirenArmed = undefined;
+    self._shakeAt = undefined;
+    self._prevCd = null;
     if (self.ctrl) self.ctrl.destroy();
     if (self.pad) { self.pad.destroy(); self.pad = null; }
     if (self.hud) { self.hud.destroy(); self.hud = null; }
@@ -234,9 +246,22 @@ GAME.BattleScene.prototype.drawNumbers = function () {
     var prog = 1 - n.t / n.total;
     t.setVisible(true);
     t.setText(n.crit ? n.value + '!' : String(n.value));
-    t.setFontSize(n.crit ? (GAME.CONFIG.PORTRAIT ? 30 : 28) : (GAME.CONFIG.PORTRAIT ? 20 : 18));
-    t.setColor(n.crit ? C.crit : (n.onHero ? this.numHeroFill : this.numFill));
-    t.setAlpha(Math.max(0, 1 - prog * prog));
+
+    // 요청: "데미지도 플레이어가 입히는 게 더 중요하니 그 부분을 강조하고,
+    //        맞는 건 조금 더 조그맣게 / 눈에 덜 띄는 색으로."
+    // `onHero` 는 '영웅이 맞았다'는 뜻이지 '내가 맞았다'가 아니다 —
+    // 방어전에서는 영웅이 적이라 의미가 뒤집힌다. 그래서 시점 플래그로 한 번 접는다.
+    var heroIsPlayer = (this._heroIsPlayer === undefined) ? true : this._heroIsPlayer;
+    var mine = heroIsPlayer ? !n.onHero : !!n.onHero;
+    var SM = GAME.CONFIG.SMALL;
+    var size;
+    if (n.crit) size = mine ? (SM ? 34 : 32) : (SM ? 21 : 20);
+    else        size = mine ? (SM ? 25 : 23) : (SM ? 16 : 15);
+    t.setFontSize(size);
+    // 크리티컬은 맞은 쪽이어도 색을 남긴다 — '치명타를 맞았다'는 건 알아야 할 정보다.
+    t.setColor(n.crit ? C.crit : (mine ? this.numFill : this.numTakenFill));
+    t.setStroke(this.numStroke, mine ? 5 : 3);
+    t.setAlpha(Math.max(0, 1 - prog * prog) * (mine ? 1 : 0.78));
     t.setPosition(n.x + (n.drift || 0) * prog, Iso.toScreenY(n.y) - 26 - prog * 46);
   }
   for (; used < pool.length; used++) pool[used].setVisible(false);
@@ -397,15 +422,109 @@ GAME.BattleScene.prototype._juice = function (dt) {
     this._prevHp[key] = u.alive ? u.hp : 0;
   }
 
+  // ① 히트스톱 — 큰 타격일수록 길게. 너무 길면 조작이 끊겨 답답하다(최대 70ms).
+  // 이건 '흔들림'이 아니라 순간 정지라 매 타격에 그대로 둔다.
   if (biggest > 0) {
-    // ① 히트스톱 — 큰 타격일수록 길게. 너무 길면 조작이 끊겨 답답하다(최대 70ms).
     var stop = Math.min(70, 18 + biggest * 420);
     if (stop > this._hitStop) this._hitStop = stop;
-
-    // ② 화면 흔들림 — 내가 맞았을 때 더 세게(내 피해를 놓치지 않게)
-    var amp = Math.min(0.010, (heroHit ? 0.004 : 0.0016) + biggest * 0.03);
-    if (this.cameras && this.cameras.main) this.cameras.main.shake(heroHit ? 140 : 90, amp);
   }
+
+  // ② 화면 흔들림 — **아껴 쓴다.**
+  // 예전엔 피해가 들어올 때마다 흔들었더니 난전에서 화면이 계속 떨렸다.
+  // 요청대로 두 순간에만, 그것도 5초에 한 번만 흔든다:
+  //   · 내가 스킬을 썼을 때        — 내 행동의 무게
+  //   · 3기 이상에게 둘러싸여 맞을 때 — 위기 신호
+  var h = this.hero;
+
+  // 시전 감지: 쿨다운이 '올라가는' 순간이 곧 시전이다. 로직에 손대지 않고 읽기만 한다.
+  var cast = false;
+  if (h && h.skillCd) {
+    if (!this._prevCd) this._prevCd = {};
+    for (var s = 0; s < GAME.SKILL_SLOTS.length; s++) {
+      var sl = GAME.SKILL_SLOTS[s];
+      var cd = h.skillCd[sl] || 0;
+      if (this._prevCd[sl] !== undefined && cd > this._prevCd[sl] + 1) cast = true;
+      this._prevCd[sl] = cd;
+    }
+  }
+
+  // 다굴 판정: **가까이 붙은** 적만 센다. 사거리로 세면 고층에서 원거리 유닛이
+  // 항상 조건을 채워 5초마다 계속 흔들린다 — 그건 '다굴'이 아니다.
+  var gang = 0;
+  if (h && h.alive) {
+    for (var gi = 0; gi < units.length; gi++) {
+      var e = units[gi];
+      if (!e.alive || e === h || e.side === h.side) continue;
+      var near = ((h.radius || 17) + (e.radius || 10)) * 2.2;
+      var ex = e.x - h.x, ey = e.y - h.y;
+      if (ex * ex + ey * ey <= near * near) gang++;
+    }
+  }
+
+  var GAP = 5000;
+  if (this._shakeAt === undefined) this._shakeAt = -GAP;
+  var now = this.state.elapsed;
+  if ((cast || (gang >= 3 && heroHit)) && now - this._shakeAt >= GAP) {
+    this._shakeAt = now;
+    if (this.cameras && this.cameras.main) {
+      this.cameras.main.shake(cast ? 150 : 220, cast ? 0.005 : 0.008);
+    }
+  }
+
+  // ③ 저체력 경고 — 사이렌처럼 붉은 테두리가 몇 번 번쩍인다
+  this._lowHpWarn();
+};
+
+// 체력이 30% 밑으로 **떨어지는 순간** 붉은 비네트를 2~3번 번쩍인다.
+// 상시 표시가 아니다 — 계속 깔려 있으면 화면을 읽는 데 방해가 된다(요청).
+// 회복해서 38% 위로 올라가면 다시 무장한다(히스테리시스 — 경계선에서 깜빡이지 않게).
+GAME.BattleScene.prototype._lowHpWarn = function () {
+  var h = this.hero;
+  if (!h || !h.maxHp) return;
+  if (this._sirenArmed === undefined) this._sirenArmed = true;
+  var r = h.alive ? (h.hp / h.maxHp) : 1;
+  if (this._sirenArmed && h.alive && r < 0.30) {
+    this._sirenArmed = false;
+    this._sirenPulse(3);
+  } else if (!this._sirenArmed && r > 0.38) {
+    this._sirenArmed = true;
+  }
+};
+
+// 화면 가장자리에서 안쪽으로 옅어지는 붉은 테두리. 가운데(전장)는 건드리지 않는다.
+GAME.BattleScene.prototype._buildSiren = function () {
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var g = this.add.graphics().setDepth(9000).setAlpha(0);
+  if (g.setScrollFactor) g.setScrollFactor(0);
+  // FX.telegraph 는 '예고 원'에 쓰는 경고 적색이다(테마별 값, 숫자형).
+  // TXT.danger 는 CSS 문자열이라 Graphics.fillStyle 에 넣으면 안 된다.
+  var red = (GAME.UI.FX && GAME.UI.FX.telegraph) || 0xB3161C;
+  // 띠 폭과 단계 수는 실측으로 잡았다. 0.26 / 14단계는 **동심 사각형이 눈에 보였다**
+  // (계단처럼 층이 짐). 띠를 좁히고 단계를 늘려 한 단계당 알파를 낮춘다.
+  var band = Math.min(W, H) * 0.13;
+  var steps = 30;
+  for (var i = 0; i < steps; i++) {
+    var inset = band * i / steps;
+    var th = band / steps + 1.2;              // 살짝 겹쳐 단계 사이 이음매를 없앤다
+    g.fillStyle(red, 0.075 * Math.pow(1 - i / steps, 1.5));
+    g.fillRect(inset, inset, W - inset * 2, th);                 // 위
+    g.fillRect(inset, H - inset - th, W - inset * 2, th);         // 아래
+    g.fillRect(inset, inset, th, H - inset * 2);                  // 왼쪽
+    g.fillRect(W - inset - th, inset, th, H - inset * 2);         // 오른쪽
+  }
+  this._sirenG = g;
+  return g;
+};
+
+GAME.BattleScene.prototype._sirenPulse = function (times) {
+  var g = this._sirenG || this._buildSiren();
+  this.tweens.killTweensOf(g);
+  g.setAlpha(0);
+  this.tweens.add({
+    targets: g, alpha: 1, duration: 240, ease: 'Sine.easeInOut',
+    yoyo: true, hold: 80, repeatDelay: 200, repeat: Math.max(0, times - 1),
+    onComplete: function () { if (g && g.setAlpha) g.setAlpha(0); }
+  });
 };
 
 GAME.BattleScene.prototype.updateHud = function () {

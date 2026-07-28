@@ -147,7 +147,7 @@ GAME.DefendScene.prototype.create = function () {
 
 GAME.DefendScene.prototype._pickItems = function (heroKey, budget) {
   var items = { weapon: null, armor: null, boots: null, potion: null };
-  var left = budget - GAME.HEROES[heroKey].cost;
+  var left = budget - GAME.HERO_BASE_COST;
   var plan = [['armor', ['a3', 'a2', 'a1']], ['weapon', ['w3', 'w2', 'w1']],
               ['boots', ['b3', 'b2', 'b1']], ['potion', ['p3', 'p2', 'p1']]];
   var share = [0.42, 0.34, 0.14, 0.10];
@@ -157,7 +157,7 @@ GAME.DefendScene.prototype._pickItems = function (heroKey, budget) {
     for (var k = 0; k < list.length; k++) {
       var it = GAME.Items.find(plan[i][0], list[k]);
       if (it.cost <= cap &&
-          GAME.HEROES[heroKey].cost + GAME.Items.totalCost(items) + it.cost <= budget) {
+          GAME.HERO_BASE_COST + GAME.Items.totalCost(items) + it.cost <= budget) {
         items[plan[i][0]] = it.key; break;
       }
     }

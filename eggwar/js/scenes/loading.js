@@ -47,7 +47,7 @@ GAME.LoadingScene.prototype.create = function () {
   GAME.Iso.setMode('default');
 
   // 씬을 어떤 경로로 떠나든 DOM 오버레이는 반드시 걷어낸다
-  this.events.once('shutdown', function () { self._teardownVideo(); });
+  this.events.once('shutdown', function () { self._teardownVideo(); self._removeAsk(); });
 
   if (!this._startVideo()) this._buildFallback();
 };
@@ -138,6 +138,9 @@ GAME.LoadingScene.prototype._startVideo = function () {
   // 재생이 시작되면 안내를 숨긴다
   v.addEventListener('playing', function () { hint.style.opacity = '0'; });
 
+  this._startBtn = btn;
+  this._skipBtn = skip;
+
   btn.addEventListener('click', function () { self._go(); });
   skip.addEventListener('click', function () { self._go(); });
 
@@ -202,13 +205,146 @@ GAME.LoadingScene.prototype._teardownVideo = function () {
 
 GAME.LoadingScene.prototype._go = function () {
   if (this.done) return;
+  // 아직 이름이 없으면 여기서 바로 받는다. 예전엔 Login 씬으로 넘겼는데,
+  // 인트로가 끝나자마자 화면이 통째로 갈아엎히면서 연출이 끊겼다.
+  // 영상 마지막 프레임을 그대로 배경으로 두고 그 위에 팝업만 띄운다.
+  if (!GAME.Account.current()) { this._askNickname(); return; }
   this.done = true;
   var self = this;
   this._teardownVideo();
   this.cameras.main.fadeOut(200, 0, 0, 0);
   this.cameras.main.once('camerafadeoutcomplete', function () {
-    self.scene.start(GAME.Account.current() ? 'Menu' : 'Login');
+    self.scene.start('Menu');
   });
+};
+
+// ── 닉네임 팝업 ─────────────────────────────────────────────────────────────
+// 인트로(영상이면 마지막 프레임, 폴백이면 캔버스) 위에 얹는 DOM 카드.
+// Phaser 캔버스에는 텍스트 입력이 없어서 DOM 을 쓴다 — login.js 와 같은 이유다.
+GAME.LoadingScene.prototype._askNickname = function () {
+  if (this._askWrap) return;
+  var self = this;
+
+  // 영상은 마지막 프레임에서 멈춰 배경 노릇을 한다. 소리 없는 정지화면이라 안전하다.
+  if (this._video) { try { this._video.pause(); } catch (e) {} }
+  if (this._videoGuard) { clearTimeout(this._videoGuard); this._videoGuard = null; }
+  if (this._startBtn) this._startBtn.style.display = 'none';
+  if (this._skipBtn) this._skipBtn.style.display = 'none';
+
+  // 색은 활성 테마에서 가져온다. 하드코딩하면 테마를 바꿨을 때 이 카드만 홀로 뜬다.
+  var C = GAME.CONFIG.COLORS, COL = GAME.UI.COL;
+  function hx(n) { return '#' + ('000000' + (n >>> 0).toString(16)).slice(-6); }
+  var cardBg = hx(COL.surface !== undefined ? COL.surface : COL.surfaceAlt);
+  var lineC = hx(COL.borderUi);
+  var inBg = hx(COL.surfaceAlt);
+  var btnBg = hx(COL.panelTeal);
+  var btnLine = hx(C.controller || COL.controller);
+
+  var wrap = document.createElement('div');
+  wrap.id = 'nick-ask';
+  wrap.style.cssText =
+    'position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;' +
+    'background:rgba(10,8,4,.62);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);' +
+    'opacity:0;transition:opacity .28s ease;padding:20px;box-sizing:border-box;';
+
+  var card = document.createElement('div');
+  card.style.cssText =
+    'width:min(92vw,380px);box-sizing:border-box;padding:26px 24px 22px;border-radius:18px;' +
+    'background:' + cardBg + ';border:3px solid ' + lineC + ';' +
+    'box-shadow:0 10px 0 rgba(42,33,20,.45),0 18px 40px rgba(0,0,0,.45);' +
+    'font-family:var(--egg-font);text-align:center;' +
+    'transform:translateY(18px) scale(.96);transition:transform .34s cubic-bezier(.2,1.2,.3,1);';
+
+  function el(tag, css, text) {
+    var e = document.createElement(tag);
+    e.style.cssText = css;
+    if (text !== undefined) e.textContent = text;
+    card.appendChild(e);
+    return e;
+  }
+
+  el('div', 'font:700 23px var(--egg-font);color:' + C.text + ';margin-bottom:6px;',
+    '닉네임을 입력하세요');
+  el('div', 'font:400 13px var(--egg-font);color:' + C.textDim + ';line-height:1.5;margin-bottom:18px;',
+    '비밀번호는 없습니다. 이 이름 그대로 랭킹에 오릅니다.');
+
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = GAME.Account.MAX_LEN;
+  input.placeholder = '2~12자';
+  input.style.cssText =
+    'width:100%;box-sizing:border-box;height:52px;padding:0 14px;margin-bottom:10px;' +
+    'font:600 19px var(--egg-font);text-align:center;' +
+    'border-radius:10px;border:2px solid ' + lineC + ';background:' + inBg + ';' +
+    'color:' + C.text + ';outline:none;';
+  card.appendChild(input);
+
+  var msg = el('div', 'min-height:18px;font:600 13px var(--egg-font);color:' + C.warn + ';margin-bottom:10px;', '');
+
+  var enter = document.createElement('button');
+  enter.textContent = '입장';
+  enter.style.cssText =
+    'width:100%;height:56px;border-radius:12px;cursor:pointer;' +
+    'font:700 20px var(--egg-font);letter-spacing:1px;' +
+    'color:' + C.accent + ';background:' + btnBg + ';border:3px solid ' + btnLine + ';' +
+    'box-shadow:0 5px 0 rgba(42,33,20,.4);-webkit-tap-highlight-color:transparent;';
+  card.appendChild(enter);
+
+  // 최근 쓰던 이름 — 두 번째부터는 타이핑을 다시 시키지 않는다
+  var recent = GAME.Account.list().filter(function (r) { return !r.blocked; }).slice(0, 3);
+  if (recent.length) {
+    el('div', 'font:400 12px var(--egg-font);color:' + C.textDim + ';margin:16px 0 8px;', '최근 사용');
+    var row = el('div', 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap;');
+    recent.forEach(function (r) {
+      var chip = document.createElement('button');
+      chip.textContent = r.id;
+      // 44px 은 터치 타깃 하한이다(CLAUDE.md). padding 만으로는 40px 이 나왔다(실측).
+      chip.style.cssText =
+        'min-height:46px;padding:0 18px;border-radius:999px;cursor:pointer;max-width:100%;' +
+        'font:600 14px var(--egg-font);color:' + C.text + ';' +
+        'background:' + inBg + ';border:2px solid ' + lineC + ';' +
+        'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' +
+        '-webkit-tap-highlight-color:transparent;';
+      chip.addEventListener('click', function () { submit(r.id); });
+      row.appendChild(chip);
+    });
+  }
+
+  wrap.appendChild(card);
+  document.body.appendChild(wrap);
+  this._askWrap = wrap;
+  // 다음 프레임에 상태를 바꿔야 transition 이 걸린다(같은 프레임에 넣으면 즉시 최종값이 된다)
+  requestAnimationFrame(function () {
+    wrap.style.opacity = '1';
+    card.style.transform = 'translateY(0) scale(1)';
+  });
+
+  function submit(value) {
+    var r = GAME.Account.login(value);
+    if (!r.ok) {
+      msg.textContent = r.reason;
+      card.style.transform = 'translateY(0) scale(1.02)';
+      setTimeout(function () { card.style.transform = 'translateY(0) scale(1)'; }, 130);
+      return;
+    }
+    self._removeAsk();
+    self.done = true;
+    self._teardownVideo();
+    self.cameras.main.fadeOut(200, 0, 0, 0);
+    self.cameras.main.once('camerafadeoutcomplete', function () { self.scene.start('Menu'); });
+  }
+
+  enter.addEventListener('click', function () { submit(input.value); });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') submit(input.value);
+    e.stopPropagation();          // 게임 키 핸들러로 새지 않게
+  });
+  input.focus();
+};
+
+GAME.LoadingScene.prototype._removeAsk = function () {
+  if (this._askWrap && this._askWrap.parentNode) this._askWrap.parentNode.removeChild(this._askWrap);
+  this._askWrap = null;
 };
 
 // ── 폴백: 캔버스로 그리는 인트로 (영상이 안 될 때만) ────────────────────────

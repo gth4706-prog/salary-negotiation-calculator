@@ -82,8 +82,11 @@ GAME.Tower = {
   // 영웅이 실제로 쓸 수 있는 최대 금액(가장 비싼 영웅 + 칸별 최고가 아이템).
   // 이걸 넘겨서 주면 화면에 표시되는 예산이 거짓말이 된다 — 쓸 수가 없는 돈이다.
   maxSpendable: function () {
-    var hero = 0, k;
-    for (k in GAME.HEROES) if (GAME.HEROES[k].cost > hero) hero = GAME.HEROES[k].cost;
+    // 영웅 비용은 3종 공통(`GAME.HERO_BASE_COST`)이라 '가장 비싼 영웅'을 찾을 필요가 없다.
+    // (예전엔 75/85/75 라 최댓값 85 를 썼다 → maxSpendable 260. 지금은 78 이라 253.)
+    // 방어적으로 읽는다. 여기가 NaN 이 되면 heroBudgetFor → 수성의 탑 overflow 보정까지
+    // 예산 계산 전체가 통째로 오염된다(구버전 heroes.js 가 캐시로 섞이는 경우 대비).
+    var hero = (typeof GAME.HERO_BASE_COST === 'number') ? GAME.HERO_BASE_COST : 78;
     var items = 0;
     for (var i = 0; i < GAME.ITEM_SLOTS.length; i++) {
       var list = GAME.ITEMS[GAME.ITEM_SLOTS[i].key] || [];

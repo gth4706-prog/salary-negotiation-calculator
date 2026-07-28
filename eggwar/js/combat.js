@@ -79,7 +79,7 @@ GAME.Combat = {
       radius: h.radius,
       shape: h.shape,
       lifesteal: st.lifesteal,
-      cost: h.cost
+      cost: GAME.HERO_BASE_COST
     };
 
     var u = this._baseUnit(this.scaleDef(def), x, y, side, heroKey);

@@ -42,10 +42,30 @@ GAME.TowerScene.prototype.create = function (data) {
   this.statBtns = [];
   this.goldLabel = null;
   this.runHint = null;
+  // 캐릭터 선택 화면·랜딩 연출이 만든 것들도 반드시 함께 비운다.
+  // 파괴된 Phaser 객체는 여전히 truthy 라 `if (!g) return` 가드를 통과해 버린다 —
+  // 이 저장소에서 이미 한 번 터진 유형이다.
+  this._heroCardG = null;
+  this._heroCards = [];
+  this._heroDesc = null;
+  this._heroStats = null;
+  this._startBtn = null;
+  this._hoverHero = null;
+  this._lightningG = null;
+  this._flashRect = null;
 
   var step = (data && data.step) || 'landing';
-  if (step === 'challenge') this._buildChallenge();
-  else this._buildLanding();
+  // Phaser 의 `Systems.start(data)` 는 data 가 없으면 **이전 settings.data 를 그대로 둔다.**
+  // 그래서 `restart({step:'challenge'})` 뒤에 메뉴를 거쳐 인자 없는 `scene.start('Tower')`
+  // 로 돌아오면 step 이 'challenge' 로 남아 랜딩(탑 일러스트·세계관 문단)을 건너뛴다(실측).
+  // 읽었으면 비운다 — 다음 진입의 기본값은 언제나 랜딩이다.
+  if (this.scene && this.scene.settings) this.scene.settings.data = {};
+  if (step === 'challenge') {
+    // 새 도전 + PC → 캐릭터 아트를 보여주는 전용 선택 화면.
+    // 진행 중인 도전(골드 상점)과 세로 화면은 기존 흐름을 그대로 쓴다.
+    if (!this.run && !GAME.CONFIG.PORTRAIT) this._buildHeroSelect();
+    else this._buildChallenge();
+  } else this._buildLanding();
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -138,20 +158,31 @@ GAME.TowerScene.prototype._buildLanding = function () {
   }
 
   // ── 영웅 — 등을 보인 채(오버더숄더) 탑을 올려다본다. 실제 게임 캐릭터 아트를 그대로 쓴다.
-  // 화면 맨 아래 가장자리에 크게, 절반쯤 잘리게 세운다 — 오버더숄더 구도는 원래
-  // 인물 상반신만 프레임 안에 들어온다. 처음엔 인물을 통째로 다 보이게 뒀더니
-  // 치켜든 무기가 아래 규칙 문구·버튼을 뚫고 올라왔다(실측 확인) — 화면 밖으로 더 내린다.
+  //
+  // PC 와 세로의 구도가 다르다.
+  //  · 세로: 폭이 없어 예전대로 화면 아래 가운데에 반쯤 잘리게 세운다.
+  //  · PC: 예전엔 여기도 가운데·화면 밖이라, 아래 스크림과 버튼이 인물을 통째로
+  //    덮어 "이미지가 다 잘린다"는 신고가 나왔다(실측: 스크림 시작 592px, 인물은
+  //    550px 부터라 사실상 전신이 가려짐). 인물을 **오른쪽으로 옮기고 더 키워서**
+  //    버튼 기둥과 아예 겹치지 않게 한다 — 가리지 않으니 크게 키울 수 있다.
   var heroKey = this.heroKey || 'vanguard';
   var heroDef = GAME.HEROES[heroKey] || GAME.HEROES.vanguard;
+  // 크기·높이는 실측(스크린샷)으로 맞췄다. 캐릭터는 sy 기준으로 **위로 약 3.2r,
+  // 아래로 약 1.8r** 만큼 뻗는다(치켜든 무기 끝 ~ 알 몸통 바닥) — 총 높이가 5r 이다.
+  // 0.235/1.00 → 머리와 검만, 0.21/0.845 → 몸통 바닥이 화면 밖. 두 번 다 잘렸다.
+  // 5r + 위쪽 제목 자리(~150px)가 H 안에 들어가야 한다 → r ≤ 0.15·min(W,H).
   var heroR = Math.min(W, H) * (P ? 0.20 : 0.15);
-  var heroX = W * 0.5, heroY = H * (P ? 1.00 : 0.99);
+  var heroX = W * (P ? 0.50 : 0.755), heroY = H * (P ? 1.00 : 0.72);
+  // 인물은 탑(towerCont)보다 **뒤에 만든 그래픽스**에 그려야 앞에 선다.
+  // g 는 towerCont 보다 먼저 만들어졌으므로 g 에 그리면 탑에 가린다.
+  var hg = this.add.graphics();
   // 발밑 진영 링 — 컨트롤러 색으로 '이게 내 영웅' 을 표시
-  g.lineStyle(3, GAME.CONFIG.COLORS.controller, 0.55);
-  g.strokeEllipse(heroX, heroY + heroR * 0.35, heroR * 2.3, heroR * 0.62);
-  g.fillStyle(0x000000, 0.4);
-  g.fillEllipse(heroX, heroY + heroR * 0.35, heroR * 2.1, heroR * 0.5);
+  hg.lineStyle(3, GAME.CONFIG.COLORS.controller, 0.55);
+  hg.strokeEllipse(heroX, heroY + heroR * 0.35, heroR * 2.3, heroR * 0.62);
+  hg.fillStyle(0x000000, 0.4);
+  hg.fillEllipse(heroX, heroY + heroR * 0.35, heroR * 2.1, heroR * 0.5);
   // facing = -PI/2 → dir8.back === true → 얼굴이 안 보이고 무기가 몸에 가려진다(등 뒤 시점)
-  GAME.UI.drawUnitFlat(g, heroDef, heroX, heroY, GAME.CONFIG.COLORS.controller, 1,
+  GAME.UI.drawUnitFlat(hg, heroDef, heroX, heroY, GAME.CONFIG.COLORS.controller, 1,
     heroR / (heroDef.radius || 17), -Math.PI / 2);
 
   // ── 번개 ──
@@ -179,44 +210,102 @@ GAME.TowerScene.prototype._buildLanding = function () {
     ? ('1~' + E + '층 연습 구간 · ' + (E + 1) + '층부터 조작 필수')
     : ('영웅·장비 유지 · 골드로 능력치 성장');
 
-  // ── 버튼 영역 스크림 + 버튼 3개 (아래에서 위로) ──
-  var bw = Math.min(W - 30, 420);
+  // ── 버튼 기둥 ──
+  // PC 는 인물을 오른쪽에 크게 세웠으므로 버튼을 **왼쪽 기둥**으로 몰아 겹침을 없앤다.
+  // 세로는 폭이 없으니 예전처럼 화면 폭 전체를 쓴다.
+  var bw = P ? Math.min(W - 30, 420) : 430;
+  var colCx = P ? (W / 2) : (56 + bw / 2);
   var bh = u * 7;
   var gap = u * 1.4;
   var byBottom = H - u * 2;
-  // 규칙 한 줄 + 여유 만큼 위로 더 떼어(예전엔 u*4 만 줬다가 겹쳤다) 스크림을 시작한다.
-  var scrimTop = byBottom - bh * 3.2 - gap * 2 - u * 7;
-  var scrimBands = 10;
-  for (var sb = 0; sb < scrimBands; sb++) {
-    var st = sb / (scrimBands - 1);
-    // 영웅이 이 구간까지 크게 서 있어서(오버더숄더 구도), 버튼 위/사이 틈으로
-    // 검·투구 실루엣이 비쳐 보였다(실측 2회 확인). 선형 램프는 스크림 시작 지점(st=0)의
-    // 불투명도가 0 이라 '도전' 버튼 바로 위 틈에서 여전히 30% 남짓밖에 안 가려졌다.
-    // **시작부터 어느 정도 어둡게(0.38) 깔고**, 그 뒤로 가파르게 올려 버튼 구간
-    // 진입 전에 사실상 불투명(0.95)에 닿게 한다.
-    g.fillStyle(0x000000, Math.min(0.95, 0.38 + st * 2.4));
-    g.fillRect(0, scrimTop + (H - scrimTop) * (sb / scrimBands), W, (H - scrimTop) / scrimBands + 1);
+  var bigH = bh + u * 0.8;
+  var challengeCy = byBottom - bh * 2.5 - gap * 2;
+  var textBottom = challengeCy - bigH / 2 - u * 1.6;
+
+  // ── 세계관 + 이 모드가 무엇인지 (버튼 바로 위) ──
+  // 요청: "통곡의 탑 설명에 세계관 + 진화하는 AI 전장에서 컨트롤러 훈련하라는 문구".
+  // 아래에서 위로 쌓는다 — 문장이 길어져 줄이 늘어도 버튼을 밀지 않는다.
+  var textW = P ? (W - 40) : bw;
+  var ruleLbl = GAME.UI.text(this, colCx, 0, ruleTxt,
+    { size: P ? 'caption' : 'caption', color: INK.dim, origin: 0.5, align: P ? 'center' : 'left', wrap: textW });
+  ruleLbl.setOrigin(P ? 0.5 : 0, 0);
+  if (!P) ruleLbl.setX(colCx - bw / 2);
+  ruleLbl.setY(textBottom - ruleLbl.height);
+
+  var ctaLbl = GAME.UI.text(this, colCx, 0,
+    '진화하는 AI 전장에서 컨트롤러의 손을 훈련하라.',
+    { size: P ? 'caption' : 'body', color: INK.gold, origin: 0.5, align: P ? 'center' : 'left', wrap: textW });
+  ctaLbl.setOrigin(P ? 0.5 : 0, 0);
+  if (!P) ctaLbl.setX(colCx - bw / 2);
+  ctaLbl.setY(ruleLbl.y - ctaLbl.height - u * 1.1);
+  ctaLbl.setShadow(0, 2, '#000000', 5, false, true);
+
+  var loreTop = ctaLbl.y;
+  var loreLbl = null;
+  if (!P) {
+    // 세로에서는 이 문단이 들어갈 세로 여유가 없다(버튼 4줄이 이미 화면을 채운다).
+    loreLbl = GAME.UI.text(this, colCx - bw / 2, 0,
+      '알에서 깨어난 자들의 전쟁.\n' +
+      '통곡의 탑은 패배한 부족의 울음으로 쌓아 올린 탑이다.\n' +
+      '탑은 당신의 싸움을 기억한다 — 한 층을 오를 때마다,\n' +
+      '당신을 더 잘 아는 진형이 내려온다.',
+      { size: 'caption', color: INK.parchment, origin: 0, align: 'left', wrap: textW });
+    loreLbl.setOrigin(0, 0).setAlpha(0.86).setLineSpacing(5);
+    loreLbl.setY(ctaLbl.y - loreLbl.height - u * 1.4);
+    loreTop = loreLbl.y;
   }
 
-  GAME.UI.text(this, W / 2, scrimTop + u * 1.6, ruleTxt,
-    { size: P ? 'caption' : 'body', color: INK.dim, origin: 0.5, align: 'center', wrap: W - 40 }
-  ).setOrigin(0.5, 0);
+  // ── 스크림 ──
+  // 인물(hg)보다 **나중에 만든 그래픽스**에 그려야 인물을 덮을 수 있다.
+  // 세로: 예전처럼 화면 폭 전체를 아래에서 위로 어둡게.
+  // PC: 왼쪽 기둥만 덮는다. 오른쪽 인물은 가리지 않는 게 이번 수정의 목적이다.
+  var sg = this.add.graphics();
+  var scrimTop = loreTop - u * 2.5;
+  var scrimBands = 10;
+  var sb, st;
+  if (P) {
+    for (sb = 0; sb < scrimBands; sb++) {
+      st = sb / (scrimBands - 1);
+      // 선형 램프는 시작 지점 불투명도가 0 이라 '도전' 버튼 바로 위 틈에서
+      // 실루엣이 비쳤다(실측 2회) → 시작부터 0.38 로 깔고 가파르게 올린다.
+      sg.fillStyle(0x000000, Math.min(0.95, 0.38 + st * 2.4));
+      sg.fillRect(0, scrimTop + (H - scrimTop) * (sb / scrimBands), W, (H - scrimTop) / scrimBands + 1);
+    }
+  } else {
+    // 왼쪽 끝은 진하게, 기둥 오른쪽 끝에서 0 으로 사라지는 가로 그라디언트.
+    // 위쪽도 부드럽게 열려야 잘라낸 사각형처럼 보이지 않는다.
+    var panelR = colCx + bw / 2 + 90;
+    var hSteps = 12, vSteps = 8;
+    var cw = panelR / hSteps, chh = (H - scrimTop) / vSteps;
+    for (var hx2 = 0; hx2 < hSteps; hx2++) {
+      var hf = 1 - Math.pow(hx2 / (hSteps - 1), 1.7);     // 오른쪽으로 갈수록 옅게
+      for (var vy = 0; vy < vSteps; vy++) {
+        var vf = Math.min(1, 0.35 + (vy / (vSteps - 1)) * 1.9);
+        sg.fillStyle(0x000000, Math.min(0.9, 0.9 * hf * vf));
+        sg.fillRect(hx2 * cw, scrimTop + vy * chh, cw + 1, chh + 1);
+      }
+    }
+  }
+  // 텍스트는 스크림보다 먼저 만들어져 뒤에 깔린다 → 앞으로 끌어올린다.
+  if (loreLbl) loreLbl.setDepth(2);
+  ctaLbl.setDepth(2);
+  ruleLbl.setDepth(2);
 
   var darkBtnOpts = {
     fill: 0x14141c, line: 0xffd166, hover: 0x1e1e28, press: 0x0e0e14,
     color: INK.parchment, radius: GAME.UI.R ? GAME.UI.R.md : 10
   };
 
-  GAME.UI.button(this, W / 2, byBottom - bh * 0.5, bw, bh, '← 메뉴', function () {
+  GAME.UI.button(this, colCx, byBottom - bh * 0.5, bw, bh, '← 메뉴', function () {
     self.scene.start('Menu');
   }, Object.assign({ fontSize: P ? 15 : 15 }, darkBtnOpts));
 
-  GAME.UI.button(this, W / 2, byBottom - bh * 1.5 - gap, bw, bh, '🏆 랭킹', function () {
+  GAME.UI.button(this, colCx, byBottom - bh * 1.5 - gap, bw, bh, '🏆 랭킹', function () {
     self.scene.start('Rank', { scope: 'live' });
   }, Object.assign({ fontSize: P ? 17 : 16 }, darkBtnOpts));
 
   var challengeLabel = this.run ? ('도전 계속하기  —  ' + floor + '층') : '도전';
-  GAME.UI.button(this, W / 2, byBottom - bh * 2.5 - gap * 2, bw, bh + u * 0.8, challengeLabel,
+  GAME.UI.button(this, colCx, challengeCy, bw, bigH, challengeLabel,
     function () { self.scene.restart({ step: 'challenge' }); },
     { fill: 0x2a2016, line: 0xffd166, hover: 0x352a1e, press: 0x1e1710,
       color: '#ffd166', fontSize: P ? 20 : 22, radius: GAME.UI.R ? GAME.UI.R.md : 10 });
@@ -276,6 +365,232 @@ GAME.TowerScene.prototype._strikeLightning = function () {
     gr.moveTo(points[0][0], points[0][1]);
     for (var k = 1; k < points.length; k++) gr.lineTo(points[k][0], points[k][1]);
     gr.strokePath();
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+//  1.5) 캐릭터 선택 (PC · 새 도전일 때만)
+//
+//  예전에는 '도전' 을 누르면 이름과 특성만 적힌 작은 버튼 3개가 나왔다.
+//  이 도전 내내 함께 갈 영웅을 고르는 자리인데, **정작 그 영웅이 어떻게 생겼는지**
+//  볼 수가 없었다. 실제 게임에서 쓰는 캐릭터 아트를 카드에 크게 그린다.
+//  (요청 원문: "처음 영웅 선택화면에서 캐릭터 디자인도 보여주는 캐릭터 선택화면
+//   정도로 꾸려주고 탑에 대한 설명 넣어줘")
+//
+//  세로는 이 화면을 쓰지 않는다 — 폭 420px 에 카드 4장이 안 들어간다.
+//  모바일은 따로 설계하기로 했다(사용자 지시).
+// ═══════════════════════════════════════════════════════════════════════
+GAME.TowerScene.prototype._buildHeroSelect = function () {
+  var C = GAME.CONFIG.COLORS;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var self = this;
+  var u = H / 100;
+  var rec = this._rec, floor = this._floor;
+
+  this.cameras.main.setBackgroundColor(C.bg);
+
+  var PAD = 56;
+  var bossDef = GAME.Tower.bossFor(floor);
+  var E = GAME.Tower.EARLY_FLOORS;
+
+  // ── 머리 ──
+  GAME.UI.label(this, PAD, u * 3.0, '←  탑 소개', 14, C.textDim, 0)
+    .setInteractive({ useHandCursor: true })
+    .on('pointerdown', function () { self.scene.restart({ step: 'landing' }); });
+
+  var title = GAME.UI.label(this, W / 2, u * 2.2, '캐릭터 선택', 38, C.text, 0.5).setOrigin(0.5, 0);
+  var sub = GAME.UI.label(this, W / 2, title.y + title.height + 4,
+    '이 도전이 끝날 때까지 함께 갈 영웅을 선택해주세요.', 15, C.textDim, 0.5).setOrigin(0.5, 0);
+
+  var slots = GAME.HERO_ORDER.length + 1;   // +1 = 준비 중 슬롯
+  GAME.UI.label(this, W - PAD, u * 3.0,
+    GAME.HERO_ORDER.length + ' / ' + slots, 20, C.accent, 1).setOrigin(1, 0);
+
+  // ── 탑 설명 패널 ──
+  var panelY = sub.y + sub.height + u * 1.8;
+  var panelW = W - PAD * 2;
+  var pg = this.add.graphics();
+
+  // floorBadge 는 PC 에서 폭 168 을 cx 기준 좌우로 반씩 쓴다 → 왼쪽 여백 안에 들어오게 둔다
+  var badgeCx = PAD + 88;
+  var badge = GAME.UI.floorBadge(this, badgeCx, panelY + 14, floor, { boss: !!bossDef });
+
+  var tx = PAD + 196;
+  var l1 = GAME.UI.label(this, tx, panelY + 14,
+    '통곡의 탑 ' + floor + '층' + (bossDef ? ('   ☠ ' + bossDef.name) : '') +
+    (rec.best ? ('      최고 ' + rec.best + '층') : '      첫 도전'),
+    19, bossDef ? GAME.UI.TXT.danger : C.text, 0);
+  var l2 = GAME.UI.label(this, tx, l1.y + l1.height + 5,
+    '탑은 당신의 싸움을 기억한다 — 층이 오를수록 당신을 더 잘 아는 진형이 내려온다.' +
+    (floor <= E ? ('  1~' + E + '층은 연습 구간, ' + (E + 1) + '층부터는 조작 없이 이길 수 없다.') : ''),
+    14, C.textDim, 0).setWordWrapWidth(panelW - 160);
+  var l3 = GAME.UI.label(this, tx, l2.y + l2.height + 5,
+    '영웅·장비·스킬은 도전 시작에 한 번만 고른다. 이후로는 층을 깰 때마다 받는 골드로 성장한다.' +
+    '   ·   ' + GAME.Tower.CHECKPOINT_EVERY + '층마다 체크포인트',
+    14, GAME.UI.TXT.crit, 0).setWordWrapWidth(panelW - 160);
+
+  var panelH = (l3.y + l3.height + 14) - panelY;
+  panelH = Math.max(panelH, badge.bottom - panelY + 12);
+  pg.fillStyle(GAME.UI.COL.surfaceAlt, 1);
+  pg.fillRoundedRect(PAD, panelY, panelW, panelH, 12);
+  pg.lineStyle(1, GAME.UI.COL.border, 1);
+  pg.strokeRoundedRect(PAD, panelY, panelW, panelH, 12);
+  pg.setDepth(-1);
+
+  // ── 아래 버튼 줄 (먼저 자리를 잡아야 카드 높이를 정할 수 있다) ──
+  var actH = u * 7.2;
+  var actCy = H - u * 2 - actH / 2;
+  var startW = Math.min(560, panelW * 0.44);
+
+  // ── 카드 ──
+  var gap = 18;
+  var cardsTop = panelY + panelH + u * 2.2;
+  var detailH = u * 7;                       // 카드 아래 선택 영웅 상세 한 덩이
+  var cardsBottom = actCy - actH / 2 - u * 1.6 - detailH;
+  var cardH = cardsBottom - cardsTop;
+  var cardW = Math.floor((panelW - gap * (slots - 1)) / slots);
+
+  var cg = this.add.graphics();
+  this._heroCardG = cg;
+  this._heroCards = [];
+
+  for (var i = 0; i < slots; i++) {
+    var cx = PAD + i * (cardW + gap);
+    var locked = i >= GAME.HERO_ORDER.length;
+    var key = locked ? null : GAME.HERO_ORDER[i];
+    var card = { key: key, locked: locked, x: cx, y: cardsTop, w: cardW, h: cardH,
+                 cx: cx + cardW / 2 };
+    if (!locked) {
+      (function (k) {
+        var zone = self.add.zone(card.cx, cardsTop + cardH / 2, cardW, cardH)
+          .setInteractive({ useHandCursor: true });
+        zone.on('pointerover', function () { self._hoverHero = k; self._refreshHeroSelect(); });
+        zone.on('pointerout', function () {
+          if (self._hoverHero === k) { self._hoverHero = null; self._refreshHeroSelect(); }
+        });
+        zone.on('pointerdown', function () {
+          if (self.heroKey === k) return;
+          self.heroKey = k;
+          GAME.Store.set('asymgame.lastHero', k);
+          // 배치도를 **반드시 다시 짠다.** formationFor 는 새 도전일 때 영웅 카운터로
+          // 진형을 구성하는데, 여기서 갱신하지 않으면 고르지도 않은 영웅용 카운터와
+          // 싸우게 된다(실측: 사냥꾼을 골랐는데 rationale 이 "광전사 상대 —").
+          self.formation = GAME.Tower.formationFor(self._floor, k);
+          if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('click');
+          self._refreshHeroSelect();
+        });
+      })(key);
+    }
+    this._heroCards.push(card);
+  }
+
+  // 카드 위 글자는 Graphics 보다 나중에 만들어야 위에 올라온다
+  for (var j = 0; j < this._heroCards.length; j++) {
+    var c = this._heroCards[j];
+    var h = c.locked ? null : GAME.HEROES[c.key];
+    c.role = GAME.UI.label(this, c.x + 12, c.y + 12, h ? ('Lv.1  ' + h.trait) : '준비 중',
+      13, h ? C.accent : C.textFaint, 0);
+    c.name = GAME.UI.label(this, c.cx, c.y + c.h - 34, h ? h.name : '???',
+      21, h ? C.text : C.textFaint, 0.5).setOrigin(0.5, 0);
+  }
+
+  // ── 선택 영웅 상세 ──
+  var dy = cardsBottom + u * 1.2;
+  this._heroDesc = GAME.UI.label(this, W / 2, dy, '', 15, C.text, 0.5)
+    .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(panelW - 60);
+  this._heroStats = GAME.UI.label(this, W / 2, dy + 24, '', 14, C.textDim, 0.5)
+    .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(panelW - 60);
+
+  // ── 버튼 ──
+  GAME.UI.button(this, PAD + 110, actCy, 220, actH * 0.78, '← 탑 소개', function () {
+    self.scene.restart({ step: 'landing' });
+  }, { fontSize: 15 });
+
+  this._startBtn = GAME.UI.button(this, W / 2, actCy, startW, actH, '', function () {
+    GAME.Tower.pending = self.formation;
+    self.scene.start('Draft', {
+      formationId: self.formation.id, tower: floor, heroKey: self.heroKey
+    });
+  }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
+       hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: 22 });
+
+  if (floor > 1) {
+    GAME.UI.button(this, W - PAD - 110, actCy, 220, actH * 0.78, '1층부터 다시', function () {
+      GAME.Tower.fail();
+      if (GAME.TowerRun && GAME.TowerRun.get()) GAME.TowerRun.end();
+      self.scene.restart({ step: 'landing' });
+    }, { fontSize: 14 });
+  }
+
+  this._refreshHeroSelect();
+};
+
+GAME.TowerScene.prototype._refreshHeroSelect = function () {
+  var C = GAME.CONFIG.COLORS;
+  var g = this._heroCardG;
+  if (!g) return;
+  var self = this;
+  g.clear();
+
+  for (var i = 0; i < this._heroCards.length; i++) {
+    var c = this._heroCards[i];
+    var on = !c.locked && c.key === this.heroKey;
+    var hov = !c.locked && c.key === this._hoverHero;
+    var R = 14;
+
+    // 카드 판
+    g.fillStyle(c.locked ? GAME.UI.COL.bg
+                         : (on ? GAME.UI.COL.panelTeal : (hov ? GAME.UI.COL.surfaceHi : GAME.UI.COL.surfaceAlt)), 1);
+    g.fillRoundedRect(c.x, c.y, c.w, c.h, R);
+
+    if (c.locked) {
+      // 자물쇠 슬롯 — 실루엣만
+      g.fillStyle(GAME.UI.COL.surfaceHi, 0.55);
+      g.fillEllipse(c.cx, c.y + c.h * 0.52, c.w * 0.34, c.h * 0.42);
+      g.lineStyle(2, GAME.UI.COL.border, 0.7);
+      g.strokeRoundedRect(c.x, c.y, c.w, c.h, R);
+      c.name.setColor(C.textFaint);
+      continue;
+    }
+
+    var h = GAME.HEROES[c.key];
+
+    // 캐릭터가 카드 밖으로 넘치지 않게 **실측한 비율**로 크기를 정한다.
+    //  · 세로: sy 기준 위 3.2r ~ 아래 1.8r → 총 5r (치켜든 무기 끝 ~ 알 몸통 바닥)
+    //  · 가로: 대검을 든 광전사가 가장 넓다 — 중심에서 약 2.2r
+    // 처음엔 r 을 카드 높이의 20% 로 뒀다가 이름·설명문을 통째로 덮었다(실측 확인).
+    var artTop = c.y + 36, artBot = c.y + c.h - 50;
+    var r = Math.min((artBot - artTop) / 5.2, (c.w * 0.5 - 8) / 2.05);
+    var feetY = (artTop + artBot) / 2 + r * 0.7;   // 도형 중심이 sy - 0.7r 이라 되돌린다
+
+    // 무대 — 인물 뒤에 옅은 원반을 깔아 카드가 '전시대'처럼 보이게
+    var shadow = (GAME.UI.COL.shadow === undefined) ? 0x000000 : GAME.UI.COL.shadow;
+    g.fillStyle(GAME.UI.COL.surfaceHi, on ? 0.45 : 0.3);
+    g.fillEllipse(c.cx, feetY + r * 0.3, r * 2.6, r * 0.9);
+    g.fillStyle(shadow, GAME.UI.IS_LIGHT ? 0.13 : 0.28);
+    g.fillEllipse(c.cx, feetY + r * 0.34, r * 1.7, r * 0.4);
+
+    // facing = +PI/2 면 dir8.front, 즉 정면(얼굴이 보인다)
+    GAME.UI.drawUnitFlat(g, h, c.cx, feetY, C.controller, 1,
+      r / (h.radius || 17), Math.PI / 2);
+
+    g.lineStyle(on ? 4 : (hov ? 3 : 2), on ? C.controller : GAME.UI.COL.border, 1);
+    g.strokeRoundedRect(c.x, c.y, c.w, c.h, R);
+
+    c.name.setColor(on ? C.accent : C.text);
+    c.role.setColor(on ? C.accent : C.textDim);
+  }
+
+  var sel = GAME.HEROES[this.heroKey];
+  if (sel) {
+    this._heroDesc.setText(sel.name + ' — ' + sel.desc);
+    this._heroStats.setText(
+      '체력 ' + sel.hp + '   ·   공격력 ' + sel.damage + '   ·   방어력 ' + sel.armor +
+      '   ·   이동 ' + sel.speed + '   ·   사거리 ' + sel.range +
+      (sel.lifesteal ? ('   ·   흡혈 ' + Math.round(sel.lifesteal * 100) + '%') : ''));
+  }
+  if (this._startBtn) {
+    this._startBtn.text.setText(this._floor + '층 도전  —  장비 & 스킬 세팅');
   }
 };
 
@@ -441,7 +756,7 @@ GAME.TowerScene.prototype._buildChallenge = function () {
   }, { fontSize: P ? 17 : 16 });
   this.panelMaxBottom = byBottom - bh * 2.5 - gap * 2 - (bh + u * 0.8) / 2 - 8;
   GAME.UI.button(this, W / 2, byBottom - bh * 2.5 - gap * 2, bw, bh + u * 0.8,
-    this.run ? (floor + '층 전투 시작') : (floor + '층 도전 — 장비 고르기'), function () {
+    this.run ? (floor + '층 전투 시작') : (floor + '층 도전 — 장비 & 스킬 세팅'), function () {
     GAME.Tower.pending = self.formation;
     if (self.run) {
       var Z = GAME.CONFIG.ZONE_CONTROLLER;

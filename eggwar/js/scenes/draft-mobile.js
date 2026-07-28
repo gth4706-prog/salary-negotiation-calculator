@@ -52,7 +52,8 @@ GAME.DraftScene.prototype._buildPanelCompact = function () {
         items: GAME.HERO_ORDER.map(function (k) {
           var h = GAME.HEROES[k];
           return {
-            key: k, name: h.name, note: h.trait + ' · ' + h.desc, cost: h.cost,
+            // 영웅 비용은 더 이상 개별 값이 아니다(전 영웅 공통) → 목록에 숫자를 띄우지 않는다.
+            key: k, name: h.name, note: h.trait + ' · ' + h.desc,
             selected: k === self.heroKey
           };
         }),
@@ -215,7 +216,7 @@ GAME.DraftScene.prototype._wizChrome = function (title, stepText, leftLabel, lef
   // 예산 줄 — 실시간
   var left = this.budget - this.spent();
   var bt = UI.label(this, px + 4, panelY + titleH + stepH - 6,
-    '예산  ' + this.spent() + ' / ' + this.budget + '   남음 ' + left,
+    '장비 예산  ' + this.spent() + ' / ' + this.budget + '   남음 ' + left,
     'caption', left < 0 ? (C.danger || C.hpBad) : C.accent, 0).setDepth(1003);
   this._wizObjs.push(bt);
   this._wizBudgetText = bt;
@@ -238,7 +239,7 @@ GAME.DraftScene.prototype._wizUpdateBudget = function () {
   if (!this._wizBudgetText) return;
   var C = GAME.CONFIG.COLORS;
   var left = this.budget - this.spent();
-  this._wizBudgetText.setText('예산  ' + this.spent() + ' / ' + this.budget + '   남음 ' + left);
+  this._wizBudgetText.setText('장비 예산  ' + this.spent() + ' / ' + this.budget + '   남음 ' + left);
   this._wizBudgetText.setColor(left < 0 ? (C.danger || C.hpBad) : C.accent);
 };
 
@@ -361,11 +362,13 @@ GAME.DraftScene.prototype._redrawCompact = function () {
   this.drawScout();
 
   var left = this.budget - this.spent();
-  this.budgetText.setText('예산 ' + this.spent() + ' / ' + this.budget + '   남음 ' + left);
+  this.budgetText.setText('장비 예산 ' + this.spent() + ' / ' + this.budget + '   남음 ' + left);
   this.budgetText.setColor(left < 0 ? (C.danger || C.hpBad) : C.text);
 
   var R = this.rowRefs;
-  R.hero.val.setText(hero.name + '  ' + hero.cost);
+  // 여기 예산 표기는 **장비 예산**이다. 영웅 기본가(78)를 같이 띄우면
+  // '예산 0 / 57' 옆에 '광전사 78' 이 붙어 57 중 78 을 쓴 것처럼 읽힌다(실측 지적).
+  R.hero.val.setText(hero.name + '  ·  ' + hero.trait);
 
   var live = {
     damage: st.damage, cooldown: hero.cooldown,

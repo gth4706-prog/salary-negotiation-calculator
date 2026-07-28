@@ -102,8 +102,10 @@ GAME.MenuScene.prototype.create = function () {
   });
   var smallH = GAME.UI.BTN_H_SM || 52;
   var ry = by + smallH / 2 - u * 1.4;
+  // 랭킹은 3분류(통곡의 탑 / 수성의 탑 / 대전) × 2기간이다.
+  // 첫 화면은 **통곡의 탑 · 전체** — 이 게임에서 가장 많이 쌓이는 기록이다.
   GAME.UI.button(this, rc[0].cx, ry, rc[0].w, smallH, '🏆 랭킹', function () {
-    self.scene.start('Rank', { scope: 'live' });
+    self.scene.start('Rank', { kind: 'tower', scope: 'all' });
   }, { fontSize: P ? 15 : 15 });
   GAME.UI.button(this, rc[1].cx, ry, rc[1].w, smallH, '닉네임 변경', function () {
     GAME.Account.logout();
@@ -299,7 +301,7 @@ GAME.MenuScene.prototype._buildPhone = function () {
     (function (kind, col) {
       if (kind === 'rank') {
         UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, '🏆 랭킹', function () {
-          self.scene.start('Rank', { scope: 'live' });
+          self.scene.start('Rank', { kind: 'tower', scope: 'all' });
         }, { fontSize: 17 });
       } else if (kind === 'nick') {
         UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, '닉네임 변경', function () {

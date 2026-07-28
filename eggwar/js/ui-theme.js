@@ -22,6 +22,18 @@ window.GAME = window.GAME || {};
 (function () {
   var UI = GAME.UI = GAME.UI || {};
   var CFG = GAME.CONFIG;
+
+  // 코너 반경을 변의 절반 안으로 가둔다(위 경고 참조). 객체형 반경도 각 항목을 자른다.
+  function _safeR(r, w, h) {
+    var cap = Math.max(0, Math.min(w, h) / 2 - 1);
+    if (typeof r === 'number') return Math.min(r, cap);
+    if (r && typeof r === 'object') {
+      var out = {}, k;
+      for (k in r) out[k] = (typeof r[k] === 'number') ? Math.min(r[k], cap) : r[k];
+      return out;
+    }
+    return r;
+  }
   // 'P' 는 원래 세로 플래그였지만, 이 파일이 쓰는 용도는 **글자·간격을 작은 화면에
   // 맞출 것인가**다. 폰 가로(820×390)도 작은 화면이므로 SMALL 을 본다.
   var P = CFG.SMALL !== undefined ? CFG.SMALL : CFG.PORTRAIT;
@@ -379,6 +391,11 @@ window.GAME = window.GAME || {};
     var press = opts.press !== undefined ? opts.press : pressOf(fill);
     var color = opts.color || TXT.text;
     var radius = opts.radius === undefined ? UI.R.md : opts.radius;
+    // ⚠ Phaser 의 fillRoundedRect 는 반경이 변의 절반을 넘으면 아크가 성립하지 않아
+    //   **렌더 루프가 돌아오지 않는다**(실측: loop.step 20회에 8초 타임아웃).
+    //   `UI.R.pill`(999) 처럼 CSS 관용값을 그대로 넘기면 화면이 통째로 멈춘다.
+    //   호출부를 전부 믿지 말고 여기서 한 번 자른다.
+    radius = _safeR(radius, w, h);
     var px = UI.size(opts.fontSize, FS.button);
 
     // ── 시각: 라운드 사각형은 Graphics 로 그린다 ──
@@ -525,6 +542,11 @@ window.GAME = window.GAME || {};
       : (lvl >= 3 ? COL.surfaceHi : lvl === 2 ? COL.surfaceAlt : COL.surface);
     var line = opts.line !== undefined ? opts.line : COL.border;
     var radius = opts.radius === undefined ? UI.R.lg : opts.radius;
+    // ⚠ Phaser 의 fillRoundedRect 는 반경이 변의 절반을 넘으면 아크가 성립하지 않아
+    //   **렌더 루프가 돌아오지 않는다**(실측: loop.step 20회에 8초 타임아웃).
+    //   `UI.R.pill`(999) 처럼 CSS 관용값을 그대로 넘기면 화면이 통째로 멈춘다.
+    //   호출부를 전부 믿지 말고 여기서 한 번 자른다.
+    radius = _safeR(radius, w, h);
     var g = scene.add.graphics();
     if (opts.shadow !== false) {
       // 라이트 테마에서 순검정 0.28 은 크림 위에 회색 때처럼 앉는다 → 웜 그림자를 옅게.

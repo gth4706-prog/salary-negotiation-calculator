@@ -16,6 +16,16 @@ GAME.BattleScene.prototype.init = function (data) {
   this.startPos = data.startPos || { x: 600, y: 590 };
   this.ended = false;
   this.markers = [];
+
+  // 휠 줌 상태 — **씬 인스턴스는 재사용된다.** 여기서 되돌리지 않으면 다음 판이
+  // 확대된 채로 시작하고, 파괴된 컨테이너/마스크를 참조하게 된다(이 저장소의 단골 사고).
+  this._zoom = 1;
+  this._zoomOff = { x: 0, y: 0 };
+  this._zoomRect = null;
+  this.worldLayer = null;
+  this._zoomMask = null;
+  this._zoomMaskG = null;
+  this._onWheel = null;
 };
 
 GAME.BattleScene.prototype.create = function () {
@@ -24,6 +34,16 @@ GAME.BattleScene.prototype.create = function () {
 
   this.cameras.main.setBackgroundColor(C.bg);
   this.g = this.add.graphics();
+
+  // ── 휠 줌용 '전장 레이어' (PC 전용) ────────────────────────────────────
+  // 전장 그림만 한 겹(worldLayer)에 담는다. 확대는 이 레이어의 스케일·오프셋으로만
+  // 일어나므로 HUD·스킬바·사이렌·종료막은 **구조적으로** 같이 커질 수 없다.
+  // 터치 기기는 아무것도 만들지 않는다 — 핀치 줌은 이번 범위가 아니다.
+  this._zoomOn = !GAME.isTouch;
+  if (this._zoomOn) {
+    this.worldLayer = this.add.container(0, 0);
+    this.worldLayer.add(this.g);
+  }
 
   this.state = GAME.Combat.createState();
 
@@ -64,6 +84,11 @@ GAME.BattleScene.prototype.create = function () {
   }
 
   this.state.units.push(this.hero);
+  // 처치 보상 골드 — **영웅까지 units 에 들어간 뒤에** 훅을 건다.
+  // 훅을 걸었는데 한 번도 안 불리면 towerrun.js 가 경고를 내고 옛 방식(층 총액)으로 돌아간다.
+  if (this.tower && GAME.TowerRun && GAME.TowerRun.get()) {
+    GAME.TowerRun.attachKillGold(this.state, this.tower);
+  }
   this.arrowOn = this.hero;      // 내가 모는 유닛 위에 빨간 화살표
 
   // 학습형 AI: 이 배치도가 지금까지 배운 적응값을 전투에 적용한다
@@ -191,10 +216,14 @@ GAME.BattleScene.prototype.create = function () {
   this._heroIsPlayer = true;
   this.numPool = [];
   for (var n = 0; n < 26; n++) {
-    this.numPool.push(this.add.text(0, 0, '', {
+    var numTxt = this.add.text(0, 0, '', {
       fontFamily: GAME.CONFIG.FONT, fontSize: '18px', color: this.numFill,
       stroke: this.numStroke, strokeThickness: 4
-    }).setOrigin(0.5).setVisible(false));
+    }).setOrigin(0.5).setVisible(false);
+    // 피해 숫자는 전장의 일부다 — 확대하면 전장과 같이 움직여야 한다.
+    // (drawNumbers 는 그대로 둔다. 레이어가 좌표를 대신 변환한다)
+    if (this.worldLayer) this.worldLayer.add(numTxt);
+    this.numPool.push(numTxt);
   }
 
   // 모바일 조작 패드(왼쪽 스틱 + 오른쪽 원형 버튼) — 세로와 **폰 가로** 둘 다.
@@ -204,6 +233,9 @@ GAME.BattleScene.prototype.create = function () {
     this.ctrl.pad = this.pad;
   }
 
+  // 휠 줌은 **모든 배치가 끝난 뒤** 붙인다 — 아레나 사각형(Iso.setMode 반영본)이 필요하다.
+  this._setupZoom();
+
   this.events.on('shutdown', function () {
     // 파괴된 Phaser 객체는 여전히 truthy 라 `_sirenG || _buildSiren()` 가드를 통과한다.
     // 이 저장소에서 이미 한 번 터진 유형이라 참조를 반드시 끊는다.
@@ -211,6 +243,14 @@ GAME.BattleScene.prototype.create = function () {
     self._sirenArmed = undefined;
     self._shakeAt = undefined;
     self._prevCd = null;
+    // 줌은 씬을 떠날 때 반드시 1.0 으로 되돌린다(투영을 안 되돌려 겪은 사고가 이미 있다).
+    self.resetZoom();
+    if (self._onWheel) { self.input.off('wheel', self._onWheel); self._onWheel = null; }
+    if (self._zoomMaskG) { self._zoomMaskG.destroy(); self._zoomMaskG = null; }
+    self._zoomMask = null;
+    self.worldLayer = null;
+    self._zoomRect = null;
+    if (self.cameras && self.cameras.main) self.cameras.main.setZoom(1);
     if (self.ctrl) self.ctrl.destroy();
     if (self.pad) { self.pad.destroy(); self.pad = null; }
     if (self.hud) { self.hud.destroy(); self.hud = null; }
@@ -229,6 +269,103 @@ GAME.BattleScene.prototype._hintDefault = function () {
 
 GAME.BattleScene.prototype.showMarker = function (x, y, type) {
   this.markers.push({ x: x, y: y, type: type, t: 450, total: 450 });
+};
+
+// ── 마우스 휠 확대/축소 (PC 전용) ──────────────────────────────────────────
+// 조건 셋을 전부 만족할 때만 동작한다: **비터치 · 전투 중 · 커서가 전장 위**.
+//
+// **순수 렌더다.** 확대는 전장 그림을 담은 컨테이너의 스케일·오프셋으로만 일어나고
+// 월드 좌표(u.x/u.y)는 한 픽셀도 움직이지 않는다 → 거리·회피·밸런스 불변.
+// 마우스 입력은 같은 변환을 역으로 풀어(screenToWorld) 평면 좌표로 되돌린다.
+// `js/iso.js` 는 한 줄도 고치지 않았다 — 투영 경계를 그대로 둔다.
+//
+// 왜 카메라 줌(`cameras.main.setZoom`)이 아닌가 — 실측 근거:
+//  ① `setScrollFactor(0)` 은 스크롤만 상쇄할 뿐 **줌 스케일은 그대로 먹는다.**
+//     zoom 2 에서 하단 힌트가 화면 y 762 → 1074(화면 밖)로 밀려났다. HUD 가 같이 커진다.
+//  ② 전장 전용 카메라를 하나 더 두고 ignore 로 가르면 화면은 나오지만 세 가지가 깨진다:
+//     · 전장 카메라가 나중에 그려져 저체력 사이렌 비네트가 전장 위에서 사라지고
+//     · 전투 종료 검은 막이 아레나 안쪽만 덮으며(실측 스크린샷)
+//     · **나중에** 만들어지는 객체(사이렌 그래픽스)는 ignore 목록에 없어 같이 확대된다(실측).
+//  컨테이너 방식은 빠뜨린 것이 있어도 '확대되지 않을' 뿐이라 **안전한 방향으로 실패**한다.
+GAME.BattleScene.prototype.ZOOM_MIN = 1;
+GAME.BattleScene.prototype.ZOOM_MAX = 2.5;
+GAME.BattleScene.prototype.ZOOM_STEP = 1.18;      // 휠 한 칸
+
+GAME.BattleScene.prototype._setupZoom = function () {
+  if (!this._zoomOn || !this.worldLayer) return;
+  var self = this;
+  var R = GAME.Iso.screenRect();
+  this._zoomRect = { x: R.x, y: R.y, w: R.w, h: R.h };
+
+  // 확대하면 전장 그림이 아레나 밖(HUD 자리)으로 삐져나온다 → 아레나 사각형으로 잘라낸다.
+  var mg = this.make.graphics({ x: 0, y: 0, add: false });
+  mg.fillStyle(0xffffff, 1);
+  mg.fillRect(R.x, R.y, R.w, R.h);
+  this._zoomMaskG = mg;
+  this._zoomMask = mg.createGeometryMask();
+
+  // Phaser 3.80 의 씬 휠 이벤트: (pointer, currentlyOver, dx, dy, dz)
+  this._onWheel = function (pointer, over, dx, dy) {
+    if (!self._zoomOn || !self.worldLayer) return;
+    if (self.ended || !self.state || self.state.over) return;      // 전투 중에만
+    if (!self._overArena(pointer.x, pointer.y)) return;            // 커서가 전장 위일 때만
+    if (!dy) return;
+    self.setZoom(self._zoom * (dy < 0 ? self.ZOOM_STEP : 1 / self.ZOOM_STEP),
+                 pointer.x, pointer.y);                            // 위로 굴리면 확대
+  };
+  this.input.on('wheel', this._onWheel);
+};
+
+GAME.BattleScene.prototype._overArena = function (sx, sy) {
+  var R = this._zoomRect;
+  if (!R) return false;
+  return sx >= R.x && sx <= R.x + R.w && sy >= R.y && sy <= R.y + R.h;
+};
+
+// 화면 좌표 → 평면(월드) 좌표. 확대 변환을 먼저 풀고 Iso 역투영에 넘긴다.
+// 줌이 1이면 예전과 **완전히 같은 식**이다(오차 0).
+GAME.BattleScene.prototype.screenToWorld = function (sx, sy) {
+  var z = this._zoom || 1;
+  var o = this._zoomOff || { x: 0, y: 0 };
+  return GAME.Iso.toWorld((sx - o.x) / z, (sy - o.y) / z);
+};
+
+// (ax,ay) 화면 지점 아래에 있던 전장이 제자리에 남도록 확대한다(anchor zoom).
+GAME.BattleScene.prototype.setZoom = function (z, ax, ay) {
+  if (!this.worldLayer || !this._zoomRect) return;
+  var R = this._zoomRect;
+  z = Math.max(this.ZOOM_MIN, Math.min(this.ZOOM_MAX, z));
+  var z0 = this._zoom || 1;
+  var o = this._zoomOff;
+  if (ax === undefined) { ax = R.x + R.w / 2; ay = R.y + R.h / 2; }
+
+  // 커서 아래의 '기준 화면 좌표'를 구해, 확대 후에도 같은 화면 자리에 오게 오프셋을 잡는다
+  var bx = (ax - o.x) / z0, by = (ay - o.y) / z0;
+  var ox = ax - bx * z, oy = ay - by * z;
+
+  // 아레나 밖(빈 공간)이 보이지 않게 — 확대된 아레나가 창(R)을 항상 덮어야 한다.
+  // z=1 이면 두 경계가 모두 0 이라 오프셋이 정확히 0 으로 돌아온다.
+  ox = Math.min(R.x * (1 - z), Math.max((R.x + R.w) * (1 - z), ox));
+  oy = Math.min(R.y * (1 - z), Math.max((R.y + R.h) * (1 - z), oy));
+
+  this._zoom = z;
+  o.x = ox; o.y = oy;
+  this.worldLayer.setScale(z);
+  this.worldLayer.setPosition(ox, oy);
+
+  // 마스크는 확대 중에만 건다 — 1.0 에서는 예전과 완전히 같은 렌더 경로여야 한다
+  // (전투 종료 검은 막이 화면 전체를 덮는 것도 이 덕분에 그대로다).
+  if (z > 1.0001) {
+    if (this.worldLayer.mask !== this._zoomMask) this.worldLayer.setMask(this._zoomMask);
+  } else if (this.worldLayer.mask) {
+    this.worldLayer.clearMask();
+  }
+};
+
+GAME.BattleScene.prototype.resetZoom = function () {
+  if (this.worldLayer && this.worldLayer.scene) this.setZoom(1);
+  this._zoom = 1;
+  this._zoomOff.x = 0; this._zoomOff.y = 0;
 };
 
 // 피해 숫자 렌더 — 위로 떠오르며 사라진다. 크리티컬은 크고 노랗고 '!' 가 붙는다.
@@ -308,6 +445,9 @@ GAME.BattleScene.prototype.update = function (time, delta) {
 
   if (this.state.over && !this.ended) {
     this.ended = true;
+    // 전투가 끝나면 즉시 원래 배율로 — 결과 화면으로 넘어가는 1.1초 동안
+    // 검은 막과 전장이 확대된 채로 남지 않게 한다.
+    this.resetZoom();
     var self = this;
 
     // 학습형 AI: 이 판의 관측치를 배치도에 기록한다.
@@ -359,8 +499,8 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       // 도전(run) — 이기면 골드를 주고, 지면 도전이 끝난다(다음엔 처음부터 고른다)
       if (GAME.TowerRun && GAME.TowerRun.get()) {
         if (won) {
-          goldGained = GAME.TowerRun.goldFor(this.tower);
-          runRec = GAME.TowerRun.clear(this.tower);
+          goldGained = GAME.TowerRun.goldGainFor(this.tower, this.state);
+          runRec = GAME.TowerRun.clear(this.tower, this.state);
         } else {
           GAME.TowerRun.end();
         }

@@ -65,7 +65,11 @@ GAME.DefendScene.prototype.create = function () {
   for (var i = 0; i < this.placed.length; i++) {
     var p = this.placed[i];
     if (!GAME.UNITS[p.type]) continue;
-    this.state.units.push(GAME.Combat.createUnit(p.type, p.x, GAME.mirrorY(p.y), 'strategist'));
+    // 수성의 탑에서 올린 유닛 레벨(1~5)을 반영해 만든다.
+    // 레벨 1이면 Combat.createUnit 을 그대로 부르는 것과 완전히 동일하다(실측 확인).
+    this.state.units.push(GAME.UnitLevel
+      ? GAME.UnitLevel.createUnit(p.type, p.x, GAME.mirrorY(p.y), 'strategist')
+      : GAME.Combat.createUnit(p.type, p.x, GAME.mirrorY(p.y), 'strategist'));
   }
 
   // AI 컨트롤러가 공격해 온다.
@@ -102,6 +106,10 @@ GAME.DefendScene.prototype.create = function () {
     this.hero.hp = this.hero.def.hp;
   }
   this.state.units.push(this.hero);
+  // 수성의 탑 골드 — 영웅 체력을 조각낼 때마다 보상한다(적이 1기뿐이라 '처치 단위'가 없다).
+  if (this.defendTower && GAME.DefendTower && GAME.DefendTower.attachKillGold) {
+    GAME.DefendTower.attachKillGold(this.state, this.defendTower);
+  }
   this.ai = new GAME.AIHero(this.state, this.hero, this.aiSkill);
 
   // 전략가는 조작하지 않지만, 특정 유닛을 눌러 추적할 수는 있어야 한다.
@@ -294,7 +302,7 @@ GAME.DefendScene.prototype.update = function (time, delta) {
     var towerRec = null, learnNotes = [];
     if (this.defendTower) {
       towerRec = defended
-        ? GAME.DefendTower.clear(this.defendTower, this.placed.slice(), this.tier)
+        ? GAME.DefendTower.clear(this.defendTower, this.placed.slice(), this.tier, this.state)
         : GAME.DefendTower.fail();
     } else {
       var rec = GAME.Learn.recordCtrl(aiWon, { timedOut: this.state.winner === 'draw' });

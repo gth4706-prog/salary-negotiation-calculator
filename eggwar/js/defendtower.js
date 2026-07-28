@@ -89,13 +89,169 @@ GAME.DefendTower = {
   //   보정 상수는 수성의 탑 안에서만 듣기 때문에 통곡의 탑·대전에는 격차가 그대로 남는다.
   HERO_DIFF: { vanguard: 1.00, ranger: 1.00, warden: 1.00 },
 
+  // ══════════════════════════════════════════════════════════════════════════
+  //  골드 (v0.36) — "적 유닛을 잡으면 랜덤 골드" 를 **수성의 탑에 각색한 것**
+  // ══════════════════════════════════════════════════════════════════════════
+  //  ⚠ 여기서는 요청을 문자 그대로 옮길 수가 없다. 통곡의 탑은 적이 진형(10~20기)이라
+  //    "한 기 잡을 때마다"가 성립하지만, **수성의 탑의 적은 영웅 딱 1기다.**
+  //    그 하나를 잡는 순간이 곧 층 클리어라, 문자 그대로 옮기면
+  //    "층을 깨면 골드" — 바꾸기 전과 똑같은 것이 되어버린다.
+  //
+  //  그래서 **적을 '조각내는' 축으로 옮겼다.**
+  //    통곡의 탑: 적 진형의 총 체력을 유닛 단위로 잘라 먹고, 한 조각(=한 기)마다 보상.
+  //    수성의 탑: 적 영웅의 총 체력을 GOLD_SEGMENTS 조각으로 잘라, 한 조각을 깎을 때마다 보상.
+  //  둘 다 "적을 얼마나 무너뜨렸는가"에 비례한다는 같은 규칙이고, 적의 형태만 다르다.
+  //
+  //  후보 중 다른 둘을 버린 이유 (임의로 고르지 않았다):
+  //   · **생존한 내 유닛 수 비례** — 버렸다. 영웅이 절대 닿지 않는 뒤쪽 구석에 싸구려
+  //     유닛을 늘어놓기만 해도 보상이 오른다. 방어를 잘한 것과 구분되지 않고,
+  //     '진형을 앞으로 내밀어 화력을 집중한다'는 이 게임의 좋은 플레이를 벌준다.
+  //   · **층 클리어 + 처치 보너스 혼합** — 버렸다. 실제 지급 시점이 결국 '클리어' 하나라
+  //     지금과 체감이 같다. 요청의 핵심("잡는 행위마다 보상")이 사라진다.
+  //
+  //  이 각색이 실제로 만들어내는 차이: **"막아냈다"에도 등급이 생긴다.**
+  //  이 게임은 시간 초과(무승부)도 방어 성공으로 친다(`defend.js`: `defended = !aiWon`).
+  //  예전에는 영웅을 30초에 격퇴하든 90초를 버티기만 하든 보상이 똑같았다.
+  //  이제 격퇴 못 하고 버틴 판은 **깎은 만큼(최대 45%)만** 받는다 — "막아라"가 아니라
+  //  "잡아라"가 되어, 진형에 화력을 넣을 이유가 생긴다.
+  //  ⚠ 진 층의 골드는 남지 않는다. `fail()` 이 도전을 통째로 되돌리기 때문이다
+  //    (통곡의 탑 `TowerRun.end()` 와 같은 규칙 — 아래 `fail` 주석 참조).
+  //
+  //  ⚠ 피해 집계는 `state.telemetry.heroDamageTaken` 을 그대로 읽는다 —
+  //    `combat.js` 가 이미 쌓고 있는 값이라 전투 엔진을 건드리지 않는다.
+  //    단, 가시덫(mine)은 `applyDamage` 를 거치지 않고 hp 를 직접 깎으므로
+  //    **덫 피해는 집계에 안 들어간다**(알고 있는 한계, 최대 30% 한 번).
+  GOLD_BASE: 14,
+  GOLD_PER_FLOOR: 2,
+  GOLD_BOSS_MUL: 2.0,
+  GOLD_DAMAGE_SHARE: 0.45,   // 영웅 체력을 깎은 몫
+  GOLD_KILL_SHARE: 0.55,     // 격퇴(=층 방어 성공) 몫
+  GOLD_SEGMENTS: 8,          // 영웅 체력을 몇 조각으로 자를 것인가
+  GOLD_SPREAD: 0.35,         // 조각당 난수 폭 ±35%
+
+  goldFor: function (floor) {
+    var g = this.GOLD_BASE + Math.max(0, floor - 1) * this.GOLD_PER_FLOOR;
+    if (this.isBossFloor(floor)) g = Math.round(g * this.GOLD_BOSS_MUL);
+    return g;
+  },
+
+  // 씬이 전투 시작 때 한 줄로 부른다 —  GAME.DefendTower.attachKillGold(this.state, floor);
+  //  `state.onKill` 훅으로 '영웅을 실제로 격퇴했는가'를 잡는다.
+  //  ⚠ 훅이 아직 없어도(combat.js 통합 전) `earnedFrom` 이 영웅의 `alive` 를 직접 보고
+  //    격퇴 여부를 판정하므로 골드가 사라지지 않는다. 훅은 '더 정확한 신호'일 뿐이다.
+  attachKillGold: function (state, floor) {
+    if (!state) return null;
+    var hero = null;
+    for (var i = 0; i < state.units.length; i++) {
+      if (state.units[i] && state.units[i].isHero) { hero = state.units[i]; break; }
+    }
+    state.killGold = 0;
+    state._dgFloor = floor;
+    state._dgPool = this.goldFor(floor);
+    state._dgHero = hero;
+    state._dgHeroMaxHp = hero ? hero.maxHp : 0;
+    state._dgHeroKilled = false;
+    state._dgActive = true;
+    var prev = state.onKill;
+    state.onKill = function (unit, st) {
+      if (prev) { try { prev(unit, st); } catch (e) { /* 남의 훅이 터져도 골드는 준다 */ } }
+      if (unit && unit.side === 'controller') (st || state)._dgHeroKilled = true;
+    };
+    return state;
+  },
+
+  // 이 판에서 번 골드. 전투가 끝난 뒤 한 번만 부른다.
+  earnedFrom: function (state) {
+    if (!state || !state._dgActive) return 0;
+    var pool = state._dgPool || 0;
+    var maxHp = state._dgHeroMaxHp || 0;
+    var dealt = (state.telemetry && state.telemetry.heroDamageTaken) || 0;
+    var hero = state._dgHero;
+    // ⚠ '누적 피해량 / 최대체력' 하나로만 재면 **금방 100% 로 포화된다.** 영웅은 흡혈·물약으로
+    //   회복하므로 누적 피해가 최대체력을 넘고도 멀쩡히 살아 있는 판이 흔하다(실측: 20층에서
+    //   영웅이 이겼는데 누적 피해 100%). 그러면 뚫린 판과 격퇴한 판의 보상이 같아진다.
+    //   그래서 **누적 피해**(회복을 뚫고 넣은 총량)와 **실제로 깎아 남긴 몫**(1 - 남은체력)을
+    //   반씩 섞는다. 격퇴하면 둘 다 1 이라 정확히 1 이 된다.
+    var cum = maxHp > 0 ? Math.max(0, Math.min(1, dealt / maxHp)) : 0;
+    var net = (hero && maxHp > 0) ? Math.max(0, Math.min(1, 1 - Math.max(0, hero.hp) / maxHp)) : cum;
+    var d = 0.5 * cum + 0.5 * net;
+    var killed = !!state._dgHeroKilled || (hero && hero.alive === false);
+    var segs = Math.floor(d * this.GOLD_SEGMENTS);
+    var per = pool * this.GOLD_DAMAGE_SHARE / this.GOLD_SEGMENTS;
+    var g = 0, i;
+    for (i = 0; i < segs; i++) g += per * (1 + (Math.random() * 2 - 1) * this.GOLD_SPREAD);
+    if (killed) g += pool * this.GOLD_KILL_SHARE * (1 + (Math.random() * 2 - 1) * this.GOLD_SPREAD);
+    return Math.round(g);
+  },
+
+  // ── 도전 기록의 골드 ────────────────────────────────────────────────────
+  goldOf: function () { return (this.get().gold || 0); },
+
+  addGold: function (n) {
+    if (!n) return this.goldOf();
+    var rec = this.get();
+    rec.gold = (rec.gold || 0) + Math.round(n);
+    this._save(rec);
+    return rec.gold;
+  },
+
+  spendGold: function (n) {
+    var rec = this.get();
+    if ((rec.gold || 0) < n) return false;
+    rec.gold = (rec.gold || 0) - n;
+    this._save(rec);
+    return true;
+  },
+
+  // ── 유닛 레벨 (js/unitlevel.js 가 표·가격을 갖고, 저장만 여기에 붙는다) ─────
+  setUnitLevel: function (typeKey, lv) {
+    var rec = this.get();
+    if (!rec.unitLv) rec.unitLv = {};
+    rec.unitLv[typeKey] = lv;
+    this._save(rec);
+    return rec;
+  },
+
+  // ── 증원 — 골드로 배치 예산을 영구히(이 도전 동안) 늘린다 ──────────────────
+  //  "추가 유닛을 배치할 수 있게" 를 유닛 개수가 아니라 **예산**으로 구현한 이유:
+  //  이 게임에서 '몇 기를 놓을 수 있는가'는 이미 예산 하나로 표현된다. 증원을 개별
+  //  유닛 목록으로 따로 관리하면 배치 화면이 '예산으로 놓는 유닛'과 '증원으로 놓는 유닛'
+  //  두 종류를 구분해야 하고, 그 경계에서 예산 검사가 갈라진다(옛 AI 시드 예산 초과 사고 계열).
+  //  예산에 더하면 배치 화면은 아무것도 안 바꿔도 되고, 숫자도 정직하다.
+  EXTRA_BUDGET_STEP: 10,     // 한 번에 사는 정원
+  extraBudgetPrice: function () {
+    return this.EXTRA_BUDGET_STEP * (GAME.UnitLevel ? GAME.UnitLevel.BUDGET_RATE : 5);
+  },
+  bonusBudget: function () { return (this.get().bonusBudget || 0); },
+  buyBudget: function () {
+    var price = this.extraBudgetPrice();
+    if (!this.spendGold(price)) return null;
+    var rec = this.get();
+    rec.bonusBudget = (rec.bonusBudget || 0) + this.EXTRA_BUDGET_STEP;
+    this._save(rec);
+    return rec.bonusBudget;
+  },
+
+  // 배치 화면이 실제로 써야 할 예산 — 층 예산 + 증원.
+  // ⚠ `budgetFor` 는 **난이도 곡선의 기준값**이라 손대지 않는다(도구가 그걸 잰다).
+  placeBudgetFor: function (floor) {
+    return this.budgetFor(floor) + this.bonusBudget();
+  },
+
   _all: function () { return GAME.Store.get(this.KEY, {}); },
   _key: function () { return GAME.Account.current() || 'guest'; },
 
   get: function () {
     var rec = this._all()[this._key()];
-    if (!rec) return { floor: 1, best: 0, runs: 0, kills: 0, placed: null, tier: null };
+    if (!rec) {
+      return { floor: 1, best: 0, runs: 0, kills: 0, placed: null, tier: null,
+               gold: 0, unitLv: {}, bonusBudget: 0 };
+    }
     if (!rec.floor) rec.floor = 1;
+    // 옛 저장본에는 없는 칸 — 읽을 때 채운다(마이그레이션 코드를 따로 두지 않는다)
+    if (typeof rec.gold !== 'number') rec.gold = 0;
+    if (!rec.unitLv) rec.unitLv = {};
+    if (typeof rec.bonusBudget !== 'number') rec.bonusBudget = 0;
     return rec;
   },
 
@@ -202,23 +358,32 @@ GAME.DefendTower = {
     return GAME.HERO_ORDER[(f - 1) % GAME.HERO_ORDER.length];
   },
 
-  // 층 방어 성공 — 영웅 하나를 격파했다
-  clear: function (floor, placed, tier) {
+  // 층 방어 성공 — 영웅 하나를 격파했다.
+  //  state 를 주면 그 판에서 번 골드(피해 비례 + 격퇴 몫)를 함께 넣는다.
+  clear: function (floor, placed, tier, state) {
     var rec = this.get();
     rec.kills = (rec.kills || 0) + 1;
     rec.floor = floor + 1;
     if (floor > (rec.best || 0)) rec.best = floor;
+    rec.gold = (rec.gold || 0) + this.earnedFrom(state);
     // 다음 층에서 같은 배치로 이어갈 수 있게 남긴다(고칠 수도 있다)
     if (placed) { rec.placed = placed; rec.tier = tier || null; }
     this._save(rec);
     return rec;
   },
 
+  // 실패 — 1층부터 다시. **골드·유닛 레벨·증원도 같이 사라진다.**
+  //  영구 성장으로 두면 1층이 통째로 무의미해지고(레벨 5 진형으로 1층을 도는 상태),
+  //  무배치 기준선(SC-4)도 "골드가 얼마나 쌓였느냐"에 따라 달라져 측정 자체가 안 된다.
+  //  통곡의 탑에서 `TowerRun.end()` 가 도전 기록을 지우는 것과 같은 규칙이다.
   fail: function () {
     var rec = this.get();
     rec.runs = (rec.runs || 0) + 1;
     rec.floor = 1;
     rec.placed = null;
+    rec.gold = 0;
+    rec.unitLv = {};
+    rec.bonusBudget = 0;
     this._save(rec);
     return rec;
   },

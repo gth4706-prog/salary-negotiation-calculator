@@ -30,18 +30,27 @@ GAME.InputController = function (scene, state, hero) {
   this._bind();
 };
 
+// 화면 좌표 → 평면(월드) 좌표.
+// 씬이 확대(마우스 휠 줌)를 지원하면 **그 변환까지 함께 되돌린다** — 확대 상태에서도
+// 클릭 이동·적 클릭·스킬 조준이 정확히 같은 지점을 가리켜야 한다.
+// 그런 씬이 아니면(방어전 등) 예전과 한 글자도 다르지 않은 경로다.
+GAME.InputController.prototype.toWorld = function (sx, sy) {
+  if (this.scene && this.scene.screenToWorld) return this.scene.screenToWorld(sx, sy);
+  return GAME.Iso.toWorld(sx, sy);
+};
+
 GAME.InputController.prototype._bind = function () {
   var self = this;
   var input = this.scene.input;
 
   input.on('pointermove', function (p) {
-    var w = GAME.Iso.toWorld(p.x, p.y);
+    var w = self.toWorld(p.x, p.y);
     self.mouse.x = w.x;
     self.mouse.y = w.y;
   });
 
   input.on('pointerdown', function (p) {
-    var w = GAME.Iso.toWorld(p.x, p.y);
+    var w = self.toWorld(p.x, p.y);
     self.mouse.x = w.x;
     self.mouse.y = w.y;
 

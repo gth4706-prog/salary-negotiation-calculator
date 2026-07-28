@@ -33,6 +33,17 @@ window.GAME = window.GAME || {};
 // 자연히 화면 밖으로 밀려난다. `toWorldY` 가 정확한 역변환이라 탭→월드 좌표도 그대로 맞다.
 // 월드 좌표는 한 픽셀도 안 건드리므로 밸런스·저장 배치도에는 영향이 없다.
 // **씬을 떠날 때 `Iso.setMode('default')` 로 반드시 되돌린다** — 안 그러면 전투가 깨진다.
+//
+// ── PC(1340×900)도 같은 방식으로 (2026-07-28) ───────────────────────────────
+// 사용자 지시: "PC 도 배치할 곳 화면만 보여주고, 2배로 복사되는 버그를 없애라."
+// 두 가지가 한 번에 풀린다.
+//  · PC 에서 유닛이 두 벌로 보이던 진짜 원인은 대칭 배치가 아니라 `redraw()` 의
+//    **'상대가 볼 모습' 반투명 미리보기**였다(놓인 유닛을 `mirrorY` 자리에 한 번 더 그렸다).
+//    적진을 화면 밖으로 밀어내면 그릴 이유 자체가 사라진다 → 미리보기 삭제.
+//  · 배치 구역이 화면에서 137px(기본 투영 TILT 0.60) 밖에 안 됐다. 보드 띠를 그대로 두고
+//    TILT 만 올리면 **같은 자리에서 구역만 커진다** — 그래서 HUD 행을 한 줄도 안 옮겼다.
+// 보드 바닥을 기본 투영의 아레나 바닥에 맞추는 것이 그 요령이다(아래 `_boardBand`).
+// 세로(`?portrait=1`)는 은퇴 예정 프로필이라 손대지 않았다 — 예전 투영과 미리보기 그대로다.
 GAME.BuildScene = function () {
   Phaser.Scene.call(this, { key: 'Build' });
 };
@@ -61,6 +72,29 @@ GAME.BuildScene.HINT_MS = 4200;
 //    (이 한 줄만 바꾸면 되고 다른 코드는 그대로 동작한다).
 //  ⚠ 대가: 전투 화면은 TILT 0.72 라 배치 때보다 세로가 절반으로 보인다(상대 배치는 보존).
 GAME.BuildScene.TILT_CAP = 1.4;
+
+// ── PC(1340×900) 배치 보드 ──────────────────────────────────────────────────
+//  폰과 달리 세로 여유가 크다. 폰 아레나는 zone.h 가 113(월드)뿐이라 TILT 1.0 이면
+//  화면 113px 밖에 안 나와 3줄 배치가 안 읽혔지만, PC 는 zone.h 가 **228**이라
+//  1.0(정탑다운)만으로도 화면 228px 이 나온다 — 기본 투영(0.60, 137px)의 1.66 배다.
+//
+//  실측 비교(1340×900, 전사 3줄 + 궁수 + 약초꾼, 스크린샷 pc-tilt10.png / pc-tilt14.png):
+//    1.0 → 배치 구역 228px. 줄 간격 76px 로 세 줄이 완전히 분리돼 읽힌다.
+//          **지면 원(치유·강화·차단 반경)이 정확한 원**이라 반경 판단이 정직하다.
+//          위쪽 중립 지대 228px — 영웅이 달려올 접근로가 보인다.
+//    1.4 → 319px. 줄 간격 106px 로 더 시원하지만 원이 세로로 1.4 배 늘어난 타원이 되고
+//          (약초꾼 치유 반경 150 → 300×420), 중립 지대가 137px 로 줄어 맥락이 얇아진다.
+//  → **1.0 채택.** 폰에서 1.4 가 필요했던 이유(줄이 겹쳐 안 읽힘)가 PC 에는 없다.
+//    타원 왜곡이라는 대가만 남으므로 정확한 원을 택한다.
+GAME.BuildScene.PC = {
+  // 보드 위 여백 — 안내 한 줄이 들어가는 자리. 여기 위쪽은 배경으로 덮어 전장을 자른다.
+  BOARD_TOP: 62,
+  TILT_CAP: 1.0
+};
+
+// 툴팁(PC 전용) 치수 — 전장을 과하게 가리지 않는 선.
+//  1340×900 에서 폭 320 은 화면의 24%, 높이는 내용에 따라 150~210(17~23%).
+GAME.BuildScene.TIP = { W: 320, PAD: 12, GAP: 5, OFF: 18, MARGIN: 8 };
 
 // ── 폰 가로(820×390) 전용 좌표 — TFT 전투화면 구성 ──────────────────────────
 //  0..60    상단 바   : 예산 요약 · 선택 유닛 · [방어전 시작] [☰]
@@ -92,7 +126,10 @@ GAME.BuildScene.prototype.init = function (data) {
   this.history = [];         // 되돌리기 — 한 번의 배치가 만든 유닛들을 묶어 쌓는다
   this.selected = null;      // ✕ 배지를 띄울 유닛
   this.picked = 'bayonet';
-  this.mirror = true;        // 좌우 대칭 배치 (기본 켬 — 대부분의 진형이 대칭이다)
+  // 좌우 대칭 배치. **기본 꺼짐**(2026-07-28 지시) — 켜 두면 한 번 탭에 2기가 놓이는데
+  // 그게 의도된 기능이라는 걸 아무도 모르고 "2배로 복사되는 버그"로 신고했다.
+  // 기능은 남기되 켜는 것은 사용자가 정한다(상단 바 ⇄ 토글).
+  this.mirror = false;
   this.tier = GAME.CONFIG.DEFAULT_TIER;
   // 수성의 탑에서 들어오면 그 층의 고정 예산을 쓰고, 승패가 층에 반영된다.
   this.defendTower = (data && data.defendTower) || 0;
@@ -111,20 +148,44 @@ GAME.BuildScene.prototype.init = function (data) {
   this.mirrorBtn = null;
   this.phMirrorBtn = null;
   this.tierButtons = [];
+  // 보드 띠(top/bottom/cap) — create 에서 프로필별로 정한다. 세로는 null(예전 투영 유지).
+  this.board = null;
+  // 호버 툴팁(PC 전용). 캐시한 표시객체는 재진입 때 이미 파괴돼 있다 → 반드시 비운다.
+  this.tip = null;
+  this._tipDef = null;
 };
 
 // ── 이 씬 전용 투영 ─────────────────────────────────────────────────────────
 //  배치 구역(zone)의 **바닥을 보드 바닥에**, 나머지 높이는 위쪽으로 펼친다.
 //  남는 위쪽은 중립 지대로 보이고, 적진(아레나 위 30%)은 화면 밖으로 나간다.
 //  월드 좌표는 손대지 않는다 — 순수 렌더 계층 변경이라 밸런스가 움직이지 않는다.
+//  프로필별 보드 띠. **기본 투영 상태에서 호출해야 한다**(create 가 setMode('default') 직후 부른다).
+//   · 폰 가로 : 손으로 잡은 띠(상단 바 아래 ~ 팔레트 위)
+//   · PC      : 바닥을 **기본 투영의 아레나 바닥**에 맞춘다. 그러면 `L.hud()` 가 예전과
+//               똑같은 top 을 돌려주므로 팔레트·도구·액션 줄을 한 픽셀도 안 옮겨도 된다.
+//               (아래 식은 고정점이다 — 투영을 바꿔도 screenRect().bottom 이 다시 bottom 이 된다:
+//                zone 바닥 == 아레나 바닥이라 SCREEN_TOP + A.h×TILT = bottom.)
+//   · 세로    : null — 은퇴 예정 프로필이라 예전 투영·미리보기를 그대로 둔다.
+GAME.BuildScene.prototype._boardBand = function () {
+  var K = GAME.BuildScene.PHONE;
+  if (GAME.CONFIG.PHONE) {
+    return { top: K.BOARD_TOP, bottom: K.BOARD_BOTTOM, cap: GAME.BuildScene.TILT_CAP };
+  }
+  if (GAME.CONFIG.PORTRAIT) return null;
+  return {
+    top: GAME.BuildScene.PC.BOARD_TOP,
+    bottom: Math.round(GAME.Iso.screenRect().bottom),
+    cap: GAME.BuildScene.PC.TILT_CAP
+  };
+};
+
 GAME.BuildScene.prototype._applyBoardProjection = function () {
   var A = GAME.CONFIG.ARENA;
-  var K = GAME.BuildScene.PHONE;
+  var B = this.board;
   var Z = this.zone;
-  var band = K.BOARD_BOTTOM - K.BOARD_TOP;
-  var tilt = Math.min(GAME.BuildScene.TILT_CAP, band / Z.h);
+  var tilt = Math.min(B.cap, (B.bottom - B.top) / Z.h);
   GAME.Iso.TILT = tilt;
-  GAME.Iso.SCREEN_TOP = K.BOARD_BOTTOM - (Z.y + Z.h - A.y) * tilt;
+  GAME.Iso.SCREEN_TOP = B.bottom - (Z.y + Z.h - A.y) * tilt;
 };
 
 GAME.BuildScene.prototype.create = function () {
@@ -133,7 +194,7 @@ GAME.BuildScene.prototype.create = function () {
   var self = this;
   var P = GAME.CONFIG.PORTRAIT;
   // 폰 가로(820×390)는 아레나 아래에 78px 밖에 안 남는다(실측: 기본 투영 아레나 바닥 312).
-  // 그래서 이 프로필만 투영을 다시 잡아 보드를 화면 가운데 띠에 앉힌다.
+  // 폰 가로와 PC 는 투영을 다시 잡아 배치 구역을 화면의 주인공으로 만든다(_boardBand).
   var PH = GAME.CONFIG.PHONE;
   var SM = P || PH;                       // 칩을 세로형(아이콘 위·이름 아래)으로 그리는가
   var W = GAME.CONFIG.WIDTH;
@@ -146,11 +207,16 @@ GAME.BuildScene.prototype.create = function () {
   // 아레나가 화면을 다 먹어 팔레트가 잘린다. 진입할 때마다 기본 투영으로 확정한다.
   GAME.Iso.setMode('default');
   // 수성의 탑은 층 고정 예산, 일반 방어전은 티어 예산.
-  this.budget = this.defendTower ? GAME.DefendTower.budgetFor(this.defendTower)
+  // 수성의 탑은 골드로 산 '증원 예산'이 얹힌다 → placeBudgetFor 를 써야 배치 화면에 반영된다.
+  this.budget = this.defendTower
+    ? ((GAME.DefendTower.placeBudgetFor || GAME.DefendTower.budgetFor).call(
+        GAME.DefendTower, this.defendTower))
                                  : GAME.CONFIG.BUDGETS[this.tier];
   this.zone = GAME.CONFIG.ZONE_CONTROLLER;
   this.myColor = C.strategist;
-  if (PH) this._applyBoardProjection();
+  // ★ 반드시 setMode('default') 뒤에 — PC 보드 바닥을 기본 투영에서 읽어 온다.
+  this.board = this._boardBand();
+  if (this.board) this._applyBoardProjection();
 
   var hud = L.hud();
 
@@ -166,8 +232,10 @@ GAME.BuildScene.prototype.create = function () {
   //  예전에는 이 안내가 전장 **안**에 있어서 유닛 그림 위에 얹혔다. 밖으로 뺀다.
   //  폰 가로에서는 상단 바가 이미 그 자리를 쓰므로 두지 않는다(안내는 ☰ 안으로).
   if (!PH) {
+    // PC 는 이제 적진이 화면 밖이다 → '위 = 상대가 보게 될 모습' 은 거짓말이 된다.
+    // 대신 저장 시 뒤집힌다는 사실과, 새로 생긴 호버 정보를 알려준다.
     var topLabel = P ? '위 = 상대가 보는 모습  ·  아래 파란 칸 = 내 진형'
-                     : '위 = 상대가 보게 될 모습  ·  아래 파란 칸이 내 진형 배치 구역';
+                     : '파란 칸이 내 진형 배치 구역  ·  유닛 위에 마우스를 올리면 상세 정보  ·  저장하면 상대에게는 위아래가 뒤집혀 보입니다';
     if (this.defendTower) topLabel = this.defendTower + '층 방어 — 오는 영웅: ' + this.dtHeroName;
     UI.text(this, hud.pad, 16, topLabel, { size: 'caption', color: C.accentAlt });
   }
@@ -395,8 +463,17 @@ GAME.BuildScene.prototype.create = function () {
   // ── 입력 ────────────────────────────────────────────────────────────────
   // 상·하단 바 위의 탭은 전장 탭이 아니다. 이 가드가 없으면 팔레트를 누를 때마다
   // '아래 파란 칸 안에만…' 경고가 같이 뜬다.
-  this.hudTopBand = PH ? PHL.BOARD_TOP : 0;
+  this.hudTopBand = this.board ? this.board.top : 0;
   this.hudBotBand = PH ? PHL.PAL_Y : H;
+
+  // ── 호버 툴팁 (PC 전용) ─────────────────────────────────────────────────
+  //  터치에는 '올려놓기'가 없다 — 폰/세로는 만들지 않는다(칩 탭이 곧 선택이라 방해만 된다).
+  if (this._tipEnabled()) {
+    this._tipCreate();
+    this.input.on('pointermove', function (p) { self._hover(p.x, p.y); });
+    // 창 밖으로 나가면 마지막 위치에 툴팁이 남는다
+    this.input.on('gameout', function () { self._tipHide(); });
+  }
 
   this.input.on('pointerdown', function (p) {
     // ☰ 시트가 열려 있으면 전장은 잠긴다. 시트를 막 닫은 탭도 전장으로 새면 안 된다.
@@ -446,7 +523,7 @@ GAME.BuildScene.prototype.create = function () {
   this._status();
   this.redraw();
   if (PH) {
-    this._hint('대칭이 켜져 있어 한 번 탭에 좌우로 2기가 놓입니다 (상단 ⇄ 로 끄기)  ·  놓인 유닛을 탭하면 ✕ 로 삭제',
+    this._hint('아래 파란 칸을 탭하면 배치  ·  놓인 유닛을 탭하면 ✕ 로 삭제  ·  대칭은 상단 ⇄ 로 켜기',
       GAME.BuildScene.HINT_MS);
   }
 };
@@ -682,6 +759,211 @@ GAME.BuildScene.prototype._powerLine = function (short) {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  유닛 정보 툴팁 (PC 전용)
+//  ---------------------------------------------------------------------------
+//  "무엇을 사는지 모르겠다"가 이 화면의 남은 마지막 구멍이었다. 칩에는 이름·가격만 있고
+//  설명 한 줄은 상태 줄에 **고른 뒤에야** 뜬다 — 비교하려면 열 번을 눌러봐야 했다.
+//  그래서 마우스를 올린 것(팔레트 칸이든, 이미 놓인 유닛이든)의 정보를 그 자리에 띄운다.
+//
+//  담는 순서에 이유가 있다:
+//   ① 이름·가격        — 예산이 이 화면의 통화다
+//   ② 세계관 한 줄     — `def.lore` (units.js 담당이 넣기 전이면 **조용히 생략**한다)
+//   ③ 쓰임새 한 줄     — `def.desc`
+//   ④ **논타겟/자동명중** — 이 게임의 핵심 규칙이라 스탯보다 위에 둔다.
+//      "싸고 다수지만 피할 수 있다 / 비싸고 소수지만 피할 수 없다"가 배치의 근본 선택이다.
+//   ⑤ 스탯 3줄(2열)   ⑥ 특수 능력(반경·둔화·제한)
+//  터치에는 '올려놓기'가 없다 → `GAME.isTouch`/`PHONE`/`PORTRAIT` 를 모두 걸러 PC 만 켠다.
+// ═══════════════════════════════════════════════════════════════════════════
+GAME.BuildScene.prototype._tipEnabled = function () {
+  return !GAME.isTouch && !GAME.CONFIG.PHONE && !GAME.CONFIG.PORTRAIT;
+};
+
+GAME.BuildScene.prototype._tipCreate = function () {
+  var UI = GAME.UI;
+  var C = GAME.CONFIG.COLORS;
+  var T = GAME.BuildScene.TIP;
+  var wrap = T.W - T.PAD * 2;
+  // 툴팁은 모든 것 위에 뜬다(전장·팔레트·버튼). 시트(900~902)보다도 위.
+  var D = 1200;
+  this.tip = {
+    g:     this.add.graphics().setDepth(D),
+    title: UI.text(this, 0, 0, '', { size: 'subhead', color: C.text }).setDepth(D + 1),
+    lore:  UI.text(this, 0, 0, '', { size: 'caption', color: C.accentAlt, wrap: wrap }).setDepth(D + 1),
+    desc:  UI.text(this, 0, 0, '', { size: 'caption', color: C.textMid, wrap: wrap }).setDepth(D + 1),
+    rule:  UI.text(this, 0, 0, '', { size: 'caption', color: C.accent }).setDepth(D + 1),
+    body:  UI.text(this, 0, 0, '', { size: 'caption', color: C.text }).setDepth(D + 1),
+    extra: UI.text(this, 0, 0, '', { size: 'caption', color: C.crit, wrap: wrap }).setDepth(D + 1),
+    on: false
+  };
+  this._tipHide();
+};
+
+// 논타겟/자동명중 — 한 줄과 그 색.
+GAME.BuildScene.prototype._tipRule = function (def) {
+  var C = GAME.CONFIG.COLORS;
+  if (def.attack === 'none') {
+    return { s: '비전투 지원 — 스스로 공격하지 않는다', c: C.accentAlt };
+  }
+  if (!GAME.isNonTarget(def)) {
+    return { s: '자동명중 — 던지면 반드시 맞는다 (회피 불가)', c: C.crit };
+  }
+  return { s: '논타겟 — 보고 피할 수 있다 (회피 가능)', c: C.accent };
+};
+
+// 스탯 3줄(2열). 표를 흉내내지 않는다 — 비례폭 글꼴에서 칸을 맞추려다 어긋나느니
+// 가운뎃점으로 나누는 편이 정직하다.
+GAME.BuildScene.prototype._tipStats = function (def) {
+  var atkSpd = (def.damage && def.cooldown && def.cooldown < 100000)
+    ? (1000 / def.cooldown).toFixed(2) + '/초' : '—';
+  var range = def.rangeSpan ? '맵 전체' : (def.range ? String(def.range) : '—');
+  return [
+    '체력 ' + def.hp + '   ·   방어력 ' + def.armor,
+    '공격력 ' + (def.damage ? def.damage : '—') + '   ·   공격속도 ' + atkSpd,
+    '사거리 ' + range + '   ·   이동속도 ' + (def.speed ? def.speed : '고정')
+  ].join('\n');
+};
+
+// 특수 능력 — 반경을 가진 것은 전장에 원으로도 보이므로 숫자를 같이 준다.
+GAME.BuildScene.prototype._tipExtra = function (def) {
+  var out = [];
+  if (def.healRadius) {
+    out.push('치유 반경 ' + def.healRadius + ' — ' + (def.healInterval / 1000).toFixed(0)
+      + '초마다 아군 ' + def.healPerTick + ' 회복');
+  }
+  if (def.buffRadius) {
+    out.push('강화 반경 ' + def.buffRadius + ' — 아군 공격력 +'
+      + Math.round((def.buffDamageMul - 1) * 100) + '%');
+  }
+  if (def.intercept) out.push('차단 반경 ' + def.intercept + ' — 아군에게 갈 투사체를 대신 맞는다');
+  if (def.aoeRadius) {
+    out.push('광역 반경 ' + def.aoeRadius
+      + (def.telegraph ? ' — ' + (def.telegraph / 1000).toFixed(1) + '초 예고 후 폭발' : ''));
+  }
+  if (def.slowMul) {
+    out.push('명중하면 이동속도 ' + Math.round((1 - def.slowMul) * 100) + '% 감소 ('
+      + (def.slowMs / 1000).toFixed(1) + '초)');
+  }
+  if (def.isMine) {
+    out.push('발동 반경 ' + def.triggerRadius + ' — 밟으면 최대 체력의 '
+      + Math.round(def.pctMaxHp * 100) + '% 가 날아간다');
+  }
+  if (def.immobile) out.push('고정 — 움직이지 않는다');
+  if (def.maxPerFormation) out.push('배치도당 ' + def.maxPerFormation + '개까지');
+  return out.join('\n');
+};
+
+// 내용을 채우고 크기를 잰다. 같은 유닛이면 다시 만들지 않는다(마우스 이동마다 재생성 금지).
+GAME.BuildScene.prototype._tipFill = function (def) {
+  var T = GAME.BuildScene.TIP;
+  var t = this.tip;
+  var rule = this._tipRule(def);
+  // ★ 세 줄은 항상 뜬다. **크기를 재기 전에** 보이게 해야 한다 — 예전엔 _tipHide 가 꺼둔
+  //   상태로 재는 바람에 패널 높이가 두 줄치(50px)로 나와 내용이 판 밖으로 흘렀다(실측).
+  t.title.setVisible(true);
+  t.rule.setVisible(true);
+  t.body.setVisible(true);
+  t.title.setText(def.name + '   ' + def.cost + '원');
+  // ★ lore 는 units.js 담당이 아직 안 넣었을 수 있다 — 없으면 조용히 생략한다.
+  t.lore.setText(def.lore ? def.lore : '').setVisible(!!def.lore);
+  t.desc.setText(def.desc || '').setVisible(!!def.desc);
+  t.rule.setText(rule.s).setColor(rule.c);
+  t.body.setText(this._tipStats(def));
+  var ex = this._tipExtra(def);
+  t.extra.setText(ex).setVisible(!!ex);
+
+  var order = [t.title, t.lore, t.desc, t.rule, t.body, t.extra];
+  var w = 0, h = 0, i;
+  for (i = 0; i < order.length; i++) {
+    if (!order[i].visible) continue;
+    if (order[i].width > w) w = order[i].width;
+    h += order[i].height + T.GAP;
+  }
+  // 마지막 줄 뒤의 GAP 은 빼고(안 그러면 아래 여백만 두툼해진다), 규칙 줄 밑 구분선 3px 을 더한다
+  t.w = Math.max(200, Math.min(T.W, Math.ceil(w) + T.PAD * 2));
+  t.h = Math.ceil(h) - T.GAP + T.PAD * 2 + 3;
+  t.order = order;
+  this._tipDef = def;
+};
+
+// 커서를 따라다니되 화면 밖으로 나가지 않는다.
+GAME.BuildScene.prototype._tipPlace = function (sx, sy) {
+  var T = GAME.BuildScene.TIP;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var UI = GAME.UI;
+  var t = this.tip;
+  var x = sx + T.OFF, y = sy + T.OFF;
+  // 오른쪽/아래로 넘치면 커서 반대편으로 뒤집는다(커서를 덮지 않게)
+  if (x + t.w > W - T.MARGIN) x = sx - T.OFF - t.w;
+  if (y + t.h > H - T.MARGIN) y = sy - T.OFF - t.h;
+  x = Math.max(T.MARGIN, Math.min(W - T.MARGIN - t.w, x));
+  y = Math.max(T.MARGIN, Math.min(H - T.MARGIN - t.h, y));
+
+  var g = t.g;
+  g.clear();
+  g.fillStyle(UI.COL.shadow === undefined ? 0x000000 : UI.COL.shadow, 0.4);
+  g.fillRoundedRect(x + 2, y + 4, t.w, t.h, UI.R.md);
+  g.fillStyle(UI.COL.surface, 0.97);
+  g.fillRoundedRect(x, y, t.w, t.h, UI.R.md);
+  g.lineStyle(1, this.myColor, 0.9);
+  g.strokeRoundedRect(x + 0.5, y + 0.5, t.w - 1, t.h - 1, UI.R.md);
+
+  var cy = y + T.PAD;
+  for (var i = 0; i < t.order.length; i++) {
+    var o = t.order[i];
+    if (!o.visible) continue;
+    o.setPosition(x + T.PAD, Math.round(cy));
+    cy += o.height + T.GAP;
+    // 규칙 줄 아래에 얇은 구분선 — 스탯 덩어리와 시선을 분리한다
+    if (o === t.rule) {
+      g.lineStyle(1, UI.COL.divider, 1);
+      g.lineBetween(x + T.PAD, Math.round(cy) - 2, x + t.w - T.PAD, Math.round(cy) - 2);
+      cy += 3;
+    }
+  }
+  t.on = true;
+};
+
+GAME.BuildScene.prototype._tipShow = function (def, sx, sy) {
+  if (!this.tip) return;
+  // 보이기/크기는 _tipFill 한 곳에서 정한다(두 곳에서 정하면 잰 크기와 그린 것이 어긋난다).
+  if (this._tipDef !== def) this._tipFill(def);
+  this._tipPlace(sx, sy);
+};
+
+GAME.BuildScene.prototype._tipHide = function () {
+  var t = this.tip;
+  if (!t) return;
+  t.g.clear();
+  t.title.setVisible(false); t.lore.setVisible(false); t.desc.setVisible(false);
+  t.rule.setVisible(false); t.body.setVisible(false); t.extra.setVisible(false);
+  t.on = false;
+  this._tipDef = null;
+};
+
+// 팔레트 칸 히트 테스트 (화면 좌표)
+GAME.BuildScene.prototype._chipAt = function (sx, sy) {
+  for (var i = 0; i < this.chips.length; i++) {
+    var c = this.chips[i];
+    if (sx >= c.x && sx <= c.x + c.w && sy >= c.y && sy <= c.y + c.h) return c;
+  }
+  return null;
+};
+
+// 지금 커서 아래에 무엇이 있는가 — 팔레트 칸이 먼저, 그 다음 놓인 유닛.
+GAME.BuildScene.prototype._hover = function (sx, sy) {
+  if (!this.tip) return;
+  this._hoverX = sx; this._hoverY = sy;
+  var chip = this._chipAt(sx, sy);
+  if (chip) { this._tipShow(GAME.UNITS[chip.key], sx, sy); return; }
+  if (this.board && sy >= this.board.top && sy <= this.board.bottom) {
+    var w = GAME.Iso.toWorld(sx, sy);
+    var u = this._unitAt(w.x, w.y);
+    if (u) { this._tipShow(GAME.UNITS[u.type], sx, sy); return; }
+  }
+  this._tipHide();
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  ☰ 시트 (폰 가로 전용)
 //  ---------------------------------------------------------------------------
 //  되돌리기 · 대칭 · 전부 지우기 · 예산 티어 · 배치도 저장 · 메뉴로 를 여기 접었다.
@@ -856,16 +1138,21 @@ GAME.BuildScene.prototype.redraw = function () {
   var PH = GAME.CONFIG.PHONE;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var K = GAME.BuildScene.PHONE;
+  var B = this.board;
   var i, def;
   g.clear();
 
   UI.drawArena(g, { zones: true });
 
-  // 폰 가로 — 보드는 화면 가운데 띠뿐이다. 위아래로 삐져나온 아레나를 덮고 상단 바를 깐다.
-  if (PH) {
+  // 보드 밖으로 삐져나온 아레나를 덮는다(폰 가로·PC 공통).
+  if (B) {
     g.fillStyle(C.bg, 1);
-    g.fillRect(0, 0, W, K.BOARD_TOP);
-    g.fillRect(0, K.BOARD_BOTTOM, W, H - K.BOARD_BOTTOM);
+    g.fillRect(0, 0, W, B.top);
+    g.fillRect(0, B.bottom, W, H - B.bottom);
+  }
+
+  // 폰 가로 — 상단 바를 깐다.
+  if (PH) {
     g.fillStyle(UI.COL.surface, 1);
     g.fillRect(0, 0, W, K.BAR_H);
     g.lineStyle(1, UI.COL.border, 1);
@@ -885,8 +1172,10 @@ GAME.BuildScene.prototype.redraw = function () {
   }
 
   // 위쪽: 상대가 볼 모습(뒤집힌 미리보기)
-  // 폰 가로에서는 적진이 화면 밖이다 → 그리지 않는다(어차피 안 보인다).
-  if (!PH) {
+  // ★ 보드 투영을 쓰는 프로필(폰 가로·PC)에서는 적진이 화면 밖이다 → 그리지 않는다.
+  //   PC 에서 "유닛이 2배로 복사된다"는 신고의 진짜 원인이 이 미리보기였다
+  //   (놓은 유닛이 mirrorY 자리에 반투명으로 한 번 더 그려졌다). 세로만 남긴다.
+  if (!B) {
     for (i = 0; i < this.placed.length; i++) {
       var pv = this.placed[i];
       UI.drawUnit(g, GAME.UNITS[pv.type], pv.x, GAME.mirrorY(pv.y), C.strategist, 0.3, Math.PI / 2);
@@ -914,6 +1203,15 @@ GAME.BuildScene.prototype.redraw = function () {
       UI.hpBar(g, pos.sx, pos.by, def.radius, 1, { width: Math.max(30, def.radius * 2.6) });
       selPos = { pos: pos, def: def };
     }
+  }
+
+  // 지면 원은 보드 밖으로 새어 나간다 — 약초꾼 치유 반경 150 은 TILT 1.0 에서 화면 150px 라
+  // 구역 맨 아래에 놓으면 HUD 자리까지 내려온다. 유닛을 다 그린 **뒤에** 다시 덮는다.
+  // (폰 가로는 아래를 팔레트 판이, 위를 상단 바가 이미 덮으므로 다시 칠하지 않는다.)
+  if (B && !PH) {
+    g.fillStyle(C.bg, 1);
+    g.fillRect(0, 0, W, B.top);
+    g.fillRect(0, B.bottom, W, H - B.bottom);
   }
 
   // ── ✕ 삭제 배지 ────────────────────────────────────────────────────────
@@ -1039,4 +1337,8 @@ GAME.BuildScene.prototype.redraw = function () {
       ? ('탑 ' + this.defendTower + '층 · 오는 영웅 ' + this.dtHeroName)
       : ('선택  ' + pdef.name + ' · ' + pdef.cost), this.infoMaxW);
   }
+
+  // 배치·삭제로 커서 아래의 것이 바뀌었을 수 있다 — 마우스를 안 움직여도 맞춰준다.
+  // (지운 유닛의 툴팁이 남아 있으면 "지웠는데 아직 있다"로 읽힌다.)
+  if (this.tip && typeof this._hoverX === 'number') this._hover(this._hoverX, this._hoverY);
 };

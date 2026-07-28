@@ -11,6 +11,19 @@ GAME.Combat = {
       elapsed: 0, over: false, winner: null,
       // 전략가가 영웅에게 마지막으로 피해를 준 뒤 흐른 시간 → 교착 압박 계산에 쓴다
       noHitFor: 0,
+
+      // ── 교전 개시 신호 ────────────────────────────────────────────────
+      // false 인 동안 전략가 유닛은 **자기 자리에서 대기(휴식)** 한다. 진형을 짜 두고
+      // 영웅이 오기를 기다리는 것이 배치의 의미이므로, 첫 접촉 전에 마중 나가지 않는다.
+      //
+      // 다음 둘 중 하나면 true 로 뒤집히고, 그 뒤로는 **노는 유닛이 없다**:
+      //   · 어느 쪽이든 첫 피해가 발생했다 (applyDamage)
+      //   · 영웅이 어떤 전략가 유닛의 반응 범위(def.aggro) 안에 들어왔다 (updateStance)
+      // 뒤집힌 뒤에는 지루함 타이머(boredomOf)를 기다리지 않고 즉시 교전 태세가 된다.
+      // ⚠ 교전 태세 = '사거리 안이면 쏘고, 아니면 자기 chase 반경 안에서만 움직인다'.
+      //   chase 는 늘리지 않는다 — 늘리면 진형이 통째로 돌격해 영웅이 6초에 녹는다.
+      engaged: false,
+      engagedAt: null,       // 뒤집힌 시각(ms). 계측용.
       // 학습형 AI: 배치도의 적응값 + 이번 판 관측치
       adapt: null,
       telemetry: {
@@ -29,7 +42,10 @@ GAME.Combat = {
   // hp/damage/cooldown 같은 비거리 스탯은 건드리지 않는다.
   DIST_KEYS: ['range', 'speed', 'chase', 'aggro', 'healRadius', 'buffRadius',
               'intercept', 'triggerRadius', 'blastRadius', 'aoeRadius',
-              'projectileSpeed', 'bulletSpeed'],
+              'projectileSpeed', 'bulletSpeed',
+              // 원거리 유닛끼리 유지하는 최소 간격. 거리 단위이므로 여기 반드시 넣는다 —
+              // 빠뜨리면 폰 프로필(WORLD_SCALE 0.556)에서만 조용히 어긋난다.
+              'spacing', 'protectGap'],
 
   scaleDef: function (def) {
     var K = GAME.CONFIG.WORLD_SCALE;
@@ -110,6 +126,13 @@ GAME.Combat = {
       leash: side === 'strategist' ? (def.chase || GAME.CONFIG.LEASH) : Infinity,
       stance: 'hold',        // hold | chase | return
       restFor: 0,            // 복귀 직후 잠시 대기 (즉시 재출격 = 진동 방지)
+      // 호위 역할 — 'ranged' | 'melee' | null.
+      // 값이 있으면 그 부류의 아군 쪽에 붙어 선다(누구를 지킬지 판단하는 자리).
+      // **지금은 학습과 연결돼 있지 않다.** 나중에 js/learn.js 가 이 값을 직접 써넣으면
+      // (u.protectRole = 'ranged') 그 판부터 바로 반영된다 — 토대만 깔아둔 것이다.
+      protectRole: def.protectRole || null,
+      // 시선 잠금 — 이번 프레임에 공격으로 시선을 정했으면 이동이 덮어쓰지 못한다.
+      faceLock: 0,
       everEngaged: false,    // 이 유닛이 한 번이라도 적을 때렸는가 (학습 신호)
       hp: def.hp,
       maxHp: def.hp,
@@ -224,11 +247,20 @@ GAME.Combat = {
       eff -= absorbed;
     }
 
+    // 첫 피해가 곧 교전 개시다. 어느 쪽이 때렸든 상관없다 —
+    // 진형이 '아직 아무 일도 없다'고 착각한 채 뒷줄이 노는 것을 막는 신호다.
+    if (state && !state.engaged && source && source.side !== unit.side) {
+      state.engaged = true;
+      state.engagedAt = state.elapsed;
+    }
+
     unit.hp -= eff;
     unit.flash = 130;
     if (unit.hp <= 0) {
       unit.hp = 0; unit.alive = false;
       this.spawnYolk(state, unit);   // 죽으면 노른자가 터진다
+      // state.onKill 이 있으면 호출한다. 렌더/경제 계층이 여기에 붙는다(골드 보상 등).
+      if (state && state.onKill) state.onKill(unit, state);
       // 관측: 원거리 유닛이 근접 공격에 죽었나 (kite 학습 신호)
       if (state && unit.side === 'strategist' && (unit.def.range || 0) > 150 &&
           source && source.def && source.def.attack === 'melee') {
@@ -385,6 +417,21 @@ GAME.Combat = {
     if (u.y > A.bottom - r) u.y = A.bottom - r;
   },
 
+  // ── 시선 (요청 4) ───────────────────────────────────────────────────────
+  // 규칙 두 줄이 전부다:
+  //   · 이동 중이면 **진행 방향**을 본다  (moveToward)
+  //   · 자동공격 중이면 **공격 대상 방향**을 본다 (faceAttack) — 공격이 우선이다
+  // 영웅(isHero)은 예외다. 플레이어 조작(js/input.js·touchpad.js)이 시선을 소유한다.
+  //
+  // ⚠ facing 은 렌더에만 쓰이는 값처럼 보이지만 `castSkillFacing`(영웅 전용)이 읽는다.
+  //   근접 부채꼴 판정은 facing 이 아니라 `fire()` 가 대상에서 그 자리에서 계산한
+  //   `ang` 을 쓰므로, 여기서 시선을 바꿔도 **근접 명중은 달라지지 않는다**(회귀로 확인).
+  faceAttack: function (u, ang) {
+    u.facing = ang;
+    // 영웅은 잠그지 않는다 — 시선의 주인이 플레이어이기 때문이다(규칙을 뺏으면 조작이 어긋난다).
+    if (!u.isHero) u.faceLock = 2;
+  },
+
   moveToward: function (u, tx, ty, step) {
     var dx = tx - u.x, dy = ty - u.y;
     var d = Math.sqrt(dx * dx + dy * dy);
@@ -392,7 +439,8 @@ GAME.Combat = {
     if (step > d) step = d;
     u.x += (dx / d) * step;
     u.y += (dy / d) * step;
-    u.facing = Math.atan2(dy, dx);
+    // 공격이 시선을 잡고 있지 않을 때만 진행 방향을 본다
+    if (!(u.faceLock > 0)) u.facing = Math.atan2(dy, dx);
     this.clampToArena(u);
     return d <= step + 0.5;
   },
@@ -402,7 +450,7 @@ GAME.Combat = {
     var def = u.def;
     if (def.attack === 'none') return;
     var ang = Math.atan2(ty - u.y, tx - u.x);
-    u.facing = ang;
+    this.faceAttack(u, ang);
     var dmg = this.effDamage(u, state);
 
     // 공격음 — 근접은 둔탁하게, 원거리는 바람 가르는 소리로.
@@ -729,23 +777,229 @@ GAME.Combat = {
   // (CLAUDE.md: aggro 를 통째로 키우면 뭉텅이 돌격이 되어 영웅이 6초 만에 녹았다).
   BORED_AFTER: 4000,      // 이 시간 넘게 논 뒤부터
   BORED_FULL: 14000,      // 이 시간이면 반응 범위가 맵 끝까지
-  boredomOf: function (u) {
+  BORED_ENGAGED: 2000,    // 교전이 시작된 뒤의 유예(ms). 0 으로 내리면 진형이 일찍 흩어진다.
+  boredomOf: function (u, state) {
+    var t = u.idleFor || 0;
+    // 교전이 이미 시작됐으면 '지루해질 때까지 기다리는' 유예를 줄인다.
+    // 전투 중인데 4초를 온전히 세고 있을 이유는 없다.
+    // ⚠ 0 으로 없애면 반응 램프가 너무 빨라져 진형이 일찍 흩어진다 —
+    //   수성의 탑 4층 파수꾼 방어율이 43%→33% 로 떨어졌다(rep=24 × 시드 4개, 재현됨).
+    var after = (state && state.engaged) ? this.BORED_ENGAGED : this.BORED_AFTER;
+    if (t <= after) return 0;
+    return Math.min(1, (t - after) / (this.BORED_FULL - after));
+  },
+
+  effAggro: function (u, state) {
+    var p = Math.max(this.pressureOf(state), this.boredomOf(u, state));
+    var press = (state.adapt && state.adapt.press) || 0;
+    // ⚠ 교전이 시작됐다고 aggro 를 넓히지 **않는다.** 시도했다가 되돌렸다:
+    //   `max(aggro, chase)` 로 반응 범위를 넓히면(전사 210→270) 근접 줄이 자기 자리를
+    //   일찍 떠나 각개격파당한다. 수성의 탑 4층 파수꾼 방어율 43% → 35%,
+    //   영웅 간 편차 17%p → 23%p 로 **SC-3 이 깨졌다**(rep=24 × 시드 2개, 재현됨).
+    //   반면 지루함 유예 단축(BORED_ENGAGED)은 같은 조건에서 43% 로 비용이 0 이었다.
+    //   → "교전 태세"는 지루함 램프로만 앞당기고, 반응 반경 자체는 조율된 값을 지킨다.
+    //   CLAUDE.md: "aggro 는 좁게 — 전부 한꺼번에 달려들면 뭉텅이 돌격이 된다."
+    return this._reach(u.def.aggro || 300, p, press * 220);
+  },
+
+  // 추격(leash) 쪽 지루함은 **예전 곡선 그대로** 둔다 (4초 유예 유지).
+  //
+  // ⚠ 여기에 engaged 를 태우면 안 된다. 실측(rep=48, 통곡의 탑): 교전 개시로 chase 램프까지
+  //   빨라지게 했더니 유닛이 자기 자리를 일찍 떠나 각개격파당했고, 숙련90 돌파율이
+  //   9층 25→38 · 11층 23→29 · 19층 13→21 · 21층 13→27 로 **진형이 확실히 약해졌다.**
+  //   "각자 위치를 고수"가 상위 원칙이다 — 반응 범위(effAggro)만 넓히고 이동 반경은 그대로 둔다.
+  boredomChase: function (u) {
     var t = u.idleFor || 0;
     if (t <= this.BORED_AFTER) return 0;
     return Math.min(1, (t - this.BORED_AFTER) / (this.BORED_FULL - this.BORED_AFTER));
   },
 
-  effAggro: function (u, state) {
-    var p = Math.max(this.pressureOf(state), this.boredomOf(u));
-    var press = (state.adapt && state.adapt.press) || 0;
-    return this._reach(u.def.aggro || 300, p, press * 220);
-  },
-
   effChase: function (u, state) {
-    // 지루한 유닛은 더 멀리까지 쫓아나간다(effAggro 와 같은 이유).
-    var p = Math.max(this.pressureOf(state), this.boredomOf(u));
+    // 지루한 유닛은 더 멀리까지 쫓아나간다(교착을 푸는 장치 — 예전 그대로다).
+    var p = Math.max(this.pressureOf(state), this.boredomChase(u));
     var press = (state.adapt && state.adapt.press) || 0;
     return this._reach(u.def.chase || GAME.CONFIG.LEASH, p, press * 160);
+  },
+
+  _homeDist: function (u) {
+    var dx = u.x - u.home.x, dy = u.y - u.home.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  },
+
+  // '집으로 되돌아가기'를 시작하는 거리.
+  //
+  // 원거리 유닛은 간격 유지(spaceRanged) 때문에 자기 자리에서 조금 밀려난다.
+  // 그걸 매 프레임 되돌리면 밀어내기와 되돌리기가 서로 싸워 **제자리 진동**이 된다
+  // (CLAUDE.md 의 '뱅글뱅글 도는 버그'와 같은 계열이다). 그래서 간격 한 칸만큼은
+  // 허용하고, 그 밖으로 나가야만 되돌린다. 근접·고정물은 예전 그대로 10 이다.
+  _holdSlack: function (u) {
+    var s = u.def.spacing || 0;
+    return s > 0 ? Math.max(10, s * 0.9) : 10;
+  },
+
+  // 교전 태세의 **전진 초소** — 자기 chase 반경 안에서 목표에 가장 가까운 지점.
+  //
+  // 왜 필요한가(실측): 원거리 유닛은 `reachable`(= 목표가 chase - range/2 안에 있는가)이
+  // 사실상 항상 거짓이라 **한 번도 추격 상태가 되지 않는다**. 궁수는 chase 150 · range 330 이라
+  // 조건이 150-165 = -15 로 음수다. 그래서 사거리 밖의 영웅을 향해 아무것도 하지 않고
+  // 집에 서 있었다 — 이게 '노는 유닛'의 정체다(4층 33%, 8층 31%).
+  //
+  // 그렇다고 추격을 풀면 진형이 통째로 돌격한다. 그래서 **자기 반경의 일부까지만 나가 서게** 한다.
+  // 목표가 집에서 이미 사거리 안이면 집 그대로다(움직일 이유가 없다).
+  //
+  // ⚠⚠ POST_ADVANCE 는 **0 = 끔** 이 기본값이다. 왜 껐는지 반드시 읽을 것.
+  //
+  // 이 장치를 켜면 '노는 유닛'은 확실히 사라진다(교전 후 대기 비율 4층 33%→8%, 8층 32%→8%,
+  // 20층 26%→7%, rep=36). 그런데 **같은 장치가 "4층부터는 배치 없이는 진다"는 약속을 깬다.**
+  //
+  //   수성의 탑 무배치 방어율 (4층, rep=96, 시드 20260728/777/4242)
+  //     끔            4% /  3% /  2%   (평균 3.0)   ← SC-4 기준 ≤10% 를 여유 있게 통과
+  //     0.15 켬       8% / 15% /  8%
+  //     0.25 켬       7% / 15% /  7%
+  //     0.45 켬       7% / 15% /  6%   (평균 9.3, 시드 777 은 SC-4 실패)
+  //     0.90 켬       8% / 14% /  6%
+  //
+  // **거리를 줄여도 값이 안 내려간다** — 즉 문제는 '얼마나 나가느냐'가 아니라
+  // '노는 유닛이 스스로 자리를 고쳐도 되느냐'라는 이분법이다. 유닛이 자기 위치를 보정해 주면
+  // 아무렇게나 놓은 진형도 알아서 진형이 되고, 그만큼 **배치라는 실력 축이 죽는다.**
+  // 근접 제외·기본 chase 한도·'한 걸음이면 닿는 경우만' 세 가지 안전장치를 다 걸어도 그대로였다.
+  //
+  // 그래서 기본은 끄고 장치만 남긴다. 켜려면 이 값 하나만 0.45 로 바꾸면 되고,
+  // 바꾸는 순간 위 표의 비용을 지불하는 것이다(SC-4 재측정 필수).
+  POST_ADVANCE: 0,
+  POST_REACH: 0.5,      // '한 걸음이면 닿는다'의 기준 — 사거리의 이 비율만큼 모자란 경우까지만
+
+  // 전진 초소를 쓸 수 있는 유닛 = **사거리가 추격 반경보다 긴 유닛**(궁수·투창병·투석꾼·늪지기·족장).
+  // 이들만 `reachable` 이 구조적으로 항상 거짓이라 영원히 대기한다.
+  //
+  // ⚠ 근접(전사 range 52 < chase 270)은 제외한다. 근접은 원래 정상적으로 추격하므로
+  //   전진 초소가 필요 없고, 넣었더니 **근접 줄 전체가 앞으로 밀려나 뭉텅이 돌격**이 됐다.
+  //   실측(무배치 방어 4층, rep=96 × 시드 3개): 근접 포함 시 3.0% → 10~13% 로 뛰어
+  //   "4층부터는 배치 없이는 진다"는 약속이 깨졌다 — 아무렇게나 놓아도 알아서 진형을 만든다.
+  _canPost: function (u) {
+    return (u.def.range || 0) > (u.def.chase || 0);
+  },
+
+  _postPoint: function (u, tgt, chase) {
+    if (!this.POST_ADVANCE) return u.home;      // 기본값 0 — 위 주석 참조
+    if (!tgt || !u.home || !this._canPost(u)) return u.home;
+    var dx = tgt.x - u.home.x, dy = tgt.y - u.home.y;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 0.001) return u.home;
+    var need = d - (u.def.range || 0) * 0.9;    // 이만큼 나가면 사거리에 든다
+    if (need <= 0) return u.home;
+    // **한 걸음이면 닿는 유닛만** 나선다. 이보다 멀면 그건 노는 게 아니라 자리를 잘못 잡은 것이고,
+    // 그걸 유닛이 스스로 고쳐 주면 '배치'라는 실력 축이 죽는다(무배치 방어율이 그대로 오른다).
+    if (need > (u.def.range || 0) * this.POST_REACH) return u.home;
+    // ⚠ 한도는 **def.chase(기본 반경)** 다 — effChase 를 쓰면 안 된다.
+    //   effChase 는 지루함/압박으로 MAP_SPAN 까지 부풀어서, 0.45 를 곱해도 675px 짜리
+    //   맵 횡단이 된다(실측: 4층 무배치 방어 3.0% → 9.7%, 시드에 따라 16%).
+    //   교착을 푸는 일은 지루함 경로(stance='chase')가 이미 맡고 있다. 여기는 자리 지키기다.
+    var lim = (u.def.chase || GAME.CONFIG.LEASH) * this.POST_ADVANCE;
+    var out = Math.min(need, lim);
+    return { x: u.home.x + (dx / d) * out, y: u.home.y + (dy / d) * out };
+  },
+
+  // ── 원거리 간격 유지 ────────────────────────────────────────────────────
+  // 근접은 뭉쳐도 된다(벽이 되는 게 일이다). 원거리는 뭉치면 **광역 한 방에 몰살**한다.
+  // 같은 진영 원거리끼리 def.spacing 보다 가까우면 서로 밀어내되,
+  // **집에서 더 멀어지는 방향은 쓰지 않는다** — 밀어내기가 진형을 흩뜨리면 안 되므로
+  // 이미 간격 한 칸 밖에 나가 있는 유닛은 접선(집까지의 거리를 유지하는) 성분만 쓴다.
+  SPACING_PUSH: 0.5,     // 이동속도 대비 밀어내기 속도(무차원). 집으로 끌리는 힘보다 약하게 둔다.
+  spaceRanged: function (state, dt) {
+    var us = state.units, i, j;
+    for (i = 0; i < us.length; i++) {
+      var a = us[i];
+      if (!a.alive || !a.def.spacing || a.def.immobile) continue;
+      if (a.isHero || a.manual || a.rootedFor > 0 || this.isHazard(a)) continue;
+
+      var px = 0, py = 0, n = 0;
+      for (j = 0; j < us.length; j++) {
+        var b = us[j];
+        if (i === j || !b.alive || b.side !== a.side || !b.def.spacing) continue;
+        var dx = a.x - b.x, dy = a.y - b.y;
+        var d = Math.sqrt(dx * dx + dy * dy);
+        var want = Math.max(a.def.spacing, b.def.spacing);
+        if (d >= want) continue;
+        if (d < 0.001) { dx = 1; dy = 0; d = 1; }   // 완전히 겹쳤으면 임의 축으로 뗀다
+        var w = (want - d) / want;                  // 가까울수록 세게
+        px += (dx / d) * w; py += (dy / d) * w; n++;
+      }
+      if (!n) continue;
+
+      var pl = Math.sqrt(px * px + py * py);
+      if (pl < 0.0001) continue;
+      px /= pl; py /= pl;
+
+      // 집에서 멀어지는 성분 제거 (이미 간격 한 칸 밖이면)
+      var hx = a.x - a.home.x, hy = a.y - a.home.y;
+      var hd = Math.sqrt(hx * hx + hy * hy);
+      if (hd > a.def.spacing && hd > 0.001) {
+        var out = (px * hx + py * hy) / hd;         // 바깥(집 반대) 방향 성분
+        if (out > 0) {
+          px -= (hx / hd) * out; py -= (hy / hd) * out;
+          var pl2 = Math.sqrt(px * px + py * py);
+          if (pl2 < 0.0001) continue;               // 바깥 말고 갈 곳이 없으면 안 움직인다
+          px /= pl2; py /= pl2;
+        }
+      }
+
+      var step = this.effSpeed(a) * dt * this.SPACING_PUSH;
+      a.x += px * step; a.y += py * step;
+      this.clampToArena(a);
+      // 시선은 건드리지 않는다 — 간격 조정은 '이동'이 아니라 자세 잡기다.
+    }
+  },
+
+  // ── 호위 역할 (토대) ───────────────────────────────────────────────────
+  // u.protectRole 이 'ranged'/'melee' 면 그 부류의 아군과 적 사이에 끼어 선다.
+  // 반환 true 면 이번 프레임 이동을 여기서 처리했다는 뜻.
+  //
+  // ⚠ 지금은 **아무 유닛도 이 값을 갖고 있지 않다**(units.js 기본값 없음).
+  //   나중에 js/learn.js 가 관측을 근거로 u.protectRole 을 써넣으면 그때부터 작동한다.
+  //   여기서 학습을 판단하지 않는다 — 자리만 만들어 둔 것이다.
+  runProtect: function (u, state, dt) {
+    if (!u.protectRole || u.side !== 'strategist' || u.rootedFor > 0) return false;
+    if (u.def.immobile || this.isHazard(u)) return false;
+
+    var want = u.protectRole, best = null, bestD = Infinity, i;
+    for (i = 0; i < state.units.length; i++) {
+      var al = state.units[i];
+      if (!al.alive || al.side !== u.side || al === u || this.isHazard(al)) continue;
+      if (this._roleOf(al) !== want) continue;
+      var d = this.dist(u, al);
+      if (d < bestD) { bestD = d; best = al; }
+    }
+    if (!best) return false;
+
+    var foe = this.nearestEnemy(best, state.units);
+    if (!foe) return false;
+
+    // 지킬 대상과 적을 잇는 선 위, 대상 바로 앞에 선다
+    var ax = foe.x - best.x, ay = foe.y - best.y;
+    var ad = Math.sqrt(ax * ax + ay * ay) || 1;
+    // 기본 간격은 **자기 반지름**에서 뽑는다(radius 는 scaleDef 가 이미 화면에 맞게 줄인 값).
+    // 여기에 상수 26 같은 raw 값을 쓰면 폰 프로필에서만 조용히 어긋난다 —
+    // 그래서 def.protectGap 은 DIST_KEYS 에 등록해 두었고, 폴백은 아예 스케일된 값을 쓴다.
+    var gap = (u.def.protectGap || u.def.radius * 2) + best.def.radius + u.def.radius;
+    var tx = best.x + (ax / ad) * gap, ty = best.y + (ay / ad) * gap;
+
+    // 자기 추격 반경 밖으로는 나가지 않는다 (진형 이탈 금지)
+    var chase = this.effChase(u, state);
+    var gx = tx - u.home.x, gy = ty - u.home.y;
+    var gd = Math.sqrt(gx * gx + gy * gy);
+    if (gd > chase) { tx = u.home.x + (gx / gd) * chase; ty = u.home.y + (gy / gd) * chase; }
+
+    if (this.dist(u, { x: tx, y: ty }) <= 8) return false;   // 이미 제자리면 평소 행동
+    this.moveToward(u, tx, ty, this.effSpeed(u) * dt);
+    return true;
+  },
+
+  _roleOf: function (u) {
+    var d = u.def;
+    if (d.attack === 'melee') return 'melee';
+    if (d.attack === 'none' || !d.range) return null;
+    return d.range > 150 ? 'ranged' : 'melee';
   },
 
   // 전략가 유닛의 진형 이탈/복귀 판정.
@@ -760,11 +1014,31 @@ GAME.Combat = {
     // 고정물(쇠뇌 진지·지뢰)도 사거리로 판단한다: 못 쏘고 있으면 지루한 게 맞지만
     // 움직일 수 없으니 aggro 만 넓어져 '사각지대'가 줄어든다.
     var nearEnemy = this.nearestEnemy(u, state.units);
-    var canFight = nearEnemy && this.dist(u, nearEnemy) <= (u.def.range || 0) + 4;
+    var nearD = nearEnemy ? this.dist(u, nearEnemy) : Infinity;
+    var canFight = nearEnemy && nearD <= (u.def.range || 0) + 4;
     if (canFight) u.idleFor = 0;
     else u.idleFor = (u.idleFor || 0) + dt * 1000;
 
+    // 교전 개시 판정 ②: 영웅이 어떤 유닛의 반응 범위 안에 들어왔다.
+    // def.aggro 를 쓰는 이유 — 이미 진형별로 조율된 '이 유닛이 반응하는 거리'이고,
+    // 고정물(쇠뇌 aggro 0)·가시덫은 자연히 빠진다. 쇠뇌가 맵 끝에서 쏘는 것만으로
+    // 교전이 시작되면 대기 구간이 통째로 사라지기 때문이다(사거리로 판정하면 그렇게 된다).
+    if (!state.engaged && nearEnemy && (u.def.aggro || 0) > 0 && nearD <= u.def.aggro) {
+      state.engaged = true;
+      state.engagedAt = state.elapsed;
+    }
+
     if (u.def.immobile) { u.stance = 'hold'; return true; }
+
+    // 교전 전에는 **자리를 지키며 쉰다.** 마중 나가지 않는다.
+    // 사거리 안에 적이 있으면 쏘기는 한다(그 순간 위에서 engaged 가 켜진다).
+    if (!state.engaged) {
+      u.stance = 'hold';
+      if (this._homeDist(u) > this._holdSlack(u)) {
+        this.moveToward(u, u.home.x, u.home.y, this.effSpeed(u) * dt);
+      }
+      return !!canFight;
+    }
 
     var dxh = u.x - u.home.x, dyh = u.y - u.home.y;
     var fromHome = Math.sqrt(dxh * dxh + dyh * dyh);
@@ -800,9 +1074,14 @@ GAME.Combat = {
     else if (inAggro && reachable) { u.stance = 'chase'; }
     else { u.stance = 'hold'; }
 
-    // 대기 상태면 제자리(집)를 지킨다 — 밀려났으면 돌아온다
+    // 대기 상태면 자기 자리를 지킨다 — 밀려났으면 돌아온다.
+    // 교전이 시작된 뒤에는 '자리'가 집이 아니라 **전진 초소**다(자기 반경 안, 노는 것 방지).
     if (u.stance === 'hold') {
-      if (fromHome > 10) this.moveToward(u, u.home.x, u.home.y, this.effSpeed(u) * dt);
+      var post = state.engaged ? this._postPoint(u, tgt, chase) : u.home;
+      var pdx = u.x - post.x, pdy = u.y - post.y;
+      if (Math.sqrt(pdx * pdx + pdy * pdy) > this._holdSlack(u)) {
+        this.moveToward(u, post.x, post.y, this.effSpeed(u) * dt);
+      }
       // 사거리 안에 적이 있으면 제자리에서 쏜다 (아래 runAI 가 처리)
       return this.dist(u, tgt) <= u.def.range;
     }
@@ -819,6 +1098,10 @@ GAME.Combat = {
     // stance 를 먼저 돌리면 부상자를 따라가려는 이동을 매 프레임 되돌려 상쇄된다.
     if (def.attack === 'none') {
       if (def.isMine || def.immobile) return;
+
+      // 호위 역할 — medicFollow 보다 먼저 본다. 둘 다 이동을 수행하므로
+      // 한 프레임에 하나만 돌아야 서로 상쇄되지 않는다.
+      if (this.runProtect(u, state, dt)) return;
 
       // 학습(medicFollow): 위생병이 회복을 못 했던 진형은 부상자를 따라가도록 배운다.
       // 이 판단은 여기 한 곳에서만 한다 — 다른 곳에서 또 움직이면 서로 상쇄된다.
@@ -874,13 +1157,13 @@ GAME.Combat = {
         u.x += Math.cos(away) * this.effSpeed(u) * dt * ad2.kite;
         u.y += Math.sin(away) * this.effSpeed(u) * dt * ad2.kite;
         this.clampToArena(u);
-        u.facing = Math.atan2(tgt.y - u.y, tgt.x - u.x);
+        this.faceAttack(u, Math.atan2(tgt.y - u.y, tgt.x - u.x));
         if (u.cd <= 0) { this.fire(u, tgt.x, tgt.y, tgt, state); u.cd = def.cooldown; }
         return;
       }
 
       if (d <= def.range) {
-        u.facing = Math.atan2(tgt.y - u.y, tgt.x - u.x);
+        this.faceAttack(u, Math.atan2(tgt.y - u.y, tgt.x - u.x));
         if (u.cd <= 0) {
           this.fire(u, tgt.x, tgt.y, tgt, state);
           u.cd = def.cooldown;
@@ -891,6 +1174,10 @@ GAME.Combat = {
         moveTo = { x: tgt.x, y: tgt.y };
       }
     }
+
+    // 호위 역할 — 여기까지 왔다는 건 이번 프레임에 쏘지 못한다는 뜻이다.
+    // 쏠 수 있으면 위에서 이미 return 했다 → **공격이 언제나 호위보다 우선**이다.
+    if (this.runProtect(u, state, dt)) return;
 
     // 학습: guardFollow — 방탄병이 영웅과 가장 가까운 아군 사이를 막아선다.
     // 영웅이 멀면 움직이지 않는다 — 맵을 가로질러 달려가면 진형에서 이탈해 손해다.
@@ -969,6 +1256,8 @@ GAME.Combat = {
       if (u.cd > 0) u.cd -= dtMs;
       if (u.flash > 0) u.flash -= dtMs;
       if (u.rootedFor > 0) u.rootedFor -= dtMs;
+      // 시선 잠금은 프레임 단위다 — 이번 프레임에 공격하지 않으면 곧바로 풀린다.
+      if (u.faceLock > 0) u.faceLock--;
 
       if (u.isHero) {
         for (k in u.skillCd) if (u.skillCd[k] > 0) u.skillCd[k] -= dtMs;
@@ -1036,7 +1325,11 @@ GAME.Combat = {
           var pct = vic.maxHp * u.def.pctMaxHp;
           // 방어력을 무시하고 비율로 깎는다 — 지뢰는 방탄복으로 막는 게 아니다
           vic.hp -= pct; vic.flash = 200;
-          if (vic.hp <= 0) { vic.hp = 0; vic.alive = false; this.spawnYolk(state, vic); }
+          if (vic.hp <= 0) {
+            vic.hp = 0; vic.alive = false; this.spawnYolk(state, vic);
+            // state.onKill 이 있으면 호출한다. 렌더/경제 계층이 여기에 붙는다(골드 보상 등).
+            if (state.onKill) state.onKill(vic, state);
+          }
           this.pushNumber(state, vic, pct, true);
           state.effects.push({
             kind: 'blast', x: u.x, y: u.y, r: u.def.blastRadius,
@@ -1044,6 +1337,8 @@ GAME.Combat = {
           });
           u.alive = false;   // 1회용
           this.spawnYolk(state, u);
+          // state.onKill 이 있으면 호출한다. 렌더/경제 계층이 여기에 붙는다(골드 보상 등).
+          if (state.onKill) state.onKill(u, state);
           break;
         }
         if (!u.alive) continue;
@@ -1054,6 +1349,9 @@ GAME.Combat = {
       this.runAI(u, state, dt);
     }
 
+    // 원거리 간격 유지 → 겹침 해소 순서다. 겹침(separate)이 마지막이라야
+    // 간격 밀어내기가 유닛을 서로 겹쳐놓은 채 프레임을 끝내지 않는다.
+    this.spaceRanged(state, dt);
     this.separate(state);
 
     for (i = 0; i < state.units.length; i++) {

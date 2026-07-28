@@ -25,6 +25,8 @@ GAME.DefendTowerScene.PHONE = {
   BTN_H: 56, BTN_CY: 30,
   START_CX: 646, START_W: 200,
   MENU_CX: 782, MENU_W: 56,
+  // ⚒ 성장 — 배치하기(546..746) 왼쪽 빈 구간. 405..535 (오른쪽 이웃과 11px 간격)
+  GROW_CX: 470, GROW_W: 130,
   BODY_TOP: 66, BODY_BOTTOM: 320,
   LEFT_X: 10, LEFT_W: 184,
   MID_X: 196, MID_W: 296,
@@ -39,6 +41,7 @@ GAME.DefendTowerScene.PHONE = {
 // 씬을 다시 들어오면 캐시한 표시객체는 이미 파괴돼 있다(파괴된 객체도 truthy 다).
 GAME.DefendTowerScene.prototype.init = function () {
   this.sheet = null;
+  this.growth = null;
 };
 
 GAME.DefendTowerScene.prototype.create = function () {
@@ -108,8 +111,16 @@ GAME.DefendTowerScene.prototype.create = function () {
     P ? 14 : 17, C.text, 0.5).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 30), u * 0.9);
 
   stack(GAME.UI.label(this, W / 2, y,
-    '내 배치 예산 ' + budget + '   ·   최고 ' + (rec.best || 0) + '층   ·   격파 ' + (rec.kills || 0) + '회',
-    P ? 14 : 17, C.accent, 0.5).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 30));
+    '내 배치 예산 ' + DT.placeBudgetFor(floor) +
+    (DT.bonusBudget() ? (' (기본 ' + budget + ' + 증원 ' + DT.bonusBudget() + ')') : '') +
+    '   ·   최고 ' + (rec.best || 0) + '층   ·   격파 ' + (rec.kills || 0) + '회',
+    P ? 14 : 17, C.accent, 0.5).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 30), u * 0.8);
+
+  // ── 골드 (v0.36) ─────────────────────────────────────────────────────────
+  // 적 영웅을 깎은 만큼 쌓인다. 유닛 레벨업·증원에 쓴다.
+  stack(GAME.UI.label(this, W / 2, y,
+    '◈ ' + DT.goldOf() + ' 골드' + this._levelSummaryText(),
+    P ? 15 : 18, GAME.UI.TXT.crit, 0.5).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 30));
 
   var E = DT.EARLY_FLOORS;
   if (floor <= E) {
@@ -135,14 +146,36 @@ GAME.DefendTowerScene.prototype.create = function () {
   GAME.UI.button(this, W / 2, byBottom - bh * 0.5, bw, bh, '← 메뉴', function () {
     self.scene.start('Menu');
   }, { fontSize: P ? 15 : 15 });
-  GAME.UI.button(this, W / 2, byBottom - bh * 1.5 - gap, bw, bh, '🏆 랭킹', function () {
+  // 랭킹과 성장을 한 줄 2칸으로 — 성장(골드 사용처)이 랭킹보다 자주 눌린다.
+  var gc = GAME.Layout.cols(2, { gap: 8, width: bw, left: (W - bw) / 2, pad: 0 });
+  GAME.UI.button(this, gc[0].cx, byBottom - bh * 1.5 - gap, gc[0].w, bh,
+    '⚒ 성장 (' + DT.goldOf() + ')', function () { self._openGrowth(); },
+    { fill: GAME.UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
+      hover: GAME.UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: P ? 16 : 16 });
+  GAME.UI.button(this, gc[1].cx, byBottom - bh * 1.5 - gap, gc[1].w, bh, '🏆 랭킹', function () {
     self.scene.start('Rank', { scope: 'live' });
-  }, { fontSize: P ? 17 : 16 });
+  }, { fontSize: P ? 16 : 16 });
   GAME.UI.button(this, W / 2, byBottom - bh * 2.5 - gap * 2, bw, bh + u * 0.8,
     floor + '층 방어 — 배치하기', function () {
       self.scene.start('Build', { defendTower: floor });
     }, { fill: GAME.UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
          hover: GAME.UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: P ? 20 : 22 });
+
+  this.events.on('shutdown', function () { self._closeGrowth(); });
+};
+
+// 지금 올려둔 유닛 레벨 요약 — "  ·  전사 Lv.3 · 쇠뇌 진지 Lv.2"
+GAME.DefendTowerScene.prototype._levelSummaryText = function () {
+  if (!GAME.UnitLevel) return '';
+  var raised = GAME.UnitLevel.raised();
+  if (!raised.length) return '';
+  var parts = [];
+  var max = GAME.CONFIG.PHONE ? 2 : 3;      // 폰 가로 왼쪽 열은 184px 뿐 — 두 개면 한 줄에 들어간다
+  for (var i = 0; i < raised.length && i < max; i++) {
+    parts.push(GAME.UNITS[raised[i].key].name + ' Lv.' + raised[i].lv);
+  }
+  if (raised.length > max) parts.push('+' + (raised.length - max));
+  return '   ·   ' + parts.join(' · ');
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -218,6 +251,12 @@ GAME.DefendTowerScene.prototype._createPhone = function () {
       color: C.accentAlt, fontSize: 'buttonSm', hitPad: 6 });
   UI.button(this, K.MENU_CX, K.BTN_CY, K.MENU_W, K.BTN_H, '☰',
     function () { self._toggleSheet(); }, { fontSize: 'button', hitPad: 6 });
+  // ⚒ 성장 — 골드로 유닛 레벨업 / 증원. 배치하기(546..746) 왼쪽 빈 구간에 넣는다.
+  // 좌측 제목·층 정보는 최악(격파 999회)이어도 x≈300 에서 끝난다(실측).
+  UI.button(this, K.GROW_CX, K.BTN_CY, K.GROW_W, K.BTN_H, '⚒ 성장',
+    function () { self._openGrowth(); },
+    { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
+      color: C.accentAlt, fontSize: 'buttonSm', hitPad: 6 });
 
   // ── 본문 왼쪽: 층 현판 + 다음 보스까지 ──────────────────────────────────
   var badge = UI.floorBadge(this, K.LEFT_X + K.LEFT_W / 2, K.BODY_TOP + 14, floor,
@@ -246,11 +285,24 @@ GAME.DefendTowerScene.prototype._createPhone = function () {
   var descT = UI.text(this, mx, dy, hero.desc, {
     size: 'caption', color: C.textDim, wrap: mw
   });
+  var midY = descT.y + descT.height + 8;
   var E = DT.EARLY_FLOORS;
   if (floor <= E) {
-    UI.text(this, mx, descT.y + descT.height + 8,
+    var early = UI.text(this, mx, midY,
       '1~' + E + '층은 연습 구간. ' + (E + 1) + '층부터는 배치 없이는 뚫립니다.',
       { size: 'micro', color: C.textFaint, wrap: mw });
+    midY = early.y + early.height + 8;
+  }
+  // ── 골드 + 유닛 레벨 (v0.36) ─────────────────────────────────────────────
+  //  왼쪽 열은 보스 층에서 [현판 132 + 게이지 + 보스 경고 2줄] 로 이미 꽉 찬다(실측: 60층에서 겹침).
+  //  하단 줄도 60층이면 "체력 +259% · 공격 +179% · 숙련 95%" 로 길어져 자리가 없다.
+  //  가운데 열(196..492)의 설명문 아래가 유일하게 남는 자리다.
+  var goldT = UI.text(this, mx, midY, '◈ ' + DT.goldOf() + ' 골드',
+    { size: 'caption', color: UI.TXT.crit, wrap: mw });
+  var lvTxt = this._levelSummaryText();
+  if (lvTxt) {
+    UI.text(this, mx, goldT.y + goldT.height + 4, lvTxt.replace(/^\s+·\s+/, ''),
+      { size: 'micro', color: C.textDim, wrap: mw });
   }
 
   // ── 하단 한 줄: 영웅 능력치·보정 + 내 배치 예산 ─────────────────────────
@@ -260,10 +312,142 @@ GAME.DefendTowerScene.prototype._createPhone = function () {
     '%   ·   공격 +' + Math.round((mods.damage - 1) * 100) +
     '%   ·   숙련 ' + Math.round(skill * 100) + '%',
     { size: 'caption', color: C.text, origin: 0, originY: 0.5 });
-  UI.text(this, W - K.VER_W - 16, footCy, '내 배치 예산 ' + budget,
+  UI.text(this, W - K.VER_W - 16, footCy,
+    '내 배치 예산 ' + DT.placeBudgetFor(floor) +
+    (DT.bonusBudget() ? (' (+' + DT.bonusBudget() + ')') : ''),
     { size: 'caption', color: C.accent, origin: 1, originY: 0.5 });
 
-  this.events.on('shutdown', function () { self._closeSheet(); });
+  this.events.on('shutdown', function () { self._closeSheet(); self._closeGrowth(); });
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ⚒ 성장 시트 — 골드로 ① 유닛 레벨업 ② 증원(배치 예산)
+//  ---------------------------------------------------------------------------
+//  요청 원문: "얻은 골드로 추가 유닛을 배치할 수 있게 하거나 특정 유닛의 레벨을 올릴 수 있게".
+//
+//  왜 팝업(시트)인가 — 로비 화면은 폰 가로 390px 에 이미 3단(바/본문/하단줄)이 꽉 차 있다.
+//  상점을 본문에 펼치면 이 화면의 주인공(침입 영웅)을 밀어내야 한다.
+//  `CLAUDE.md`: "세로에서 목록이 안 들어가면 팝업으로 뺀다" — 폰 가로도 같은 이유다.
+//
+//  레벨업 대상은 **지금 배치해 둔 유닛 종류**만 보여준다. 10종을 다 늘어놓으면
+//  폰 가로에 안 들어가고(칸 높이가 터치 하한 아래로 내려간다), 안 쓰는 유닛을 올릴
+//  이유도 없다. 아직 한 번도 배치한 적이 없으면 안내만 띄운다.
+//  · 시트는 PC/폰 공통이다 — 크기(700×306)가 폰 가로(820×390)에 들어가므로 나눌 이유가 없다.
+// ═══════════════════════════════════════════════════════════════════════════
+GAME.DefendTowerScene.prototype._closeGrowth = function () {
+  if (!this.growth) return;
+  var o = this.growth;
+  this.growth = null;
+  for (var i = 0; i < o.length; i++) if (o[i] && o[i].destroy) o[i].destroy();
+};
+
+// 이 도전에서 레벨을 올릴 수 있는 유닛 종류 — 마지막 배치에 실제로 쓴 것들
+GAME.DefendTowerScene.prototype._growthTypes = function () {
+  var rec = GAME.DefendTower.get();
+  var seen = {}, out = [], i, t;
+  var placed = rec.placed || [];
+  for (i = 0; i < placed.length; i++) {
+    t = placed[i] && placed[i].type;
+    if (!t || !GAME.UNITS[t] || seen[t]) continue;
+    seen[t] = 1;
+    out.push(t);
+  }
+  // 이미 레벨을 올려둔 종류는 배치에서 빠져도 계속 보여준다(되돌릴 수 있어야 한다)
+  var raised = GAME.UnitLevel ? GAME.UnitLevel.raised() : [];
+  for (i = 0; i < raised.length; i++) {
+    if (!seen[raised[i].key]) { seen[raised[i].key] = 1; out.push(raised[i].key); }
+  }
+  return out.slice(0, 5);
+};
+
+GAME.DefendTowerScene.prototype._openGrowth = function () {
+  var self = this;
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var DT = GAME.DefendTower, UL = GAME.UnitLevel;
+  this._closeSheet();
+  this._closeGrowth();
+  if (!UL) return;
+
+  var objs = [];
+  var pw = Math.min(700, W - 40), phh = Math.min(306, H - 60);
+  var px0 = Math.round((W - pw) / 2), py0 = Math.round((H - phh) / 2);
+  var bh = 56, gap = 12;
+  var bw = Math.floor((pw - 40 - gap * 2) / 3);
+  var col = [px0 + 20 + bw / 2, px0 + 20 + bw + gap + bw / 2, px0 + 20 + (bw + gap) * 2 + bw / 2];
+  var row1 = py0 + 116, row2 = row1 + bh + gap, closeCy = row2 + bh + gap + 4;
+
+  var veil = this.add.rectangle(W / 2, H / 2, W, H, UI.COL.bg, 0.74).setDepth(900);
+  veil.setInteractive();
+  veil.on('pointerdown', function () { self._closeGrowth(); });
+  objs.push(veil);
+  objs.push(UI.panel(this, px0, py0, pw, phh, { level: 1 }).setDepth(901));
+
+  objs.push(UI.text(this, W / 2, py0 + 10, '⚒ 성장   —   ◈ ' + DT.goldOf() + ' 골드',
+    { size: 'subhead', color: C.accentAlt, origin: 0.5, originY: 0 }).setDepth(902));
+  objs.push(UI.text(this, W / 2, py0 + 42,
+    '골드는 침입 영웅의 체력을 깎을 때마다 들어온다. 격퇴하면 가장 많다.',
+    { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 }).setDepth(902));
+  objs.push(UI.text(this, W / 2, py0 + 66,
+    '레벨은 유닛 종류 단위로 최대 ' + UL.MAX + '단. 지면 골드·레벨·증원이 전부 사라진다.',
+    { size: 'micro', color: UI.TXT.crit, origin: 0.5, originY: 0 }).setDepth(902));
+
+  function mk(cx, cy, label, fn, opts) {
+    var b = UI.button(self, cx, cy, bw, bh, label, fn, opts);
+    b.setDepth(902);
+    if (b.text) b.text.setAlign('center');
+    objs.push(b);
+    // ⚠ `UI.button` 의 destroy() 는 텍스트와 히트박스만 지우고 **면(gfx)은 남긴다.**
+    //   시트를 닫아도 둥근 사각형이 화면에 눌어붙는다 — gfx 를 따로 목록에 넣어 같이 지운다.
+    if (b.gfx) objs.push(b.gfx);
+    return b;
+  }
+
+  var types = this._growthTypes();
+  var i, slot = 0;
+  for (i = 0; i < types.length; i++) {
+    (function (key) {
+      var def = GAME.UNITS[key];
+      var lv = UL.levelOf(key);
+      var cost = UL.costToNext(key);
+      var label = def.name + '  Lv.' + lv +
+        (cost === null ? '\n최대' : ('  →  ' + (lv + 1) + '\n◈ ' + cost));
+      var cx = col[slot % 3], cy = slot < 3 ? row1 : row2;
+      var b = mk(cx, cy, label, function () {
+        if (UL.levelUp(key)) {
+          if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('click');
+          self._closeGrowth();
+          self.scene.restart();          // 골드·레벨 표시가 화면 곳곳에 있어 통째로 다시 그린다
+        }
+      }, { fontSize: 'micro' });
+      if (cost === null || DT.goldOf() < cost) b.setDisabled(true);
+      slot++;
+    })(types[i]);
+  }
+
+  if (!types.length) {
+    objs.push(UI.text(this, W / 2, row1 - 4,
+      '먼저 한 번 배치하면 그 유닛들을 여기서 키울 수 있다.',
+      { size: 'caption', color: C.textDim, origin: 0.5, originY: 0 }).setDepth(902));
+    slot = 3;                                   // 증원 버튼은 둘째 줄로 내린다
+  }
+
+  // 증원 — 배치 예산 +STEP
+  var price = DT.extraBudgetPrice();
+  var bcx = col[slot % 3], bcy = slot < 3 ? row1 : row2;
+  var eb = mk(bcx, bcy, '증원  +' + DT.EXTRA_BUDGET_STEP + ' 예산\n◈ ' + price, function () {
+    if (DT.buyBudget()) {
+      if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('click');
+      self._closeGrowth();
+      self.scene.restart();
+    }
+  }, { fontSize: 'micro', fill: UI.COL.panelTeal, line: C.controller,
+       hover: UI.COL.panelTealHi, color: C.accent });
+  if (DT.goldOf() < price) eb.setDisabled(true);
+
+  mk(col[1], closeCy, '닫기', function () { self._closeGrowth(); }, { fontSize: 'buttonSm' });
+
+  this.growth = objs;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -314,6 +498,7 @@ GAME.DefendTowerScene.prototype._openSheet = function () {
     var b = UI.button(self, cx, cy, bw, bh, label, fn, opts);
     b.setDepth(902);
     objs.push(b);
+    if (b.gfx) objs.push(b.gfx);   // destroy() 가 면을 안 지운다 — 위 성장 시트 주석 참조
     return b;
   }
 

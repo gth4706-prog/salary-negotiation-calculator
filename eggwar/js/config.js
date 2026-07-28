@@ -62,7 +62,11 @@ GAME.CONFIG = (function () {
   var forced = (location.search || '').match(/[?&]portrait=([01])/);
   var coarse = !(window.matchMedia && window.matchMedia('(pointer: fine)').matches);
   var maxDim = Math.max(window.innerWidth || 0, window.innerHeight || 0,
-                        (screen && screen.width) || 0, (screen && screen.height) || 0);
+                        // ⚠ 선언되지 않은 식별자는 `screen && ...` 로도 ReferenceError 가 난다.
+                        //   이 한 줄 때문에 헤드리스 시뮬(tools/sim.js)이 통째로 죽었다 —
+                        //   게임 코드는 window 가 없는 환경에서도 로드될 수 있어야 한다.
+                        (typeof screen !== 'undefined' && screen.width) || 0,
+                        (typeof screen !== 'undefined' && screen.height) || 0);
   var PROFILE;
   if (forced) PROFILE = forced[1] === '1' ? 'tall' : 'pc';
   else if (GAME.isTouch && coarse && maxDim < 1100) PROFILE = 'phone';

@@ -225,7 +225,7 @@ GAME.TowerScene.prototype._buildLanding = function () {
   var E = GAME.Tower.EARLY_FLOORS;
   var ruleTxt = (floor <= E)
     ? ('1~' + E + '층 연습 구간 · ' + (E + 1) + '층부터 조작 필수')
-    : ('영웅·장비 유지 · 골드로 능력치 성장');
+    : ('영웅·장비 유지 · 적을 잡아 모은 골드로 성장');
 
   // ── 버튼 기둥 ──
   // PC 는 인물을 오른쪽에 크게 세웠으므로 버튼을 **왼쪽 기둥**으로 몰아 겹침을 없앤다.
@@ -463,7 +463,7 @@ GAME.TowerScene.prototype._buildHeroSelect = function () {
     (floor <= E ? ('  1~' + E + '층은 연습 구간, ' + (E + 1) + '층부터는 조작 없이 이길 수 없다.') : ''),
     14, C.textDim, 0).setWordWrapWidth(panelW - 160);
   var l3 = GAME.UI.label(this, tx, l2.y + l2.height + 5,
-    '영웅·장비·스킬은 도전 시작에 한 번만 고른다. 이후로는 층을 깰 때마다 받는 골드로 성장한다.' +
+    '영웅·장비·스킬은 도전 시작에 한 번만 고른다. 이후로는 적 유닛을 잡을 때마다 떨어지는 골드로 성장한다.' +
     '   ·   ' + GAME.Tower.CHECKPOINT_EVERY + '층마다 체크포인트',
     14, GAME.UI.TXT.crit, 0).setWordWrapWidth(panelW - 160);
 
@@ -1003,7 +1003,10 @@ GAME.TowerScene.prototype._buildChallengePhone = function () {
     .setWordWrapWidth(rw);
 
   this.goldLabel = UI.label(this, rx, 32, '', 24, C.accent, 0);
-  this.runHint = UI.label(this, W - PAD, 40, '', 15, C.textDim, 1).setOrigin(1, 0);
+  // ⚠ 예전에는 이 힌트를 오른쪽 끝(W-PAD)에 붙여 골드 숫자와 **같은 줄**에 뒀는데,
+  //   장비 이름 4개가 들어가면 왼쪽으로 440px 까지 뻗어 골드 라벨을 통째로 덮었다(실측).
+  //   골드 아래 한 줄로 내리고, 폰에서는 문구도 짧은 쪽(_runHintText 가 분기)을 쓴다.
+  this.runHint = UI.label(this, rx, 64, '', 15, C.textDim, 0).setWordWrapWidth(rw);
 
   var secH = 56, secTop = H - 12 - secH;
   var mainH = 66, mainTop = secTop - 10 - mainH;
@@ -1104,7 +1107,11 @@ GAME.TowerScene.prototype._runHintText = function () {
     var k = it[s.key];
     return k ? GAME.Items.find(s.key, k).name : null;
   }).filter(Boolean);
-  return '장비 ' + (worn.length ? worn.join(' · ') : '없음') + '  ·  층을 깰 때마다 골드 획득';
+  // 폰 가로(820×390)는 이 줄에 한 줄분 폭(514px)밖에 없다 —
+  // 장비 이름 4개를 넣으면 두 줄이 되어 아래 능력치 버튼(y=100)을 파고든다.
+  if (GAME.CONFIG.PHONE) return '적 유닛을 잡을 때마다 골드 — 비쌀수록 많이, 보스는 크게';
+  return '장비 ' + (worn.length ? worn.join(' · ') : '없음') +
+         '  ·  적 유닛을 잡을 때마다 골드 (비쌀수록 많이, 보스는 크게)';
 };
 
 GAME.TowerScene.prototype._refresh = function () {

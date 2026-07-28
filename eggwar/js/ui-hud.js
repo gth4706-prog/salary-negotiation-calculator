@@ -511,10 +511,16 @@ window.GAME = window.GAME || {};
 
     // 점수를 먼저 만들어 실제 폭을 재고, 닉네임은 **그 왼쪽 끝까지만** 쓴다.
     // (CLAUDE.md: 오른쪽 정렬 열은 x 에서 왼쪽으로 뻗는다 — 옆 칸을 피하려면 열폭만큼 물러난다)
-    var scoreTxt = keep(UI.text(scene, rx, y1, (num(d.score, 0)).toLocaleString('ko-KR'), {
+    // d.valueText / d.unitText / d.metaText 를 주면 그 문자열을 그대로 쓴다.
+    // (분류별 랭킹은 '점'이 아니라 '층'·트로피를 세운다. 안 주면 지금까지와 동일하다.)
+    var valStr = d.valueText !== undefined ? String(d.valueText)
+               : (num(d.score, 0)).toLocaleString('ko-KR');
+    var unitStr = d.unitText !== undefined ? String(d.unitText) : '점';
+    // 단위를 따로 안 쓰면 숫자를 세로 가운데로 — 위쪽에 치우쳐 두면 아래가 비어 보인다.
+    var scoreTxt = keep(UI.text(scene, rx, unitStr ? y1 : y + h / 2, valStr, {
       size: 'num', color: TXT.crit, origin: 1, originY: 0.5
     }));
-    keep(UI.text(scene, rx, y2, '점', {
+    if (unitStr) keep(UI.text(scene, rx, y2, unitStr, {
       size: 'micro', color: TXT.textFaint, origin: 1, originY: 0.5
     }));
 
@@ -529,12 +535,24 @@ window.GAME = window.GAME || {};
     }
     nameTxt.setFixedSize(Math.max(40, nameMax), 0);   // 감사 도구용 경계 고정
 
-    var meta = [];
-    if (d.tower) meta.push('탑 ' + d.tower + '층');
-    meta.push('격파 ' + num(d.rounds, 0) + '회');
-    keep(UI.text(scene, lx, y2, meta.join('  ·  '), {
-      size: 'micro', color: d.tower ? TXT.warn : TXT.textFaint, origin: 0, originY: 0.5
-    })).setFixedSize(Math.max(40, nameMax), 0);
+    var metaStr, metaCol;
+    if (d.metaText !== undefined) {
+      metaStr = String(d.metaText); metaCol = TXT.warn;
+    } else {
+      var meta = [];
+      if (d.tower) meta.push('탑 ' + d.tower + '층');
+      meta.push('격파 ' + num(d.rounds, 0) + '회');
+      metaStr = meta.join('  ·  '); metaCol = d.tower ? TXT.warn : TXT.textFaint;
+    }
+    var metaTxt = keep(UI.text(scene, lx, y2, metaStr, {
+      size: 'micro', color: metaCol, origin: 0, originY: 0.5
+    }));
+    // 부연도 닉네임과 같은 폭 안에서 실측으로 자른다 — 영웅+장비는 쉽게 길어진다
+    if (metaTxt.width > nameMax) {
+      var ms = metaStr, mc = ms.length;
+      while (mc > 1 && metaTxt.width > nameMax) { mc--; metaTxt.setText(ms.slice(0, mc) + '…'); }
+    }
+    metaTxt.setFixedSize(Math.max(40, nameMax), 0);
 
     return {
       objs: objs,

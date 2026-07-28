@@ -22,9 +22,13 @@ GAME.TowerRun = {
   // 예전 1층 영웅 예산(135)과 같게 둬서 1층 체감이 바뀌지 않게 한다.
   START_BUDGET: 135,
 
-  // 층 클리어 보상. 예전엔 층당 영웅 예산이 +5 씩 올랐다 —
-  // 그 성장을 골드로 옮긴 것이라 **비슷한 값에서 출발**해 실측으로 조정한다.
-  // 보스 층은 더 준다(구간을 넘은 보상).
+  // ── 층 골드 총량(풀) ──────────────────────────────────────────────────────
+  // 예전엔 층당 영웅 예산이 +5 씩 올랐다 — 그 성장을 골드로 옮긴 값이다.
+  //
+  // 2026-07-28 · **지급 방식이 바뀌었다.** 예전에는 이 값을 층을 깬 순간 통째로 줬는데
+  // (사용자 요청) 지금은 **적 유닛을 잡을 때마다 랜덤하게 쪼개서** 준다.
+  // 이 함수는 이제 "그 층에서 나올 골드의 총량"이라는 뜻이고, 값 자체는 손대지 않았다 —
+  // 성장 곡선을 그대로 유지하기 위해서다(층별 기대 총액이 변경 전과 같아야 한다).
   GOLD_BASE: 14,
   GOLD_PER_FLOOR: 2,
   GOLD_BOSS_MUL: 2.0,
@@ -32,6 +36,116 @@ GAME.TowerRun = {
     var g = this.GOLD_BASE + Math.max(0, floor - 1) * this.GOLD_PER_FLOOR;
     if (GAME.Tower.isBossFloor && GAME.Tower.isBossFloor(floor)) g = Math.round(g * this.GOLD_BOSS_MUL);
     return g;
+  },
+
+  // ── 처치 보상 골드 (v0.36) ────────────────────────────────────────────────
+  //
+  //  요청: "층을 깨면 골드"를 **"적 유닛을 잡으면 랜덤 골드"** 로 바꾼다.
+  //
+  //  왜 '유닛 cost 에 비례하는 고정 요율'이 아니라 '층 풀을 나눠 갖는' 방식인가 —
+  //  실측(`scratchpad/measure-formation.js`, 층별 40회 평균)으로 확인한 것:
+  //    층      1     4     10★   20★   30★   35
+  //    진형비용 97   253   163   188   213   373
+  //    옛 골드  14    20    64   104   144    82
+  //    골드/비용 0.144 0.079 0.394 0.552 0.678 0.220
+  //  **비율이 10배 가까이 흔들린다.** 보스 층은 호위 예산이 0.60 으로 깎이는데 골드는
+  //  2배라 요율이 치솟고, 4층은 진형 예산이 108→255 로 점프하는데 골드는 +2 뿐이라
+  //  요율이 바닥을 친다. 고정 요율 하나로는 어떤 값을 골라도 어떤 층에선 몇 배씩 틀린다.
+  //  → 그래서 **층 총량(goldFor)을 그대로 두고, 그 안에서 유닛 cost 비율로 나눈다.**
+  //    "비싼 유닛이 더 준다 / 보스는 크게" 는 지키면서 층별 기대 총액은 변경 전과 동일하다.
+  //
+  //  분배 규칙
+  //   · 가중치 = 유닛 cost. 보스는 cost 가 0 이라 별도 상수(BOSS_KILL_WEIGHT)를 쓴다.
+  //   · 위험물(가시덫)은 **가중치에서도 보상에서도 뺀다.** 전멸 판정(`Combat.isHazard`)에서
+  //     이미 '전투원'이 아니고, 밟혀서 자폭하는 물건이라 '잡았다'고 하기도 어렵다.
+  //     빼두면 총합이 층 풀과 정확히 일치한다(안 빼면 덫이 안 밟힌 판만 총액이 모자란다).
+  //   · 한 기당 지급액 = 풀 × (가중치/총가중치) × 난수. **최소 1골드**(0 이 뜨면 처치가
+  //     보상으로 안 읽힌다). 잔돈은 carry 로 이월해 반올림 손실이 쌓이지 않게 한다.
+  KILL_POOL_FRAC: 0.90,     // 층 총량 중 처치 보상으로 나가는 몫
+  CLEAR_BONUS_FRAC: 0.10,   // 남은 몫은 층 클리어 보너스(요청: "없애거나 크게 줄인다")
+  KILL_SPREAD: 0.40,        // 한 기당 난수 폭 ±40%
+  BOSS_KILL_WEIGHT: 90,     // 보스 가중치 = 가장 비싼 일반 유닛(45)의 2배
+
+  killWeight: function (def) {
+    if (!def) return 1;
+    if (def.isBoss) return this.BOSS_KILL_WEIGHT;
+    return Math.max(1, def.cost || 1);
+  },
+
+  clearBonusFor: function (floor) {
+    return Math.round(this.goldFor(floor) * this.CLEAR_BONUS_FRAC);
+  },
+
+  // ── 전투 시작 때 씬이 한 줄로 부른다 ──────────────────────────────────────
+  //   GAME.TowerRun.attachKillGold(this.state, this.tower);
+  //
+  //  `state.onKill(unit, state)` 훅을 설치한다. 이 훅은 `js/combat.js` 가
+  //  `spawnYolk` 를 부르는 세 지점에서 호출한다(다른 에이전트가 넣는 계약).
+  //  ⚠ 훅이 아직 없어도(=한 번도 안 불려도) 게임이 깨지지 않아야 한다 →
+  //    `earnedFrom` 이 0 을 돌려주고 `clear` 가 **옛 방식(층 클리어 총액)으로 되돌아간다.**
+  attachKillGold: function (state, floor) {
+    if (!state) return null;
+    var self = this;
+    var W = 0, i, u;
+    for (i = 0; i < state.units.length; i++) {
+      u = state.units[i];
+      if (!u || u.side !== 'strategist' || u.isHero) continue;
+      if (GAME.Combat.isHazard && GAME.Combat.isHazard(u)) continue;
+      W += this.killWeight(u.def);
+    }
+    state.killGold = 0;
+    state.killGoldEvents = [];      // [{x,y,gold,boss}] — 연출용(전장에 "+3" 띄우려면 이걸 읽는다)
+    state._kgFloor = floor;
+    state._kgPool = this.goldFor(floor) * this.KILL_POOL_FRAC;
+    state._kgWeight = W;
+    state._kgCarry = 0;
+    state._kgActive = true;
+    var prev = state.onKill;
+    state.onKill = function (unit, st) {
+      if (prev) { try { prev(unit, st); } catch (e) { /* 남의 훅이 터져도 골드는 준다 */ } }
+      self._onKill(unit, st || state);
+    };
+    return state;
+  },
+
+  _onKill: function (unit, state) {
+    if (!state || !state._kgActive || !unit) return 0;
+    if (unit.side !== 'strategist' || unit.isHero) return 0;         // 내 영웅이 죽은 건 보상 아님
+    if (GAME.Combat.isHazard && GAME.Combat.isHazard(unit)) return 0; // 가시덫은 지형이다
+    if (unit.__kgPaid) return 0;                                      // 같은 기에 두 번 주지 않는다
+    unit.__kgPaid = true;
+    var W = state._kgWeight || 0;
+    if (W <= 0) return 0;
+    var jit = 1 + (Math.random() * 2 - 1) * this.KILL_SPREAD;
+    var exact = state._kgPool * (this.killWeight(unit.def) / W) * jit;
+    var give = Math.max(1, Math.round(exact + state._kgCarry));
+    state._kgCarry += exact - give;      // 반올림 잔돈 이월 — 총합이 풀에서 안 흘러내리게
+    state.killGold += give;
+    state.killGoldEvents.push({ x: unit.x, y: unit.y, gold: give, boss: !!(unit.def && unit.def.isBoss) });
+    return give;
+  },
+
+  // 이 판에서 처치로 번 골드(훅이 안 붙었으면 0)
+  earnedFrom: function (state) {
+    return (state && state._kgActive) ? Math.round(state.killGold || 0) : 0;
+  },
+
+  // 결과 화면에 띄울 이번 층 총 획득액.
+  //  ⚠ 안전망 두 겹.
+  //   ① state 가 없으면(씬이 아직 통합 안 됨) 옛 방식대로 층 총액을 준다.
+  //   ② 훅을 걸었는데 **한 번도 안 불렸으면**(combat.js 의 `state.onKill` 호출이 빠졌거나
+  //      되돌려졌으면) killGold 가 0 이다. 그대로 두면 클리어 보너스 10% 만 남아
+  //      **성장 곡선이 조용히 1/10 로 죽는다.** 이건 화면에도 안 보이는 종류의 사고라
+  //      옛 방식으로 되돌리고 콘솔에 남긴다.
+  goldGainFor: function (floor, state) {
+    if (state && state._kgActive) {
+      var earned = this.earnedFrom(state);
+      if (earned > 0) return earned + this.clearBonusFor(floor);
+      if (window.console && console.warn) {
+        console.warn('[TowerRun] 처치 골드가 0 이다 — combat.js 의 state.onKill 훅이 안 불렸을 수 있다. 층 총액으로 되돌린다.');
+      }
+    }
+    return this.goldFor(floor);
   },
 
   // ── 능력치 레벨업 ──
@@ -84,11 +198,13 @@ GAME.TowerRun = {
     return rec;
   },
 
-  // 층 클리어 — 골드를 준다
-  clear: function (floor) {
+  // 층 클리어 — 골드를 준다.
+  //  state 를 주면 **처치로 번 골드 + 작은 클리어 보너스**,
+  //  안 주면(또는 훅이 안 붙었으면) 옛 방식대로 층 총액을 통째로 준다.
+  clear: function (floor, state) {
     var rec = this.get();
     if (!rec) return null;
-    rec.gold += this.goldFor(floor);
+    rec.gold += this.goldGainFor(floor, state);
     rec.floorsCleared = (rec.floorsCleared || 0) + 1;
     this._save(rec);
     return rec;

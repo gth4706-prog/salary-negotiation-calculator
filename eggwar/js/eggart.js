@@ -198,6 +198,19 @@ GAME.UI = GAME.UI || {};
     return UI.ART[def.art] || UI.ART[UI.LEGACY_ART[def.shape]] || UI.ART.warrior;
   };
 
+  // ── 계급(유닛 레벨) ───────────────────────────────────────────────────────
+  //  수성의 탑에서 유닛 종류를 1~5 레벨로 키울 수 있다(`js/unitlevel.js`).
+  //  아트는 **`def.lv` 만 읽는다** — 호출부(battle/build/draft/versus… 6개 파일)를
+  //  하나도 안 건드리기 위해서다. lv 를 안 실은 def 는 전부 1 이라 지금과 픽셀 단위로 같다.
+  UI.rankOf = function (def) {
+    if (!def) return 1;
+    var lv = def.lv;
+    if (typeof lv !== 'number' || !isFinite(lv)) return 1;
+    if (lv < 1) return 1;
+    if (lv > 5) return 5;
+    return Math.floor(lv);
+  };
+
   // ============================================================================
   //  8방향
   // ============================================================================
@@ -1078,10 +1091,134 @@ GAME.UI = GAME.UI || {};
     }
   };
 
+  // ============================================================================
+  //  계급 장식 (유닛 레벨 1~5)
+  // ============================================================================
+  //  **색이 아니라 실루엣으로** 단계를 읽게 한다. 이 파일의 제1원칙이기도 하고,
+  //  애초에 색을 쓸 수가 없다 — 색은 진영 전용이다(설계 경계 5번).
+  //
+  //   L1 기본   아무 것도 없다. 레벨을 안 올린 사람은 지금과 완전히 동일해야 한다.
+  //   L2 +견장  어깨 양쪽 각진 판          → 실루엣이 **옆으로 넓어진다**
+  //   L3 +볏    투구 위로 솟는 지느러미     → **위로 길어진다**
+  //   L4 +군기  등 뒤 사선 깃대 + 삼각기    → **사선 한 줄이 생긴다**
+  //   L5 +뿔관  머리 둘레 뿔 세 개 + 발밑 문양 → **윤곽이 뾰족해진다**
+  //  네 단계가 서로 **다른 방향**(가로 / 세로 / 사선 / 뾰족)으로 자란다.
+  //  같은 방향으로 커지기만 하면 흑백에서 L3 과 L4 를 구분할 수 없다 — 그래서 축을 나눴다.
+  //
+  //  재질은 중립색만(진영색 색역 침범 금지): L2~3 청동, L4~5 강철.
+  //  이건 **보조 신호**다. 색을 지워도 네 단계가 형태로 남는다.
+  //  r < 7 이면 전부 끈다(그 크기에서는 장식이 실루엣을 뭉갠다 — LOD 규칙).
+  UI.rankMat = function (lv) { return lv >= 4 ? M.blade : M.bronze; };
+
+  // 어깨 견장 (L2+) — 몸통 위, 투구 아래
+  UI.eggRankBody = function (g, art, sx, by, r, color, a, D, lv) {
+    if (lv < 2 || r < 7) return;
+    D = UI.asDir(D);
+    var mat = UI.rankMat(lv);
+    var ex = r * 1.00 * ((art.wide || 0.78) / 0.78);
+    var shy = by - r * 0.30;
+    for (var s = -1; s <= 1; s += 2) {
+      var hx = sx + D.px * ex * s, hy = shy + D.py * ex * s;
+      g.fillStyle(UI.tint(mat, -0.12), a);
+      g.fillTriangle(hx - D.px * s * r * 0.14, hy - D.py * s * r * 0.14 - r * 0.26,
+                     hx + D.px * s * r * 0.58, hy + D.py * s * r * 0.58 + r * 0.06,
+                     hx - D.px * s * r * 0.06, hy - D.py * s * r * 0.06 + r * 0.30);
+      if (r >= 11) {                       // 판 위 굴곡 — 금속으로 읽히게
+        g.fillStyle(UI.tint(mat, 0.28), a * 0.9);
+        g.fillTriangle(hx - D.px * s * r * 0.10, hy - D.py * s * r * 0.10 - r * 0.20,
+                       hx + D.px * s * r * 0.40, hy + D.py * s * r * 0.40 - r * 0.02,
+                       hx + D.px * s * r * 0.04, hy + D.py * s * r * 0.04 - r * 0.02);
+      }
+    }
+  };
+
+  // 등 군기 (L4+) — 몸통 뒤(또는 앞) 레이어
+  UI.eggRankBanner = function (g, art, sx, by, r, color, a, D, lv) {
+    if (lv < 4 || r < 7) return;
+    D = UI.asDir(D);
+    var bx = sx - D.fx * r * 0.52, byy = by - r * 0.30 - D.fy * r * 0.52;
+    var tx = bx - D.fx * r * 0.34, ty = byy - r * 2.05;
+    g.lineStyle(Math.max(1.3, r * 0.11), M.wood, a);
+    g.lineBetween(bx, byy, tx, ty);
+    // 기 — 깃대에서 옆으로 펄럭인다.
+    //  ⚠ 앞뒤축(D.fx)만으로 폭을 잡으면 **정면에서 면적이 0** 이 된다(볏에서 이미 겪었다).
+    //    깃발은 방향 신호가 아니라 계급 신호라, 화면 기준으로 항상 같은 쪽에 펼친다.
+    g.fillStyle(UI.tint(M.leather, 0.10), a);
+    g.fillPoints([{ x: tx, y: ty + r * 0.02 },
+                  { x: tx + r * 0.95, y: ty + r * 0.30 },
+                  { x: tx + r * 0.70, y: ty + r * 0.62 },
+                  { x: tx + r * 0.10, y: ty + r * 0.94 }], true);
+    if (r >= 11) {                          // 깃대 꼭지 — 뾰족한 실루엣 하나 더
+      g.fillStyle(UI.rankMat(lv), a);
+      g.fillTriangle(tx - r * 0.13, ty + r * 0.02, tx + r * 0.13, ty + r * 0.02, tx, ty - r * 0.36);
+    }
+  };
+
+  // 볏(L3+) + 뿔 관(L5) — 투구 위
+  UI.eggRankHead = function (g, art, sx, by, r, color, a, D, lv) {
+    if (lv < 3 || r < 7) return;
+    D = UI.asDir(D);
+    var mat = UI.rankMat(lv);
+    var cy = by - r * 1.02;
+
+    if (lv >= 3) {
+      // 볏 — 앞뒤축을 따라 늘어선 뿔 세 개(가운데가 가장 높다).
+      // ⚠ 처음엔 앞뒤축만 쓰는 납작한 지느러미였는데, **정면에서 면적이 0 이 되어 사라졌다**
+      //   (정면이면 D.fx=0 이라 세 꼭짓점의 x 가 같아진다 — 실측 스크린샷에서 L2 와 구분 불가).
+      //   그래서 각 뿔에 가로 두께를 준다. 어느 방향에서 봐도 위로 솟은 실루엣이 남는다.
+      var t3 = [-0.42, 0, 0.42];
+      for (var j = 0; j < 3; j++) {
+        var tt = t3[j];
+        var bx3 = sx + D.fx * r * tt, by3 = cy + D.fy * r * tt;
+        var hgt = (tt === 0 ? 0.92 : 0.58);
+        var wdt = (tt === 0 ? 0.17 : 0.14);
+        g.fillStyle(UI.tint(mat, tt === 0 ? 0.16 : -0.16), a);
+        g.fillTriangle(bx3 - r * wdt, by3 + r * 0.06,
+                       bx3 + r * wdt, by3 + r * 0.06,
+                       bx3 + D.fx * r * 0.05, by3 - r * hgt);
+      }
+    }
+
+    if (lv >= 5) {                          // 뿔 관 — 머리 둘레에서 바깥·위로 뻗는 뿔 세 개
+      var ring = by - r * 0.74;
+      g.lineStyle(Math.max(1.4, r * 0.13), mat, a);
+      g.strokeEllipse(sx, ring, r * 1.34 * ((art.wide || 0.78) / 0.78), r * 0.40);
+      var off = [-1, 0, 1];
+      for (var i = 0; i < 3; i++) {
+        var o = off[i];
+        var hx = sx + D.px * r * 0.62 * o, hy = ring + D.py * r * 0.62 * o;
+        g.fillStyle(mat, a);
+        g.fillTriangle(hx - r * 0.13, hy,
+                       hx + r * 0.13, hy,
+                       hx + D.px * r * 0.30 * o, hy - r * (o === 0 ? 0.86 : 0.62));
+      }
+    }
+  };
+
+  // 발밑 계급 눈금 (전장 전용) — 레벨을 **정확히 셀 수 있게** 하는 보조 표시.
+  // 실루엣만으로는 "3인가 4인가"가 헷갈릴 수 있고, 전장은 유닛이 수십 기다.
+  UI.eggRankGround = function (g, sx, sy, r, color, a, lv) {
+    if (lv < 2 || r < 8) return;
+    var T = (GAME.Iso ? GAME.Iso.TILT : 1);
+    var mat = UI.rankMat(lv);
+    var rx = r * 1.28, ry = r * 1.28 * T;
+    for (var i = 0; i < lv; i++) {
+      // **발 앞쪽**(+PI/2)에 찍는다. 뒤(-PI/2)에 두면 캐릭터 몸통에 가려 하나도 안 보인다(실측).
+      var ang = Math.PI / 2 + (i - (lv - 1) / 2) * 0.42;
+      g.fillStyle(mat, a * 0.95);
+      g.fillCircle(sx + Math.cos(ang) * rx, sy + Math.sin(ang) * ry, Math.max(1, r * 0.13));
+    }
+    if (lv >= 5) {                          // 발밑 문양 — 최고 계급만
+      g.lineStyle(Math.max(1.2, r * 0.10), mat, a * 0.8);
+      g.strokeEllipse(sx, sy, r * 2.5, r * 2.5 * T);
+    }
+  };
+
   // ── 캐릭터 한 기 조립 ─────────────────────────────────────────
   //  grounded=true 면 전장(투영 적용), false 면 UI 패널용 평면
   //  walk : number | {phase, amp} | null   ← v2 추가 (생략하면 v1 과 동일)
-  UI.drawEggChar = function (g, art, sx, by, r, color, a, facing, grounded, reach, walk) {
+  //  lv   : 1~5 계급 (생략하면 1 = 장식 없음, v2 와 픽셀 단위로 동일)
+  UI.drawEggChar = function (g, art, sx, by, r, color, a, facing, grounded, reach, walk, lv) {
     var Iso = GAME.Iso, T = (grounded && Iso) ? Iso.TILT : 1;
     var D = UI.dir8(facing === undefined ? Math.PI / 2 : facing, T);
     var G = UI.gait(walk, art);
@@ -1100,17 +1237,25 @@ GAME.UI = GAME.UI || {};
     // 잉크 윤곽은 **장비 3층에만** 두른다.
     // 몸통은 ivory 시안에서 이미 진영색 외곽선(r*0.17)이 실루엣을 맡고 있어
     // 잉크를 한 겹 더 두르면 진영색이 눌려 아군/적군 구분이 흐려진다.
+    var rank = UI.rankOf({ lv: lv });     // 생략·이상값이면 1 (= 장식 없음)
     var back = function (gg) { UI.eggBack(gg, art.back, cx, cy, r, color, a, D); };
     var gear = function (gg) { UI.eggGear(gg, art.gear, cx + lean * 0.5, cy, r, color, a, D, rch); };
     var helm = function (gg) { UI.eggHelm(gg, art.helm, cx + lean, cy, r, color, a, D); };
+    // 계급 장식도 장비와 같은 레이어 규칙을 탄다(잉크 윤곽 포함) — 라이트 테마에서
+    // 청동/강철이 목초지에 묻히지 않게 하려면 반드시 inkLayer 를 거쳐야 한다.
+    var rkBan = function (gg) { UI.eggRankBanner(gg, art, cx, cy, r, color, a, D, rank); };
+    var rkBody = function (gg) { UI.eggRankBody(gg, art, cx, cy, r, color, a, D, rank); };
+    var rkHead = function (gg) { UI.eggRankHead(gg, art, cx + lean, cy, r, color, a, D, rank); };
 
-    if (backFirst) UI.inkLayer(g, r, back);
+    if (backFirst) { UI.inkLayer(g, r, rkBan); UI.inkLayer(g, r, back); }
     if (gearBehind) UI.inkLayer(g, r, gear);
     UI.eggBody(g, art, cx, cy, r, color, a, lean);
-    if (!backFirst) UI.inkLayer(g, r, back);
+    if (!backFirst) { UI.inkLayer(g, r, back); UI.inkLayer(g, r, rkBan); }
+    UI.inkLayer(g, r, rkBody);
     // 맨눈은 투구보다 먼저(챙이 이마를 덮게), 투구 틈의 눈은 투구보다 나중에 그린다
     if (art.face !== 'slit') UI.eggFace(g, art, cx + lean * 0.62, cy, r, a, D);
     UI.inkLayer(g, r, helm);
+    UI.inkLayer(g, r, rkHead);
     if (art.face === 'slit') UI.eggFace(g, art, cx + lean * 0.62, cy, r, a, D);
     if (!gearBehind) UI.inkLayer(g, r, gear);
   };
@@ -1147,7 +1292,9 @@ GAME.UI = GAME.UI || {};
       g.strokeEllipse(sx, sy, r * 2.0, r * 2.0 * Iso.TILT);
     }
 
-    UI.drawEggChar(g, art, sx, by, r, color, a, f, true, 1, walk);
+    var lv = UI.rankOf(def);
+    UI.eggRankGround(g, sx, sy, r, color, a, lv);
+    UI.drawEggChar(g, art, sx, by, r, color, a, f, true, 1, walk, lv);
     return { sx: sx, sy: sy, by: by };
   };
 
@@ -1202,7 +1349,8 @@ GAME.UI = GAME.UI || {};
     var a = alpha === undefined ? 1 : alpha;
     var art = UI.artOf(def);
     if (art.ground) { UI.drawGroundArt(g, art, sx, sy, r, color, a); return; }
-    UI.drawEggChar(g, art, sx, sy, r, color, a, facing === undefined ? 0 : facing, false, 0.72, walk);
+    UI.drawEggChar(g, art, sx, sy, r, color, a, facing === undefined ? 0 : facing, false, 0.72,
+                   walk, UI.rankOf(def));
   };
 
 })(GAME.UI);

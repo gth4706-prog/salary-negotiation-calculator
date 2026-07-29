@@ -189,13 +189,35 @@ GAME.BattleScene.prototype.create = function () {
       var rect = self.add.rectangle(c.cx, cy, c.w, boxH, GAME.UI.COL.surface).setStrokeStyle(1, GAME.UI.COL.border);
       rect.setInteractive({ useHandCursor: true });
       rect.on('pointerdown', function () { self.ctrl.armSkill(slot); });
+      // PC 는 키보드가 있으니 슬롯 글자(QWER)를 **그대로 둔다**(사용자 지시).
+      // 대신 설명을 얹는다 — 칸 오른쪽 위에 성격 한 낱말(폰 버튼과 같은 어휘),
+      // 자세한 문장은 마우스를 올렸을 때만.
+      rect.on('pointerover', function () { self._showSkillTip(slot); });
+      rect.on('pointerout', function () { self._hideSkillTip(); });
       self.skillBoxes.push({
         slot: slot, rect: rect,
         key: GAME.UI.label(self, c.x + 6, rows.skills.y + 4, GAME.isTouch ? '' : slot, 14, C.accent, 0),
+        kind: GAME.UI.label(self, c.x + c.w - 6, rows.skills.y + 4, '', P ? 13 : 12, C.textDim, 0).setOrigin(1, 0),
         name: GAME.UI.label(self, c.cx, rows.skills.bottom - 14, '', P ? 13 : 12, C.text, 0.5).setOrigin(0.5),
         cd: GAME.UI.label(self, c.cx, cy, '', P ? 17 : 20, C.text, 0.5).setOrigin(0.5)
       });
     })(slots[s], s);
+  }
+
+  // 마우스를 올렸을 때 뜨는 스킬 설명. 칸 너비가 104px 뿐이라 설명 문장
+  // ("주변 88 광역 50 + 넉백 · 쿨 11초" = 실측 약 170px)은 상시로는 물리적으로 안 들어간다.
+  // → 스킬바 **위쪽**에 한 줄로 띄우고 평소에는 숨긴다(숨김 상태라 겹침 감사에도 안 걸린다).
+  // 설명 문장은 준비 화면과 **같은 함수**를 쓴다(GAME.skillDesc). 복제하면 두 곳이 어긋난다.
+  if (!padMode) {
+    // ⚠ 스킬바 **바로 위**는 HUD(체력 막대)다 — 거기 띄우면 체력 위에 겹친다(실측으로 겪음).
+    //   HUD 블록보다 더 위, 전장 아래 끝에 붙인다.
+    this._skillTipY = Math.max(40, rows.hudBlock.y - 6);
+    this.skillTipBg = this.add.rectangle(W / 2, this._skillTipY, 10, 10, GAME.UI.COL.surfaceAlt)
+      .setStrokeStyle(1, GAME.UI.COL.borderUi).setOrigin(0.5, 1).setDepth(960).setVisible(false);
+    // 세로(420px)에서는 한 줄이 화면보다 길다 → 줄바꿈시키고 배경 높이를 글자에 맞춘다.
+    this.skillTipText = GAME.UI.label(this, W / 2, this._skillTipY - 6, '', P ? 13 : 14, C.text, 0.5)
+      .setOrigin(0.5, 1).setDepth(961).setVisible(false)
+      .setAlign('center').setWordWrapWidth(W - 32);
   }
 
   if (!padMode) {
@@ -937,6 +959,9 @@ GAME.BattleScene.prototype.updateHud = function () {
     // 스킬 이름 + 예상 사거리(있을 때만). 방향으로 즉시 시전하므로 사거리를 감으로 맞춘다.
     var reach = GAME.Combat.skillReach(sk);
     b.name.setText(reach > 0 ? (sk.name + '  ' + reach) : sk.name);
+    // 성격 한 낱말 — 폰 원형 버튼과 **같은 어휘**를 쓴다(R 은 '궁극기').
+    // 폰에서 배운 말이 PC 에서 그대로 보여야 두 화면이 같은 게임으로 읽힌다.
+    if (b.kind) b.kind.setText(GAME.skillLabel ? GAME.skillLabel(sk, b.slot) : '');
     var cd = h.skillCd[b.slot];
     var ready = cd <= 0;
     b.cd.setText(ready ? '준비' : (cd / 1000).toFixed(1));
@@ -954,6 +979,31 @@ GAME.BattleScene.prototype.updateHud = function () {
   // 세로 터치에서는 하단 스킬바를 안 만든다 → 물약 표시도 없다(원형 패드가 대신한다)
   if (this.potionText) this.potionText.setText(h.potionCharges > 0 ? h.potionCharges + '회' : '없음');
   if (this.potionText) this.potionText.setColor(h.potionCharges > 0 ? C.text : C.textDim);
+};
+
+// ── PC 스킬바 설명 말풍선 ──────────────────────────────────────────────────
+// 사용자 지시: "PC 는 QWER 유지하되 설명만 추가". 칸 안에는 자리가 없어서
+// 마우스를 올렸을 때만 스킬바 위에 한 줄로 띄운다.
+GAME.BattleScene.prototype._showSkillTip = function (slot) {
+  if (!this.skillTipText) return;
+  var h = this.hero, sk = null, i;
+  if (h && h.skills) for (i = 0; i < h.skills.length; i++) if (h.skills[i].slot === slot) sk = h.skills[i];
+  if (!sk) return;
+  var kind = GAME.skillLabel ? GAME.skillLabel(sk, slot) : '';
+  var desc = GAME.skillDesc ? GAME.skillDesc(sk) : '';
+  this.skillTipText.setText(slot + ' · ' + sk.name + (kind ? ' (' + kind + ')' : '') + (desc ? ' — ' + desc : ''));
+  // 배경은 글자를 재서 맞춘다. 손으로 폭을 박으면 조합에 따라 글자가 삐져나온다.
+  var W = GAME.CONFIG.WIDTH;
+  var w = Math.min(this.skillTipText.width + 20, W - 16), hgt = this.skillTipText.height + 10;
+  var cx = Math.max(w / 2 + 8, Math.min(W - w / 2 - 8, W / 2));
+  this.skillTipBg.setSize(w, hgt).setPosition(cx, this._skillTipY).setVisible(true);
+  this.skillTipText.setPosition(cx, this._skillTipY - 5).setVisible(true);
+};
+
+GAME.BattleScene.prototype._hideSkillTip = function () {
+  if (!this.skillTipText) return;
+  this.skillTipText.setVisible(false);
+  this.skillTipBg.setVisible(false);
 };
 
 GAME.BattleScene.prototype.draw = function () {

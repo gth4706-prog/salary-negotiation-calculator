@@ -42,6 +42,10 @@ GAME.DefendTowerScene.PHONE = {
 GAME.DefendTowerScene.prototype.init = function () {
   this.sheet = null;
   this.growth = null;
+  // 파괴된 Phaser 객체는 여전히 truthy 라 `if (this._heroG)` 가드를 통과한다 —
+  // 이 저장소에서 이미 터진 유형이다. 씬을 다시 들어올 때마다 반드시 비운다.
+  this._heroG = null;
+  this._heroGeo = null;
 };
 
 GAME.DefendTowerScene.prototype.create = function () {
@@ -227,18 +231,20 @@ GAME.DefendTowerScene.prototype._createPhone = function () {
   g.strokeRoundedRect(K.STAGE_X + 0.75, K.BODY_TOP + 0.75,
     K.STAGE_W - 1.5, K.BODY_BOTTOM - K.BODY_TOP - 1.5, 14);
 
+  // ── 침입 영웅은 **살아 움직인다** ─────────────────────────────────────────
+  //  통곡의 탑 캐릭터 선택과 같은 규율: 호흡(스쿼시&스트레치) + 주기적 공격 모션.
+  //  그러려면 매 프레임 다시 그려야 하므로 **판(g)과 분리된 Graphics** 에 그린다 —
+  //  g 를 통째로 다시 그리면 그 위에 얹힌 글자들이 매 프레임 덮인다.
+  //  g 보다 나중에 만들어 판 위에 오고, 글자는 그 뒤에 만들어져 영웅 위에 온다.
   var hTop = K.BODY_TOP + 6, hBot = K.BODY_BOTTOM - 6;
-  var hr = (hBot - hTop) / 5;                       // 390 화면에서 49.2
-  var hy = hTop + hr * 3.2;
-  // 발밑 링 — 몸통 바닥(약 1.45r 아래)에 맞춘다. 0.35r 로 두면 알 몸통에 가려 안 보인다.
-  var ringY = hy + hr * 1.45;
-  g.fillStyle(UI.COL.shadow === undefined ? 0x000000 : UI.COL.shadow, 0.22);
-  g.fillEllipse(K.HERO_CX, ringY, hr * 2.0, hr * 0.5);
-  g.lineStyle(3, UI.COL.controller, 0.6);
-  g.strokeEllipse(K.HERO_CX, ringY, hr * 2.2, hr * 0.58);
-  // facing = +PI/2 → 정면(우리를 본다). tower.js 는 -PI/2(등 뒤)를 쓴다.
-  UI.drawUnitFlat(g, hero, K.HERO_CX, hy, UI.COL.controller, 1,
-    hr / (hero.radius || 17), Math.PI / 2);
+  this._heroGeo = {
+    r: (hBot - hTop) / 5,                           // 390 화면에서 49.2
+    y: hTop + ((hBot - hTop) / 5) * 3.2,
+    cx: K.HERO_CX,
+    def: hero
+  };
+  this._heroG = this.add.graphics();
+  this._drawHero();
 
   // ── 상단 바 ─────────────────────────────────────────────────────────────
   UI.text(this, K.PAD, 5, '수성의 탑', { size: 'heading', color: C.text });
@@ -516,4 +522,28 @@ GAME.DefendTowerScene.prototype._openSheet = function () {
   mk(bx[1], cyC, '닫기', function () { self._closeSheet(); }, { fontSize: 'buttonSm' });
 
   this.sheet = objs;
+};
+
+// 침입 영웅 한 마리를 그린다(발밑 링 포함). `idle` 을 안 넘기면 정지 포즈다.
+GAME.DefendTowerScene.prototype._drawHero = function () {
+  var geo = this._heroGeo, g = this._heroG;
+  if (!geo || !g || !g.scene) return;
+  var UI = GAME.UI;
+  var hr = geo.r, hy = geo.y;
+  g.clear();
+  // 발밑 링 — 몸통 바닥(약 1.45r 아래)에 맞춘다. 0.35r 로 두면 알 몸통에 가려 안 보인다.
+  var ringY = hy + hr * 1.45;
+  g.fillStyle(UI.COL.shadow === undefined ? 0x000000 : UI.COL.shadow, 0.22);
+  g.fillEllipse(geo.cx, ringY, hr * 2.0, hr * 0.5);
+  g.lineStyle(3, UI.COL.controller, 0.6);
+  g.strokeEllipse(geo.cx, ringY, hr * 2.2, hr * 0.58);
+  // facing = +PI/2 → 정면(우리를 본다). tower.js 는 -PI/2(등 뒤)를 쓴다.
+  // 10번째 인자가 idle(ms) — eggart 가 호흡·공격 포즈를 만든다.
+  UI.drawUnitFlat(g, geo.def, geo.cx, hy, UI.COL.controller, 1,
+    hr / (geo.def.radius || 17), Math.PI / 2, null, this.time.now);
+};
+
+// 영웅만 매 프레임 다시 그린다. 판·글자는 건드리지 않는다.
+GAME.DefendTowerScene.prototype.update = function () {
+  if (this._heroG) this._drawHero();
 };

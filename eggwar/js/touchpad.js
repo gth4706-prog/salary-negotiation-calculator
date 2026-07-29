@@ -51,7 +51,11 @@ GAME.TouchPad.SIZES = function () {
       stickR: Math.round(H * 0.21),    // 82 — 엄지 사정권(왼쪽 아래)
       knobR: Math.round(H * 0.095),    // 37
       mainR: Math.round(H * 0.108),    // 42 · 지름 84 → SE 68px
-      skillR: Math.round(H * 0.075),   // 29 · 지름 58 → SE 47px
+      // 0.075(지름 58) → 0.085(지름 66). 버튼에 슬롯 글자 대신 **한글 라벨**을 넣으면서
+      // 넓힌 것이다. 58px 원에 '궁극기' 3글자를 넣으면 글자가 설계 15px 까지 내려가고
+      // SE(배율 0.813)에서는 화면 12px 이 되어 하한 13px 을 깬다. 66px 이면 17px 로 잡혀
+      // SE 에서도 13.8px 이다. 터치 타깃은 오히려 47 → SE 54px 로 좋아진다.
+      skillR: Math.round(H * 0.085),   // 33 · 지름 66 → SE 54px
       potionR: Math.round(H * 0.072)   // 28 · 지름 56 → SE 45px
     };
   }
@@ -149,7 +153,8 @@ GAME.TouchPad.prototype._build = function () {
   GAME.SKILL_SLOTS.forEach(function (slot, i) {
     var a = (startDeg * Math.PI / 180) + stepRad * i;
     self._addButton(slot, cx - Math.cos(a) * arcR, cy - Math.sin(a) * arcR,
-      S.skillR, slot, GAME.CONFIG.COLORS.strategist, function () { self._skill(slot); });
+      S.skillR, self._slotLabel(slot), GAME.CONFIG.COLORS.strategist,
+      function () { self._skill(slot); });
   });
 
   // 물약 — 세로에서는 스틱 위쪽(왼손 엄지 자리).
@@ -167,6 +172,18 @@ GAME.TouchPad.prototype._build = function () {
   this.refresh();
 };
 
+// 폰에는 키보드가 없다 — 버튼에 찍힌 'Q' 는 아무 뜻이 없다.
+// 그래서 **지금 그 슬롯에 끼워둔 스킬의 성격**을 한글로 적는다(`js/heroes.js` 의 표).
+// R 만 슬롯 이름('궁극기')을 쓴다 — 세 영웅 9개 선택지가 전부 쿨 26~36초의 큰 기술이라
+// 슬롯 자체에 성격이 있는 유일한 자리다. 나머지는 고른 스킬마다 뜻이 달라진다.
+GAME.TouchPad.prototype._slotLabel = function (slot) {
+  var h = this.hero, sk = null;
+  if (h && h.skills) {
+    for (var i = 0; i < h.skills.length; i++) if (h.skills[i].slot === slot) { sk = h.skills[i]; break; }
+  }
+  return GAME.skillLabel ? GAME.skillLabel(sk, slot) : slot;
+};
+
 GAME.TouchPad.prototype._addButton = function (key, x, y, r, label, color, onTap) {
   var scene = this.scene;
   // 호 위에 배치하다 보면 마지막 버튼이 화면 밖으로 밀린다(R 버튼이 실제로 잘렸다).
@@ -179,11 +196,21 @@ GAME.TouchPad.prototype._addButton = function (key, x, y, r, label, color, onTap
     .setStrokeStyle(2, color, 0.75).setDepth(900).setScrollFactor(0);
   circle.setInteractive(new Phaser.Geom.Circle(r, r, r), Phaser.Geom.Circle.Contains);
 
+  // 글자 크기는 **라벨 길이에서 역산**한다. 예전엔 라벨이 'Q' 한 글자라 r*0.62 로 늘 남았는데,
+  // 이제 '궁극기' 같은 한글 3글자가 들어와 그대로 두면 원을 넘친다(버튼 각도를 손으로
+  // 박았다가 겹친 것과 같은 종류의 실수다 — 크기가 바뀌면 조용히 터진다).
+  var budget = r * 2 * 0.80;                       // 원 안 가로 여유(테두리 + 시각 여백)
+  var chars = Math.max(1, String(label).length);
+  var px = Math.min(Math.max(10, Math.round(r * 0.62)), Math.floor(budget / chars));
   var text = scene.add.text(x, y, label, {
     fontFamily: GAME.CONFIG.FONT,
-    fontSize: Math.max(10, Math.round(r * 0.62)) + 'px',
+    fontSize: px + 'px',
     color: GAME.CONFIG.COLORS.text
   }).setOrigin(0.5).setDepth(902).setScrollFactor(0);
+  // 폰트(Jua)와 폴백 폰트의 글자 폭이 달라 계산만으로는 안심할 수 없다 → **실측으로 한 번 더 줄인다.**
+  // 하한은 ui-theme 의 절대 하한(FS.micro · 세로 15 / 가로 13)을 따른다.
+  var floorPx = GAME.CONFIG.PORTRAIT ? 15 : 13;
+  while (px > floorPx && text.width > budget) { px -= 1; text.setFontSize(px); }
 
   // 쿨다운 표시 — 원을 덮는 어두운 원판의 알파로 남은 시간을 보여준다
   var cool = scene.add.circle(x, y, r - 1, PAD.ring, 0).setDepth(901).setScrollFactor(0);

@@ -254,6 +254,80 @@ GAME.HEROES = {
 GAME.HERO_ORDER = ['vanguard', 'ranger', 'warden'];
 GAME.SKILL_SLOTS = ['Q', 'W', 'E', 'R'];
 
+// ── 스킬 라벨 (2026-07-29) ────────────────────────────────────────────────────
+// PC 는 키보드가 있으니 `Q W E R` 이 곧 조작 안내다. 그런데 **폰에는 키보드가 없다** —
+// 원형 버튼에 찍힌 알파벳 네 글자는 아무것도 알려주지 않는다.
+//
+// ⚠ 그렇다고 **슬롯마다 이름을 붙일 수는 없다.** 위 skillOptions 를 슬롯별로 세로로 읽어보면
+//   R 을 빼고는 슬롯에 공통 성격이 없다:
+//     Q  광전사 dash ×3        · 사냥꾼 projectile ×2 + aoeTarget · 파수꾼 strike ×2 + aoeSelf
+//     W  광전사 aoeSelf ×2+pull · 사냥꾼 dash ×3               · 파수꾼 buff ×3
+//     E  광전사 buff ×3        · 사냥꾼 trap ×2 + buff          · 파수꾼 pull ×2 + dash
+//     R  광전사 aoeSelf/trap/aoeTarget · 사냥꾼 aoeTarget ×2/projectile · 파수꾼 aura ×2/aoeSelf
+//   즉 W 하나만 봐도 광역·이동·방어로 갈린다. 슬롯 이름 하나로 묶으면 세 영웅 중 둘에게 거짓말이다.
+//   **R 만 일관된다** — 타입은 제각각이지만 9개 선택지가 전부 쿨다운 26~36초(다른 슬롯은 5~17초)
+//   짜리 판을 뒤집는 기술이다. 그래서 R 만 슬롯 이름('궁극기')을 쓴다.
+//   나머지 세 슬롯은 **그 슬롯에 고른 스킬의 type** 을 이름 삼는다. 타입 이름은 곧
+//   "이 버튼을 누르면 무슨 일이 일어나는가"라 조합을 바꿔도 표시가 계속 정직하다.
+//   (덤: 세 영웅 어느 조합에서도 QWE 세 라벨이 서로 겹치지 않는다 — 27조합 전수 확인.)
+//
+// 어휘 규율 — 세계관은 **계란 부족 전쟁 · 원시 직업/무기 · 12세 이용가**다.
+//   군대·총기·마법 어휘는 폐기된 컨셉이라 쓰지 않는다(그래서 '폭격'·'사격'·'주문'은 탈락).
+//   순우리말 동작어를 쓰고, **최대 3글자**로 맞춘다(모바일 버튼이 지름 58~66px 원이다).
+//   그리고 `js/config.js` 의 Jua 서브셋이 **정확히 800자로 꽉 차 있어** 새 글자를 하나라도
+//   쓰면 첫 로딩이 146KB → 491KB 가 된다. 아래 열 낱말은 전부 서브셋 안에서 골랐다(검사 완료).
+//   ⚠ 이 표를 고칠 때는 반드시 서브셋 대조부터 할 것.
+GAME.SKILL_TYPE_LABEL = {
+  // '돌진'이 아니다: dash 7개 중 3개(흙먼지 은신·구르기·도약)가 피해 0 이고
+  // 1개(뒷걸음 사격)는 뒤로 뛴다. 적에게 달려든다고 쓰면 절반 넘게 거짓이 된다.
+  dash:       '뛰기',
+  aoeSelf:    '쓸기',    // 제자리에서 주변을 한 번에 — 대검 회전·모래 뿌리기·방패 밀치기
+  aoeTarget:  '겨냥',    // 자리를 겨눠 예고 후 떨어뜨린다 ('떨구기'는 '떨'이 서브셋 밖)
+  projectile: '쏘기',
+  // '강타'(한자어)·'찍기'(그물 던지기엔 거짓) 대신 평범한 동작어. 한 놈만 때린다.
+  strike:     '때리기',
+  buff:       '다지기',  // 보호막·방어력·회복·광폭화 — 제 몸을 다진다
+  pull:       '끌기',
+  aura:       '구역',    // 밟으면 아픈 자리를 남긴다 (지금은 R 전용이라 화면에는 안 나온다)
+  trap:       '덫'
+};
+
+// R 은 타입과 무관하게 슬롯 이름을 우선한다.
+GAME.SKILL_SLOT_LABEL = { R: '궁극기' };
+
+// 모바일 버튼/PC 스킬바가 쓰는 짧은 이름. 못 알아보는 타입이면 슬롯 글자로 되돌린다.
+GAME.skillLabel = function (sk, slot) {
+  slot = slot || (sk && sk.slot);
+  if (slot && GAME.SKILL_SLOT_LABEL[slot]) return GAME.SKILL_SLOT_LABEL[slot];
+  var t = sk && GAME.SKILL_TYPE_LABEL[sk.type];
+  return t || slot || '';
+};
+
+// 스킬 효과 한 줄 설명 — **구현은 한 벌만 둔다.**
+// 지금 실물은 `js/scenes/draft.js` 의 `DraftScene.prototype._skillDesc` 다(순수 함수라
+// this 를 쓰지 않는다). 여기서 복사해 오면 두 곳이 조용히 어긋나므로 **호출 시점에 빌려 쓴다.**
+// → 정리할 때는 draft.js 의 함수 본문을 이 자리로 옮기고 그쪽을 한 줄로 만들면 된다:
+//     GAME.DraftScene.prototype._skillDesc = function (sk) { return GAME.skillDesc(sk); };
+//   (draft.js 는 이번 작업의 담당 파일이 아니라 손대지 않았다.)
+GAME.skillDesc = function (sk) {
+  if (!sk) return '';
+  var D = GAME.DraftScene && GAME.DraftScene.prototype;
+  if (!D || !D._skillDesc) return '';
+  // ⚠ 준비 화면은 `skillOptions` 의 **원본**(정수)을 넘기지만, 전투 중 `hero.skills` 는
+  //   `buildSkills` 가 WORLD_SCALE 을 곱한 뒤라 세로에서 55.974683544303794 같은 실수다.
+  //   그대로 찍으면 설명이 소수점 열여섯 자리가 된다(실측으로 걸렸다).
+  //   거리성 값만 반올림한 사본을 넘긴다 — 배수(speedMul·damageMul)는 건드리면 안 된다.
+  var DIST = ['radius', 'dist', 'speed'], out = sk, k, i;
+  for (i = 0; i < DIST.length; i++) {
+    k = DIST[i];
+    if (typeof sk[k] === 'number' && sk[k] % 1 !== 0) {
+      if (out === sk) { out = {}; for (var j in sk) out[j] = sk[j]; }
+      out[k] = Math.round(sk[k]);
+    }
+  }
+  return D._skillDesc(out);
+};
+
 // 선택된 인덱스 조합 → 실제 스킬 배열
 GAME.buildSkills = function (heroKey, picks) {
   var h = GAME.HEROES[heroKey];

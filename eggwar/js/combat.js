@@ -60,6 +60,16 @@ GAME.Combat = {
     }
     // 유닛 크기는 덜 줄인다 — 폰에서 너무 작아지면 뭘 상대하는지 안 보인다
     if (typeof out.radius === 'number') out.radius = Math.max(6, out.radius * Math.sqrt(K));
+    // 능력(ability)은 **중첩 객체**라 위 루프가 못 건드린다. 거리 키를 따로 환산하지 않으면
+    // 폰 프로필(WORLD_SCALE 0.556)에서만 보스 돌진이 맵을 가로지른다 — 조용히 깨지는 유형.
+    if (out.ability) {
+      var ab = {}, AK = ['dist', 'radius', 'minRange', 'maxRange', 'knockback', 'spread'];
+      for (var k2 in out.ability) ab[k2] = out.ability[k2];
+      for (var a2 = 0; a2 < AK.length; a2++) {
+        if (typeof ab[AK[a2]] === 'number' && ab[AK[a2]] > 0) ab[AK[a2]] *= K;
+      }
+      out.ability = ab;
+    }
     return out;
   },
 
@@ -1143,8 +1153,124 @@ GAME.Combat = {
     return true;
   },
 
+  // ── 유닛 능력 (2026-07-29) ─────────────────────────────────────────────────
+  // 사용자 신고: "궁수로는 그냥 뺑뺑이만 돌리다 방패병만 남는다. 보스도 뺑뺑이로 끝났다."
+  // 계측(`tools/kite-audit.js`)이 확인했다 — 사냥꾼은 전투의 **48%** 동안 아무도 그를
+  // 때릴 수 없었다(광전사 7% · 파수꾼 2%). 보스 속도 78~96 대 사냥꾼 178 이라
+  // **구조적으로 못 잡는다.** 체력을 올리는 건 답이 아니다(꼬리만 길어진다) —
+  // 필요한 건 '거리를 지우는 수단'과 '피할 수 있는 위협'이다.
+  //
+  // 규율 셋:
+  //   1. **반드시 예고한다.** 예고 없는 순간이동 피해는 조작이 아니라 사고다.
+  //      예고를 보고 움직이면 피해진다 = 그게 곧 조작할 거리다.
+  //   2. **멀 때만 쓴다**(minRange). 붙어 있는데 돌진하면 뒤로 지나쳐 더 우스워진다.
+  //   3. 시전 중에는 다른 행동을 안 한다 — 예고와 실제가 어긋나면 피할 수가 없다.
+  //
+  // 반환 true = 이번 프레임은 능력이 가져갔다(이동·공격 생략).
+  runAbility: function (u, state, dt) {
+    var ab = u.def.ability;
+    if (!ab) return false;
+    var dtMs = dt * 1000;
+
+    if (u.abilCd === undefined) { u.abilCd = ab.cooldown * (0.35 + Math.random() * 0.5); u.abilT = 0; }
+    if (u.abilCd > 0) u.abilCd -= dtMs;
+
+    // 시전 중 — 예고가 끝나면 터뜨린다
+    if (u.abilT > 0) {
+      u.abilT -= dtMs;
+      if (u.abilT <= 0) this._execAbility(u, state, ab);
+      return true;
+    }
+    if (u.abilCd > 0 || u.rootedFor > 0) return false;
+
+    var tgt = this.nearestEnemy(u, state.units);
+    if (!tgt) return false;
+    var d = this.dist(u, tgt);
+    if (d < (ab.minRange || 0) || d > (ab.maxRange || Infinity)) return false;
+    // ⚠ 돌진은 **닿을 수 있을 때만** 쓴다. maxRange 를 dist 보다 크게 잡았더니
+    //   목표 앞에서 멈춰 아무도 못 치는 돌진이 됐다 — 실측: 400회 발동에 11회 명중(3%),
+    //   무조작 영웅에게는 **0%**(초보가 더 안 맞는다는 건 기제가 안 도는 것이다).
+    //   여기서 한 번 더 막아, 유닛 정의에서 실수해도 헛돌진이 나가지 않게 한다.
+    if (ab.type === 'charge' && d > ab.dist) return false;
+
+    u.abilCd = ab.cooldown;
+    u.abilT = ab.telegraph;
+    u.abilX = tgt.x; u.abilY = tgt.y;          // 예고 시점의 위치를 박아둔다 = 피할 여지
+    this.faceAttack(u, Math.atan2(tgt.y - u.y, tgt.x - u.x));
+    state.effects.push({
+      kind: 'telegraph', x: ab.type === 'shockwave' ? u.x : u.abilX,
+      y: ab.type === 'shockwave' ? u.y : u.abilY,
+      r: ab.radius || 60, t: ab.telegraph, total: ab.telegraph, side: u.side
+    });
+    return true;
+  },
+
+  _execAbility: function (u, state, ab) {
+    var i, o, hit = 0, ls = this._lsBudget(u);
+    var self = this;
+    function bite(o2, extraKnock) {
+      // `abil: true` 는 계측용 표식이다 — 능력 피해가 보호막에 흡수되면 체력 비교로는
+      // 안 잡혀서 '능력이 안 맞는다'로 오독하게 된다(실제로 그렇게 오독했다).
+      self.applyDamage(o2, ab.damage, u, state,
+                       { lsScale: self._ls(hit++), lsBudget: ls, abil: true });
+      var kb = extraKnock === undefined ? ab.knockback : extraKnock;
+      if (kb && o2.alive) {
+        var dd = self.dist(u, o2);
+        if (dd > 0.1) {
+          o2.x += ((o2.x - u.x) / dd) * kb; o2.y += ((o2.y - u.y) / dd) * kb;
+          self.clampToArena(o2); self.clampToLeash(o2, state);
+        }
+      }
+    }
+
+    if (ab.type === 'charge') {
+      // 예고한 지점까지 **직선으로 밀고 들어간다.** 경로에 걸린 적을 친다.
+      var dx = u.abilX - u.x, dy = u.abilY - u.y;
+      var d = Math.sqrt(dx * dx + dy * dy) || 1;
+      var go = Math.min(ab.dist, d);
+      var fx = u.x, fy = u.y;
+      u.x += (dx / d) * go; u.y += (dy / d) * go;
+      this.clampToArena(u);
+      // 리시는 일부러 적용하지 않는다 — 돌진은 '진형을 깨고 나가는' 행동이고,
+      // 다음 프레임부터 stance/clampToLeash 가 알아서 데려온다.
+      for (i = 0; i < state.units.length; i++) {
+        o = state.units[i];
+        if (!o.alive || o.side === u.side || this.isHazard(o)) continue;
+        if (this._distToSegment(o, fx, fy, u.x, u.y) <= (ab.radius || 55) + o.def.radius) bite(o);
+      }
+      state.effects.push({ kind: 'dashTrail', x1: fx, y1: fy, x2: u.x, y2: u.y,
+                           t: 300, total: 300, side: u.side });
+
+    } else if (ab.type === 'shockwave') {
+      for (i = 0; i < state.units.length; i++) {
+        o = state.units[i];
+        if (!o.alive || o.side === u.side || this.isHazard(o)) continue;
+        if (this.dist(u, o) <= ab.radius + o.def.radius) bite(o);
+      }
+      state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: ab.radius,
+                           t: 380, total: 380, side: u.side });
+
+    } else if (ab.type === 'barrage') {
+      // 예고 원을 여러 개 뿌린다. 첫 발은 예고 지점, 나머지는 그 주변으로 흩는다 —
+      // 한 점에 겹쳐 떨어지면 '한 발'과 다를 게 없어 피할 거리가 안 생긴다.
+      // `telegraph` 이펙트가 만료되면 **스스로 터진다**(damage·owner 를 들고 있다).
+      // 별도 blast 목록을 만들면 규칙이 두 벌이 되므로 영웅 aoeTarget 과 같은 길을 쓴다.
+      var reps = ab.repeat || 3;
+      for (var r = 0; r < reps; r++) {
+        var sx = u.abilX + (r === 0 ? 0 : (Math.random() - 0.5) * (ab.spread || 200));
+        var sy = u.abilY + (r === 0 ? 0 : (Math.random() - 0.5) * (ab.spread || 200));
+        var delay = r * (ab.interval || 420) + 340;
+        state.effects.push({ kind: 'telegraph', x: sx, y: sy, r: ab.radius,
+                             t: delay, total: delay,
+                             damage: ab.damage, side: u.side, owner: u, abil: true });
+      }
+    }
+  },
+
   runAI: function (u, state, dt) {
     var def = u.def;
+    // 능력이 이번 프레임을 가져갔으면 이동·공격은 건너뛴다(예고와 실제가 어긋나면 못 피한다)
+    if (def.ability && this.runAbility(u, state, dt)) return;
     var moveTo = null;
     var engage = true;
     var tgt = null;
@@ -1567,12 +1693,18 @@ GAME.Combat = {
       if (e.t > 0) continue;
 
       if (e.kind === 'telegraph') {
+        // ⚠ **피해값이 없는 예고는 그냥 사라진다.** 여기 가드가 없어서, 피해 없이
+        //   '어디로 돌진할지'만 알리는 예고(charge)가 만료될 때 `applyDamage(w, undefined)`
+        //   가 불렸고 영웅 체력이 NaN 이 됐다. NaN 은 `hp <= 0` 이 거짓이라 **영웅이 죽지
+        //   않았고**, 회귀가 전 층 100% 돌파라는 말도 안 되는 값을 냈다.
+        //   숫자가 이상하면 밸런스가 아니라 먼저 NaN 을 의심할 것.
+        if (e.damage === undefined || e.damage === null) { state.effects.splice(i, 1); continue; }
         for (var n = 0; n < state.units.length; n++) {
           var w = state.units[n];
           if (!w.alive || w.side === e.side) continue;
           var ex = w.x - e.x, ey = w.y - e.y;
           if (Math.sqrt(ex * ex + ey * ey) <= e.r + w.def.radius) {
-            this.applyDamage(w, e.damage, e.owner, state);
+            this.applyDamage(w, e.damage, e.owner, state, e.abil ? { abil: true } : undefined);
           }
         }
         state.effects[i] = {

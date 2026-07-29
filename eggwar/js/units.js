@@ -22,7 +22,15 @@ lore: '부족의 앞줄에 서기로 한 알. 뒤에 선 동료가 활을 당길
     desc: '청동 단검과 나무 방패. 싸고 튼튼한 벽.',
     cost: 10, hp: 240, armor: 30, speed: 135, range: 52, damage: 28, cooldown: 800,
     attack: 'melee', coneDeg: 90, radius: 13, shape: 'square', weapon: 'bayonet',
-    chase: 270, aggro: 210
+    chase: 270, aggro: 210,
+    // 달려들기 — 가장 흔한 유닛이라 **압박의 밀도를 정하는 건 사실상 이 값이다.**
+    // 속도 135 로는 사냥꾼(178)을 못 잡아 그냥 뒤를 따라다니는 배경이었다.
+    // 쿨 9초로 길게 잡되 초기 쿨이 유닛마다 흩어지므로(runAbility) 여러 기가 있으면
+    // 번갈아 들어온다 — "쉴 새 없이 뭔가 온다"는 밀도를 물량이 아니라 시차로 만든다.
+    // 피해는 작게(22). 이 능력의 일은 죽이는 게 아니라 **가만히 못 있게 하는 것**이다.
+    ability: { type: 'charge', cooldown: 9000, telegraph: 450,
+               minRange: 110, maxRange: 210, dist: 210,
+               damage: 22, radius: 36, knockback: 16 }
   },
 
   rifleman: {
@@ -32,7 +40,16 @@ lore: '숲에서 새알을 노리던 사냥꾼. 화살은 곧게 날아가니 �
     cost: 15, hp: 140, armor: 10, speed: 115, range: 330, damage: 41, cooldown: 1300,
     attack: 'projectile', projectileSpeed: 240, projectileRadius: 6,
     radius: 11, shape: 'triangle', weapon: 'rifle',
-    chase: 150, aggro: 360, spacing: 38
+    chase: 150, aggro: 360, spacing: 38,
+    // 정조준 — **멀리 서 있는 것을 벌하는 유일한 수단.**
+    // 사용자 신고 1번("궁수가 너무 유리해")의 구조적 원인은 사거리 340 짜리 영웅이
+    // 아무 대가 없이 거리를 유지할 수 있다는 것이었다(반응요구 63% vs 근접 90%).
+    // 돌진은 원거리 영웅에게 안 통한다 — 붙기 전에 또 물러나면 그만이다.
+    // 그래서 **거리를 유지해도 닿는 것**을 하나 만든다: 발밑에 그림자가 지고,
+    // 그 자리에 계속 서 있으면 맞는다. 피하는 법은 하나뿐 — 움직이는 것.
+    ability: { type: 'barrage', cooldown: 10000, telegraph: 640,
+               minRange: 150, maxRange: 900,
+               damage: 46, radius: 72, repeat: 1 }
   },
 
   grenadier: {
@@ -75,7 +92,15 @@ lore: '통나무를 깎아 만든 대방패. 날아오는 것을 대신 받아 �
     attack: 'melee', coneDeg: 80,
     intercept: 46,          // 이 반경 안을 지나는 적 투사체를 대신 맞는다
     radius: 15, shape: 'shield', weapon: 'riotShield',
-    chase: 200, aggro: 240
+    chase: 200, aggro: 240,
+    // 방패 돌진 — 사용자 신고("뺑뺑이 돌리다 방패병만 남는다")에 대한 답.
+    // 방패병은 유효 체력 609(비보스 최고)에 속도 100 이라, 사거리 340 짜리 영웅에게는
+    // **19초짜리 벽**이었다(사냥꾼 유효 피해 16.5 × 쿨 750ms). 체력을 깎으면 존재 이유가
+    // 사라지고, 그대로 두면 지루하다. 그래서 **거리를 지우는 수단**을 줬다 —
+    // 이제 방패병은 맞아주는 물건이 아니라 '피해야 하는 순간'을 만든다.
+    ability: { type: 'charge', cooldown: 8000, telegraph: 520,
+               minRange: 120, maxRange: 270, dist: 270,
+               damage: 30, radius: 44, knockback: 24 }
   },
 
   sergeant: {
@@ -137,32 +162,68 @@ GAME.BOSS_UNITS = {
     key: 'bossChief', name: '거대 족장', art: 'chieftain', isBoss: true,
 lore: '오래 살아남아 둥지만큼 커진 우두머리. 그가 포효하면 부족 전체가 세게 친다.',
     desc: '부족을 이끄는 거대한 알. 주변 아군을 크게 강화하고 직접 후려친다.',
-    cost: 0, hp: 1500, armor: 26, speed: 96, range: 96, damage: 52, cooldown: 1300,
+    // 체력을 **깎았다**(2026-07-29). 사용자 신고: "보스도 그냥 뺑뺑이만 돌리다 끝났어."
+    //   원인은 강함이 아니라 **모양**이었다 — 체력 1420~1500 에 위협 수단이 없으니
+    //   '길고 안전한 체력 깎기'가 됐다(사냥꾼 20층 꼬리 22.2초).
+    //   위 능력으로 위협을 주고 체력을 줄여 **짧고 무서운** 쪽으로 옮긴다.
+    //   실측(사냥꾼 20층): hp 1420 꼬리 22.2초 → 1050 17.5초 → 900 13.6초.
+    cost: 0, hp: 1000, armor: 26, speed: 96, range: 96, damage: 52, cooldown: 1300,
     attack: 'melee', coneDeg: 110,
     buffRadius: 250, buffDamageMul: 1.45,
     radius: 27, shape: 'star', weapon: 'pistol',
-    chase: 420, aggro: 420
+    chase: 420, aggro: 420,
+    // 성난 돌진 — 속도 96 으로는 사냥꾼(178)을 영원히 못 잡는다. 보스가 '거리를 지우는
+    // 수단'을 하나도 안 가진 게 뺑뺑이의 구조적 원인이었다. 예고 520ms 라 피할 수 있다.
+    ability: { type: 'charge', cooldown: 6500, telegraph: 520,
+               minRange: 150, maxRange: 460, dist: 460,
+               damage: 74, radius: 62, knockback: 46 }
   },
 
   bossShell: {
     key: 'bossShell', name: '껍질 골렘', art: 'guardian', isBoss: true,
 lore: '버려진 알 껍질을 뒤집어쓴 커다란 것. 느리지만 한 번 스치면 그대로 밀려난다.',
     desc: '두꺼운 껍질 덩어리. 느리지만 닿으면 밀려난다.',
-    cost: 0, hp: 1420, armor: 26, speed: 78, range: 104, damage: 68, cooldown: 1600,
+    // 체력을 **깎았다**(2026-07-29). 사용자 신고: "보스도 그냥 뺑뺑이만 돌리다 끝났어."
+    //   원인은 강함이 아니라 **모양**이었다 — 체력 1420~1500 에 위협 수단이 없으니
+    //   '길고 안전한 체력 깎기'가 됐다(사냥꾼 20층 꼬리 22.2초).
+    //   위 능력으로 위협을 주고 체력을 줄여 **짧고 무서운** 쪽으로 옮긴다.
+    //   실측(사냥꾼 20층): hp 1420 꼬리 22.2초 → 1050 17.5초 → 900 13.6초.
+    cost: 0, hp: 950, armor: 26, speed: 78, range: 104, damage: 68, cooldown: 1600,
     attack: 'melee', coneDeg: 130,
     radius: 30, shape: 'shield', weapon: 'riotShield',
-    chase: 460, aggro: 460
+    chase: 460, aggro: 460,
+    // 껍질 구르기 — 셋 중 가장 느린 놈(속도 78)이라 거리 지우기가 가장 절실하다.
+    // 예고가 길고(900ms) 대신 가장 멀리 굴러오며 가장 세게 민다 —
+    // '느리지만 한 번 스치면 그대로 밀려난다'는 소개 문구 그대로다.
+    // 쿨 7500 → **5200**. 체력을 950 으로 깎았더니 폰 프로필에서 20층 보스가 이웃보다
+    //   쉬워졌다(R-3 +3%p 실패). 되돌리는 길은 둘이었다 — 체력을 1250 으로 올리거나(-4%p)
+    //   구르기를 더 자주 하거나(-2%p). **후자를 골랐다**: 체력을 올리면 방금 줄인 꼬리가
+    //   도로 길어진다(사냥꾼 20층 14.8초 → 19.8초). 보스는 두꺼워서가 아니라
+    //   무서워서 어려워야 한다는 것이 이번 변경의 요지다.
+    ability: { type: 'charge', cooldown: 5200, telegraph: 900,
+               minRange: 160, maxRange: 580, dist: 580,
+               damage: 92, radius: 76, knockback: 92 }
   },
 
   bossNest: {
     key: 'bossNest', name: '둥지 포탑', art: 'ballista', isBoss: true,
 lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살을 뿌린다.',
     desc: '움직이지 않는 거대 둥지. 맵 전체에 쉬지 않고 쏘아댄다.',
-    cost: 0, hp: 1500, armor: 22, speed: 0, range: 0, rangeSpan: true,
+    // 체력을 **깎았다**(2026-07-29). 사용자 신고: "보스도 그냥 뺑뺑이만 돌리다 끝났어."
+    //   원인은 강함이 아니라 **모양**이었다 — 체력 1420~1500 에 위협 수단이 없으니
+    //   '길고 안전한 체력 깎기'가 됐다(사냥꾼 20층 꼬리 22.2초).
+    //   위 능력으로 위협을 주고 체력을 줄여 **짧고 무서운** 쪽으로 옮긴다.
+    //   실측(사냥꾼 20층): hp 1420 꼬리 22.2초 → 1050 17.5초 → 900 13.6초.
+    cost: 0, hp: 1020, armor: 22, speed: 0, range: 0, rangeSpan: true,
     damage: 44, cooldown: 520,
     attack: 'projectile', projectileSpeed: 300, projectileRadius: 8,
     radius: 26, shape: 'bunker', weapon: 'mg',
-    chase: 0, aggro: 0, immobile: true
+    chase: 0, aggro: 0, immobile: true,
+    // 화살비 — 움직일 수 없으니 거리를 지우는 대신 **설 자리를 지운다.**
+    // 예고 원 3개가 시차를 두고 떨어져서, 서 있으면 맞고 계속 움직이면 피한다.
+    ability: { type: 'barrage', cooldown: 6800, telegraph: 640,
+               minRange: 0, maxRange: 4000,
+               damage: 52, radius: 104, repeat: 3, interval: 430, spread: 230 }
   }
 };
 

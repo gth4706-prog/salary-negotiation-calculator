@@ -107,7 +107,10 @@ GAME.BattleScene.prototype.create = function () {
   this.arrowOn = this.hero;      // 내가 모는 유닛 위에 빨간 화살표
 
   // 학습형 AI: 이 배치도가 지금까지 배운 적응값을 전투에 적용한다
-  this.state.adapt = GAME.Learn.get(this.formation.id).adapt;
+  // 학습값(배치도별로 쌓인 것) + 층 전술(통곡의 탑 전용). 큰 쪽을 쓴다 —
+  // 곱하면 고층에서 두 배로 세져 곡선이 통제 불능이 된다(tower.js mergeTactics 참조).
+  this.state.adapt = GAME.Tower.mergeTactics(
+    GAME.Learn.get(this.formation.id).adapt, this.formation.tactics);
   this.state.telemetry.medicPlaced = this.formation.units.some(function (u) {
     return GAME.UNITS[u.type] && GAME.UNITS[u.type].healRadius;
   });

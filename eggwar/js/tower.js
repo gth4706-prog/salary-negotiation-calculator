@@ -194,7 +194,85 @@ GAME.Tower = {
       f.rationale = GAME.UNITS[bossKey].name + ' — ' + GAME.UNITS[bossKey].desc +
                     '\n' + f.rationale;
     }
+    // 층이 오를수록 켜지는 **전술 계층**을 배치도에 붙여 보낸다.
+    f.tactics = this.tacticsFor(floor);
+    // 화면이 "이 층은 뭐가 다른가"를 말할 수 있게 설명에 한 줄 얹는다.
+    // 숫자가 조용히 오르기만 하면 플레이어는 '그냥 어려워졌다'로만 느낀다 —
+    // 무엇이 달라졌는지 이름을 붙여 줘야 대응할 생각을 한다.
+    var act = [];
+    for (var ti = 0; ti < this.TACTICS.length; ti++) {
+      var tk = this.TACTICS[ti].key;
+      if (f.tactics[tk] > 0.1) act.push(this.NEW_TACTIC_LABEL[tk]);
+    }
+    if (act.length) {
+      var fresh = this.newTacticAt(floor);
+      // '전술' 은 쓸 수 없다 — '술' 이 config.js 의 800자 폰트 서브셋 밖이다
+      // (넣으면 woff2 가 1개 146KB → 25개 491KB 가 된다). 뜻이 같은 '움직임' 을 쓴다.
+      f.rationale = (f.rationale ? f.rationale + '\n' : '') +
+        '움직임: ' + act.join(' · ') + (fresh ? '   ← 이번 층부터 ' + fresh : '');
+    }
     return f;
+  },
+
+  // ── 층별 전술 (2026-07-29, 사용자 지시) ─────────────────────────────────────
+  //  "층이 오를수록 AI 가 패턴을 분석해 난이도가 올라가야 하니, 거리를 벌리거나
+  //   대형을 유지하거나 약초꾼에게 가서 회복하는 전략적 움직임도 가능하도록 미리 설계."
+  //
+  //  ⚠ 왜 숫자를 층에 매다는가 — `js/learn.js` 의 학습(가설→시험→채택)은 **배치도별**로
+  //    쌓인다. 그런데 통곡의 탑 배치도는 `tower-<층>` 이라 층마다 새 배치도이고,
+  //    한 층을 여러 번 도전하지 않는 한 학습이 쌓일 자리가 없다. 그래서 탑에서는
+  //    "몇 층인가"가 곧 "얼마나 영리한가"여야 한다. 학습은 대전·방어전에서 계속 돈다.
+  //
+  //  ⚠ 값은 **최댓값으로 합친다**(학습값과 층값 중 큰 쪽). 두 계층이 곱해지면
+  //    고층에서 두 배로 세져 곡선이 통제 불능이 된다.
+  //
+  //  각 행동이 켜지는 층을 다르게 잡은 이유 — 한꺼번에 켜면 플레이어가 **무엇이 달라졌는지
+  //  구분할 수 없다.** 한 층대에 하나씩 새 행동이 등장해야 "이번엔 뭐가 다르지"가 읽힌다.
+  //    5층~  kite      다친 원거리가 물러나며 쏜다        (이미 combat.js 에 있던 행동)
+  //   10층~  retreat   다친 유닛이 약초꾼에게 붙어 회복한다  (신설)
+  //   16층~  cohesion  혼자 튀어나가지 않고 무리와 함께 나간다 (신설)
+  //   22층~  press     교전조차 못 하는 유닛이 더 적극적으로 나간다 (이미 있던 행동)
+  //  각각 시작 층에서 0 부터 시작해 GROWTH 층에 걸쳐 MAX 까지 오른다.
+  TACTICS: [
+    { key: 'kite',     from: 5,  growth: 14, max: 0.75 },
+    { key: 'retreat',  from: 10, growth: 16, max: 0.90 },
+    { key: 'cohesion', from: 16, growth: 18, max: 0.85 },
+    { key: 'press',    from: 22, growth: 20, max: 0.60 }
+  ],
+
+  tacticsFor: function (floor) {
+    var out = {};
+    for (var i = 0; i < this.TACTICS.length; i++) {
+      var t = this.TACTICS[i];
+      if (floor < t.from) { out[t.key] = 0; continue; }
+      var p = Math.min(1, (floor - t.from) / t.growth);
+      out[t.key] = Math.round(t.max * p * 100) / 100;
+    }
+    return out;
+  },
+
+  // 학습값과 층 전술을 합친다 — **큰 쪽을 쓴다**(곱하지 않는다. 위 경고 참조).
+  // 전투를 시작하는 쪽(scenes/battle.js · tools/sim.js)이 한 줄로 부른다.
+  mergeTactics: function (learned, tactics) {
+    var out = {};
+    var k;
+    for (k in (learned || {})) out[k] = learned[k];
+    for (k in (tactics || {})) {
+      out[k] = Math.max(typeof out[k] === 'number' ? out[k] : 0, tactics[k] || 0);
+    }
+    return out;
+  },
+
+  // 이 층에서 새로 켜진 전술의 이름 — 도전 화면이 "이번 층은 뭐가 다른가"를 말할 때 쓴다.
+  NEW_TACTIC_LABEL: {
+    kite: '거리 벌리기', retreat: '약초꾼에게 후퇴',
+    cohesion: '대형 유지', press: '적극 압박'
+  },
+  newTacticAt: function (floor) {
+    for (var i = 0; i < this.TACTICS.length; i++) {
+      if (this.TACTICS[i].from === floor) return this.NEW_TACTIC_LABEL[this.TACTICS[i].key];
+    }
+    return null;
   },
 
   // 층 클리어

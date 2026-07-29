@@ -1341,11 +1341,82 @@ GAME.Combat = {
     if (tgt) {
       var d = this.dist(u, tgt);
 
+      var ad2 = state.adapt;
+
+      // ── 약초꾼에게 후퇴 (retreat, 2026-07-29) ────────────────────────────
+      // 다친 유닛이 **회복해 줄 아군에게 붙는다.** `medicFollow`(약초꾼이 부상자를
+      // 따라간다)의 반대 방향이고, 둘은 섞여도 된다 — 서로 마주 걸어오면 더 빨리 만난다.
+      // 규율:
+      //   · 약초꾼 자신은 후퇴하지 않는다(회복원이 도망가면 진형이 통째로 무너진다)
+      //   · **이미 회복 반경 안이면 움직이지 않는다** — 안 그러면 약초꾼 위에 겹쳐 서서
+      //     진형에 구멍이 나고, 광역 한 방에 뭉텅이로 죽는다
+      //   · 후퇴 중에도 사거리 안의 적은 계속 친다(도망만 치면 진형 화력이 사라진다)
+      // 후퇴는 kite 보다 **먼저** 본다. 둘 다 조건이 맞으면 회복이 우선이다 —
+      // kite 는 죽지 않으려는 행동이고 후퇴는 살아 돌아오려는 행동이라, 뒤가 더 낫다.
+      if (ad2 && ad2.retreat > 0.1 && u.side === 'strategist' && u.rootedFor <= 0 &&
+          !def.healRadius && !def.immobile && u.hp < u.maxHp * (0.30 + 0.25 * ad2.retreat)) {
+        var medic = null, medD = Infinity;
+        for (var mi = 0; mi < state.units.length; mi++) {
+          var mu = state.units[mi];
+          if (!mu.alive || mu.side !== u.side || !mu.def.healRadius) continue;
+          var md = this.dist(u, mu);
+          if (md < medD) { medD = md; medic = mu; }
+        }
+        // ⚠ **가까운 약초꾼에게만 간다.** 거리 제한이 없을 때 실측하니 다친 유닛이
+        //   맵을 가로질러 걸어가느라 전투에서 통째로 빠졌고, 그 결과 전술을 켠 쪽이
+        //   **더 쉬워졌다**(프로 돌파 12층 58%→65%). 회복은 싸움을 이어가기 위한
+        //   것이지 싸움을 그만두는 것이 아니다.
+        var reach = (medic ? medic.def.healRadius : 0) + 220 * (GAME.CONFIG.WORLD_SCALE || 1);
+        // 회복 반경 안이면 그 자리에서 회복받으며 싸운다(붙지 않는다)
+        if (medic && medD > medic.def.healRadius * 0.75 && medD <= reach) {
+          this.moveToward(u, medic.x, medic.y, this.effSpeed(u) * dt * (0.55 + 0.45 * ad2.retreat));
+          if (d <= def.range) {
+            this.faceAttack(u, Math.atan2(tgt.y - u.y, tgt.x - u.x));
+            if (u.cd <= 0) { this.fire(u, tgt.x, tgt.y, tgt, state); u.cd = def.cooldown; }
+          }
+          return;
+        }
+      }
+
+      // ── 대형 유지 (cohesion, 2026-07-29) ─────────────────────────────────
+      // **혼자 튀어나가지 않는다.** v0.53 에서 '한 번 쫓으면 끝까지 쫓는다'(committed)를
+      // 넣자, 영웅이 유닛을 하나씩 끌어내 각개격파하는 것이 최적 전략이 됐다.
+      // 주변에 아군이 없으면 전진을 멈추고 무리 쪽으로 물러난다 —
+      // 진형이 '뭉쳐서 함께' 움직이므로 끌어내기가 통하지 않는다.
+      // ⚠ 사거리 안이면 예외다. 닿는데 안 치면 그건 대형 유지가 아니라 태업이다.
+      if (ad2 && ad2.cohesion > 0.1 && u.side === 'strategist' && u.stance === 'chase' &&
+          d > def.range && u.rootedFor <= 0 && !def.immobile) {
+        var near = 0, cx = 0, cy = 0;
+        var band = 190 * (GAME.CONFIG.WORLD_SCALE || 1);
+        for (var ci = 0; ci < state.units.length; ci++) {
+          var cu = state.units[ci];
+          if (!cu.alive || cu.side !== u.side || cu === u || this.isHazard(cu)) continue;
+          if (this.dist(u, cu) <= band) { near++; cx += cu.x; cy += cu.y; }
+        }
+        var needed = 1 + Math.round(ad2.cohesion * 2);      // 0.85 → 아군 3기 필요
+        if (near < needed && near > 0) {
+          // ⚠ 처음엔 '혼자면 멈춘다'로 만들었는데, 그러면 진형이 영웅에게 닿지를 못해
+          //   **오히려 쉬워졌다**(실측). 대형 유지는 '가지 않는 것'이 아니라
+          //   '같이 가는 것'이다. 무리 쪽으로 당기되 목표를 향한 전진은 유지한다 —
+          //   아군 중심과 적 사이의 중간점으로 간다.
+          var mixX = (cx / near) * ad2.cohesion + tgt.x * (1 - ad2.cohesion);
+          var mixY = (cy / near) * ad2.cohesion + tgt.y * (1 - ad2.cohesion);
+          this.moveToward(u, mixX, mixY, this.effSpeed(u) * dt);
+          if (d <= def.range && u.cd <= 0) {
+            this.faceAttack(u, Math.atan2(tgt.y - u.y, tgt.x - u.x));
+            this.fire(u, tgt.x, tgt.y, tgt, state); u.cd = def.cooldown;
+          }
+          return;
+        }
+      }
+
       // 학습: kite — **다친** 원거리 유닛만 물러나며 쏜다.
       // 멀쩡한 유닛까지 물러나면 진형의 화력 집중이 깨져 오히려 약해진다(실측으로 확인).
-      var ad2 = state.adapt;
+      // ⚠ **근접 상대에게만 물러난다.** 사거리 340 짜리 영웅에게 물러나 봐야
+      //   그쪽 사거리 안이라 맞는 건 그대로이고 내 화력만 줄어든다 —
+      //   실측에서 kite 를 켠 쪽이 더 쉬웠던 원인 중 하나다.
       if (ad2 && ad2.kite > 0.1 && u.side === 'strategist' &&
-          def.range > 150 && u.hp < u.maxHp * 0.55 &&
+          def.range > 150 && (tgt.def.range || 0) < 150 && u.hp < u.maxHp * 0.55 &&
           d < def.range * 0.4 && u.rootedFor <= 0) {
         var away = Math.atan2(u.y - tgt.y, u.x - tgt.x);
         u.x += Math.cos(away) * this.effSpeed(u) * dt * ad2.kite;

@@ -132,8 +132,11 @@ GAME.MenuScene.prototype.create = function () {
   var utilY = ry + smallH + u * 1.4;
   var utilH = smallH * 0.86;
   var hasFs = GAME.PWA && GAME.PWA.canFullscreen() && !GAME.PWA.isStandalone();
-  var utilW = Math.min(W - 60, hasFs ? 320 : 200);
-  var uc = hasFs
+  // 아이폰은 전체화면 API 가 (일반 요소에 대해) 없어서 위 버튼이 아예 안 만들어진다.
+  // 빈자리로 두면 "내 폰만 버튼이 없다"가 되므로, 같은 칸에 **가는 길**을 넣는다.
+  var iosGuide = !hasFs && GAME.PWA && GAME.PWA.isIOS() && !GAME.PWA.isStandalone();
+  var utilW = Math.min(W - 60, (hasFs || iosGuide) ? 320 : 200);
+  var uc = (hasFs || iosGuide)
     ? GAME.Layout.cols(2, { gap: 10, width: utilW, left: (W - utilW) / 2, pad: 0 })
     : [{ cx: W / 2, w: utilW }];
 
@@ -156,6 +159,13 @@ GAME.MenuScene.prototype.create = function () {
         fb._everOn = fb._everOn || ok;
         fb.text.setText(fsLbl());
       });
+    }, { fontSize: P ? 13 : 13 });
+    this._soundBtnBottom = utilY + utilH / 2;
+  } else if (iosGuide) {
+    // 아이폰 — 누르면 '홈 화면에 추가' 방법을 띄운다. 한 번 눌러 설치시키는 API 가
+    // 아이폰에는 없으므로(beforeinstallprompt 부재) 안내가 최선이다.
+    GAME.UI.button(this, uc[1].cx, utilY, uc[1].w, utilH, '⛶ 전체화면 방법', function () {
+      GAME.PWA.showHomeScreenGuide();
     }, { fontSize: P ? 13 : 13 });
     this._soundBtnBottom = utilY + utilH / 2;
   }
@@ -199,7 +209,11 @@ GAME.MenuScene.prototype.create = function () {
 GAME.MenuScene.prototype._tail = function () {
   if (!GAME.PWA) return;
   this.time.delayedCall(1400, function () { GAME.PWA.maybeShowInstall(); });
-  this.events.once('shutdown', function () { GAME.PWA.hideInstall(); });
+  this.events.once('shutdown', function () {
+    GAME.PWA.hideInstall();
+    // 안내창은 DOM 이라 씬이 바뀌어도 남는다 — 배너와 같은 이유로 반드시 걷어낸다.
+    if (GAME.PWA.hideHomeScreenGuide) GAME.PWA.hideHomeScreenGuide();
+  });
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -305,7 +319,10 @@ GAME.MenuScene.prototype._buildPhone = function () {
   slots.push('rank');
   slots.push('nick');
   if (GAME.Sound) slots.push('sound');
+  // 아이폰은 전체화면 API 가 없어 'fs' 칸이 통째로 빠진다 → 같은 자리에 안내를 넣는다.
+  var iosGuide = !hasFs && GAME.PWA && GAME.PWA.isIOS() && !GAME.PWA.isStandalone();
   if (hasFs) slots.push('fs');
+  else if (iosGuide) slots.push('iosfs');
   if (GAME.isAdmin) slots.push('admin');
   var uc = GAME.Layout.cols(slots.length, { gap: 8, width: rw, left: rx, pad: 0 });
 
@@ -326,6 +343,9 @@ GAME.MenuScene.prototype._buildPhone = function () {
           GAME.Sound.toggle();
           sb.text.setText(sndLbl());
         }, { fontSize: 16 });
+      } else if (kind === 'iosfs') {
+        UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, '⛶ 전체화면 방법',
+          function () { GAME.PWA.showHomeScreenGuide(); }, { fontSize: 14 });
       } else if (kind === 'fs') {
         var fsLbl = function () { return GAME.PWA.isFullscreen() ? '⤡ 해제' : '⛶ 전체화면'; };
         var fb = UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, fsLbl(), function () {

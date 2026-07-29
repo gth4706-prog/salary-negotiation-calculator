@@ -313,9 +313,77 @@ GAME.PWA = (function () {
     wireRotatePrompt();
   }
 
+  // ── 아이폰 전용: 전체화면으로 가는 길 안내 ──────────────────────────────────
+  // 사용자 신고(2026-07-29): "아이폰 웹에서는 전체화면 버튼이 없다."
+  // 사실 확인:
+  //   · 아이폰 사파리의 Fullscreen API 는 오랫동안 **비디오 요소 전용**이었다.
+  //     아이패드는 iPadOS 16.4 에서 일반 요소 전체화면이 열렸지만 아이폰은 아니었고,
+  //     iOS 17.4 무렵 기능 플래그 뒤에서 시험됐다. caniuse 는 iOS 26 대까지도
+  //     여전히 '부분 지원'으로 표기한다. → 그래서 `canFullscreen()` 이 false 를 내고
+  //     버튼이 아예 안 만들어진 것이다. **버그가 아니라 기기 사정이다.**
+  //   · 반대로 **홈 화면에 추가는 아이폰에서 잘 된다**(흔한 오해). iOS 16.4 부터는
+  //     사파리뿐 아니라 크롬·파이어폭스에서도 된다. manifest 의 display:standalone 과
+  //     apple-mobile-web-app-capable 이 이미 들어 있어, 홈 화면에서 열면
+  //     주소창·툴바 없이 뜬다 — 아이폰에서 이게 사실상 유일한 진짜 전체화면이다.
+  //   · 안드로이드처럼 한 번 눌러 설치시키는 건 불가능하다(beforeinstallprompt 가 없다).
+  //     그래서 **안내만** 할 수 있고, 그 안내가 한 번 뜨고 사라지면 안 된다 —
+  //     설치 배너는 세션당 1회에 '다시 안 보기'까지 있어서 놓치면 길이 사라졌다.
+  //     메뉴에서 언제든 다시 열 수 있게 이 함수를 둔다.
+  function showHomeScreenGuide() {
+    if (document.getElementById('ios-fs-guide')) return;
+    var C = GAME.CONFIG.COLORS, COL = GAME.UI.COL;
+    var wrap = document.createElement('div');
+    wrap.id = 'ios-fs-guide';
+    wrap.style.cssText =
+      'position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;' +
+      'padding:20px;box-sizing:border-box;background:rgba(10,8,4,.62);' +
+      'backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);font-family:var(--egg-font);';
+    var card = document.createElement('div');
+    card.style.cssText =
+      'max-width:420px;width:100%;box-sizing:border-box;border-radius:16px;padding:20px 18px;' +
+      'background:' + hx(COL.surface === undefined ? COL.surfaceAlt : COL.surface) + ';' +
+      'border:2px solid ' + hx(COL.borderUi) + ';box-shadow:0 10px 30px rgba(0,0,0,.28);';
+    card.innerHTML =
+      '<div style="font:700 18px var(--egg-font);color:' + C.text + ';margin-bottom:10px">' +
+        '아이폰에서 꽉 찬 화면으로 하기</div>' +
+      '<div style="font:400 14px/1.6 var(--egg-font);color:' + C.text + '">' +
+        '아이폰 사파리에는 전체화면 버튼이 없습니다. 대신 <b>홈 화면에 추가</b>하면 ' +
+        '주소창과 아래 툴바가 사라져 꽉 찬 화면으로 열립니다.' +
+      '</div>' +
+      '<ol style="font:400 14px/1.7 var(--egg-font);color:' + C.text + ';' +
+        'margin:12px 0 0;padding-left:20px">' +
+        '<li>아래쪽 <b>공유</b> 버튼(⬆︎)을 누릅니다</li>' +
+        '<li>목록을 내려 <b>홈 화면에 추가</b>를 누릅니다</li>' +
+        '<li>오른쪽 위 <b>추가</b>를 누릅니다</li>' +
+        '<li>홈 화면에 생긴 <b>Egg War</b> 아이콘으로 엽니다</li>' +
+      '</ol>' +
+      '<div style="font:400 12px/1.6 var(--egg-font);color:' + C.textDim + ';margin-top:12px">' +
+        '가로로 눕히면 전장이 넓어집니다. 아이폰은 웹에서 화면 방향을 고정할 수 없어 ' +
+        '회전 잠금이 켜져 있으면 풀어야 합니다.' +
+      '</div>';
+    var close = document.createElement('button');
+    close.textContent = '알겠어요';
+    close.style.cssText =
+      'margin-top:16px;width:100%;min-height:48px;border-radius:12px;cursor:pointer;' +
+      'border:2px solid ' + hx(COL.borderUi) + ';background:' + hx(COL.surfaceHi) + ';' +
+      'color:' + C.text + ';font:700 16px var(--egg-font);-webkit-tap-highlight-color:transparent;';
+    close.onclick = function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); };
+    card.appendChild(close);
+    wrap.appendChild(card);
+    wrap.addEventListener('click', function (e) { if (e.target === wrap) close.onclick(); });
+    document.body.appendChild(wrap);
+  }
+
+  function hideHomeScreenGuide() {
+    var el = document.getElementById('ios-fs-guide');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
   return {
     isStandalone: isStandalone,
     isIOS: isIOS,
+    showHomeScreenGuide: showHomeScreenGuide,
+    hideHomeScreenGuide: hideHomeScreenGuide,
     maybeShowInstall: maybeShowInstall,
     // 배너는 DOM 이라 씬이 바뀌어도 남는다 → 메뉴를 떠날 때 반드시 걷어낸다.
     // 안 그러면 전투 화면 아래를 가린다.

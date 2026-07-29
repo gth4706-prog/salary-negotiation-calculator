@@ -111,6 +111,11 @@ GAME.BattleScene.prototype.create = function () {
   // 곱하면 고층에서 두 배로 세져 곡선이 통제 불능이 된다(tower.js mergeTactics 참조).
   this.state.adapt = GAME.Tower.mergeTactics(
     GAME.Learn.get(this.formation.id).adapt, this.formation.tactics);
+  // 탑이 **나를 상대로 배운 것**을 한 겹 더 얹는다(계정별로 쌓인다).
+  // 층 전술은 누구에게나 같지만 이건 나에게만 맞춰진 값이다.
+  if (this.tower && GAME.TowerLearn) {
+    this.state.adapt = GAME.Tower.addTactics(this.state.adapt, GAME.TowerLearn.adaptFor());
+  }
   this.state.telemetry.medicPlaced = this.formation.units.some(function (u) {
     return GAME.UNITS[u.type] && GAME.UNITS[u.type].healRadius;
   });
@@ -633,6 +638,11 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     // 통곡의 탑 진행 처리
     var towerRec = null, runRec = null, goldGained = 0;
     if (this.tower) {
+      // 탑 학습 — **이긴 판·진 판 모두** 기록한다. 진 판에서만 배우면 가설을 세울 수는
+      // 있어도 그것이 통했는지 확인할 수가 없다(확인은 이긴 판에서 나온다).
+      if (GAME.TowerLearn) {
+        GAME.TowerLearn.record(this.tower, this.state, this.state.winner === 'strategist');
+      }
       towerRec = won ? GAME.Tower.clear(this.tower) : GAME.Tower.fail();
       // 도전(run) — 이기면 골드를 주고, 지면 도전이 끝난다(다음엔 처음부터 고른다)
       if (GAME.TowerRun && GAME.TowerRun.get()) {

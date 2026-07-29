@@ -211,6 +211,12 @@ GAME.Tower = {
       f.rationale = (f.rationale ? f.rationale + '\n' : '') +
         '움직임: ' + act.join(' · ') + (fresh ? '   ← 이번 층부터 ' + fresh : '');
     }
+    // 탑이 **나를 상대로** 배운 것. 층 전술(누구에게나 같음)과 줄을 나눠 적는다 —
+    // 한 줄에 섞으면 "원래 그런 것"과 "나 때문에 생긴 것"이 구분되지 않는다.
+    if (GAME.TowerLearn) {
+      var mine = GAME.TowerLearn.summary();
+      if (mine) f.rationale = (f.rationale ? f.rationale + '\n' : '') + mine;
+    }
     return f;
   },
 
@@ -259,6 +265,24 @@ GAME.Tower = {
     for (k in (learned || {})) out[k] = learned[k];
     for (k in (tactics || {})) {
       out[k] = Math.max(typeof out[k] === 'number' ? out[k] : 0, tactics[k] || 0);
+    }
+    return out;
+  },
+
+  // 학습값은 **더한다**(최댓값이 아니다). 2026-07-29 실측이 이유다:
+  //   층 전술은 고층에서 0.75~0.90 까지 오르는데 학습값 상한은 0.60 이라,
+  //   최댓값으로 합치면 **고층에서 학습이 통째로 가려진다.** 실제로 학습을 켜고 끈
+  //   A/B 에서 차이가 0.1층(28.9 vs 29.0)밖에 안 났다.
+  //   층 전술은 "몇 층인가"이고 학습은 "**너**를 상대로 배운 것"이라 성격이 다르다 —
+  //   후자는 언제나 얹혀야 의미가 있다. 상한 1.0 은 combat.js 의 행동들이
+  //   0~1 비율로 쓰이기 때문이다(넘기면 이동 속도 배수가 1을 넘어 이상해진다).
+  addTactics: function (base, extra, cap) {
+    var lim = cap === undefined ? 1 : cap;
+    var out = {}, k;
+    for (k in (base || {})) out[k] = base[k];
+    for (k in (extra || {})) {
+      var v = (typeof out[k] === 'number' ? out[k] : 0) + (extra[k] || 0);
+      out[k] = v > lim ? lim : v;
     }
     return out;
   },

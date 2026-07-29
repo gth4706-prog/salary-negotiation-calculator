@@ -133,6 +133,21 @@ GAME.BuildScene.prototype.init = function (data) {
   this.tier = GAME.CONFIG.DEFAULT_TIER;
   // 수성의 탑에서 들어오면 그 층의 고정 예산을 쓰고, 승패가 층에 반영된다.
   this.defendTower = (data && data.defendTower) || 0;
+  // ── 지난 층의 배치를 그대로 불러온다 (2026-07-29, 사용자 지시) ──────────────
+  // 수성의 탑은 같은 진형으로 층을 이어 오르는 모드다. 매 층 빈 판에서 다시 짜게 하면
+  // 층수가 오를수록 '같은 배치를 다시 그리는 노동'만 늘어난다.
+  // 불러온 뒤 고칠 수 있으므로 선택지를 뺏지도 않는다.
+  // ⚠ 진 판에서는 `DefendTower.fail()` 이 placed 를 지우므로 여기서 자동으로 빈 판이 된다
+  //   — "지면 처음부터"라는 규칙과 어긋나지 않는다.
+  if (this.defendTower) {
+    var prev = (GAME.DefendTower.get() || {}).placed;
+    if (prev && prev.length) {
+      for (var pi = 0; pi < prev.length; pi++) {
+        var pp = prev[pi];
+        if (pp && GAME.UNITS[pp.type]) this.placed.push({ type: pp.type, x: pp.x, y: pp.y });
+      }
+    }
+  }
   // 대전에서 '기지 만들기'로 들어왔는가 — 저장 시 그 배치도를 내 기지로 삼는다
   this.pickBase = !!(data && data.pickBase);
   // 씬을 다시 들어오면 이전 타이머는 이미 죽어 있다 — 참조를 반드시 비운다

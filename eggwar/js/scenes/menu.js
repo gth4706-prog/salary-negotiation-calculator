@@ -87,15 +87,25 @@ GAME.MenuScene.prototype.create = function () {
       hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 17 : 21 },
     function () { self.scene.start('Versus'); });
 
-  modeButton('컨트롤러로 도전', '저장된 진형을 격파 — 깰수록 그 진형이 강해진다',
-    { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
-      hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 17 : 20 },
-    function () { self.scene.start('Select'); });
-
-  modeButton('전략가로 방어전', '진형을 짜고 AI 공격을 막아라 — 막을수록 AI가 강해진다',
-    { fill: GAME.UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
-      hover: GAME.UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: P ? 17 : 20 },
-    function () { self.scene.start('Build'); });
+  // ── '컨트롤러로 도전' · '전략가로 방어전' 을 뺐다 (2026-07-29, 사용자 지시) ──
+  // 다섯 개 모드가 나란히 서 있으니 **무엇부터 눌러야 하는지**가 안 보였다.
+  // 둘 다 대전(⚔)이 하는 일과 겹친다 — 남의 진형을 치고, 내 진형이 방어한다.
+  // 자리는 비우지 않고 **두 탑이 무엇을 연습하는 곳인지** 알리는 데 쓴다.
+  // ⚠ 문구의 모든 글자는 config.js 의 800자 서브셋 안이어야 한다(확인함).
+  //   '익혔으면 · 겨룬다' 는 익·혔·룬 이 밖이라 '연습이 끝나면 · 싸운다' 로 바꿨다.
+  //   (씬 자체는 남아 있다. Build 는 수성의 탑·기지 만들기가 계속 쓰고,
+  //    Select 는 나중에 대전이 다듬어질 때 다시 붙일 수 있다.)
+  var guideY = by + u * 0.6;
+  GAME.UI.text(this, W / 2, guideY,
+    '🗼 통곡의 탑은 컨트롤러 연습장 — 영웅 하나로 진형을 뚫는다',
+    { size: P ? 'micro' : 'caption', color: C.warn, origin: 0.5, originY: 0 });
+  GAME.UI.text(this, W / 2, guideY + (P ? 20 : 24),
+    '🛡 수성의 탑은 전략가 연습장 — 진형 하나로 영웅을 막는다',
+    { size: P ? 'micro' : 'caption', color: C.accentAlt, origin: 0.5, originY: 0 });
+  GAME.UI.text(this, W / 2, guideY + (P ? 42 : 50),
+    '연습이 끝나면 ⚔ 대전에서 사람과 싸운다',
+    { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 });
+  by = guideY + (P ? 68 : 80);
 
   var rc = GAME.Layout.cols(GAME.isAdmin ? 3 : 2, {
     gap: 10, width: bw, left: (W - bw) / 2, pad: 0
@@ -277,15 +287,17 @@ GAME.MenuScene.prototype._buildPhone = function () {
     { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
       hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: 19 });
 
-  UI.button(this, c2[0].cx, r3 + rowH / 2, c2[0].w, rowH, '컨트롤러로 도전',
-    function () { self.scene.start('Select'); },
-    { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
-      hover: UI.COL.panelTealHi, color: C.accent, fontSize: 19 });
-
-  UI.button(this, c2[1].cx, r3 + rowH / 2, c2[1].w, rowH, '전략가로 방어전',
-    function () { self.scene.start('Build'); },
-    { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
-      hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: 19 });
+  // 두 버튼('컨트롤러로 도전' · '전략가로 방어전')을 뺀 자리 — 위 폰 레이아웃과 같은 근거.
+  // 대전과 하는 일이 겹쳐서 첫 화면의 선택지만 늘렸다. 대신 **두 탑의 역할**을 적는다.
+  UI.text(this, rx + rw / 2, r3 + rowH * 0.16,
+    '🗼 통곡의 탑은 컨트롤러 연습장 — 영웅 하나로 진형을 뚫는다',
+    { size: 'body', color: C.warn, origin: 0.5, originY: 0 });
+  UI.text(this, rx + rw / 2, r3 + rowH * 0.16 + 28,
+    '🛡 수성의 탑은 전략가 연습장 — 진형 하나로 영웅을 막는다',
+    { size: 'body', color: C.accentAlt, origin: 0.5, originY: 0 });
+  UI.text(this, rx + rw / 2, r3 + rowH * 0.16 + 56,
+    '연습이 끝나면 ⚔ 대전에서 사람과 싸운다',
+    { size: 'caption', color: C.textDim, origin: 0.5, originY: 0 });
 
   // ── 유틸 줄 ──
   var hasFs = GAME.PWA && GAME.PWA.canFullscreen() && !GAME.PWA.isStandalone();

@@ -39,9 +39,13 @@ GAME.DefendTowerScene.PHONE = {
 };
 
 // 씬을 다시 들어오면 캐시한 표시객체는 이미 파괴돼 있다(파괴된 객체도 truthy 다).
-GAME.DefendTowerScene.prototype.init = function () {
+GAME.DefendTowerScene.prototype.init = function (data) {
   this.sheet = null;
   this.growth = null;
+  // 층을 막아내고 돌아왔으면 **성장 화면을 먼저 띄운다** (2026-07-29, 사용자 지시).
+  // 예전에는 ☰ 안에 숨어 있어서, 골드를 벌어도 쓸 곳이 있다는 걸 모른 채
+  // 다음 층으로 넘어가는 경우가 많았다. 라운드가 끝난 그 순간이 고를 때다.
+  this._autoGrowth = !!(data && data.cleared);
   // 파괴된 Phaser 객체는 여전히 truthy 라 `if (this._heroG)` 가드를 통과한다 —
   // 이 저장소에서 이미 터진 유형이다. 씬을 다시 들어올 때마다 반드시 비운다.
   this._heroG = null;
@@ -63,7 +67,7 @@ GAME.DefendTowerScene.prototype.create = function () {
 
   // 폰 가로(820×390)는 한 열로 흘릴 높이가 없다 — 아래에서 올라오는 버튼과
   // 위에서 내려오는 문구가 만난다(실측: 겹침 4건, 27px 버튼).
-  if (GAME.CONFIG.PHONE) return this._createPhone();
+  if (GAME.CONFIG.PHONE) { this._createPhone(); this._maybeAutoGrowth(); return; }
 
   var rec = DT.get();
   var floor = rec.floor;
@@ -166,9 +170,22 @@ GAME.DefendTowerScene.prototype.create = function () {
          hover: GAME.UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: P ? 20 : 22 });
 
   this.events.on('shutdown', function () { self._closeGrowth(); });
+
+  this._maybeAutoGrowth();
 };
 
 // 지금 올려둔 유닛 레벨 요약 — "  ·  전사 Lv.3 · 쇠뇌 진지 Lv.2"
+// create 가 끝난 뒤 한 프레임 뒤에 연다 — 화면이 다 그려진 위에 얹혀야
+// 패널이 배경보다 먼저 뜨는 깜빡임이 없다.
+GAME.DefendTowerScene.prototype._maybeAutoGrowth = function () {
+  if (!this._autoGrowth) return;
+  this._autoGrowth = false;
+  var self = this;
+  this.time.delayedCall(60, function () {
+    if (self.scene && self.scene.isActive() && self._openGrowth) self._openGrowth();
+  });
+};
+
 GAME.DefendTowerScene.prototype._levelSummaryText = function () {
   if (!GAME.UnitLevel) return '';
   var raised = GAME.UnitLevel.raised();

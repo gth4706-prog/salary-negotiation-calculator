@@ -188,7 +188,8 @@ GAME.ResultScene.prototype.create = function () {
   else b1 = '같은 진형에 다시 도전';
   GAME.UI.button(this, W / 2, btnTop, bw, u * 7, b1, function () {
     if (self.tower) self.scene.start('Tower');
-    else if (self.defendTower) self.scene.start('DefendTower');
+    else if (self.defendTower) self.scene.start('DefendTower',
+      { cleared: self.winner !== 'controller' });   // 막아냈으면 성장 화면부터 연다
     else if (self.versus) self.scene.start('Versus');
     else if (self.defendMode) self.scene.start('Build');
     else self.scene.start('Draft', { formationId: self.formationId });
@@ -312,7 +313,8 @@ GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
 
   UI.button(this, rx + rw / 2, mainTop + mainH / 2, rw, mainH, b1, function () {
     if (self.tower) self.scene.start('Tower');
-    else if (self.defendTower) self.scene.start('DefendTower');
+    else if (self.defendTower) self.scene.start('DefendTower',
+      { cleared: self.winner !== 'controller' });   // 막아냈으면 성장 화면부터 연다
     else if (self.versus) self.scene.start('Versus');
     else if (self.defendMode) self.scene.start('Build');
     else self.scene.start('Draft', { formationId: self.formationId });

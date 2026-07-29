@@ -61,15 +61,25 @@ GAME.DefendScene.prototype.create = function () {
   this.g = this.add.graphics();
   this.state = GAME.Combat.createState();
 
-  // 내 진형을 위쪽(전투 기준)으로 뒤집어 배치한다 — 배치 화면과 같은 규칙
+  // ── 내 영역은 **언제나 화면 아래**다 (2026-07-29, 사용자 지시) ─────────────
+  // 예전에는 배치를 mirrorY 로 뒤집어 위쪽에 세우고 AI 영웅이 아래에서 올라왔다.
+  // 배치 화면에서는 아래에 놓고 전투에서는 위에 서니 **같은 진형이 뒤집혀 보였다.**
+  // 이제 놓은 그대로 아래에 세우고 침입 영웅이 위에서 내려온다.
+  //   · 배치 화면 ↔ 전투 화면의 그림이 일치한다(머릿속에서 뒤집을 필요가 없다)
+  //   · 나중에 실시간 대전이 붙어도 규칙이 하나다 — **내 쪽이 아래**
+  // 저장 포맷(Formations)은 건드리지 않는다. 뒤집기는 저장할 때만 한다.
   for (var i = 0; i < this.placed.length; i++) {
     var p = this.placed[i];
     if (!GAME.UNITS[p.type]) continue;
     // 수성의 탑에서 올린 유닛 레벨(1~5)을 반영해 만든다.
     // 레벨 1이면 Combat.createUnit 을 그대로 부르는 것과 완전히 동일하다(실측 확인).
-    this.state.units.push(GAME.UnitLevel
-      ? GAME.UnitLevel.createUnit(p.type, p.x, GAME.mirrorY(p.y), 'strategist')
-      : GAME.Combat.createUnit(p.type, p.x, GAME.mirrorY(p.y), 'strategist'));
+    var mine = GAME.UnitLevel
+      ? GAME.UnitLevel.createUnit(p.type, p.x, p.y, 'strategist')
+      : GAME.Combat.createUnit(p.type, p.x, p.y, 'strategist');
+    // 아래에 섰으니 위를 본다. `_baseUnit` 은 side 로만 시선을 정하므로 여기서 바로잡는다 —
+    // 안 고치면 전 유닛이 등을 보이고 서 있다(무기도 몸통에 가려진다).
+    mine.facing = -Math.PI / 2;
+    this.state.units.push(mine);
   }
 
   // AI 컨트롤러가 공격해 온다.
@@ -96,8 +106,10 @@ GAME.DefendScene.prototype.create = function () {
   var picks = { Q: 0, W: 0, E: 0, R: 0 };
   if (this.aiSkill > 0.5) { picks.Q = 1; picks.R = 1; }
 
-  var Z = GAME.CONFIG.ZONE_CONTROLLER;
-  this.hero = GAME.Combat.createHero(heroKey, Z.x + Z.w / 2, Z.y + Z.h * 0.55, 'controller', items, picks);
+  // 침입 영웅은 **위에서** 내려온다(내 영역이 아래이므로).
+  var Z = GAME.CONFIG.ZONE_STRATEGIST;
+  this.hero = GAME.Combat.createHero(heroKey, Z.x + Z.w / 2, Z.y + Z.h * 0.45, 'controller', items, picks);
+  this.hero.facing = Math.PI / 2;
   // 층 강화 — 통곡의 탑이 진형을 강화하듯, 수성의 탑은 공격 영웅을 강화한다.
   if (heroMods) {
     this.hero.def.hp = Math.round(this.hero.def.hp * (heroMods.hp || 1));
@@ -109,6 +121,18 @@ GAME.DefendScene.prototype.create = function () {
   // 수성의 탑 골드 — 영웅 체력을 조각낼 때마다 보상한다(적이 1기뿐이라 '처치 단위'가 없다).
   if (this.defendTower && GAME.DefendTower && GAME.DefendTower.attachKillGold) {
     GAME.DefendTower.attachKillGold(this.state, this.defendTower);
+    // 동전을 눈에 보이게 뿌린다. 전략가는 유닛을 조작하지 않아 **주우러 갈 수가 없으므로**
+    // 자동 수거로 둔다(통곡의 탑은 주우러 가는 것 자체가 조작이라 수동이 맞다).
+    // 수거 지점은 내 진형의 한복판 — 돈이 '내 쪽으로' 흘러오는 게 보여야 한다.
+    if (GAME.Coins) {
+      // 이름을 `_coins` 로 맞춘다 — 그리기는 BattleScene.draw 를 빌려 쓰는데
+      // 그쪽이 `this._coins` 를 본다. 다른 이름으로 두면 동전이 안 보인다.
+      this._coins = GAME.Coins.create(this, this.state);
+      var CZ = GAME.CONFIG.ZONE_STRATEGIST;
+      this._coins.setAuto(GAME.CONFIG.ARENA.x + GAME.CONFIG.ARENA.w / 2,
+                         GAME.mirrorY(CZ.y + CZ.h * 0.5));
+      this._segShown = 0;
+    }
   }
   this.ai = new GAME.AIHero(this.state, this.hero, this.aiSkill);
 
@@ -287,6 +311,7 @@ GAME.DefendScene.prototype.update = function (time, delta) {
   }
 
   this._dt = dt;          // 걸음걸이 위상 (draw 는 BattleScene 것을 빌려 쓴다)
+  this._tickCoins(dt);
   this.draw();
   this.drawNumbers();
   this.updateHud();
@@ -336,6 +361,28 @@ GAME.DefendScene.prototype.update = function (time, delta) {
       });
     });
   }
+};
+
+// 영웅 체력이 한 조각(GOLD_SEGMENTS 분의 1) 깎일 때마다 동전을 떨군다.
+// ⚠ 회계의 주인은 여전히 `DefendTower.earnedFrom` 이다. 여기서 뿌리는 동전은
+//   **그 값의 예고편**이지 별도 통장이 아니다 — 두 벌이 되면 화면과 기록이 어긋난다.
+//   그래서 동전 액수는 표시용으로만 쓰고, 층 보상은 전투가 끝난 뒤 한 번 계산한다.
+GAME.DefendScene.prototype._tickCoins = function (dt) {
+  if (!this._coins) return;
+  var DT = GAME.DefendTower, st = this.state;
+  var maxHp = st._dgHeroMaxHp || 0;
+  if (maxHp > 0 && this.hero) {
+    var lost = Math.max(0, 1 - Math.max(0, this.hero.hp) / maxHp);
+    var seg = Math.floor(lost * DT.GOLD_SEGMENTS);
+    while (this._segShown < seg) {
+      this._segShown++;
+      var per = (st._dgPool || 0) * DT.GOLD_DAMAGE_SHARE / DT.GOLD_SEGMENTS;
+      st.killGoldEvents = st.killGoldEvents || [];
+      st.killGoldEvents.push({ x: this.hero.x, y: this.hero.y, gold: Math.max(1, Math.round(per)) });
+      st.killGold = (st.killGold || 0) + Math.max(1, Math.round(per));
+    }
+  }
+  this._coins.update(dt, null);
 };
 
 GAME.DefendScene.prototype.updateHud = function () {

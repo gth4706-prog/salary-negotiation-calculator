@@ -161,6 +161,15 @@ window.GAME = window.GAME || {};
     this._pops = [];
   }
 
+  // 자동 수거 — 수성의 탑처럼 **주울 사람이 없는** 판에서 쓴다.
+  // 전략가는 유닛을 조작하지 않으므로 '주우러 가는 조작'이 존재하지 않는다.
+  // 그래도 동전을 뿌리는 이유는 회계가 아니라 **피드백**이다: 내 진형이 영웅을
+  // 깎을 때마다 뭔가 떨어지고 그게 내 쪽으로 빨려와야 '벌고 있다'가 보인다.
+  // 튀어나가는 구간(HOP)은 그대로 둔다 — 그래야 '떨어졌다'가 먼저 읽힌다.
+  CoinField.prototype.setAuto = function (x, y) {
+    this.auto = { x: x, y: y };
+  };
+
   CoinField.prototype.remaining = function () { return this.list.length; };
   CoinField.prototype.remainingGold = function () {
     var s = 0;
@@ -252,6 +261,22 @@ window.GAME = window.GAME || {};
         continue;
       }
       c.hop = 0;
+
+      if (this.auto) {
+        // 수거 지점으로 곧장 빨려간다. 닿으면 줍는다(사거리 판정 없음).
+        var adx = this.auto.x - c.x, ady = this.auto.y - c.y;
+        var ad = Math.sqrt(adx * adx + ady * ady);
+        var av = K.MAG_V1 * ws * (dt / 1000) * 1.35;
+        if (ad <= av || ad < 1) {
+          got += c.v; gotN++; gx += c.x; gy += c.y;
+          this.list.splice(i, 1);
+          continue;
+        }
+        c.x += adx / ad * av;
+        c.y += ady / ad * av;
+        if (c.t >= c.life) { c.life = c.t + 4000; }   // 자동 수거는 시간초과로 잃지 않는다
+        continue;
+      }
 
       if (alive) {
         var dx = hero.x - c.x, dy = hero.y - c.y;

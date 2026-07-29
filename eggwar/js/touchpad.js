@@ -29,7 +29,10 @@ GAME.TouchPad.palette = function () {
     face:   light ? 0xffffff : 0x11131c,   // 버튼 면
     faceHi: light ? 0xd9d2c2 : 0x2a2f42,   // 눌렸을 때
     ink:    light ? 0x33291b : 0xffffff,   // 스틱 노브·테두리
-    ring:   light ? 0x8a8272 : 0x000000,   // 스틱 바깥 링·쿨다운 덮개
+    ring:   light ? 0x8a8272 : 0x000000,   // 스틱 바깥 링·쿨다운 부채꼴
+    // 쿨이 다 돈 스킬 버튼의 면. "결국 흰색 원으로" — 밝은 테마에서는 흰색이
+    // 배경과 붙어 버리므로 아주 옅은 크림으로 낮춘다(대비를 잃지 않게).
+    readyFace: light ? 0xfff8ec : 0xffffff,
     amber:  (UI.COL && UI.COL.panelAmberHi) || 0xf0a86a,
     armed:  UI.cssToHex ? UI.cssToHex(C.crit, 0xffd166) : 0xffd166
   };
@@ -131,9 +134,11 @@ GAME.TouchPad.prototype._build = function () {
   var cx = W - S.mainR - margin;
   var cy = PHONE ? (H - S.mainR - margin) : baseY;
 
-  this._addButton('ATK', cx, cy, S.mainR, '공격', GAME.CONFIG.COLORS.controller, function () {
-    self._attack();
-  });
+  // ── 기본공격 버튼을 없앴다 (2026-07-29, 사용자 지시) ─────────────────────
+  // 사거리 안의 적은 **가만히 있어도 자동으로** 친다(input.js·touchpad.js 양쪽에
+  // 그 코드가 있다). 그래서 이 버튼은 이미 하는 일이 없었고, 화면에서 가장 좋은
+  // 자리(엄지 홈 포지션)를 가장 안 쓰는 버튼이 차지하고 있었다.
+  // 그 자리를 스킬이 물려받는다 — 아래 arcR 이 그만큼 짧아진다.
 
   // 기본공격 버튼을 중심으로 왼쪽 위 호에 QWER 을 건다.
   //
@@ -146,8 +151,11 @@ GAME.TouchPad.prototype._build = function () {
   var gap = Math.round(S.skillR * 0.22);
   var startDeg = 6, endDeg = 90;
   var stepRad = ((endDeg - startDeg) / (n - 1)) * Math.PI / 180;
+  // 공격 버튼이 사라졌으므로 호 반지름의 하한이 '공격 반지름 + 스킬 반지름'에서
+  // **스킬 반지름 하나**로 줄어든다 = 스킬이 엄지 쪽으로 당겨온다.
+  // 겹침을 막는 하한(필요 간격에서 역산)은 그대로다 — 그게 진짜 제약이다.
   var arcR = Math.max(
-    S.mainR + S.skillR + 8,
+    S.skillR * 1.15,
     (S.skillR * 2 + gap) / (2 * Math.sin(stepRad / 2))
   );
   GAME.SKILL_SLOTS.forEach(function (slot, i) {
@@ -212,10 +220,14 @@ GAME.TouchPad.prototype._addButton = function (key, x, y, r, label, color, onTap
   var floorPx = GAME.CONFIG.PORTRAIT ? 15 : 13;
   while (px > floorPx && text.width > budget) { px -= 1; text.setFontSize(px); }
 
-  // 쿨다운 표시 — 원을 덮는 어두운 원판의 알파로 남은 시간을 보여준다
-  var cool = scene.add.circle(x, y, r - 1, PAD.ring, 0).setDepth(901).setScrollFactor(0);
+  // 쿨다운 표시 — **시계처럼 줄어드는 부채꼴**(2026-07-29, 사용자 지시).
+  // 예전에는 원 전체를 덮는 어두운 원판의 '알파'로만 알렸다. 알파는 절대값을 못 읽는다 —
+  // 반쯤 어두운 것이 3초인지 8초인지 알 수 없었다. 부채꼴은 각도가 곧 남은 비율이라
+  // 곁눈질로도 읽히고, 다 돌면 회색이 사라지며 **흰 원**이 된다(= 지금 쓸 수 있다).
+  var cool = scene.add.graphics().setDepth(901).setScrollFactor(0);
 
   var self = this;
+  // 쿨 중에는 숫자를 띄우므로 원래 라벨을 들고 있어야 되돌릴 수 있다
   circle.on('pointerdown', function (p) {
     p.event && p.event.preventDefault && p.event.preventDefault();
     circle.setFillStyle(PAD.faceHi, 0.8);
@@ -230,7 +242,7 @@ GAME.TouchPad.prototype._addButton = function (key, x, y, r, label, color, onTap
   text.__padOwner = key;
   cool.__padOwner = key;
 
-  var b = { key: key, circle: circle, text: text, cool: cool, r: r, color: color };
+  var b = { key: key, circle: circle, text: text, cool: cool, r: r, color: color, label: label };
   this.buttons.push(b);
   this.objects.push(circle, text, cool);
   return b;
@@ -338,7 +350,29 @@ GAME.TouchPad.prototype.refresh = function () {
     // h.skills 는 **배열**이다(슬롯은 각 원소의 .slot). 'Q' 로 색인하면 항상 undefined 라
     // total 이 1 이 되고 어두움이 늘 최대(0.6)에 붙어 **남은 쿨이 전혀 안 보였다**.
     var total = this._cooldownOf(h, b.key);
-    b.cool.setFillStyle(PAD.ring, left > 0 ? Math.min(0.6, (left / total) * 0.6) : 0);
+    var g = b.cool;
+    g.clear();
+    if (left > 0) {
+      // 12시에서 시작해 시계방향으로 **남은 만큼** 회색이 남는다.
+      var frac = Math.max(0, Math.min(1, left / total));
+      var a0 = -Math.PI / 2;
+      g.fillStyle(PAD.ring, 0.62);
+      g.slice(b.circle.x, b.circle.y, b.r - 1, a0, a0 + Math.PI * 2 * frac, false);
+      g.fillPath();
+      // 0.1초 단위 숫자를 **라벨 대신** 띄운다. 66px 원에 이름과 숫자를 같이 넣으면
+      // 둘 다 못 읽는다 — 쿨 중에는 남은 시간이 유일하게 필요한 정보다.
+      b.text.setText((left / 1000).toFixed(1));
+      b.text.setAlpha(0.95);
+      b.text.setColor(GAME.CONFIG.COLORS.text);
+      b.circle.setFillStyle(PAD.face, 0.55);
+    } else {
+      // 다 돌면 **흰 원**. 색으로 "지금 쓸 수 있다"를 말한다.
+      if (b.text.text !== b.label) b.text.setText(b.label);
+      b.text.setAlpha(1);
+      // 흰 원 위에서는 밝은 글자가 사라진다 — 잉크색으로 뒤집는다.
+      b.text.setColor('#2b2418');
+      b.circle.setFillStyle(PAD.readyFace, 0.92);
+    }
   }
   var pot = this._find('POTION');
   if (pot) pot.text.setAlpha(h.potionCharges > 0 ? 1 : 0.3);

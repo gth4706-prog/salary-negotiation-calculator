@@ -202,12 +202,21 @@ GAME.BattleScene.prototype.create = function () {
       // 자세한 문장은 마우스를 올렸을 때만.
       rect.on('pointerover', function () { self._showSkillTip(slot); });
       rect.on('pointerout', function () { self._hideSkillTip(); });
+      // 쿨다운 시계 — 폰 원형 버튼과 **같은 그림**을 PC 에도 둔다(사용자 지시 3번).
+      // 칸이 네모라 부채꼴만 따로 원으로 그린다. 숫자(0.1초 단위) 바로 뒤에 겹쳐
+      // 두므로 '숫자를 감싼 시계'로 읽힌다. 깊이는 칸과 글자 사이.
+      var clockR = Math.min(c.w, boxH) * 0.34;
+      var clock = self.add.graphics().setDepth((rect.depth || 0) + 1);
       self.skillBoxes.push({
-        slot: slot, rect: rect,
+        slot: slot, rect: rect, clock: clock, clockR: clockR, clockX: c.cx, clockY: cy,
         key: GAME.UI.label(self, c.x + 6, rows.skills.y + 4, GAME.isTouch ? '' : slot, 14, C.accent, 0),
         kind: GAME.UI.label(self, c.x + c.w - 6, rows.skills.y + 4, '', P ? 13 : 12, C.textDim, 0).setOrigin(1, 0),
-        name: GAME.UI.label(self, c.cx, rows.skills.bottom - 14, '', P ? 13 : 12, C.text, 0.5).setOrigin(0.5),
-        cd: GAME.UI.label(self, c.cx, cy, '', P ? 17 : 20, C.text, 0.5).setOrigin(0.5)
+        name: GAME.UI.label(self, c.cx, rows.skills.bottom - 14, '', P ? 13 : 12, C.text, 0.5)
+          .setOrigin(0.5).setDepth((rect.depth || 0) + 2),
+        // ⚠ 시계(Graphics)가 깊이 +1 이라 **글자를 덮는다.** 라벨을 그 위로 올린다 —
+        //   안 올리면 쿨 중에 숫자가 부채꼴 뒤로 사라진다.
+        cd: GAME.UI.label(self, c.cx, cy, '', P ? 17 : 20, C.text, 0.5)
+          .setOrigin(0.5).setDepth((rect.depth || 0) + 2)
       });
     })(slots[s], s);
   }
@@ -978,7 +987,30 @@ GAME.BattleScene.prototype.updateHud = function () {
     var cd = h.skillCd[b.slot];
     var ready = cd <= 0;
     b.cd.setText(ready ? '준비' : (cd / 1000).toFixed(1));
-    b.cd.setColor(ready ? C.accent : C.textDim);
+    b.cd.setColor(ready ? C.accent : C.text);
+    // 시계 — 12시에서 시계방향으로 **남은 만큼** 회색이 남고, 다 돌면 흰 원이 된다.
+    if (b.clock) {
+      var total = 1;
+      for (var si = 0; si < h.skills.length; si++) {
+        if (h.skills[si].slot === b.slot) {
+          total = Math.max(1, h.skills[si].cooldown * (h.cdrMul || 1));
+          break;
+        }
+      }
+      b.clock.clear();
+      var a0 = -Math.PI / 2;
+      if (ready) {
+        b.clock.fillStyle(0xffffff, 0.90);
+        b.clock.fillCircle(b.clockX, b.clockY, b.clockR);
+      } else {
+        var frac = Math.max(0, Math.min(1, cd / total));
+        b.clock.fillStyle(0xffffff, 0.14);
+        b.clock.fillCircle(b.clockX, b.clockY, b.clockR);
+        b.clock.fillStyle(GAME.UI.COL.borderUi, 0.55);
+        b.clock.slice(b.clockX, b.clockY, b.clockR, a0, a0 + Math.PI * 2 * frac, false);
+        b.clock.fillPath();
+      }
+    }
     b.rect.setStrokeStyle(1, GAME.UI.COL.border);
     b.rect.setFillStyle(GAME.UI.COL.surface);
   }

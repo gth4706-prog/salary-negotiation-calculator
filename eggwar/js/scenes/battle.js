@@ -69,6 +69,12 @@ GAME.BattleScene.prototype.create = function () {
                         : GAME.Learn.escalationMods(this.escalation);
   var bias = (lrec.adapt && lrec.adapt.rallyBias) || 0;
 
+  // 이 배치도의 유닛 등급 — 내 기지면 내 기록, 남의 기지면 서버가 실어 준 값.
+  var fUnitLv = this.formation.unitLv ||
+    ((this.versus && GAME.ArenaBuild &&
+      this.formation.id === (GAME.Arena.get() || {}).baseId)
+      ? GAME.ArenaBuild.get().unitLv : null) || {};
+
   for (var i = 0; i < this.formation.units.length; i++) {
     var e = this.formation.units[i];
     if (!GAME.UNITS[e.type]) continue;
@@ -76,6 +82,15 @@ GAME.BattleScene.prototype.create = function () {
     // 학습(rallyBias): 영웅이 자주 들어오던 쪽으로 진형을 조금 기울인다
     var wx = w.x + bias * GAME.CONFIG.ARENA.w * 0.06;
     wx = Math.max(GAME.CONFIG.ARENA.x + 20, Math.min(GAME.CONFIG.ARENA.right - 20, wx));
+    // 대전 진형은 **그 사람이 예산으로 산 등급**으로 선다(js/arenabuild.js).
+    // 원격 행이 unitLv 를 안 실어 보내면(옛 서버) 전부 Lv.1 이라 예전과 같다.
+    var ulv = fUnitLv[e.type] || 1;
+    if (ulv > 1 && GAME.UnitLevel && GAME.UnitLevel.createUnitAt) {
+      // 레벨 배수와 층 강화(mods)를 **곱해서** 한 번에 만든다(createUnitAt 참조).
+      this.state.units.push(
+        GAME.UnitLevel.createUnitAt(e.type, wx, w.y, 'strategist', ulv, mods));
+      continue;
+    }
     this.state.units.push(GAME.Combat.createUnit(e.type, wx, w.y, 'strategist', mods));
   }
 
@@ -684,6 +699,12 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     var arenaResult = null;
     if (this.versus && GAME.Arena) {
       arenaResult = GAME.Arena.recordAttack(GAME.Arena.pendingOpponent, won);
+      // 격파율의 근거를 서버에 남긴다 — **그 진형의 주인 닉네임**으로 보고한다.
+      // 내 기기 기록만으로는 남의 진형이 대부분 '기록 없음'으로 남아 정렬이 의미를 잃는다.
+      // 원격 배치도의 author 가 곧 그 사람의 닉네임이다(formations.fromRemote 참조).
+      if (GAME.Api && GAME.Api.defResult && this.formation.remote && this.formation.author) {
+        GAME.Api.defResult(this.formation.author, !won);
+      }
       GAME.Arena.pendingOpponent = null;
     }
 

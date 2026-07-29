@@ -191,6 +191,12 @@ GAME.Formations = {
       tier: row.tier || GAME.CONFIG.DEFAULT_TIER,
       budget: Number(row.budget) || 0,
       at: Number(row.at) || 0,
+      // 그 사람이 예산으로 산 유닛 등급. 없으면 전부 Lv.1 이다(옛 서버 호환).
+      unitLv: (row.unitLv && typeof row.unitLv === 'object') ? row.unitLv : null,
+      // 서버가 모은 방어 전적 — 격파율 정렬의 근거. 없으면 내 기기 기록으로 대신한다
+      // (arena.js `breachRate` 가 그 폴백을 갖고 있다).
+      defWin: typeof row.defWin === 'number' ? row.defWin : undefined,
+      defTry: typeof row.defTry === 'number' ? row.defTry : undefined,
       units: units
     };
   },

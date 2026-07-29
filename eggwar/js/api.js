@@ -99,6 +99,9 @@ GAME.Api = {
     var body = {
       id: id,
       trophy: trophy || 0,
+      // 대전 전략가가 예산으로 산 유닛 등급. 이걸 안 보내면 남이 내 진형을 칠 때
+      // 전부 Lv.1 로 싸운다 — 내가 낸 돈이 상대 화면에서는 없는 것이 된다.
+      unitLv: (GAME.ArenaBuild ? GAME.ArenaBuild.get().unitLv : null) || {},
       formation: {
         name: formation.name,
         tier: formation.tier,
@@ -122,6 +125,17 @@ GAME.Api = {
 
   // 남의 기지 목록. **성공했을 때만** resolve 한다 — 실패/옛 서버는 reject 해서
   // 호출부가 '사람 진형 0개'와 '못 받아옴'을 구분할 수 있게 한다.
+  // 방어 결과 보고 — 격파율의 근거를 서버에 모은다.
+  // **실패해도 조용히 넘어간다.** 이건 통계이지 게임 진행이 아니라, 여기서 막히면
+  // 전투가 끝나지 않는 것처럼 보이는 쪽이 더 나쁘다.
+  defResult: function (targetId, defended) {
+    if (!this.enabled() || !targetId) return Promise.resolve(null);
+    return this._fetch('/defresult', {
+      method: 'POST',
+      body: JSON.stringify({ target: targetId, defended: !!defended })
+    })['catch'](function () { return null; });
+  },
+
   bases: function (excludeId, n) {
     var self = this;
     return this._fetch('/bases?exclude=' + encodeURIComponent(excludeId || '') +

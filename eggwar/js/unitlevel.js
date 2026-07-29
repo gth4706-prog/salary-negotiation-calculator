@@ -143,6 +143,29 @@ GAME.UnitLevel = {
     return u;
   },
 
+  // 레벨을 **명시로** 받는 변형 — 대전에서 쓴다.
+  // `createUnit` 은 레벨을 수성의 탑 기록(`levelOf`)에서 읽으므로 남의 진형에는 못 쓴다.
+  // extraMods(탑 층 강화 등)가 있으면 레벨 배수와 **곱한다** — 둘 중 하나만 적용하면
+  // 같은 유닛이 모드마다 다른 체급이 된다.
+  createUnitAt: function (typeKey, x, y, side, lv, extraMods) {
+    lv = this.clamp(lv);
+    var m = this.modsForLevel(lv);
+    var mods = { hp: m.hp, damage: m.damage };
+    if (extraMods) {
+      mods.hp *= (extraMods.hp || 1);
+      mods.damage *= (extraMods.damage || 1);
+    }
+    var u = GAME.Combat.createUnit(typeKey, x, y, side, mods);
+    if (lv > 1 && u && u.def) {
+      // 원본(GAME.UNITS) 오염은 절대 내면 안 된다 — 반드시 사본에 lv 를 적는다.
+      var d = {}, k;
+      for (k in u.def) d[k] = u.def[k];
+      d.lv = lv;
+      u.def = d;
+    }
+    return u;
+  },
+
   // 팔레트·미리보기용 — 레벨이 반영된 def 사본(아트가 `def.lv` 를 읽는다).
   def: function (typeKey) {
     var base = GAME.UNITS[typeKey];

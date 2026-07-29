@@ -68,6 +68,9 @@ GAME.Arena = {
     var rec = this.get();
     rec.baseId = formationId;
     this._save(rec);
+    // 기지를 정한 그 순간이 서버에 올릴 시점이다 — 여기서 안 올리면
+    // 남의 상대 목록에 내가 영영 안 나타난다. 실패해도 로컬 기지는 그대로다.
+    try { this.syncBase(true); } catch (e) { /* 서버 없이도 게임은 돈다 */ }
     return rec;
   },
   baseFormation: function () {
@@ -132,23 +135,165 @@ GAME.Arena = {
     return Math.max(100, Math.round(base));
   },
 
-  findOpponents: function (n) {
-    n = n || 3;
+  // ── 상대 목록 구성 (2026-07-29) ──────────────────────────────────────────
+  //  사용자 지시: "가능한 **실제 사람이 만든 진형**과 싸우게 하고, 1개도 없을 경우
+  //  '랜덤매칭'으로 진행하자."
+  //
+  //  현실을 먼저 적는다: 라이브 실사용자는 3명이고 누적 30판 남짓이다.
+  //  즉 **사람 진형이 0~2개인 상태가 기본값**이다. "AI 를 없앤다"를 문자 그대로
+  //  적용하면 대전 화면에 카드가 0~2장만 남아 게임 모드 하나가 죽는다.
+  //  그래서 두 경로를 다 세운다 — 우선순위는 이렇게 고정한다:
+  //
+  //    ① human  다른 플레이어가 서버에 올린 기지        ← 있으면 **무조건 먼저**
+  //    ② mine   이 기기에서 내가 만든 배치도            ← 사람이 만들었지만 내 것
+  //    ③ random AI 시드 진형 = '랜덤매칭'               ← 빈 칸만 채운다
+  //
+  //  사람 진형이 1~2개면 같은 상대만 반복하게 되는데, 그 반복 자체는 **막지 않는다.**
+  //  그 사람이 유일한 진짜 상대이기 때문이다(숨기면 사람과 싸울 기회가 사라진다).
+  //  대신 남는 칸을 ②③ 으로 채워 화면이 비지 않게 하고, **카드마다 출처를 표시**해
+  //  랜덤 진형을 사람인 척 내보내지 않는다(matchInfo / sourceLabel).
+  OPP_SLOTS: 3,
+
+  // 상대 후보를 출처별로 나눈다. kind 는 그대로 화면에 표시된다.
+  candidates: function () {
     var rec = this.get();
     var me = this._key();
+    var out = { human: [], mine: [], random: [] };
+    var seen = {};
+    function push(list, f) {
+      if (!f || !f.units || !f.units.length) return;
+      if (f.id === rec.baseId) return;                 // 내 기지는 제외
+      if (seen[f.id]) return;
+      seen[f.id] = 1;
+      list.push(f);
+    }
+
+    var remote = GAME.Formations.remoteList();
+    for (var i = 0; i < remote.length; i++) {
+      if (remote[i].author === me) continue;           // 내가 올린 기지는 제외
+      push(out.human, remote[i]);
+    }
+    // 이 기기에 저장된 배치도. build.js 는 작성자를 `'나'` 라는 **고정 문자열**로
+    // 저장한다(계정 id 가 아니다) — 그래서 '남이 만든 것'과 구분할 수 없다.
+    // 구분이 안 되는 것을 사람 상대로 세면 거짓말이 되므로 ② 칸으로 내린다.
+    var saved = GAME.Formations.loadSaved();
+    for (var j = 0; j < saved.length; j++) {
+      var f = saved[j];
+      if (f.isAI) { push(out.random, f); continue; }
+      if (f.author && f.author !== '나' && f.author !== me) push(out.human, f);
+      else push(out.mine, f);
+    }
+    for (var k = 0; k < GAME.SEED_FORMATIONS.length; k++) push(out.random, GAME.SEED_FORMATIONS[k]);
+    return out;
+  },
+
+  humanCount: function () { return this.candidates().human.length; },
+
+  findOpponents: function (n) {
+    n = n || this.OPP_SLOTS;
+    var rec = this.get();
     var self = this;
-    var pool = GAME.Formations.loadAll().filter(function (f) {
-      if (f.id === rec.baseId) return false;           // 내 기지는 제외
-      if (f.author === me) return false;               // 내가 만든 것도 제외
-      return f.units && f.units.length;
+    var cand = this.candidates();
+    var out = [];
+
+    function take(list, kind) {
+      if (out.length >= n) return;
+      var scored = list.map(function (f) {
+        var r = self.ratingOf(f);
+        return { formation: f, trophy: r, gap: Math.abs(r - rec.trophy),
+                 kind: kind, human: kind !== 'random', author: f.author || null };
+      });
+      // 트로피가 가까운 순 — 다만 완전히 같은 상대만 나오면 지루하니 약간 섞는다
+      scored.sort(function (a, b) { return (a.gap + Math.random() * 90) - (b.gap + Math.random() * 90); });
+      for (var i = 0; i < scored.length && out.length < n; i++) out.push(scored[i]);
+    }
+
+    take(cand.human, 'human');
+    take(cand.mine, 'mine');
+    take(cand.random, 'random');
+    return out;
+  },
+
+  // 화면이 "지금 누구와 붙는지"를 정직하게 말할 수 있게 요약을 준다.
+  matchInfo: function (opps) {
+    var n = { human: 0, mine: 0, random: 0 };
+    for (var i = 0; i < (opps || []).length; i++) {
+      if (n[opps[i].kind] !== undefined) n[opps[i].kind]++;
+    }
+    var mode = n.human > 0 ? ((n.random + n.mine > 0) ? 'mixed' : 'human') : 'random';
+    var note;
+    if (mode === 'human') {
+      note = '🧑 다른 플레이어가 만든 진형과 겨룹니다';
+    } else if (mode === 'mixed') {
+      note = '🧑 사람 진형 ' + n.human + '개' +
+        (n.mine ? ' · 내 배치도 ' + n.mine + '개' : '') +
+        (n.random ? ' · 나머지는 랜덤 진형' : '');
+    } else if (n.mine > 0) {
+      // 사람은 없지만 내 배치도가 채워진 경우 — 카드 배지와 문구가 어긋나면 안 된다
+      note = '🎲 랜덤매칭 — 겨룰 상대가 없어 내 배치도 ' + n.mine + '개' +
+             (n.random ? ' · 랜덤 진형 ' + n.random + '개' : '') + '와 겨룹니다';
+    } else {
+      note = '🎲 랜덤매칭 — 지금은 겨룰 상대가 없어 랜덤 진형과 겨룹니다';
+    }
+    if (this.remoteState === 'loading') note = '상대를 찾는 중…   ' + note;
+    // '왜' 못 받았는지(옛 서버 / 네트워크)는 유저에게 의미가 없다 — 사실만 적는다.
+    else if (this.remoteState === 'fail') note += '   (상대 목록을 받지 못했습니다)';
+    return { counts: n, mode: mode, note: note };
+  },
+
+  // 카드에 붙는 출처 표시 — 이게 "AI 를 사람인 척 내보내지 않는다"의 실물이다.
+  sourceLabel: function (o) {
+    if (!o) return '';
+    if (o.kind === 'human') return '🧑 ' + (o.author || '다른 플레이어');
+    if (o.kind === 'mine') return '📕 내 배치도';
+    return '🎲 랜덤 진형';
+  },
+
+  // ── 서버와 주고받기 ──────────────────────────────────────────────────────
+  //  ⚠ 서버가 옛 버전이거나 네트워크가 끊겨도 **여기서 끝난다.** 실패는 상태 표시로만
+  //    남고 상대 목록은 ②③ 으로 채워진다 — 대전 화면이 비지 않는 것이 최우선이다.
+  REMOTE_TTL: 45000,
+  remoteState: 'idle',     // idle | loading | ok | fail | off
+  remoteAt: 0,
+  syncedAt: 0,
+  _pending: null,
+
+  fetchOpponents: function (force) {
+    var self = this;
+    var now = Date.now();
+    if (this._pending) return this._pending;
+    if (!force && this.remoteState !== 'idle' && (now - this.remoteAt) < this.REMOTE_TTL) {
+      return Promise.resolve(GAME.Formations.remoteList());
+    }
+    if (!GAME.Api || !GAME.Api.enabled || !GAME.Api.enabled()) {
+      this.remoteState = 'off'; this.remoteAt = now;
+      return Promise.resolve(GAME.Formations.remoteList());
+    }
+    this.remoteState = 'loading';
+    this._pending = GAME.Api.bases(this._key(), 12).then(function (rows) {
+      self._pending = null;
+      self.remoteState = 'ok'; self.remoteAt = Date.now();
+      return GAME.Formations.setRemote(rows);
+    }).catch(function (e) {
+      self._pending = null;
+      self.remoteState = 'fail'; self.remoteAt = Date.now();
+      if (window.console) console.warn('상대 목록을 못 받았습니다(랜덤매칭으로 진행):', e && e.message);
+      return GAME.Formations.remoteList();
     });
-    var scored = pool.map(function (f) {
-      var r = self.ratingOf(f);
-      return { formation: f, trophy: r, gap: Math.abs(r - rec.trophy) };
-    });
-    // 트로피가 가까운 순 — 다만 완전히 같은 상대만 나오면 지루하니 약간 섞는다
-    scored.sort(function (a, b) { return (a.gap + Math.random() * 90) - (b.gap + Math.random() * 90); });
-    return scored.slice(0, n);
+    return this._pending;
+  },
+
+  // 내 기지를 서버에 올린다 — 남이 나를 상대로 만나려면 이게 있어야 한다.
+  // 대전 화면에 들어올 때마다 부르되 10분에 한 번만 실제로 나간다.
+  syncBase: function (force) {
+    var now = Date.now();
+    if (!force && (now - (this.syncedAt || 0)) < 600000) return Promise.resolve(null);
+    if (!GAME.Api || !GAME.Api.enabled || !GAME.Api.enabled()) return Promise.resolve(null);
+    var base = this.baseFormation();
+    if (!base || !base.units || !base.units.length) return Promise.resolve(null);
+    if (base.remote) return Promise.resolve(null);     // 남의 기지를 되올리지 않는다
+    this.syncedAt = now;
+    return GAME.Api.postBase(this._key(), base, this.get().trophy);
   },
 
   // ── 공격 결과 ────────────────────────────────────────────────────────────

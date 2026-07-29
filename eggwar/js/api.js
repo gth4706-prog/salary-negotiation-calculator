@@ -17,11 +17,16 @@ GAME.Api = {
   // 서버가 분류별 랭킹(kind)을 지원하는지 — 한 번 확인하면 기억한다.
   //   null = 아직 모름 / true = 지원 / false = 옛 버전(로컬로 폴백)
   kindSupport: null,
+  // 서버가 기지(배치도) 공유를 지원하는지. 같은 규약 — 없으면 랜덤매칭으로 폴백한다.
+  baseSupport: null,
 
   enabled: function () { return !!this.API_BASE; },
 
   _fetch: function (path, opts) {
     if (!this.enabled()) return Promise.reject(new Error('API_BASE 미설정'));
+    // node 시뮬(tools/sim.js)처럼 fetch 가 없는 환경에서도 이 파일이 로드된다.
+    // 없는 전역을 부르면 ReferenceError 로 죽으므로 거절로 바꾼다(호출부는 폴백을 갖고 있다).
+    if (typeof fetch !== 'function') return Promise.reject(new Error('fetch 없음'));
     return fetch(this.API_BASE + path, opts).then(function (r) {
       if (!r.ok) return r.json().then(function (j) { throw new Error(j.error || r.status); });
       return r.json();
@@ -79,6 +84,57 @@ GAME.Api = {
 
   me: function (id) {
     return this._fetch('/me?id=' + encodeURIComponent(id));
+  },
+
+  // ── 기지(배치도) 공유 — 대전 상대를 '사람'으로 채우기 위한 것 ─────────────
+  // 옛 Worker 에는 이 두 경로가 없다(404 → 거절). 호출부(js/arena.js)는 그걸
+  // 잡아서 **랜덤매칭**으로 내려간다. 즉 서버가 옛 버전이어도 게임은 그대로 돈다.
+
+  // 내 기지를 올린다. 실패해도 게임 진행에는 영향이 없다(로컬 기지는 그대로).
+  postBase: function (id, formation, trophy) {
+    var self = this;
+    if (!this.enabled() || !id || !formation || !formation.units || !formation.units.length) {
+      return Promise.resolve(null);
+    }
+    var body = {
+      id: id,
+      trophy: trophy || 0,
+      formation: {
+        name: formation.name,
+        tier: formation.tier,
+        budget: formation.budget,
+        units: formation.units.map(function (u) {
+          return { type: u.type, nx: u.nx, ny: u.ny };
+        })
+      }
+    };
+    return this._fetch('/base', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) { self.baseSupport = true; return r; })
+      .catch(function (e) {
+        self.baseSupport = false;
+        if (window.console) console.warn('기지 업로드 실패(로컬 기지는 유지):', e.message);
+        return null;
+      });
+  },
+
+  // 남의 기지 목록. **성공했을 때만** resolve 한다 — 실패/옛 서버는 reject 해서
+  // 호출부가 '사람 진형 0개'와 '못 받아옴'을 구분할 수 있게 한다.
+  bases: function (excludeId, n) {
+    var self = this;
+    return this._fetch('/bases?exclude=' + encodeURIComponent(excludeId || '') +
+                       '&n=' + (n || 12)).then(function (res) {
+      if (!res || res.kind !== 'bases' || !(res.rows instanceof Array)) {
+        self.baseSupport = false;
+        var err = new Error('서버가 아직 배치도 공유를 지원하지 않습니다');
+        err.legacy = true;
+        throw err;
+      }
+      self.baseSupport = true;
+      return res.rows;
+    });
   },
 
   names: function (token) {

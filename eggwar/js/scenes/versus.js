@@ -25,7 +25,10 @@ GAME.VersusScene.PHONE = {
   BAR_H: 60,
   BTN_H: 56, BTN_CY: 30,
   MENU_CX: 782, MENU_W: 56,
-  BODY_TOP: 66, BODY_BOTTOM: 320,
+  // 바(60) 바로 아래 한 줄이 **매칭 종류 표시**다(사람/랜덤). 그만큼 카드를 내렸다 —
+  // 카드 안쪽 미니 진형도를 150→126 으로 줄여 아래 글자 위치는 그대로 유지했다.
+  NOTE_Y: 63,
+  BODY_TOP: 82, BODY_BOTTOM: 320,
   CARD_GAP: 10,
   FOOT_Y: 326, FOOT_H: 56,
   VER_W: 62
@@ -34,6 +37,37 @@ GAME.VersusScene.PHONE = {
 // 씬 재진입 때 캐시한 표시객체는 이미 파괴돼 있다 — 참조를 반드시 비운다.
 GAME.VersusScene.prototype.init = function () {
   this.sheet = null;
+  this._refreshed = false;
+  this._note = null;
+  this._noteW = 0;
+};
+
+// 매칭 종류 한 줄('사람 진형' / '랜덤매칭' / '찾는 중')을 다시 쓴다.
+// 서버 응답이 늦게 와도 **문구는 반드시 최종 상태로 남아야 한다** — 안 그러면
+// 이미 끝난 조회가 화면에서는 영원히 '상대를 찾는 중…' 으로 남는다(실제로 그랬다).
+GAME.VersusScene.prototype._refreshNote = function () {
+  if (!this._note || !this._note.scene) return;
+  var mi = GAME.Arena.matchInfo(GAME.Arena.findOpponents(GAME.Arena.OPP_SLOTS));
+  this._note.setColor(mi.mode === 'random' ? GAME.CONFIG.COLORS.warn : GAME.CONFIG.COLORS.accentAlt);
+  if (this._noteW) this._fit(this._note, mi.note, this._noteW);
+  else this._note.setText(mi.note);
+};
+
+// 서버에서 '다른 사람의 기지'를 받아온다. 화면은 **기다리지 않는다** —
+// 먼저 지금 아는 것으로 그리고, 사람 상대가 새로 들어왔을 때만 한 번 다시 그린다.
+// (기다리게 하면 서버가 죽어 있을 때 대전 화면이 통째로 멈춘다.)
+GAME.VersusScene.prototype._kickRemote = function () {
+  var self = this;
+  if (!GAME.Arena || !GAME.Arena.fetchOpponents) return;
+  GAME.Arena.syncBase();
+  var before = GAME.Arena.humanCount();
+  GAME.Arena.fetchOpponents().then(function () {
+    if (self._refreshed) return;
+    if (!self.scene || !self.scene.isActive || !self.scene.isActive()) return;
+    if (GAME.Arena.humanCount() === before) { self._refreshNote(); return; }  // 목록이 그대로면 문구만
+    self._refreshed = true;
+    self.scene.restart();
+  })['catch'](function () { /* 실패는 matchInfo 가 화면에 적는다 */ });
 };
 
 GAME.VersusScene.prototype.create = function () {
@@ -47,6 +81,8 @@ GAME.VersusScene.prototype.create = function () {
 
   this.cameras.main.setBackgroundColor(C.bg);
   GAME.Iso.setMode('default');
+
+  this._kickRemote();
 
   // 폰 가로(820×390)는 세로로 쌓을 높이가 없다 — 한 열로 흘리면 버튼끼리 겹친다
   // (실측: 겹침 11건). 좌우 2열 + 아래 버튼 줄로 펼친다.
@@ -103,7 +139,14 @@ GAME.VersusScene.prototype.create = function () {
 
   // ── 상대 목록 ──
   var opps = GAME.Arena.findOpponents(3);
-  stack(GAME.UI.label(this, W / 2, y, '상대 고르기', P ? 15 : 17, C.text, 0.5).setOrigin(0.5, 0), u * 1.0);
+  var mi = GAME.Arena.matchInfo(opps);
+  stack(GAME.UI.label(this, W / 2, y, '상대 고르기', P ? 15 : 17, C.text, 0.5).setOrigin(0.5, 0), u * 0.4);
+  // 사람인지 랜덤인지 **화면에 적는다.** 몰래 AI 를 사람인 척 내보내지 않는다.
+  this._note = GAME.UI.label(this, W / 2, y, mi.note, P ? 13 : 14,
+    mi.mode === 'random' ? C.warn : C.accentAlt, 0.5)
+    .setOrigin(0.5, 0).setWordWrapWidth(W - 40);
+  this._noteW = 0;
+  stack(this._note, u * 1.0);
 
   var rowH = Math.max(GAME.UI.BTN_H || 58, u * 8);
   opps.forEach(function (o, i) {
@@ -115,7 +158,7 @@ GAME.VersusScene.prototype.create = function () {
     }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
          hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 15 : 16 });
     var wr = GAME.Formations.winRate(f.id);
-    b.text.setText(f.name + '   🏅' + o.trophy + '\n' +
+    b.text.setText(f.name + '  ·  ' + GAME.Arena.sourceLabel(o) + '   🏅' + o.trophy + '\n' +
       f.units.length + '기 · 예산 ' + GAME.Formations.budgetOf(f) +
       (wr === null ? '' : (' · 방어승률 ' + wr + '%')) +
       '   →  +' + GAME.Arena.gainFor(rec.trophy, o.trophy) + ' / -' + GAME.Arena.lossFor(rec.trophy, o.trophy));
@@ -125,7 +168,8 @@ GAME.VersusScene.prototype.create = function () {
 
   // ── 방어 기록 ──
   if (rec.log.length) {
-    stack(GAME.UI.label(this, W / 2, y, '방어 기록', P ? 15 : 17, C.text, 0.5).setOrigin(0.5, 0), u * 0.9);
+    stack(GAME.UI.label(this, W / 2, y, '방어 기록 (모의 방어전)', P ? 15 : 17, C.text, 0.5)
+      .setOrigin(0.5, 0), u * 0.9);
     rec.log.slice(0, 3).forEach(function (e) {
       var line = (e.defended ? '🛡 막아냄' : '💥 뚫림') + '   ' + e.attacker +
         '  🏅' + e.attackerTrophy + '   ' + (e.delta >= 0 ? '+' : '') + e.delta;
@@ -218,6 +262,12 @@ GAME.VersusScene.prototype._createPhone = function () {
 
   // ── 본문: 상대 카드 3장 ─────────────────────────────────────────────────
   var opps = GAME.Arena.findOpponents(3);
+  var mi = GAME.Arena.matchInfo(opps);
+  // 매칭 종류 한 줄 — 랜덤매칭일 때 그 사실이 **반드시 보여야 한다**.
+  this._noteW = W - K.PAD * 2;
+  this._note = this._fit(UI.text(this, K.PAD, K.NOTE_Y, '',
+    { size: 'micro', color: mi.mode === 'random' ? C.warn : C.accentAlt }),
+    mi.note, this._noteW);
   var n = Math.max(1, opps.length);
   var cw = Math.floor((W - K.PAD * 2 - K.CARD_GAP * (n - 1)) / n);
   var ch = K.BODY_BOTTOM - K.BODY_TOP;
@@ -248,9 +298,13 @@ GAME.VersusScene.prototype._createPhone = function () {
       { size: 'subhead', color: C.accent }));
     lbl(UI.text(self, cx0 + cw - 12, K.BODY_TOP + 12, '🏅' + o.trophy,
       { size: 'micro', color: UI.TXT.crit, origin: 1, originY: 0 }));
+    // 출처 배지 — 사람인지 랜덤인지 카드마다 못박는다.
+    lbl(self._fit(UI.text(self, cx0 + 12, K.BODY_TOP + 32, '',
+      { size: 'micro', color: o.kind === 'random' ? C.textDim : C.accentAlt }),
+      GAME.Arena.sourceLabel(o), cw - 24));
 
     // 미니 진형도 — 전략가 구역(아레나 위 30%)만 잘라 카드 폭에 편다.
-    var mx = cx0 + 10, my = K.BODY_TOP + 40, mw = cw - 20, mh = 150;
+    var mx = cx0 + 10, my = K.BODY_TOP + 48, mw = cw - 20, mh = 126;
     mapG.fillStyle(C.arenaFill, 1);
     mapG.fillRoundedRect(mx, my, mw, mh, 8);
     mapG.lineStyle(1, C.arenaLine, 1);
@@ -357,7 +411,8 @@ GAME.VersusScene.prototype._openSheet = function () {
   var objs = [];
   // 기록 줄 수에 맞춰 높이를 잡는다 — 고정 높이로 두면 기록이 적을 때 가운데가 텅 빈다.
   var rows = Math.max(1, Math.min(4, rec.log.length));
-  var pw = 600, px0 = Math.round((W - pw) / 2), phh = 44 + rows * 24 + 82;
+  //          제목 44 + 기록 줄 + '모의 방어전' 주석 22 + 버튼 줄 82
+  var pw = 600, px0 = Math.round((W - pw) / 2), phh = 44 + rows * 24 + 22 + 82;
   var py0 = Math.round((H - phh) / 2);
   var bw = Math.floor((pw - 40 - 12) / 2), bh = 56;
 
@@ -367,7 +422,7 @@ GAME.VersusScene.prototype._openSheet = function () {
   objs.push(veil);
   objs.push(UI.panel(this, px0, py0, pw, phh, { level: 1 }).setDepth(901));
 
-  objs.push(UI.text(this, W / 2, py0 + 10, '방어 기록',
+  objs.push(UI.text(this, W / 2, py0 + 10, '방어 기록 (모의 방어전)',
     { size: 'subhead', color: C.text, origin: 0.5, originY: 0 }).setDepth(902));
 
   var ly = py0 + 44;
@@ -386,6 +441,10 @@ GAME.VersusScene.prototype._openSheet = function () {
       { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 }).setDepth(902));
     ly += 24;
   }
+  // 이 기록은 아직 **서버에 남은 실제 공격**이 아니다. 그렇게 보이게 두면
+  // "AI 를 사람인 척 내보내는" 것과 같아진다 — 화면에 그대로 적는다.
+  objs.push(UI.text(this, px0 + 24, ly, '※ 아직 서버 기록이 아닌 모의 방어전입니다',
+    { size: 'micro', color: C.textDim }).setDepth(902));
 
   function mk(cx, cy, label, fn, opts) {
     var b = UI.button(self, cx, cy, bw, bh, label, fn, opts);

@@ -144,11 +144,64 @@ GAME.Formations = {
     return GAME.SEED_FORMATIONS.concat(this.loadSaved());
   },
 
+  // ── 서버에서 받아온 '다른 사람의 기지' ─────────────────────────────────
+  // **일부러 loadAll() 에 넣지 않는다.** 넣으면 솔로 진형 선택(select.js)과
+  // 회귀 R-5(tools/regress.js 가 loadAll 의 레이팅 범위를 본다)까지 남의 데이터에
+  // 흔들린다. 원격 진형은 대전에서만 쓰고, 씬 전환용으로 **id 로 찾히기만** 하면 된다.
+  REMOTE_PREFIX: 'srv-',
+  _remote: [],
+
+  setRemote: function (rows) {
+    var out = [];
+    for (var i = 0; i < (rows || []).length; i++) {
+      var f = this.fromRemote(rows[i]);
+      if (f) out.push(f);
+    }
+    this._remote = out;
+    return out;
+  },
+  remoteList: function () { return this._remote || []; },
+
+  // 서버 행 → 이 클라이언트가 아는 배치도.
+  //  · 닉네임 필터는 **양쪽에서** 돈다. 서버가 통과시킨 이름이라도 여기서 다시 본다
+  //    (금칙어 목록이 서버보다 클라이언트에 더 많고, 로컬 차단도 반영해야 한다).
+  //  · 모르는 유닛 타입은 버린다. 서버가 새 유닛을 아는데 이 클라이언트가 모를 수
+  //    있고, 그때 전투에서 터지면 화면이 통째로 죽는다.
+  fromRemote: function (row) {
+    if (!row || !row.id || !(row.units instanceof Array) || !row.units.length) return null;
+    if (GAME.Account && GAME.Account.validate && !GAME.Account.validate(row.id).ok) return null;
+    var units = [];
+    for (var i = 0; i < row.units.length; i++) {
+      var u = row.units[i];
+      if (!u || !u.type || !GAME.UNITS[u.type]) continue;
+      var nx = Number(u.nx), ny = Number(u.ny);
+      if (!isFinite(nx) || !isFinite(ny)) continue;
+      units.push({
+        type: u.type,
+        nx: Math.min(1, Math.max(0, nx)),
+        ny: Math.min(1, Math.max(0, ny))
+      });
+    }
+    if (!units.length) return null;
+    return {
+      id: this.REMOTE_PREFIX + row.id,
+      name: String(row.name || row.id).slice(0, 20),
+      author: String(row.id),
+      isAI: false, remote: true, v: 2,
+      tier: row.tier || GAME.CONFIG.DEFAULT_TIER,
+      budget: Number(row.budget) || 0,
+      at: Number(row.at) || 0,
+      units: units
+    };
+  },
+
   getById: function (id) {
     // 통곡의 탑 배치도는 그 층에서만 쓰는 임시 배치라 저장소에 넣지 않는다
     if (GAME.Tower && GAME.Tower.pending && GAME.Tower.pending.id === id) {
       return GAME.Tower.pending;
     }
+    var rem = this.remoteList();
+    for (var r = 0; r < rem.length; r++) if (rem[r].id === id) return rem[r];
     var all = this.loadAll();
     for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
     return null;

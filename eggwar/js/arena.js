@@ -152,6 +152,13 @@ GAME.Arena = {
   //  그 사람이 유일한 진짜 상대이기 때문이다(숨기면 사람과 싸울 기회가 사라진다).
   //  대신 남는 칸을 ②③ 으로 채워 화면이 비지 않게 하고, **카드마다 출처를 표시**해
   //  랜덤 진형을 사람인 척 내보내지 않는다(matchInfo / sourceLabel).
+  // ── 대전 예산은 **양쪽 300 고정** (2026-07-30, 사용자 지시) ────────────────
+  // 탑은 층마다 예산이 달라 '올라갈수록 세진다'가 성립하지만, 대전은 사람 대 사람이라
+  // 예산이 다르면 그게 곧 실력 차로 읽힌다. 같은 돈으로 무엇을 사느냐만 남긴다.
+  // 이 하나의 예산에서 유닛·영웅·아이템·능력치 강화·유닛 등급을 **전부** 산다
+  // (js/arenabuild.js 참조).
+  BUDGET: 300,
+
   OPP_SLOTS: 3,
 
   // 상대 후보를 출처별로 나눈다. kind 는 그대로 화면에 표시된다.
@@ -200,6 +207,21 @@ GAME.Arena = {
   DEF_PRIOR_N: 4,
   DEF_PRIOR_P: 0.35,
 
+  // 격파율(%) — **도전당 뚫린 비율**. 낮을수록 단단한 진형이다.
+  // 화면에는 이 값을 적고 정렬도 이 값의 오름차순으로 한다(사용자 지시 5번).
+  // `Formations.winRate` 는 방어 승률(= 100 − 격파율)이라 뜻이 반대다 —
+  // 두 값을 한 화면에 같이 쓰면 반드시 헷갈리므로 대전에서는 격파율만 쓴다.
+  breachRate: function (f) {
+    if (!f) return null;
+    if (typeof f.defTry === 'number' && f.defTry > 0 && typeof f.defWin === 'number') {
+      return Math.round((1 - f.defWin / f.defTry) * 100);
+    }
+    var s = GAME.Formations.getStats(f.id);
+    var tot = s.win + s.loss + s.draw;
+    if (!tot) return null;
+    return Math.round(((s.loss + s.draw * 0.5) / tot) * 100);
+  },
+
   defenseRate: function (f) {
     if (!f) return 0;
     // 서버가 전적을 함께 주면 그것을 쓴다(다른 사람들이 도전한 결과다).
@@ -242,9 +264,12 @@ GAME.Arena = {
         return { formation: f, trophy: self.ratingOf(f), def: self.defenseRate(f),
                  kind: kind, human: kind !== 'random', author: f.author || null };
       });
-      // **방어 성적이 좋은 진형이 위**로 온다(사용자 지시 2번).
-      // 트로피 근접도로 정렬하던 예전 방식은 "비슷한 실력끼리"라는 뜻이었지만,
-      // 진형이 다양해진 지금은 "뚫기 어려운 진형이 어느 것인가"가 더 궁금한 정보다.
+      // **격파율이 낮은 진형이 위**로 온다(2026-07-30 사용자 지시 5번).
+      // 격파율 = 도전당 뚫린 비율. 낮다 = 아무도 못 깬 진형 = 도전할 값어치가 크다.
+      // `defenseRate` 는 그 반대 방향의 같은 값이고 표본 보정(베이지안)이 들어 있어
+      // **정렬은 이쪽으로 한다** — 1전 1승이 100전 80승을 이기지 않게.
+      // 화면에 적는 숫자는 `breachRate`(보정 없는 날것)다: 정렬은 공정해야 하지만
+      // 표시는 정직해야 하기 때문이다.
       scored.sort(function (a, b) { return b.def - a.def; });
       for (var i = 0; i < scored.length && out.length < n; i++) out.push(scored[i]);
     }

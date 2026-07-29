@@ -97,6 +97,22 @@ GAME.BattleScene.prototype.create = function () {
     }
     this.runBonus = bonus;
   }
+  // 대전 컨트롤러 — 같은 예산에서 산 능력치 강화를 같은 규칙으로 얹는다.
+  // ⚠ 탑과 **같은 계산식**(add × 레벨)을 쓴다. 두 곳이 갈라지면 같은 이름의 강화가
+  //   모드마다 다른 값이 되어 플레이어가 배운 것이 거짓이 된다.
+  if (this.versus && GAME.ArenaBuild) {
+    var ab = GAME.ArenaBuild.statBonus();
+    var ad = this.hero.def;
+    if (ab.damage) ad.damage += ab.damage;
+    if (ab.armor) ad.armor += ab.armor;
+    if (ab.speed) ad.speed += ab.speed;
+    if (ab.hp) {
+      ad.hp += ab.hp;
+      this.hero.maxHp = ad.hp;
+      this.hero.hp = ad.hp;
+    }
+    this.runBonus = ab;
+  }
 
   this.state.units.push(this.hero);
   // 처치 보상 골드 — **영웅까지 units 에 들어간 뒤에** 훅을 건다.

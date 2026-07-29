@@ -50,9 +50,14 @@ GAME.DraftScene.prototype.init = function (data) {
   this.versus = !!(data && data.versus);     // 대전(비동기 PvP) 공격인가 — 트로피가 걸린다
   // 탑은 **도전 시작 예산**으로 한 번만 세팅한다(이후 성장은 골드로).
   // 일반 대전은 배치도가 선언한 예산을 그대로 쓴다(양쪽 동일 조건).
-  this.totalBudget = this.tower
-    ? (GAME.TowerRun ? GAME.TowerRun.START_BUDGET : GAME.Tower.heroBudgetFor(this.tower))
-    : GAME.Formations.budgetOf(this.formation);
+  // 대전은 **양쪽 300 고정**(2026-07-30 사용자 지시). 배치도가 선언한 예산을 쓰던
+  // 예전 방식은 상대가 짠 예산이 내 예산이 되는 구조라, 상대를 고르는 것이 곧
+  // 내 강함을 고르는 일이 됐다. 이제 누구를 고르든 내 몫은 같다.
+  this.totalBudget = this.versus
+    ? GAME.Arena.BUDGET
+    : (this.tower
+        ? (GAME.TowerRun ? GAME.TowerRun.START_BUDGET : GAME.Tower.heroBudgetFor(this.tower))
+        : GAME.Formations.budgetOf(this.formation));
   // 탑에서는 로비에서 이미 영웅을 골랐다(AI 가 그 영웅을 보고 배치를 짰으므로
   // 여기서 바꾸면 카운터가 어긋난다). 그래서 넘어온 영웅을 그대로 쓴다.
   this.heroKey = (data && data.heroKey && GAME.HEROES[data.heroKey])
@@ -64,7 +69,11 @@ GAME.DraftScene.prototype.init = function (data) {
   // 영웅 몫을 뗀 **장비 예산**. 화면·판정이 전부 이 값 하나를 본다.
   // this.budget 도 같은 값으로 맞춰 둔다 — 세로 패널(draft-mobile.js)이 this.budget 을
   // 직접 읽는데, 그쪽에서만 총예산을 쓰면 세로에서 장비를 두 배로 살 수 있게 된다.
-  this.itemBudget = Math.max(0, this.totalBudget - this._heroBaseCost());
+  // 대전에서는 **능력치 강화**(통곡의 탑에서 가져온 것)도 같은 예산에서 산다.
+  // 이미 산 강화의 값을 먼저 떼야 장비 예산이 거짓말을 하지 않는다.
+  var upSpent = (this.versus && GAME.ArenaBuild)
+    ? GAME.ArenaBuild.statsSpent(GAME.ArenaBuild.get()) : 0;
+  this.itemBudget = Math.max(0, this.totalBudget - this._heroBaseCost() - upSpent);
   this.budget = this.itemBudget;
 
   this.items = { weapon: null, armor: null, boots: null, potion: null };
@@ -168,19 +177,43 @@ GAME.DraftScene.prototype.create = function () {
 
   // 세로에서는 패널이 화면 아래까지 꽉 차서 '뒤로' 를 따로 아래에 둘 자리가 없다
   // (실제로 '전투 시작' 버튼과 겹쳤다). 같은 줄 왼쪽에 나란히 놓는다.
-  var backLabel = this.tower ? '← 탑으로' : '← 진형 선택';
+  var backLabel = this.tower ? '← 탑으로' : (this.versus ? '← 대전' : '← 진형 선택');
   if (P) {
     var ra = this._rAct;
     GAME.UI.button(this, this.split.panelX + this._backW / 2, ra.cy, this._backW, ra.h,
       backLabel, function () {
-        self.scene.start(self.tower ? 'Tower' : 'Select');
+        self.scene.start(self.tower ? 'Tower' : (self.versus ? 'Versus' : 'Select'));
       }, { fontSize: 15 });
+    if (this.versus) {
+      // 대전 컨트롤러 — 능력치 강화(통곡의 탑에서 가져온 것)를 같은 예산에서 산다.
+      GAME.UI.button(this, this.split.panelX + this._backW * 1.6, ra.cy, this._backW, ra.h,
+        '⚒ 능력치', function () { self._openArenaUpgrades(); }, { fontSize: 15 });
+    }
   } else {
     // 우하단 끝에 붙이면 DOM 버전 배지(#ver)와 겹친다(실측) → 배지 폭만큼 왼쪽·위로 뗀다
     GAME.UI.button(this, W - 190, H - 34, 160, 36, backLabel, function () {
-      self.scene.start(self.tower ? 'Tower' : 'Select');
+      self.scene.start(self.tower ? 'Tower' : (self.versus ? 'Versus' : 'Select'));
     }, { fontSize: 14 });
+    if (this.versus) {
+      GAME.UI.button(this, W - 360, H - 34, 160, 36, '⚒ 능력치', function () {
+        self._openArenaUpgrades();
+      }, { fontSize: 14 });
+    }
   }
+
+  // 대전 컨트롤러 — 능력치 강화 패널. 산 만큼 장비 예산이 줄어드는 것이 이 모드의 선택이다
+  // (좋은 장비 하나 vs 능력치 여러 단). 사고 나면 장비가 예산을 넘칠 수 있으니
+  // 기존 정리 규칙(_trimItems)을 그대로 태운다.
+  var _self = this;
+  this._openArenaUpgrades = function () {
+    GAME.ArenaBuild.openUpgrades(_self, 'stats', null, function () {
+      var up = GAME.ArenaBuild.statsSpent(GAME.ArenaBuild.get());
+      _self.itemBudget = Math.max(0, _self.totalBudget - _self._heroBaseCost() - up);
+      _self.budget = _self.itemBudget;
+      _self._trim();                     // 예산이 줄어 장비가 넘치면 싼 칸부터 벗긴다
+      _self.redraw && _self.redraw();
+    });
+  };
 
   // 씬을 떠날 때 트윈·타이머·마스크가 남지 않게 한다.
   this.events.once('shutdown', function () { self._teardown(); });

@@ -139,6 +139,19 @@ GAME.BuildScene.prototype.init = function (data) {
   // 불러온 뒤 고칠 수 있으므로 선택지를 뺏지도 않는다.
   // ⚠ 진 판에서는 `DefendTower.fail()` 이 placed 를 지우므로 여기서 자동으로 빈 판이 된다
   //   — "지면 처음부터"라는 규칙과 어긋나지 않는다.
+  if (this.arena) {
+    // 대전 배치도는 id 당 하나다 → 들어오면 **내 것을 불러와 고치는** 것이 기본이다.
+    var myBase = GAME.Arena.baseFormation();
+    if (myBase && myBase.units) {
+      for (var ai = 0; ai < myBase.units.length; ai++) {
+        var au = myBase.units[ai];
+        if (!GAME.UNITS[au.type]) continue;
+        var w = GAME.Formations.toWorld(au);
+        // 저장본은 전투 기준(위쪽)이라 배치 화면 좌표로 되돌린다 — 저장할 때 뒤집는 것의 역이다.
+        this.placed.push({ type: au.type, x: w.x, y: GAME.mirrorY(w.y) });
+      }
+    }
+  }
   if (this.defendTower) {
     var prev = (GAME.DefendTower.get() || {}).placed;
     if (prev && prev.length) {
@@ -150,6 +163,8 @@ GAME.BuildScene.prototype.init = function (data) {
   }
   // 대전에서 '기지 만들기'로 들어왔는가 — 저장 시 그 배치도를 내 기지로 삼는다
   this.pickBase = !!(data && data.pickBase);
+  // 대전 전략가 경로 — 예산 300 고정 + 유닛 등급 구매가 열린다.
+  this.arena = !!(data && data.arena);
   // 씬을 다시 들어오면 이전 타이머는 이미 죽어 있다 — 참조를 반드시 비운다
   this._holdTimer = null;
   this._warnTimer = null;
@@ -223,10 +238,15 @@ GAME.BuildScene.prototype.create = function () {
   GAME.Iso.setMode('default');
   // 수성의 탑은 층 고정 예산, 일반 방어전은 티어 예산.
   // 수성의 탑은 골드로 산 '증원 예산'이 얹힌다 → placeBudgetFor 를 써야 배치 화면에 반영된다.
-  this.budget = this.defendTower
-    ? ((GAME.DefendTower.placeBudgetFor || GAME.DefendTower.budgetFor).call(
-        GAME.DefendTower, this.defendTower))
-                                 : GAME.CONFIG.BUDGETS[this.tier];
+  // 대전은 **300 고정**이고, 그 안에서 유닛 등급(수성의 탑에서 가져온 것)까지 산다.
+  // 등급에 쓴 만큼 배치에 쓸 돈이 줄어드는 것이 이 모드의 선택이다 —
+  // 적은 수를 세게 굴릴 것인가, 많은 수를 그대로 세울 것인가.
+  this.budget = this.arena
+    ? Math.max(0, GAME.Arena.BUDGET - GAME.ArenaBuild.unitLvSpent(GAME.ArenaBuild.get()))
+    : (this.defendTower
+        ? ((GAME.DefendTower.placeBudgetFor || GAME.DefendTower.budgetFor).call(
+            GAME.DefendTower, this.defendTower))
+        : GAME.CONFIG.BUDGETS[this.tier]);
   this.zone = GAME.CONFIG.ZONE_CONTROLLER;
   this.myColor = C.strategist;
   // ★ 반드시 setMode('default') 뒤에 — PC 보드 바닥을 기본 투영에서 읽어 온다.
@@ -465,7 +485,8 @@ GAME.BuildScene.prototype.create = function () {
     }, { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
          color: C.accentAlt, fontSize: 'button' });
     UI.button(this, acols[2].cx, rows.act.cy, acols[2].w, rows.act.h,
-      this.defendTower ? '← 탑' : '메뉴', function () {
+      this.arena ? '⚒ 유닛 등급' : (this.defendTower ? '← 탑' : '메뉴'), function () {
+        if (self.arena) { self._openArenaUpgrades(); return; }
         self.scene.start(self.defendTower ? 'DefendTower' : 'Menu');
       }, { fontSize: 'button' });
   }
@@ -1014,6 +1035,25 @@ GAME.BuildScene.prototype._closeSheet = function () {
   this._eatTap = true;
 };
 
+// 대전 전략가 — 유닛 등급 패널. **배치에 놓인 종류만** 보여준다:
+// 안 쓰는 유닛의 등급을 사는 것은 예산을 버리는 일이라 선택지로 둘 이유가 없다.
+// 산 뒤에는 예산이 줄었으므로 배치 예산을 다시 계산하고 화면을 새로 그린다.
+GAME.BuildScene.prototype._openArenaUpgrades = function () {
+  var self = this;
+  var seen = {}, keys = [];
+  for (var i = 0; i < this.placed.length; i++) {
+    var t = this.placed[i].type;
+    if (t && !seen[t]) { seen[t] = 1; keys.push(t); }
+  }
+  GAME.ArenaBuild.openUpgrades(this, 'units', keys, function () {
+    self.budget = Math.max(0,
+      GAME.Arena.BUDGET - GAME.ArenaBuild.unitLvSpent(GAME.ArenaBuild.get()));
+    // 예산이 줄어 이미 놓은 유닛이 넘칠 수 있다 → 기존 정리 규칙을 그대로 태운다.
+    self._trimToBudget();
+    self.redraw();
+  });
+};
+
 GAME.BuildScene.prototype._openSheet = function () {
   var self = this;
   var C = GAME.CONFIG.COLORS;
@@ -1093,10 +1133,13 @@ GAME.BuildScene.prototype._openSheet = function () {
   mk(bx[0], cyC, '배치도 저장', function () { self._closeSheet(); self._save(); },
     { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
       color: C.accentAlt, fontSize: 'buttonSm' });
-  mk(bx[1], cyC, this.defendTower ? '← 탑' : '메뉴로', function () {
-    self._closeSheet();
-    self.scene.start(self.defendTower ? 'DefendTower' : 'Menu');
-  }, { fontSize: 'buttonSm' });
+  mk(bx[1], cyC,
+    this.arena ? '⚒ 유닛 등급' : (this.defendTower ? '← 탑' : '메뉴로'), function () {
+      self._closeSheet();
+      // 폰은 상단 바에 칸이 없어 ☰ 시트에서 연다 — PC 상단 버튼과 **같은 함수**를 부른다.
+      if (self.arena) { self._openArenaUpgrades(); return; }
+      self.scene.start(self.defendTower ? 'DefendTower' : 'Menu');
+    }, { fontSize: 'buttonSm' });
   mk(bx[2], cyC, '닫기', function () { self._closeSheet(); }, { fontSize: 'buttonSm' });
 
   this.sheet = objs;

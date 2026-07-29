@@ -35,11 +35,63 @@ GAME.VersusScene.PHONE = {
 };
 
 // 씬 재진입 때 캐시한 표시객체는 이미 파괴돼 있다 — 참조를 반드시 비운다.
-GAME.VersusScene.prototype.init = function () {
+GAME.VersusScene.prototype.init = function (data) {
   this.sheet = null;
   this._refreshed = false;
   this._note = null;
   this._noteW = 0;
+  // 역할을 이미 골랐는가. 대전에 들어오면 **먼저 묻는다**(2026-07-30 사용자 지시).
+  // 'controller' 로 들어오면 상대 진형을 고르는 목록이, 'strategist' 면 내 진형을
+  // 짜는 길이 열린다. `back:true` 로 돌아오면 다시 묻는 화면부터 시작한다.
+  this.role = (data && data.role) || null;
+  // ⚠ Phaser 는 data 를 주지 않으면 **이전 settings.data 를 그대로 둔다.**
+  //   읽었으면 비운다 — 안 그러면 메뉴를 거쳐 다시 들어와도 역할이 남아
+  //   물어보는 화면을 영원히 건너뛴다(tower.js 가 같은 함정을 겪었다).
+  if (this.scene && this.scene.settings) this.scene.settings.data = {};
+};
+
+// ── 역할 고르기 ─────────────────────────────────────────────────────────────
+// 대전은 **한쪽이 반드시 전략가**다(사용자 지시 4번). 실시간 대전이 열리기 전까지
+// 컨트롤러 대 컨트롤러는 성립하지 않는다 — 진형 없이는 싸울 무대가 없기 때문이다.
+// 그래서 여기서 고르는 것은 "내가 어느 쪽을 맡는가"이지 "상대가 무엇인가"가 아니다.
+GAME.VersusScene.prototype._createRolePick = function () {
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var P = GAME.CONFIG.PORTRAIT, PH = GAME.CONFIG.PHONE;
+  var self = this;
+  var u = H / 100;
+
+  UI.text(this, W / 2, u * 8, '⚔ 대전',
+    { size: 'title', color: C.accent, origin: 0.5, originY: 0 });
+  UI.text(this, W / 2, u * 8 + (PH ? 34 : 52), '어느 쪽으로 싸우시겠습니까',
+    { size: PH ? 'caption' : 'subhead', color: C.text, origin: 0.5, originY: 0 });
+
+  var base = GAME.Arena.baseFormation();
+  var bw = Math.min(W - 40, PH ? 340 : 430);
+  var bh = Math.max(UI.BTN_H || 58, u * (PH ? 15 : 13));
+  var gap = u * 2;
+  var cy = H * (PH ? 0.52 : 0.46);
+
+  UI.button(this, W / 2, cy - bh / 2 - gap / 2, bw, bh,
+    '🗡 컨트롤러로 참여\n상대 진형을 골라 영웅 하나로 뚫는다',
+    function () { self.scene.start('Versus', { role: 'controller' }); },
+    { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
+      hover: UI.COL.panelTealHi, color: C.accent, fontSize: PH ? 14 : 17 }
+  ).text.setAlign('center');
+
+  UI.button(this, W / 2, cy + bh / 2 + gap / 2, bw, bh,
+    '🛡 전략가로 참여\n' + (base ? '내 진형을 고쳐 기지로 세운다' : '진형을 짜서 기지로 세운다'),
+    function () { self.scene.start('Versus', { role: 'strategist' }); },
+    { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
+      hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: PH ? 14 : 17 }
+  ).text.setAlign('center');
+
+  UI.text(this, W / 2, cy + bh * 1.5 + gap * 1.6,
+    '양쪽 예산은 ' + GAME.Arena.BUDGET + '으로 같습니다  ·  한쪽은 반드시 전략가입니다',
+    { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 });
+
+  UI.button(this, W / 2, H - u * 6, Math.min(W - 40, 300), Math.max(UI.BTN_H_SM || 52, u * 7),
+    '← 메뉴', function () { self.scene.start('Menu'); }, { fontSize: 15 });
 };
 
 // 매칭 종류 한 줄('사람 진형' / '랜덤매칭' / '찾는 중')을 다시 쓴다.
@@ -81,6 +133,18 @@ GAME.VersusScene.prototype.create = function () {
 
   this.cameras.main.setBackgroundColor(C.bg);
   GAME.Iso.setMode('default');
+
+  // 역할을 아직 안 골랐으면 **묻는 화면부터**.
+  if (!this.role) return this._createRolePick();
+  GAME.ArenaBuild.setRole(this.role);
+
+  // 전략가로 참여 — 목록을 볼 이유가 없다(내 진형을 짜는 것이 전부다).
+  // 곧장 배치 화면으로 보낸다. 예산은 대전 고정값이고, 유닛 등급도 여기서 산다.
+  if (this.role === 'strategist') {
+    var mine = GAME.Arena.baseFormation();
+    this.scene.start('Build', { pickBase: true, arena: true, editId: mine ? mine.id : null });
+    return;
+  }
 
   this._kickRemote();
 
@@ -157,10 +221,10 @@ GAME.VersusScene.prototype.create = function () {
       self.scene.start('Draft', { formationId: f.id, versus: true });
     }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
          hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 15 : 16 });
-    var wr = GAME.Formations.winRate(f.id);
+    var br = GAME.Arena.breachRate(f);
     b.text.setText(f.name + '  ·  ' + GAME.Arena.sourceLabel(o) + '   🏅' + o.trophy + '\n' +
       f.units.length + '기 · 예산 ' + GAME.Formations.budgetOf(f) +
-      (wr === null ? '' : (' · 방어승률 ' + wr + '%')) +
+      (br === null ? ' · 도전 기록 없음' : (' · 격파율 ' + br + '%')) +
       '   →  +' + GAME.Arena.gainFor(rec.trophy, o.trophy) + ' / -' + GAME.Arena.lossFor(rec.trophy, o.trophy));
     b.text.setAlign('center');
   });
@@ -318,10 +382,10 @@ GAME.VersusScene.prototype._createPhone = function () {
       UI.drawUnitFlat(mapG, def, ux, uy, C.strategist, 1, 0.8, Math.PI / 2);
     }
 
-    var wr = GAME.Formations.winRate(f.id);
+    var br = GAME.Arena.breachRate(f);
     lbl(UI.text(self, cx0 + 12, my + mh + 8,
       f.units.length + '기  ·  예산 ' + GAME.Formations.budgetOf(f) +
-      (wr === null ? '' : ('  ·  방어승률 ' + wr + '%')),
+      (br === null ? '  ·  도전 기록 없음' : ('  ·  격파율 ' + br + '%')),
       { size: 'micro', color: C.textMid }));
     lbl(UI.text(self, cx0 + 12, my + mh + 30,
       '이기면 +' + GAME.Arena.gainFor(rec.trophy, o.trophy) +

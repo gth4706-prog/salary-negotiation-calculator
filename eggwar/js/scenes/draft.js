@@ -424,43 +424,52 @@ GAME.DraftScene.prototype._buildPanel = function () {
   }
 
   // ── 장비 ────────────────────────────────────────────────────────────────
+  //  칸(무기·방어구·신발·물약)을 **열**로 세우고 등급 3단을 **행**으로 쌓는다.
+  //  예전엔 반대(칸=행, 등급=열)였는데, 같은 줄에 서로 다른 칸의 장비가 나란히 놓여
+  //  "지금 무엇들 중에 고르는 것인가"가 안 읽혔다(가독성 신고).
+  //  세로로 세우면 한 열이 곧 하나의 선택지 묶음이라 눈이 위아래로만 움직인다.
   GAME.UI.label(this, px, y, '장비 — 칸마다 하나씩. 같은 것을 다시 누르면 해제됩니다', 13, C.textDim, 0);
   y += 18;
   this.itemCells = [];
+  var slotCols = cols(GAME.ITEM_SLOTS.length, 8);
+  var ITEM_H = 60, ITEM_GAP = 6;
+  for (var hk = 0; hk < GAME.ITEM_SLOTS.length; hk++) {
+    GAME.UI.label(this, slotCols[hk].x + 2, y, GAME.ITEM_SLOTS[hk].name, 14, C.accentAlt, 0);
+  }
+  var gridTop = y + 19;
   for (var k = 0; k < GAME.ITEM_SLOTS.length; k++) {
-    (function (slot) {
-      var ri = row(60, 6);
-      GAME.UI.label(self, px, ri.cy, slot.name, 14, C.textDim, 0).setOrigin(0, 0.5);
-      var ic = cols(3, 8, px + 56, pw - 56);
+    (function (slot, si) {
+      var col = slotCols[si];
       var list = GAME.ITEMS[slot.key];
       for (var m = 0; m < list.length; m++) {
-        (function (item, ci) {
-          var c = ic[ci];
+        (function (item, mi) {
+          var cy = gridTop + mi * (ITEM_H + ITEM_GAP) + ITEM_H / 2;
           // 카드 배경은 depth -1 로 내려 this.g(아이콘)보다 아래에 오게 한다.
-          var rect = self.add.rectangle(c.cx, ri.cy, c.w, ri.h, COL.surfaceAlt)
+          var rect = self.add.rectangle(col.cx, cy, col.w, ITEM_H, COL.surfaceAlt)
             .setStrokeStyle(1, COL.border).setDepth(-1);
           rect.setInteractive({ useHandCursor: true });
           rect.on('pointerover', function () { self.hoverItem = item; self.redraw(); });
           rect.on('pointerout', function () { if (self.hoverItem === item) { self.hoverItem = null; self.redraw(); } });
           rect.on('pointerdown', function () { self.hoverItem = item; self._toggleItem(slot.key, item); });
 
-          var textX = c.x + 66;
-          var nm = GAME.UI.label(self, textX, ri.cy - 21, item.name, 15, C.text, 0);
-          var cs = GAME.UI.label(self, c.x + c.w - 10, ri.cy - 21, String(item.cost), 15, C.accent, 0)
+          var textX = col.x + 58;
+          var nm = GAME.UI.label(self, textX, cy - 21, item.name, 15, C.text, 0);
+          var cs = GAME.UI.label(self, col.x + col.w - 8, cy - 21, String(item.cost), 15, C.accent, 0)
             .setOrigin(1, 0);
-          var nt = GAME.UI.label(self, textX, ri.cy + 5, '', 13, C.textDim, 0);
-          GAME.DraftScene.fitText(nm, item.name, c.w - 66 - 46, 15, 13);
-          GAME.DraftScene.fitText(nt, item.note, c.w - 74, 13, 13);
+          var nt = GAME.UI.label(self, textX, cy + 5, '', 13, C.textDim, 0);
+          GAME.DraftScene.fitText(nm, item.name, col.w - 58 - 42, 15, 13);
+          GAME.DraftScene.fitText(nt, item.note, col.w - 64, 13, 13);
 
           self.itemCells.push({
             slot: slot.key, item: item, rect: rect, name: nm, cost: cs, note: nt,
-            ix: c.x + 34, iy: ri.cy, isz: 44,
-            x: c.x, y: ri.y, w: c.w, h: ri.h
+            ix: col.x + 30, iy: cy, isz: 44,
+            x: col.x, y: cy - ITEM_H / 2, w: col.w, h: ITEM_H
           });
         })(list[m], m);
       }
-    })(GAME.ITEM_SLOTS[k]);
+    })(GAME.ITEM_SLOTS[k], k);
   }
+  y = gridTop + 3 * (ITEM_H + ITEM_GAP) + 4;
 
   // ── 스킬(왼쪽) + 미리보기 무대(오른쪽) ──────────────────────────────────
   var bandTop = y;

@@ -18,6 +18,15 @@
 //   B) 보행 모션 — drawUnit / drawUnitFlat / drawEggChar 마지막 인자에 walk 를 넘긴다.
 //      · walk 를 안 넘기면(undefined/null) v1 과 픽셀 단위로 동일하다. 회귀 위험 0.
 //      · squat(쇠뇌 진지) / ground(가시덫) 는 걷지 않는다.
+//
+//  v3 에서 추가된 것
+//   C) 아이들 애니메이션 — walk 뒤에 idle(시각 ms) 을 넘기면 그 한 기만 살아 움직인다.
+//      호흡은 발밑을 고정한 스쿼시&스트레치, 공격은 무기별로 다른 동작이다.
+//      · idle 을 안 넘기면 v2 와 픽셀 단위로 동일하다. → 선택된 카드만 움직인다.
+//      · 이 파일은 상태를 만들지 않는다. 같은 t 면 같은 그림(순수 함수).
+//   D) 얼굴 가림 완화 — 정면·정배면에서 장비를 측면축으로 벌리고(GEAR_SPREAD),
+//      장비 레이어를 **얼굴·투구보다 먼저** 그린다. 눈·볼은 어떤 무기 앞에서도 남는다.
+//      옆모습(faceOn=0)은 값이 0 이라 벌림이 없다 — 8방향 실루엣은 그대로다.
 // ============================================================================
 
 window.GAME = window.GAME || {};
@@ -322,12 +331,82 @@ GAME.UI = GAME.UI || {};
     return { phase: u._gaitPhase, amp: u._gaitAmp };
   };
 
+  // ============================================================================
+  //  아이들 애니메이션 — 호흡 + 주기적 공격
+  // ============================================================================
+  //  캐릭터 선택 화면처럼 **정지한 화면에서 고른 캐릭터만** 살아 있게 하는 포즈다.
+  //  걸음걸이(gait)와 같은 규율을 그대로 따른다:
+  //   · 상태를 만들지 않는다. 시간 t(ms)를 인자로 받고, 같은 t 면 같은 그림이 나온다.
+  //   · idle 을 안 넘기면 null → 지금과 픽셀 단위로 동일하다(회귀 위험 0).
+  //
+  //  왜 상하 이동만으로는 부족한가:
+  //  몸이 달걀이라 **위아래로 통째로 뜨면 "떠 있는 알"** 로 보인다. 실제 호흡은
+  //  부피가 유지된 채 형태가 바뀌는 것이라, 발밑을 고정한 스쿼시&스트레치
+  //  (세로 ky 배 ↔ 가로 1/ky 배, 면적 보존)에 아주 작은 상하 이동을 얹는다.
+  //  머리 장식은 **알 꼭대기가 움직인 만큼** 같이 움직여야 목이 늘어나 보이지 않는다.
+  //
+  //  공격은 무기마다 다르게 나가야 하므로 여기서는 -1..+1 짜리 스칼라 하나(atk)만 만들고,
+  //  그 값을 어떻게 쓸지는 `eggGear` 의 무기별 분기가 정한다
+  //  (대검=휘두르는 각도 / 활=시위 당김·발사 / 갈고리창=찔러넣기).
+  UI.IDLE_BREATH_MS = 2600;   // 호흡 한 번 (2~3초)
+  UI.IDLE_CYCLE_MS  = 2800;   // 공격 주기 — 호흡과 서로소에 가깝게 둬 박자가 겹치지 않는다
+  UI.IDLE_SWING_MS  = 820;    // 한 번 휘두르는 데 걸리는 시간
+
+  //  u 0..1 → -1(끝까지 당김) → +1(때린 순간) → 0(회수)
+  //  때리는 구간(0.38~0.52)만 짧고 빠르다 — 예비동작이 길고 타격이 빠른 것이 만화 타이밍.
+  function swingK(u) {
+    if (u < 0.38) return -Math.sin(u / 0.38 * Math.PI * 0.5);
+    if (u < 0.52) return -1 + (u - 0.38) / 0.14 * 2;
+    return Math.cos((u - 0.52) / 0.48 * Math.PI * 0.5);
+  }
+
+  //  idle : number(ms) | { t, seed, amp, attack:false } | null | undefined
+  UI.idlePose = function (idle, art) {
+    if (idle === null || idle === undefined) return null;
+    if (art && (art.ground || art.squat)) return null;   // 설치물·진지는 숨쉬지 않는다
+    var t, seed = 0, amp = 1, atkOn = true;
+    if (typeof idle === 'number') { t = idle; }
+    else if (typeof idle === 'object') {
+      t = idle.t;
+      if (typeof idle.seed === 'number') seed = idle.seed;
+      if (typeof idle.amp === 'number') amp = idle.amp;
+      if (idle.attack === false) atkOn = false;
+    } else return null;
+    if (typeof t !== 'number' || !isFinite(t)) return null;
+    if (typeof amp !== 'number' || !isFinite(amp) || amp <= 0.02) return null;
+    if (amp > 1) amp = 1;
+
+    var br = Math.sin((t / UI.IDLE_BREATH_MS + seed) * 6.283185307179586);
+    var k = 0;
+    if (atkOn) {
+      var c = t % UI.IDLE_CYCLE_MS;
+      if (c < 0) c += UI.IDLE_CYCLE_MS;
+      if (c < UI.IDLE_SWING_MS) k = swingK(c / UI.IDLE_SWING_MS);
+    }
+    var kp = k > 0 ? k : 0, kn = k < 0 ? -k : 0;
+    return {
+      ky:    1 + 0.065 * br * amp,                              // 세로 배율(발밑 고정)
+      rise:  (-0.038 * br + 0.055 * kp - 0.022 * kn) * amp,     // 몸 전체 상하 (음수 = 위)
+      lean:  k * 0.10 * amp,                                    // 측면축 기울기
+      pitch: k * 0.06 * amp,                                    // 정면축 기울기
+      reach: 1 + (kp * 0.16 - kn * 0.08) * amp,                 // 팔 뻗음
+      atk:   k * amp
+    };
+  };
+
   // ── 몸통 ──────────────────────────────────────────────────────
-  UI.eggBody = function (g, art, sx, by, r, color, a, lean) {
+  //  ky : 세로 배율(스쿼시&스트레치). 생략·1 이면 지금과 완전히 같다.
+  //       발밑(알 아랫점)을 고정하고 가로를 1/ky 로 줄여 **면적을 보존**한다.
+  UI.eggBody = function (g, art, sx, by, r, color, a, lean, ky) {
     var ivory = UI.EGG_STYLE === 'ivory';
     var shell = ivory ? M.shell : color;
     var wide = art.wide || 0.78;
     lean = lean || 0;
+    if (ky && ky !== 1) {
+      by = by + r * (1 - ky);      // 아랫점 by+r 를 그대로 둔다
+      wide = wide / (ky * ky);     // r*ky*wide' = r*wide/ky  → 가로 1/ky 배
+      r = r * ky;
+    }
     var outer = UI.eggPoints(sx, by, r, wide, 20, lean);
 
     // 베이스(그늘) → 밝은 안쪽 달걀을 좌상단으로 밀어 우하단에 초승달 그림자를 남긴다
@@ -807,15 +886,48 @@ GAME.UI = GAME.UI || {};
   //  뒤를 보고 있으면 drawEggChar 가 이걸 몸통보다 먼저 불러 가려버린다.
   UI.GEAR_ALWAYS_FRONT = { crossbowNest: 1 };   // 지형 구조물은 늘 몸통 위
 
-  UI.eggGear = function (g, kind, sx, by, r, color, a, D, reach) {
+  // ── 얼굴 가림 완화 ──────────────────────────────────────────────────────────
+  //  "무기·장비가 얼굴을 덮어 계란인지 알아볼 수 없다"는 실측 신고에 대한 대응.
+  //
+  //  원인은 색이나 크기가 아니라 **투영**이다. 정면(또는 정배면)을 보면 앞뒤축(fx,fy)이
+  //  화면에서 거의 0 으로 눌려서, "몸 앞으로 내민 것"이 전부 계란 위에 그대로 겹쳐 쌓인다.
+  //  실측: 정면 궁수는 활 전체가 얼굴 정중앙, 투창병은 창이 왼쪽 눈을 세로로 관통,
+  //  방패병·파수꾼은 방패가 알을 통째로 덮었다.
+  //
+  //  두 축으로 푼다. 둘 다 **눌린 정도(faceOn)에 비례**하므로 옆모습은 손대지 않는다.
+  //   1) 벌리기(GEAR_SPREAD) — 측면축 p 를 부호 방향으로 밀어 얼굴 앞을 비운다.
+  //      **부호를 보존해서 밀기** 때문에 반대손 물건(전사 버클러 p<0)은 반대쪽으로 간다.
+  //      통째로 평행이동시키면 버클러가 오히려 얼굴 한가운데로 왔다(그래서 이 방식).
+  //   2) 내리기(GEAR_DROP) — 턱 아래로 내려야 하는 것만.
+  //  여기에 그리기 순서(장비를 얼굴·투구보다 **먼저**)를 더해 얼굴을 못 덮게 못박는다.
+  //
+  //  ⚠ 실루엣이 이 파일의 제1원칙이라, 값은 "치웠는데도 종류가 읽히는" 선에서 멈춘다.
+  //    전부 흑백 컨택트시트로 확인하고 정했다(가장 넓은 광전사가 중심 ±2.05r 안).
+  UI.GEAR_SPREAD = {
+    sword: 0.45, bow: 0.95, longbow: 1.02, sling: 0.40, javelin: 0.55,
+    leafstaff: 0.20, towerShield: 0.60, handaxe: 0.30, sapjar: 0.35,
+    greatsword: 0.35, hookShield: 0.55, crossbowNest: 0
+  };
+  UI.GEAR_DROP = { sapjar: 0.18, sword: 0.10 };
+  //  칼류는 정면일수록 **더 세워 든다** — 옆으로만 밀면 눈앞을 가로지르는 각이 남는다.
+  UI.GEAR_FACE_UP = 0.85;
+
+  //  atk : -1(끝까지 당김) … 0(정지) … +1(때린 순간). 0 이면 지금과 픽셀 단위로 동일하다.
+  UI.eggGear = function (g, kind, sx, by, r, color, a, D, reach, atk) {
     if (!kind) return;
     D = UI.asDir(D);
     reach = (typeof reach === 'number' && isFinite(reach)) ? reach : 1;
+    atk = (typeof atk === 'number' && isFinite(atk)) ? atk : 0;
     var fx = D.fx, fy = D.fy, px = D.px, py = D.py;
     var lw = function (m) { return Math.max(1.2, r * m); };
+    var faceOn = 1 - Math.abs(fx);              // 0 옆모습 … 1 정면·정배면
+    var spread = UI.GEAR_SPREAD[kind] || 0;
+    var sprd = spread * faceOn;
+    var drop = (UI.GEAR_DROP[kind] || 0) * faceOn * r;
+    var LP = function (p) { return p + (p < 0 ? -sprd : sprd); };
     // 로컬 → 화면
-    var X = function (f, p) { return sx + fx * r * f * reach + px * r * p; };
-    var Y = function (f, p, up) { return by + fy * r * f * reach + py * r * p - r * (up || 0); };
+    var X = function (f, p) { return sx + fx * r * f * reach + px * r * LP(p); };
+    var Y = function (f, p, up) { return by + drop + fy * r * f * reach + py * r * LP(p) - r * (up || 0); };
     var hx = X(0.82, 0.30), hy = Y(0.82, 0.30, 0.05);   // 주손 위치
     var side = D.lat >= 0 ? 1 : -1;
 
@@ -827,13 +939,23 @@ GAME.UI = GAME.UI || {};
     //  옆으로도 밀어준다: 정면·정배면일수록 칼이 얼굴 한가운데를 세로로 가른다.
     //  lateral 은 옆모습(|fx|=1)에서 0, 정면(|fx|=0)에서 최대가 된다.
     function bladeDir(up) {
-      var lateral = (1 - Math.abs(fx)) * 0.55;
+      var lateral = faceOn * 0.55;
+      up += faceOn * UI.GEAR_FACE_UP;         // 정면일수록 세워 든다(얼굴 앞을 비운다)
       var dx = fx + px * lateral, dy = fy - up + py * lateral;
       var l = Math.sqrt(dx * dx + dy * dy) || 1;
       return { x: dx / l, y: dy / l };
     }
+    // 휘두르는 순간 날을 줄인다.
+    //  ⚠ 이건 멋내기가 아니라 **틀 안에 담기 위한 필수 장치**다. 카드가 캐릭터에 주는
+    //    폭은 중심 ±2.05r, 아래는 1.9r 뿐인데(`scenes/tower.js` 가 r 을 그렇게 역산한다),
+    //    2.15r 짜리 대검을 눕히면 칼끝이 옆 카드까지 3.1r 를 뻗는다(실측 계산).
+    //    빠른 동작에서 길이가 줄어드는 건 2D 애니메이션의 표준 관용(속도 단축)이라
+    //    140ms 짜리 타격 구간에서는 "빨라 보인다"로 읽힌다.
+    var blLen = 1 - 0.32 * (atk > 0 ? atk : 0);
+
     // 자루→끝까지 좁아지는 사각 날. 어느 각도에서도 '칼'로 읽힌다.
     function taperBlade(x0, y0, dir, len, w0, w1, fill, edge) {
+      len *= blLen; w1 *= blLen;
       var nx = -dir.y, ny = dir.x;
       var x1 = x0 + dir.x * len, y1 = y0 + dir.y * len;
       var pts = [
@@ -858,7 +980,8 @@ GAME.UI = GAME.UI || {};
       g.fillStyle(M.bronze, a); g.fillCircle(bx, byy, r * 0.17);
 
       // 자루 — 손 아래로 짧게
-      var swDir = bladeDir(0.95);
+      //  atk 가 각도를 바꾼다: -1 머리 위로 치켜듦 → +1 옆으로 후려침
+      var swDir = bladeDir(0.95 - atk * 0.85);
       g.lineStyle(lw(0.17), M.woodDark, a);
       g.lineBetween(hx - swDir.x * r * 0.34, hy - swDir.y * r * 0.34, hx, hy);
       // 날 — 손에서 앞·위로. 예전엔 지면축으로만 뻗어 정면에서 사라졌다.
@@ -881,21 +1004,40 @@ GAME.UI = GAME.UI || {};
       }
       g.lineStyle(lw(0.13 * big), M.wood, a);
       g.strokePoints(arc, false, false);
+      //  활은 휘두르는 게 아니라 **당겼다 놓는다** — atk<0 시위를 끌고, atk>0 화살이 날아간다.
+      var pull = atk < 0 ? -atk : 0, shot = atk > 0 ? atk : 0;
+      var apex = cxp - bulge * (0.28 + pull * 0.80 - shot * 0.16);
       g.lineStyle(Math.max(0.8, r * 0.05), M.rope, a * 0.9);        // 시위
-      g.lineBetween(arc[0].x, arc[0].y, cxp - bulge * 0.28, cyp);
-      g.lineBetween(cxp - bulge * 0.28, cyp, arc[6].x, arc[6].y);
-      g.lineStyle(Math.max(0.8, r * 0.06), M.bone, a);              // 메긴 화살
-      g.lineBetween(cxp - bulge * 0.34, cyp, cxp + bulge * 2.0, cyp);
+      g.lineBetween(arc[0].x, arc[0].y, apex, cyp);
+      g.lineBetween(apex, cyp, arc[6].x, arc[6].y);
+      var alen = Math.max(0.8, r * 0.06);
+      if (shot > 0.02) {
+        // 날아가는 화살. ⚠ 진행도는 shot 이 아니라 **1-shot** 이다 —
+        //   k 는 놓은 순간 +1 에서 0 으로 되돌아오므로 shot 을 그대로 쓰면 화살이 뒤로 간다.
+        var fly = (1 - shot) * 1.6;
+        var fn = cxp + bulge * (0.30 + fly);
+        g.lineStyle(alen, M.bone, a * Math.min(1, shot * 2.5));
+        g.lineBetween(fn, cyp, fn + bulge * 2.34, cyp);
+      }
+      var na = (0.35 - shot) / 0.35;                                // 메긴 화살
+      if (na > 0) {
+        var nock = cxp - bulge * (0.34 + pull * 0.80);
+        g.lineStyle(alen, M.bone, a * Math.min(1, na));
+        g.lineBetween(nock, cyp, nock + bulge * 2.34, cyp);
+      }
 
     } else if (kind === 'sling') {           // 투석꾼 — 머리 위에서 도는 무릿매
-      var lxp = sx + fx * r * 0.18, lyp = by - r * 1.38 + fy * r * 0.10;
+      //  고리는 머리 위라 얼굴을 안 가리지만 **끈이 얼굴을 대각으로 가로질렀다**(실측).
+      //  고리도 같이 벌리고, 끈을 손과 같은 쪽에 매 얼굴 앞을 지나지 않게 한다.
+      var lxp = sx + fx * r * 0.18 + px * r * sprd, lyp = by - r * 1.38 + fy * r * 0.10 + py * r * sprd;
+      var ss = px < -0.01 ? -1 : 1;
       g.lineStyle(lw(0.08), M.rope, a * 0.85);
       g.strokeEllipse(lxp, lyp, r * 1.44, r * 0.56);
-      g.lineBetween(hx, hy, lxp + r * 0.68, lyp + r * 0.06);
+      g.lineBetween(hx, hy, lxp + ss * r * 0.68, lyp + r * 0.06);
       g.fillStyle(M.stone, a);
-      g.fillCircle(lxp + r * 0.72, lyp + r * 0.04, r * 0.26);
+      g.fillCircle(lxp + ss * r * 0.72, lyp + r * 0.04, r * 0.26);
       g.fillStyle(UI.tint(M.stone, 0.35), a);
-      g.fillCircle(lxp + r * 0.66, lyp - r * 0.04, r * 0.09);
+      g.fillCircle(lxp + ss * r * 0.66, lyp - r * 0.04, r * 0.09);
 
     } else if (kind === 'javelin') {         // 투창병 — 몸의 두 배짜리 긴 작살
       var t0x = X(-1.00, 0.34), t0y = Y(-1.00, 0.34, 0.58);
@@ -996,7 +1138,8 @@ GAME.UI = GAME.UI || {};
       // 영웅 중 가장 큰 무기다. 여기가 눌리면 광전사가 '아무것도 안 든 계란'이 된다
       // — 예전 구현은 정면에서 정확히 그 상태였다(길이 1r 짜리 막대).
       // 어깨 위로 크게 세워 들어 어느 각도에서도 실루엣이 남게 했다.
-      var gsDir = bladeDir(1.55);
+      //  atk 로 머리 위(-1) ↔ 앞으로 내려찍기(+1) 사이를 쓸어내린다. 대검이라 각이 더 크다.
+      var gsDir = bladeDir(1.55 - atk * 1.90);
       var gsGripX = hx - gsDir.x * r * 0.30, gsGripY = hy - gsDir.y * r * 0.30;
       // 두 손 자루
       g.lineStyle(lw(0.20), M.woodDark, a);
@@ -1014,15 +1157,25 @@ GAME.UI = GAME.UI || {};
                     gsGripY + gsDir.x * r * 0.52 + gsDir.y * r * 0.30);
 
     } else if (kind === 'hookShield') {      // 파수꾼 — 연꼴 방패 + 갈고리 창
+      //  휘두르는 무기가 아니라 **찔러 넣었다 당기는** 무기다 → 자기 축으로 늘였다 줄인다.
+      //  방패는 같이 나가면 안 되므로(막고 있는 물건이다) 창만 ex 를 곱하고 방패는 살짝 든다.
+      //  ⚠ 자루 밑동(f=-0.90, up=0.30)을 축으로 **거기서부터** 늘여야 한다.
+      //    f 와 up 을 원점에서 각각 배수하면 정면에서 두 성분이 상쇄돼 창끝이 제자리다(실측 계산).
+      var ex = 1 + (atk > 0 ? atk * 0.60 : atk * 0.25);
+      var sh = (atk > 0 ? atk : 0) * 0.26;
+      var hf = function (d) { return -0.90 + d * ex; };            // f 성분
+      var hu = function (d) { return 0.30 + d * ex; };             // up 성분
       g.lineStyle(lw(0.13), M.wood, a);      // 갈고리 창 (E = 끌어당김)
-      g.lineBetween(X(-0.90, -0.55), Y(-0.90, -0.55, 0.30), X(1.55, -0.55), Y(1.55, -0.55, 1.35));
+      g.lineBetween(X(-0.90, -0.55), Y(-0.90, -0.55, 0.30),
+                    X(hf(2.45), -0.55), Y(hf(2.45), -0.55, hu(1.05)));
       g.fillStyle(M.iron, a);
-      g.fillTriangle(X(1.60, -0.55), Y(1.60, -0.55, 1.42),
-                     X(1.20, -0.55), Y(1.20, -0.55, 1.52),
-                     X(1.42, -0.55), Y(1.42, -0.55, 0.98));
+      g.fillTriangle(X(hf(2.50), -0.55), Y(hf(2.50), -0.55, hu(1.12)),
+                     X(hf(2.10), -0.55), Y(hf(2.10), -0.55, hu(1.22)),
+                     X(hf(2.32), -0.55), Y(hf(2.32), -0.55, hu(0.68)));
 
       // 방패는 몸 옆·앞으로 크게 빼둔다 — 정면에 붙이면 계란이 통째로 사라진다
-      var kx = X(1.14, 0.66), ky = Y(1.14, 0.66, 0.02);
+      // 때릴 때는 들어올리며 바깥으로 내민다(방패 밀치기) — 창과 같이 나가면 안 된다.
+      var kx = X(1.14, 0.66 + sh * 0.7), ky = Y(1.14, 0.66 + sh * 0.7, 0.02 + sh);
       var kite = [
         { x: kx - r * 0.56, y: ky - r * 0.88 },
         { x: kx + r * 0.56, y: ky - r * 0.88 },
@@ -1218,10 +1371,11 @@ GAME.UI = GAME.UI || {};
   //  grounded=true 면 전장(투영 적용), false 면 UI 패널용 평면
   //  walk : number | {phase, amp} | null   ← v2 추가 (생략하면 v1 과 동일)
   //  lv   : 1~5 계급 (생략하면 1 = 장식 없음, v2 와 픽셀 단위로 동일)
-  UI.drawEggChar = function (g, art, sx, by, r, color, a, facing, grounded, reach, walk, lv) {
+  UI.drawEggChar = function (g, art, sx, by, r, color, a, facing, grounded, reach, walk, lv, idle) {
     var Iso = GAME.Iso, T = (grounded && Iso) ? Iso.TILT : 1;
     var D = UI.dir8(facing === undefined ? Math.PI / 2 : facing, T);
     var G = UI.gait(walk, art);
+    var I = UI.idlePose(idle, art);
 
     var cx = sx, cy = by, lean = 0, rch = (reach === undefined ? 1 : reach);
     if (G) {
@@ -1231,6 +1385,20 @@ GAME.UI = GAME.UI || {};
       rch *= (1 + G.arm);
     }
 
+    // 아이들 — 호흡(스쿼시&스트레치)과 공격. 머리 장식은 **알 꼭대기가 움직인 만큼** 따라간다.
+    var ky = 1, dyHead = 0, dyFace = 0, dyGear = 0, atk = 0;
+    if (I) {
+      cy += r * I.rise;
+      lean += r * (I.lean * D.px + I.pitch * D.fx);
+      rch *= I.reach;
+      ky = I.ky;
+      atk = I.atk;
+      dyHead = 2 * r * (1 - ky);          // 알 꼭대기의 이동량
+      // 눈은 몸통 안이라 덜 움직인다. 단 투구 틈(slit) 안의 눈은 투구를 따라가야 어긋나지 않는다.
+      dyFace = (art.face === 'slit') ? dyHead : dyHead * 0.45;
+      dyGear = dyHead * 0.35;             // 손·어깨 높이
+    }
+
     var backFirst = !D.back;                                     // 등을 보이면 등짐이 앞으로
     var gearBehind = D.back && !UI.GEAR_ALWAYS_FRONT[art.gear];  // 뒤쪽 무기는 몸통에 가린다
 
@@ -1238,31 +1406,33 @@ GAME.UI = GAME.UI || {};
     // 몸통은 ivory 시안에서 이미 진영색 외곽선(r*0.17)이 실루엣을 맡고 있어
     // 잉크를 한 겹 더 두르면 진영색이 눌려 아군/적군 구분이 흐려진다.
     var rank = UI.rankOf({ lv: lv });     // 생략·이상값이면 1 (= 장식 없음)
-    var back = function (gg) { UI.eggBack(gg, art.back, cx, cy, r, color, a, D); };
-    var gear = function (gg) { UI.eggGear(gg, art.gear, cx + lean * 0.5, cy, r, color, a, D, rch); };
-    var helm = function (gg) { UI.eggHelm(gg, art.helm, cx + lean, cy, r, color, a, D); };
+    var back = function (gg) { UI.eggBack(gg, art.back, cx, cy + dyGear, r, color, a, D); };
+    var gear = function (gg) { UI.eggGear(gg, art.gear, cx + lean * 0.5, cy + dyGear, r, color, a, D, rch, atk); };
+    var helm = function (gg) { UI.eggHelm(gg, art.helm, cx + lean, cy + dyHead, r, color, a, D); };
     // 계급 장식도 장비와 같은 레이어 규칙을 탄다(잉크 윤곽 포함) — 라이트 테마에서
     // 청동/강철이 목초지에 묻히지 않게 하려면 반드시 inkLayer 를 거쳐야 한다.
-    var rkBan = function (gg) { UI.eggRankBanner(gg, art, cx, cy, r, color, a, D, rank); };
-    var rkBody = function (gg) { UI.eggRankBody(gg, art, cx, cy, r, color, a, D, rank); };
-    var rkHead = function (gg) { UI.eggRankHead(gg, art, cx + lean, cy, r, color, a, D, rank); };
+    var rkBan = function (gg) { UI.eggRankBanner(gg, art, cx, cy + dyGear, r, color, a, D, rank); };
+    var rkBody = function (gg) { UI.eggRankBody(gg, art, cx, cy + dyGear, r, color, a, D, rank); };
+    var rkHead = function (gg) { UI.eggRankHead(gg, art, cx + lean, cy + dyHead, r, color, a, D, rank); };
 
     if (backFirst) { UI.inkLayer(g, r, rkBan); UI.inkLayer(g, r, back); }
     if (gearBehind) UI.inkLayer(g, r, gear);
-    UI.eggBody(g, art, cx, cy, r, color, a, lean);
+    UI.eggBody(g, art, cx, cy, r, color, a, lean, ky);
     if (!backFirst) { UI.inkLayer(g, r, back); UI.inkLayer(g, r, rkBan); }
     UI.inkLayer(g, r, rkBody);
+    // 장비는 **몸통 위·얼굴 아래**. 예전엔 맨 마지막이라 큰 무기가 얼굴을 덮었다(실측 신고).
+    // 이 순서면 무기를 아무리 크게 그려도 눈·볼·투구는 반드시 살아남는다.
+    if (!gearBehind) UI.inkLayer(g, r, gear);
     // 맨눈은 투구보다 먼저(챙이 이마를 덮게), 투구 틈의 눈은 투구보다 나중에 그린다
-    if (art.face !== 'slit') UI.eggFace(g, art, cx + lean * 0.62, cy, r, a, D);
+    if (art.face !== 'slit') UI.eggFace(g, art, cx + lean * 0.62, cy + dyFace, r, a, D);
     UI.inkLayer(g, r, helm);
     UI.inkLayer(g, r, rkHead);
-    if (art.face === 'slit') UI.eggFace(g, art, cx + lean * 0.62, cy, r, a, D);
-    if (!gearBehind) UI.inkLayer(g, r, gear);
+    if (art.face === 'slit') UI.eggFace(g, art, cx + lean * 0.62, cy + dyFace, r, a, D);
   };
 
   // ── 전장용 ────────────────────────────────────────────────────
   //  시그니처: 기존 7개 + walk 하나. 반환값 {sx, sy, by} 도 그대로(체력바가 이걸 쓴다).
-  UI.drawUnit = function (g, def, worldX, worldY, color, alpha, facing, walk) {
+  UI.drawUnit = function (g, def, worldX, worldY, color, alpha, facing, walk, idle) {
     var Iso = GAME.Iso;
     var sx = worldX, sy = Iso.toScreenY(worldY);
     var r = def.radius * (UI.UNIT_DRAW_SCALE || 1);   // 그리는 크기만 키운다(히트박스는 그대로)
@@ -1294,7 +1464,7 @@ GAME.UI = GAME.UI || {};
 
     var lv = UI.rankOf(def);
     UI.eggRankGround(g, sx, sy, r, color, a, lv);
-    UI.drawEggChar(g, art, sx, by, r, color, a, f, true, 1, walk, lv);
+    UI.drawEggChar(g, art, sx, by, r, color, a, f, true, 1, walk, lv, idle);
     return { sx: sx, sy: sy, by: by };
   };
 
@@ -1342,15 +1512,22 @@ GAME.UI = GAME.UI || {};
   };
 
   // ── UI 패널용 (투영 없음) ─────────────────────────────────────
-  //  기존 시그니처 + walk: (g, def, sx, sy, color, alpha, scale, facing, walk)
+  //  기존 시그니처 + walk + idle:
+  //    (g, def, sx, sy, color, alpha, scale, facing, walk, idle)
   //  칩·미니맵에 들어가므로 무기 사거리를 줄여(reach 0.72) 박스를 벗어나지 않게 한다.
-  UI.drawUnitFlat = function (g, def, sx, sy, color, alpha, scale, facing, walk) {
+  //
+  //  idle 에 **매 프레임의 시각(ms)** 을 넘기면 그 한 기만 숨쉬고 주기적으로 공격한다.
+  //  캐릭터 선택 화면에서 고른 카드에만 넘기면 나머지는 정지 포즈로 남는다.
+  //    var t = self.time.now;                       // 씬이 가진 시각
+  //    GAME.UI.drawUnitFlat(g, h, cx, feetY, C.controller, 1, sc, Math.PI / 2,
+  //                         null, on ? t : undefined);
+  UI.drawUnitFlat = function (g, def, sx, sy, color, alpha, scale, facing, walk, idle) {
     var r = def.radius * (scale || 1);
     var a = alpha === undefined ? 1 : alpha;
     var art = UI.artOf(def);
     if (art.ground) { UI.drawGroundArt(g, art, sx, sy, r, color, a); return; }
     UI.drawEggChar(g, art, sx, sy, r, color, a, facing === undefined ? 0 : facing, false, 0.72,
-                   walk, UI.rankOf(def));
+                   walk, UI.rankOf(def), idle);
   };
 
 })(GAME.UI);

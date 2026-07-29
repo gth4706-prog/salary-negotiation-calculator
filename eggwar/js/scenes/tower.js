@@ -54,6 +54,13 @@ GAME.TowerScene.prototype.create = function (data) {
   this._lightningG = null;
   this._flashRect = null;
 
+  // ── 방금 층을 깨고 들어왔는가 (2026-07-29) ──────────────────────────────
+  //  결과 화면을 건너뛰고 여기로 직행하므로(`scenes/result.js` 의 `_skipToNextFloor`),
+  //  결과 화면이 보여주던 **획득 골드·획득 점수**를 이 화면이 대신 띄워야 한다.
+  //  ⚠ 인스턴스 프로퍼티라 `scene.restart` 후에도 남는다 → 매 create 에서 반드시
+  //    덮어쓴다. 안 그러면 랭킹에 갔다 돌아와도 "+18 골드"가 계속 붙어 있는다.
+  this._cleared = (data && data.cleared) || null;
+
   var step = (data && data.step) || 'landing';
   // Phaser 의 `Systems.start(data)` 는 data 가 없으면 **이전 settings.data 를 그대로 둔다.**
   // 그래서 `restart({step:'challenge'})` 뒤에 메뉴를 거쳐 인자 없는 `scene.start('Tower')`
@@ -464,7 +471,7 @@ GAME.TowerScene.prototype._buildHeroSelect = function () {
     14, C.textDim, 0).setWordWrapWidth(panelW - 160);
   var l3 = GAME.UI.label(this, tx, l2.y + l2.height + 5,
     '영웅·장비·스킬은 도전 시작에 한 번만 고른다. 이후로는 적 유닛을 잡을 때마다 떨어지는 골드로 성장한다.' +
-    '   ·   ' + GAME.Tower.CHECKPOINT_EVERY + '층마다 체크포인트',
+    '   ·   한 번이라도 지면 1층부터 다시 (빌드도 초기화)',
     14, GAME.UI.TXT.crit, 0).setWordWrapWidth(panelW - 160);
 
   var panelH = (l3.y + l3.height + 14) - panelY;
@@ -602,7 +609,7 @@ GAME.TowerScene.prototype._buildHeroSelectPhone = function () {
   UI.label(this, W - PAD, infoY,
     (floor <= E ? ('1~' + E + '층 연습 · ' + (E + 1) + '층부터 조작 필수   ·   ')
                 : '영웅·장비는 도전 시작에 한 번만   ·   ') +
-    GAME.Tower.CHECKPOINT_EVERY + '층마다 체크포인트',
+    '지면 1층부터 다시',
     15, UI.TXT.crit, 1).setOrigin(1, 0);
 
   // ── ② 카드 ──
@@ -685,6 +692,13 @@ GAME.TowerScene.prototype._buildHeroSelectPhone = function () {
   this._refreshHeroSelect();
 };
 
+// 캐릭터 선택 화면은 고른 카드가 계속 움직인다 → 매 프레임 다시 그린다.
+// `_refreshHeroSelect` 는 hover/click 에서만 불려서 이게 없으면 첫 프레임에서 멈춘다.
+// 카드가 없는 화면(랜딩·도전)에서는 아무 일도 하지 않는다.
+GAME.TowerScene.prototype.update = function () {
+  if (this._heroCardG && this._heroCards && this._heroCards.length) this._refreshHeroSelect();
+};
+
 GAME.TowerScene.prototype._refreshHeroSelect = function () {
   var C = GAME.CONFIG.COLORS;
   var g = this._heroCardG;
@@ -733,8 +747,10 @@ GAME.TowerScene.prototype._refreshHeroSelect = function () {
     g.fillEllipse(c.cx, feetY + r * 0.34, r * 1.7, r * 0.4);
 
     // facing = +PI/2 면 dir8.front, 즉 정면(얼굴이 보인다)
+    // 고른 카드만 살아 움직인다 — 호흡(스쿼시&스트레치) + 주기적 공격 모션.
+    // 9번째 인자가 walk, 10번째가 idle(ms). idle 을 안 넘기면 지금까지와 픽셀 단위로 같은 정지 포즈.
     GAME.UI.drawUnitFlat(g, h, c.cx, feetY, C.controller, 1,
-      r / (h.radius || 17), Math.PI / 2);
+      r / (h.radius || 17), Math.PI / 2, null, on ? self.time.now : undefined);
 
     g.lineStyle(on ? 4 : (hov ? 3 : 2), on ? C.controller : GAME.UI.COL.border, 1);
     g.strokeRoundedRect(c.x, c.y, c.w, c.h, R);
@@ -1075,7 +1091,10 @@ GAME.TowerScene.prototype._refreshRun = function (bump) {
   var self = this;
   var TR = GAME.TowerRun;
 
-  this.goldLabel.setText('💰 골드  ' + this.run.gold);
+  // 방금 층을 깬 직후라면 **얼마를 벌었는지**를 보유액 옆에 붙인다.
+  // 결과 화면을 건너뛰므로 이 줄이 유일한 획득 표시다.
+  var gained = (this._cleared && this._cleared.gold) ? ('   (+' + this._cleared.gold + ')') : '';
+  this.goldLabel.setText('💰 골드  ' + this.run.gold + gained);
   if (bump) {
     this.goldLabel.setScale(1.25);
     this.tweens.add({ targets: this.goldLabel, scale: 1, duration: 260, ease: 'Back.easeOut' });
@@ -1095,13 +1114,33 @@ GAME.TowerScene.prototype._refreshRun = function (bump) {
     s.btn.rect.setFillStyle(can ? GAME.UI.COL.panelTeal : GAME.UI.COL.surfaceAlt);
   });
 
-  if (this.runHint) this.runHint.setText(this._runHintText());
+  if (this.runHint) {
+    this.runHint.setText(this._runHintText());
+    // 클리어 직후에는 이 줄이 '방금 무슨 일이 있었나'라서 장비 요약보다 앞에 읽혀야 한다.
+    this.runHint.setColor(this._cleared ? C.accent : C.textDim);
+  }
 };
 
-// 도전 중 장비 요약 한 줄
+// 도전 중 장비 요약 한 줄.
+// **방금 층을 깨고 들어온 직후에는** 그 자리에 클리어 요약(돌파 층·골드·점수·다음 층)을 띄운다 —
+// 결과 화면을 건너뛰기 때문에(요청) 그 정보가 갈 곳이 여기밖에 없다.
+// 새 줄을 만들지 않고 기존 줄을 바꿔 쓰는 이유: 폰 가로(820×390)는 골드 줄과 능력치 버튼
+// 사이 여유가 17px 뿐이라 한 줄만 더 넣어도 버튼을 파고든다(실측).
 GAME.TowerScene.prototype._runHintText = function () {
   var rec = this.run || (GAME.TowerRun && GAME.TowerRun.get());
   if (!rec) return '';
+
+  var cl = this._cleared;
+  if (cl) {
+    var next = this._floor;                       // Tower.clear 가 이미 floor 를 올려놨다
+    var head = '✅ ' + cl.floor + '층 돌파';
+    var got = (cl.gold ? ('  ·  골드 +' + cl.gold) : '') +
+              (cl.score ? ('  ·  점수 +' + cl.score) : '');
+    if (GAME.CONFIG.PHONE) return head + got + '  ·  다음 ' + next + '층';
+    return head + got + '  ·  다음 ' + next + '층 적 진형 ' +
+           GAME.Tower.budgetFor(next) + '  —  골드로 능력치를 올리고 올라가세요';
+  }
+
   var it = rec.items || {};
   var worn = GAME.ITEM_SLOTS.map(function (s) {
     var k = it[s.key];
@@ -1118,7 +1157,8 @@ GAME.TowerScene.prototype._refresh = function () {
   var C = GAME.CONFIG.COLORS;
   var self = this;
 
-  if (this.run) { this._refreshRun(false); }
+  // 클리어 직후 첫 그리기에서는 골드 숫자를 튕겨준다 — 결과 화면의 보상 연출을 대신한다.
+  if (this.run) { this._refreshRun(!!this._cleared); }
 
   this.heroBtns.forEach(function (h) {
     var on = h.key === self.heroKey;

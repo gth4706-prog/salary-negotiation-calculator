@@ -58,15 +58,28 @@ GAME.Profile = {
   },
 
   // 관측치 → 사람이 읽을 수 있는 성향
-  read: function () {
-    var r = this.get();
+  read: function () { return this.readFrom(this.get()); },
+
+  // 순수 함수로 분리한 이유: AI 가 "이런 성향이면 어떤 배치가 나오나"를 저장소 없이
+  // 시험할 수 있어야 한다(`tools/formation-diversity.js` 가 합성 프로필을 넣는다).
+  // 저장소를 타는 read() 만 있으면 다양성 측정 자체가 불가능하다.
+  readFrom: function (r) {
     var avgDist = r.distN ? r.distSum / r.distN : 200;
     var dodge = r.projAt >= 6 ? 1 - (r.projHit / r.projAt) : 0.5;   // 표본 부족하면 중간값
     var side = r.sideN ? r.sideSum / r.sideN : 0;
 
     var style = avgDist < 130 ? 'brawler' : (avgDist > 300 ? 'kiter' : 'skirmisher');
-    var favHero = null, favN = 0;
-    for (var h in r.heroUse) if (r.heroUse[h] > favN) { favN = r.heroUse[h]; favHero = h; }
+    var favHero = null, favN = 0, heroN = 0;
+    for (var h in r.heroUse) { heroN += r.heroUse[h]; if (r.heroUse[h] > favN) { favN = r.heroUse[h]; favHero = h; } }
+
+    // ── 확신도 ────────────────────────────────────────────────────────────
+    // AI 가 성향을 얼마나 세게 믿어도 되는가. 표본이 적을 때 확신하면
+    // **몇 판 안 된 사람에게 매판 같은 전략이 날아온다** — 게임이 좁아 보인다.
+    // 확신이 낮으면 AutoFormation 이 여러 전략을 골고루 시험하고(=다양해지고),
+    // 표본이 쌓일수록 카운터 쪽으로 분포가 쏠린다. 학습이 눈에 보이는 형태다.
+    var conf = Math.min(1, (r.battles || 0) / 6);
+    var dodgeConf = Math.min(1, (r.projAt || 0) / 24);
+    var styleConf = Math.min(1, (r.distN || 0) / 40);
 
     return {
       battles: r.battles,
@@ -76,7 +89,13 @@ GAME.Profile = {
       dodge: dodge,                  // 0~1, 높으면 논타겟을 잘 피한다
       dodgeLabel: dodge > 0.65 ? '회피 능숙' : (dodge < 0.35 ? '회피 미숙' : '회피 보통'),
       side: side,
-      favHero: favHero
+      favHero: favHero,
+      // 성향을 얼마나 믿을 수 있는가 (0~1)
+      conf: conf,
+      dodgeConf: dodgeConf,
+      styleConf: styleConf,
+      // 영웅을 한 종류만 쓰는가(1=고정) — 고정이면 그 영웅 카운터를 더 세게 건다
+      favHeroShare: heroN ? favN / heroN : 0
     };
   },
 

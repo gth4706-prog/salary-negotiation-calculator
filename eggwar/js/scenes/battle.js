@@ -26,6 +26,21 @@ GAME.BattleScene.prototype.init = function (data) {
   this._zoomMask = null;
   this._zoomMaskG = null;
   this._onWheel = null;
+
+  // ── 동전·라운드 종료 유예 (씬 인스턴스는 재사용된다 → 여기서 전부 되돌린다) ──
+  // 파괴된 Text/Graphics 는 여전히 truthy 라 `if (!this.x)` 지연생성 가드를 통과한다.
+  // 이 저장소에서 이미 여러 번 터진 유형이다.
+  this._coins = null;
+  this._goldG = null;
+  this._goldTxt = null;
+  this._goldShown = null;
+  this._goldBase = 0;
+  this._goldPop = 0;
+  this._goldW = -1;
+  this._endBanner = null;
+  this._endHold = -1;        // -1 = 아직 유예에 안 들어감
+  this._endElapsed = 0;
+  this._endShown = -1;
 };
 
 GAME.BattleScene.prototype.create = function () {
@@ -233,6 +248,15 @@ GAME.BattleScene.prototype.create = function () {
     this.ctrl.pad = this.pad;
   }
 
+  // ── 동전 밭 ──────────────────────────────────────────────────────────────
+  // `state.killGoldEvents` 가 있을 때만(= 통곡의 탑 도전 중) 만든다. 일반 대전에는
+  // 처치 골드 자체가 없으므로 동전도 없어야 한다 — 없는 보상을 뿌리면 거짓말이 된다.
+  if (this.state.killGoldEvents && GAME.Coins) {
+    this._coins = GAME.Coins.create(this, this.state);
+    this._goldBase = (GAME.TowerRun.get() || {}).gold || 0;
+    this._buildGoldHud();
+  }
+
   // 휠 줌은 **모든 배치가 끝난 뒤** 붙인다 — 아레나 사각형(Iso.setMode 반영본)이 필요하다.
   this._setupZoom();
 
@@ -252,10 +276,72 @@ GAME.BattleScene.prototype.create = function () {
     self.worldLayer = null;
     self._zoomRect = null;
     if (self.cameras && self.cameras.main) self.cameras.main.setZoom(1);
+    // 동전 계층 — 팝업 Text 까지 전부 파괴하고 참조를 끊는다
+    if (self._coins) { self._coins.destroy(); self._coins = null; }
+    if (self._goldG) { self._goldG.destroy(); self._goldG = null; }
+    if (self._goldTxt) { self._goldTxt.destroy(); self._goldTxt = null; }
+    if (self._endBanner) { self._endBanner.destroy(); self._endBanner = null; }
+    self._goldShown = null;
+    self._endHold = -1;
+    self._endShown = -1;
     if (self.ctrl) self.ctrl.destroy();
     if (self.pad) { self.pad.destroy(); self.pad = null; }
     if (self.hud) { self.hud.destroy(); self.hud = null; }
   });
+};
+
+// ── 우상단 총 골드 배지 ─────────────────────────────────────────────────────
+//  "우측 상단에 총 골드도 보이게 해줘"(요청).
+//
+//  자리 잡기가 이 화면의 함정이다. 프로필마다 HUD 가 있는 곳이 다르다:
+//   · PC(1340×900)·세로 비터치 — HUD 는 **아레나 아래**에 있고 화면 맨 위(0~66)가 비어 있다.
+//   · 폰 가로(820×390)·세로 터치 — HUD 가 **화면 맨 위**를 띠로 덮고 '남은 적 N기'와
+//     보스 바가 이미 우상단에 있다. → 그 실측 바닥(hud.bottom) **아래**로 내려간다.
+//  두 경우를 한 식으로 쓰면 반드시 한쪽이 겹친다(이 저장소가 반복해서 겪은 사고다).
+GAME.BattleScene.prototype._buildGoldHud = function () {
+  var W = GAME.CONFIG.WIDTH;
+  var SM = GAME.CONFIG.SMALL;
+  var topHud = GAME.isTouch && (GAME.CONFIG.PORTRAIT || GAME.CONFIG.PHONE);
+  var h = SM ? 28 : 32;
+  var y = topHud
+    ? (this.hud.bottom + 3)                                        // HUD 띠 바로 아래
+    : Math.max(4, Math.round((GAME.Iso.screenRect().y - h) / 2));   // 아레나 위 빈 띠 안
+  this._goldRight = W - (SM ? 12 : 24);
+  this._goldY = y;
+  this._goldH = h;
+  this._goldG = this.add.graphics().setDepth(8000);
+  if (this._goldG.setScrollFactor) this._goldG.setScrollFactor(0);
+  this._goldTxt = GAME.UI.text(this, this._goldRight - 10, y + h / 2, '0', {
+    size: SM ? 'subhead' : 'num', color: GAME.UI.TXT.crit,
+    origin: 1, originY: 0.5, outline: true, lineSpacing: 0
+  }).setDepth(8001);
+  this._goldShown = this._goldBase;
+  this._goldTxt.setText(String(this._goldBase));
+  this._drawGoldBadge();
+};
+
+// 배지 판은 **글자 폭이 바뀔 때만** 다시 그린다(매 프레임 clear+fill 은 낭비다)
+GAME.BattleScene.prototype._drawGoldBadge = function () {
+  var g = this._goldG;
+  if (!g || !g.scene) return;
+  var tw = Math.ceil(this._goldTxt.width);
+  var h = this._goldH, r = h / 2;
+  var w = tw + h + 26;                               // 글자 + 동전 아이콘 + 여백
+  var x = this._goldRight - w, y = this._goldY;
+  g.clear();
+  g.fillStyle(GAME.UI.COL.shadow === undefined ? 0x000000 : GAME.UI.COL.shadow,
+    GAME.UI.IS_LIGHT ? 0.16 : 0.28);
+  g.fillRoundedRect(x, y + 2, w, h, r);
+  g.fillStyle(GAME.UI.COL.surface, 0.92);
+  g.fillRoundedRect(x, y, w, h, r);
+  g.lineStyle(1, GAME.UI.COL.border, 1);
+  g.strokeRoundedRect(x + 0.5, y + 0.5, w - 1, h - 1, r);
+  // 전장의 동전과 **같은 그림**을 쓴다 — 배지와 바닥의 물건이 같은 것임이 바로 읽힌다
+  if (GAME.drawCoinGlyph) {
+    GAME.drawCoinGlyph(g, x + h * 0.62, y + h / 2, h * 0.30, 1, 1,
+      GAME.UI.FX.ink, GAME.UI.FX.inkAlpha);
+  }
+  this._goldW = tw;
 };
 
 GAME.BattleScene.prototype._hintDefault = function () {
@@ -441,6 +527,15 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     GAME.Combat.update(this.state, dt);
   }
 
+  // 라운드 종료를 **씬에서** 3초 붙잡는다. combat.js 는 건드리지 않는다.
+  this._endGate(dt);
+
+  // 동전 — 줍기 판정은 월드 좌표에서만 한다(줌·투영과 무관)
+  if (this._coins) {
+    this._coins.update(dt, this.hero);
+    this._updateGoldHud(dt);
+  }
+
   for (var i = this.markers.length - 1; i >= 0; i--) {
     this.markers[i].t -= dt;
     if (this.markers[i].t <= 0) this.markers.splice(i, 1);
@@ -453,6 +548,16 @@ GAME.BattleScene.prototype.update = function (time, delta) {
 
   if (this.state.over && !this.ended) {
     this.ended = true;
+
+    // 바닥에 남은 동전은 **버린다**(자동 수거하지 않는다 — 근거는 js/coin.js 머리말).
+    if (this._coins) {
+      this._coins.forfeit();
+      // ⚠ towerrun.js 의 `goldGainFor` 는 killGold 가 **0 이면** "훅이 안 불렸다"로 보고
+      //   옛 방식(층 총액 전부)으로 되돌린다. 한 개도 못 주웠을 때 그 폴백이 걸리면
+      //   **하나도 안 주운 쪽이 더 많이 받는 역전**이 생긴다. 1 로 바닥을 깔아 막는다
+      //   (towerrun.js 는 다른 에이전트 담당이라 이쪽에서 흡수한다).
+      if (this._coins.dropped > 0 && !(this.state.killGold > 0)) this.state.killGold = 1;
+    }
     // 전투가 끝나면 즉시 원래 배율로 — 결과 화면으로 넘어가는 1.1초 동안
     // 검은 막과 전장이 확대된 채로 남지 않게 한다.
     this.resetZoom();
@@ -687,6 +792,110 @@ GAME.BattleScene.prototype._sirenPulse = function (times) {
     yoyo: true, hold: 80, repeatDelay: 200, repeat: Math.max(0, times - 1),
     onComplete: function () { if (g && g.setAlpha) g.setAlpha(0); }
   });
+};
+
+// ── 라운드 종료 3초 유예 ────────────────────────────────────────────────────
+//  요청: "적 유닛을 다 잡고 나면 바로 라운드 종료가 아니라 '라운드가 종료됩니다' 문구와
+//         3초를 센 다음 종료."
+//
+//  ⚠ `state.over` 판정은 `js/combat.js`(다른 에이전트 담당) 안에 있다. **거기는 안 고친다.**
+//  대신 combat 이 켠 플래그를 씬이 3초 동안 도로 내려준다. 판정 자체는 부작용이 없는
+//  (생존 수 비교 → over/winner 대입) 순수 계산이라 매 프레임 다시 켜지고, 다시 내려도
+//  전투 상태가 어긋나지 않는다. 그동안 `Combat.update` 가 정상적으로 계속 돌기 때문에
+//  **영웅이 실제로 걸어다니며 남은 동전을 주울 수 있다** — 이게 3초를 두는 실질적 이유다.
+//
+//  두 가지를 함께 지킨다:
+//   · `state.elapsed` 를 그 순간 값으로 고정한다 → 3초가 제한시간·점수를 갉아먹지 않는다.
+//     (동시에 HUD 타이머가 멈춰 "전투는 끝났다"가 눈으로 읽힌다)
+//   · 유예 중 다른 결말이 나와도(가시덫이 남아 영웅을 잡는 등) 이미 이긴 판이므로
+//     승리로 확정하고 즉시 끝낸다. 시간초과·패배는 유예 없이 지금처럼 즉시다.
+GAME.BattleScene.prototype.ROUND_END_MS = 3000;
+
+GAME.BattleScene.prototype._endGate = function (dt) {
+  var s = this.state;
+  if (this._endHold === undefined) this._endHold = -1;
+
+  if (this._endHold < 0) {
+    if (s.over && s.winner === 'controller' && this.ROUND_END_MS > 0) {
+      this._endHold = this.ROUND_END_MS;
+      this._endElapsed = s.elapsed;
+      s.over = false;
+      this._showEndBanner();
+    }
+    return;
+  }
+  if (this._endHold === 0) return;        // 이미 유예를 끝냈다
+
+  this._endHold -= dt;
+  // ⚠ combat 은 매 프레임 승패를 **다시 계산해 다시 켠다**(적이 0기이므로 계속 승리).
+  //   그래서 `s.over` 만 보고 끝내면 유예가 한 프레임 만에 무너진다(실측으로 잡았다).
+  //   유예를 깨는 건 **결말이 승리가 아닐 때**뿐이다 — 남은 가시덫이 영웅을 잡는 경우 등.
+  var upset = s.over && s.winner !== 'controller';
+  var done = this._endHold <= 0 || upset;
+  s.elapsed = this._endElapsed;           // 타이머 정지
+  if (done) {
+    this._endHold = 0;
+    s.over = true;
+    s.winner = 'controller';
+    if (this._endBanner) this._endBanner.setVisible(false);
+    return;
+  }
+  s.over = false;
+  this._updateEndBanner();
+};
+
+GAME.BattleScene.prototype._showEndBanner = function () {
+  var R = GAME.Iso.screenRect();
+  if (!this._endBanner || !this._endBanner.scene) {
+    this._endBanner = GAME.UI.text(this, R.x + R.w / 2, R.y + R.h * 0.26, '', {
+      size: GAME.CONFIG.SMALL ? 'heading' : 'title', color: GAME.UI.TXT.crit,
+      origin: 0.5, align: 'center', outline: true
+    }).setDepth(8600);
+  }
+  this._endShown = -1;
+  this._endBanner.setVisible(true);
+  this._updateEndBanner();
+};
+
+GAME.BattleScene.prototype._updateEndBanner = function () {
+  var b = this._endBanner;
+  if (!b || !b.scene) return;
+  var sec = Math.max(1, Math.ceil(this._endHold / 1000));
+  // 남은 동전 수를 같이 보여준다 — 못 먹으면 사라지는 돈이라 **손실이 보여야** 뛴다.
+  var left = this._coins ? this._coins.remaining() : 0;
+  var line = '라운드가 종료됩니다  ' + sec;
+  if (left > 0) line += '\n남은 동전 ' + left + '개';
+  // setText 는 재래스터다 → 문구가 실제로 바뀔 때만 부른다(초가 바뀔 때 = 3회)
+  if (this._endShown !== line) { b.setText(line); this._endShown = line; }
+};
+
+// ── 우상단 총 골드 갱신 ─────────────────────────────────────────────────────
+//  draft.js 의 골드 롤링과 **같은 문법**(목표값으로 굴러가며 커졌다 돌아온다)이되
+//  구현은 다르다. 저쪽은 tween + delayedCall 을 매번 만들고 지운다 — 전투 루프에서
+//  초당 몇 번씩 주우면 트윈이 쌓이고, 씬을 나갈 때 정리할 것도 늘어난다.
+//  여기서는 트윈 없이 프레임마다 값을 좁힌다. **정수가 바뀔 때만** setText 를 부르므로
+//  재래스터가 굴러가는 동안만 프레임당 1회로 묶인다.
+GAME.BattleScene.prototype._updateGoldHud = function (dt) {
+  if (!this._goldTxt || !this._goldTxt.scene) return;
+  var target = this._goldBase + this._coins.collected;
+  if (this._coins.gotThisFrame > 0) this._goldPop = 1;
+
+  var shown = this._goldShown;
+  if (shown !== target) {
+    var step = Math.max(1, Math.ceil((target - shown) / 5));
+    shown = (shown < target) ? Math.min(target, shown + step) : target;
+    this._goldShown = shown;
+    this._goldTxt.setText(String(shown));
+    if (Math.ceil(this._goldTxt.width) !== this._goldW) this._drawGoldBadge();
+  }
+
+  if (this._goldPop > 0) {
+    this._goldPop = Math.max(0, this._goldPop - dt / 260);
+    var k = 1 + 0.20 * this._goldPop;
+    this._goldTxt.setScale(k);
+  } else if (this._goldTxt.scaleX !== 1) {
+    this._goldTxt.setScale(1);
+  }
 };
 
 GAME.BattleScene.prototype.updateHud = function () {
@@ -1130,6 +1339,13 @@ GAME.BattleScene.prototype.draw = function () {
       GAME.UI.selectArrow(g, pos.sx, by - 8, u.def.radius, s.elapsed);
     }
   }
+
+  // ── 동전 ──
+  //  유닛 **뒤**가 아니라 앞에 그린다. 동전은 유닛이 죽은 자리에 떨어지므로 뒤에 그리면
+  //  다음 유닛이 그 위에 서는 순간 통째로 가려진다 — 주우라고 만든 물건이 안 보인다.
+  //  대신 지면 그림자를 함께 찍어 '떠 있는 것'이 아니라 '바닥에 놓인 것'으로 읽히게 했다.
+  //  표시객체는 0개다 — 전부 이 Graphics 한 장에 들어간다.
+  if (this._coins) this._coins.draw(g, this._dt || 16);
 
   // ── 투사체 ──
   //  "모든 공격은 눈에 보이는 투사체를 갖는다"가 이 게임의 규칙인데, 라이트 테마에서는

@@ -24,7 +24,38 @@ GAME.ResultScene.prototype.init = function (data) {
   this.arenaResult = data.arenaResult || null;// { delta, trophy, league }
 };
 
+// ── 통곡의 탑 · 층 클리어는 이 화면을 **건너뛴다** (2026-07-29, 사용자 지시) ─────────
+//
+//  "한 층을 깨고 나면 바로 다음 층 도전화면(골드로 능력치 업데이트하는 화면)으로."
+//  전투를 끝낸 `scenes/battle.js` 는 모드와 무관하게 항상 `Result` 를 띄운다(그 파일은
+//  다른 에이전트가 작업 중이라 건드리지 않는다). 그래서 **여기서 되돌린다** —
+//  탑 승리면 아무것도 만들지 않고 곧장 `Tower` 씬의 도전 단계로 넘긴다.
+//
+//  ⚠ 대신 결과 화면이 보여주던 것(획득 골드·획득 점수·다음 층)이 사라진다.
+//    그대로 두면 "골드를 받았다"는 사실이 화면 어디에도 안 남는다(실제로 그렇게 됐었다).
+//    → `cleared` 로 넘겨서 도전 화면이 골드 라벨·힌트 줄에 직접 띄운다.
+//  ⚠ 패배·무승부는 그대로 결과 화면을 거친다. 요약이 필요한 순간이다.
+//  ⚠ 다른 모드(일반 대전·방어전·수성의 탑·비동기 대전)는 이 분기에 들어오지 않는다.
+GAME.ResultScene.prototype._skipToNextFloor = function () {
+  if (!this.tower || this.winner !== 'controller') return false;
+  // 결과 화면이 내던 승리음은 여기서 대신 낸다(연출이 통째로 사라지지 않게).
+  if (GAME.Sound && GAME.Sound.play) { try { GAME.Sound.play('win'); } catch (e) {} }
+  this.scene.start('Tower', {
+    step: 'challenge',
+    cleared: {
+      floor: this.tower,
+      gold: this.goldGained || 0,
+      score: this.score || 0,
+      best: (this.towerRec && this.towerRec.best) || 0
+    }
+  });
+  return true;
+};
+
 GAME.ResultScene.prototype.create = function () {
+  // 층 클리어는 화면을 만들지 않고 바로 다음 층 도전 화면으로 넘어간다.
+  if (this._skipToNextFloor()) return;
+
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var P = GAME.CONFIG.PORTRAIT;
@@ -46,6 +77,8 @@ GAME.ResultScene.prototype.create = function () {
   var title, sub, color;
   if (this.tower) {
     // 통곡의 탑
+    // ⚠ 아래 '돌파' 가지는 `_skipToNextFloor` 가 먼저 가로채므로 **평소에는 안 탄다.**
+    //   지우지 않고 남긴다 — 다른 씬이 탑 승리로 Result 를 직접 띄우는 경우의 안전망이다.
     if (this.winner === 'controller') {
       title = this.tower + '층 돌파'; color = C.accent;
       sub = '다음은 ' + (this.tower + 1) + '층 — 적 진형 ' + GAME.Tower.budgetFor(this.tower + 1) +

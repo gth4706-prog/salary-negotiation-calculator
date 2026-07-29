@@ -494,6 +494,11 @@ GAME.BuildScene.prototype.create = function () {
     var hit = self._unitAt(wpt.x, wpt.y);
     if (hit) {
       self.selected = (self.selected === hit) ? null : hit;
+      // 폰에는 마우스 호버가 없어 툴팁을 못 쓴다 → **유닛을 탭하면 그 유닛의 세계관 한 줄**을
+      // 상태 줄에 띄운다. 세계관 텍스트가 모바일에서 전혀 노출되지 않던 것을 메운다
+      // (스토어 타깃이 모바일인데 lore 노출이 0이었다).
+      // 새 문구를 만들지 않고 이미 있는 def.lore 를 쓰므로 폰트 서브셋 비용이 0이다.
+      if (self.selected) self._loreLine(self.selected.type);
       self.redraw();
       // 길게 눌러도 지워진다 — 예전부터 쓰던 사람을 위한 보조 수단.
       self._cancelHold();
@@ -558,6 +563,15 @@ GAME.BuildScene.prototype._status = function () {
     : '아래 파란 칸을 탭하면 배치, 놓인 유닛을 탭하면 ✕ 로 삭제';
   this.statusText.setColor(C.textDim);
   this._fitLine(this.statusText, msg);
+};
+
+// 유닛을 탭했을 때의 세계관 한 줄. 상태 줄을 잠깐 빌려 쓴다.
+// lore 가 없으면 조용히 아무것도 안 한다(units.js 에 아직 안 들어간 유닛 대비).
+GAME.BuildScene.prototype._loreLine = function (typeKey) {
+  var def = GAME.UNITS[typeKey];
+  if (!def || !def.lore || !this.statusText) return;
+  if (this._warnTimer) return;              // 경고가 떠 있으면 덮지 않는다
+  this._hint(def.name + ' — ' + def.lore, 3600);
 };
 
 // 첫 진입 안내 — 잠깐 떴다가 사라진다(상시로 두면 보드를 먹는다)

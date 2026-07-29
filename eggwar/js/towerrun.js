@@ -52,7 +52,10 @@ GAME.TowerRun = {
   //  2배라 요율이 치솟고, 4층은 진형 예산이 108→255 로 점프하는데 골드는 +2 뿐이라
   //  요율이 바닥을 친다. 고정 요율 하나로는 어떤 값을 골라도 어떤 층에선 몇 배씩 틀린다.
   //  → 그래서 **층 총량(goldFor)을 그대로 두고, 그 안에서 유닛 cost 비율로 나눈다.**
-  //    "비싼 유닛이 더 준다 / 보스는 크게" 는 지키면서 층별 기대 총액은 변경 전과 동일하다.
+  //    "비싼 유닛이 더 준다 / 보스는 크게" 는 지키면서 층별 기대 총액은 **다 주웠을 때** 변경 전과 같다.
+  //  실제로는 동전을 주워야 들어오므로 실효 수령률이 곧 성장 속도다 —
+  //  AI(동전을 주우러 가지 않는다) 기준 85~93%, 사람은 그보다 높다(실측).
+  //  **일부러 보정하지 않았다.** 보정하면 '주워야 한다'는 규칙이 무의미해진다.
   //
   //  분배 규칙
   //   · 가중치 = 유닛 cost. 보스는 cost 가 0 이라 별도 상수(BOSS_KILL_WEIGHT)를 쓴다.
@@ -110,6 +113,9 @@ GAME.TowerRun = {
 
   _onKill: function (unit, state) {
     if (!state || !state._kgActive || !unit) return 0;
+    // 훅이 **실제로 불렸다**는 사실을 따로 기록한다. 아래 goldGainFor 가
+    // '골드 0' 을 '훅이 안 불렸다' 로 오판하지 않게 하는 유일한 근거다.
+    state._kgFired = true;
     if (unit.side !== 'strategist' || unit.isHero) return 0;         // 내 영웅이 죽은 건 보상 아님
     if (GAME.Combat.isHazard && GAME.Combat.isHazard(unit)) return 0; // 가시덫은 지형이다
     if (unit.__kgPaid) return 0;                                      // 같은 기에 두 번 주지 않는다
@@ -140,7 +146,10 @@ GAME.TowerRun = {
   goldGainFor: function (floor, state) {
     if (state && state._kgActive) {
       var earned = this.earnedFrom(state);
-      if (earned > 0) return earned + this.clearBonusFor(floor);
+      // 훅이 한 번이라도 불렸으면 **0 도 정직한 결과다** — 동전을 하나도 안 주운 판이다.
+      // 예전엔 `earned > 0` 으로만 갈라서, 한 개도 안 주운 쪽이 층 총액을 통째로 받는
+      // 역전이 생겼다(동전 시스템이 들어오면서 실제로 도달 가능한 경로가 됐다).
+      if (state._kgFired) return earned + this.clearBonusFor(floor);
       if (window.console && console.warn) {
         console.warn('[TowerRun] 처치 골드가 0 이다 — combat.js 의 state.onKill 훅이 안 불렸을 수 있다. 층 총액으로 되돌린다.');
       }

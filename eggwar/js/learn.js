@@ -176,6 +176,17 @@ GAME.Learn = {
     rec.lastNotes = notes;
     all[k] = rec;
     this._save(all);
+
+    // 이 배치도를 **어떤 교리로 짰는지는 AutoFormation 이 기억한다**(id → doctrine).
+    // 호출부(scenes/battle.js)를 한 줄도 안 고치고 되먹임을 닫기 위한 경로다.
+    // 사람이 짠 배치도면 기억이 없어 null 이고, 그때는 아무 일도 안 일어난다.
+    //
+    // ⚠ **반드시 `_save(all)` 뒤에 부른다.** 위쪽 `all` 은 함수 진입 시점의 스냅샷이라,
+    //    먼저 부르면 recordDoctrine 이 쓴 값을 이 _save 가 옛 스냅샷으로 덮어쓴다.
+    //    (실제로 그렇게 짰다가 학습 배수가 전부 1.00 으로 나왔다 — mode=learn 이 잡았다.)
+    if (GAME.AutoFormation && GAME.AutoFormation.lastDoctrineFor) {
+      this.recordDoctrine(GAME.AutoFormation.lastDoctrineFor(formationId), won);
+    }
     return rec;
   },
 
@@ -192,6 +203,59 @@ GAME.Learn = {
       battles: rec.battles, wins: rec.wins, escalation: rec.escalation,
       learned: active, testing: rec.trial ? rec.trial.label : null
     };
+  },
+
+  // ── (A-2) 교리 학습 — **어떤 전략이 이 사람에게 통했는가** ────────────────
+  //
+  // `autoformation.js` 는 성향(회피율·교전거리·선호 영웅)만 보고 교리를 고른다.
+  // 그건 '읽는' 것이지 '배우는' 것은 아니다. 여기서 결과를 되먹여, 실제로 막아낸
+  // 교리의 확률을 올리고 매번 뚫린 교리는 내린다.
+  //
+  // ⚠ 되먹임을 세게 걸지 않는다(±40% 상한, 표본 4판부터 최대). 세게 걸면 몇 판 만에
+  //    한 교리로 수렴해 **다시 "매판 같은 전략"** 이 된다 — 이번에 고친 바로 그 문제다.
+  //    성향이 분포를 정하고 학습은 그 분포를 기울이기만 한다.
+  //
+  // ⚠ 배치도 단위가 아니라 **계정 단위**다. 통곡의 탑은 층마다 배치도 id 가 달라서
+  //    (`tower-4`, `tower-5` …) 배치도 단위로 쌓으면 표본이 영원히 안 모인다.
+  DOC_MAX_BIAS: 0.40,
+  DOC_FULL_N: 4,
+
+  _docKey: function () { return (GAME.Account.current() || 'guest') + '|@doctrine'; },
+
+  getDoctrines: function () {
+    var all = this._all();
+    return all[this._docKey()] || {};
+  },
+
+  // strategistWon = 진형(AI)이 막아냈는가
+  recordDoctrine: function (doctrine, strategistWon) {
+    if (!doctrine) return null;
+    var all = this._all();
+    var k = this._docKey();
+    var rec = all[k] || {};
+    var d = rec[doctrine] || { win: 0, loss: 0 };
+    if (strategistWon) d.win++; else d.loss++;
+    rec[doctrine] = d;
+    all[k] = rec;
+    this._save(all);
+    return d;
+  },
+
+  // 교리 가중치에 곱할 값 (0.60 ~ 1.40). 표본이 없으면 1.
+  doctrineBias: function (doctrine) {
+    var d = this.getDoctrines()[doctrine];
+    if (!d) return 1;
+    var n = d.win + d.loss;
+    if (!n) return 1;
+    var rate = d.win / n;
+    var conf = Math.min(1, n / this.DOC_FULL_N);
+    return 1 + this.DOC_MAX_BIAS * (rate - 0.5) * 2 * conf;
+  },
+
+  resetDoctrines: function () {
+    var all = this._all();
+    delete all[this._docKey()];
+    this._save(all);
   },
 
   // ── (B) AI 컨트롤러 학습 (플레이어가 전략가로 방어할 때) ──

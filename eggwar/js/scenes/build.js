@@ -110,10 +110,10 @@ GAME.BuildScene.PHONE = {
   // 48 로 뒀더니 아이폰 SE(FIT 0.813)에서 화면 39px 이라 터치 하한(44)에 미달했다(실측).
   // 55 × 0.813 = 44.7 → 상단 바(60) 안에 2.5~57.5 로 들어가고 보드(66~)를 안 밀어낸다.
   BTN_H: 55, BTN_CY: 30,
-  // 대칭 토글은 **메뉴가 아니라 모드 표시**다 — ☰ 안에 숨겼더니
-  // "왜 배치가 2개씩 되지?"라는 신고가 왔다. 항상 보이는 자리로 꺼낸다.
-  MIRROR_CX: 530, MIRROR_W: 116,
-  START_CX: 675, START_W: 138,
+  // 대칭 토글을 없앤 자리(2026-07-30)를 **주 버튼이 물려받는다.**
+  // 빈칸으로 두면 상단 바가 오른쪽으로 쏠려 보이고, 주 버튼은 원래 138px 로
+  // '내 배치 저장' 같은 긴 라벨이 빡빡했다 — 넓히는 데 쓰는 것이 맞다.
+  START_CX: 610, START_W: 268,
   MENU_CX: 782, MENU_W: 56,
   BOARD_TOP: 66,
   BOARD_BOTTOM: 300,
@@ -125,11 +125,19 @@ GAME.BuildScene.prototype.init = function (data) {
   this.placed = [];
   this.history = [];         // 되돌리기 — 한 번의 배치가 만든 유닛들을 묶어 쌓는다
   this.selected = null;      // ✕ 배지를 띄울 유닛
+  // ⚠ 씬을 다시 들어오면 이 버튼은 이미 파괴돼 있다(파괴된 Phaser 객체도 truthy 다).
+  //   비우지 않으면 `if (!this.upBtn)` 가드를 통과해 죽은 객체에 setLabel 을 한다.
+  this.upBtn = null;
   this.picked = 'bayonet';
-  // 좌우 대칭 배치. **기본 꺼짐**(2026-07-28 지시) — 켜 두면 한 번 탭에 2기가 놓이는데
-  // 그게 의도된 기능이라는 걸 아무도 모르고 "2배로 복사되는 버그"로 신고했다.
-  // 기능은 남기되 켜는 것은 사용자가 정한다(상단 바 ⇄ 토글).
-  this.mirror = false;
+  // ── 좌우 대칭 배치는 **없앴다** (2026-07-30, 사용자 지시) ──────────────────
+  // 이력: 처음엔 "진형은 대개 대칭이라 탭이 절반으로 준다"는 편의 기능이었다.
+  //   그런데 켜 두면 한 번 탭에 2기가 놓이는 것을 아무도 기능으로 읽지 않고
+  //   "2배로 복사되는 버그"로 신고했다(2026-07-28). 그래서 기본을 끄고 토글을 상단에
+  //   올려 상태를 보이게 했는데, 그래도 쓰이지 않았다 → 이번에 통째로 제거한다.
+  //   **토글 하나를 남겨 두는 비용**이 이 기능의 값어치보다 컸다:
+  //   상단 바 한 칸, ☰ 한 칸, 안내 문구 한 줄, 그리고 "왜 2기가 놓이나"라는 오해.
+  // `GAME.mirrorY` 는 지우지 않는다 — 그건 대칭 배치가 아니라
+  //   **저장할 때 위아래를 뒤집는** 별개의 규칙이다(전혀 다른 일이다).
   this.tier = GAME.CONFIG.DEFAULT_TIER;
   // 수성의 탑에서 들어오면 그 층의 고정 예산을 쓰고, 승패가 층에 반영된다.
   this.defendTower = (data && data.defendTower) || 0;
@@ -175,7 +183,6 @@ GAME.BuildScene.prototype.init = function (data) {
   this._eatTap = false;
   this.powerText = null;
   this.infoText = null;
-  this.mirrorBtn = null;
   this.phMirrorBtn = null;
   this.tierButtons = [];
   // 보드 띠(top/bottom/cap) — create 에서 프로필별로 정한다. 세로는 null(예전 투영 유지).
@@ -424,26 +431,23 @@ GAME.BuildScene.prototype.create = function () {
   if (PH) {
     // ── 상단 바 버튼 두 개가 전부다 ───────────────────────────────────────
     //  주 행동(방어전 시작)은 크게, 나머지 도구는 ☰ 시트로 접었다.
+    // 대전 전략가는 **싸우러 온 게 아니라 전장을 세우러 온 것**이다(2026-07-30 지시).
+    // 방어전은 여기서 시작하지 않는다 — 내 전장은 남이 도전할 때 싸운다.
     this.startBtn = UI.button(this, PHL.START_CX, PHL.BTN_CY, PHL.START_W, PHL.BTN_H,
-      '방어전 시작', function () { self._defend(); },
+      this.arena ? '내 배치 저장' : '방어전 시작',
+      function () { if (self.arena) self._saveArena(); else self._defend(); },
       { fill: UI.COL.panelTeal, line: C.controller, hover: UI.COL.panelTealHi,
         color: C.accent, fontSize: 'buttonSm', hitPad: 4 });
     this.menuBtn = UI.button(this, PHL.MENU_CX, PHL.BTN_CY, PHL.MENU_W, PHL.BTN_H,
       '☰', function () { self._toggleSheet(); }, { fontSize: 'button', hitPad: 4 });
-    // 켜져 있으면 한 번 탭에 좌우 2기가 놓인다 — 그 사실이 화면에 항상 떠 있어야 한다.
-    this.phMirrorBtn = UI.button(this, PHL.MIRROR_CX, PHL.BTN_CY, PHL.MIRROR_W, PHL.BTN_H,
-      '', function () { self.mirror = !self.mirror; self._status(); self.redraw(); },
-      { fontSize: 'buttonSm', hitPad: 4 });
   } else {
     // ── 도구: 되돌리기 · 대칭 · 전부 지우기 ───────────────────────────────
     var toolW = P ? hud.w : Math.round(hud.w * 0.52);
-    var tcols = L.cols(3, { gap: 8, width: toolW, left: hud.pad });
+    // 대칭 칸이 사라져 2칸이 된다(되돌리기 · 전부 지우기).
+    var tcols = L.cols(2, { gap: 8, width: toolW, left: hud.pad });
     UI.button(this, tcols[0].cx, rows.tools.cy, tcols[0].w, rows.tools.h, '되돌리기',
       function () { self._undo(); }, { fontSize: 'buttonSm' });
-    this.mirrorBtn = UI.button(this, tcols[1].cx, rows.tools.cy, tcols[1].w, rows.tools.h, '',
-      function () { self.mirror = !self.mirror; self.redraw(); },
-      { fontSize: 'buttonSm' });
-    UI.button(this, tcols[2].cx, rows.tools.cy, tcols[2].w, rows.tools.h, '전부 지우기', function () {
+    UI.button(this, tcols[1].cx, rows.tools.cy, tcols[1].w, rows.tools.h, '전부 지우기', function () {
       self.placed = []; self.history = []; self.selected = null;
       self._status(); self.redraw();
     }, { fontSize: 'buttonSm' });
@@ -476,14 +480,24 @@ GAME.BuildScene.prototype.create = function () {
 
     // ── 액션 ──────────────────────────────────────────────────────────────
     var acols = L.cols(3, { gap: 8 });
-    UI.button(this, acols[0].cx, rows.act.cy, acols[0].w, rows.act.h, '방어전 시작', function () {
-      self._defend();
-    }, { fill: UI.COL.panelTeal, line: C.controller, hover: UI.COL.panelTealHi,
-         color: C.accent, fontSize: 'button' });
-    UI.button(this, acols[1].cx, rows.act.cy, acols[1].w, rows.act.h, '배치도 저장', function () {
-      self._save();
-    }, { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
-         color: C.accentAlt, fontSize: 'button' });
+    // 대전 전략가는 **전장을 세우러 온 것**이라 '방어전 시작'이 없다(2026-07-30 지시).
+    // 두 칸을 하나로 합쳐 '내 배치 저장'만 남긴다 — 여기서 할 일이 그것 하나뿐이다.
+    if (this.arena) {
+      var sw = acols[0].w + acols[1].w + 8;
+      UI.button(this, acols[0].x + sw / 2, rows.act.cy, sw, rows.act.h,
+        '내 배치 저장', function () { self._saveArena(); },
+        { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
+          color: C.accentAlt, fontSize: 'button' });
+    } else {
+      UI.button(this, acols[0].cx, rows.act.cy, acols[0].w, rows.act.h, '방어전 시작', function () {
+        self._defend();
+      }, { fill: UI.COL.panelTeal, line: C.controller, hover: UI.COL.panelTealHi,
+           color: C.accent, fontSize: 'button' });
+      UI.button(this, acols[1].cx, rows.act.cy, acols[1].w, rows.act.h, '배치도 저장', function () {
+        self._save();
+      }, { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
+           color: C.accentAlt, fontSize: 'button' });
+    }
     UI.button(this, acols[2].cx, rows.act.cy, acols[2].w, rows.act.h,
       this.arena ? '⚒ 유닛 등급' : (this.defendTower ? '← 탑' : '메뉴'), function () {
         if (self.arena) { self._openArenaUpgrades(); return; }
@@ -564,7 +578,7 @@ GAME.BuildScene.prototype.create = function () {
   this._status();
   this.redraw();
   if (PH) {
-    this._hint('아래 파란 칸을 탭하면 배치  ·  놓인 유닛을 탭하면 ✕ 로 삭제  ·  대칭은 상단 ⇄ 로 켜기',
+    this._hint('아래 파란 칸을 탭하면 배치  ·  놓인 유닛을 탭하면 삭제(✕)와 강화가 뜬다',
       GAME.BuildScene.HINT_MS);
   }
 };
@@ -713,19 +727,9 @@ GAME.BuildScene.prototype._placeAt = function (x, y) {
   var first = this._putOne(x, y);
   if (typeof first === 'string') { this._warn(first); return; }
 
+  // 되돌리기는 여전히 '묶음' 단위로 쌓는다 — 대칭이 사라져 지금은 늘 1기지만,
+  // 나중에 여러 기를 한 번에 놓는 도구가 생기면 그대로 쓰인다.
   var group = [first];
-  // ── 좌우 대칭 배치 ────────────────────────────────────────────────────
-  //  진형은 거의 항상 좌우 대칭이다. 대칭이면 전장 탭이 절반으로 준다.
-  //  가운데(대칭축) 근처는 짝을 놓으면 서로 겹치므로 한 기만 둔다.
-  if (this.mirror) {
-    var cx = A.x + A.w / 2;
-    var mx = 2 * cx - x;
-    if (Math.abs(mx - x) >= 34) {
-      var twin = this._putOne(mx, y);
-      if (typeof twin !== 'string') group.push(twin);
-      // 짝을 못 놓는 흔한 이유는 예산이다 — 굳이 경고까지 띄우면 시끄럽다.
-    }
-  }
   this.history.push(group);
   this._status();
   this.redraw();
@@ -1038,6 +1042,63 @@ GAME.BuildScene.prototype._closeSheet = function () {
 // 대전 전략가 — 유닛 등급 패널. **배치에 놓인 종류만** 보여준다:
 // 안 쓰는 유닛의 등급을 사는 것은 예산을 버리는 일이라 선택지로 둘 이유가 없다.
 // 산 뒤에는 예산이 줄었으므로 배치 예산을 다시 계산하고 화면을 새로 그린다.
+// ── 선택한 유닛의 강화 줄 (2026-07-30, 사용자 지시 5번) ─────────────────────
+// 신고: "배치하는 과정에서 유닛을 업그레이드하는 기능이 보이지 않는다."
+// 맞다 — 등급 구매가 상단 버튼(PC)·☰(폰) 안에 있어서 **배치하는 손의 동선 밖**이었다.
+// 이제 놓인 유닛을 누르면 삭제 배지(✕)와 함께 **그 종류의 강화 버튼이 하단에 뜬다.**
+// 지금 만지고 있는 유닛에 대한 값이라, 무엇을 올리는지 헷갈릴 여지가 없다.
+GAME.BuildScene.prototype._syncUpgradeBar = function () {
+  if (!this.arena) return;
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI;
+  var sel = this.selected;
+  if (!sel || !GAME.UNITS[sel.type]) {
+    if (this.upBtn) { this.upBtn.rect.setVisible(false); this.upBtn.text.setVisible(false); }
+    return;
+  }
+  var AB = GAME.ArenaBuild, rec = AB.get();
+  var MAXL = (GAME.UnitLevel && GAME.UnitLevel.MAX) || 5;
+  var lv = rec.unitLv[sel.type] || 1;
+  var maxed = lv >= MAXL;
+  var cost = AB.unitLvCost(lv + 1);
+  var can = !maxed && cost <= AB.left(rec);
+  var def = GAME.UNITS[sel.type];
+
+  if (!this.upBtn) {
+    // 하단 팔레트 위 한 줄. 배치판을 가리지 않는 자리를 쓴다.
+    var W = GAME.CONFIG.WIDTH;
+    var y = (GAME.CONFIG.PHONE || GAME.CONFIG.PORTRAIT)
+      ? (GAME.BuildScene.PHONE.PAL_Y - 20)
+      : (this.board ? this.board.bottom + 18 : GAME.CONFIG.HEIGHT - 120);
+    var bw = Math.min(W - 40, 330);
+    var selfB = this;
+    this.upBtn = UI.button(this, W / 2, y, bw, Math.max(UI.BTN_H_SM || 52, 44), '',
+      function () { selfB._buySelectedLevel(); }, { fontSize: 15 });
+  }
+  this.upBtn.rect.setVisible(true);
+  this.upBtn.text.setVisible(true);
+  this.upBtn.setLabel(maxed
+    ? (def.name + '  Lv.' + lv + '  ·  최고 등급')
+    : ('⚒ ' + def.name + '  Lv.' + lv + ' → ' + (lv + 1) + '   ' + cost + '골드'));
+  this.upBtn.text.setColor(can ? C.accent : C.textDim);
+  this.upBtn.rect.setStrokeStyle(can ? 2 : 1, can ? C.strategist : UI.COL.borderUi);
+};
+
+GAME.BuildScene.prototype._buySelectedLevel = function () {
+  if (!this.arena || !this.selected) return;
+  var t = this.selected.type;
+  if (GAME.ArenaBuild.buyUnitLv(t) === null) {
+    this._warn('예산이 부족하거나 이미 최고 등급입니다.');
+    return;
+  }
+  // 등급을 사면 배치에 쓸 예산이 줄어든다 → 넘치는 유닛은 기존 규칙으로 정리한다.
+  this.budget = Math.max(0,
+    GAME.Arena.BUDGET - GAME.ArenaBuild.unitLvSpent(GAME.ArenaBuild.get()));
+  this._trimToBudget();
+  this._warn('');
+  this._status();
+  this.redraw();
+};
+
 GAME.BuildScene.prototype._openArenaUpgrades = function () {
   var self = this;
   var seen = {}, keys = [];
@@ -1093,13 +1154,8 @@ GAME.BuildScene.prototype._openSheet = function () {
   // 1행 — 되돌리기 · 대칭 · 전부 지우기 (누른 뒤에도 시트를 열어둔다: 연속 조작)
   mk(bx[0], cyA, '되돌리기', function () { self._undo(); self._openSheet(); },
     { fontSize: 'buttonSm' });
-  var mb = mk(bx[1], cyA, this.mirror ? '대칭 켬' : '대칭 끔', function () {
-    self.mirror = !self.mirror; self.redraw(); self._openSheet();
-  }, { fontSize: 'buttonSm' });
-  if (this.mirror) {
-    mb.rect.setStrokeStyle(2, this.myColor);
-    mb.rect.setFillStyle(UI.COL.surfaceHi);
-  }
+  // 대칭 칸이 사라져 이 행은 두 칸이다. bx[2] 자리는 비워 두지 않고 그대로 쓴다 —
+  // 칸을 하나 줄이려면 위 cols() 개수도 같이 줄여야 하는데, 그러면 2·3행 정렬이 어긋난다.
   mk(bx[2], cyA, '전부 지우기', function () { self._clearAll(); self._openSheet(); },
     { fontSize: 'buttonSm' });
 
@@ -1155,6 +1211,48 @@ GAME.BuildScene.prototype._defend = function () {
     placed: this.placed.slice(), tier: this.tier, budget: this.budget,
     defendTower: this.defendTower
   });
+};
+
+// ── 대전: 내 전장 저장 ──────────────────────────────────────────────────────
+// 일반 저장(`_save`)은 이름과 '어떤 영웅을 상대로 짰나'를 물어본다. 대전은 다르다 —
+// **id 당 전장이 하나**라 고를 것이 없고, 물어볼수록 저장이 멀어진다.
+// 이름은 닉네임에서 만들고, 저장하는 순간 내 기지로 세우고 서버에 올린다.
+GAME.BuildScene.prototype._saveArena = function () {
+  if (!this.placed.length) { this._warn('유닛을 최소 1기 배치해야 합니다.'); return; }
+  var me = GAME.Account.current() || '나';
+
+  // 내가 전에 올린 것은 지운다(id 당 1개 — v0.53 규칙과 같다).
+  var old = GAME.Formations.loadSaved().filter(function (f) {
+    return !f.isAI && (f.author === me || f.author === '나');
+  });
+  for (var i = 0; i < old.length; i++) GAME.Formations.remove(old[i].id);
+
+  // 아래에서 짠 것을 전투 기준(위쪽)으로 뒤집어 정규화 좌표로 저장한다.
+  var units = this.placed.map(function (p) {
+    var n = GAME.Formations.normalize(p.x, GAME.mirrorY(p.y));
+    return { type: p.type, nx: n.nx, ny: n.ny };
+  });
+  var id = GAME.Formations.newId();
+  GAME.Formations.save({
+    id: id, name: me + '의 전장', author: me, isAI: false,
+    tier: this.tier, budget: GAME.Arena.BUDGET, v: 2, vsHero: null, units: units
+  });
+  GAME.Arena.setBase(id);
+  // 서버에 올린다 — 이게 되어야 남의 대전 목록에 내 전장이 뜬다.
+  // 실패해도 로컬에는 남으므로 저장 자체는 성공이다(문구로 구분해 준다).
+  var self = this;
+  // ⚠ `_hint(msg, ms)` 의 두 번째 인자는 **표시 시간**이지 색이 아니다.
+  //   색을 넘기면 문구가 몇 밀리초 뒤에 사라진다(= 안 보인다).
+  //   실패는 경고 줄(`_warn`)로, 성공은 안내 줄(`_hint`)로 나눠 말한다.
+  var done = function (ok) {
+    if (ok) { self._warn(''); self._hint('내 전장을 올렸습니다 — 다른 사람의 대전 목록에 뜹니다', 4000); }
+    else { self._warn('저장했습니다. 다만 서버에 올리지 못했습니다(연결을 확인하세요).'); }
+    self.redraw();
+  };
+  // `syncBase(true)` — force 를 줘야 10분 쿨다운을 건너뛴다. 저장 버튼을 눌렀는데
+  // "방금 올렸으니 안 올린다"로 조용히 넘어가면 사용자는 저장이 안 된 줄 안다.
+  GAME.Arena.syncBase(true)
+    .then(function (r) { done(!!r); })['catch'](function () { done(false); });
 };
 
 GAME.BuildScene.prototype._save = function () {
@@ -1249,13 +1347,6 @@ GAME.BuildScene.prototype.redraw = function () {
   g.strokeRect(this.zone.x + 2, Iso.toScreenY(this.zone.y) + 2,
     this.zone.w - 4, this.zone.h * Iso.TILT - 4);
 
-  // 대칭 배치가 켜져 있으면 대칭축을 보여준다 — 어디를 누르면 짝이 생기는지 알 수 있게
-  if (this.mirror) {
-    var A = GAME.CONFIG.ARENA;
-    var axis = A.x + A.w / 2;
-    g.lineStyle(1, this.myColor, 0.35);
-    g.lineBetween(axis, Iso.toScreenY(this.zone.y) + 4, axis, Iso.toScreenY(this.zone.y + this.zone.h) - 4);
-  }
 
   // 위쪽: 상대가 볼 모습(뒤집힌 미리보기)
   // ★ 보드 투영을 쓰는 프로필(폰 가로·PC)에서는 적진이 화면 밖이다 → 그리지 않는다.
@@ -1389,20 +1480,6 @@ GAME.BuildScene.prototype.redraw = function () {
     tb.ui.rect.setFillStyle(active ? UI.COL.surfaceHi : UI.COL.surfaceAlt);
   }
 
-  if (this.phMirrorBtn) {
-    // '2기'를 라벨에 박아 둔다 — 켜짐/꺼짐만으로는 무슨 일이 일어나는지 알 수 없다.
-    this.phMirrorBtn.setLabel(this.mirror ? '⇄ 대칭 2기' : '⇄ 대칭 끔');
-    this.phMirrorBtn.rect.setStrokeStyle(this.mirror ? 2 : 1,
-      this.mirror ? this.myColor : UI.COL.borderUi);
-    this.phMirrorBtn.rect.setFillStyle(this.mirror ? UI.COL.surfaceHi : UI.COL.surfaceAlt);
-  }
-
-  if (this.mirrorBtn) {
-    this.mirrorBtn.setLabel(this.mirror ? '대칭 켬' : '대칭 끔');
-    this.mirrorBtn.rect.setStrokeStyle(this.mirror ? 2 : 1,
-      this.mirror ? this.myColor : UI.COL.borderUi);
-    this.mirrorBtn.rect.setFillStyle(this.mirror ? UI.COL.surfaceHi : UI.COL.surfaceAlt);
-  }
 
   // ── 예산 게이지 · 전력 요약 ─────────────────────────────────────────────
   var spent = this.spent();
@@ -1427,4 +1504,6 @@ GAME.BuildScene.prototype.redraw = function () {
   // 배치·삭제로 커서 아래의 것이 바뀌었을 수 있다 — 마우스를 안 움직여도 맞춰준다.
   // (지운 유닛의 툴팁이 남아 있으면 "지웠는데 아직 있다"로 읽힌다.)
   if (this.tip && typeof this._hoverX === 'number') this._hover(this._hoverX, this._hoverY);
+  // 선택한 유닛이 바뀌면 강화 줄도 따라 바뀐다(대전에서만 보인다).
+  this._syncUpgradeBar();
 };

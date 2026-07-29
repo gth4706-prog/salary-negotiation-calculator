@@ -50,48 +50,106 @@ GAME.VersusScene.prototype.init = function (data) {
   if (this.scene && this.scene.settings) this.scene.settings.data = {};
 };
 
-// ── 역할 고르기 ─────────────────────────────────────────────────────────────
-// 대전은 **한쪽이 반드시 전략가**다(사용자 지시 4번). 실시간 대전이 열리기 전까지
-// 컨트롤러 대 컨트롤러는 성립하지 않는다 — 진형 없이는 싸울 무대가 없기 때문이다.
-// 그래서 여기서 고르는 것은 "내가 어느 쪽을 맡는가"이지 "상대가 무엇인가"가 아니다.
+// ── 전장 목록 (2026-07-30, 사용자 지시 2·3번) ───────────────────────────────
+// "각자가 저장한 배치는 대전에 접속하면 **방 목록처럼 전장 목록이 먼저**."
+//
+// 지난 판(v0.58)에는 '컨트롤러/전략가' 를 먼저 묻는 화면이 있었다. 그 화면을 이 목록이
+// 대신한다 — **목록이 곧 선택**이다: 전장을 누르면 컨트롤러로 도전하고, 아래 버튼을
+// 누르면 전략가로 내 전장을 세운다. 한 화면에 두 입구가 있으니 묻는 단계가 필요없다.
+// (한쪽은 반드시 전략가라는 규칙은 그대로다 — 컨트롤러끼리 붙을 경로가 없다.)
+//
+// 각 줄에 적는 네 가지(지시 3번): 만든 사람 · 만든 시각 · 시도 수 · 막은 수.
+GAME.VersusScene.prototype._fmtAgo = function (at) {
+  if (!at) return '시각 모름';
+  var m = Math.floor((Date.now() - at) / 60000);
+  if (m < 1) return '방금';
+  if (m < 60) return m + '분 전';
+  var h = Math.floor(m / 60);
+  if (h < 24) return h + '시간 전';
+  return Math.floor(h / 24) + '일 전';
+};
+
+// 한 전장의 설명 두 줄. 서버가 전적을 주면 그 값을, 없으면 이 기기 기록으로 대신한다.
+GAME.VersusScene.prototype._fieldLines = function (f, o) {
+  var tried, blocked;
+  if (typeof f.defTry === 'number') {
+    tried = f.defTry; blocked = (typeof f.defWin === 'number') ? f.defWin : 0;
+  } else {
+    var st = GAME.Formations.getStats(f.id);
+    tried = st.win + st.loss + st.draw; blocked = st.win;
+  }
+  var br = GAME.Arena.breachRate(f);
+  return (f.name || '이름 없는 전장') + '   ·   ' + (f.author || '작성자 모름') +
+    '   ·   ' + this._fmtAgo(f.at) + '\n' +
+    f.units.length + '기   ·   시도 ' + tried + '명   ·   막음 ' + blocked + '명' +
+    (br === null ? '   ·   도전 기록 없음' : ('   ·   격파율 ' + br + '%'));
+};
+
 GAME.VersusScene.prototype._createRolePick = function () {
   var C = GAME.CONFIG.COLORS, UI = GAME.UI;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
-  var P = GAME.CONFIG.PORTRAIT, PH = GAME.CONFIG.PHONE;
+  var PH = GAME.CONFIG.PHONE;
   var self = this;
   var u = H / 100;
 
-  UI.text(this, W / 2, u * 8, '⚔ 대전',
-    { size: 'title', color: C.accent, origin: 0.5, originY: 0 });
-  UI.text(this, W / 2, u * 8 + (PH ? 34 : 52), '어느 쪽으로 싸우시겠습니까',
-    { size: PH ? 'caption' : 'subhead', color: C.text, origin: 0.5, originY: 0 });
+  this._kickRemote();      // 서버에서 남의 전장을 받아온다(기다리지 않는다)
 
+  UI.text(this, W / 2, u * 3, '⚔ 대전  —  전장 목록',
+    { size: PH ? 'subhead' : 'title', color: C.accent, origin: 0.5, originY: 0 });
+
+  var opps = GAME.Arena.findOpponents(PH ? 3 : 5);
+  var mi = GAME.Arena.matchInfo(opps);
+  this._note = UI.text(this, W / 2, u * 3 + (PH ? 30 : 54), mi.note,
+    { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 });
+  this._noteW = 0;
+
+  var listTop = u * 3 + (PH ? 54 : 84);
+  var rowH = Math.max(UI.BTN_H || 58, u * (PH ? 15 : 11));
+  var rowW = Math.min(W - 30, PH ? 780 : 720);
+  var gap = 8;
+
+  if (!opps.length) {
+    UI.text(this, W / 2, listTop + rowH * 0.5,
+      '아직 만들어진 전장이 없습니다.' + '\n' + '아래에서 내 전장을 세우면 목록에 뜹니다.',
+      { size: PH ? 'caption' : 'body', color: C.textDim, origin: 0.5 }).setAlign('center');
+  } else {
+    opps.forEach(function (o, i2) {
+      var f = o.formation;
+      var ry = listTop + i2 * (rowH + gap);
+      var b = UI.button(self, W / 2, ry + rowH / 2, rowW, rowH, '', function () {
+        // 전장을 고르면 **컨트롤러로 도전**한다(한쪽은 반드시 전략가다).
+        GAME.Arena.pendingOpponent = { formationId: f.id, trophy: o.trophy };
+        GAME.ArenaBuild.setRole('controller');
+        self.scene.start('Draft', { formationId: f.id, versus: true });
+      }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
+           hover: UI.COL.panelTealHi, color: C.accent, fontSize: PH ? 13 : 15 });
+      b.text.setText(self._fieldLines(f, o));
+      b.text.setAlign('center');
+    });
+  }
+
+  // ── 내 전장 (전략가 입구) ──
   var base = GAME.Arena.baseFormation();
-  var bw = Math.min(W - 40, PH ? 340 : 430);
-  var bh = Math.max(UI.BTN_H || 58, u * (PH ? 15 : 13));
-  var gap = u * 2;
-  var cy = H * (PH ? 0.52 : 0.46);
-
-  UI.button(this, W / 2, cy - bh / 2 - gap / 2, bw, bh,
-    '🗡 컨트롤러로 참여\n상대 진형을 골라 영웅 하나로 뚫는다',
-    function () { self.scene.start('Versus', { role: 'controller' }); },
-    { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
-      hover: UI.COL.panelTealHi, color: C.accent, fontSize: PH ? 14 : 17 }
-  ).text.setAlign('center');
-
-  UI.button(this, W / 2, cy + bh / 2 + gap / 2, bw, bh,
-    '🛡 전략가로 참여\n' + (base ? '내 진형을 고쳐 기지로 세운다' : '진형을 짜서 기지로 세운다'),
-    function () { self.scene.start('Versus', { role: 'strategist' }); },
+  var bh = Math.max(UI.BTN_H || 58, u * (PH ? 14 : 10));
+  var byB = H - u * (PH ? 13 : 11);
+  UI.button(this, W / 2, byB, Math.min(W - 30, 460), bh,
+    (base ? '🛡 내 전장 고치기' : '🛡 내 전장 만들기') +
+      '\n' + (base ? (base.units.length + '기 · ' + self._fmtAgo(base.at)) : '전략가로 참여합니다'),
+    function () {
+      GAME.ArenaBuild.setRole('strategist');
+      self.scene.start('Build', { pickBase: true, arena: true });
+    },
     { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
-      hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: PH ? 14 : 17 }
+      hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: PH ? 13 : 16 }
   ).text.setAlign('center');
 
-  UI.text(this, W / 2, cy + bh * 1.5 + gap * 1.6,
-    '양쪽 예산은 ' + GAME.Arena.BUDGET + '으로 같습니다  ·  한쪽은 반드시 전략가입니다',
+  UI.text(this, W / 2, byB + bh * 0.5 + u * 1.2,
+    '양쪽 예산은 ' + GAME.Arena.BUDGET + '으로 같습니다  ·  격파율이 낮은 전장이 위',
     { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 });
 
-  UI.button(this, W / 2, H - u * 6, Math.min(W - 40, 300), Math.max(UI.BTN_H_SM || 52, u * 7),
-    '← 메뉴', function () { self.scene.start('Menu'); }, { fontSize: 15 });
+  UI.button(this, u * 6, u * 3.4, Math.min(120, W * 0.14),
+    Math.max(UI.BTN_H_SM || 52, u * 7), '← 메뉴',
+    function () { self.scene.start('Menu'); }, { fontSize: 14 });
 };
 
 // 매칭 종류 한 줄('사람 진형' / '랜덤매칭' / '찾는 중')을 다시 쓴다.
@@ -134,19 +192,11 @@ GAME.VersusScene.prototype.create = function () {
   this.cameras.main.setBackgroundColor(C.bg);
   GAME.Iso.setMode('default');
 
-  // 역할을 아직 안 골랐으면 **묻는 화면부터**.
-  if (!this.role) return this._createRolePick();
-  GAME.ArenaBuild.setRole(this.role);
-
-  // 전략가로 참여 — 목록을 볼 이유가 없다(내 진형을 짜는 것이 전부다).
-  // 곧장 배치 화면으로 보낸다. 예산은 대전 고정값이고, 유닛 등급도 여기서 산다.
-  if (this.role === 'strategist') {
-    var mine = GAME.Arena.baseFormation();
-    this.scene.start('Build', { pickBase: true, arena: true, editId: mine ? mine.id : null });
-    return;
-  }
-
-  this._kickRemote();
+  // ── 대전의 첫 화면은 **전장 목록**이다 (2026-07-30 지시 2번) ────────────────
+  // 예전에는 트로피·리그·방어기록을 쌓아 놓은 로비였고 상대 목록은 그 아래 셋이었다.
+  // 이제 목록이 주인공이다 — 전장을 누르면 컨트롤러로 도전, 아래 버튼이면 전략가.
+  // 옛 로비 화면(_createPhone 포함)은 더 이상 쓰지 않는다.
+  return this._createRolePick();
 
   // 폰 가로(820×390)는 세로로 쌓을 높이가 없다 — 한 열로 흘리면 버튼끼리 겹친다
   // (실측: 겹침 11건). 좌우 2열 + 아래 버튼 줄로 펼친다.

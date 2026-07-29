@@ -1335,6 +1335,20 @@ GAME.BattleScene.prototype.draw = function () {
       g.lineStyle(1.5, FX.guardRing, Math.min(1, 0.34 * RA));
       GAME.UI.groundCircle(g, u.x, u.y, u.def.intercept);
     }
+    // 상시 오라(파수꾼의 '무게') — 피해 숫자를 안 띄우기로 했으므로(숫자 폭주 방지)
+    // **이 고리가 유일한 안내다.** 사거리 표시가 아니라 "여기 서 있으면 갉힌다"는
+    // 구역 표시라, 얇게 숨 쉬듯 흔들리게만 그린다. 전장을 가리면 회피 게임이 아니다.
+    // 이동 조건부 오라(파수꾼의 '무게') — 피해 숫자를 안 띄우므로 **이 고리가 유일한 안내다.**
+    // 걸을 때만 작동하는 기제라 켜짐/꺼짐이 보여야 배울 수 있다:
+    //   멈춰 있으면 아주 흐린 점선 같은 고리(= 여기가 범위다),
+    //   걸으면 또렷하게 살아난다(= 지금 갉고 있다).
+    // 사거리 표시가 아니라 구역 표시라 어느 쪽이든 얇게만 그린다 — 전장을 가리면 회피 게임이 아니다.
+    if (u.def.auraDps && u.def.auraRadius) {
+      var aOn = GAME.Combat.isCharging(u);
+      var abr = 1 + Math.sin(this.state.elapsed / 620) * (aOn ? 0.05 : 0.02);
+      g.lineStyle(aOn ? 2.5 : 1.5, FX.guardRing, Math.min(1, (aOn ? 0.55 : 0.16) * RA));
+      GAME.UI.groundCircle(g, u.x, u.y, u.def.auraRadius * abr);
+    }
 
     // 이동량으로 보행 위상을 굴린다 — 걷는 동안만 다리가 움직인다
     var walk = GAME.UI.updateGait(u, this._dt || 16);

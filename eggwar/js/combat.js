@@ -47,7 +47,7 @@ GAME.Combat = {
               // 빠뜨리면 폰 프로필(WORLD_SCALE 0.556)에서만 조용히 어긋난다.
               'spacing', 'protectGap',
               // 달려들며 치기 밀어내기. 거리 단위라 여기 반드시 넣는다.
-              'chargeKnock'],
+              'chargeKnock', 'trampleKnock', 'auraRadius'],
 
   scaleDef: function (def) {
     var K = GAME.CONFIG.WORLD_SCALE;
@@ -99,6 +99,7 @@ GAME.Combat = {
       lifesteal: st.lifesteal,
       // 달려들며 치기 — 영웅 def 는 화이트리스트라 여기 안 적으면 조용히 사라진다.
       chargeKnock: h.chargeKnock, chargeDamageMul: h.chargeDamageMul,
+      trampleKnock: h.trampleKnock, auraDps: h.auraDps, auraRadius: h.auraRadius,
       cost: GAME.HERO_BASE_COST
     };
 
@@ -114,6 +115,15 @@ GAME.Combat = {
     u.shield = 0;
     u.buffs = [];
     u.auras = [];
+    // ⚠ **반드시 이 `u.auras = []` 뒤에 와야 한다.** 위(=_baseUnit 직후)에 넣었더니
+    //   여기서 통째로 덮여 조용히 사라졌다 — 등록 0개인데 에러도 없어서, 실제로
+    //   시뮬을 돌려 틱 수를 세보기 전까지 '되고 있다'고 착각했다.
+    // 상시 오라는 **기존 auras 틱을 그대로 쓴다**(새 판정 루프를 만들면 스킬 오라와
+    //   규칙이 갈라져 조용히 어긋난다). t: Infinity 라 splice 로 사라지지 않는다.
+    if (u.def.auraDps) {
+      u.auras.push({ radius: u.def.auraRadius, dps: u.def.auraDps, t: Infinity, tick: 0,
+                     tickMs: 500, noLs: true, noNumber: true, passive: true, moveOnly: true });
+    }
     return u;
   },
 
@@ -296,7 +306,10 @@ GAME.Combat = {
     }
 
     if (state) {
-      this.pushNumber(state, unit, eff, crit);
+      // 상시 오라처럼 **잦고 작은** 피해는 숫자를 띄우지 않는다. 초당 여러 번 × 적 여러 기면
+      // 화면이 1~2 짜리 숫자로 뒤덮이고, 이 저장소에서 피해 숫자는 이미 프레임 저하의
+      // 원인이었다(v0.38). 존재는 바닥 고리와 피격 반짝임으로 읽힌다.
+      if (!(opts && opts.noNumber)) this.pushNumber(state, unit, eff, crit);
       // 전략가가 영웅을 때렸다 → 압박을 그만큼 덜어내고 '교전했다'로 기록.
       //
       // 한 번이라도 맞으면 압박을 0 으로 되돌리던 예전 방식은 구멍이었다. 저격수 하나가
@@ -1316,16 +1329,28 @@ GAME.Combat = {
         var au = u.auras[k];
         au.t -= dtMs;
         au.tick -= dtMs;
-        if (au.tick <= 0) {
-          au.tick = 250;
+        // 이동 조건부 오라(파수꾼 '무게') — **밀고 지나갈 때만** 갉는다.
+        // 왜 상시가 아닌가: 상시로 두면 수성의 탑의 AI 공격 영웅이 공짜로 받는다.
+        //   4층 방어율이 39%→31% 로 떨어져 영웅 간 편차가 27%p 가 됐다(SC-3 실패, 한계 20).
+        //   dps 를 2 까지 낮춰도 25%p 라 크기 문제가 아니었다 — 광전사가 저층에서 약한
+        //   성질이 있어(57%) 파수꾼을 조금만 올려도 벌어지는 구조다.
+        //   `runAI` 는 사거리에 들면 멈춰서 치므로, 이동 조건을 걸면 AI 는 이 기제를
+        //   구조적으로 못 쓴다 — 광전사의 '달려들며 치기'와 같은 장치다.
+        // 시계는 계속 돌린다(멈춰 있다 다시 걸을 때 한 틱을 몰아 넣지 않게).
+        if (au.moveOnly && !this.isCharging(u)) { if (au.tick <= 0) au.tick = au.tickMs || 250; }
+        else if (au.tick <= 0) {
+          au.tick = au.tickMs || 250;
           var auraHit = 0, auraLs = this._lsBudget(u);
           for (var m = 0; m < state.units.length; m++) {
             var v = state.units[m];
             if (!v.alive || v.side === u.side) continue;
             if (this.dist(u, v) <= au.radius + v.def.radius) {
               // 지속 피해는 크리티컬 판정을 하지 않는다(숫자가 폭주함)
-              this.applyDamage(v, au.dps * 0.25, u, state,
-                { noCrit: true, lsScale: this._ls(auraHit++), lsBudget: auraLs });
+              // 상시 오라(파수꾼 '무게')는 흡혈을 태우지 않는다 — 초당 4번 도는 판정에
+              // 흡혈이 붙으면 서 있기만 해도 회복이 쌓여 '버티는 지속형'이 '무적'이 된다.
+              this.applyDamage(v, au.dps * (au.tickMs || 250) / 1000, u, state,
+                { noCrit: true, noNumber: !!au.noNumber,
+                  lsScale: au.noLs ? 0 : this._ls(auraHit++), lsBudget: auraLs });
             }
           }
         }
@@ -1389,6 +1414,39 @@ GAME.Combat = {
       if (u.rootedFor > 0) continue;      // 속박 중엔 행동 불가
       if (u.manual) continue;             // 플레이어가 직접 몰고 있는 유닛은 AI 생략
       this.runAI(u, state, dt);
+    }
+
+    // ── 밟기 (2026-07-29) ──────────────────────────────────────────────────
+    // "덩치로 밀고 지나간다." 걸어가는 길에 **몸이 닿은** 적만 조금 밀어낸다.
+    // 광전사의 '달려들며 치기'와 형제 기제지만 셋이 다르다:
+    //   · 공격이 아니라 **이동**에 붙는다 — 때리지 않아도, 지나가기만 해도 밀린다
+    //   · 접촉 판정이다(사거리 아님) — 그래서 덩치(radius)가 곧 영향 범위다
+    //   · 밀어내는 힘이 더 약하다 — 파수꾼은 뚫는 영웅이 아니라 버티는 영웅이다
+    // 여기(AI 루프가 끝난 뒤)에서 도는 이유: 이번 프레임 이동이 전부 확정돼야
+    // "실제로 걸어간 길"을 알 수 있다. 루프 안에서 하면 유닛마다 시점이 어긋난다.
+    for (i = 0; i < state.units.length; i++) {
+      var tu2 = state.units[i];
+      if (!tu2.alive || !tu2.def.trampleKnock || !this.isCharging(tu2)) continue;
+      var didTrample = false;
+      for (k = 0; k < state.units.length; k++) {
+        var tv = state.units[k];
+        if (!tv.alive || tv.side === tu2.side || this.isHazard(tv)) continue;
+        var td = this.dist(tu2, tv);
+        var contact = tu2.def.radius + tv.def.radius + 4;
+        if (td > contact || td <= 0.1) continue;
+        tv.x += ((tv.x - tu2.x) / td) * tu2.def.trampleKnock;
+        tv.y += ((tv.y - tu2.y) / td) * tu2.def.trampleKnock;
+        this.clampToArena(tv); this.clampToLeash(tv, state);
+        didTrample = true;
+      }
+      // 흙먼지는 **묶어서 하나만** 띄운다. 밟기는 매 프레임 도는 판정이라 접촉마다
+      // 이펙트를 밀면 초당 수십 개가 쌓인다(피해 숫자로 이미 겪은 유형).
+      tu2._trampleFx = (tu2._trampleFx || 0) - dtMs;
+      if (didTrample && tu2._trampleFx <= 0) {
+        tu2._trampleFx = 190;
+        state.effects.push({ kind: 'ring', x: tu2.x, y: tu2.y,
+                             r: tu2.def.radius * 1.5, t: 220, total: 220, side: tu2.side });
+      }
     }
 
     // 원거리 간격 유지 → 겹침 해소 순서다. 겹침(separate)이 마지막이라야

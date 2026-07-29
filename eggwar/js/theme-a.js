@@ -192,6 +192,8 @@ GAME.UI = GAME.UI || {};
       goo:       0x7D9020,   // 늪 수액 — 탁한 이끼빛으로
       stone:     0x7C8794,   // 2.28
       bronze:    0xA87A22,   // 2.40
+      // 화폐 등급(크림 배경 기준). 은은 밝아서 잉크 테두리가 실루엣을 만든다.
+      coinBronze: 0xA87A22, coinSilver: 0x9AA6B2, coinGold: 0xD9A31B,
       feather:   0xCF5540,   // 2.61
       clay:      0x9C6134    // 3.14
     },

@@ -56,6 +56,9 @@ GAME.UI = GAME.UI || {};
     wood: 0x8a6a45, woodDark: 0x5a452c,
     blade: 0xdfe4ee, bladeDark: 0x757e8e, iron: 0x4b5260,
     bronze: 0xc9993f, leather: 0x8d6b4b, leatherDark: 0x5f4630,
+    // 화폐 등급 — 청동 1 · 은 10 · 금 100. 색만으로 갈리면 흑백에서 죽으므로
+    // coin.js 가 크기·테두리도 함께 바꾼다(색은 보조 신호다).
+    coinBronze: 0xc9993f, coinSilver: 0xc3cbd4, coinGold: 0xe8bf3a,
     bone: 0xeae3cd, leaf: 0x63c26a, leafDark: 0x3f8a4a,
     clay: 0xb5794a, rope: 0xd9c9a2, stone: 0x9aa3ad, goo: 0xa8c14a,
     feather: 0xe0705a,

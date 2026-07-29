@@ -24,6 +24,9 @@ window.GAME = window.GAME || {};
 GAME.PWA = (function () {
   var DISMISS_KEY = 'asymgame.installDismissed';
 
+  // 0xRRGGBB → '#rrggbb'. 테마 토큰이 숫자라 DOM 에 쓰려면 매번 필요하다.
+  function hx(n) { return '#' + ('000000' + (n >>> 0).toString(16)).slice(-6); }
+
   function isStandalone() {
     if (window.navigator && window.navigator.standalone === true) return true;  // iOS
     return !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
@@ -80,7 +83,6 @@ GAME.PWA = (function () {
     if (!deferredPrompt && !isIOS()) return;   // 설치 경로가 없는 브라우저는 조용히 넘어간다
 
     var C = GAME.CONFIG.COLORS, COL = GAME.UI.COL;
-    function hx(n) { return '#' + ('000000' + (n >>> 0).toString(16)).slice(-6); }
 
     banner = document.createElement('div');
     banner.id = 'install-bar';
@@ -209,6 +211,101 @@ GAME.PWA = (function () {
     });
   }
 
+  // ── 확인 팝업 (DOM) ─────────────────────────────────────────────────────
+  // 왜 Phaser(`js/modal.js`)가 아니라 DOM 인가:
+  //  · `GAME.Modal` 은 씬 안에서 도는 표시객체다. 씬이 바뀌면 같이 파괴되고,
+  //    지금 어느 씬인지 알아야 만들 수 있다. 뒤로가기는 **씬 밖의 사건**이라
+  //    그 의존을 만들면 씬마다 코드가 필요해진다(이번 작업의 제약과 정면충돌).
+  //  · 닉네임 팝업(`js/scenes/loading.js`)이 이미 같은 방식이다 — 근거가 같다.
+  // 색은 활성 테마 토큰에서 가져온다. 하드코딩하면 테마를 바꿨을 때 이 카드만 홀로 뜬다.
+  var dialog = null;
+  function dialogOpen() { return !!dialog; }
+  function closeDialog() {
+    if (dialog && dialog.parentNode) dialog.parentNode.removeChild(dialog);
+    dialog = null;
+  }
+
+  // confirm(제목, 설명, 확인라벨, onOk, onCancel)
+  function confirmDialog(title, desc, okLabel, onOk, onCancel) {
+    closeDialog();
+    var C = (GAME.CONFIG && GAME.CONFIG.COLORS) || {};
+    var COL = (GAME.UI && GAME.UI.COL) || {};
+    var cardBg = hx(COL.surface !== undefined ? COL.surface : (COL.surfaceAlt || 0x1a1a26));
+    var lineC = hx(COL.borderUi !== undefined ? COL.borderUi : 0x2a2114);
+    var okBg = hx(COL.panelTeal !== undefined ? COL.panelTeal : 0x123f96);
+    var okLine = hx(C.controller !== undefined ? C.controller : (COL.controller || 0x35d0a5));
+    var subBg = hx(COL.surfaceAlt !== undefined ? COL.surfaceAlt : 0x22222e);
+
+    var wrap = document.createElement('div');
+    wrap.id = 'nav-confirm';
+    // z-index 60 — 인트로(30)·설치배너(35)·닉네임(40)보다 위. 뒤로가기는 항상 최상위다.
+    wrap.style.cssText =
+      'position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(10,8,4,.62);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);' +
+      'opacity:0;transition:opacity .2s ease;padding:20px;box-sizing:border-box;';
+
+    var card = document.createElement('div');
+    card.style.cssText =
+      'width:min(92vw,360px);box-sizing:border-box;padding:24px 22px 20px;border-radius:18px;' +
+      'background:' + cardBg + ';border:3px solid ' + lineC + ';' +
+      'box-shadow:0 10px 0 rgba(42,33,20,.45),0 18px 40px rgba(0,0,0,.45);' +
+      'font-family:var(--egg-font);text-align:center;' +
+      'transform:translateY(14px) scale(.97);transition:transform .26s cubic-bezier(.2,1.2,.3,1);';
+
+    var t = document.createElement('div');
+    t.style.cssText = 'font:700 21px var(--egg-font);color:' + (C.text || '#fff') + ';margin-bottom:6px;';
+    t.textContent = title;
+    card.appendChild(t);
+
+    if (desc) {
+      var d = document.createElement('div');
+      d.style.cssText = 'font:400 13px var(--egg-font);color:' + (C.textDim || '#aaa') +
+        ';line-height:1.5;margin-bottom:16px;';
+      d.textContent = desc;
+      card.appendChild(d);
+    }
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:10px;margin-top:12px;';
+    card.appendChild(row);
+
+    function mk(label, primary, fn) {
+      var b = document.createElement('button');
+      b.textContent = label;
+      // 52px — 이 저장소의 터치 타깃 하한(UI.TAP). 급하게 누르는 화면이다.
+      b.style.cssText =
+        'flex:1;min-height:52px;border-radius:12px;cursor:pointer;' +
+        'font:700 17px var(--egg-font);-webkit-tap-highlight-color:transparent;' +
+        (primary
+          ? 'color:' + (C.accent || '#fffcf0') + ';background:' + okBg + ';border:3px solid ' + okLine + ';'
+          : 'color:' + (C.text || '#fff') + ';background:' + subBg + ';border:2px solid ' + lineC + ';');
+      b.addEventListener('click', fn);
+      row.appendChild(b);
+      return b;
+    }
+    // 취소를 왼쪽에 둔다 — 오조작으로 오른쪽 엄지에 닿는 쪽이 파괴적이면 안 된다.
+    mk('취소', false, function () { closeDialog(); if (onCancel) onCancel(); });
+    mk(okLabel, true, function () { closeDialog(); if (onOk) onOk(); });
+
+    wrap.appendChild(card);
+    document.body.appendChild(wrap);
+    dialog = wrap;
+    // 다음 프레임에 상태를 바꿔야 transition 이 걸린다(같은 프레임에 넣으면 즉시 최종값).
+    // ⚠ rAF 하나에만 맡기지 않는다 — 탭이 가려졌거나 프레임이 늦으면 rAF 가 안 돌아
+    //   **모달이 투명한 채로 남는다**(헤드리스 캡처에서 실제로 그렇게 찍혔다).
+    //   뒤로가기 확인창이 안 보이는 건 치명적이라 타이머로 한 번 더 보장한다.
+    var shown = false;
+    function reveal() {
+      if (shown || !dialog) return;
+      shown = true;
+      wrap.style.opacity = '1';
+      card.style.transform = 'translateY(0) scale(1)';
+    }
+    requestAnimationFrame(reveal);
+    setTimeout(reveal, 60);
+    return { close: closeDialog };
+  }
+
   registerSW();
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', wireRotatePrompt);
@@ -225,6 +322,189 @@ GAME.PWA = (function () {
     hideInstall: removeBanner,
     canFullscreen: canFullscreen,
     isFullscreen: isFullscreen,
-    toggleFullscreen: toggleFullscreen
+    toggleFullscreen: toggleFullscreen,
+    confirm: confirmDialog,
+    closeConfirm: closeDialog,
+    confirmOpen: dialogOpen
+  };
+})();
+
+// ============================================================================
+//  뒤로가기 = 이전 화면  (설치본 standalone 전용)
+//
+//  안드로이드 설치본(PWA)의 하드웨어 뒤로가기는 그냥 `history.back()` 이다.
+//  이 게임은 단일 페이지라 히스토리가 **항목 하나**뿐이고, 그래서 뒤로가기를
+//  누르면 곧바로 앱이 꺼진다(사용자 신고). 막으려면 히스토리에 '가드' 항목을
+//  하나 심어 두고 `popstate` 를 받아 우리가 처리한 뒤 다시 심으면 된다.
+//  항목 수는 **항상 2** 로 유지된다 — 무한히 쌓이지 않는다.
+//
+//  ⚠ **설치 안 한 브라우저에서는 절대 켜지 않는다.** 일반 웹페이지가 뒤로가기를
+//    가로채면 사용자가 사이트를 떠나지 못하는 함정이 된다. `isStandalone()` 로 가른다.
+//
+//  씬 파일은 한 줄도 고치지 않는다. `js/main.js` 가 이미 전 씬의 `create` 에
+//  훅을 걸고 있어(페이드인) 거기서 `onScene()` 만 불러주면 이력이 쌓인다.
+// ============================================================================
+GAME.Nav = (function () {
+  // ── 이력에 남기는 씬 ──
+  //  되돌아갈 때 **진입 당시 인자를 그대로** 다시 넘긴다(`scene.sys.settings.data`).
+  //  그래서 Draft(formationId·tower)·Rank(kind·scope)·Build(defendTower) 처럼
+  //  인자가 필요한 화면도 그대로 복원된다 — 앱이 스스로 했던 호출과 같은 호출이다.
+  var KEEP = {
+    Menu: 1, Login: 1, Select: 1, Build: 1, Draft: 1,
+    Tower: 1, DefendTower: 1, Versus: 1, Rank: 1, Admin: 1
+  };
+  // ── 이력에 넣지 않는 씬과 그 이유 ──
+  //  Loading  인트로다. 뒤로 갈 대상이 아니라 **앞**이다. 되돌아가면 인트로를 다시 본다.
+  //  Battle   재진입 = 전투를 처음부터 다시 시작. '뒤로'가 아니다.
+  //  Defend   같은 이유(관전형 방어전).
+  //  Result   재진입하면 결과 연출·획득 골드 표시가 되살아난다(탑은 create 에서
+  //           다음 층으로 즉시 넘기기까지 한다) → 이력에서 뺀다.
+  //  이 씬들에서 뒤로가기를 누르면 **스택의 맨 위**(직전 준비 화면)로 간다.
+  var FIGHT = { Battle: 1, Defend: 1 };
+
+  var stack = [];        // [{ key, data }] — 맨 뒤가 '지금 있는 화면'
+  var curKey = null;
+  var armed = false;     // 히스토리에 가드 항목을 심어 두었는가
+  var on = false;
+  var MAX = 24;
+
+  function log() {
+    return stack.map(function (e) { return e.key; }).join('>');
+  }
+
+  function arm() {
+    if (armed) return;
+    try {
+      // 주소는 그대로 둔다 — ?admin=1 / ?diag=1 이 날아가면 안 된다.
+      history.pushState({ eggwarNav: 1 }, '', location.href);
+      armed = true;
+    } catch (e) {}
+  }
+
+  function push(key, data) {
+    if (!KEEP[key]) return;
+    // 같은 화면이 이미 이력에 있으면 **거기까지 잘라낸다**(쌓지 않는다).
+    // 이게 씬의 자체 뒤로 버튼과 어긋나지 않게 하는 장치다:
+    // Menu → Tower → (탑의 '← 메뉴') → Menu 는 [Menu,Tower,Menu] 가 아니라 [Menu] 가 되고,
+    // 그 다음 뒤로가기는 Tower 로 되돌아가는 게 아니라 종료 확인으로 간다.
+    for (var i = 0; i < stack.length; i++) {
+      if (stack[i].key === key) {
+        stack.length = i + 1;
+        stack[i].data = data;
+        return;
+      }
+    }
+    stack.push({ key: key, data: data });
+    if (stack.length > MAX) stack.shift();
+  }
+
+  // main.js 의 씬 `create` 훅에서 부른다.
+  function onScene(sc) {
+    var key = sc && sc.sys && sc.sys.settings && sc.sys.settings.key;
+    if (!key) return;
+    curKey = key;
+    push(key, (sc.sys.settings.data && typeof sc.sys.settings.data === 'object')
+      ? sc.sys.settings.data : undefined);
+  }
+
+  // ⚠ `scene.start` 는 **부른 씬을 멈추고** 대상을 켠다. 대상 씬에서 부르면
+  //    지금 떠 있는 씬이 안 꺼져 두 화면이 겹쳐 돈다(실측에서 Menu,Tower 둘 다 활성).
+  //    그래서 반드시 **지금 씬**의 ScenePlugin 으로 부른다 — 씬 파일들과 같은 방식이다.
+  function goto(entry) {
+    if (!entry || !GAME.game || !GAME.game.scene) return false;
+    var from = GAME.game.scene.getScene(curKey) ||
+               GAME.game.scene.scenes.filter(function (s) { return s.scene.isActive(); })[0];
+    if (!from) return false;
+    curKey = entry.key;
+    from.scene.start(entry.key, entry.data);
+    return true;
+  }
+
+  // 스택에서 한 칸 뒤로. 성공하면 true.
+  function stepBack() {
+    if (KEEP[curKey] && stack.length && stack[stack.length - 1].key === curKey) {
+      if (stack.length <= 1) return false;      // 뿌리다 — 여기가 종료 지점
+      stack.pop();
+    }
+    return goto(stack[stack.length - 1]);
+  }
+
+  // ── 종료 ──
+  //  [종료]가 실제로 앱을 닫는가는 플랫폼이 정한다. 두 가지를 순서대로 시도한다:
+  //   1) `window.close()` — 스크립트가 연 창에서만 동작하는 게 원칙이라 보통 무시된다.
+  //   2) 가로채기를 풀고 뒤로가기를 **그대로 흘려보낸다** → 히스토리 첫 항목보다
+  //      앞으로 가려는 시도가 되고, 설치본에서는 OS 가 앱을 닫는다.
+  //      이건 추측이 아니라 **지금 사용자가 겪고 있는 바로 그 동작**이다
+  //      (히스토리가 비어서 뒤로가기 한 번에 앱이 꺼진다는 신고가 이 작업의 발단이다).
+  //  둘 다 안 되면 앱은 그냥 열려 있다 — '닫히는 척'하는 화면은 만들지 않는다.
+  function doExit() {
+    on = false;
+    armed = false;
+    // 1) 창 닫기. 크롬은 **히스토리 항목이 하나일 때만** 스크립트 닫기를 허용한다 —
+    //    가드를 심었다 뺐어도 back/forward 목록 길이는 2 라 대개 무시된다.
+    try { window.close(); } catch (e) {}
+    // 2) 가로채기를 푼 상태로 뒤로가기를 그대로 흘려보낸다.
+    setTimeout(function () { try { history.back(); } catch (e) {} }, 80);
+    // 3) 그래도 앱이 살아 있으면(플랫폼이 스크립트 종료를 안 받아주는 경우)
+    //    뒤로가기를 먹통으로 두지 않는다. 단 **가드는 다시 심지 않는다** —
+    //    첫 항목에 선 채로 두어야 다음 뒤로가기 한 번에 OS 가 앱을 닫는다.
+    //    (지금 사용자가 겪는 "뒤로가기 한 번에 꺼진다"가 바로 그 동작이다.)
+    setTimeout(function () { on = true; }, 900);
+  }
+
+  function onPop() {
+    if (!on) return;
+    armed = false;                    // 방금 우리가 심어둔 항목이 소비됐다
+
+    // 1) 팝업이 열려 있으면 그것부터 닫는다(= 취소).
+    if (GAME.PWA.confirmOpen()) { GAME.PWA.closeConfirm(); arm(); return; }
+    if (GAME.Modal && GAME.Modal.isOpen && GAME.Modal.isOpen()) { GAME.Modal.close(); arm(); return; }
+
+    // 2) 인트로 중에는 아무 일도 하지 않는다(뒤로 갈 화면이 없다).
+    if (curKey === 'Loading' || !curKey) { arm(); return; }
+
+    // 3) 전투 중 — 나가면 그 판은 버려진다. 반드시 물어본다.
+    //    (지금은 뒤로가기 한 번에 앱이 통째로 꺼지므로 어차피 버려진다. 확인이 개선이다.)
+    if (FIGHT[curKey]) {
+      arm();
+      GAME.PWA.confirm('전투를 포기할까요?', '지금 나가면 이 판의 결과는 기록되지 않습니다.',
+        '나가기', function () { if (!stepBack()) goto({ key: 'Menu' }); });
+      return;
+    }
+
+    // 4) 뿌리(초기 화면 = 메뉴)면 종료 확인.
+    if (!stepBack()) {
+      // ⚠ iOS 설치본은 스크립트로 앱을 닫을 방법이 없다. 눌러도 아무 일 없는 [종료]
+      //   버튼을 보여주지 않는다 — 되는 척하지 않는 게 이 저장소의 규칙이다.
+      //   (iOS 는 하드웨어 뒤로가기도 없다. 여기 오는 건 스와이프 제스처뿐이다.)
+      if (GAME.PWA.isIOS()) { arm(); return; }
+      // ⚠ **여기서는 가드를 다시 심지 않는다.** 심으면 히스토리 첫 항목보다 앞으로
+      //   나갈 방법이 사라져 [종료]가 아무 일도 못 한다(실측으로 확인한 함정이다:
+      //   가드를 심고 back() 을 한 번 부르면 가드만 먹고 페이지는 그대로였다).
+      //   지금 우리는 첫 항목에 서 있다 — 이 상태에서 뒤로가기가 한 번 더 오면
+      //   OS 가 앱을 닫는다. [취소]를 누르면 그때 다시 심는다.
+      GAME.PWA.confirm('게임을 종료하시겠습니까?', '', '종료', doExit, arm);
+      return;
+    }
+    arm();
+  }
+
+  function enable() {
+    if (on) return false;
+    if (!GAME.PWA.isStandalone()) return false;   // ← 일반 브라우저는 절대 건드리지 않는다
+    on = true;
+    window.addEventListener('popstate', onPop);
+    arm();
+    return true;
+  }
+
+  return {
+    enable: enable,
+    onScene: onScene,
+    isOn: function () { return on; },
+    // 검증용 — 스택과 히스토리 길이를 밖에서 볼 수 있어야 실측이 된다.
+    trail: log,
+    depth: function () { return stack.length; },
+    current: function () { return curKey; }
   };
 })();

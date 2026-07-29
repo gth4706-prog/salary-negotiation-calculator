@@ -70,16 +70,34 @@ window.GAME = window.GAME || {};
   //    8~10 분할이면 화면에서 구분되지 않는다. 아래 숫자는 그렇게 잡은 값이다.
   var SM_SHADOW = 8, SM_BODY = 10, SM_HILITE = 6;
 
+  // 화폐 등급 — 청동 1 · 은 10 · 금 100.
+  //  요청: "동전 10개 단위가 넘는 건 브론즈·실버·골드 색상으로 치환".
+  //  단위로 쪼개면 개수가 줄어(70골드 = 은 7개) 화면도 성능도 같이 좋아진다.
+  //  ⚠ **색만으로 갈리면 흑백에서 죽는다**(은 0.63 vs 금 0.65 로 회색값이 거의 같다).
+  //    그래서 등급마다 **크기와 무늬**를 함께 바꾼다 — 색은 보조 신호다.
+  var DENOM = [100, 10, 1];
+  function _sum(a) { var t = 0; for (var i = 0; i < a.length; i++) t += a[i]; return t; }
+  function tierOf(v) { return v >= 100 ? 2 : (v >= 10 ? 1 : 0); }
+  GAME.coinTierOf = tierOf;
+
   function drawCoin(g, sx, sy, r0, value, alpha, INK, INKA) {
     var M = GAME.UI.MAT;                       // 테마가 제자리에서 갈아끼우므로 **그릴 때 읽는다**
-    var body = M.bronze, rim = M.leatherDark, slit = M.woodDark, hi = M.bone;
+    var tier = tierOf(value);
+    var body = tier === 2 ? (M.coinGold || 0xe8bf3a)
+             : tier === 1 ? (M.coinSilver || 0xc3cbd4)
+                          : (M.coinBronze || M.bronze);
+    var rim = M.leatherDark, slit = M.woodDark, hi = M.bone;
 
     // 묶음 동전의 '더 많다'는 **크기**가 먼저 말한다.
     //  겹쳐 쌓기만으로는 실측(시안판 스크린샷)에서 값 1과 3이 구분되지 않았다 —
     //  뒷장이 앞장에 거의 다 가려 어두운 초승달만 남기 때문이다.
     //  크기는 그리기 비용이 **0** 이면서 가장 멀리서도 읽히는 신호다. 1.55배에서 멈춘다
     //  (더 키우면 유닛만 해져서 '바닥의 물건'이 아니라 '적'처럼 보인다).
-    var r = r0 * (value > 1 ? Math.min(1.55, 1 + Math.log(value) / Math.LN2 * 0.16) : 1);
+    //  등급이 크기의 1차 신호다(1.00 / 1.18 / 1.36). 상한을 넘겨 묶인 동전만
+    //  그 위에 로그로 조금 더 커진다 — 1.55 에서 멈춘다(더 키우면 '적'처럼 보인다).
+    var TIER_R = [1, 1.18, 1.36];
+    var over = value / DENOM[2 - tier];
+    var r = r0 * TIER_R[tier] * (over > 1 ? Math.min(1.15, 1 + Math.log(over) / Math.LN2 * 0.08) : 1);
     var w = r * 2, h = r * 1.42;               // 지면에 누운 타원
 
     // 지면 그림자 — '떠 있는 것'이 아니라 '떨어져 있는 것'으로 읽히게
@@ -107,11 +125,18 @@ window.GAME = window.GAME || {};
     //  ⚠ 선(lineBetween)이 아니라 **사각형 채움**으로 그린다. 무늬가 전부 축에 나란해서
     //    같은 그림이 나오는데, 스트로크 경로(경로 생성 + 조인 계산)보다 쿼드 하나가 훨씬 싸다.
     //    동전 하나당 선 4개를 사각형 4개로 바꿔 draw() 를 실측 0.9ms → 0.5ms 로 줄였다.
+    //  등급 신호 ②: 갈라진 틈의 개수. 청동 1줄 · 은 2줄 · 금 2줄 + 가운데 점.
+    //  회색값이 겹치는 은/금을 **형태로** 가른다.
     var lw = Math.max(1, r * 0.20);
     g.fillStyle(slit, 0.92 * alpha);
     g.fillRect(sx - r * 0.54, sy + r * 0.04 - lw / 2, r * 1.08, lw);
+    if (tier >= 1) g.fillRect(sx - r * 0.44, sy - r * 0.30 - lw / 2, r * 0.88, lw);
     for (var i = -1; i <= 1; i++) {
       g.fillRect(sx + i * r * 0.34 - lw / 2, sy - r * 0.16, lw, r * 0.40);
+    }
+    if (tier >= 2) {
+      g.fillStyle(slit, 0.92 * alpha);
+      g.fillEllipse(sx, sy + r * 0.04, r * 0.30, r * 0.24, SM_HILITE);
     }
 
     // 반사점 — 흑백에서 '밝은 점'이 하나 있어야 금속/광택으로 읽힌다
@@ -170,8 +195,23 @@ window.GAME = window.GAME || {};
       if (best) { best.v += gold; return; }
       room = 1;                                  // 리스트가 비어 있을 리는 없지만 방어
     }
-    var n = Math.min(gold, K.PER_KILL, room);
-    var base = Math.floor(gold / n), rem = gold - base * n;
+    //  화폐 단위로 쪼갠다 — 47골드 = 은 4 + 청동 7 (11개). 골드 수만큼 뿌리던
+    //  예전 방식은 보스(70골드)에서 동전이 수십 개가 됐고, 상한에 걸려 묶이면
+    //  '값이 큰 동전'을 크기로만 알려야 해서 값 1과 3이 구분되지 않았다(실측).
+    var units = [], left = gold;
+    for (var di = 0; di < DENOM.length; di++) {
+      var d = DENOM[di], cnt = Math.floor(left / d);
+      left -= cnt * d;
+      for (var ci = 0; ci < cnt && units.length < K.PER_KILL && units.length < room; ci++) units.push(d);
+    }
+    // 상한 때문에 못 뿌린 몫은 **버리지 않고** 마지막 동전에 얹는다(등급이 자동으로 올라간다).
+    // 총액 보존이 이 함수의 계약이다 — 골드가 조용히 사라지면 성장 곡선이 어긋난다.
+    if (units.length === 0) units.push(gold);
+    else {
+      var spilled = gold - _sum(units);
+      if (spilled > 0) units[units.length - 1] += spilled;
+    }
+    var n = units.length;
     var A = CFG.ARENA, ws = this.ws;
     for (var i = 0; i < n; i++) {
       var ang = Math.random() * Math.PI * 2;
@@ -180,7 +220,7 @@ window.GAME = window.GAME || {};
       var ty = Math.max(A.y + 6, Math.min(A.bottom - 6, y + Math.sin(ang) * rad * 0.8));
       this.list.push({
         x: x, y: y, x0: x, y0: y, tx: tx, ty: ty,
-        v: base + (i < rem ? 1 : 0),
+        v: units[i],
         t: 0, life: K.LIFE, hop: 0
       });
     }

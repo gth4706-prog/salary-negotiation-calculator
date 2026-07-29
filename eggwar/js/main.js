@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v0.43';
+GAME.VERSION = 'v0.44';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -71,10 +71,13 @@ window.addEventListener('load', function () {
     ]
   });
 
-  // ── 화면 전환 애니메이션 (전역) ─────────────────────────────────────────
+  // ── 화면 전환 애니메이션 + 씬 이력 (전역) ───────────────────────────────
   // 씬이 바뀔 때마다 짧게 페이드인시킨다. 씬 코드는 한 줄도 안 바꾸고
   // Phaser 의 씬 생명주기 이벤트에 한 번만 걸어 전 화면에 적용한다.
   // 값이 크면 조작이 굼떠 보인다 — 160ms 가 '부드럽지만 안 답답한' 선.
+  //
+  // 같은 훅에서 **뒤로가기용 씬 이력**도 쌓는다(`js/pwa.js` 의 GAME.Nav).
+  // 씬마다 코드를 넣지 않는 이유가 그대로다 — 전이를 한 곳에서만 관찰한다.
   (function () {
     var FADE = 160;
     GAME.game.events.on('ready', function () { hook(); });
@@ -84,11 +87,16 @@ window.addEventListener('load', function () {
         sc.__fadeHooked = true;
         sc.events.on('create', function () {
           if (sc.cameras && sc.cameras.main) sc.cameras.main.fadeIn(FADE, 0, 0, 0);
+          if (GAME.Nav) GAME.Nav.onScene(sc);
         });
       });
     }
     hook();
   })();
+
+  // 설치본(standalone)에서만 하드웨어 뒤로가기를 가로챈다.
+  // 일반 브라우저 탭에서는 아무것도 하지 않는다 — 켜면 사이트를 못 떠나는 함정이 된다.
+  if (GAME.Nav) GAME.Nav.enable();
   }   // ── boot() 끝 ──
 
   // ?diag=1 진단 오버레이 — 실기기(폰) 값을 눈으로 받기 위한 것.

@@ -65,21 +65,38 @@ GAME.LoadingScene.prototype._startVideo = function () {
     'position:fixed;inset:0;z-index:30;background:#fbf2df;' +
     'display:flex;align-items:center;justify-content:center;overflow:hidden;';
 
-  // 화면 폭에 맞춰 파일과 표시 방식을 정한다.
-  //  · 좁은 화면(폰): 540p 를 꽉 채워(cover) 몰입감 있게.
-  //  · 넓은 화면(PC): 720p 를 **폰 비율 액자 안에 축소**해서 보여준다. 세로 9:16 영상을
+  // 화면 폭에 맞춰 **표시 방식**을 정한다.
+  //  · 좁은 화면: 꽉 채워(cover) 몰입감 있게.
+  //  · 넓은 화면: **폰 비율 액자 안에 축소**해서 보여준다. 세로 9:16 영상을
   //    가로 모니터에 꽉 채우면 좌우가 잘리거나 늘어나 깨져 보인다(실측 신고).
   var wide = (window.innerWidth || 0) >= 720;
-  v.src = wide ? GAME.LoadingScene.VIDEO_SRC_HQ : GAME.LoadingScene.VIDEO_SRC;
-  v.setAttribute('poster', 'assets/intro-poster.webp');
+
+  // 파일은 **화면 폭이 아니라 기기**로 고른다.
+  //   폰을 가로로 들면 innerWidth 가 844~932 라 예전 `>=720` 조건이 통째로 참이 됐고,
+  //   그래서 **폰이 PC용 2.1MB 파일을 받았다.** 이 게임은 모바일 가로 전용이므로
+  //   사실상 모든 폰이 그랬다. 실측(헤드리스, 대역폭 제한):
+  //     2.1MB @1500kbps → 4초 시점 재생위치 0.97초 · @750kbps → 0.22초 (계속 stall)
+  //     849KB @1500kbps → 2.54초              · @750kbps → 0.84초
+  //   즉 폰에서는 영상이 사실상 멈춰 있었다. 파일 선택을 레이아웃 프로필에 묶는다.
+  //   ('phone' = 터치 + coarse 포인터 + 최대변 1100 미만. 태블릿·데스크톱은 'pc' 라
+  //    예전대로 720p 를 받는다 — PC 화질 신고에 대한 대응은 그대로 살아 있다.)
+  var hq = wide && GAME.CONFIG.PROFILE === 'pc';
+
+  // ⚠ 순서가 중요하다 — `muted` 는 **src 를 붙이기 전에** 세워야 한다.
+  //   사파리는 소스가 걸리는 순간의 음소거 상태로 자동재생 가부를 판정한다.
+  //   속성(attribute)도 같이 단다: 프로퍼티만으로는 안 보는 엔진이 있다.
   v.muted = true;                 // 자동재생 정책 — 소리가 있으면 모바일에서 안 뜬다
   v.defaultMuted = true;
+  v.setAttribute('muted', '');
   v.playsInline = true;
   v.setAttribute('playsinline', '');
   v.setAttribute('webkit-playsinline', '');
   v.autoplay = true;
+  v.setAttribute('autoplay', '');
   v.preload = 'auto';
   v.controls = false;
+  v.setAttribute('poster', 'assets/intro-poster.webp');
+  v.src = hq ? GAME.LoadingScene.VIDEO_SRC_HQ : GAME.LoadingScene.VIDEO_SRC;
   if (wide) {
     // 화면 높이에 맞춰 세로로 꽉, 폭은 9:16 비율만큼만 — 가운데 액자처럼
     v.style.cssText =
@@ -158,33 +175,60 @@ GAME.LoadingScene.prototype._startVideo = function () {
 
   // 자동재생이 막힌 기기를 위해 — 화면 아무 데나 한 번 누르면 재생을 다시 시도한다.
   // (모바일은 '사용자 제스처' 뒤에는 재생을 허용한다. 실측 신고: 폰에서 영상이 안 나왔다.)
+  //
+  // 자동 재시도도 건다. 첫 `play()` 는 데이터가 한 바이트도 없는 readyState 0 에서
+  // 불리는데, 그 시점의 거절이 곧 '영영 못 튼다'는 뜻은 아니다. 실측(헤드리스,
+  // `--autoplay-policy=user-gesture-required`): `play()` 가 653ms 에
+  // **NotAllowedError** 로 거절되고 그 46ms 뒤에 canplay 가 온다. 데이터가 도착한
+  // 뒤에 한 번 더 시도해야 잡히는 구간이다. 설치본(standalone)은 창이 뜨는 순간
+  // 문서가 잠깐 숨김일 수 있어 **다시 보일 때도** 시도한다.
+  var gaveUp = false;                 // 사용자가 이미 안내를 본 뒤에는 조용히 있는다
   function tryPlay() {
+    if (self.done || !self._video) return;
     var pr = v.play();
-    if (pr && pr.catch) pr.catch(function () {});
+    if (pr && pr['catch']) pr['catch'](function () {});
+  }
+  function blocked() {                // 자동재생이 막혔다 — 포스터 + 안내로 성립시킨다
+    if (gaveUp || self.done) return;
+    gaveUp = true;
+    hint.style.opacity = '1';
+    reveal();
   }
   wrap.addEventListener('click', function (e) {
     if (e.target === btn || e.target === skip) return;
     if (v.paused) tryPlay();
   });
   wrap.addEventListener('touchstart', function () { if (v.paused) tryPlay(); }, { passive: true });
+  v.addEventListener('canplay', function () { if (v.paused) tryPlay(); });
+  v.addEventListener('loadeddata', function () { if (v.paused) tryPlay(); });
+  this._onVis = function () { if (!document.hidden && v.paused) tryPlay(); };
+  document.addEventListener('visibilitychange', this._onVis);
 
   var p = v.play();
-  if (p && p.catch) {
-    p.catch(function () {
-      // 자동재생이 막힌 경우 — 포스터를 띄운 채 '탭하면 재생' 안내 + 시작 버튼을 바로 준다.
-      // 여기서 폴백으로 넘기지 않는다: 포스터만으로도 화면이 성립하고, 탭하면 영상이 돈다.
-      hint.style.opacity = '1';
-      reveal();
+  if (p && p['catch']) {
+    p['catch'](function () {
+      // 여기서 바로 포기하지 않는다. 위 canplay/loadeddata 재시도가 남아 있으므로
+      // 조금 기다렸다가 그래도 멈춰 있으면 안내를 띄운다.
+      // 폴백(그림 인트로)으로는 넘기지 않는다: 포스터만으로도 화면이 성립하고,
+      // 탭하면 영상이 돈다.
+      setTimeout(function () { if (v.paused) blocked(); }, 900);
     });
   }
 
-  // 영상이 아예 안 뜨는 상황 대비(네트워크 지연·차단): 4초 안에 준비가 안 되면 폴백.
-  // 2.5초는 느린 모바일 회선에서 너무 짧아 멀쩡한 영상도 폴백으로 넘어갔다.
+  // 영상이 **아예 안 오는** 상황 대비(네트워크 차단·파일 없음): 그때만 그림 인트로로.
+  //
+  // 예전 조건은 "4초 시점 readyState<2 이면 폴백"이었다. 이건 느린 회선에서 위험하다 —
+  // 메타데이터가 오는 중이어도 시각만 넘으면 멀쩡한 영상을 버린다. 실측하면 750kbps
+  // 에서도 4초 시점 readyState 는 2~3 이라 이 조건이 실제로 터지진 않았지만, 판정
+  // 근거를 **'진척이 있는가'** 로 바꾼다. 한 바이트도 못 받았을 때만 폴백이다.
+  var gotData = false;
+  v.addEventListener('progress', function () { gotData = true; });
+  v.addEventListener('loadedmetadata', function () { gotData = true; });
   this._videoGuard = setTimeout(function () {
     if (self.done) return;
-    if (v.readyState < 2) self._videoFailed();
-    else if (v.paused) { hint.style.opacity = '1'; reveal(); }
-  }, 4000);
+    if (!gotData && v.readyState < 1) { self._videoFailed(); return; }
+    if (v.paused) blocked();
+  }, 4500);
 
   return true;
 };
@@ -198,6 +242,7 @@ GAME.LoadingScene.prototype._videoFailed = function () {
 
 GAME.LoadingScene.prototype._teardownVideo = function () {
   if (this._videoGuard) { clearTimeout(this._videoGuard); this._videoGuard = null; }
+  if (this._onVis) { document.removeEventListener('visibilitychange', this._onVis); this._onVis = null; }
   if (this._video) { try { this._video.pause(); this._video.removeAttribute('src'); this._video.load(); } catch (e) {} }
   if (this._wrap && this._wrap.parentNode) this._wrap.parentNode.removeChild(this._wrap);
   this._wrap = null; this._video = null;

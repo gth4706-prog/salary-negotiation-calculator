@@ -149,6 +149,8 @@ GAME.Combat = {
       // 무한 돌격을 막아 '배치'가 여전히 의미를 갖게 하는 장치.
       leash: side === 'strategist' ? (def.chase || GAME.CONFIG.LEASH) : Infinity,
       stance: 'hold',        // hold | chase | return
+      // 한 번 추격을 결심했는가. 서면 복귀·리시를 적용하지 않는다(끝까지 쫓는다).
+      committed: false,
       restFor: 0,            // 복귀 직후 잠시 대기 (즉시 재출격 = 진동 방지)
       // 호위 역할 — 'ranged' | 'melee' | null.
       // 값이 있으면 그 부류의 아군 쪽에 붙어 선다(누구를 지킬지 판단하는 자리).
@@ -446,12 +448,13 @@ GAME.Combat = {
     var d = Math.sqrt(dx * dx + dy * dy);
     if (d <= limit || d <= 0.001) return;
 
-    var HARD = 1.6;                       // 이 배수를 넘으면 정말로 잘라낸다(안전장치)
-    if (d > limit * HARD) {
-      u.x = u.home.x + (dx / d) * limit * HARD;
-      u.y = u.home.y + (dy / d) * limit * HARD;
-      return;
-    }
+    // ⚠ **순간이동을 없앴다** (2026-07-29, 사용자 신고).
+    //   예전엔 한계의 1.6 배를 넘으면 좌표를 잘라 붙였다 — 화면에서는 유닛이
+    //   한 프레임에 원래 자리로 **텔레포트**하는 것으로 보인다. 안전장치라고 넣었지만
+    //   실제로는 가장 눈에 띄는 버그였고, 보스·방패병 돌진(v0.50)이 유닛을 멀리
+    //   보내면서 더 자주 걸렸다. 아무리 멀어도 **걸어서** 돌아온다.
+    // 추격을 결심한 유닛은 리시를 아예 적용하지 않는다 — 아래 updateStance 참조.
+    if (u.committed) return;
     // 한계 바깥이면 그 경계로 **걸어서** 돌아온다
     var step = this.effSpeed(u) * (dt === undefined ? 0.016 : dt);
     var back = Math.min(d - limit, step);
@@ -1125,8 +1128,17 @@ GAME.Combat = {
     var tgt = this.nearestEnemy(u, state.units);
     if (!tgt) { u.stance = 'hold'; return true; }
 
-    // 추격 한계를 넘겼으면 복귀
-    if (fromHome >= chase) { u.stance = 'return'; return false; }
+    // ── 한 번 쫓기로 했으면 끝까지 쫓는다 (2026-07-29, 사용자 지시) ────────────
+    // 예전 규칙: 집에서 chase 를 넘으면 무조건 복귀. 그래서 유닛이 쫓다 말고 돌아서고,
+    //   영웅이 다시 다가오면 또 나오는 **왕복 운동**이 생겼다. 보기에도 이상하고
+    //   "왜 쫓다 마는가"라는 신고로 이어졌다.
+    // 새 규칙: `committed` 가 서면 복귀 판정도 리시도 적용하지 않는다.
+    //   진입은 여전히 좁게 막는다(아래 inAggro/reachable) — 그래서 진형 전체가
+    //   한꺼번에 뛰쳐나가지는 않고, **영웅 근처에 있던 놈만** 물고 늘어진다.
+    // ⚠ CLAUDE.md 경고("chase 를 늘리면 뭉텅이 돌격이 되어 영웅이 6초에 녹는다")는
+    //   여전히 유효하다. 다만 그 경고는 **진입 조건**을 넓히는 경우의 이야기이고,
+    //   여기서 푸는 것은 **이탈 조건**이다. 진입은 그대로 좁다.
+    if (!u.committed && fromHome >= chase) { u.stance = 'return'; return false; }
 
     // '집에서 갈 수 있는 거리 안에 있는 적'만 쫓는다.
     // 닿을 수 없는 적을 쫓으면 나갔다 돌아오기를 반복할 뿐이다.
@@ -1135,8 +1147,9 @@ GAME.Combat = {
     var reachable = tgtFromHome <= chase - u.def.range * 0.5;
     var inAggro = this.dist(u, tgt) <= aggro;
 
-    if (u.restFor > 0) { u.stance = 'hold'; }
-    else if (inAggro && reachable) { u.stance = 'chase'; }
+    if (u.committed) { u.stance = 'chase'; }
+    else if (u.restFor > 0) { u.stance = 'hold'; }
+    else if (inAggro && reachable) { u.stance = 'chase'; u.committed = true; }
     else { u.stance = 'hold'; }
 
     // 대기 상태면 자기 자리를 지킨다 — 밀려났으면 돌아온다.

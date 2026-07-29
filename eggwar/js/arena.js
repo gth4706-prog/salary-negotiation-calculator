@@ -183,7 +183,47 @@ GAME.Arena = {
       if (f.author && f.author !== '나' && f.author !== me) push(out.human, f);
       else push(out.mine, f);
     }
-    for (var k = 0; k < GAME.SEED_FORMATIONS.length; k++) push(out.random, GAME.SEED_FORMATIONS[k]);
+    // ── AI 시드 진형은 **대전에 내보내지 않는다** (2026-07-29, 사용자 지시) ────
+    // "대전에서는 사람이 만든 진형만 나오게." 시드는 콜드스타트용이었지만,
+    // 사람이 만든 것과 섞여 나오면 "누구와 싸운 것인지"가 흐려진다.
+    // 시드는 솔로 진형 선택(select.js)과 회귀 R-5 에서 계속 쓰이므로 지우지 않고,
+    // **여기서만** 빼낸다.
+    // ⚠ 그래서 상대가 0명인 상태가 정상적으로 생긴다 — 화면이 그걸 정직하게 말해야 한다.
+    return out;
+  },
+
+  // ── 진형 순서: 방어 성적이 좋은 것부터 (2026-07-29, 사용자 지시) ────────────
+  // "도전 대비 못 깬 횟수, 즉 방어 횟수가 높은 진형을 위에."
+  // 표본이 적을수록 확률은 요동친다(1전 1승 = 100%). 그대로 정렬하면 **한 판 이긴
+  // 진형이 100전 80승 진형보다 위로 간다.** 그래서 베이지안 보정을 쓴다 —
+  // 가상의 무승부 판(PRIOR_N 판, 승률 PRIOR_P)을 섞어 표본이 쌓일수록 실제값에 수렴시킨다.
+  DEF_PRIOR_N: 4,
+  DEF_PRIOR_P: 0.35,
+
+  defenseRate: function (f) {
+    if (!f) return 0;
+    // 서버가 전적을 함께 주면 그것을 쓴다(다른 사람들이 도전한 결과다).
+    // 없으면 이 기기의 기록으로 대신한다 — 내가 도전해 본 결과라 표본은 작지만 사실이다.
+    var win = (typeof f.defWin === 'number') ? f.defWin : null;
+    var tot = (typeof f.defTry === 'number') ? f.defTry : null;
+    if (win === null || tot === null) {
+      var st = GAME.Formations.getStats(f.id);
+      win = st.win; tot = st.win + st.loss + st.draw;
+    }
+    return (win + this.DEF_PRIOR_N * this.DEF_PRIOR_P) / (tot + this.DEF_PRIOR_N);
+  },
+
+  // 같은 닉네임은 하나만 남긴다(사용자 지시 3번). 최신 것을 남긴다 —
+  // 진형을 고쳐 올렸으면 옛 것이 목록을 차지하면 안 된다.
+  _onePerAuthor: function (list) {
+    var byAuthor = {}, out = [];
+    for (var i = 0; i < list.length; i++) {
+      var f = list[i];
+      var a = f.author || ('#' + f.id);
+      var prev = byAuthor[a];
+      if (!prev || (f.at || 0) > (prev.at || 0)) byAuthor[a] = f;
+    }
+    for (var k in byAuthor) out.push(byAuthor[k]);
     return out;
   },
 
@@ -198,19 +238,19 @@ GAME.Arena = {
 
     function take(list, kind) {
       if (out.length >= n) return;
-      var scored = list.map(function (f) {
-        var r = self.ratingOf(f);
-        return { formation: f, trophy: r, gap: Math.abs(r - rec.trophy),
+      var scored = self._onePerAuthor(list).map(function (f) {
+        return { formation: f, trophy: self.ratingOf(f), def: self.defenseRate(f),
                  kind: kind, human: kind !== 'random', author: f.author || null };
       });
-      // 트로피가 가까운 순 — 다만 완전히 같은 상대만 나오면 지루하니 약간 섞는다
-      scored.sort(function (a, b) { return (a.gap + Math.random() * 90) - (b.gap + Math.random() * 90); });
+      // **방어 성적이 좋은 진형이 위**로 온다(사용자 지시 2번).
+      // 트로피 근접도로 정렬하던 예전 방식은 "비슷한 실력끼리"라는 뜻이었지만,
+      // 진형이 다양해진 지금은 "뚫기 어려운 진형이 어느 것인가"가 더 궁금한 정보다.
+      scored.sort(function (a, b) { return b.def - a.def; });
       for (var i = 0; i < scored.length && out.length < n; i++) out.push(scored[i]);
     }
 
     take(cand.human, 'human');
     take(cand.mine, 'mine');
-    take(cand.random, 'random');
     return out;
   },
 
@@ -220,20 +260,19 @@ GAME.Arena = {
     for (var i = 0; i < (opps || []).length; i++) {
       if (n[opps[i].kind] !== undefined) n[opps[i].kind]++;
     }
-    var mode = n.human > 0 ? ((n.random + n.mine > 0) ? 'mixed' : 'human') : 'random';
+    // AI 시드를 후보에서 뺐으므로(candidates 참조) 'random' 은 이제 0 이다.
+    // 상대가 아예 없는 상태가 정상적으로 생기고, 그때는 **없다고 말해야 한다** —
+    // 예전처럼 AI 진형을 채워 넣고 '랜덤매칭'이라 부르면 사람과 겨룬 것처럼 읽힌다.
+    var mode = n.human > 0 ? (n.mine > 0 ? 'mixed' : 'human') : (n.mine > 0 ? 'mine' : 'none');
     var note;
     if (mode === 'human') {
-      note = '🧑 다른 플레이어가 만든 진형과 겨룹니다';
+      note = '🧑 다른 플레이어가 만든 진형 ' + n.human + '개  ·  방어 성적이 좋은 순서';
     } else if (mode === 'mixed') {
-      note = '🧑 사람 진형 ' + n.human + '개' +
-        (n.mine ? ' · 내 배치도 ' + n.mine + '개' : '') +
-        (n.random ? ' · 나머지는 랜덤 진형' : '');
-    } else if (n.mine > 0) {
-      // 사람은 없지만 내 배치도가 채워진 경우 — 카드 배지와 문구가 어긋나면 안 된다
-      note = '🎲 랜덤매칭 — 겨룰 상대가 없어 내 배치도 ' + n.mine + '개' +
-             (n.random ? ' · 랜덤 진형 ' + n.random + '개' : '') + '와 겨룹니다';
+      note = '🧑 사람 진형 ' + n.human + '개  ·  내 배치도 ' + n.mine + '개';
+    } else if (mode === 'mine') {
+      note = '아직 다른 사람의 진형이 없어 **내 배치도**와 겨룹니다';
     } else {
-      note = '🎲 랜덤매칭 — 지금은 겨룰 상대가 없어 랜덤 진형과 겨룹니다';
+      note = '아직 겨룰 진형이 없습니다 — 배치도를 만들어 기지로 올리면 상대가 생깁니다';
     }
     if (this.remoteState === 'loading') note = '상대를 찾는 중…   ' + note;
     // '왜' 못 받았는지(옛 서버 / 네트워크)는 유저에게 의미가 없다 — 사실만 적는다.

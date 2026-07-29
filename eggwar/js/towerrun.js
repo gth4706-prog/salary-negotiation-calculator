@@ -258,6 +258,25 @@ GAME.TowerRun = {
     return rec;
   },
 
+  // ── 물약 보급 (2026-07-29, 사용자 지시) ──────────────────────────────────
+  // "물약은 라운드 끝날 때마다 구매할 수 있게." 이미 `buyItem('potion', …)` 이 있었는데
+  // **부르는 화면이 없었다** — 층간 화면은 능력치 강화만 노출했다. 그래서 도전을 시작할 때
+  // 고른 물약이 전부였고, 골드가 남아도 회복 수단을 늘릴 길이 없었다.
+  // 여기서는 '다음 등급이 무엇이고 차액이 얼마인가'만 계산한다(구매는 buyItem 이 한다).
+  nextPotion: function (rec) {
+    rec = rec || this.get();
+    if (!rec) return null;
+    var list = GAME.ITEMS.potion || [];
+    var curKey = rec.items && rec.items.potion;
+    var cur = curKey ? GAME.Items.find('potion', curKey) : null;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].cost > (cur ? cur.cost : -1)) {
+        return { item: list[i], price: list[i].cost - (cur ? cur.cost : 0), cur: cur };
+      }
+    }
+    return { item: null, price: 0, cur: cur };      // 이미 최고 등급
+  },
+
   // 레벨업이 반영된 스탯 보정 — 전투 시작 때 영웅에게 더해진다
   statBonus: function (rec) {
     rec = rec || this.get();

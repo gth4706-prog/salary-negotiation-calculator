@@ -876,6 +876,18 @@ GAME.TowerScene.prototype._buildChallenge = function () {
     });
     y += Math.ceil(GAME.TowerRun.STATS.length / 2) * (rowH + 8) + u * 0.6;
 
+    // 물약 보급 — 능력치와 같은 줄 높이로 한 칸 (PC 보조줄과 같은 기능)
+    this.potionBtn = GAME.UI.button(self, W / 2, y + rowH / 2, pw, rowH, '', function () {
+      var nx = GAME.TowerRun.nextPotion(self.run);
+      if (!nx || !nx.item) return;
+      if (GAME.TowerRun.buyItem('potion', nx.item.key)) {
+        self.run = GAME.TowerRun.get();
+        self._refreshRun(true);
+      }
+    }, { fontSize: P ? 13 : 14 });
+    this.potionBtn.text.setAlign('center');
+    y += rowH + u * 0.8;
+
     this.runHint = GAME.UI.label(this, W / 2, y,
       this._runHintText(), P ? 13 : 13, C.textDim, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 40);
     y = this.runHint.y + this.runHint.height + u * 1.6;
@@ -1059,12 +1071,23 @@ GAME.TowerScene.prototype._buildChallengePhone = function () {
   }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
        hover: UI.COL.panelTealHi, color: C.accent, fontSize: 21 });
 
-  var keys = ['rank', 'menu'];
+  var keys = ['potion', 'rank', 'menu'];
   if (floor > 1) keys.push('reset');
   var bc = GAME.Layout.cols(keys.length, { gap: 10, width: rw, left: rx, pad: 0 });
   for (var i = 0; i < keys.length; i++) {
     (function (k, col) {
-      if (k === 'rank') {
+      if (k === 'potion') {
+        // 층간 물약 보급 — 라벨은 _refreshRun 이 매번 다시 쓴다(골드·등급이 바뀌므로).
+        self.potionBtn = UI.button(self, col.cx, secTop + secH / 2, col.w, secH, '', function () {
+          var nx = GAME.TowerRun.nextPotion(self.run);
+          if (!nx || !nx.item) return;
+          if (GAME.TowerRun.buyItem('potion', nx.item.key)) {
+            self.run = GAME.TowerRun.get();
+            self._refreshRun(true);
+          }
+        }, { fontSize: 15 });
+        self.potionBtn.text.setAlign('center');
+      } else if (k === 'rank') {
         UI.button(self, col.cx, secTop + secH / 2, col.w, secH, '🏆 랭킹', function () {
           self.scene.start('Rank', { scope: 'live' });
         }, { fontSize: 16 });
@@ -1099,6 +1122,23 @@ GAME.TowerScene.prototype._refreshRun = function (bump) {
   if (bump) {
     this.goldLabel.setScale(1.25);
     this.tweens.add({ targets: this.goldLabel, scale: 1, duration: 260, ease: 'Back.easeOut' });
+  }
+
+  // 물약 칸 — 지금 든 것과 다음 등급·차액을 그대로 보여준다.
+  if (this.potionBtn && this.potionBtn.text && this.potionBtn.text.scene) {
+    var nx = TR.nextPotion(this.run);
+    var curName = nx && nx.cur ? nx.cur.name : '없음';
+    if (!nx || !nx.item) {
+      this.potionBtn.text.setText('🧪 물약  ' + curName + '\n최고 등급');
+      this.potionBtn.text.setColor(C.textDim);
+    } else {
+      var okBuy = this.run.gold >= nx.price;
+      this.potionBtn.text.setText('🧪 물약  ' + curName +
+        '\n→ ' + nx.item.name + '  ' + nx.price + '골드');
+      this.potionBtn.text.setColor(okBuy ? C.accent : C.textDim);
+      this.potionBtn.rect.setStrokeStyle(okBuy ? 2 : 1,
+        okBuy ? GAME.CONFIG.COLORS.controller : GAME.UI.COL.borderUi);
+    }
   }
 
   var bonus = TR.statBonus(this.run);

@@ -1139,11 +1139,23 @@ GAME.BuildScene.prototype._save = function () {
     var n = GAME.Formations.normalize(p.x, GAME.mirrorY(p.y));
     return { type: p.type, nx: n.nx, ny: n.ny };
   });
+  // ── 닉네임 당 배치도는 하나 (2026-07-29, 사용자 지시 3번) ─────────────────
+  // 새로 저장하면 내가 전에 올린 것은 지운다. 여러 개를 두면 대전 목록이
+  // 한 사람으로 채워지고, "누구의 진형을 뚫었나"가 의미를 잃는다.
+  // ⚠ 작성자를 **계정 id** 로 적는다. 예전에는 `'나'` 라는 고정 문자열이라
+  //   내 것과 남의 것을 구분할 수 없었고(arena.js 에 그 한계가 주석으로 남아 있었다),
+  //   같은 닉네임을 묶을 방법도 없었다.
+  var meId = GAME.Account.current() || '나';
+  var mineOld = GAME.Formations.loadSaved().filter(function (f) {
+    return !f.isAI && (f.author === meId || f.author === '나');
+  });
+  for (var mi = 0; mi < mineOld.length; mi++) GAME.Formations.remove(mineOld[mi].id);
+
   var newId = GAME.Formations.newId();
   GAME.Formations.save({
     id: newId,
     name: name.slice(0, 20),
-    author: '나', isAI: false,
+    author: meId, isAI: false,
     tier: this.tier, budget: this.budget, v: 2,
     vsHero: vsHero,
     units: units

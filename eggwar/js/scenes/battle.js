@@ -390,7 +390,7 @@ GAME.BattleScene.prototype._hintDefault = function () {
   if (GAME.isTouch && (GAME.CONFIG.PORTRAIT || GAME.CONFIG.PHONE)) return '';
   return GAME.isTouch
     ? '한 번 탭: 이동하며 교전   ·   두 번 탭: 이동만   ·   스킬 버튼: 바라보는 방향 시전'
-    : '우클릭 이동 / 적 클릭 공격   ·   방향키 직접 이동   ·   Q W E R 바라보는 방향 시전   ·   F 물약   ·   Space 기본공격';
+    : '우클릭 이동 / 적 클릭 공격   ·   방향키 직접 이동   ·   Q W E R 바라보는 방향 시전   ·   F 물약';
 };
 
 GAME.BattleScene.prototype.showMarker = function (x, y, type) {

@@ -5,7 +5,11 @@ window.GAME = window.GAME || {};
 //   방향키        직접 이동 (즉시 반응, 우클릭 명령을 덮어씀)
 //   Q W E R      스킬 — **바라보는 방향(facing)** 으로 즉시 시전
 //   F            물약
-//   Space        마우스 방향으로 기본공격
+//
+// Space(수동 기본공격)는 **없앴다** (2026-07-30, 사용자 지시).
+// 사거리 안의 적은 멈춰 있든 걸어가든 자동으로 친다 — 아래 두 곳이 그 일을 한다.
+// 모바일에서 공격 버튼을 없앤 것(v0.56)과 같은 이유다: 이미 자동인 것을 손으로
+// 또 누르게 하면 "눌러야 하나?"라는 의심만 남는다. 조작은 이동과 스킬에만 쓴다.
 //
 // QWER 을 스킬 전용으로 비우기 위해 직접 이동은 WASD 가 아니라 방향키에 둔다.
 //
@@ -109,6 +113,8 @@ GAME.InputController.prototype._bind = function () {
       ev.preventDefault();
     }
     // 방향키·스페이스가 페이지를 스크롤하지 않게 막는다
+    // Space 에 기능은 없지만 preventDefault 는 남긴다 — 브라우저 기본 동작(페이지
+    // 스크롤)이 전투 중에 돌면 화면이 튄다. 키를 지운 것이지 브라우저를 푼 게 아니다.
     if (ev.code === 'Space' || ev.code.indexOf('Arrow') === 0) ev.preventDefault();
   };
 
@@ -196,7 +202,7 @@ GAME.InputController.prototype.update = function (dtMs) {
   // 쫓아가지는 않는다 — 이동은 어디까지나 플레이어 몫이고, 여기서 따라가면
   // 방향키로 거리를 재는 플레이(카이팅)가 무너진다. 사거리에 들어온 것만 때린다.
   // 위의 '직접 이동 중 자동공격'은 이동할 때만 돌아서, 멈춰 있으면 안 쐈다.
-  if (!dx && !dy && h.cd <= 0 && !this.down['Space']) {
+  if (!dx && !dy && h.cd <= 0) {
     var near = GAME.Combat.nearestEnemy(h, this.state.units);
     if (near && GAME.Combat.dist(h, near) <= h.def.range) {
       GAME.Combat.fire(h, near.x, near.y, near, this.state);
@@ -204,15 +210,4 @@ GAME.InputController.prototype.update = function (dtMs) {
     }
   }
 
-  // 수동 기본공격
-  if (this.down['Space'] && h.cd <= 0) {
-    var target = null;
-    if (h.def.attack === 'melee') {
-      target = GAME.Combat.nearestEnemy(h, this.state.units);
-      if (target && GAME.Combat.dist(h, target) > h.def.range) target = null;
-    }
-    GAME.Combat.fire(h, this.mouse.x, this.mouse.y, target, this.state);
-    h.cd = h.def.cooldown;
-    h.manual = true;
-  }
 };

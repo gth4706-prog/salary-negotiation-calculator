@@ -1156,7 +1156,9 @@ GAME.BuildScene.prototype.redraw = function () {
   var i, def;
   g.clear();
 
-  UI.drawArena(g, { zones: true });
+  // 수성의 탑에서 들어왔으면 그 층의 분위기로 배치한다(싸울 자리를 미리 본다).
+  // 그 외 배치는 중립(밴드 1 풀숲).
+  UI.drawArena(g, { zones: true, floor: this.defendTower || 0, tier: 1 });
 
   // 보드 밖으로 삐져나온 아레나를 덮는다(폰 가로·PC 공통).
   if (B) {

@@ -1,0 +1,768 @@
+window.GAME = window.GAME || {};
+
+// ============================================================================
+//  Egg War — 스킬 이펙트 A/B 시안  (렌더 전용)
+// ============================================================================
+//  9가지 스킬 타입(dash·aoeSelf·aoeTarget·projectile·strike·buff·pull·aura·trap)
+//  각각에 대해 두 가지 시안을 담는다. `GAME.SkillFX.variant = 'A' | 'B'` 로 런타임 전환.
+//
+//  ── A / B 를 가른 축 ─────────────────────────────────────────────────────
+//   A안 = **재료(材)**. 흙·돌·뼈·나무·밧줄·깃털·조개 같은 **물건이 튀고 쌓이고 끌려온다.**
+//         범위는 그 물건이 깔린 자리로 읽힌다. 색은 중립 재질색(MAT)이 주역이고
+//         진영색은 얇은 보조선으로만 남는다.
+//   B안 = **동작(動)**. 선과 궤적. **힘이 어디로 향하는지**를 테이퍼 리본·쐐기·수축하는
+//         호로 보여준다. 범위는 테두리가 전담하고, 색은 진영색(controller/strategist)이 주역.
+//
+//  ── 왜 이 축인가 ────────────────────────────────────────────────────────
+//  이 게임의 규칙은 "논타겟은 피할 수 있다"다. 그래서 이펙트의 본업은 화려함이 아니라
+//  **범위와 타이밍을 한눈에 보여주는 것**이다. 두 안 모두 그 의무를 지키되,
+//  A 는 '무엇이 날아왔나'(세계관 재료)로, B 는 '어디로 밀리나'(힘의 방향)로 말한다.
+//  마법 광선·네온·홀로그램은 이 세계에 없다 — 원시 부족 전쟁이고 12세 이용가다.
+//
+//  ── 지켜야 하는 규율 ────────────────────────────────────────────────────
+//   1) **Text 를 만들지 않는다.** 전부 Graphics 도형이다. (피해 숫자 재래스터로 프레임이
+//      떨어졌던 사고를 되풀이하지 않는다 — 22.8 → 9.8회/프레임으로 고친 직후다.)
+//   2) **fillEllipse / strokeEllipse 에 분할 수(smoothness)를 반드시 넘긴다.**
+//      Phaser 기본값은 32분할이라 지름 20px 짜리 물건이 32각형 경로가 된다.
+//      `js/coin.js` 가 같은 이유로 8~10 을 쓴다. 여기서는 반지름에 비례해 8~20 으로 잡는다.
+//   3) 색은 **테마 토큰만** 쓴다 — `GAME.UI.FX` / `GAME.UI.MAT` / `GAME.CONFIG.COLORS`.
+//      라이트 테마(크림 목장)는 이 표를 통째로 갈아끼우므로 여기서 색을 박으면 증발한다.
+//   4) **흑백으로도 범위가 읽혀야 한다.** 그래서 모든 범위는 (a) 테두리 (b) 잉크 윤곽
+//      (c) 경계 위의 물건 — 셋 중 둘 이상으로 표시한다. 색은 마지막 신호다.
+//   5) **판정·좌표·밸런스에 손대지 않는다.** 이 파일은 state 를 읽기만 한다.
+//      같은 state · 같은 t 면 같은 그림이다(순수 함수).
+//
+//  ── battle.js 와의 계약 ─────────────────────────────────────────────────
+//   battle.js 의 draw() 는 네 곳에서 이 파일에 위임한다:
+//     traps 루프 · effects 루프 · hero.auras 루프 · projectiles 루프
+//   전부 "`true` 를 돌려준 것만 건너뛴다" 규칙이라, 이 파일이 없거나 꺼져 있으면
+//   (또는 모르는 kind 를 만나면) **예전 그림이 그대로** 돈다. 회귀 위험 0 이 목표다.
+// ============================================================================
+
+(function () {
+
+  var STORE_KEY = 'eggwar.fx.variant';
+
+  // 프레임 단위로 캐시하는 렌더 컨텍스트. 매 도형마다 GAME.UI.FX 를 다시 뒤지지 않는다.
+  var S = {
+    g: null, FX: null, MAT: null, C: null,
+    RA: 1, FA: 1, INK: 0x0b0b12, INKA: 0, T: 1, t: 0, B: false
+  };
+
+  // ── 저수준 도구 ───────────────────────────────────────────────────────
+  function syy(wy) { return GAME.Iso.toScreenY(wy); }
+
+  // 분할 수. 반지름 20px 짜리 링에 32분할은 낭비고, 반지름 190 짜리 오라에 8분할은 각진다.
+  function sm(r) { var n = (r * 0.42) | 0; return n < 8 ? 8 : (n > 20 ? 20 : n); }
+
+  // 지면에 눕힌 원 — 채움
+  function gfill(x, wy, r, col, a) {
+    if (a <= 0.004 || r <= 0) return;
+    S.g.fillStyle(col, a > 1 ? 1 : a);
+    S.g.fillEllipse(x, syy(wy), r * 2, r * 2 * S.T, sm(r));
+  }
+  // 지면에 눕힌 원 — 테두리
+  function gline(x, wy, r, w, col, a) {
+    if (a <= 0.004 || r <= 0) return;
+    S.g.lineStyle(w, col, a > 1 ? 1 : a);
+    S.g.strokeEllipse(x, syy(wy), r * 2, r * 2 * S.T, sm(r));
+  }
+  // 잉크 윤곽을 두른 지면 링. 라이트 테마에서 형태를 붙잡는 건 이 검은 선이다.
+  function gink(x, wy, r, w, col, a) {
+    if (S.INKA > 0) gline(x, wy, r, w + 2.5, S.INK, a * S.INKA);
+    gline(x, wy, r, w, col, a);
+  }
+  // 공중에 뜬 링(화면 좌표 기준, 지면과 같은 납작함을 유지한다)
+  function airRing(sx, sy, r, w, col, a) {
+    if (a <= 0.004 || r <= 0) return;
+    S.g.lineStyle(w, col, a > 1 ? 1 : a);
+    S.g.strokeEllipse(sx, sy, r * 2, r * 2 * S.T, sm(r));
+  }
+  // 튄 조각 하나 (화면 좌표). 잉크 테두리를 먼저 깔아 밝은 배경에서도 실루엣이 남는다.
+  function shard(sx, sy, r, col, a) {
+    if (a <= 0.004) return;
+    if (S.INKA > 0) { S.g.fillStyle(S.INK, a * 0.75 * S.INKA); S.g.fillCircle(sx, sy, r + 1.2); }
+    S.g.fillStyle(col, a > 1 ? 1 : a); S.g.fillCircle(sx, sy, r);
+  }
+  // 힘의 방향을 가리키는 쐐기 (화면 좌표, ang 은 화면 각도)
+  function wedge(sx, sy, ang, len, wid, col, a) {
+    if (a <= 0.004) return;
+    var cx = Math.cos(ang), cy = Math.sin(ang);
+    var tx = sx + cx * len, ty = sy + cy * len;
+    var b1x = sx - cy * wid, b1y = sy + cx * wid;
+    var b2x = sx + cy * wid, b2y = sy - cx * wid;
+    if (S.INKA > 0) {
+      S.g.fillStyle(S.INK, a * 0.55 * S.INKA);
+      S.g.fillTriangle(b1x - cx * 2, b1y - cy * 2, b2x - cx * 2, b2y - cy * 2, tx + cx * 2, ty + cy * 2);
+    }
+    S.g.fillStyle(col, a > 1 ? 1 : a);
+    S.g.fillTriangle(b1x, b1y, b2x, b2y, tx, ty);
+  }
+  // 시작이 얇고 끝이 굵은 리본 (화면 좌표) — '가속해서 지나갔다'가 읽힌다
+  function ribbon(x1, y1, x2, y2, w0, w1, col, a) {
+    if (a <= 0.004) return;
+    var dx = x2 - x1, dy = y2 - y1;
+    var d = Math.sqrt(dx * dx + dy * dy) || 1;
+    var nx = -dy / d, ny = dx / d;
+    S.g.fillStyle(col, a > 1 ? 1 : a);
+    S.g.fillTriangle(x1 + nx * w0, y1 + ny * w0, x1 - nx * w0, y1 - ny * w0, x2 + nx * w1, y2 + ny * w1);
+    S.g.fillTriangle(x1 - nx * w0, y1 - ny * w0, x2 - nx * w1, y2 - ny * w1, x2 + nx * w1, y2 + ny * w1);
+  }
+  // 지면에 눕힌 호 — transform 으로 y 를 눌러 '판정(평면 원)과 그림'을 일치시킨다.
+  function groundArc(x, wy, r, a0, a1, w, col, alpha) {
+    if (alpha <= 0.004) return;
+    var g = S.g;
+    g.save();
+    g.translateCanvas(x, syy(wy));
+    g.scaleCanvas(1, S.T);
+    g.lineStyle(w / S.T, col, alpha > 1 ? 1 : alpha);
+    g.beginPath(); g.arc(0, 0, r, a0, a1, false); g.strokePath();
+    g.restore();
+  }
+  function groundSlice(x, wy, r, a0, a1, col, alpha) {
+    if (alpha <= 0.004) return;
+    var g = S.g;
+    g.save();
+    g.translateCanvas(x, syy(wy));
+    g.scaleCanvas(1, S.T);
+    g.fillStyle(col, alpha > 1 ? 1 : alpha);
+    g.slice(0, 0, r, a0, a1, false); g.fillPath();
+    g.restore();
+  }
+  // 좌표에서 뽑는 고정 난수 — 같은 이펙트는 언제 그려도 같은 모양이다
+  function seedOf(x, y) { return ((x * 7.31 + y * 13.07) % 6.2832); }
+
+  // ── 재료 A 안의 공통 부품 ─────────────────────────────────────────────
+  // 흙먼지 한 덩이. 두 겹으로 겹쳐 뭉게뭉게 보이게 하되 도형은 2개로 끝낸다.
+  function dust(x, wy, r, a) {
+    var M = S.MAT;
+    gfill(x, wy, r, M.clay, 0.42 * a * S.FA);
+    gfill(x - r * 0.22, wy - r * 0.18, r * 0.60, M.clay, 0.34 * a * S.FA);
+  }
+
+  // ========================================================================
+  //  1. dash — 박치기 / 대검 돌진 / 구르기 / 도약 / 돌진 / 뒷걸음 사격
+  //     effect: dashTrail (x1,y1 → x2,y2)
+  // ========================================================================
+  function dashA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var M = S.MAT, sd = seedOf(e.x1, e.y1);
+    var dx = e.x2 - e.x1, dy = e.y2 - e.y1;
+
+    // 경로에 남은 먼지 — 출발 쪽이 크고 오래 남는다("여기서 튀어나갔다")
+    for (var k = 0; k < 5; k++) {
+      var f = k / 4;
+      var jx = Math.cos(sd + k * 2.1) * 6, jy = Math.sin(sd + k * 2.1) * 4;
+      dust(e.x1 + dx * f + jx, e.y1 + dy * f + jy,
+        11 + (1 - f) * 13 + p * 11, a * (0.55 + 0.45 * (1 - f)));
+    }
+    // 출발 자국 · 도착 자국 — 두 개의 링이 '거리'를 말한다
+    gink(e.x1, e.y1, 14 + p * 20, 2.5, M.clay, a * 0.75 * S.RA);
+    gink(e.x2, e.y2, 9 + p * 15, 3, M.clay, a * 0.95 * S.RA);
+    // 경로 뒤로 흩날리는 흙덩이 — 어느 쪽에서 어느 쪽으로 갔는지가 물건으로 읽힌다
+    var pl = Math.sqrt(dx * dx + dy * dy) || 1;
+    var pux = dx / pl, puy = dy / pl;
+    for (var q = 0; q < 4; q++) {
+      var qf = 0.15 + q * 0.22;
+      var qs = Math.sin(sd + q * 2.4);
+      var qx = e.x1 + dx * qf - pux * p * 26 + qs * 13;
+      var qy = e.y1 + dy * qf - puy * p * 26 + Math.cos(sd + q * 2.4) * 8;
+      shard(qx, syy(qy) - 6 - p * 10, 2.2 + a * 2.2, M.clay, a * 0.9);
+    }
+    // 도착점에서 튀는 흙덩이
+    var by = syy(e.y2);
+    for (var n = 0; n < 5; n++) {
+      var ang = sd + n * 1.2566, d = 9 + p * 24;
+      shard(e.x2 + Math.cos(ang) * d, by + Math.sin(ang) * d * S.T - p * 7,
+        1.4 + 2.2 * a, M.clay, a * 0.95);
+    }
+    // 누가 지나갔는지만 진영색 실선 하나로 — 재료 안에서는 색이 조연이다
+    S.g.lineStyle(2, col, a * 0.40);
+    S.g.lineBetween(e.x1, syy(e.y1) - 12, e.x2, syy(e.y2) - 12);
+  }
+
+  function dashB(e, col) {
+    var a = e.t / e.total;
+    var y1 = syy(e.y1) - 14, y2 = syy(e.y2) - 14;
+    var ang = Math.atan2(y2 - y1, e.x2 - e.x1);
+    // 테이퍼 리본 — 출발은 실처럼 얇고 도착에서 굵어진다. 방향이 그 자체로 읽힌다.
+    if (S.INKA > 0) ribbon(e.x1, y1, e.x2, y2, 2.5, 10, S.INK, a * 0.35 * S.INKA);
+    ribbon(e.x1, y1, e.x2, y2, 1.5, 7.5, col, a * 0.80);
+    // 속도선 3줄 — 뒤쪽 절반에서만 나와 잔상처럼 흩어진다
+    var nx = -Math.sin(ang), ny = Math.cos(ang);
+    for (var k = -1; k <= 1; k++) {
+      if (k === 0) continue;
+      var off = k * 8.5;
+      S.g.lineStyle(2, col, a * 0.45);
+      S.g.lineBetween(e.x1 + (e.x2 - e.x1) * 0.18 + nx * off * 0.4, y1 + (y2 - y1) * 0.18 + ny * off * 0.4,
+        e.x1 + (e.x2 - e.x1) * 0.80 + nx * off, y1 + (y2 - y1) * 0.80 + ny * off);
+    }
+    // 심지 — 아주 얇게만. 두껍게 넣으면 진영색이 씻겨 회색 막대가 된다.
+    S.g.lineStyle(1.5, S.FX.projCore, a * 0.55);
+    S.g.lineBetween(e.x1, y1 - 2, e.x2, y2 - 2);
+    // 도착 쐐기 — 힘이 멈춘 자리
+    wedge(e.x2, y2, ang, 17, 9, col, a * 0.95);
+  }
+
+  // ========================================================================
+  //  2. aoeSelf — 대검 회전 / 모래 뿌리기 / 바위 내리치기 / 방패 밀치기 / 대지 강타
+  //     effect: ring (total 320).  radius 80~165 로 크게 갈린다.
+  // ========================================================================
+  function aoeSelfA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var M = S.MAT, r = e.r * (1 + p * 0.10);
+    // 흙이 깔린 자리 = 범위. 면은 옅게, 경계는 확실하게.
+    gfill(e.x, e.y, r, M.clay, 0.15 * a * S.FA);
+    gink(e.x, e.y, r, 3, M.clay, a * 0.95 * S.RA);
+    // 경계 밖으로 튀는 흙덩이 — 개수를 반지름에 맞춘다(작은 스킬에 16개는 과하다)
+    var n = Math.round(r / 11); if (n < 8) n = 8; if (n > 16) n = 16;
+    var sd = seedOf(e.x, e.y), cy = syy(e.y);
+    for (var k = 0; k < n; k++) {
+      var ang = sd + (Math.PI * 2 / n) * k;
+      var d = r * (0.97 + p * 0.20);
+      shard(e.x + Math.cos(ang) * d, cy + Math.sin(ang) * d * S.T - p * 8,
+        1.6 + r * 0.028 * a, M.clay, a * 0.95);
+    }
+    // 시전자 발밑 — 누구의 범위인지
+    gline(e.x, e.y, r * 0.30, 2, col, a * 0.55 * S.RA);
+  }
+
+  function aoeSelfB(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var r = e.r * (1 + p * 0.12);
+    gfill(e.x, e.y, r, col, 0.09 * a * S.FA);
+    gink(e.x, e.y, r, 3.5, col, a * S.RA);
+    // 밖으로 쓸려나가는 호 3개 — '회전해서 밀어냈다'가 읽힌다
+    var base = seedOf(e.x, e.y) + p * 1.1;
+    for (var k = 0; k < 3; k++) {
+      var a0 = base + (Math.PI * 2 / 3) * k;
+      groundArc(e.x, e.y, r * 0.74, a0, a0 + 0.78, 3.5, col, a * 0.85);
+    }
+    // 짧은 방사선 — 정지 화면에서도 방향이 남는다
+    var cy = syy(e.y);
+    S.g.lineStyle(2, col, a * 0.55);
+    for (var n = 0; n < 6; n++) {
+      var ang = base + (Math.PI * 2 / 6) * n + 0.4;
+      var c = Math.cos(ang), s2 = Math.sin(ang) * S.T;
+      S.g.lineBetween(e.x + c * r * 0.98, cy + s2 * r * 0.98,
+        e.x + c * r * 1.14, cy + s2 * r * 1.14);
+    }
+    // 안쪽에서 수축하는 링 — 시전자 위치가 중심임을 붙잡는다
+    gline(e.x, e.y, e.r * (0.22 + a * 0.42), 2.5, col, a * 0.7 * S.RA);
+  }
+
+  // ========================================================================
+  //  3. aoeTarget — 낙석 유도 / 불화살 / 화살비 / 폭풍 화살
+  //     effect: telegraph(예고) → blast(착탄).  이 게임에서 **가장 중요한 이펙트**다.
+  //     "논타겟은 피할 수 있다"는 약속이 여기서 지켜진다 — 범위와 남은 시간이 전부다.
+  // ========================================================================
+  function telegraphA(e) {
+    var prog = 1 - e.t / e.total; if (prog < 0) prog = 0;
+    var M = S.MAT, FX = S.FX;
+    // 그림자가 짙어진다 — 위에서 뭔가 떨어지고 있다
+    gfill(e.x, e.y, e.r, S.INKA > 0 ? S.INK : 0x000000, (0.05 + prog * 0.15) * S.FA);
+    gink(e.x, e.y, e.r, 2.5, FX.telegraph, (0.45 + prog * 0.55) * S.RA);
+    // **돌이 바깥에서 중심으로 조여든다.** 시계가 아니라 물건이 시간을 센다 —
+    // 조각이 가운데 모이는 순간 터진다는 게 설명 없이 읽힌다.
+    var n = 8, sd = seedOf(e.x, e.y), cy = syy(e.y);
+    for (var k = 0; k < n; k++) {
+      var ang = sd + (Math.PI * 2 / n) * k;
+      var d = e.r * (1.30 - prog * 1.10);
+      shard(e.x + Math.cos(ang) * d, cy + Math.sin(ang) * d * S.T - (1 - prog) * 9,
+        2.2 + prog * 1.6, M.stone, 0.55 + prog * 0.45);
+    }
+    // 착탄점 표식
+    if (prog > 0.5) {
+      var c = (prog - 0.5) * 2;
+      S.g.lineStyle(3, FX.telegraph, c);
+      S.g.lineBetween(e.x - 7, cy, e.x + 7, cy);
+      S.g.lineBetween(e.x, cy - 7 * S.T, e.x, cy + 7 * S.T);
+    }
+  }
+
+  function telegraphB(e) {
+    var prog = 1 - e.t / e.total; if (prog < 0) prog = 0;
+    var FX = S.FX;
+    gfill(e.x, e.y, e.r, FX.telegraph, (0.06 + prog * 0.09) * S.FA);
+    // **파이 게이지가 시계방향으로 차오른다.** 남은 시간이 각도로 그대로 보인다.
+    groundSlice(e.x, e.y, e.r * 0.97, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2,
+      FX.telegraph, 0.26 * S.FA);
+    gink(e.x, e.y, e.r, 2.5, FX.telegraph, (0.5 + prog * 0.5) * S.RA);
+    // 조준 십자 — 중심이 어디인지
+    var cy = syy(e.y);
+    S.g.lineStyle(2, FX.telegraph, 0.45 + prog * 0.45);
+    S.g.lineBetween(e.x - e.r * 0.30, cy, e.x - e.r * 0.10, cy);
+    S.g.lineBetween(e.x + e.r * 0.10, cy, e.x + e.r * 0.30, cy);
+    S.g.lineBetween(e.x, cy - e.r * 0.30 * S.T, e.x, cy - e.r * 0.10 * S.T);
+    S.g.lineBetween(e.x, cy + e.r * 0.10 * S.T, e.x, cy + e.r * 0.30 * S.T);
+    // 마지막 28% — 테두리에 눈금이 돋는다(초읽기)
+    if (prog > 0.72) {
+      var tk = (prog - 0.72) / 0.28;
+      S.g.lineStyle(3, FX.telegraph, tk);
+      for (var n = 0; n < 8; n++) {
+        var ang = (Math.PI * 2 / 8) * n;
+        var c = Math.cos(ang), s2 = Math.sin(ang) * S.T;
+        S.g.lineBetween(e.x + c * e.r, cy + s2 * e.r,
+          e.x + c * e.r * (1 + 0.20 * tk), cy + s2 * e.r * (1 + 0.20 * tk));
+      }
+    }
+  }
+
+  function blastA(e) {
+    var b = e.t / e.total, p = 1 - b;
+    var M = S.MAT, FX = S.FX;
+    var r = e.r * (1 + p * 0.20);
+    // 파헤쳐진 흙
+    gfill(e.x, e.y, r * 0.92, M.clay, (0.30 * b) * S.FA);
+    gink(e.x, e.y, r, 3.5, FX.blast, b * 1.05 * S.RA);
+    // 흙기둥 — 지면에서 위로 솟는다. 착탄이 '아래에서 위로' 읽힌다.
+    var cy = syy(e.y), h = r * (0.55 + p * 0.55);
+    S.g.fillStyle(M.clay, 0.55 * b);
+    S.g.fillEllipse(e.x, cy - h * 0.45, r * 0.50, h, 10);
+    S.g.fillStyle(M.clay, 0.35 * b);
+    S.g.fillEllipse(e.x, cy - h * 0.85, r * 0.32, h * 0.5, 8);
+    // 사방으로 튀는 흙·돌
+    var sd = seedOf(e.x, e.y);
+    for (var k = 0; k < 7; k++) {
+      var ang = sd + (Math.PI * 2 / 7) * k;
+      var d = r * (0.55 + p * 0.75);
+      shard(e.x + Math.cos(ang) * d, cy + Math.sin(ang) * d * S.T - p * r * 0.5,
+        1.6 + r * 0.035 * b, k % 2 ? M.stone : M.clay, b * 0.95);
+    }
+  }
+
+  function blastB(e) {
+    var b = e.t / e.total, p = 1 - b;
+    var FX = S.FX;
+    var r = e.r * (1 + p * 0.26);
+    gfill(e.x, e.y, r * 0.85, FX.blast, (0.24 * b) * S.FA);
+    gfill(e.x, e.y, r * 0.30 * b, FX.sparkCore, 0.6 * b * b);
+    // 확장 이중 고리 — 면이 아니라 고리가 주역이다(큰 원을 칠하면 웅덩이가 생긴다)
+    gink(e.x, e.y, r, 4, FX.blast, b * 1.1 * S.RA);
+    gline(e.x, e.y, r * 0.60, 2, FX.blast, b * 0.55 * S.RA);
+    // 방사 쐐기 6개 — 터진 방향이 정지 화면에도 남는다
+    var cy = syy(e.y), sd = seedOf(e.x, e.y);
+    for (var k = 0; k < 6; k++) {
+      var ang = sd + (Math.PI * 2 / 6) * k;
+      var c = Math.cos(ang), s2 = Math.sin(ang) * S.T;
+      var sa = Math.atan2(s2, c);
+      wedge(e.x + c * r * 1.02, cy + s2 * r * 1.02, sa, r * (0.14 + p * 0.20), 3.5, FX.blast, b * 0.85);
+    }
+  }
+
+  // ========================================================================
+  //  4. projectile — 관통 화살 / 연사 / 일격 화살
+  //     비행체는 s.projectiles 의 `big:true` 만(=스킬 투사체) 가져간다.
+  //     유닛 평타 투사체는 건드리지 않는다 — 스킬 이펙트 작업이다.
+  //     명중 순간은 effects 의 spark 가 담당한다.
+  // ========================================================================
+  function projA(p, pcol) {
+    var M = S.MAT;
+    var sx = p.x, sy = syy(p.y) - 12;
+    var sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1;
+    var ux = p.vx / sp, uy = (p.vy / sp) * S.T;
+    var ang = Math.atan2(uy, ux);
+    var rr = p.radius * 1.5;
+    // 지면 그림자 — 날아가는 물건이라는 게 읽힌다
+    S.g.fillStyle(S.INKA > 0 ? S.INK : 0x000000, 0.16);
+    S.g.fillEllipse(sx, sy + 12, rr * 2.2, rr * 2.2 * S.T, 8);
+    // **나무 화살대 + 뼈 촉 + 깃.** 이 세계의 원거리 무기는 활이다.
+    var L = 15 + rr * 1.6;
+    S.g.lineStyle(3.5, M.woodDark, 0.95);
+    S.g.lineBetween(sx - ux * L, sy - uy * L, sx + ux * rr * 0.6, sy + uy * rr * 0.6);
+    // 깃 — 뒤쪽에 두 갈래
+    var nx = -Math.sin(ang), ny = Math.cos(ang);
+    S.g.lineStyle(2.5, M.feather, 0.95);
+    for (var k = -1; k <= 1; k += 2) {
+      S.g.lineBetween(sx - ux * (L - 9), sy - uy * (L - 9),
+        sx - ux * (L + 2) + nx * k * 5.5, sy - uy * (L + 2) + ny * k * 5.5);
+    }
+    // 촉
+    wedge(sx + ux * rr * 0.5, sy + uy * rr * 0.5, ang, 8 + rr * 0.5, 3 + rr * 0.22, M.bone, 1);
+    // 관통탄은 진영색 실선이 하나 더 붙어 '뚫고 지나간다'가 남는다
+    if (p.pierce) {
+      S.g.lineStyle(1.5, pcol, 0.55);
+      S.g.lineBetween(sx - ux * (L + 16), sy - uy * (L + 16), sx - ux * L, sy - uy * L);
+    }
+  }
+
+  function projB(p, pcol) {
+    var sx = p.x, sy = syy(p.y) - 12;
+    var sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1;
+    var ux = p.vx / sp, uy = (p.vy / sp) * S.T;
+    var ang = Math.atan2(uy, ux);
+    var rr = p.radius * 1.5;
+    var tail = p.pierce ? 76 : 46;
+    S.g.fillStyle(S.INKA > 0 ? S.INK : 0x000000, 0.16);
+    S.g.fillEllipse(sx, sy + 12, rr * 2.2, rr * 2.2 * S.T, 8);
+    // 테이퍼 궤적 — 뒤는 실처럼, 앞은 굵게. 속도가 형태로 읽힌다.
+    ribbon(sx - ux * tail, sy - uy * tail, sx, sy, 0.6, rr * 0.55 + 1.2, pcol, 0.55);
+    S.g.lineStyle(1.6, S.FX.projCore, 0.75);
+    S.g.lineBetween(sx - ux * tail * 0.6, sy - uy * tail * 0.6, sx, sy);
+    if (S.INKA > 0) { S.g.fillStyle(S.INK, 0.45 * S.INKA); S.g.fillCircle(sx, sy, rr * 0.9); }
+    S.g.fillStyle(pcol, 1);
+    S.g.fillCircle(sx, sy, rr * 0.78);
+    wedge(sx, sy, ang, rr * 2.6 + 6, rr * 0.62, pcol, 0.95);
+    S.g.fillStyle(S.FX.projCore, 0.95);
+    S.g.fillCircle(sx - ux * rr * 0.15, sy - uy * rr * 0.15, Math.max(1.6, rr * 0.42));
+  }
+
+  function sparkA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var M = S.MAT, sd = seedOf(e.x, e.y);
+    var cy = syy(e.y) - 12;
+    // 맞은 자리에서 깃털과 나뭇조각이 튄다 — 계란은 피가 아니라 물건이 터진다
+    for (var k = 0; k < 6; k++) {
+      var ang = sd + (Math.PI * 2 / 6) * k;
+      var d = 5 + p * 19;
+      var ex = e.x + Math.cos(ang) * d, ey = cy + Math.sin(ang) * d * S.T - p * 4;
+      if (k % 2) {
+        S.g.lineStyle(3, M.feather, a * 0.95);
+        S.g.lineBetween(ex, ey, ex + Math.cos(ang) * 8, ey + Math.sin(ang) * 8 * S.T);
+      } else {
+        shard(ex, ey, 2 + a * 2, M.wood, a * 0.95);
+      }
+    }
+    dust(e.x, e.y, 9 + p * 10, a * 0.95);
+  }
+
+  function sparkB(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var FX = S.FX;
+    var cy = syy(e.y) - 12;
+    // 충격 고리 + 4갈래. 링이 있어야 '어디에 맞았는지'가 한 점으로 모인다.
+    if (S.INKA > 0) airRing(e.x, cy, 5 + p * 15, 4.5, S.INK, a * 0.5 * S.INKA);
+    airRing(e.x, cy, 5 + p * 15, 3, FX.spark, a * 0.95);
+    var sr = 5 * a + 3, slen = sr * (2.2 + p * 1.4);
+    S.g.lineStyle(3.2, FX.spark, a * 0.95);
+    for (var k = 0; k < 4; k++) {
+      var ang = Math.PI / 4 + (Math.PI / 2) * k;
+      S.g.lineBetween(e.x + Math.cos(ang) * sr * 0.5, cy + Math.sin(ang) * sr * 0.5,
+        e.x + Math.cos(ang) * slen, cy + Math.sin(ang) * slen);
+    }
+    S.g.fillStyle(FX.sparkCore, a);
+    S.g.fillCircle(e.x, cy, sr);
+  }
+
+  // ========================================================================
+  //  5. strike — 갈고리 찍기 / 그물 던지기
+  //     effect: beam (x1,y1 → x2,y2). 단일 대상 확정타라 '연결'이 보여야 한다.
+  // ========================================================================
+  function strikeA(e, col) {
+    var a = e.t / e.total;
+    var M = S.MAT;
+    var x1 = e.x1, y1 = syy(e.y1) - 16, x2 = e.x2, y2 = syy(e.y2) - 14;
+    var dx = x2 - x1, dy = y2 - y1, d = Math.sqrt(dx * dx + dy * dy) || 1;
+    var ux = dx / d, uy = dy / d, nx = -uy, ny = ux;
+    // **밧줄**. 굵은 심 + 꼬임 눈금 — 이 세계의 '연결'은 줄이지 광선이 아니다.
+    if (S.INKA > 0) { S.g.lineStyle(6, S.INK, a * 0.45 * S.INKA); S.g.lineBetween(x1, y1, x2, y2); }
+    S.g.lineStyle(4, M.rope, a * 0.95);
+    S.g.lineBetween(x1, y1, x2, y2);
+    S.g.lineStyle(2, M.leatherDark, a * 0.8);
+    for (var k = 1; k < 6; k++) {
+      var f = k / 6, cx = x1 + dx * f, cy = y1 + dy * f;
+      S.g.lineBetween(cx - nx * 3 - ux * 2, cy - ny * 3 - uy * 2,
+        cx + nx * 3 + ux * 2, cy + ny * 3 + uy * 2);
+    }
+    // 끝의 **갈고리** — 두 갈래 쇠. 대상에 박혔다는 게 실루엣으로 남는다.
+    S.g.lineStyle(3, M.iron, a);
+    for (var s2 = -1; s2 <= 1; s2 += 2) {
+      S.g.lineBetween(x2 - ux * 9, y2 - uy * 9, x2 + nx * s2 * 6, y2 + ny * s2 * 6);
+      S.g.lineBetween(x2 + nx * s2 * 6, y2 + ny * s2 * 6, x2 + ux * 4, y2 + uy * 4);
+    }
+    // 맞은 자리에서 껍질 조각
+    for (var n = 0; n < 3; n++) {
+      var ang = seedOf(e.x2, e.y2) + n * 2.09, dd = 6 + (1 - a) * 12;
+      shard(x2 + Math.cos(ang) * dd, y2 + Math.sin(ang) * dd * S.T, 1.6 + a, M.shell, a * 0.9);
+    }
+  }
+
+  function strikeB(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var FX = S.FX;
+    var x1 = e.x1, y1 = syy(e.y1) - 16, x2 = e.x2, y2 = syy(e.y2) - 14;
+    var ang = Math.atan2(y2 - y1, x2 - x1);
+    // 시전자에서 대상으로 **굵어지는 쐐기** — 힘이 한 점에 꽂혔다
+    if (S.INKA > 0) ribbon(x1, y1, x2, y2, 1.2, 7, S.INK, a * 0.4 * S.INKA);
+    ribbon(x1, y1, x2, y2, 0.8, 5.2, col, a * 0.85);
+    // 대상 위 충격 별 4갈래 + 짧은 되튐 호
+    var sr = 5 + p * 9;
+    S.g.lineStyle(3, FX.spark, a * 0.9);
+    for (var k = 0; k < 4; k++) {
+      var sa = ang + Math.PI / 4 + (Math.PI / 2) * k;
+      S.g.lineBetween(x2 + Math.cos(sa) * sr * 0.4, y2 + Math.sin(sa) * sr * 0.4,
+        x2 + Math.cos(sa) * sr * 1.9, y2 + Math.sin(sa) * sr * 1.9);
+    }
+    airRing(x2, y2, 6 + p * 12, 2.5, col, a * 0.8);
+    S.g.fillStyle(FX.sparkCore, a * 0.9);
+    S.g.fillCircle(x2, y2, 3 + a * 2);
+  }
+
+  // ========================================================================
+  //  6. buff — 가죽 두르기 / 광폭화 / 약초 씹기 / 방패 세우기 / 철벽 자세 / 숨 고르기 / 풀숲 위장
+  //     effect: ring (total 400, r = 몸 반지름 + 26)
+  //     ※ aoeSelf 와 kind 가 같다. total 로 가른다(320 = 광역 / 400 = 강화).
+  //       반지름으로 가르면 방패 밀치기(80) 와 헷갈린다 — 실제로 겹치는 구간이다.
+  // ========================================================================
+  function buffA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var M = S.MAT;
+    // 발밑 조개껍질 링 — 몸을 감쌌다는 표시
+    gink(e.x, e.y, e.r * (0.86 + p * 0.22), 2.5, M.shell, a * 0.95 * S.RA);
+    gfill(e.x, e.y, e.r * 0.9, M.shell, 0.10 * a * S.FA);
+    // 잎사귀 세 장이 위로 떠오른다 (약초·가죽·풀숲 — 전부 '두르는' 스킬이다)
+    var sd = seedOf(e.x, e.y), cy = syy(e.y);
+    for (var k = 0; k < 3; k++) {
+      var ang = sd + (Math.PI * 2 / 3) * k;
+      var lx = e.x + Math.cos(ang) * e.r * 0.62;
+      var ly = cy + Math.sin(ang) * e.r * 0.62 * S.T - 6 - p * 26;
+      if (S.INKA > 0) { S.g.fillStyle(S.INK, a * 0.5 * S.INKA); S.g.fillEllipse(lx, ly, 9.5, 6.5, 8); }
+      S.g.fillStyle(k === 1 ? M.leafDark : M.leaf, a * 0.95);
+      S.g.fillEllipse(lx, ly, 8, 5, 8);
+    }
+    dust(e.x, e.y, e.r * 0.55, a * 0.5);
+    gline(e.x, e.y, e.r * 0.5, 2, col, a * 0.5 * S.RA);
+  }
+
+  function buffB(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var cy = syy(e.y);
+    // 지면 링 하나 + **위로 올라가는 링 두 겹**. '감싸 올린다'가 동작으로 읽힌다.
+    gink(e.x, e.y, e.r, 2.5, col, a * 0.9 * S.RA);
+    for (var k = 0; k < 2; k++) {
+      var ph = (p + k * 0.5) % 1;
+      airRing(e.x, cy - ph * 36, e.r * (1 - ph * 0.34), 2.5, col, a * (1 - ph) * 0.95);
+    }
+    // 상승선 4개
+    S.g.lineStyle(2, col, a * 0.5);
+    for (var n = 0; n < 4; n++) {
+      var ang = Math.PI / 4 + (Math.PI / 2) * n;
+      var lx = e.x + Math.cos(ang) * e.r * 0.85, ly = cy + Math.sin(ang) * e.r * 0.85 * S.T;
+      S.g.lineBetween(lx, ly, lx, ly - 10 - p * 14);
+    }
+  }
+
+  // ========================================================================
+  //  7. pull — 후려치기 / 갈고리 당기기 / 회전 갈고리(360°)
+  //     effect: slash (total 260).  ※ 근접 평타도 kind 가 slash 다(total 140) —
+  //     그건 스킬이 아니므로 넘기지 않고 battle.js 원래 그림에 맡긴다.
+  // ========================================================================
+  function pullA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var M = S.MAT;
+    var full = e.half >= Math.PI * 0.98;
+    // 부채꼴 = 범위. 흙빛 면 + 잉크 테두리로 흑백에서도 경계가 남는다.
+    groundSlice(e.x, e.y, e.range, e.angle - e.half, e.angle + e.half, M.clay, 0.16 * a * S.FA);
+    if (S.INKA > 0) groundArc(e.x, e.y, e.range, e.angle - e.half, e.angle + e.half, 5, S.INK, a * 0.45 * S.INKA);
+    groundArc(e.x, e.y, e.range, e.angle - e.half, e.angle + e.half, 3, M.clay, a * 0.95);
+    // **갈고리에 걸린 것들이 안으로 끌려온다** — 밧줄 꼬리 + 돌조각
+    var n = full ? 6 : 5, cy = syy(e.y);
+    for (var k = 0; k < n; k++) {
+      var f = full ? (k / n) : ((k + 0.5) / n);
+      var ang = full ? (e.angle + Math.PI * 2 * f) : (e.angle - e.half + e.half * 2 * f);
+      var d = e.range * (0.92 - p * 0.60);
+      var c = Math.cos(ang), s2 = Math.sin(ang) * S.T;
+      var hx = e.x + c * d, hy = cy + s2 * d;
+      S.g.lineStyle(2.5, M.rope, a * 0.8);
+      S.g.lineBetween(hx, hy, hx + c * e.range * 0.18, hy + s2 * e.range * 0.18);
+      shard(hx, hy, 3, M.stone, a * 0.95);
+    }
+    // 시전자 발밑 — 끌려오는 목적지
+    gink(e.x, e.y, 12, 2, M.rope, a * 0.85 * S.RA);
+  }
+
+  function pullB(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var full = e.half >= Math.PI * 0.98;
+    groundSlice(e.x, e.y, e.range, e.angle - e.half, e.angle + e.half, col, 0.11 * a * S.FA);
+    if (S.INKA > 0) groundArc(e.x, e.y, e.range, e.angle - e.half, e.angle + e.half, 5, S.INK, a * 0.45 * S.INKA);
+    groundArc(e.x, e.y, e.range, e.angle - e.half, e.angle + e.half, 3, col, a * 0.95);
+    // **호가 통째로 중심으로 수축한다.** 세 겹이 시간차를 두고 빨려 들어간다.
+    for (var k = 0; k < 3; k++) {
+      var ph = (p + k * 0.33) % 1;
+      var rr = e.range * (0.92 - ph * 0.72);
+      groundArc(e.x, e.y, rr, e.angle - e.half, e.angle + e.half, 3, col, a * (1 - ph) * 0.9);
+    }
+    // 중심을 향한 쐐기 — 힘의 방향
+    var n = full ? 6 : 4, cy = syy(e.y);
+    for (var m = 0; m < n; m++) {
+      var f = full ? (m / n) : ((m + 0.5) / n);
+      var ang = full ? (e.angle + Math.PI * 2 * f) : (e.angle - e.half + e.half * 2 * f);
+      var c = Math.cos(ang), s2 = Math.sin(ang) * S.T;
+      var d = e.range * (0.62 - p * 0.34);
+      wedge(e.x + c * d, cy + s2 * d, Math.atan2(-s2, -c), 15, 6, col, a * 0.9);
+    }
+  }
+
+  // ========================================================================
+  //  8. aura — 파수 구역 / 경계 화톳불
+  //     hero.auras (radius, dps, t).  8~10초 지속이라 **정적이면 잊힌다.**
+  // ========================================================================
+  function auraA(u, au, col) {
+    var M = S.MAT, FX = S.FX;
+    var r = au.radius;
+    gfill(u.x, u.y, r, M.clay, 0.09 * S.FA);
+    // **돌로 그은 경계.** 색이 아니라 물건이 선을 그으므로 흑백에서도 범위가 남는다.
+    var n = Math.round(r / 14); if (n < 8) n = 8; if (n > 18) n = 18;
+    var cy = syy(u.y);
+    for (var k = 0; k < n; k++) {
+      var ang = (Math.PI * 2 / n) * k;
+      shard(u.x + Math.cos(ang) * r, cy + Math.sin(ang) * r * S.T, 4.4, M.stone, 0.98);
+    }
+    gline(u.x, u.y, r, 1.5, col, 0.45 * S.RA);
+    // 화톳불의 불티 — 안쪽에서 위로 떠오른다. 이 구역이 '살아 있다'는 신호.
+    var t = S.t;
+    for (var m = 0; m < 4; m++) {
+      var ph = ((t / 1100) + m * 0.25) % 1;
+      var a2 = (m * 1.9) + t / 2600;
+      var d = r * 0.30 * (0.4 + m * 0.2);
+      shard(u.x + Math.cos(a2) * d, cy + Math.sin(a2) * d * S.T - ph * 30,
+        3 * (1 - ph * 0.6), FX.blast, 0.95 * (1 - ph));
+    }
+  }
+
+  function auraB(u, au, col) {
+    var r = au.radius;
+    gfill(u.x, u.y, r, col, 0.08 * S.FA);
+    gink(u.x, u.y, r, 2.5, col, 0.75 * S.RA);
+    // **안에서 밖으로 퍼지는 맥동 두 겹.** 지속 피해 구역이라는 게 시간으로 읽힌다.
+    var t = S.t;
+    for (var k = 0; k < 2; k++) {
+      var ph = ((t / 1200) + k * 0.5) % 1;
+      gline(u.x, u.y, r * (0.20 + ph * 0.78), 2.5, col, (1 - ph) * 0.75 * S.RA);
+    }
+    gline(u.x, u.y, r * 0.20, 2, col, 0.5 * S.RA);
+  }
+
+  // ========================================================================
+  //  9. trap — 가시 함정 / 올가미 / 끈끈이 덫
+  //     s.traps.  "밟으면 안 되는 자리"라는 뜻이 다른 링과 달라야 한다.
+  // ========================================================================
+  function trapA(tr, col) {
+    var M = S.MAT, FX = S.FX;
+    var r = tr.radius;
+    gfill(tr.x, tr.y, r, M.clay, 0.13 * S.FA);
+    gink(tr.x, tr.y, r, 2, FX.trap, 0.85 * S.RA);
+    // **안쪽을 향한 뼈 가시.** 실루엣만으로 "여기 밟으면 물린다"가 읽힌다.
+    var n = 8, cy = syy(tr.y);
+    var pulse = 0.75 + 0.25 * Math.sin(S.t / 420);
+    for (var k = 0; k < n; k++) {
+      var ang = (Math.PI * 2 / n) * k;
+      var c = Math.cos(ang), s2 = Math.sin(ang) * S.T;
+      var bx = tr.x + c * r * 0.94, by = cy + s2 * r * 0.94;
+      wedge(bx, by, Math.atan2(-s2, -c), r * 0.30 * pulse, 4.5, M.bone, 0.95);
+    }
+    gline(tr.x, tr.y, r * 0.22, 2, FX.trap, 0.6 * S.RA);
+  }
+
+  function trapB(tr, col) {
+    var FX = S.FX;
+    var r = tr.radius;
+    gfill(tr.x, tr.y, r, FX.trap, 0.08 * S.FA);
+    // **점선 원** — 실선 링(지원 반경)과 뜻이 다르다는 걸 선 종류로 구분한다.
+    var seg = 12, cy = syy(tr.y);
+    if (S.INKA > 0) {
+      for (var i0 = 0; i0 < seg; i0++) {
+        var a0 = (Math.PI * 2 / seg) * i0;
+        groundArc(tr.x, tr.y, r, a0, a0 + (Math.PI * 2 / seg) * 0.55, 4.5, S.INK, 0.5 * S.INKA);
+      }
+    }
+    for (var i = 0; i < seg; i++) {
+      var b0 = (Math.PI * 2 / seg) * i;
+      groundArc(tr.x, tr.y, r, b0, b0 + (Math.PI * 2 / seg) * 0.55, 2.5, FX.trap, 0.9 * S.RA);
+    }
+    // 안쪽으로 조여드는 갈고리 4개 + 느린 맥동 링
+    var ph = (S.t / 1400) % 1;
+    gline(tr.x, tr.y, r * (0.95 - ph * 0.70), 2, FX.trap, (1 - ph) * 0.7 * S.RA);
+    for (var k = 0; k < 4; k++) {
+      var ang = Math.PI / 4 + (Math.PI / 2) * k;
+      var c = Math.cos(ang), s2 = Math.sin(ang) * S.T;
+      var hx = tr.x + c * r * 0.62, hy = cy + s2 * r * 0.62;
+      wedge(hx, hy, Math.atan2(-s2, -c), r * 0.26, 4, FX.trap, 0.9);
+    }
+  }
+
+  // ========================================================================
+  //  공개 API — battle.js 는 이 네 개만 부른다.
+  // ========================================================================
+  var SkillFX = GAME.SkillFX = {
+
+    // 'A' = 재료 중심 / 'B' = 동작 중심. 기본은 A.
+    variant: 'A',
+    // 끄면 battle.js 가 예전 그림을 그대로 그린다(회귀 확인용 스위치).
+    enabled: true,
+
+    setVariant: function (v) {
+      this.variant = (v === 'B') ? 'B' : 'A';
+      try { if (GAME.Store) GAME.Store.set(STORE_KEY, this.variant); } catch (e) { }
+      return this.variant;
+    },
+    toggle: function () { return this.setVariant(this.variant === 'A' ? 'B' : 'A'); },
+
+    // 프레임 시작. 색 토큰을 한 번만 읽어 캐시한다. 꺼져 있으면 null 을 돌려주고,
+    // battle.js 는 그 값이 null 이면 예전 코드로 간다.
+    begin: function (g, FX, scene) {
+      if (!this.enabled || !GAME.Iso || !GAME.UI) return null;
+      S.g = g;
+      S.FX = FX || GAME.UI.FX;
+      S.MAT = GAME.UI.MAT;
+      S.C = GAME.CONFIG.COLORS;
+      S.RA = S.FX.ringAlpha === undefined ? 1 : S.FX.ringAlpha;
+      S.FA = S.FX.fillAlpha === undefined ? 1 : S.FX.fillAlpha;
+      S.INK = S.FX.ink === undefined ? 0x0b0b12 : S.FX.ink;
+      S.INKA = S.FX.inkAlpha === undefined ? 0 : S.FX.inkAlpha;
+      S.T = GAME.Iso.TILT;
+      S.B = (this.variant === 'B');
+      S.t = (scene && scene.state && scene.state.elapsed) ||
+        (window.performance ? window.performance.now() : Date.now());
+      return this;
+    },
+
+    // s.effects 한 개. 처리했으면 true.
+    drawEffect: function (e, col) {
+      if (!S.g) return false;
+      var k = e.kind;
+      if (k === 'dashTrail') { S.B ? dashB(e, col) : dashA(e, col); return true; }
+      if (k === 'ring') {
+        // total 400 = buff / 320 = aoeSelf. combat.js 가 박아둔 값이라 안전한 구분자다.
+        if (e.total >= 380) { S.B ? buffB(e, col) : buffA(e, col); }
+        else { S.B ? aoeSelfB(e, col) : aoeSelfA(e, col); }
+        return true;
+      }
+      if (k === 'telegraph') { S.B ? telegraphB(e) : telegraphA(e); return true; }
+      if (k === 'blast') { S.B ? blastB(e) : blastA(e); return true; }
+      if (k === 'beam') { S.B ? strikeB(e, col) : strikeA(e, col); return true; }
+      if (k === 'spark') { S.B ? sparkB(e, col) : sparkA(e, col); return true; }
+      if (k === 'slash' && e.total > 180) { S.B ? pullB(e, col) : pullA(e, col); return true; }
+      return false;   // slashWave · healPulse · block · yolk · lob 등은 원래 그림 그대로
+    },
+
+    drawTrap: function (tr, col) {
+      if (!S.g) return false;
+      S.B ? trapB(tr, col) : trapA(tr, col);
+      return true;
+    },
+
+    drawAura: function (u, au, col) {
+      if (!S.g) return false;
+      S.B ? auraB(u, au, col) : auraA(u, au, col);
+      return true;
+    },
+
+    // 스킬 투사체(big)만 가져간다. 유닛 평타는 원래 그림 그대로.
+    drawProjectile: function (p, col) {
+      if (!S.g || !p.big) return false;
+      S.B ? projB(p, col) : projA(p, col);
+      return true;
+    }
+  };
+
+  // 저장된 선택을 복원한다(기본 A).
+  try {
+    if (GAME.Store) {
+      var saved = GAME.Store.get(STORE_KEY, 'A');
+      SkillFX.variant = (saved === 'B') ? 'B' : 'A';
+    }
+  } catch (e) { }
+
+})();

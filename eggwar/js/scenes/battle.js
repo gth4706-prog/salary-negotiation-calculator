@@ -964,7 +964,13 @@ GAME.BattleScene.prototype.draw = function () {
   var i;
 
   g.clear();
-  GAME.UI.drawArena(g, { zones: false });
+  // 층 분위기 — 통곡의 탑/수성의 탑은 층수로, 층이 없는 모드는 등급으로 바닥이 갈린다.
+  // 대전(비동기 PvP)만 중립(밴드 1 풀숲)이다 — 남의 기지를 치는 것이지 탑이 아니다.
+  GAME.UI.drawArena(g, {
+    zones: false,
+    floor: this.tower || this.defendTower || 0,
+    tier: this.versus ? 1 : GAME.UI.tierForEscalation(this.escalation).i
+  });
 
   // ── 이펙트 팔레트 ────────────────────────────────────────────────────
   //  색을 여기서 직접 박지 않고 GAME.UI.FX 를 거친다. 라이트 테마(목장)에서
@@ -986,6 +992,12 @@ GAME.BattleScene.prototype.draw = function () {
     GAME.UI.groundCircle(g, x, y, rad);
   }
 
+  // ── 스킬 이펙트 A/B 시안 (js/skillfx.js) ─────────────────────────────
+  //  파일이 없거나 꺼져 있으면 FXS 가 null 이 되고, 아래 네 루프는 **예전 그림 그대로**
+  //  돈다. 위임 규칙은 전부 "true 를 돌려준 것만 건너뛴다" 하나뿐이라,
+  //  시안이 모르는 kind(검기·회복·차단·노른자·구체)는 자동으로 원래 코드로 떨어진다.
+  var FXS = (GAME.SkillFX && GAME.SkillFX.begin) ? GAME.SkillFX.begin(g, FX, this) : null;
+
   // ── 지면 레이어: 마커·덫·이펙트 ──
   for (i = 0; i < this.markers.length; i++) {
     var mk = this.markers[i];
@@ -996,6 +1008,7 @@ GAME.BattleScene.prototype.draw = function () {
 
   for (i = 0; i < s.traps.length; i++) {
     var tr = s.traps[i];
+    if (FXS && FXS.drawTrap(tr, tr.side === 'controller' ? C.controller : C.strategist)) continue;
     g.fillStyle(FX.trap, 0.12 * FA);
     GAME.UI.groundCircleFill(g, tr.x, tr.y, tr.radius);
     ringInk(tr.x, tr.y, tr.radius, 2, FX.trap, 0.85 * RA);
@@ -1004,6 +1017,7 @@ GAME.BattleScene.prototype.draw = function () {
   for (i = 0; i < s.effects.length; i++) {
     var e = s.effects[i];
     var col = e.side === 'controller' ? C.controller : C.strategist;
+    if (FXS && FXS.drawEffect(e, col)) continue;
 
     if (e.kind === 'telegraph') {
       // 예고 원 — 바깥 테두리는 고정, 안쪽 원이 차오르며 "언제 터지는지"를 센다.
@@ -1206,6 +1220,7 @@ GAME.BattleScene.prototype.draw = function () {
   // 밝은 목초지에서 0.10 알파 면은 아예 안 보였다 → 경계선이 오라를 대신 알려준다.
   for (i = 0; i < this.hero.auras.length; i++) {
     var au = this.hero.auras[i];
+    if (FXS && FXS.drawAura(this.hero, au, C.controller)) continue;
     g.fillStyle(C.controller, Math.min(0.22, 0.10 * FA));
     GAME.UI.groundCircleFill(g, this.hero.x, this.hero.y, au.radius);
     ringInk(this.hero.x, this.hero.y, au.radius, 2.5, C.controller, 0.65 * RA);
@@ -1355,6 +1370,8 @@ GAME.BattleScene.prototype.draw = function () {
   for (i = 0; i < s.projectiles.length; i++) {
     var p = s.projectiles[i];
     var pcol = p.side === 'controller' ? FX.projController : FX.projStrategist;
+    // 스킬 투사체(big)만 시안이 가져간다 — 유닛 평타 화살은 예전 그림 그대로다.
+    if (FXS && FXS.drawProjectile(p, pcol)) continue;
     var psx = p.x, psy = Iso.toScreenY(p.y) - 12;
     var sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1;
     var ux = p.vx / sp, uy = (p.vy / sp) * Iso.TILT;

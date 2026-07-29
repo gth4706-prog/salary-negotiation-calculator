@@ -1137,6 +1137,22 @@ GAME.BattleScene.prototype.draw = function () {
       g.beginPath();
       g.arc(0, 0, e.range, e.angle - e.half, e.angle + e.half, false);
       g.strokePath();
+      // 달려들며 친 타격 — 바깥으로 한 겹 더 밀려나는 흙먼지 선.
+      // **이 그림이 기제의 전부다**: 밀어내기는 승률을 안 바꾸므로(계측),
+      // 플레이어가 "움직이며 치는 게 다르다"를 눈으로 배우지 못하면 아무 의미가 없다.
+      // 세계관대로 번쩍이는 마법이 아니라 마른 땅에서 이는 먼지로 그린다.
+      if (e.charged) {
+        g.lineStyle(2.5 / Iso.TILT, col, Math.min(1, sa * 0.45 * RA));
+        g.beginPath();
+        g.arc(0, 0, e.range * 1.16, e.angle - e.half * 0.82, e.angle + e.half * 0.82, false);
+        g.strokePath();
+        for (var pk = -1; pk <= 1; pk++) {
+          var pka = e.angle + pk * e.half * 0.55;
+          g.lineStyle(2 / Iso.TILT, col, Math.min(1, sa * 0.55 * RA));
+          g.lineBetween(Math.cos(pka) * e.range * 1.02, Math.sin(pka) * e.range * 1.02,
+                        Math.cos(pka) * e.range * 1.26, Math.sin(pka) * e.range * 1.26);
+        }
+      }
       g.restore();
 
     } else if (e.kind === 'dashTrail') {

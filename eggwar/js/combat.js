@@ -45,7 +45,9 @@ GAME.Combat = {
               'projectileSpeed', 'bulletSpeed',
               // 원거리 유닛끼리 유지하는 최소 간격. 거리 단위이므로 여기 반드시 넣는다 —
               // 빠뜨리면 폰 프로필(WORLD_SCALE 0.556)에서만 조용히 어긋난다.
-              'spacing', 'protectGap'],
+              'spacing', 'protectGap',
+              // 달려들며 치기 밀어내기. 거리 단위라 여기 반드시 넣는다.
+              'chargeKnock'],
 
   scaleDef: function (def) {
     var K = GAME.CONFIG.WORLD_SCALE;
@@ -95,6 +97,8 @@ GAME.Combat = {
       radius: h.radius,
       shape: h.shape,
       lifesteal: st.lifesteal,
+      // 달려들며 치기 — 영웅 def 는 화이트리스트라 여기 안 적으면 조용히 사라진다.
+      chargeKnock: h.chargeKnock, chargeDamageMul: h.chargeDamageMul,
       cost: GAME.HERO_BASE_COST
     };
 
@@ -145,6 +149,9 @@ GAME.Combat = {
       rootedFor: 0,
       isHero: false,
       shield: 0,
+      // 지난 프레임이 끝난 시점의 위치. '달려들며 친 타격'(chargeKnock) 판정에만 쓴다.
+      // 매 프레임 끝에서 갱신하므로 fire() 시점의 차이 = 이번 프레임에 걸어온 거리다.
+      _px: x, _py: y,
       buffs: [],
       auras: []
     };
@@ -183,6 +190,26 @@ GAME.Combat = {
   dist: function (a, b) {
     var dx = a.x - b.x, dy = a.y - b.y;
     return Math.sqrt(dx * dx + dy * dy);
+  },
+
+  // ── 달려들며 치기 (2026-07-29) ──────────────────────────────────────────────
+  // "이번 프레임에 **움직이면서** 휘둘렀는가."
+  //
+  // 왜 이 판정이 조작 깊이를 만드는가: `runAI` 는 사거리에 들어오면 그 자리에 서서
+  // 친다(`if (d <= def.range) { fire; return; }`) — 즉 **AI 는 이동과 공격을 같은
+  // 프레임에 못 한다.** 반면 플레이어 조작(`input.js` 방향키 · `touchpad.js` 스틱)은
+  // 걷는 도중에 직접 `fire()` 를 부른다. 그래서 이 조건은 특별 취급 없이도
+  // "손으로 몰고 있는 영웅"에게만 성립한다.
+  //   → 무조작 기준선(AIHero skill 0)은 **구조적으로 이 보너스를 못 받는다.**
+  //     "4층부터 조작 없이는 진다"는 약속이 이 변경으로 흔들릴 수 없는 이유다.
+  //
+  // 문턱은 프레임률과 무관해야 한다. 한 프레임 이동량은 `effSpeed * dt` 이므로
+  // 그 40%(=속도 × 0.006초)를 기준으로 잡으면 30~144fps 어디서나 같은 판정이 된다.
+  // 거리와 속도 둘 다 WORLD_SCALE 로 함께 줄어들어 비율은 프로필에 불변이다.
+  isCharging: function (u) {
+    if (u._px === undefined) return false;
+    var dx = u.x - u._px, dy = u.y - u._py;
+    return (dx * dx + dy * dy) > Math.pow(this.effSpeed(u) * 0.006, 2);
   },
 
   // 지뢰는 '전투원'이 아니라 지형 위험물이다. 쏘는 게 아니라 피하는 것이므로
@@ -459,6 +486,9 @@ GAME.Combat = {
 
     if (def.attack === 'melee') {
       var half = ((def.coneDeg || 90) * Math.PI / 180) / 2;
+      // 달려들며 친 타격이면 밀어내고 피해가 조금 는다. 멈춰 서서 치면 평타 그대로다.
+      var charged = !!def.chargeKnock && this.isCharging(u);
+      if (charged && def.chargeDamageMul) dmg *= def.chargeDamageMul;
       // 부채꼴에 여러 기가 걸려도 흡혈은 첫 대상만 온전히 받고(AOE_LIFESTEAL),
       // 이 한 번 휘두르기의 회복 총량은 lsBudget 이 묶는다(LIFESTEAL_SWING_CAP).
       var meleeHit = 0, meleeLs = this._lsBudget(u);
@@ -473,12 +503,24 @@ GAME.Combat = {
             lsScale: meleeHit === 0 ? 1 : GAME.CONFIG.AOE_LIFESTEAL,
             lsBudget: meleeLs
           });
+          // 밀어내기는 **살아남은 적만** 민다(죽은 유닛을 밀면 노른자가 엉뚱한 데서 튄다).
+          // 밀어내는 거리는 사거리보다 한참 짧게 잡는다 — 길면 내가 때리던 적을
+          // 내 사거리 밖으로 밀어내 스스로 화력을 깎는다(근접이 가장 손해 보는 짓이다).
+          if (charged && o.alive) {
+            var kd = this.dist(u, o);
+            if (kd > 0.1) {
+              o.x += ((o.x - u.x) / kd) * def.chargeKnock;
+              o.y += ((o.y - u.y) / kd) * def.chargeKnock;
+              this.clampToArena(o); this.clampToLeash(o, state);
+            }
+          }
           meleeHit++;
         }
       }
       state.effects.push({
         kind: 'slash', x: u.x, y: u.y, angle: ang,
-        range: def.range, half: half, t: 140, total: 140, side: u.side
+        range: def.range, half: half, t: 140, total: 140, side: u.side,
+        charged: charged
       });
       // 근접도 '무언가 날아간다'는 게 보이도록 검기를 띄운다 (연출 전용, 피해는 위에서 이미 적용)
       state.effects.push({
@@ -1356,6 +1398,15 @@ GAME.Combat = {
 
     for (i = 0; i < state.units.length; i++) {
       if (state.units[i].alive) this.clampToLeash(state.units[i], state, dt);
+    }
+
+    // ── 프레임 끝 위치 기록 (달려들며 치기 판정용) ──────────────────────────
+    // 여기(모든 이동·간격·겹침·리시가 끝난 뒤)에서 찍어야 다음 프레임의 차이가
+    // **순수한 이번 프레임 이동량**이 된다. 루프 안에서 찍으면 유닛마다 기준 시점이
+    // 달라져 조용히 어긋난다.
+    for (i = 0; i < state.units.length; i++) {
+      var pu = state.units[i];
+      pu._px = pu.x; pu._py = pu.y;
     }
 
     // 덫

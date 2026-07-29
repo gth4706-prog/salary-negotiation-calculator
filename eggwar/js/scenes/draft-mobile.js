@@ -53,7 +53,8 @@ GAME.DraftScene.prototype._buildPanelCompact = function () {
           var h = GAME.HEROES[k];
           return {
             // 영웅 비용은 더 이상 개별 값이 아니다(전 영웅 공통) → 목록에 숫자를 띄우지 않는다.
-            key: k, name: h.name, note: h.trait + ' · ' + h.desc,
+            key: k, name: h.name,
+            note: h.trait + ' · ' + h.desc + (h.hint ? ' · ' + h.hint : ''),
             selected: k === self.heroKey
           };
         }),

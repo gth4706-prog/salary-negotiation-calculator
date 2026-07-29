@@ -761,7 +761,8 @@ GAME.TowerScene.prototype._refreshHeroSelect = function () {
 
   var sel = GAME.HEROES[this.heroKey];
   if (sel) {
-    this._heroDesc.setText(sel.name + ' — ' + sel.desc);
+    this._heroDesc.setText(sel.name + ' — ' + sel.desc +
+      (sel.hint ? '   ·   ' + sel.hint : ''));
     this._heroStats.setText(
       '체력 ' + sel.hp + '   ·   공격력 ' + sel.damage + '   ·   방어력 ' + sel.armor +
       '   ·   이동 ' + sel.speed + '   ·   사거리 ' + sel.range +

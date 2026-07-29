@@ -1148,7 +1148,7 @@ GAME.DraftScene.prototype.redraw = function () {
   this._pvSyncPick();
 
   // ── 설명 · 예산 ──
-  var note = hero.desc;
+  var note = hero.desc + (hero.hint ? '   ·   ' + hero.hint : '');
   if (this.hoverItem) note = this.hoverItem.name + '  ' + this.hoverItem.cost + ' — ' + this.hoverItem.note;
   this.noteText.setText(note);
 

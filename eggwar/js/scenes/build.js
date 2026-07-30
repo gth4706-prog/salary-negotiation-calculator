@@ -445,13 +445,23 @@ GAME.BuildScene.prototype.create = function () {
     //  주 행동(방어전 시작)은 크게, 나머지 도구는 ☰ 시트로 접었다.
     // 대전 전략가는 **싸우러 온 게 아니라 전장을 세우러 온 것**이다(2026-07-30 지시).
     // 방어전은 여기서 시작하지 않는다 — 내 전장은 남이 도전할 때 싸운다.
-    this.startBtn = UI.button(this, PHL.START_CX, PHL.BTN_CY, PHL.START_W, PHL.BTN_H,
+    // ── 대전에는 ☰ 가 없다 (2026-07-30, 사용자 지시) ─────────────────────
+    // "삼선을 없애고 그냥 거기에 이전 버튼 하나만 넣으면 돼."
+    // 대전 배치에서 할 일은 '세우고 나가기' 둘뿐이라 접어 둘 도구가 없다.
+    // 유닛 삭제는 유닛을 탭하면 뜨는 ✕ 배지가, 등급은 같은 자리의 레벨업 팝업이 한다.
+    // 그래서 ☰ 자리를 출구가 물려받는다 — ☰ 는 56px 정사각이라 '← 대전' 이 안 들어가므로
+    // 설계폭 820 안에서 폭을 나눠 준다(주 버튼 476..704 / 출구 714..810, 여백 10).
+    var sCx = PHL.START_CX, sW = PHL.START_W, mCx = PHL.MENU_CX, mW = PHL.MENU_W;
+    if (this.arena) { sW = 228; sCx = 590; mW = 96; mCx = 762; }
+    this.startBtn = UI.button(this, sCx, PHL.BTN_CY, sW, PHL.BTN_H,
       this.arena ? '내 배치 저장' : '방어전 시작',
       function () { if (self.arena) self._saveArena(); else self._defend(); },
       { fill: UI.COL.panelTeal, line: C.controller, hover: UI.COL.panelTealHi,
         color: C.accent, fontSize: 'buttonSm', hitPad: 4 });
-    this.menuBtn = UI.button(this, PHL.MENU_CX, PHL.BTN_CY, PHL.MENU_W, PHL.BTN_H,
-      '☰', function () { self._toggleSheet(); }, { fontSize: 'button', hitPad: 4 });
+    this.menuBtn = UI.button(this, mCx, PHL.BTN_CY, mW, PHL.BTN_H,
+      this.arena ? '← 대전' : '☰',
+      function () { if (self.arena) self._arenaExit(); else self._toggleSheet(); },
+      { fontSize: this.arena ? 'buttonSm' : 'button', hitPad: 4 });
   } else {
     // ── 도구: 되돌리기 · 대칭 · 전부 지우기 ───────────────────────────────
     var toolW = P ? hud.w : Math.round(hud.w * 0.52);
@@ -1193,6 +1203,11 @@ GAME.BuildScene.prototype._buySelectedLevel = function () {
 //  등급 값 계산은 `GAME.ArenaBuild` 에 있으므로 로직이 사라진 것은 아니다.
 
 GAME.BuildScene.prototype._openSheet = function () {
+  // 대전에는 시트가 없다 — ☰ 자리를 '← 대전' 출구가 대신한다(2026-07-30 지시).
+  // 부를 곳이 없어졌지만 가드를 남긴다: 나중에 누가 이 함수를 다시 부르면
+  // 대전 화면에 예산 티어·중복 저장 버튼이 되살아난다(둘 다 유닛을 잘라내던 버그다).
+  if (this.arena) return;
+
   var self = this;
   var C = GAME.CONFIG.COLORS;
   var UI = GAME.UI;
@@ -1201,9 +1216,7 @@ GAME.BuildScene.prototype._openSheet = function () {
   this._eatTap = false;
 
   var objs = [];
-  // 대전은 두 줄만 쓴다(아래 참조) → 판 높이도 한 줄만큼 줄인다.
-  // 안 줄이면 버튼 없는 빈 띠 66px 가 전장을 가린 채 남는다.
-  var pw = 640, px0 = Math.round((W - pw) / 2), py0 = 44, phh = this.arena ? 224 : 290;
+  var pw = 640, px0 = Math.round((W - pw) / 2), py0 = 44, phh = 290;
   var bw = Math.floor((pw - 40 - 24) / 3), bh = 56;
   var bx = [px0 + 20 + bw / 2, px0 + 20 + bw + 12 + bw / 2, px0 + 20 + (bw + 12) * 2 + bw / 2];
   var cyA = py0 + 110, cyB = py0 + 176, cyC = py0 + 242;
@@ -1237,24 +1250,6 @@ GAME.BuildScene.prototype._openSheet = function () {
   // 칸을 하나 줄이려면 위 cols() 개수도 같이 줄여야 하는데, 그러면 2·3행 정렬이 어긋난다.
   mk(bx[2], cyA, '전부 지우기', function () { self._clearAll(); self._openSheet(); },
     { fontSize: 'buttonSm' });
-
-  // ── 대전은 여기서 끝낸다 (2026-07-30, 사용자 지시) ──────────────────────────
-  // 신고: "대전에서 내 전장 배치할 때 메뉴 화면 누르면 불필요한 게 많아 —
-  //        그냥 이전으로 돌아가게 하는 버튼만 있어도 될 듯해."
-  // 맞다. 대전 모드에서 아래 세 칸은 불필요할 뿐 아니라 **틀렸다**:
-  //   · 예산 티어(저/중/고) — 대전은 양쪽 300 고정이다. 누르면 budget 을 160 등으로
-  //     덮어쓰고 `_trimToBudget()` 이 초과분을 **뒤에서부터 잘라낸다**(유닛이 사라진다).
-  //   · 배치도 저장 — 상단의 '내 배치 저장' 과 중복인데, 여기서는 이름·상대영웅을 묻는
-  //     `_save()` 를 불러 **대전용이 아닌 저장**을 한다.
-  //   · ⚒ 유닛 등급 — v0.64 부터 '유닛을 탭하면 하단 레벨업 팝업'이 담당한다.
-  // 그래서 대전 시트는 편집 도구 둘 + 나가는 길 + 닫기, 두 줄이다.
-  if (this.arena) {
-    mk(bx[0], cyB, '← 대전으로', function () { self._closeSheet(); self._arenaExit(); },
-      { fontSize: 'buttonSm' });
-    mk(bx[2], cyB, '닫기', function () { self._closeSheet(); }, { fontSize: 'buttonSm' });
-    this.sheet = objs;
-    return;
-  }
 
   // 2행 — 예산 티어 (수성의 탑은 층 고정 예산이라 정보만)
   if (this.defendTower) {

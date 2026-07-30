@@ -61,13 +61,20 @@ GAME.UI = GAME.UI || {};
     coinBronze: 0xc9993f, coinSilver: 0xc3cbd4, coinGold: 0xe8bf3a,
     bone: 0xeae3cd, leaf: 0x63c26a, leafDark: 0x3f8a4a,
     clay: 0xb5794a, rope: 0xd9c9a2, stone: 0x9aa3ad, goo: 0xa8c14a,
-    // ⚠ 깃털은 **원칙 2(중립 재질은 진영색과 색역이 겹치지 않는다)를 어기고 있었다.**
-    //   옛 값 `0xe0705a` 는 색상 10° 로, 테마 A 의 전략가 크림슨(345°)과 **25° 차이**다 →
-    //   양 진영 궁수가 다 '적 색' 깃털을 달고 있었다. 여섯 진영색(남색220 · 크림슨345 ·
-    //   민트165 · 그레이프285 · 녹청168 · 연지320) 전부와 40° 이상 떨어진 대역은 따뜻한
-    //   황갈 쪽뿐이다. `0xd9a05b`(33°)는 최소 색상차 **48°** 로 여유가 있다.
-    //   ⚠ 새 진영색을 도입하면 이 값을 다시 검산할 것.
-    feather: 0xd9a05b,
+    // ── 깃털 두 가지 (2026-07-30 분리) ────────────────────────────────────
+    //  `feather` : **비행 중 화살**의 깃(js/skillfx.js). 필드 위 2.5~3px 선이다.
+    //     가시성은 화살대 `woodDark`(필드 대비 5.64/4.18)가 담당하고 이 깃은 그 위의
+    //     장식이라 밝아야 화살대와 갈린다. 값은 건드리지 않는다 —
+    //     `0xd9a05b` 로 바꿔 봤더니 어두운 필드 대비가 1.06(사실상 안 보임)이 됐다.
+    //  `quill`   : **유닛 등짐(화살통)의 깃**. 요구가 다르다 — 진영색과 색역이 겹치면
+    //     안 된다(원칙 2). `feather`(색상 10°)는 테마 A 의 크림슨(345°)과 **25° 차이**라
+    //     양 진영 궁수가 다 '적 색' 깃을 달고 있었다. 여섯 진영색(남색220 · 크림슨345 ·
+    //     민트165 · 그레이프285 · 녹청168 · 연지320) 전부에서 40° 이상 떨어진 대역은
+    //     따뜻한 황갈뿐이다. `0xd9a05b`(33°)는 최소 색상차 **48°**.
+    //  ⚠ 한 토큰으로 합치려 하지 말 것 — 필드 대비와 진영 색역 분리는 서로 다른 요구다.
+    //  ⚠ 새 진영색을 도입하면 `quill` 을 다시 검산할 것.
+    feather: 0xe0705a,
+    quill: 0xd9a05b,
     shell: 0xf6eeda, shellRim: 0xcbb98f,
     yolk: 0xffc233, yolkLite: 0xffe89a, albumen: 0xfff6e2,
     eye: 0x2b2233
@@ -452,7 +459,8 @@ GAME.UI = GAME.UI || {};
     //  살아남는 진영 신호**인데도 몸통 면적의 11% 밖에 안 됐다. 색상(hue)은 면적을
     //  요구하는 저주파 정보라(명도의 1/3 해상도) 그 크기에서는 색이 안 읽힌다.
     //  → 높이 0.30→0.62r, 폭 1.18→1.30 으로 키워 면적 11%→25% 로 올린다.
-    //    전사(알 폭 25px) 기준 약 16.8×7.8px — 색이 실제로 갈리는 크기다.
+    //    전사(그린 반지름 12.6 · wide 0.80) 기준 띠 중심에서 약 **15×7.8px** —
+    //    색이 실제로 갈리는 크기다. (알 윤곽을 따라가므로 위쪽은 좁고 아래쪽은 넓다.)
     //
     //  왜 **위쪽**인가: 폰 가로 근접 접촉 거리는 화면 세로차 16px 인데 알의 그린 높이는
     //  25~33px 이다. 즉 앞 유닛이 뒤 유닛의 **아래쪽 44~52%** 를 덮는다. 살아남는 구간은
@@ -472,6 +480,14 @@ GAME.UI = GAME.UI || {};
     //    늘 보이고 조각 길이도 4.3px 로 잡아 뒀다(`UI.footRing`).
     //    한 신호를 두 곳에서 어설프게 내는 것보다 **한 곳에서 확실히** 내는 것이 낫다.
     //    → 띠는 '색을 실을 면적'만 담당한다. 양 진영이 같은 모양이다.
+    //
+    //  ⚠ **띠 폭은 상수로 두면 안 된다** (2026-07-30 검토에서 잡힘). 처음에
+    //    `halfW = r*wide*1.02` 로 박았는데, 알 반폭은 높이에 따라 급히 변한다
+    //    (`eggPoints`: `sin(a)·r·wide·(1-0.30cos a)`). 계산하면
+    //      띠 위 경계 0.534 · 중심 0.793 · 아래 0.961  (전부 ×r×wide)
+    //    즉 **전 구간에서 알 밖으로 튀어나오고 위 경계에서는 알보다 거의 2배 넓었다.**
+    //    폰 전사 기준 좌우로 각 6.9px 가 허공에 떠서 '몸에 두른 천'이 아니라
+    //    '간판'으로 보인다. 그래서 알 윤곽에서 **높이별로 유도**한다.
     if (ivory && r >= 8) {
       var bh = r * 0.62;                          // 띠 높이
       var bcx = sx + lean * 0.665;
@@ -479,25 +495,52 @@ GAME.UI = GAME.UI || {};
       var ink = (UI.ART_INK_COLOR !== undefined) ? UI.ART_INK_COLOR : 0x2a2114;
       var top = bcy - bh / 2, bot = bcy + bh / 2;
 
-      // 띠 폭 — 알 윤곽에서 살짝만 넘치게 한다. 많이 넘치면 스티커로 보이고,
-      // 모자라면 옆에서 볼 때 띠가 몸통에 파묻힌다. 모서리는 둥글게(각지면 종이 조각처럼 보인다).
-      var halfW = r * wide * 1.02;
+      // 알 윤곽의 반폭. dy 는 알 중심(by)에서의 y 오프셋이다.
+      // `eggPoints` 와 **같은 식**을 쓴다 — 두 벌이 갈라지면 띠가 조용히 어긋난다.
+      // INSET: 살짝 안쪽으로 넣어 진영색 외곽선(위에서 이미 그렸다)이 띠에 덮이지 않게 한다.
+      var INSET = 0.94;
+      function halfAt(dy) {
+        var c = -dy / r;
+        if (c > 1) c = 1; else if (c < -1) c = -1;
+        return Math.sqrt(1 - c * c) * r * wide * (1 - 0.30 * c) * INSET;
+      }
+      // 띠 = 알의 가로 슬라이스. 오른쪽 변을 위→아래로, 왼쪽 변을 아래→위로 돌아 닫는다.
+      var STEP = 6, band = [], k2, dyk, hw;
+      for (k2 = 0; k2 <= STEP; k2++) {
+        dyk = (top - by) + (bot - top) * (k2 / STEP);
+        band.push({ x: bcx + halfAt(dyk), y: by + dyk });
+      }
+      for (k2 = STEP; k2 >= 0; k2--) {
+        dyk = (top - by) + (bot - top) * (k2 / STEP);
+        band.push({ x: bcx - halfAt(dyk), y: by + dyk });
+      }
       g.fillStyle(color, a);
-      g.fillRoundedRect(bcx - halfW, top, halfW * 2, bh, Math.max(2, r * 0.16));
-      // 아래쪽에 한 단 어두운 띠 — 천이 접힌 그늘. 입체감을 남긴다.
-      g.fillStyle(UI.tint(color, -0.28), a);
-      g.fillRect(bcx - halfW * 0.94, bot - bh * 0.30, halfW * 1.88, bh * 0.26);
+      g.fillPoints(band, true);
 
-      // 잉크 경계 — 위·아래 두 줄.
+      // 아래쪽에 한 단 어두운 띠 — 천이 접힌 그늘. 입체감을 남긴다.
+      var sTop = bot - bh * 0.30, shade = [];
+      for (k2 = 0; k2 <= 3; k2++) {
+        dyk = (sTop - by) + (bot - sTop) * (k2 / 3);
+        shade.push({ x: bcx + halfAt(dyk), y: by + dyk });
+      }
+      for (k2 = 3; k2 >= 0; k2--) {
+        dyk = (sTop - by) + (bot - sTop) * (k2 / 3);
+        shade.push({ x: bcx - halfAt(dyk), y: by + dyk });
+      }
+      g.fillStyle(UI.tint(color, -0.28), a);
+      g.fillPoints(shade, true);
+
+      // 잉크 경계 — 위·아래 두 줄. 이제 알 폭에 맞춰 길이가 다르다.
       // **이게 필수인 이유**: 진영색 채움만으로는 테마 B/C 에서 껍질에 녹는다
       // (아이보리 대비 민트 1.73 · 녹청 1.85). 잉크는 아이보리 대비 13.69 이고
       // 껍질 색은 테마가 안 바꾸므로 **세 테마 고정**이다 — 채움이 안 보여도 띠의 존재가 남는다.
       g.lineStyle(Math.max(1.2, r * 0.10), ink, a * 0.9);
+      var hwTop = halfAt(top - by), hwBot = halfAt(bot - by);
       g.beginPath();
-      g.moveTo(bcx - halfW, top); g.lineTo(bcx + halfW, top);
+      g.moveTo(bcx - hwTop, top); g.lineTo(bcx + hwTop, top);
       g.strokePath();
       g.beginPath();
-      g.moveTo(bcx - halfW, bot); g.lineTo(bcx + halfW, bot);
+      g.moveTo(bcx - hwBot, bot); g.lineTo(bcx + hwBot, bot);
       g.strokePath();
     }
   };
@@ -612,7 +655,7 @@ GAME.UI = GAME.UI || {};
     } else if (kind === 'band') {            // 궁수 — 머리띠 + 깃털 하나
       g.fillStyle(cloth, a);
       g.fillEllipse(sx, by - r * 0.66, r * (prof ? 0.86 : 1.02), r * 0.30);
-      g.fillStyle(M.feather, a);
+      g.fillStyle(M.quill, a);
       if (back) {                            // 뒤 — 깃털 정면 + 매듭 두 가닥
         g.fillTriangle(sx - r * 0.10, by - r * 0.76,
                        sx + r * 0.06, by - r * 1.70,
@@ -858,7 +901,7 @@ GAME.UI = GAME.UI || {};
         var cslw = prof ? 0.46 : 0.80;
         g.fillRect(sx + lat * r * 0.10 - r * cslw * 0.5, by - r * 0.92, r * cslw, Math.max(1.2, r * 0.15));
       }
-      g.fillStyle(M.feather, a);             // 볏
+      g.fillStyle(M.quill, a);             // 볏
       if (prof) {                            // 옆 — 앞뒤로 길게 눕는다
         g.fillPoints([
           { x: sx + lat * r * 0.36, y: by - r * 1.34 },
@@ -899,7 +942,8 @@ GAME.UI = GAME.UI || {};
       g.lineStyle(Math.max(2, r * 0.30),
                   UI.mix(M.leatherDark, color, 0.50), a);
       g.lineBetween(qx - r * 0.35, qy + r * 0.55, qx + r * 0.20, qy - r * 0.90);
-      g.fillStyle(M.feather, a);
+      // `quill` — 진영색과 색역이 겹치지 않는 깃(MAT 주석 참조). `feather` 는 비행 화살용이다.
+      g.fillStyle(M.quill, a);
       for (i = 0; i < 3; i++) {
         g.fillTriangle(qx + r * 0.18 + i * r * 0.16, qy - r * 0.94,
                        qx + r * 0.02 + i * r * 0.16, qy - r * 1.42,
@@ -934,7 +978,10 @@ GAME.UI = GAME.UI || {};
       //   많이 쓰는 두 영웅에 진영 표식이 제일 적었다는 뜻이다(신고 화면의 영웅이 광전사다).
       //   털가죽이라는 재질감은 남기려고 갈색을 진영색 쪽으로 섞는다(원색이 아니다).
       var fw = prof ? 0.52 : 0.72;
-      var furC = UI.mix ? UI.mix(M.leatherDark, color, 0.55) : UI.tint(color, -0.34);
+      // `UI.mix` 는 같은 IIFE 안(위쪽)에 정의돼 있으므로 존재 가드가 필요없다.
+      // 예전에 둔 `UI.mix ? … : UI.tint(color, -0.34)` 대체값은 가죽 갈색이 아니라
+      // **진영색을 어둡게 한 값**이라, 만약 그 길로 갔으면 재질이 통째로 바뀌었다.
+      var furC = UI.mix(M.leatherDark, color, 0.55);
       g.fillStyle(furC, a);
       g.fillEllipse(sx - r * 0.78, by - r * 0.02, r * fw, r * 0.54);
       g.fillEllipse(sx + r * 0.78, by - r * 0.02, r * fw, r * 0.54);
@@ -1164,7 +1211,7 @@ GAME.UI = GAME.UI || {};
       var pxp = X(0.05, -0.85);
       g.lineStyle(lw(0.10), M.wood, a);      // 등에 세운 깃대
       g.lineBetween(pxp, Y(0.05, -0.85, -0.40), pxp, Y(0.05, -0.85, 2.05));
-      g.fillStyle(M.feather, a);
+      g.fillStyle(M.quill, a);
       g.fillTriangle(pxp, Y(0.05, -0.85, 2.10), pxp - r * 0.34, Y(0.05, -0.85, 1.45), pxp + r * 0.34, Y(0.05, -0.85, 1.45));
 
       g.lineStyle(lw(0.13), M.wood, a);
@@ -1575,7 +1622,15 @@ GAME.UI = GAME.UI || {};
   //  즉 여기가 진영색을 쓰기에 가장 좋은 자리이고, 형태는 색맹 대비다.
   //
   //  `front` 가 true 면 **앞쪽(아래) 반원만** 그린다. 위쪽 호는 어차피 자기 몸통 뒤라
-  //  값어치가 없고, 반원만 그리면 화면 위 선이 절반으로 줄어 노이즈가 안 늘어난다.
+  //  값어치가 없고, 반원만 그리면 잉크 면적이 절반으로 줄어 노이즈가 안 늘어난다.
+  //  (⚠ 잉크 **면적**은 줄지만 draw 명령 수는 늘어난다 — `strokeEllipse` 1개 대신 8조각이다.
+  //   유닛 20기 기준 프레임당 +160 path. 표시객체는 0개 증가라 이 프로젝트 원칙은 유지된다.)
+  //
+  //  ⚠ **형태 신호(실선/파선)는 전투 화면에만 있다.** 파선은 `side === 'strategist'` 일 때만
+  //    열리고, `side` 를 넘기는 호출부는 `battle.js` 의 오버레이 2패스 하나뿐이다.
+  //    배치·드래프트 화면에서는 양쪽 다 실선이다 — 그 화면들은 한 진영만 나오고 겹침도
+  //    없어서 색만으로 충분하다(그리고 예전 그림과 픽셀 단위로 같게 유지된다).
+  //    색맹 대비가 필요한 곳은 두 진영이 섞이는 전투 화면이고, 거기에는 있다.
   UI.footRing = function (g, sx, sy, r, color, a, side, front) {
     var T = (GAME.Iso ? GAME.Iso.TILT : 1);
     var rx = r * 1.0, ry = r * 1.0 * T;         // strokeEllipse 는 폭/높이 → 반경의 2배를 넘긴다
@@ -1589,7 +1644,8 @@ GAME.UI = GAME.UI || {};
     }
 
     // 호를 직접 그린다. `front` 면 아래 반원(화면 아래쪽 = 각 0~π)만.
-    // 파선은 16분할 중 홀수 조각을 건너뛴다(`mineRing` 이 쓰는 것과 같은 방식).
+    // 파선은 아래 `SEG` 분할 중 홀수 조각을 건너뛴다.
+    // (참고: `battle.js` 의 `mineRing` 은 방식이 다르다 — 16조각을 각각 0.55 길이로 그린다.)
     var a0 = 0;
     var a1 = front ? Math.PI : Math.PI * 2;
     // ⚠ 분할 수는 **실제 조각 길이**로 정한다. 16 분할이면 앞쪽 반원(호 길이 ≈34px)에서

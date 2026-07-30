@@ -137,7 +137,9 @@ GAME.DefendScene.prototype.create = function () {
   this.ai = new GAME.AIHero(this.state, this.hero, this.aiSkill);
 
   // 전략가는 조작하지 않지만, 특정 유닛을 눌러 추적할 수는 있어야 한다.
-  // 누르면 빨간 화살표가 그 유닛을 따라다니고 체력바가 굵게 표시된다.
+  // 누르면 그 유닛 머리 위에 **흰 채움 + 잉크 테두리** 마커가 뜨고 발밑에 이중 링이 생긴다.
+  // (체력바 굵기는 선택과 무관하다 — `u.isHero ? 7 : 4` 다. 옛 주석이 그렇게 적고 있었다.)
+  // 쳐들어오는 AI 영웅은 고를 수 없지만, 영웅 강조 링은 `battle.js` 오버레이가 따로 그린다.
   this.arrowOn = null;
   this.input.on('pointerdown', function (p) {
     // ☰ 시트가 열려 있으면 전장은 잠긴다. 상단 띠·좌하단 버튼 위의 탭도 전장 탭이 아니다.

@@ -237,8 +237,18 @@ GAME.UNIT_ORDER = [
   'shieldman', 'medic', 'sergeant', 'chemtrooper', 'mgnest', 'mine'
 ];
 
-GAME.isNonTarget = function (def) {
-  return def.attack !== 'targeted';
+// 이 유닛의 공격이 **자동명중(회피 불가)** 인가. 지금은 투창병 하나뿐이다.
+//
+// ⚠ 예전 이름은 `isNonTarget` 이었고 그게 **버그 두 개를 만들었다**(2026-07-30, 둘 다 실측).
+//   "논타겟 공격을 한다"는 뜻인데 이름이 "조준 대상이 아니다(= 함정·고정물이다)"로 읽혀서:
+//     · `battle.js` 의 껍질 금(체력) 가드가 `!isNonTarget` 이라 **투창병에게만** 금이 갔다
+//       — "체력을 읽지 않고 보게 한다"는 이 게임의 문법이 사실상 죽어 있었다(호출 1 → 14).
+//     · 새로 만든 발밑 진영 링도 같은 가드를 써서 **호출 0** 이었다(대상 14기 전부 걸러짐).
+//   게다가 사용처 전부가 `!GAME.isNonTarget(...)` 이중부정이었다 — 부정 없이 쓰는 곳이
+//   하나도 없었다. 그래서 뜻대로 뒤집어 이름을 바꿨다. **되돌리지 말 것.**
+//   '함정·지면 고정물인가'를 묻고 싶으면 `GAME.UI.artOf(def).ground` 를 쓴다.
+GAME.isAutoHit = function (def) {
+  return def.attack === 'targeted';
 };
 
 // rangeSpan 이 붙은 정의는 사거리를 맵 대각선으로 채운다.

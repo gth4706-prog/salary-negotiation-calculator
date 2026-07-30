@@ -895,7 +895,7 @@ GAME.BuildScene.prototype._tipRule = function (def) {
   if (def.attack === 'none') {
     return { s: '비전투 지원 — 스스로 공격하지 않는다', c: C.accentAlt };
   }
-  if (!GAME.isNonTarget(def)) {
+  if (GAME.isAutoHit(def)) {
     return { s: '자동명중 — 던지면 반드시 맞는다 (회피 불가)', c: C.crit };
   }
   return { s: '논타겟 — 보고 피할 수 있다 (회피 가능)', c: C.accent };
@@ -1491,7 +1491,7 @@ GAME.BuildScene.prototype.redraw = function () {
     if (def.isMine) { g.lineStyle(1.5, FX.mineRing, 0.5); UI.groundCircle(g, p.x, p.y, def.triggerRadius); }
     if (def.intercept) { g.lineStyle(1.5, FX.guardRing, 0.35); UI.groundCircle(g, p.x, p.y, def.intercept); }
     var pos = UI.drawUnit(g, def, p.x, p.y, this.myColor, 1, -Math.PI / 2);
-    if (!GAME.isNonTarget(def)) {
+    if (GAME.isAutoHit(def)) {
       g.lineStyle(2, FX.targetRing, 0.9);
       UI.groundCircle(g, p.x, p.y, def.radius + 7);
     }

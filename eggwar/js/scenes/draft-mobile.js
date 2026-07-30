@@ -539,7 +539,7 @@ GAME.DraftScene.prototype._phBuildRail = function () {
     var ry = top + ri * (rowH + 3);
     if (ry + rowH > y + h - legendH) break;
     var boss = GAME.isBoss(d);
-    var auto = !GAME.isNonTarget(d);
+    var auto = GAME.isAutoHit(d);
 
     var cnt = UI.label(this, rx2 + colW - 4, ry + (rowH - 19) / 2, '×' + r.n,
       'micro', C.accent, 0).setOrigin(1, 0);

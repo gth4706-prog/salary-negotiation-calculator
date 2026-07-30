@@ -324,7 +324,7 @@ GAME.DraftScene.prototype._buildRoster = function () {
     var ry = y + i * (rowH + 5);
     if (ry + rowH > S.scoutY + this.rosterH - 30) break;
     var boss = GAME.isBoss(d);
-    var auto = !GAME.isNonTarget(d);
+    var auto = GAME.isAutoHit(d);
     var tone = boss ? C.crit : (auto ? (C.danger || C.warn) : C.text);
 
     var nm = GAME.UI.label(this, x0 + 54, ry + Math.round(rowH * 0.10),
@@ -1246,7 +1246,7 @@ GAME.DraftScene.prototype._drawScoutMap = function () {
     if (def.isMine) { g.lineStyle(1, FX.mineRing, 0.6); g.strokeCircle(sx, sy, def.triggerRadius * sc); }
     if (def.intercept) { g.lineStyle(1, FX.guardRing, 0.4); g.strokeCircle(sx, sy, def.intercept * sc); }
     GAME.UI.drawUnitFlat(g, def, sx, sy, C.strategist, 1, Math.max(0.62, sc * 1.15));
-    if (!GAME.isNonTarget(def)) { g.lineStyle(1.5, FX.targetRing, 0.9); g.strokeCircle(sx, sy, def.radius * sc + 4); }
+    if (GAME.isAutoHit(def)) { g.lineStyle(1.5, FX.targetRing, 0.9); g.strokeCircle(sx, sy, def.radius * sc + 4); }
   }
 
   // 내 시작 위치 표시

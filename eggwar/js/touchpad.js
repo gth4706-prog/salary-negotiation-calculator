@@ -170,10 +170,10 @@ GAME.TouchPad.prototype._build = function () {
   // 한가운데(= 가장 덜 붐비는 자리)에 두는 편이 스틱·스킬 오조작을 줄인다.
   if (PHONE) {
     this._addButton('POTION', W / 2, H - S.potionR - margin, S.potionR, '물약', PAD.amber,
-      function () { GAME.Combat.usePotion(self.hero); });
+      function () { GAME.Combat.usePotion(self.hero, self.scene && self.scene.state); });
   } else {
     this._addButton('POTION', sx, baseY - S.stickR - S.potionR - 10, S.potionR, '물약', PAD.amber,
-      function () { GAME.Combat.usePotion(self.hero); });
+      function () { GAME.Combat.usePotion(self.hero, self.scene && self.scene.state); });
   }
 
   this._bind();

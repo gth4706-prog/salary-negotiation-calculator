@@ -926,6 +926,13 @@ GAME.TowerScene.prototype._buildChallenge = function () {
                     : 'AI가 읽은 당신 — 아직 분석할 기록이 없습니다');
   var l1 = GAME.UI.label(this, lx, y + 10, profLine,
     P ? 13 : 13, C.crit, 0).setWordWrapWidth(pw - 28);
+  // ── 이 층이 무엇이 다른가 (2026-07-30 대개편) ────────────────────────────
+  //  ⚠ 아래 `rationaleText` 는 **도전 중에는 빈 문자열**이다(`this.run ? ''`).
+  //    그런데 도전이야말로 탑의 본 모드다 — 거기서 층 정보가 통째로 안 보이면
+  //    배치 원형과 조건을 넣어도 플레이어는 "그냥 어려워졌다"로만 느낀다.
+  //    그래서 **원형·조건 전용 줄**을 따로 둔다. 이 줄은 도전 중에도 항상 뜬다.
+  this.floorTagText = GAME.UI.label(this, lx, l1.y + l1.height + 6,
+    '', P ? 14 : 13, C.accent, 0).setWordWrapWidth(pw - 28);
   this.rationaleText = GAME.UI.label(this, lx, l1.y + l1.height + 6,
     '', P ? 13 : 12, C.textDim, 0).setWordWrapWidth(pw - 28);
   this.compText = GAME.UI.label(this, lx, 0, '', P ? 13 : 12, C.accentAlt, 0)
@@ -1018,6 +1025,8 @@ GAME.TowerScene.prototype._buildChallengePhone = function () {
     15, C.text, 0.5).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(LW);
   ly = bl2.y + bl2.height + 4;
 
+  // 이 층의 원형·조건 — 도전 중에도 항상 뜬다(위 PC 레이아웃 주석 참조).
+  this.floorTagText = UI.label(this, PAD, ly, '', 15, C.accent, 0).setWordWrapWidth(LW);
   // 적 구성 — _refresh 가 채운다. rationale 은 도전 중에는 빈 문자열이라 자리만 잡아둔다.
   this.rationaleText = UI.label(this, PAD, ly, '', 15, C.textDim, 0).setWordWrapWidth(LW);
   this.compText = UI.label(this, PAD, ly, '', 15, C.accentAlt, 0).setWordWrapWidth(LW);
@@ -1208,6 +1217,22 @@ GAME.TowerScene.prototype._refresh = function () {
     h.btn.text.setColor(on ? C.accent : C.text);
   });
 
+  // ── 이 층이 무엇이 다른가 — 도전 중에도 항상 보여 준다 ────────────────────
+  //  순서가 곧 중요도다: **진형(공간) → 조건(규칙)**. 이 둘이 층을 구분하는 주역이고
+  //  AI 대응 설명(rationale)은 보조다.
+  //  ⚠ `_refresh` 는 도전 화면 전용이지만, 랜딩에서 들어오는 경로가 생기면 여기 객체가
+  //    아직 없다. 파괴된/없는 Phaser 객체를 만지면 씬이 통째로 죽는다(이 폴더의 상습 함정).
+  var f0 = this.formation, tag = [];
+  if (f0.planLabel) tag.push('◈ ' + f0.planLabel + ' — ' + f0.planHint);
+  if (f0.ruleLabel) tag.push('⚠ ' + f0.ruleLabel + ' — ' + f0.ruleDesc);
+  var tagH = 0;
+  if (this.floorTagText) {
+    this.floorTagText.setText(tag.join('\n'));
+    this.floorTagText.setColor(f0.ruleLabel ? C.crit : C.accent);
+    // rationale 은 원형·조건 줄 **아래**로 내린다(빈 줄이면 자리를 안 먹는다).
+    tagH = tag.length ? (this.floorTagText.height + 6) : 0;
+    this.rationaleText.setY(this.floorTagText.y + tagH);
+  }
   this.rationaleText.setText(this.run ? '' : ('이 층의 대응: ' + this.formation.rationale));
 
   var counts = {};

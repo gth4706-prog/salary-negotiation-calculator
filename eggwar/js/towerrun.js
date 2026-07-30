@@ -143,18 +143,29 @@ GAME.TowerRun = {
   //      되돌려졌으면) killGold 가 0 이다. 그대로 두면 클리어 보너스 10% 만 남아
   //      **성장 곡선이 조용히 1/10 로 죽는다.** 이건 화면에도 안 보이는 종류의 사고라
   //      옛 방식으로 되돌리고 콘솔에 남긴다.
+  // 층 조건의 보상 배수 — 지금은 `nosupply`(무보급, 1.5배)뿐이다.
+  // "제약을 받아들이면 보상이 크다"가 성립해야 조건이 벌칙이 아니라 **선택**이 된다.
+  ruleGoldMul: function (floor) {
+    if (!GAME.TowerRule) return 1;
+    var r = GAME.TowerRule.ruleFor(floor);
+    return (r && r.goldMul) ? r.goldMul : 1;
+  },
+
   goldGainFor: function (floor, state) {
+    var rm = this.ruleGoldMul(floor);
     if (state && state._kgActive) {
       var earned = this.earnedFrom(state);
       // 훅이 한 번이라도 불렸으면 **0 도 정직한 결과다** — 동전을 하나도 안 주운 판이다.
       // 예전엔 `earned > 0` 으로만 갈라서, 한 개도 안 주운 쪽이 층 총액을 통째로 받는
       // 역전이 생겼다(동전 시스템이 들어오면서 실제로 도달 가능한 경로가 됐다).
-      if (state._kgFired) return earned + this.clearBonusFor(floor);
+      if (state._kgFired) {
+        return Math.round((earned + this.clearBonusFor(floor)) * rm);
+      }
       if (window.console && console.warn) {
         console.warn('[TowerRun] 처치 골드가 0 이다 — combat.js 의 state.onKill 훅이 안 불렸을 수 있다. 층 총액으로 되돌린다.');
       }
     }
-    return this.goldFor(floor);
+    return Math.round(this.goldFor(floor) * rm);
   },
 
   // ── 능력치 레벨업 ──
@@ -201,7 +212,15 @@ GAME.TowerRun = {
       picks: picks || GAME.defaultSkillPicks(),
       gold: 0,
       levels: { damage: 0, hp: 0, armor: 0, speed: 0 },
-      floorsCleared: 0
+      floorsCleared: 0,
+      // ── 도전 시드 (2026-07-30 대개편) ─────────────────────────────────────
+      // 층의 **배치 원형과 조건**이 이 시드로 결정된다. 왜 층 번호만으로 정하지 않는가:
+      //   · 층 번호만이면 "7층은 집게 층" 이 영구히 고정된다 → 몇 번 오르면 다 외운다.
+      //   · 매 시도마다 난수면 같은 층을 다시 칠 때마다 딴 판이 되어 **배워서 대응하는**
+      //     이 게임의 축이 무너진다(TowerLearn 의 동일층 비교도 근거를 잃는다).
+      // 그래서 **도전 한 판 안에서는 고정, 새 도전마다 새로 섞인다** — 로그라이크의 표준이다.
+      // 죽어서 1층부터 다시 오르면 그때는 새 배열이라 지루하지 않다.
+      seed: Math.floor(Math.random() * 0x7fffffff) || 1
     };
     this._save(rec);
     return rec;

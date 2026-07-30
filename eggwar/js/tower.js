@@ -114,9 +114,17 @@ GAME.Tower = {
 
   // 층이 올라갈수록 유닛 자체도 단단해진다(예산만으로는 후반이 심심해진다).
   // 무한의 탑이라 계수를 낮게 잡는다 — 0.025 면 20층에서 프로도 0% 가 된다(실측).
-  modsFor: function (floor) {
+  //
+  // ⚠ **층 조건 배수는 여기서 곱한다**(towerrule.js). 두 축을 한 함수에 두는 이유:
+  //   호출부가 하나뿐이라 조건을 빠뜨릴 자리가 없다. 다만 **성장(층수)과 조건(규칙)은
+  //   서로 다른 목적**이라는 것을 잊지 말 것 — 성장은 완만하게 어렵게 만들고,
+  //   조건은 난이도가 아니라 **답을 바꾼다**(그래서 체력을 깎으며 장갑을 올리기도 한다).
+  //   곡선을 다시 잴 때는 `Tower.modsFor(n, true)` 로 조건을 빼고 재는 것이 맞다.
+  modsFor: function (floor, skipRule) {
     var t = Math.max(0, floor - 1);
-    return { hp: 1 + 0.012 * t, damage: 1 + 0.010 * t };
+    var m = { hp: 1 + 0.012 * t, damage: 1 + 0.010 * t };
+    if (skipRule || !GAME.TowerRule) return m;
+    return GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor));
   },
 
   // ── 보스 층 ──────────────────────────────────────────────────
@@ -186,6 +194,14 @@ GAME.Tower = {
       heroKey: runActive ? null : (heroKey || null)
     });
 
+    // ── 층 배치 원형 (2026-07-30 대개편) ────────────────────────────────────
+    //  구성은 위에서 `AutoFormation` 이 정했고, **공간은 여기서 다시 정한다.**
+    //  이게 "매번 똑같은 진형"이라는 신고의 직접 해답이다 — 구성 다양성은 이미
+    //  아키타입 17/20 으로 높았는데(tools/formation-diversity.js) 배치 기하가 언제나
+    //  'band 별 균등 가로 분포' 하나였다. 플레이어가 만지는 것은 구성이 아니라 공간이다.
+    //  ⚠ **보스를 얹기 전에** 부른다 — 보스는 한가운데 뒤쪽이라는 자기 규칙이 있다.
+    if (GAME.TowerPlan) GAME.TowerPlan.apply(f, floor);
+
     if (bossKey) {
       // 보스는 진형 한가운데 뒤쪽에 선다
       f.units.push({ type: bossKey, nx: 0.5, ny: 0.13 });
@@ -196,9 +212,31 @@ GAME.Tower = {
     }
     // 층이 오를수록 켜지는 **전술 계층**을 배치도에 붙여 보낸다.
     f.tactics = this.tacticsFor(floor);
+    // 층 조건 — 규칙 자체가 바뀐다(towerrule.js). 배치 원형이 **공간**을 바꾸고
+    // 조건이 **규칙**을 바꾼다. 둘을 나눈 이유는 각각이 막는 습관이 다르기 때문이다.
+    if (GAME.TowerRule) {
+      var rule = GAME.TowerRule.ruleFor(floor);
+      if (rule) {
+        f.rule = rule.key;
+        f.ruleLabel = rule.label;
+        f.ruleDesc = rule.desc;
+      }
+    }
+
     // 화면이 "이 층은 뭐가 다른가"를 말할 수 있게 설명에 한 줄 얹는다.
     // 숫자가 조용히 오르기만 하면 플레이어는 '그냥 어려워졌다'로만 느낀다 —
     // 무엇이 달라졌는지 이름을 붙여 줘야 대응할 생각을 한다.
+    // ⚠ **원형과 조건을 먼저 적는다.** 이 둘이 이 층을 다른 층과 구분하는 주역이고,
+    //   전술·학습은 보조 정보다. 순서가 곧 중요도다.
+    if (f.planLabel) {
+      f.rationale = '진형: ' + f.planLabel + ' — ' + f.planHint +
+                    (f.rationale ? '\n' + f.rationale : '');
+    }
+    if (f.ruleLabel) {
+      f.rationale = '조건: ' + f.ruleLabel + ' — ' + f.ruleDesc +
+                    (f.rationale ? '\n' + f.rationale : '');
+    }
+
     var act = [];
     for (var ti = 0; ti < this.TACTICS.length; ti++) {
       var tk = this.TACTICS[ti].key;

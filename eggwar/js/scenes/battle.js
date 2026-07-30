@@ -73,6 +73,17 @@ GAME.BattleScene.prototype.create = function () {
   this.escalation = this.tower ? (this.tower - 1) : (lrec.escalation || 0);
   var mods = this.tower ? GAME.Tower.modsFor(this.tower)
                         : GAME.Learn.escalationMods(this.escalation);
+
+  // ── 층 조건 훅을 state 에 싣는다 (2026-07-30 대개편) ─────────────────────
+  //  배수로 표현되는 조건(철벽·질풍·좁은눈)은 위 `mods` 에 이미 곱해져 있고,
+  //  **시간·처치순서·추격·물약** 처럼 배수로 못 쓰는 것은 전투가 매 프레임 읽어야 한다.
+  //  `state.towerRule` 이 그 통로다 — 없으면 combat.js 는 아무 일도 하지 않는다.
+  //  ⚠ 탑이 아닌 모드(대전·방어전)에는 절대 싣지 않는다. 조건은 탑의 것이다.
+  this.towerRule = this.tower && GAME.TowerRule
+    ? GAME.TowerRule.hooksFor(this.tower) : null;
+  this.state.towerRule = this.towerRule;
+  this.towerRuleInfo = this.tower && GAME.TowerRule
+    ? GAME.TowerRule.ruleFor(this.tower) : null;
   var bias = (lrec.adapt && lrec.adapt.rallyBias) || 0;
 
   // 이 배치도의 유닛 등급 — 내 기지면 내 기록, 남의 기지면 서버가 실어 준 값.
@@ -199,6 +210,11 @@ GAME.BattleScene.prototype.create = function () {
   var tierLabel = this.tower
     ? ('탑 ' + this.tower + '층 · ' + tierObj.name)
     : ('난이도 ' + this.escalation + '단계 · ' + tierObj.name);
+  // ── 층 조건을 배지에 붙인다 (2026-07-30 대개편) ──────────────────────────
+  //  싸우는 **중에** 규칙을 모르면 배울 수 없다. "왜 갑자기 아프지"로 끝나면
+  //  조건은 난이도일 뿐이고, 이름이 보여야 다음 판에 대응이 된다.
+  //  ⚠ 짧게 — 이름만 붙인다. 설명은 층 화면에서 이미 읽었다.
+  if (this.towerRuleInfo) tierLabel += ' · ⚠' + this.towerRuleInfo.label;
 
   // 세로 터치·폰 가로에서는 HUD 를 **맨 위**에 둔다(아레나는 그 아래에서 시작).
   this.hud = GAME.UI.battleHud(this, {
@@ -280,7 +296,7 @@ GAME.BattleScene.prototype.create = function () {
     var pc = cols[4];
     var prect = this.add.rectangle(pc.cx, rows.skills.cy, pc.w, boxH, GAME.UI.COL.surface).setStrokeStyle(1, GAME.UI.COL.border);
     prect.setInteractive({ useHandCursor: true });
-    prect.on('pointerdown', function () { GAME.Combat.usePotion(self.hero); });
+    prect.on('pointerdown', function () { GAME.Combat.usePotion(self.hero, self.state); });
     GAME.UI.label(this, pc.x + 6, rows.skills.y + 4, GAME.isTouch ? '' : 'F', 14, C.accent, 0);
     this.potionText = GAME.UI.label(this, pc.cx, rows.skills.cy, '', P ? 17 : 15, C.text, 0.5).setOrigin(0.5);
     GAME.UI.label(this, pc.cx, rows.skills.bottom - 14, '물약', P ? 13 : 12, C.text, 0.5).setOrigin(0.5);

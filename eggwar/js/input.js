@@ -109,7 +109,8 @@ GAME.InputController.prototype._bind = function () {
     }
 
     if (ev.code === 'KeyF') {
-      GAME.Combat.usePotion(h);
+      // `self.state` 다 — 이 핸들러 안의 `this` 는 컨트롤러가 아니다(위 castSkill 과 같은 규약).
+      GAME.Combat.usePotion(h, self.state);
       ev.preventDefault();
     }
     // 방향키·스페이스가 페이지를 스크롤하지 않게 막는다

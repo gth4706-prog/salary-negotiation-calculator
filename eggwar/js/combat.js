@@ -73,15 +73,38 @@ GAME.Combat = {
     return out;
   },
 
-  // mods: { hp, damage } — 난이도 단계(escalation)에 따른 능력 배수
+  // mods — 난이도 단계(escalation)·층 조건에 따른 능력 배수.
+  //
+  // ⚠ 예전에는 `{ hp, damage }` 두 개만 먹었다. 통곡의 탑 **층 조건**(towerrule.js)이
+  //   "장갑을 두르고 대신 무르다", "빠르지만 약하다" 같은 축을 쓰려면 더 필요해서
+  //   **표로 일반화**했다. 여기 없는 키를 mods 에 넣으면 조용히 무시된다 —
+  //   새 축을 쓰려면 `MOD_KEYS` 에 먼저 넣을 것(안 그러면 "조건이 안 먹는다"로 나타난다).
+  //
+  // ⚠ `speed`·`range` 는 **거리성 스탯이라 `scaleDef` 가 WORLD_SCALE 을 곱한다.** 순서가
+  //   중요하다 — 배수를 먼저 곱하고 그다음 scaleDef 를 통과시켜야 세로 화면에서도 맞는다.
+  //   (거꾸로 하면 폰에서만 조건이 세게 먹는다.)
+  MOD_KEYS: ['hp', 'damage', 'armor', 'speed', 'range', 'cooldown'],
+
   createUnit: function (typeKey, x, y, side, mods) {
     var base = GAME.UNITS[typeKey];
     var def = base;
-    if (mods && (mods.hp !== 1 || mods.damage !== 1)) {
-      def = {};
-      for (var k in base) def[k] = base[k];
-      def.hp = Math.round(base.hp * (mods.hp || 1));
-      def.damage = Math.round(base.damage * (mods.damage || 1));
+    if (mods) {
+      var touched = false, i, k;
+      for (i = 0; i < this.MOD_KEYS.length; i++) {
+        k = this.MOD_KEYS[i];
+        if (mods[k] !== undefined && mods[k] !== 1) { touched = true; break; }
+      }
+      if (touched) {
+        def = {};
+        for (k in base) def[k] = base[k];
+        for (i = 0; i < this.MOD_KEYS.length; i++) {
+          k = this.MOD_KEYS[i];
+          var m = mods[k];
+          if (m === undefined || m === 1 || typeof base[k] !== 'number') continue;
+          // hp·damage 는 정수로 둔다(체력바·피해 숫자가 소수로 보이면 지저분하다).
+          def[k] = (k === 'hp' || k === 'damage') ? Math.round(base[k] * m) : base[k] * m;
+        }
+      }
     }
     return this._baseUnit(this.scaleDef(def), x, y, side, typeKey);
   },
@@ -279,6 +302,24 @@ GAME.Combat = {
     // 지뢰는 피해로 제거할 수 없다. 밟아서 터뜨리거나, 피해서 지나가는 수밖에.
     if (this.isHazard(unit)) return 0;
 
+    // ── 층 조건 훅 — 공격하는 쪽이 전략가일 때만 적용한다 ──────────────────
+    //  ⚠ **때리는 쪽**을 보는 것이 핵심이다. 유닛의 def 배수(ironclad 등)와 달리
+    //    광란·결속은 '그 유닛이 지금 얼마나 세졌나' 라 def 에 못 싣는다.
+    //    영웅 쪽에 걸면 조건이 플레이어를 강화해 버린다 — 반드시 side 검사.
+    var trk = state && state.towerRule;
+    if (trk && source && source.side === 'strategist') {
+      // 광란 — 시간이 흐를수록 세진다. 무한 카이팅(시간을 쓰는 답)을 막는다.
+      if (trk.frenzy) {
+        var fz = trk.frenzy;
+        var steps = Math.floor((state.elapsed || 0) / (fz.per || 15000));
+        dmg *= 1 + Math.min(fz.max || 0.6, steps * (fz.add || 0.10));
+      }
+      // 결속 — 곁의 동료가 죽은 만큼 세진다. `_bond` 는 사망 처리에서 올린다.
+      if (trk.bond && source._bond) {
+        dmg *= 1 + Math.min((trk.bond.max || 5), source._bond) * (trk.bond.dmg || 0.18);
+      }
+    }
+
     // 크리티컬 — 모든 공격에 25% 확률로 1.5배
     var crit = false;
     if (!(opts && opts.noCrit) && Math.random() < GAME.CONFIG.CRIT_CHANCE) {
@@ -308,6 +349,18 @@ GAME.Combat = {
     if (unit.hp <= 0) {
       unit.hp = 0; unit.alive = false;
       this.spawnYolk(state, unit);   // 죽으면 노른자가 터진다
+      // 층 조건 `bond`(결속) — 죽은 자리 근처의 **같은 편**이 세진다.
+      // 처치 순서를 고르게 만드는 장치다: 뭉친 쪽을 먼저 지우면 남은 것이 강해진다.
+      if (state && state.towerRule && state.towerRule.bond &&
+          unit.side === 'strategist') {
+        var bd = state.towerRule.bond, rr = (bd.radius || 120);
+        for (var bi = 0; bi < state.units.length; bi++) {
+          var bu = state.units[bi];
+          if (!bu.alive || bu === unit || bu.side !== 'strategist') continue;
+          var bdx = bu.x - unit.x, bdy = bu.y - unit.y;
+          if (bdx * bdx + bdy * bdy <= rr * rr) bu._bond = (bu._bond || 0) + 1;
+        }
+      }
       // state.onKill 이 있으면 호출한다. 렌더/경제 계층이 여기에 붙는다(골드 보상 등).
       if (state && state.onKill) state.onKill(unit, state);
       // 관측: 원거리 유닛이 근접 공격에 죽었나 (kite 학습 신호)
@@ -425,9 +478,14 @@ GAME.Combat = {
     u.buffs.push({ speedMul: p.slowMul, t: p.slowMs, slowTag: true });
   },
 
-  usePotion: function (u) {
+  // `state` 는 선택 인자다 — 넘기면 층 조건 `nosupply`(무보급)를 검사한다.
+  // 안 넘기는 옛 호출부는 예전과 똑같이 동작한다.
+  usePotion: function (u, state) {
     if (!u.isHero || u.potionCharges <= 0) return false;
     if (u.hp >= u.maxHp) return false;
+    // 무보급 층 — 물약을 쓸 수 없다. 대신 보상이 1.5배다(towerrule.js).
+    // 충전은 **소모하지 않는다** — 못 쓴 것이지 쓴 것이 아니다.
+    if (state && state.towerRule && state.towerRule.nosupply) return false;
     u.potionCharges--;
     this.heal(u, u.potionHeal);
     return true;
@@ -867,7 +925,18 @@ GAME.Combat = {
     //   반면 지루함 유예 단축(BORED_ENGAGED)은 같은 조건에서 43% 로 비용이 0 이었다.
     //   → "교전 태세"는 지루함 램프로만 앞당기고, 반응 반경 자체는 조율된 값을 지킨다.
     //   CLAUDE.md: "aggro 는 좁게 — 전부 한꺼번에 달려들면 뭉텅이 돌격이 된다."
-    return this._reach(u.def.aggro || 300, p, press * 220);
+    // ── 층 조건 훅 (towerrule.js) ──────────────────────────────────────────
+    //  `narrow`(좁은눈) 은 반응 반경을 좁히고, `tenacious`(끈질김) 은 넓힌다.
+    //  ⚠ 위 경고("aggro 를 넓히면 뭉텅이 돌격")가 여기에도 적용된다 — 그래서 끈질김의
+    //    aggro 배수는 1.35 로 작게 잡고, 진짜 효과는 **추격 반경**(effChase)에 실었다.
+    //    조건을 세게 하려면 chaseMul 을 올릴 것, aggroMul 은 건드리지 말 것.
+    var hk = state && state.towerRule;
+    var base = u.def.aggro || 300;
+    if (hk && u.side === 'strategist') {
+      if (hk.narrow && hk.narrow.aggroMul) base *= hk.narrow.aggroMul;
+      if (hk.tenacious && hk.tenacious.aggroMul) base *= hk.tenacious.aggroMul;
+    }
+    return this._reach(base, p, press * 220);
   },
 
   // 추격(leash) 쪽 지루함은 **예전 곡선 그대로** 둔다 (4초 유예 유지).
@@ -886,7 +955,14 @@ GAME.Combat = {
     // 지루한 유닛은 더 멀리까지 쫓아나간다(교착을 푸는 장치 — 예전 그대로다).
     var p = Math.max(this.pressureOf(state), this.boredomChase(u));
     var press = (state.adapt && state.adapt.press) || 0;
-    return this._reach(u.def.chase || GAME.CONFIG.LEASH, p, press * 160);
+    var base = u.def.chase || GAME.CONFIG.LEASH;
+    // 층 조건 `tenacious`(끈질김) — "한번 붙으면 끝까지 따라온다".
+    // 이게 끌고 다니기(카이팅으로 진형을 흩는 답)를 막는 본체다.
+    var hk = state && state.towerRule;
+    if (hk && hk.tenacious && hk.tenacious.chaseMul && u.side === 'strategist') {
+      base *= hk.tenacious.chaseMul;
+    }
+    return this._reach(base, p, press * 160);
   },
 
   _homeDist: function (u) {

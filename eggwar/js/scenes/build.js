@@ -1235,6 +1235,9 @@ GAME.BuildScene.prototype._saveArena = function () {
   var id = GAME.Formations.newId();
   GAME.Formations.save({
     id: id, name: me + '의 전장', author: me, isAI: false,
+    // `at` 이 없으면 목록이 '시각 모름' 으로 뜬다(실기기 스크린샷에서 확인).
+    // 서버 행은 at 을 실어 주는데 **로컬 저장에는 아무도 안 넣고 있었다.**
+    at: Date.now(),
     tier: this.tier, budget: GAME.Arena.BUDGET, v: 2, vsHero: null, units: units
   });
   GAME.Arena.setBase(id);
@@ -1299,6 +1302,7 @@ GAME.BuildScene.prototype._save = function () {
     author: meId, isAI: false,
     tier: this.tier, budget: this.budget, v: 2,
     vsHero: vsHero,
+    at: Date.now(),
     units: units
   });
   // 대전에서 '기지 만들기'로 들어왔으면 방금 저장한 배치도를 내 기지로 삼고 돌아간다.

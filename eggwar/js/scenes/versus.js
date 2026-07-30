@@ -85,6 +85,14 @@ GAME.VersusScene.prototype._fieldLines = function (f, o) {
     (br === null ? '   ·   도전 기록 없음' : ('   ·   격파율 ' + br + '%'));
 };
 
+// 목록이 비었을 때 위쪽에 적을 한 줄 — **서버 조회 상태만** 말한다.
+// '없다'는 사실은 목록 자리 한가운데 안내가 이미 말하므로 여기서 반복하지 않는다.
+GAME.VersusScene.prototype._emptyNote = function () {
+  if (GAME.Arena.remoteState === 'loading') return '전장을 찾는 중…';
+  if (GAME.Arena.remoteState === 'fail') return '전장 목록을 받지 못했습니다 (연결을 확인하세요)';
+  return '';
+};
+
 GAME.VersusScene.prototype._createRolePick = function () {
   var C = GAME.CONFIG.COLORS, UI = GAME.UI;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
@@ -99,7 +107,12 @@ GAME.VersusScene.prototype._createRolePick = function () {
 
   var opps = GAME.Arena.findOpponents(PH ? 3 : 5);
   var mi = GAME.Arena.matchInfo(opps);
-  this._note = UI.text(this, W / 2, u * 3 + (PH ? 30 : 54), mi.note,
+  // ⚠ 목록이 비었을 때 `mi.note` 를 그대로 쓰면 안 된다 — 그 문구 안에 이미
+  //   "아직 겨룰 진형이 없습니다…" 가 들어 있어서, 아래 빈 목록 안내와 **같은 말이 두 번**
+  //   나온다(실기기 스크린샷에서 확인. 처음 고칠 때 이걸 놓쳐 두 번 잡았다).
+  //   비었을 때는 **서버 조회 상태만** 짧게 말하고, 없으면 아무것도 말하지 않는다.
+  this._note = UI.text(this, W / 2, u * 3 + (PH ? 30 : 54),
+    opps.length ? mi.note : this._emptyNote(),
     { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 });
   this._noteW = 0;
 
@@ -107,11 +120,19 @@ GAME.VersusScene.prototype._createRolePick = function () {
   var rowH = Math.max(UI.BTN_H || 58, u * (PH ? 15 : 11));
   var rowW = Math.min(W - 30, PH ? 780 : 720);
   var gap = 8;
+  // 아래 '내 전장' 버튼의 위쪽 경계 — 빈 목록 문구를 그 사이 한가운데에 놓기 위해 먼저 잡는다.
+  var myBtnH = Math.max(UI.BTN_H || 58, u * (PH ? 14 : 10));
+  var listBottom = H - u * (PH ? 13 : 11) - myBtnH / 2 - u * 1.5;
 
   if (!opps.length) {
-    UI.text(this, W / 2, listTop + rowH * 0.5,
-      '아직 만들어진 전장이 없습니다.' + '\n' + '아래에서 내 전장을 세우면 목록에 뜹니다.',
-      { size: PH ? 'caption' : 'body', color: C.textDim, origin: 0.5 }).setAlign('center');
+    // 목록이 차지할 자리의 **한가운데**에 둔다. 위쪽에 붙여 놓으면 아래가 통째로 비어
+    // 화면이 잘린 것처럼 보인다(실기기 스크린샷의 큰 빈 공간이 그 증상이었다).
+    UI.text(this, W / 2, listTop + (listBottom - listTop) * 0.42,
+      '아직 만들어진 전장이 없습니다.\n' +
+      '아래 버튼으로 내 전장을 세우면 목록에 뜨고,\n' +
+      '다른 사람이 도전할 수 있습니다.',
+      { size: PH ? 'caption' : 'body', color: C.textDim, origin: 0.5 })
+      .setAlign('center').setLineSpacing(PH ? 4 : 6);
   } else {
     opps.forEach(function (o, i2) {
       var f = o.formation;
@@ -130,7 +151,7 @@ GAME.VersusScene.prototype._createRolePick = function () {
 
   // ── 내 전장 (전략가 입구) ──
   var base = GAME.Arena.baseFormation();
-  var bh = Math.max(UI.BTN_H || 58, u * (PH ? 14 : 10));
+  var bh = myBtnH;
   var byB = H - u * (PH ? 13 : 11);
   UI.button(this, W / 2, byB, Math.min(W - 30, 460), bh,
     (base ? '🛡 내 전장 고치기' : '🛡 내 전장 만들기') +
@@ -143,12 +164,18 @@ GAME.VersusScene.prototype._createRolePick = function () {
       hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: PH ? 13 : 16 }
   ).text.setAlign('center');
 
-  UI.text(this, W / 2, byB + bh * 0.5 + u * 1.2,
+  // ⚠ 버튼 **아래**에 두면 폰 가로(390px)에서 화면 밖으로 2px 넘쳤다(실측).
+  //   아래는 여유가 없다 — 버튼 위에 바닥을 맞춰(originY 1) 얹는다.
+  UI.text(this, W / 2, byB - bh * 0.5 - u * 1.0,
     '양쪽 예산은 ' + GAME.Arena.BUDGET + '으로 같습니다  ·  격파율이 낮은 전장이 위',
-    { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 });
+    { size: 'micro', color: C.textDim, origin: 0.5, originY: 1 });
 
-  UI.button(this, u * 6, u * 3.4, Math.min(120, W * 0.14),
-    Math.max(UI.BTN_H_SM || 52, u * 7), '← 메뉴',
+  // ⚠ 버튼의 y 는 **중심**이다. `u * 3.4`(폰 가로에서 13px)를 주면 높이 52 의 절반이
+  //   위로 삐져나가 화면 밖으로 잘린다 — 실기기 스크린샷에서 모서리가 잘려 있었다.
+  //   '반높이 + 여백'을 하한으로 잡아 화면 크기가 바뀌어도 안 잘리게 한다.
+  var mh = Math.max(UI.BTN_H_SM || 52, u * 7);
+  var mw = Math.max(96, Math.min(140, W * 0.14));
+  UI.button(this, mw / 2 + 10, Math.max(mh / 2 + 6, u * 3.4), mw, mh, '← 메뉴',
     function () { self.scene.start('Menu'); }, { fontSize: 14 });
 };
 
@@ -157,7 +184,16 @@ GAME.VersusScene.prototype._createRolePick = function () {
 // 이미 끝난 조회가 화면에서는 영원히 '상대를 찾는 중…' 으로 남는다(실제로 그랬다).
 GAME.VersusScene.prototype._refreshNote = function () {
   if (!this._note || !this._note.scene) return;
-  var mi = GAME.Arena.matchInfo(GAME.Arena.findOpponents(GAME.Arena.OPP_SLOTS));
+  // ⚠ 여기서도 **비었을 때 규칙**을 지켜야 한다. 이 함수는 서버 응답이 오면 나중에
+  //   불려서 문구를 다시 쓰는데, `mi.note` 를 그대로 쓰면 화면 한가운데 안내와
+  //   같은 말이 두 번 남는다 — 목록을 만들 때만 고쳤더니 PC 에서 그대로 재발했다.
+  var oppsNow = GAME.Arena.findOpponents(GAME.Arena.OPP_SLOTS);
+  if (!oppsNow.length) {
+    this._note.setColor(GAME.CONFIG.COLORS.textDim);
+    this._note.setText(this._emptyNote());
+    return;
+  }
+  var mi = GAME.Arena.matchInfo(oppsNow);
   this._note.setColor(mi.mode === 'random' ? GAME.CONFIG.COLORS.warn : GAME.CONFIG.COLORS.accentAlt);
   if (this._noteW) this._fit(this._note, mi.note, this._noteW);
   else this._note.setText(mi.note);

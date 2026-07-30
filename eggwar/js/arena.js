@@ -341,7 +341,7 @@ GAME.Arena = {
     }).catch(function (e) {
       self._pending = null;
       self.remoteState = 'fail'; self.remoteAt = Date.now();
-      if (window.console) console.warn('상대 목록을 못 받았습니다(랜덤매칭으로 진행):', e && e.message);
+      if (window.console) console.warn('전장 목록을 못 받았습니다(대전은 사람이 만든 전장만 씁니다):', e && e.message);
       return GAME.Formations.remoteList();
     });
     return this._pending;

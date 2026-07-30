@@ -142,6 +142,15 @@ GAME.BuildScene.prototype.init = function (data) {
   this.tier = GAME.CONFIG.DEFAULT_TIER;
   // 수성의 탑에서 들어오면 그 층의 고정 예산을 쓰고, 승패가 층에 반영된다.
   this.defendTower = (data && data.defendTower) || 0;
+  // ⚠ **모드 플래그는 그것을 읽는 코드보다 먼저 정해야 한다.**
+  //   `this.arena` 를 아래 '내 배치 불러오기' 블록 **뒤에서** 대입하고 있었다.
+  //   Phaser 씬은 하나뿐이라 `init` 이 다시 돌 때 지난 판의 값이 남아 있어서,
+  //   처음 들어갈 때는 undefined(→ 안 불러옴)이고 두 번째부터는 **지난 판의 모드**로
+  //   판단했다. 실제 증상: 저장해 둔 5기가 있는데 판이 비어 있고(0기) 예산만
+  //   등급 구매분이 빠진 165 로 떴다(사용자 신고 화면).
+  this.arena = !!(data && data.arena);
+  // 대전에서 '기지 만들기'로 들어왔는가 — 저장 시 그 배치도를 내 기지로 삼는다
+  this.pickBase = !!(data && data.pickBase);
   // ── 지난 층의 배치를 그대로 불러온다 (2026-07-29, 사용자 지시) ──────────────
   // 수성의 탑은 같은 진형으로 층을 이어 오르는 모드다. 매 층 빈 판에서 다시 짜게 하면
   // 층수가 오를수록 '같은 배치를 다시 그리는 노동'만 늘어난다.
@@ -170,10 +179,7 @@ GAME.BuildScene.prototype.init = function (data) {
       }
     }
   }
-  // 대전에서 '기지 만들기'로 들어왔는가 — 저장 시 그 배치도를 내 기지로 삼는다
-  this.pickBase = !!(data && data.pickBase);
-  // 대전 전략가 경로 — 예산 300 고정 + 유닛 등급 구매가 열린다.
-  this.arena = !!(data && data.arena);
+  // (this.arena / this.pickBase 는 위에서 정한다 — 불러오기 블록이 그 값을 읽는다)
   // 씬을 다시 들어오면 이전 타이머는 이미 죽어 있다 — 참조를 반드시 비운다
   this._holdTimer = null;
   this._warnTimer = null;
@@ -191,6 +197,10 @@ GAME.BuildScene.prototype.init = function (data) {
   // 호버 툴팁(PC 전용). 캐시한 표시객체는 재진입 때 이미 파괴돼 있다 → 반드시 비운다.
   this.tip = null;
   this._tipDef = null;
+  // 들어온 순간의 배치 지문 — 나갈 때 이것과 다르면 '저장 안 함' 경고를 한 번 낸다.
+  // ⚠ 불러오기 블록보다 **뒤에서** 재야 한다(위에서 placed 를 채운 뒤의 상태가 기준이다).
+  this._entrySig = this.arena ? this._arenaSig() : undefined;
+  this._exitArmed = false;
 };
 
 // ── 이 씬 전용 투영 ─────────────────────────────────────────────────────────
@@ -456,9 +466,21 @@ GAME.BuildScene.prototype.create = function () {
 
     // ── 예산 티어 ─────────────────────────────────────────────────────────
     //  수성의 탑은 층 고정 예산이라 티어 선택을 숨기고 층 정보를 보여준다.
+    //  ⚠ **대전도 고정 예산이다**(양쪽 300). 그런데 티어 버튼이 그대로 떠 있어서
+    //    누르면 budget 을 120/160/220 으로 덮어쓰고 `_trimToBudget()` 이 초과분을
+    //    **뒤에서부터 잘라냈다**(유닛이 사라진다). 남은 예산은 등급 구매에 쓴 만큼
+    //    빠지는 값이라 티어로 고를 대상이 아니다 → 정보 한 줄로 바꾼다.
     var tierLeft = P ? hud.pad : (toolW + hud.pad);
     var tierW = P ? hud.w : (hud.w - toolW - hud.pad);
-    if (this.defendTower) {
+    if (this.arena) {
+      // ⚠ 이 줄에 **변하는 숫자를 넣지 않는다.** create 에서 한 번 그리고 redraw 가
+      //   다시 만들지 않으므로, 등급을 사서 예산이 줄면 그 자리만 옛 값으로 남는다.
+      //   지금 남은 예산은 상단 바가 실시간으로 말해 준다 — 여기는 규칙만 적는다.
+      UI.text(this, tierLeft, rows.tier.cy,
+        '대전  ·  양쪽 예산 ' + GAME.Arena.BUDGET +
+        ' 고정  ·  유닛 등급에 쓴 만큼 배치 예산이 줄어듭니다',
+        { size: 'caption', color: C.accentAlt, origin: 0, originY: 0.5 });
+    } else if (this.defendTower) {
       UI.text(this, tierLeft, rows.tier.cy,
         '수성의 탑 ' + this.defendTower + '층  ·  고정 예산 ' + this.budget,
         { size: 'caption', color: C.accentAlt, origin: 0, originY: 0.5 });
@@ -500,9 +522,12 @@ GAME.BuildScene.prototype.create = function () {
       }, { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
            color: C.accentAlt, fontSize: 'button' });
     }
+    // 3번째 칸 = **나가는 길**. 대전에서는 예전에 이 자리가 '⚒ 유닛 등급' 이어서
+    // 배치 화면을 나갈 방법이 아예 없었다(사용자가 ☰ 를 열어 길을 찾다 신고했다).
+    // 등급 구매는 v0.64 부터 '유닛을 탭하면 하단 레벨업 팝업'이 담당하므로 여기 있을 이유가 없다.
     UI.button(this, acols[2].cx, rows.act.cy, acols[2].w, rows.act.h,
-      this.arena ? '⚒ 유닛 등급' : (this.defendTower ? '← 탑' : '메뉴'), function () {
-        if (self.arena) { self._openArenaUpgrades(); return; }
+      this.arena ? '← 대전' : (this.defendTower ? '← 탑' : '메뉴'), function () {
+        if (self.arena) { self._arenaExit(); return; }
         self.scene.start(self.defendTower ? 'DefendTower' : 'Menu');
       }, { fontSize: 'button' });
   }
@@ -1160,22 +1185,12 @@ GAME.BuildScene.prototype._buySelectedLevel = function () {
   this.redraw();
 };
 
-GAME.BuildScene.prototype._openArenaUpgrades = function () {
-  var self = this;
-  var seen = {}, keys = [];
-  for (var i = 0; i < this.placed.length; i++) {
-    var t = this.placed[i].type;
-    if (t && !seen[t]) { seen[t] = 1; keys.push(t); }
-  }
-  // 패널도 같은 숫자를 봐야 한다 — 놓인 유닛 값을 먼저 알려준다.
-  GAME.ArenaBuild.setPlacedCost(this.spent());
-  GAME.ArenaBuild.openUpgrades(this, 'units', keys, function () {
-    self.budget = Math.max(0,
-      GAME.Arena.BUDGET - GAME.ArenaBuild.unitLvSpent(GAME.ArenaBuild.get()));
-    GAME.ArenaBuild.setPlacedCost(self.spent());
-    self.redraw();       // **자르지 않는다** — 예산 안에서만 팔았으므로 잘릴 일이 없다
-  });
-};
+// (`_openArenaUpgrades` 는 제거했다 — 2026-07-30)
+//  대전의 유닛 등급 구매 경로가 두 개였다: 이 패널과 '유닛을 탭하면 뜨는 하단 레벨업 팝업'.
+//  후자가 사용자 지시로 만들어진 정식 경로이고(배치하는 손의 동선 위에 있다),
+//  이 패널은 상단 버튼·☰ 안에 숨어 있어 신고의 원인이었다. 두 벌을 남겨 두면
+//  어느 쪽이 실제로 쓰이는지 알 수 없어진다(이 폴더가 반복해 겪은 함정이다).
+//  등급 값 계산은 `GAME.ArenaBuild` 에 있으므로 로직이 사라진 것은 아니다.
 
 GAME.BuildScene.prototype._openSheet = function () {
   var self = this;
@@ -1186,7 +1201,9 @@ GAME.BuildScene.prototype._openSheet = function () {
   this._eatTap = false;
 
   var objs = [];
-  var pw = 640, px0 = Math.round((W - pw) / 2), py0 = 44, phh = 290;
+  // 대전은 두 줄만 쓴다(아래 참조) → 판 높이도 한 줄만큼 줄인다.
+  // 안 줄이면 버튼 없는 빈 띠 66px 가 전장을 가린 채 남는다.
+  var pw = 640, px0 = Math.round((W - pw) / 2), py0 = 44, phh = this.arena ? 224 : 290;
   var bw = Math.floor((pw - 40 - 24) / 3), bh = 56;
   var bx = [px0 + 20 + bw / 2, px0 + 20 + bw + 12 + bw / 2, px0 + 20 + (bw + 12) * 2 + bw / 2];
   var cyA = py0 + 110, cyB = py0 + 176, cyC = py0 + 242;
@@ -1221,6 +1238,24 @@ GAME.BuildScene.prototype._openSheet = function () {
   mk(bx[2], cyA, '전부 지우기', function () { self._clearAll(); self._openSheet(); },
     { fontSize: 'buttonSm' });
 
+  // ── 대전은 여기서 끝낸다 (2026-07-30, 사용자 지시) ──────────────────────────
+  // 신고: "대전에서 내 전장 배치할 때 메뉴 화면 누르면 불필요한 게 많아 —
+  //        그냥 이전으로 돌아가게 하는 버튼만 있어도 될 듯해."
+  // 맞다. 대전 모드에서 아래 세 칸은 불필요할 뿐 아니라 **틀렸다**:
+  //   · 예산 티어(저/중/고) — 대전은 양쪽 300 고정이다. 누르면 budget 을 160 등으로
+  //     덮어쓰고 `_trimToBudget()` 이 초과분을 **뒤에서부터 잘라낸다**(유닛이 사라진다).
+  //   · 배치도 저장 — 상단의 '내 배치 저장' 과 중복인데, 여기서는 이름·상대영웅을 묻는
+  //     `_save()` 를 불러 **대전용이 아닌 저장**을 한다.
+  //   · ⚒ 유닛 등급 — v0.64 부터 '유닛을 탭하면 하단 레벨업 팝업'이 담당한다.
+  // 그래서 대전 시트는 편집 도구 둘 + 나가는 길 + 닫기, 두 줄이다.
+  if (this.arena) {
+    mk(bx[0], cyB, '← 대전으로', function () { self._closeSheet(); self._arenaExit(); },
+      { fontSize: 'buttonSm' });
+    mk(bx[2], cyB, '닫기', function () { self._closeSheet(); }, { fontSize: 'buttonSm' });
+    this.sheet = objs;
+    return;
+  }
+
   // 2행 — 예산 티어 (수성의 탑은 층 고정 예산이라 정보만)
   if (this.defendTower) {
     objs.push(this._fitLine(UI.text(this, W / 2, cyB, '',
@@ -1251,11 +1286,9 @@ GAME.BuildScene.prototype._openSheet = function () {
   mk(bx[0], cyC, '배치도 저장', function () { self._closeSheet(); self._save(); },
     { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
       color: C.accentAlt, fontSize: 'buttonSm' });
-  mk(bx[1], cyC,
-    this.arena ? '⚒ 유닛 등급' : (this.defendTower ? '← 탑' : '메뉴로'), function () {
+  // 대전은 위에서 이미 돌아갔다 — 여기는 방어전·수성의 탑 경로뿐이다.
+  mk(bx[1], cyC, this.defendTower ? '← 탑' : '메뉴로', function () {
       self._closeSheet();
-      // 폰은 상단 바에 칸이 없어 ☰ 시트에서 연다 — PC 상단 버튼과 **같은 함수**를 부른다.
-      if (self.arena) { self._openArenaUpgrades(); return; }
       self.scene.start(self.defendTower ? 'DefendTower' : 'Menu');
     }, { fontSize: 'buttonSm' });
   mk(bx[2], cyC, '닫기', function () { self._closeSheet(); }, { fontSize: 'buttonSm' });
@@ -1314,10 +1347,35 @@ GAME.BuildScene.prototype._saveArena = function () {
     else { self._warn('저장했습니다. 다만 서버에 올리지 못했습니다(연결을 확인하세요).'); }
     self.redraw();
   };
+  // 저장한 뒤에는 지금 상태가 새 기준이다 — 안 그러면 저장 직후 나가도 경고가 뜬다.
+  this._entrySig = this._arenaSig();
+  this._exitArmed = false;
   // `syncBase(true)` — force 를 줘야 10분 쿨다운을 건너뛴다. 저장 버튼을 눌렀는데
   // "방금 올렸으니 안 올린다"로 조용히 넘어가면 사용자는 저장이 안 된 줄 안다.
   GAME.Arena.syncBase(true)
     .then(function (r) { done(!!r); })['catch'](function () { done(false); });
+};
+
+// ── 대전 배치를 나간다 ──────────────────────────────────────────────────────
+// 저장은 자동으로 하지 않는다 — 잘못 만지다 나가는 것까지 내 전장으로 올려버리면
+// 남들이 도전하는 배치가 사고로 바뀐다(전장은 id 당 하나뿐이라 되돌릴 원본이 없다).
+// 대신 **저장 안 한 변경이 있으면 한 번 경고**하고, 다시 누르면 버린다.
+// window.confirm 을 쓰지 않는 이유: 브라우저 모달이 Phaser 입력 루프를 멈춘다.
+GAME.BuildScene.prototype._arenaSig = function () {
+  var lv = (GAME.ArenaBuild && GAME.ArenaBuild.get().unitLv) || {};
+  var units = this.placed.map(function (p) {
+    return p.type + ':' + Math.round(p.x) + ',' + Math.round(p.y);
+  }).sort().join('|');
+  return units + '#' + Object.keys(lv).sort().map(function (k) { return k + lv[k]; }).join(',');
+};
+
+GAME.BuildScene.prototype._arenaExit = function () {
+  if (this._entrySig !== undefined && this._arenaSig() !== this._entrySig && !this._exitArmed) {
+    this._exitArmed = true;
+    this._warn('저장하지 않은 변경이 있습니다 — 다시 누르면 저장하지 않고 나갑니다.');
+    return;
+  }
+  this.scene.start('Versus');
 };
 
 GAME.BuildScene.prototype._save = function () {

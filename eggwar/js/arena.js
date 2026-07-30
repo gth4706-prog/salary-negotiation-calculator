@@ -291,9 +291,11 @@ GAME.Arena = {
     var mode = n.human > 0 ? (n.mine > 0 ? 'mixed' : 'human') : (n.mine > 0 ? 'mine' : 'none');
     var note;
     if (mode === 'human') {
-      note = '🧑 다른 플레이어가 만든 진형 ' + n.human + '개  ·  방어 성적이 좋은 순서';
+      // 화면의 다른 곳은 전부 '격파율'로 말한다 — 여기만 '방어 성적'이면 같은 값을
+      // 두 이름으로 부르는 셈이다(사용자가 헷갈릴 첫 지점).
+      note = '🧑 다른 사람이 만든 전장 ' + n.human + '개  ·  격파율이 낮은 순서';
     } else if (mode === 'mixed') {
-      note = '🧑 사람 진형 ' + n.human + '개  ·  내 배치도 ' + n.mine + '개';
+      note = '🧑 남의 전장 ' + n.human + '개  ·  내 전장 ' + n.mine + '개';
     } else if (mode === 'mine') {
       note = '아직 다른 사람의 진형이 없어 **내 배치도**와 겨룹니다';
     } else {

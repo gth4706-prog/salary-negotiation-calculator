@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Egg War 설치하기 — 안드로이드 · 아이폰</title>
+<meta name="description" content="Egg War 를 홈 화면에 설치하는 방법. 안드로이드와 아이폰 각각 안내합니다. 스토어 없이 바로 설치됩니다.">
+<link rel="canonical" href="https://joeltool.com/eggwar/install/">
+<meta property="og:title" content="Egg War 설치하기">
+<meta property="og:description" content="스토어 없이 홈 화면에 바로 설치. 안드로이드·아이폰 각각 안내합니다.">
+<meta property="og:image" content="https://joeltool.com/eggwar/icons/icon-512.png?v=0.66">
+<meta property="og:type" content="website">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png?v=0.66">
+<link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png?v=0.66">
+<style>
+  /* 게임과 같은 폰트를 같은 파일에서 받는다 — 자체 호스팅이라 구글 접속이 필요없다.
+     ⚠ 경로는 ../fonts 다. 이 페이지가 한 단계 아래에 있다. */
+  @font-face{
+    font-family:"Jua";
+    src:url("../fonts/jua-subset.woff2?v=0.65") format("woff2");
+    font-weight:400;font-style:normal;font-display:swap;
+  }
+  :root{
+    --shell:#f6eeda; --ink:#2A2114; --dark:#101018;
+    --ctrl:#35d0a5; --strat:#9b8cf0; --yolk:#ffc233;
+    --font:"Jua","Malgun Gothic","Apple SD Gothic Neo","맑은 고딕",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;padding:0;font-family:var(--font);color:var(--shell);
+    background:
+      radial-gradient(circle at 12% 100%, rgba(53,208,165,.35), transparent 60%),
+      radial-gradient(circle at 88% 100%, rgba(155,140,240,.35), transparent 60%),
+      var(--dark);
+    min-height:100vh;line-height:1.6;
+  }
+  .wrap{max-width:640px;margin:0 auto;padding:32px 20px 64px}
+  header{text-align:center;margin-bottom:28px}
+  .icon{width:104px;height:104px;border-radius:24px;display:block;margin:0 auto 14px;
+        box-shadow:0 10px 30px rgba(0,0,0,.45)}
+  h1{font-size:30px;margin:0 0 6px}
+  .sub{color:#cbb98f;font-size:15px;margin:0}
+  .play{display:block;text-align:center;margin:22px 0 30px;padding:16px;
+        background:var(--ctrl);color:#0b2b23;text-decoration:none;font-size:19px;
+        border-radius:14px;border:2px solid rgba(0,0,0,.35)}
+  .play:hover{filter:brightness(1.06)}
+  /* OS 선택 — 자바스크립트가 꺼져 있어도 둘 다 보이게 기본은 표시다 */
+  .tabs{display:flex;gap:8px;margin:0 0 18px}
+  .tabs a{flex:1;text-align:center;padding:12px 8px;border-radius:12px;
+          text-decoration:none;color:var(--shell);font-size:16px;
+          background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.14)}
+  .tabs a.on{background:rgba(255,255,255,.16);border-color:var(--yolk)}
+  section{background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.12);
+          border-radius:16px;padding:20px;margin:0 0 16px}
+  section h2{font-size:20px;margin:0 0 10px}
+  ol{margin:0;padding-left:22px}
+  li{margin:8px 0}
+  .note{color:#cbb98f;font-size:14px;margin-top:12px}
+  .warn{color:var(--yolk)}
+  code{background:rgba(0,0,0,.35);padding:2px 6px;border-radius:6px;font-size:14px}
+  footer{text-align:center;color:#8a8172;font-size:13px;margin-top:26px}
+  footer a{color:#cbb98f}
+  @media (min-width:560px){ h1{font-size:34px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <img class="icon" src="../icons/icon-512.png?v=0.66" alt="Egg War 아이콘" width="104" height="104">
+    <h1>Egg War 설치하기</h1>
+    <p class="sub">계란 부족 비대칭 실시간 대전</p>
+  </header>
+
+  <a class="play" href="../">▶ 먼저 브라우저에서 바로 해보기</a>
+
+  <nav class="tabs">
+    <a id="tab-android" href="?os=android">🤖 안드로이드</a>
+    <a id="tab-ios" href="?os=ios">🍎 아이폰</a>
+  </nav>
+
+  <section id="android">
+    <h2>🤖 안드로이드</h2>
+    <ol>
+      <li><strong>크롬</strong>으로 <a href="../" style="color:var(--ctrl)">joeltool.com/eggwar</a> 를 엽니다</li>
+      <li>주소창 오른쪽 <strong>⋮</strong> 를 누릅니다</li>
+      <li><strong>앱 설치</strong> 또는 <strong>홈 화면에 추가</strong> 를 누릅니다</li>
+      <li>홈 화면에 생긴 <strong>Egg War</strong> 아이콘으로 엽니다</li>
+    </ol>
+    <p class="note">설치하면 주소창이 사라지고 전체화면으로 열립니다. 뒤로가기 버튼도 게임 안에서 동작합니다.</p>
+  </section>
+
+  <section id="ios">
+    <h2>🍎 아이폰 · 아이패드</h2>
+    <ol>
+      <li><strong>사파리</strong>로 <a href="../" style="color:var(--ctrl)">joeltool.com/eggwar</a> 를 엽니다</li>
+      <li>아래쪽 <strong>공유</strong> 버튼(⬆︎)을 누릅니다</li>
+      <li>목록을 내려 <strong>홈 화면에 추가</strong> 를 누릅니다</li>
+      <li>오른쪽 위 <strong>추가</strong> 를 누릅니다</li>
+      <li>홈 화면에 생긴 <strong>Egg War</strong> 아이콘으로 엽니다</li>
+    </ol>
+    <p class="note">아이폰 사파리에는 전체화면 버튼이 없습니다. 홈 화면에 추가하는 것이 주소창을 없애는
+      <strong>유일한 방법</strong>입니다.</p>
+    <p class="note">가로로 눕히면 전장이 넓어집니다. 아이폰은 웹에서 화면 방향을 고정할 수 없어,
+      회전 잠금이 켜져 있으면 풀어야 합니다.</p>
+  </section>
+
+  <section>
+    <h2>스토어에서는 못 받나요?</h2>
+    <p class="note"><strong>아직 없습니다.</strong> Egg War 는 설치 파일(APK·IPA)이 없는 웹게임입니다.
+      위 방법으로 홈 화면에 추가하면 스토어 앱과 거의 같게 동작합니다 — 아이콘·전체화면·오프라인 실행까지.</p>
+    <p class="note">플레이스토어·앱스토어 등록은 사람이 모인 뒤에 판단할 일로 남겨 두었습니다.</p>
+  </section>
+
+  <footer>
+    <a href="../">게임으로</a> · <a href="/">joeltool.com</a>
+  </footer>
+</div>
+
+<script>
+// OS 를 알아서 골라 준다. 링크로 강제할 수도 있다(?os=android / ?os=ios).
+// ⚠ 자바스크립트가 꺼져 있으면 **둘 다 보인다** — 그게 안전한 기본값이다.
+//   숨기는 쪽을 기본으로 두면 스크립트가 죽는 순간 안내가 통째로 사라진다.
+(function () {
+  var q = (location.search.match(/[?&]os=([a-z]+)/) || [])[1];
+  var ua = navigator.userAgent || '';
+  var isIOS = /iPad|iPhone|iPod/.test(ua) ||
+              (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  var os = q || (isIOS ? 'ios' : (/Android/.test(ua) ? 'android' : ''));
+  if (!os) return;                       // 데스크톱이면 둘 다 보여 준다
+  var show = document.getElementById(os);
+  var hide = document.getElementById(os === 'ios' ? 'android' : 'ios');
+  if (hide) hide.style.display = 'none';
+  var tab = document.getElementById('tab-' + os);
+  if (tab) tab.className = 'on';
+  if (show) show.scrollIntoView === undefined ? 0 : 0;
+})();
+</script>
+</body>
+</html>

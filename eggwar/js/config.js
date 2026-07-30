@@ -254,21 +254,17 @@ GAME.mirrorY = function (y) {
 // ═══════════════════════════════════════════════════════════════════════════
 GAME.Font = (function () {
   var FAMILY = 'Jua';
-  var SUBSET =
-    ', KEY_RG:MINL2AX1BD[oieast$.gWr]k-Uhp/jlcmwPSOT()bd?=u&y>0*;}fHv' +
-    'x3+64#895<7{q!%QF|"@zCVZ~닉네임을입력해주세요자이상하로한글영문숫만쓸수있습니다사용할없는표현포함돼차단' +
-    '된신고생성최근접속횟여부됨미설정점전송실패컬기록은유지흙바닥풀숲돌담청동벽황금알의둥떠광웃족냥꾼늪약탈언덕파름도붉목리깨진껍질흡' +
-    '혈버틴뭉치않넓게벌려붙에원거녹인든가시덫투석으응징방병막를린창과화망칠곳앤예산당궁배대아직보어균형조합했드두쇠뇌멀서명중물량둔회' +
-    '피능숙공격비올림논타겟늘좌측우많그쪽강닛크덜줄폰너무작면뭘안율교맞았충분히위협받퐁절계쓰적순간날닿구루각집갈저래스넉백걸음친통나' +
-    '십봉쇄뼈볏뛰양손검꺼워관박먼후모뿌죽르폭초씹내낙살연불뒷끈장풍일프헌련축였체채꼴긴싼낮페널티야데값라오됐효었남되씩떼낸핵심찍밀던' +
-    '철숨역경톳발칼끼흑갑옷북등짚깃털킬쿨옹달샘복말열매머압못따웅앞러제뱅잡반더극난랐왼른들와향빠승률렸험추뚫웠퇴활컨트롤선택닫브감필' +
-    '총개메뉴엇급탑층칸터같둘좁큼번탭며튼클릭키본략겼호처준짐디까탁베밟눈갖뜨운것온길놓깝소옵랭킹켜싸웁힐판잘재확눌변착범학찰람뒤춰슬' +
-    '롯즉끌김촘쏜곡곧끊깎건됩란칭토누짠센겨룰깰짜꾸렬침외골꿉락끝났새팅쳐봅텼노섬멸결획득솔랜덤왜졌첫빌때께읽마종냈냄삼플레랑뜻텔빛블' +
-    '딸색테월캔팝탕젤굵곽큰쑥펠흰잉덮엄틱얼셋존앉갔텍군킨맵식움렘쉬쏘댄쟁카띠삐씨찌코꼬또뽀쪼쿠푸뚜쑤쭈허커퍼뻐써쩌느므즈흐츠끄쁘쯔애' +
-    '캐태빼쌔째헤케뻬쎄쩨녀뎌벼셔져혀텨펴껴뗘쎠쪄뇨됴료묘뵤쇼죠쵸쿄툐꾜뚀뾰쑈쬬갸냐댜랴먀뱌샤쟈햐챠캬탸퍄꺄땨뺘쌰쨔규듀류뮤뷰슈쥬휴츄' +
-    '큐튜퓨뀨뜌쀼쓔쮸괴뢰뫼뵈죄쾨푀꾀뙤뾔쐬쬐놔돠롸뫄봐솨촤콰톼퐈꽈똬뽜쏴쫘귀뉘뤼뮈뷔쥐휘취퀴튀퓌뀌쀠쒸쮜궈눠둬뤄뭐붜숴줘훠쿼퉈풔꿔뚸' +
-    '뿨쒀쭤긔늬듸릐믜븨싀즤희츼킈틔픠끠띄쁴씌쯰녜뎨례몌볘셰졔혜쳬켸톄';
-
+  // ── 2026-07-30 · **구글 폰트 → 자체 호스팅 서브셋으로 옮겼다** ────────────────
+  // 여기 있던 `SUBSET` 문자열(고유 800자)은 삭제했다. 이유:
+  //   구글 폰트 `text=` 는 **고유 800자까지만 파일 하나**로 준다(802자면 25개/491KB).
+  //   문구가 늘어 실제로 쓰는 글자가 851자가 되자 넘친 51자가 폴백 폰트로 그려져
+  //   **한 낱말 안에서 글꼴이 갈렸다** — 사용자 신고 "'레벨업'의 '벨업'이 다른 폰트"
+  //   (실제로 벨·업 둘 다 서브셋 밖이었다). 서브셋에 빼도 되는 칸은 0자였다.
+  //   → `fonts/jua-subset.woff2` 를 직접 만들어 같은 도메인에서 준다.
+  //     900자를 담고도 **90KB** 다(구글 800자 판이 146KB 였다). 상한이 없어졌다.
+  //   만드는 법: `node tools/font-build.js` · 빠진 글자 검사: `node tools/font-audit.js`
+  //   라이선스: Jua 는 SIL OFL 1.1 — 서브셋·재배포 허용. `fonts/OFL.txt` 를 함께 배포한다.
+  // ⚠ 문구를 늘리면 서브셋을 다시 만들어야 한다. 감사 도구가 빠진 글자를 잡아 준다.
 
   var d = document, head = d.head || d.getElementsByTagName('head')[0];
 
@@ -280,31 +276,34 @@ GAME.Font = (function () {
     return l;
   }
 
-  // 핸드셰이크를 미리 열어둔다 — 첫 화면(인트로 영상)이 도는 동안 폰트가 도착하게.
-  addLink('preconnect', 'https://fonts.googleapis.com');
-  addLink('preconnect', 'https://fonts.gstatic.com', true);
-
-  var href = 'https://fonts.googleapis.com/css2?family=' + FAMILY.replace(/ /g, '+') +
-    '&display=swap&text=' + encodeURIComponent(SUBSET);
-  var sheet = addLink('stylesheet', href);
+  // 같은 도메인에서 주므로 preconnect 가 필요 없다(DNS·TLS 왕복이 아예 없다).
+  // `?v=` 는 index.html 이 다른 자산에 붙이는 것과 같은 규칙으로 손으로 올린다 —
+  // 여기만 캐시가 남으면 새 글자를 넣어도 옛 폰트가 계속 쓰인다.
+  var URL = 'fonts/jua-subset.woff2?v=0.65';
+  var style = d.createElement('style');
+  style.textContent =
+    '@font-face{font-family:"' + FAMILY + '";' +
+    'src:url("' + URL + '") format("woff2");' +
+    'font-weight:400;font-style:normal;font-display:swap}';
+  head.appendChild(style);
 
   // 준비 완료 약속. **절대 영원히 pending 이 되지 않는다** — 오프라인이거나 구글이
   // 막힌 망(사내망 등)에서 게임이 통째로 안 뜨는 게 최악이므로 상한을 둔다.
+  // 준비 완료 약속. **절대 영원히 pending 이 되지 않는다** — 폰트를 못 받아도
+  // 게임은 폴백 폰트로 떠야 한다(예전에 구글이 막힌 망을 대비해 둔 규칙 그대로다).
+  // `<style>` 은 onload 가 없으므로 FontFace 로딩을 직접 기다린다.
   var ready = new Promise(function (resolve) {
     var settled = false;
     function done(why) { if (!settled) { settled = true; GAME.Font.state = why; resolve(why); } }
     setTimeout(function () { done('timeout'); }, 2500);
-    sheet.onerror = function () { done('error'); };
-    sheet.onload = function () {
-      if (!d.fonts || !d.fonts.load) return done('no-font-api');
-      // 서브셋이 파일 하나라 글자 몇 개만 요청해도 통째로 받아진다.
-      d.fonts.load('16px "' + FAMILY + '"', '가나다ABC123')
-        .then(function () { done('ok'); })
-        .catch(function () { done('load-failed'); });
-    };
+    if (!d.fonts || !d.fonts.load) { done('no-font-api'); return; }
+    // 파일이 하나라 글자 몇 개만 요청해도 통째로 받아진다.
+    d.fonts.load('16px "' + FAMILY + '"', '가나다ABC123')
+      .then(function () { done('ok'); })
+      .catch(function () { done('load-failed'); });
   });
 
-  return { FAMILY: FAMILY, SUBSET: SUBSET, ready: ready, state: 'pending' };
+  return { FAMILY: FAMILY, url: URL, ready: ready, state: 'pending' };
 })();
 
 // 문서 루트에 상태 클래스를 심는다 — CSS 가 '터치 기기인가'를 알 방법이 없기 때문.

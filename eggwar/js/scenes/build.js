@@ -126,8 +126,9 @@ GAME.BuildScene.prototype.init = function (data) {
   this.history = [];         // 되돌리기 — 한 번의 배치가 만든 유닛들을 묶어 쌓는다
   this.selected = null;      // ✕ 배지를 띄울 유닛
   // ⚠ 씬을 다시 들어오면 이 버튼은 이미 파괴돼 있다(파괴된 Phaser 객체도 truthy 다).
-  //   비우지 않으면 `if (!this.upBtn)` 가드를 통과해 죽은 객체에 setLabel 을 한다.
-  this.upBtn = null;
+  //   비우지 않으면 `if (!this.upPop)` 가드를 통과해 죽은 객체를 만진다.
+  // 씬을 다시 들어오면 이 객체들은 이미 파괴돼 있다(파괴된 Phaser 객체도 truthy 다).
+  this.upPop = null;
   this.picked = 'bayonet';
   // ── 좌우 대칭 배치는 **없앴다** (2026-07-30, 사용자 지시) ──────────────────
   // 이력: 처음엔 "진형은 대개 대칭이라 탭이 절반으로 준다"는 편의 기능이었다.
@@ -1052,12 +1053,11 @@ GAME.BuildScene.prototype._syncUpgradeBar = function () {
   if (!this.arena) return;
   var C = GAME.CONFIG.COLORS, UI = GAME.UI;
   var sel = this.selected;
-  if (!sel || !GAME.UNITS[sel.type]) {
-    if (this.upBtn) { this.upBtn.rect.setVisible(false); this.upBtn.text.setVisible(false); }
-    return;
-  }
+
+  if (!sel || !GAME.UNITS[sel.type]) { this._hideUpPop(); return; }
+
   var AB = GAME.ArenaBuild, rec = AB.get();
-  // 버튼의 '살 수 있나' 판정도 **구매와 같은 숫자**를 봐야 한다 —
+  // 버튼의 '살 수 있나' 판정은 **구매와 같은 숫자**를 봐야 한다 —
   // 다르면 눌러도 안 되는 버튼이 밝게 켜져 있게 된다.
   AB.setPlacedCost(this.spent());
   var MAXL = (GAME.UnitLevel && GAME.UnitLevel.MAX) || 5;
@@ -1067,24 +1067,71 @@ GAME.BuildScene.prototype._syncUpgradeBar = function () {
   var can = !maxed && cost <= AB.left(rec);
   var def = GAME.UNITS[sel.type];
 
-  if (!this.upBtn) {
-    // 하단 팔레트 위 한 줄. 배치판을 가리지 않는 자리를 쓴다.
-    var W = GAME.CONFIG.WIDTH;
-    var y = (GAME.CONFIG.PHONE || GAME.CONFIG.PORTRAIT)
-      ? (GAME.BuildScene.PHONE.PAL_Y - 20)
-      : (this.board ? this.board.bottom + 18 : GAME.CONFIG.HEIGHT - 120);
-    var bw = Math.min(W - 40, 330);
-    var selfB = this;
-    this.upBtn = UI.button(this, W / 2, y, bw, Math.max(UI.BTN_H_SM || 52, 44), '',
-      function () { selfB._buySelectedLevel(); }, { fontSize: 15 });
-  }
-  this.upBtn.rect.setVisible(true);
-  this.upBtn.text.setVisible(true);
-  this.upBtn.setLabel(maxed
+  var label = maxed
     ? (def.name + '  Lv.' + lv + '  ·  최고 등급')
-    : ('⚒ ' + def.name + '  Lv.' + lv + ' → ' + (lv + 1) + '   ' + cost + '골드'));
-  this.upBtn.text.setColor(can ? C.accent : C.textDim);
-  this.upBtn.rect.setStrokeStyle(can ? 2 : 1, can ? C.strategist : UI.COL.borderUi);
+    : ('⚒ 레벨업  ' + def.name + '  Lv.' + lv + ' → ' + (lv + 1) + '      ◈ ' + cost);
+
+  // ── 팝업을 만든다(한 번만) ────────────────────────────────────────────────
+  // 사용자 지시(2026-07-30): "✕ 버튼처럼, 유닛을 클릭하면 하단에 레벨업과 필요한 골드가
+  //   뜨고 다른 데 클릭하면 사라지는 팝업."
+  // ⚠ 예전 구현은 `UI.button` 하나를 **배치판 위 좌표**(폰: 팔레트 y − 20 = 286,
+  //   판 바닥이 300)에 띄웠다. 판 안이라 전장 탭을 삼키고, 배경이 없어 유닛과 섞여
+  //   "작동하지 않는다"로 보였다. 이제 **판 배경을 깐 팝업**으로 만들고 깊이를 올린다.
+  // 자리는 판의 아래쪽 안 — 폰 가로는 판 아래에 팔레트가 붙어 여유가 0 이라
+  //   팝업이 판 위에 얹히는 것이 유일한 선택이다(그래서 배경이 꼭 필요하다).
+  if (!this.upPop) {
+    var self2 = this;
+    var g = this.add.graphics().setDepth(880);
+    var txt = UI.text(this, 0, 0, '', { size: 'body', color: C.text, origin: 0.5 })
+      .setDepth(882);
+    // 히트 영역은 별도 사각형 — Graphics 는 입력을 받기가 번거롭다.
+    var hit = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.001).setDepth(881);
+    hit.setInteractive({ useHandCursor: true });
+    hit.on('pointerdown', function (p) {
+      // 이 탭이 아래 전장으로 새면 유닛이 하나 더 놓인다 → 다음 한 번을 먹는다.
+      self2._eatTap = true;
+      self2._buySelectedLevel();
+    });
+    this.upPop = { g: g, txt: txt, hit: hit };
+  }
+
+  var pop = this.upPop;
+  pop.txt.setText(label);
+  pop.txt.setColor(can ? C.accent : (maxed ? C.textDim : UI.TXT.crit));
+
+  var padX = 18, padY = 12;
+  var w = Math.min(GAME.CONFIG.WIDTH - 24, pop.txt.width + padX * 2);
+  var h = pop.txt.height + padY * 2;
+  var cx = GAME.CONFIG.WIDTH / 2;
+  var bottom = this.board ? this.board.bottom
+    : (GAME.CONFIG.PHONE || GAME.CONFIG.PORTRAIT
+        ? GAME.BuildScene.PHONE.BOARD_BOTTOM : GAME.CONFIG.HEIGHT - 130);
+  var cy = bottom - h / 2 - 8;
+
+  pop.g.clear();
+  pop.g.fillStyle(UI.COL.surface === undefined ? UI.COL.surfaceAlt : UI.COL.surface, 0.97);
+  pop.g.fillRoundedRect(cx - w / 2, cy - h / 2, w, h, 12);
+  pop.g.lineStyle(2, can ? C.strategist : UI.COL.borderUi, 1);
+  pop.g.strokeRoundedRect(cx - w / 2, cy - h / 2, w, h, 12);
+  pop.txt.setPosition(cx, cy);
+  pop.hit.setPosition(cx, cy).setSize(w, h);
+  if (pop.hit.input) pop.hit.input.hitArea.setTo(0, 0, w, h);
+
+  pop.g.setVisible(true);
+  pop.txt.setVisible(true);
+  pop.hit.setVisible(true);
+  pop.hit.setInteractive({ useHandCursor: true });
+};
+
+// 팝업을 감춘다. **입력도 같이 끈다** — 안 끄면 보이지 않는 판이 전장 탭을 계속 먹는다.
+GAME.BuildScene.prototype._hideUpPop = function () {
+  var pop = this.upPop;
+  if (!pop) return;
+  pop.g.clear();
+  pop.g.setVisible(false);
+  pop.txt.setVisible(false);
+  pop.hit.setVisible(false);
+  pop.hit.disableInteractive();
 };
 
 GAME.BuildScene.prototype._buySelectedLevel = function () {

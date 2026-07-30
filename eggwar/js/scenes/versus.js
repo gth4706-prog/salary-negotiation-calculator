@@ -59,8 +59,11 @@ GAME.VersusScene.prototype.init = function (data) {
 // (한쪽은 반드시 전략가라는 규칙은 그대로다 — 컨트롤러끼리 붙을 경로가 없다.)
 //
 // 각 줄에 적는 네 가지(지시 3번): 만든 사람 · 만든 시각 · 시도 수 · 막은 수.
+// 만든 시각이 없으면 **빈 문자열**을 준다 — '시각 모름' 이라고 적으면 없는 정보를 위해
+// 한 칸을 쓰는 셈이고, v0.61 이전에 저장한 배치도는 전부 그 상태다(사용자 화면에
+// "5기 · 시각 모름" 으로 떴다). 붙이는 쪽에서 빈 값이면 구분자까지 같이 뺀다.
 GAME.VersusScene.prototype._fmtAgo = function (at) {
-  if (!at) return '시각 모름';
+  if (!at) return '';
   var m = Math.floor((Date.now() - at) / 60000);
   if (m < 1) return '방금';
   if (m < 60) return m + '분 전';
@@ -79,8 +82,17 @@ GAME.VersusScene.prototype._fieldLines = function (f, o) {
     tried = st.win + st.loss + st.draw; blocked = st.win;
   }
   var br = GAME.Arena.breachRate(f);
-  return (f.name || '이름 없는 전장') + '   ·   ' + (f.author || '작성자 모름') +
-    '   ·   ' + this._fmtAgo(f.at) + '\n' +
+
+  // ⚠ **작성자를 맨 앞에 둔다** (2026-07-30, 사용자 신고).
+  //   예전에는 `이름 · 작성자 · 시각` 순서였는데, 배치도 이름이 "내 전장" 같은 1인칭이면
+  //   목록에서 **남의 전장이 자기 것처럼 읽힌다**(실제로 그 혼동이 신고로 들어왔다).
+  //   이름은 사용자가 아무렇게나 정할 수 있으므로 '누구 것인지'를 이름에 맡길 수 없다.
+  //   맨 앞에 남의 닉네임이 보이면 그 순간 자기 것이 아님이 드러난다.
+  var who = (f.author || '작성자 모름') + '의 전장';
+  var ago = this._fmtAgo(f.at);
+  var head = who + (f.name ? ('   ·   ' + f.name) : '') + (ago ? ('   ·   ' + ago) : '');
+
+  return head + '\n' +
     f.units.length + '기   ·   시도 ' + tried + '명   ·   막음 ' + blocked + '명' +
     (br === null ? '   ·   도전 기록 없음' : ('   ·   격파율 ' + br + '%'));
 };
@@ -158,7 +170,10 @@ GAME.VersusScene.prototype._createRolePick = function () {
   var byB = H - u * (PH ? 13 : 11);
   UI.button(this, W / 2, byB, Math.min(W - 30, 460), bh,
     (base ? '🛡 내 전장 고치기' : '🛡 내 전장 만들기') +
-      '\n' + (base ? (base.units.length + '기 · ' + self._fmtAgo(base.at)) : '전략가로 참여합니다'),
+      // 시각이 없으면(v0.61 이전 저장) 구분자까지 같이 뺀다 — "5기 · 시각 모름" 방지.
+      '\n' + (base ? (base.units.length + '기' +
+                      (self._fmtAgo(base.at) ? (' · ' + self._fmtAgo(base.at)) : ''))
+                   : '전략가로 참여합니다'),
     function () {
       GAME.ArenaBuild.setRole('strategist');
       self.scene.start('Build', { pickBase: true, arena: true });

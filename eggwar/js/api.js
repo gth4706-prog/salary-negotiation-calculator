@@ -22,11 +22,48 @@ GAME.Api = {
 
   enabled: function () { return !!this.API_BASE; },
 
+  // ── 검증 도구는 **서버에 쓰지 않는다** (2026-07-30, 실제 사고) ──────────────
+  // 헤드리스 probe 를 로컬이 아니라 **라이브 주소(joeltool.com)** 에 대고 돌린 적이 있다.
+  // 그 probe 가 `시험` 이라는 닉네임으로 2기짜리 배치도를 저장했고, 그게 사용자 화면의
+  // **대전 전장 목록에 남의 전장으로 떴다**(사용자 신고). 읽기만 하는 probe 라고 생각했지만
+  // 대전 화면은 들어가는 순간 `syncBase` 로 자기 배치도를 올린다 — 읽기/쓰기 구분이
+  // 호출부에 흩어져 있으면 사람이 못 지킨다.
+  //
+  // ⚠ **localhost 검사만으로는 이 사고를 못 막는다.** 워커 CORS 가
+  //   `Access-Control-Allow-Origin: https://joeltool.com` 이라 로컬은 애초에 브라우저가
+  //   막는다(즉 로컬은 원래 안전했다). 실제로 새어나간 경로는 **라이브 오리진 위에서 돈
+  //   헤드리스 브라우저**다. 그래서 막아야 하는 신호는 주소가 아니라 '사람이 아님' 이다.
+  //   `--headless=new` 로 띄운 Edge/Chrome 은 UA 에 `HeadlessChrome` 을 박는다(실측).
+  //   실제 플레이어의 브라우저에는 절대 안 들어가므로 오탐이 없다.
+  //
+  // 관문은 `_fetch` **한 곳**에 둔다 — POST 면 무조건 여기서 걸린다. 우회 스위치는
+  // **일부러 두지 않았다**(있으면 내가 그걸 쓰고 같은 사고를 다시 낸다). 쓰기 경로를
+  // 시험해야 하면 `API_BASE` 를 개발용 Worker 로 바꿔서 볼 것.
+  // 읽기는 막지 않는다 — 읽어서는 아무것도 오염되지 않는다.
+  isProbe: function () {
+    if (typeof navigator !== 'undefined') {
+      var ua = navigator.userAgent || '';
+      if (/Headless/i.test(ua) || navigator.webdriver === true) return true;
+    }
+    if (typeof location === 'undefined') return false;   // node 시뮬 — fetch 자체가 없다
+    return location.protocol === 'file:' ||
+           /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(location.hostname || '');
+  },
+
   _fetch: function (path, opts) {
     if (!this.enabled()) return Promise.reject(new Error('API_BASE 미설정'));
     // node 시뮬(tools/sim.js)처럼 fetch 가 없는 환경에서도 이 파일이 로드된다.
     // 없는 전역을 부르면 ReferenceError 로 죽으므로 거절로 바꾼다(호출부는 폴백을 갖고 있다).
     if (typeof fetch !== 'function') return Promise.reject(new Error('fetch 없음'));
+    if (opts && opts.method === 'POST' && this.isProbe()) {
+      if (window.console) console.warn('[api] 검증 환경에서는 서버 쓰기를 보내지 않는다: ' + path);
+      var blocked = new Error('검증 환경 쓰기 차단');
+      // ⚠ 이 거절을 '서버가 그 기능을 지원하지 않음'으로 읽으면 안 된다.
+      //   postBase 의 catch 가 baseSupport=false 로 내려버리면 로컬에서 남의 전장 목록이
+      //   통째로 안 뜨고 랜덤매칭으로 폴백한다(막으려던 건 쓰기뿐이다).
+      blocked.localBlock = true;
+      return Promise.reject(blocked);
+    }
     return fetch(this.API_BASE + path, opts).then(function (r) {
       if (!r.ok) return r.json().then(function (j) { throw new Error(j.error || r.status); });
       return r.json();
@@ -117,7 +154,7 @@ GAME.Api = {
       body: JSON.stringify(body)
     }).then(function (r) { self.baseSupport = true; return r; })
       .catch(function (e) {
-        self.baseSupport = false;
+        if (!e.localBlock) self.baseSupport = false;
         if (window.console) console.warn('기지 업로드 실패(로컬 기지는 유지):', e.message);
         return null;
       });

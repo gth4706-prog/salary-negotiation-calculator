@@ -13,6 +13,9 @@ GAME.ResultScene.prototype.init = function (data) {
   this.learnNotes = data.learnNotes || [];
   this.defendMode = !!data.defendMode;
   this.defendTower = data.defendTower || 0;   // 수성의 탑 층수
+  // 시험 판 — 아무것도 기록되지 않았다는 사실을 **화면이 말해야 한다**.
+  // 조용히 넘어가면 '왜 트로피가 안 올랐지'로 읽힌다.
+  this.test = !!data.test;
   this.aiSkill = data.aiSkill || 0;
   this.score = data.score || 0;
   this.escalation = data.escalation || 0;
@@ -114,6 +117,16 @@ GAME.ResultScene.prototype.create = function () {
     } else {
       title = '시간 초과 방어'; color = C.warn;
       sub = 'AI가 시간 안에 뚫지 못했습니다. 방어 성공으로 봅니다.';
+    }
+  } else if (this.test) {
+    // 시험 판 — 기록이 없다는 사실을 **제목과 설명 둘 다**에서 말한다.
+    // '공격 성공' 이라고만 쓰면 트로피가 오른 줄 알고 화면을 닫는다.
+    if (this.winner === 'controller') {
+      title = '시험 — 내 전장이 뚫렸습니다'; color = C.warn;
+      sub = '내가 만든 전장을 내가 뚫어 봤습니다. 점수·트로피·격파율에 반영되지 않습니다.';
+    } else {
+      title = '시험 — 내 전장이 막았습니다'; color = C.accent;
+      sub = '내 전장이 버텼습니다. 점수·트로피·격파율에 반영되지 않습니다.';
     }
   } else if (this.versus && this.arenaResult) {
     // 대전(비동기 PvP) — 승패보다 **트로피가 얼마나 움직였는지**가 결과다
@@ -217,7 +230,10 @@ GAME.ResultScene.prototype._rewards = function (bx, ry, bw, tierObj) {
   var blocks = [];
   var scoreRow = null;
 
-  if (this.score > 0) {
+  // 시험 판은 **보상 줄을 아예 만들지 않는다.** 점수가 저장되지 않았는데 '획득 점수'와
+  // '누적 점수'를 보여주면, 얻은 것처럼 읽혀 위쪽 "반영되지 않습니다" 와 정면으로 어긋난다.
+  // (실측에서 '획득 점수'·트로피 줄이 그대로 떠 있었다.)
+  if (this.score > 0 && !this.test) {
     scoreRow = GAME.UI.rewardRow(this, bx, ry, bw, '획득 점수', '0', {
       accent: 0xffd166, valueSize: 'heading'
     });

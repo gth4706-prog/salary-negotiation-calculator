@@ -248,6 +248,7 @@ GAME.BuildScene.prototype.create = function () {
   // 대전은 **300 고정**이고, 그 안에서 유닛 등급(수성의 탑에서 가져온 것)까지 산다.
   // 등급에 쓴 만큼 배치에 쓸 돈이 줄어드는 것이 이 모드의 선택이다 —
   // 적은 수를 세게 굴릴 것인가, 많은 수를 그대로 세울 것인가.
+  if (this.arena) GAME.ArenaBuild.setPlacedCost(0);   // 판을 그리기 전이라 0 에서 시작한다
   this.budget = this.arena
     ? Math.max(0, GAME.Arena.BUDGET - GAME.ArenaBuild.unitLvSpent(GAME.ArenaBuild.get()))
     : (this.defendTower
@@ -1056,6 +1057,9 @@ GAME.BuildScene.prototype._syncUpgradeBar = function () {
     return;
   }
   var AB = GAME.ArenaBuild, rec = AB.get();
+  // 버튼의 '살 수 있나' 판정도 **구매와 같은 숫자**를 봐야 한다 —
+  // 다르면 눌러도 안 되는 버튼이 밝게 켜져 있게 된다.
+  AB.setPlacedCost(this.spent());
   var MAXL = (GAME.UnitLevel && GAME.UnitLevel.MAX) || 5;
   var lv = rec.unitLv[sel.type] || 1;
   var maxed = lv >= MAXL;
@@ -1085,15 +1089,25 @@ GAME.BuildScene.prototype._syncUpgradeBar = function () {
 
 GAME.BuildScene.prototype._buySelectedLevel = function () {
   if (!this.arena || !this.selected) return;
+  var AB = GAME.ArenaBuild;
   var t = this.selected.type;
-  if (GAME.ArenaBuild.buyUnitLv(t) === null) {
-    this._warn('예산이 부족하거나 이미 최고 등급입니다.');
+  var MAXL = (GAME.UnitLevel && GAME.UnitLevel.MAX) || 5;
+  var lv = AB.get().unitLv[t] || 1;
+  if (lv >= MAXL) { this._warn('이미 최고 등급입니다.'); return; }
+
+  // ⚠ **놓인 유닛 값을 먼저 알려준 뒤에** 산다. 이 한 줄이 없으면 판이 가득 찼는데도
+  //   구매가 통과하고, 줄어든 예산 때문에 유닛이 잘려 나간다(신고된 버그의 원인).
+  AB.setPlacedCost(this.spent());
+  var cost = AB.unitLvCost(lv + 1);
+  if (cost > AB.left()) {
+    this._warn('예산이 ' + cost + ' 필요합니다 — 유닛을 줄이거나 다른 종류를 고르세요.');
     return;
   }
-  // 등급을 사면 배치에 쓸 예산이 줄어든다 → 넘치는 유닛은 기존 규칙으로 정리한다.
-  this.budget = Math.max(0,
-    GAME.Arena.BUDGET - GAME.ArenaBuild.unitLvSpent(GAME.ArenaBuild.get()));
-  this._trimToBudget();
+  if (AB.buyUnitLv(t) === null) { this._warn('강화하지 못했습니다.'); return; }
+
+  // 위에서 들어맞는 것을 확인했으므로 **자르지 않는다.** 예전에는 여기서
+  // `_trimToBudget()` 을 불러 배치를 뜯어냈다 — 그게 "유닛이 사라진다"의 정체다.
+  this.budget = Math.max(0, GAME.Arena.BUDGET - AB.unitLvSpent(AB.get()));
   this._warn('');
   this._status();
   this.redraw();
@@ -1106,12 +1120,13 @@ GAME.BuildScene.prototype._openArenaUpgrades = function () {
     var t = this.placed[i].type;
     if (t && !seen[t]) { seen[t] = 1; keys.push(t); }
   }
+  // 패널도 같은 숫자를 봐야 한다 — 놓인 유닛 값을 먼저 알려준다.
+  GAME.ArenaBuild.setPlacedCost(this.spent());
   GAME.ArenaBuild.openUpgrades(this, 'units', keys, function () {
     self.budget = Math.max(0,
       GAME.Arena.BUDGET - GAME.ArenaBuild.unitLvSpent(GAME.ArenaBuild.get()));
-    // 예산이 줄어 이미 놓은 유닛이 넘칠 수 있다 → 기존 정리 규칙을 그대로 태운다.
-    self._trimToBudget();
-    self.redraw();
+    GAME.ArenaBuild.setPlacedCost(self.spent());
+    self.redraw();       // **자르지 않는다** — 예산 안에서만 팔았으므로 잘릴 일이 없다
   });
 };
 

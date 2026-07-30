@@ -13,6 +13,12 @@ GAME.BattleScene.prototype.init = function (data) {
   this.picks = data.picks || GAME.defaultSkillPicks();
   this.tower = data.tower || 0;      // 통곡의 탑 층수 (0이면 일반 대전)
   this.versus = !!data.versus;       // 대전(비동기 PvP) 공격 — 승패로 트로피가 오간다
+  // ── 시험 판 (2026-07-30, 사용자 지시) ─────────────────────────────────────
+  //  내 전장을 내가 쳐 보는 연습이다. **아무것도 기록하지 않는다** —
+  //  점수·트로피·배치도 전적·서버 격파율 넷 다. 자기 전장을 상대로 기록이 쌓이면
+  //  격파율·랭킹이 통째로 거짓이 되기 때문이다(혼자서 무한히 올릴 수 있다).
+  //  기록을 거르는 곳을 **한 군데로 모은다** — 갈라놓으면 하나를 빼먹는다.
+  this.test = !!data.test;
   this.startPos = data.startPos || { x: 600, y: 590 };
   this.ended = false;
   this.markers = [];
@@ -637,20 +643,29 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     // '전략가가 이겼는가' 기준이므로 컨트롤러 승리는 진형의 패배다.
     var t = this.state.telemetry;
     var xs = t.heroXSamples;
-    var learnRec = GAME.Learn.record(this.formation.id, this.state.winner === 'strategist', {
-      medicPlaced: t.medicPlaced, medicHealed: t.medicHealed,
-      guardPlaced: t.guardPlaced, guardBlocked: t.guardBlocked,
-      rangedDiedInMelee: t.rangedDiedInMelee,
-      strategistUnits: t.strategistUnits, engagedUnits: t.engagedUnits,
-      heroSideAvg: xs.length ? xs.reduce(function (a, b) { return a + b; }, 0) / xs.length : undefined
-    });
+    // ⚠ **시험 판은 학습시키지도 않는다.** 여기까지 막지 않아 실측에서 결과 화면에
+    //   "격파당해 난이도가 1단계로 올랐습니다 / 시험 시작 — …" 이 떴다. 내 전장을
+    //   내가 시험할 때마다 그 전장의 난이도(escalation)가 올라가면, 남이 도전할 때의
+    //   난이도가 내 연습 횟수로 정해진다 — 격파율이 통째로 거짓이 된다.
+    //   기록을 막는 곳은 넷이다: 배치도 전적 · 점수 · 트로피 · **학습**.
+    var learnRec = this.test
+      ? { lastNotes: [] }
+      : GAME.Learn.record(this.formation.id, this.state.winner === 'strategist', {
+          medicPlaced: t.medicPlaced, medicHealed: t.medicHealed,
+          guardPlaced: t.guardPlaced, guardBlocked: t.guardBlocked,
+          rangedDiedInMelee: t.rangedDiedInMelee,
+          strategistUnits: t.strategistUnits, engagedUnits: t.engagedUnits,
+          heroSideAvg: xs.length ? xs.reduce(function (a, b) { return a + b; }, 0) / xs.length : undefined
+        });
 
     // 이 배치도의 방어 전적 — 진형 선택·준비·결과 화면이 이 값을 읽는다.
     // 여기서 기록하지 않으면 세 화면 모두 영원히 '전적 없음'으로 남는다(실제로 그랬다).
     // 기준은 winRate 와 같은 '전략가(방어) 승률'이다.
-    GAME.Formations.recordResult(this.formation.id,
-      this.state.winner === 'strategist' ? 'win'
-        : (this.state.winner === 'controller' ? 'loss' : 'draw'));
+    if (!this.test) {
+      GAME.Formations.recordResult(this.formation.id,
+        this.state.winner === 'strategist' ? 'win'
+          : (this.state.winner === 'controller' ? 'loss' : 'draw'));
+    }
 
     // 점수 — 격파한 난이도 단계가 클수록, 체력·시간을 남길수록 높다
     var won = this.state.winner === 'controller';
@@ -664,7 +679,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       tower: this.tower
     });
     var id = GAME.Account.current();
-    if (id && score > 0) {
+    if (id && score > 0 && !this.test) {
       GAME.Score.add(id, {
         score: score, won: won, asStrategist: false,
         escalation: this.escalation, formationName: this.formation.name,
@@ -697,7 +712,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
 
     // 대전(비동기 PvP) — 트로피를 정산한다
     var arenaResult = null;
-    if (this.versus && GAME.Arena) {
+    if (this.versus && !this.test && GAME.Arena) {
       arenaResult = GAME.Arena.recordAttack(GAME.Arena.pendingOpponent, won);
       // 격파율의 근거를 서버에 남긴다 — **그 진형의 주인 닉네임**으로 보고한다.
       // 내 기기 기록만으로는 남의 진형이 대부분 '기록 없음'으로 남아 정렬이 의미를 잃는다.
@@ -720,6 +735,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
         runRec: runRec,
         goldGained: goldGained,
         versus: self.versus,
+        test: self.test,
         arenaResult: arenaResult,
         learnNotes: learnRec.lastNotes || []
       });

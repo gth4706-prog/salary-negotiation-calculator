@@ -112,10 +112,22 @@ GAME.ArenaBuild = {
     return t;
   },
 
+  // ── 배치판에 놓인 유닛 총액 ───────────────────────────────────────────────
+  // ⚠ **이 값이 없어서 버그가 났다** (2026-07-30 신고: "쇠뇌 진지 업그레이드를 누르니
+  //   유닛이 사라지고 돈은 안 써지고 버튼도 안 사라진다").
+  //   놓인 유닛은 `BuildScene.placed` 에 있고 이 모듈은 그걸 몰랐다. 그래서
+  //   `left()` 가 "300 − 등급값" 을 내놓아 **판이 가득 찼는데도 구매가 통과**했고,
+  //   구매로 배치 예산이 줄면 `_trimToBudget` 이 **맨 뒤 유닛을 뽑아버렸다**
+  //   (고른 유닛이 아니라서 버튼은 그대로 남고, 사라진 유닛 값이 환원돼 돈이 안 준 듯 보였다).
+  //   전략가 예산은 '유닛 + 등급'이 한 주머니이므로 여기서 **같이 세야 한다.**
+  // 저장하지 않는다(화면 상태다) — 씬이 매번 알려준다.
+  _placedCost: 0,
+  setPlacedCost: function (n) { this._placedCost = Math.max(0, n || 0); },
+
   // 전체 지출(역할에 따라 세는 항목이 다르다)
   spent: function (rec) {
     rec = rec || this.get();
-    if (rec.role === 'strategist') return this.unitLvSpent(rec);
+    if (rec.role === 'strategist') return this.unitLvSpent(rec) + this._placedCost;
     return this.heroSpent(rec) + this.statsSpent(rec);
   },
 

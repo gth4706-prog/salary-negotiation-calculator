@@ -48,6 +48,8 @@ GAME.DraftScene.prototype.init = function (data) {
   this.formation = GAME.Formations.getById(data.formationId);
   this.tower = (data && data.tower) || 0;    // 통곡의 탑 층수 (0이면 일반 대전)
   this.versus = !!(data && data.versus);     // 대전(비동기 PvP) 공격인가 — 트로피가 걸린다
+  // 내 전장 시험 — 아무것도 기록하지 않는 연습 판이다(사용자 지시 3번).
+  this.test = !!(data && data.test);
   // 탑은 **도전 시작 예산**으로 한 번만 세팅한다(이후 성장은 골드로).
   // 일반 대전은 배치도가 선언한 예산을 그대로 쓴다(양쪽 동일 조건).
   // 대전은 **양쪽 300 고정**(2026-07-30 사용자 지시). 배치도가 선언한 예산을 쓰던
@@ -653,6 +655,7 @@ GAME.DraftScene.prototype._start = function () {
     picks: this.picks,
     tower: this.tower,
     versus: this.versus,
+      test: this.test,
     startPos: { x: Z.x + Z.w / 2, y: Z.y + Z.h * 0.55 }
   });
 };

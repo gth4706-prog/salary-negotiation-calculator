@@ -122,7 +122,10 @@ GAME.VersusScene.prototype._createRolePick = function () {
   var gap = 8;
   // 아래 '내 전장' 버튼의 위쪽 경계 — 빈 목록 문구를 그 사이 한가운데에 놓기 위해 먼저 잡는다.
   var myBtnH = Math.max(UI.BTN_H || 58, u * (PH ? 14 : 10));
-  var listBottom = H - u * (PH ? 13 : 11) - myBtnH / 2 - u * 1.5;
+  // 시험 버튼이 붙으면 목록이 쓸 수 있는 아래 경계가 그만큼 올라간다.
+  var hasBase = !!GAME.Arena.baseFormation();
+  var listBottom = H - u * (PH ? 13 : 11) - myBtnH / 2 - u * 1.5 -
+                   (hasBase ? Math.max(UI.BTN_H_SM || 52, u * (PH ? 11 : 8)) + u * 2 : 0);
 
   if (!opps.length) {
     // 목록이 차지할 자리의 **한가운데**에 둔다. 위쪽에 붙여 놓으면 아래가 통째로 비어
@@ -164,11 +167,31 @@ GAME.VersusScene.prototype._createRolePick = function () {
       hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: PH ? 13 : 16 }
   ).text.setAlign('center');
 
-  // ⚠ 버튼 **아래**에 두면 폰 가로(390px)에서 화면 밖으로 2px 넘쳤다(실측).
-  //   아래는 여유가 없다 — 버튼 위에 바닥을 맞춰(originY 1) 얹는다.
-  UI.text(this, W / 2, byB - bh * 0.5 - u * 1.0,
+  // ── 아래에서 위로 쌓는다 ────────────────────────────────────────────────────
+  // ⚠ 각 요소에 y 를 따로 계산해 주면 크기가 바뀔 때 조용히 겹친다. 실제로 겹쳤다 —
+  //   시험 버튼과 예산 문구가 폰 가로에서 7px 물렸다. 그래서 **만든 것의 실제 경계**를
+  //   읽어 그 위에 다음 것을 얹는다(이 저장소가 반복해 배운 규칙: 좌표를 손으로 박지 말 것).
+  //   아래에 두면 화면 밖으로 나가므로 방향은 위쪽뿐이다.
+  var hint = UI.text(this, W / 2, byB - bh * 0.5 - u * 1.0,
     '양쪽 예산은 ' + GAME.Arena.BUDGET + '으로 같습니다  ·  격파율이 낮은 전장이 위',
     { size: 'micro', color: C.textDim, origin: 0.5, originY: 1 });
+
+  // ── 내 전장 시험 (2026-07-30, 사용자 지시 3번) ─────────────────────────────
+  // "본인도 본인 진지에 테스트해볼 수 있게, 이 과정은 점수에 반영되지 않게."
+  // 대전 목록에서는 내 전장을 일부러 뺀다(자기랑 붙어 트로피를 벌 수 없어야 한다).
+  // 그래서 **시험용 입구를 따로** 둔다 — `test:true` 가 붙으면 전투가 끝나도
+  // 점수·트로피·전적·격파율에 아무것도 기록하지 않는다(battle.js 에서 한 번에 걸러낸다).
+  if (base) {
+    var th = Math.max(UI.BTN_H_SM || 52, u * (PH ? 11 : 8));
+    var topOfHint = hint.getBounds().top;
+    UI.button(this, W / 2, topOfHint - u * 1.0 - th / 2, Math.min(W - 30, 460), th,
+      '🧪 내 전장 시험해보기   (점수에 반영되지 않습니다)',
+      function () {
+        GAME.ArenaBuild.setRole('controller');
+        GAME.Arena.pendingOpponent = null;          // 트로피 정산을 아예 걸지 않는다
+        self.scene.start('Draft', { formationId: base.id, versus: true, test: true });
+      }, { fontSize: PH ? 12 : 14 });
+  }
 
   // ⚠ 버튼의 y 는 **중심**이다. `u * 3.4`(폰 가로에서 13px)를 주면 높이 52 의 절반이
   //   위로 삐져나가 화면 밖으로 잘린다 — 실기기 스크린샷에서 모서리가 잘려 있었다.

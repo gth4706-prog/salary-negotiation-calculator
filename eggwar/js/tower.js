@@ -228,6 +228,16 @@ GAME.Tower = {
     // 무엇이 달라졌는지 이름을 붙여 줘야 대응할 생각을 한다.
     // ⚠ **원형과 조건을 먼저 적는다.** 이 둘이 이 층을 다른 층과 구분하는 주역이고,
     //   전술·학습은 보조 정보다. 순서가 곧 중요도다.
+    // 층 목표 — 무엇을 하면 이기는가. 조건보다도 먼저 알아야 하는 정보다.
+    if (GAME.TowerObjective) {
+      var obj = GAME.TowerObjective.objectiveFor(floor);
+      if (obj) {
+        f.objective = obj.key;
+        f.objectiveLabel = obj.label;
+        f.objectiveDesc = obj.desc;
+      }
+    }
+
     if (f.planLabel) {
       f.rationale = '진형: ' + f.planLabel + ' — ' + f.planHint +
                     (f.rationale ? '\n' + f.rationale : '');

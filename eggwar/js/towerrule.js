@@ -104,6 +104,35 @@ GAME.TowerRule = (function () {
       hook: 'narrow',
       hookArg: { aggroMul: 0.62 },
       forbids: '뭉텅이로 끌어모으기'
+    },
+    // ── 탑 전용 정예 (2026-07-31) ──────────────────────────────────────────
+    //  "탑 전용 몬스터를 넣어 달라"는 요청에 **새 유닛 종류가 아니라 조건**으로 답한다.
+    //  이유: 새 유닛은 아트(js/eggart.js)·밸런스·팔레트·AI 가중치를 전부 늘리고,
+    //  그렇게 늘려도 결국 "체력 많은 전사" 가 되기 쉽다. 반면 정예는 **기존 유닛 한 기에
+    //  기제를 얹는 것**이라 아트 0 · 새 밸런스 축 0 이면서, 층마다 다른 놈이 정예가 되므로
+    //  같은 유닛이 다르게 싸운다. 세계관도 그대로다 — 부족의 정예 전사다.
+    //  ⚠ 셋 다 **처치 순서를 강제**한다는 공통 목적을 가진다. 그게 이 게임에 없던 축이다.
+    {
+      key: 'warlord', label: '정예 · 두령',
+      desc: '두령 한 기가 주변 아군을 강화한다 — 먼저 끊지 않으면 전부 세다',
+      mods: {},
+      hook: 'elite', hookArg: { kind: 'warlord', radius: 170, dmg: 0.30, hp: 1.6, size: 1.30 },
+      forbids: '앞에서부터 순서대로 처치'
+    },
+    {
+      key: 'bulwarkElite', label: '정예 · 방패',
+      desc: '방패 정예가 곁의 아군에게 보호막을 준다 — 뒤를 치려면 먼저 걷어야 한다',
+      mods: {},
+      hook: 'elite', hookArg: { kind: 'shield', radius: 150, shieldFrac: 0.35,
+                                every: 4000, hp: 1.8, size: 1.28 },
+      forbids: '뒷줄만 골라 치기'
+    },
+    {
+      key: 'bomber', label: '정예 · 폭심',
+      desc: '폭심이 죽으면 크게 터진다 — 붙어서 잡으면 같이 다친다',
+      mods: {},
+      hook: 'elite', hookArg: { kind: 'bomb', radius: 132, dmgMul: 1.9, hp: 1.4, size: 1.26 },
+      forbids: '붙어서 아무거나 먼저 잡기'
     }
   ];
 
@@ -143,6 +172,21 @@ GAME.TowerRule = (function () {
     // ⚠ 보스 층에는 조건을 붙이지 않는다 — 보스 기제 자체가 그 층의 '조건' 이고,
     //   둘을 겹치면 보스 층이 벽이 된다(BOSS_ESCORT 를 잡느라 겪은 일과 같은 계열).
     ruleFor: function (floor, seed) {
+      // ── 문 선택이 있으면 그것이 우선이다 (towerdoor.js) ────────────────────
+      //  플레이어가 '무난한 길' 을 골랐으면 조건이 없어야 하고, '험한 길' 을 골랐으면
+      //  그 문에 적혀 있던 조건이어야 한다. 여기서 존중하지 않으면 **화면에 보여준 것과
+      //  실제 전투가 달라진다** — 이 게임에서 가장 하면 안 되는 종류의 거짓말이다.
+      //  ⚠ `seed` 를 명시로 넘긴 호출(도구·측정)은 문을 무시한다 — 재현성이 우선이다.
+      if (seed === undefined && GAME.TowerDoor) {
+        var picked = GAME.TowerDoor.pickedRuleKey(floor);
+        if (picked !== undefined) {
+          if (!picked) return null;
+          for (var pi = 0; pi < RULES.length; pi++) {
+            if (RULES[pi].key === picked) return RULES[pi];
+          }
+          return null;
+        }
+      }
       if (floor < FROM_FLOOR) return null;
       if (GAME.Tower && GAME.Tower.isBossFloor && GAME.Tower.isBossFloor(floor)) return null;
       var n = floor - FROM_FLOOR;

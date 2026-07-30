@@ -966,15 +966,14 @@ GAME.TowerScene.prototype._buildChallenge = function () {
     this.run ? (floor + '층 전투 시작') : (floor + '층 도전 — 장비 & 스킬 세팅'), function () {
     GAME.Tower.pending = self.formation;
     if (self.run) {
-      var Z = GAME.CONFIG.ZONE_CONTROLLER;
-      self.scene.start('Battle', {
-        formationId: self.formation.id,
-        heroKey: self.run.heroKey,
-        items: self.run.items,
-        picks: self.run.picks,
-        tower: floor,
-        startPos: { x: Z.x + Z.w / 2, y: Z.y + Z.h * 0.55 }
-      });
+      // ── 두 갈래 문 (towerdoor.js) ──────────────────────────────────────
+      //  전투로 바로 가지 않고 **먼저 고르게 한다.** 층이 순번이 아니라 경로가 되는 지점이다.
+      //  고르고 나면 되돌릴 수 없다 — 그래야 고민이 성립한다.
+      if (GAME.TowerDoor && GAME.TowerDoor.shouldOffer(floor)) {
+        self._openDoors(floor);
+        return;
+      }
+      self._enterBattle(floor);
     } else {
       self.scene.start('Draft', {
         formationId: self.formation.id, tower: floor, heroKey: self.heroKey
@@ -983,6 +982,50 @@ GAME.TowerScene.prototype._buildChallenge = function () {
   }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 20 : 22 });
 
   this._refresh();
+};
+
+// ── 두 갈래 문 (2026-07-31 대개편 2단계) ──────────────────────────────────
+//  전투 진입 전에 **경로를 고르게 한다.** 무엇이 기다리는지 다 보여 주고 고르게 하는 것이
+//  핵심이다 — 모르고 고르면 그건 도박이지 선택이 아니다.
+//  ⚠ 고른 뒤에는 `TowerRule.ruleFor` 가 그 선택을 존중한다. 화면에 보여준 것과 실제
+//    전투가 다르면 이 게임에서 가장 하면 안 되는 종류의 거짓말이 된다.
+GAME.TowerScene.prototype._openDoors = function (floor) {
+  var self = this;
+  var doors = GAME.TowerDoor.doorsFor(floor);
+  var items = doors.map(function (d) {
+    var bits = [];
+    if (d.ruleLabel) bits.push('⚠ ' + d.ruleLabel + ' — ' + d.ruleDesc);
+    else bits.push('조건 없음');
+    if (d.boonLabel) bits.push('✦ ' + d.boonLabel + ' — ' + d.boonDesc);
+    else if (d.gold) bits.push('◈ 골드 +' + d.gold);
+    return { key: d.key, name: d.label, note: bits.join('\n') };
+  });
+  GAME.Modal.open(this, {
+    title: floor + '층 — 어느 길로 갈 것인가',
+    items: items,
+    onPick: function (it) {
+      GAME.Modal.close();
+      GAME.TowerDoor.pick(floor, it.key);
+      // 고른 문이 층의 조건을 바꿨으므로 **진형을 다시 만든다** — 안 그러면 방금 고른 것과
+      // 다른 조건으로 싸우게 된다.
+      self.formation = GAME.Tower.formationFor(floor, self.heroKey);
+      self._enterBattle(floor);
+    }
+  });
+};
+
+// 전투 진입 — 문 선택 경로와 일반 경로가 **같은 함수**를 쓴다.
+// 두 곳에 복사하면 한쪽만 고쳐져 조용히 갈라진다(이 폴더의 상습 사고).
+GAME.TowerScene.prototype._enterBattle = function (floor) {
+  var Z = GAME.CONFIG.ZONE_CONTROLLER;
+  this.scene.start('Battle', {
+    formationId: this.formation.id,
+    heroKey: this.run.heroKey,
+    items: this.run.items,
+    picks: this.run.picks,
+    tower: floor,
+    startPos: { x: Z.x + Z.w / 2, y: Z.y + Z.h * 0.55 }
+  });
 };
 
 // ── 폰 가로 전용 도전 화면 (820×390, 도전 진행 중) ───────────────────────
@@ -1068,15 +1111,13 @@ GAME.TowerScene.prototype._buildChallengePhone = function () {
 
   UI.button(this, rx + rw / 2, mainTop + mainH / 2, rw, mainH, floor + '층 전투 시작', function () {
     GAME.Tower.pending = self.formation;
-    var Z = GAME.CONFIG.ZONE_CONTROLLER;
-    self.scene.start('Battle', {
-      formationId: self.formation.id,
-      heroKey: self.run.heroKey,
-      items: self.run.items,
-      picks: self.run.picks,
-      tower: floor,
-      startPos: { x: Z.x + Z.w / 2, y: Z.y + Z.h * 0.55 }
-    });
+    // ⚠ PC 판과 **같은 경로**를 쓴다. 예전에는 여기에 `scene.start('Battle')` 이 복사돼
+    //   있었는데, 그러면 문 선택을 PC 에만 붙이고 폰에서는 조용히 건너뛰게 된다.
+    if (GAME.TowerDoor && GAME.TowerDoor.shouldOffer(floor)) {
+      self._openDoors(floor);
+      return;
+    }
+    self._enterBattle(floor);
   }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
        hover: UI.COL.panelTealHi, color: C.accent, fontSize: 21 });
 
@@ -1222,9 +1263,19 @@ GAME.TowerScene.prototype._refresh = function () {
   //  AI 대응 설명(rationale)은 보조다.
   //  ⚠ `_refresh` 는 도전 화면 전용이지만, 랜딩에서 들어오는 경로가 생기면 여기 객체가
   //    아직 없다. 파괴된/없는 Phaser 객체를 만지면 씬이 통째로 죽는다(이 폴더의 상습 함정).
+  //  순서: **목표 → 진형 → 조건**. 목표가 맨 위인 이유는 그것을 모르면 나머지가
+  //  무의미하기 때문이다("무엇을 하면 이기는가" 없이 "어떻게 생겼는가"는 쓸모가 없다).
   var f0 = this.formation, tag = [];
+  if (f0.objectiveLabel) tag.push('🎯 ' + f0.objectiveLabel + ' — ' + f0.objectiveDesc);
   if (f0.planLabel) tag.push('◈ ' + f0.planLabel + ' — ' + f0.planHint);
   if (f0.ruleLabel) tag.push('⚠ ' + f0.ruleLabel + ' — ' + f0.ruleDesc);
+  // 가진 축복 — 내 쪽이 무엇을 할 수 있는지도 같은 자리에서 보여 준다.
+  if (GAME.TowerBoon && this.run) {
+    var bl = GAME.TowerBoon.owned(this.run).map(function (k) {
+      var b = GAME.TowerBoon.byKey(k); return b ? b.label : k;
+    });
+    if (bl.length) tag.push('✦ 축복 — ' + bl.join(' · '));
+  }
   var tagH = 0;
   if (this.floorTagText) {
     this.floorTagText.setText(tag.join('\n'));

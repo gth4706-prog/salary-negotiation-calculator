@@ -302,6 +302,35 @@ GAME.Combat = {
     // 지뢰는 피해로 제거할 수 없다. 밟아서 터뜨리거나, 피해서 지나가는 수밖에.
     if (this.isHazard(unit)) return 0;
 
+    // ── 축복 훅 — 영웅이 **때릴 때** (towerboon.js) ────────────────────────
+    //  ⚠ `source.isHero` 검사가 핵심이다. 빼면 축복이 적까지 강화한다.
+    var bh = state && state.boons;
+    if (bh && source && source.isHero) {
+      // 배수진 — 체력이 낮을수록 위험을 유지할 값어치가 생긴다
+      if (bh.lastStand && source.maxHp &&
+          source.hp / source.maxHp <= (bh.lastStand.below || 0.35)) {
+        dmg *= bh.lastStand.dmgMul || 1.4;
+      }
+      // 과부하 — 스킬 뒤 **한 방만**. 쓰면 표시를 지운다(난사하면 값을 못 받는다).
+      if (source._overload && !(opts && opts.noOverload)) {
+        dmg *= source._overload;
+        source._overload = 0;
+      }
+    }
+    // 스침 — 영웅이 **움직이는 동안** 받는 피해가 준다. 멈춰서 때리는 습관을 벌준다.
+    if (bh && bh.phase && unit.isHero && this.isCharging && this.isCharging(unit)) {
+      dmg *= 1 - (bh.phase.cut || 0.18);
+    }
+
+    // ── 정예 '두령' 오라 — 곁의 아군이 더 아프게 때린다 (towerrule.js) ──────
+    //  처치 순서를 강제하는 기제다: 두령을 먼저 끊지 않으면 주변이 전부 세다.
+    if (state && state.elite && state.elite.alive && state.elite.elite === 'warlord' &&
+        source && source.side === 'strategist' && source !== state.elite) {
+      var wc = state.elite.eliteCfg, wr = (wc.radius || 170);
+      var wdx = source.x - state.elite.x, wdy = source.y - state.elite.y;
+      if (wdx * wdx + wdy * wdy <= wr * wr) dmg *= 1 + (wc.dmg || 0.30);
+    }
+
     // ── 층 조건 훅 — 공격하는 쪽이 전략가일 때만 적용한다 ──────────────────
     //  ⚠ **때리는 쪽**을 보는 것이 핵심이다. 유닛의 def 배수(ironclad 등)와 달리
     //    광란·결속은 '그 유닛이 지금 얼마나 세졌나' 라 def 에 못 싣는다.
@@ -346,9 +375,55 @@ GAME.Combat = {
 
     unit.hp -= eff;
     unit.flash = 130;
+
+    // ── 축복 훅 — 영웅이 **맞았을 때**: 반격 (towerboon.js) ─────────────────
+    //  피하기만 하던 플레이에 "일부러 맞으러 들어간다"는 선택지를 준다.
+    //  ⚠ 쿨타임이 필수다 — 없으면 물량에 둘러싸였을 때 프레임마다 터져 화면이 하얘지고
+    //    진형이 순식간에 증발한다. 1초에 한 번이 그 선을 잡은 값이다.
+    //  ⚠ `noCrit`·`noOverload` 를 넘긴다. 반격이 크리·과부하를 또 태우면
+    //    "맞을수록 이득"이 너무 커져 회피 게임이 아니게 된다.
+    if (unit.isHero && unit.alive && state && state.boons && state.boons.riposte) {
+      var rp = state.boons.riposte;
+      if ((unit._ripCd || 0) <= 0) {
+        unit._ripCd = rp.cd || 1000;
+        var rr2 = (rp.radius || 96), rdmg = (unit.def.damage || 0) * (rp.dmgMul || 0.55);
+        for (var ri = 0; ri < state.units.length; ri++) {
+          var rv = state.units[ri];
+          if (!rv.alive || rv.side === unit.side || this.isHazard(rv)) continue;
+          var rdx = rv.x - unit.x, rdy = rv.y - unit.y;
+          if (rdx * rdx + rdy * rdy <= rr2 * rr2) {
+            this.applyDamage(rv, rdmg, unit, state, { noCrit: true, noOverload: true });
+          }
+        }
+        // 화면에 보이게 — 이 게임의 규칙("모든 공격은 눈에 보이는 투사체를 갖는다")을 지킨다.
+        // ⚠ 새 `kind` 를 만들지 않는다. 렌더러(scenes/battle.js)가 모르는 종류를 넣으면
+        //   **조용히 안 그려진다** — 이 폴더가 겪은 "기제는 도는데 안 보인다" 계열이다.
+        //   `ring` 이 이미 같은 그림(퍼지는 잉크 고리)이라 그대로 쓴다.
+        state.effects.push({ kind: 'ring', x: unit.x, y: unit.y, r: rr2,
+                             t: 260, total: 260, side: unit.side });
+      }
+    }
+
     if (unit.hp <= 0) {
       unit.hp = 0; unit.alive = false;
       this.spawnYolk(state, unit);   // 죽으면 노른자가 터진다
+      // ── 정예 '폭심' — 죽으면 크게 터진다 (towerrule.js) ──────────────────
+      //  "붙어서 아무거나 먼저 잡기"를 벌준다. 아군도 함께 맞는다 — 그래야 위치가 의미를 갖는다.
+      //  ⚠ `noCrit` 로 준다. 사망 폭발이 크리까지 터지면 즉사 구간이 생겨 배울 수 없다.
+      if (unit.elite === 'bomb' && unit.eliteCfg && state) {
+        var bc = unit.eliteCfg, br = (bc.radius || 132);
+        var bdm = (unit.def.damage || 10) * (bc.dmgMul || 1.9);
+        for (var xi = 0; xi < state.units.length; xi++) {
+          var xv = state.units[xi];
+          if (!xv.alive || xv === unit || this.isHazard(xv)) continue;
+          var xdx = xv.x - unit.x, xdy = xv.y - unit.y;
+          if (xdx * xdx + xdy * xdy <= br * br) {
+            this.applyDamage(xv, bdm, unit, state, { noCrit: true });
+          }
+        }
+        state.effects.push({ kind: 'ring', x: unit.x, y: unit.y, r: br,
+                             t: 340, total: 340, side: unit.side });
+      }
       // 층 조건 `bond`(결속) — 죽은 자리 근처의 **같은 편**이 세진다.
       // 처치 순서를 고르게 만드는 장치다: 뭉친 쪽을 먼저 지우면 남은 것이 강해진다.
       if (state && state.towerRule && state.towerRule.bond &&
@@ -360,6 +435,32 @@ GAME.Combat = {
           var bdx = bu.x - unit.x, bdy = bu.y - unit.y;
           if (bdx * bdx + bdy * bdy <= rr * rr) bu._bond = (bu._bond || 0) + 1;
         }
+      }
+      // ── 축복 훅 — 영웅이 **처치했을 때** (towerboon.js) ──────────────────
+      //  세 축복이 여기 붙는다. 셋 다 "처치를 몰아치면 값을 받는다"는 같은 방향이지만
+      //  주는 자원이 다르다: 속도(붙기) · 쿨타임(때리기) · 체력(버티기).
+      var bk2 = state && state.boons;
+      if (bk2 && source && source.isHero && source.alive) {
+        if (bk2.huntersRush) {
+          // 같은 버프는 갱신만 한다(중첩하면 후반에 속도가 폭주한다)
+          var found = false;
+          for (var hb = 0; hb < source.buffs.length; hb++) {
+            if (source.buffs[hb].rushTag) {
+              source.buffs[hb].t = bk2.huntersRush.ms || 3000; found = true; break;
+            }
+          }
+          if (!found) {
+            source.buffs.push({ speedMul: bk2.huntersRush.speedMul || 1.45,
+                                t: bk2.huntersRush.ms || 3000, rushTag: true });
+          }
+        }
+        if (bk2.momentum) {
+          var cut = bk2.momentum.cutMs || 1200;
+          for (var ck in source.skillCd) {
+            if (source.skillCd[ck] > 0) source.skillCd[ck] = Math.max(0, source.skillCd[ck] - cut);
+          }
+        }
+        if (bk2.siphon) this.heal(source, source.maxHp * (bk2.siphon.frac || 0.08));
       }
       // state.onKill 이 있으면 호출한다. 렌더/경제 계층이 여기에 붙는다(골드 보상 등).
       if (state && state.onKill) state.onKill(unit, state);
@@ -860,6 +961,22 @@ GAME.Combat = {
     }
 
     u.skillCd[slot] = sk.cooldown * (u.cdrMul || 1);
+
+    // ── 축복 훅 — 스킬 시전 (towerboon.js) ────────────────────────────────
+    var bk = state && state.boons;
+    if (bk && u.isHero) {
+      // 과부하 — 다음 기본 공격 한 방이 배로 아프다. `fire` 가 이 표시를 보고 소모한다.
+      if (bk.overload) u._overload = bk.overload.mul || 2.0;
+      // 메아리 — 같은 스킬을 잠시 뒤 절반 위력으로 한 번 더. 예약만 하고 실행은 update 다.
+      // ⚠ 메아리가 스스로를 또 예약하면 무한 복제가 된다 → `_echoing` 중에는 안 건다.
+      if (bk.echo && !state._echoing) {
+        state.echoes = state.echoes || [];
+        state.echoes.push({
+          u: u, slot: slot, tx: tx, ty: ty,
+          t: bk.echo.delay || 700, mul: bk.echo.mul || 0.5
+        });
+      }
+    }
     return true;
   },
 
@@ -1597,6 +1714,7 @@ GAME.Combat = {
       if (u.cd > 0) u.cd -= dtMs;
       if (u.flash > 0) u.flash -= dtMs;
       if (u.rootedFor > 0) u.rootedFor -= dtMs;
+      if (u._ripCd > 0) u._ripCd -= dtMs;      // 축복 '반격' 쿨타임
       // 시선 잠금은 프레임 단위다 — 이번 프레임에 공격하지 않으면 곧바로 풀린다.
       if (u.faceLock > 0) u.faceLock--;
 
@@ -1847,6 +1965,49 @@ GAME.Combat = {
     }
 
     // 이펙트 (예고 폭발 포함)
+    // ── 정예 '방패' — 주기적으로 곁의 아군에게 보호막을 준다 (towerrule.js) ──
+    //  "뒷줄만 골라 치기"를 막는다. 보호막을 걷어내려면 앞을 먼저 상대해야 한다.
+    if (state.elite && state.elite.alive && state.elite.elite === 'shield') {
+      var sc2 = state.elite.eliteCfg;
+      state.elite._shTick = (state.elite._shTick || 0) - dtMs;
+      if (state.elite._shTick <= 0) {
+        state.elite._shTick = sc2.every || 4000;
+        var sr = (sc2.radius || 150), sf = (sc2.shieldFrac || 0.35);
+        for (var si2 = 0; si2 < state.units.length; si2++) {
+          var sv = state.units[si2];
+          if (!sv.alive || sv.side !== 'strategist' || this.isHazard(sv)) continue;
+          var sdx = sv.x - state.elite.x, sdy = sv.y - state.elite.y;
+          if (sdx * sdx + sdy * sdy > sr * sr) continue;
+          // 보호막은 **갱신**이지 누적이 아니다 — 쌓이면 후반에 무적이 된다.
+          sv.shield = Math.max(sv.shield || 0, sv.maxHp * sf);
+        }
+        state.effects.push({ kind: 'ring', x: state.elite.x, y: state.elite.y,
+                             r: sr, t: 300, total: 300, side: 'strategist' });
+      }
+    }
+
+    // ── 축복 '메아리' — 예약해 둔 스킬을 절반 위력으로 한 번 더 (towerboon.js) ──
+    //  ⚠ `_echoing` 표시를 세워 **메아리가 또 메아리를 예약하지 않게** 한다.
+    //    없으면 스킬 하나가 무한히 자기 복제한다(넣자마자 겪은 뒤 넣은 가드다).
+    if (state.echoes && state.echoes.length) {
+      for (var ei = state.echoes.length - 1; ei >= 0; ei--) {
+        var ec = state.echoes[ei];
+        ec.t -= dtMs;
+        if (ec.t > 0) continue;
+        state.echoes.splice(ei, 1);
+        if (!ec.u.alive) continue;
+        var savedCd = ec.u.skillCd[ec.slot];
+        var savedDmg = ec.u.def.damage;
+        ec.u.skillCd[ec.slot] = 0;                  // 쿨타임을 무시하고 한 번 더
+        ec.u.def.damage = savedDmg * ec.mul;        // 절반 위력
+        state._echoing = true;
+        this.castSkill(ec.u, ec.slot, ec.tx, ec.ty, state);
+        state._echoing = false;
+        ec.u.def.damage = savedDmg;
+        ec.u.skillCd[ec.slot] = savedCd;            // 원래 쿨타임을 돌려놓는다
+      }
+    }
+
     for (i = state.effects.length - 1; i >= 0; i--) {
       var e = state.effects[i];
       e.t -= dtMs;
@@ -1895,6 +2056,22 @@ GAME.Combat = {
           if (ne) state.telemetry.heroDistSamples.push(this.dist(hu, ne));
           break;
         }
+      }
+    }
+
+    // ── 층 목표 판정 (towerobjective.js) — 기본 승패보다 **먼저** 본다 ────────
+    //  목표는 **이기는 길만** 바꾼다. 영웅이 죽으면 언제나 지는 것은 그대로다
+    //  (아래 `cAlive === 0` 가 계속 담당한다). 두 축을 다 흔들면 플레이어가 무엇 때문에
+    //  졌는지 알 수 없게 된다.
+    if (state.objective && GAME.TowerObjective) {
+      var oR = GAME.TowerObjective.check(state);
+      if (oR === 'win' && this.aliveCount(state, 'controller') > 0) {
+        state.over = true; state.winner = 'controller'; state.objectiveDone = true;
+        return;
+      }
+      if (oR === 'lose') {
+        state.over = true; state.winner = 'strategist'; state.objectiveFailed = true;
+        return;
       }
     }
 

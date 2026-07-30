@@ -84,6 +84,8 @@ GAME.BattleScene.prototype.create = function () {
   this.state.towerRule = this.towerRule;
   this.towerRuleInfo = this.tower && GAME.TowerRule
     ? GAME.TowerRule.ruleFor(this.tower) : null;
+  // 층 목표는 **유닛이 다 만들어진 뒤** 붙여야 한다(우두머리를 고르려면 적이 있어야 한다).
+  // → 아래 진형 생성이 끝난 자리에서 `TowerObjective.attach` 를 부른다.
   var bias = (lrec.adapt && lrec.adapt.rallyBias) || 0;
 
   // 이 배치도의 유닛 등급 — 내 기지면 내 기록, 남의 기지면 서버가 실어 준 값.
@@ -128,6 +130,14 @@ GAME.BattleScene.prototype.create = function () {
       this.hero.hp = d.hp;
     }
     this.runBonus = bonus;
+    // ── 축복 (towerboon.js) ────────────────────────────────────────────────
+    //  레벨업(위)이 숫자를 키운다면 축복은 **행동을 바꾼다**. 둘은 다른 축이다.
+    //  스탯 배수는 여기서 def 에 얹고, 행동 훅은 state 를 통해 전투가 매 프레임 읽는다.
+    if (GAME.TowerBoon) {
+      GAME.TowerBoon.applyDefMods(this.hero, GAME.TowerRun.get());
+      this.state.boons = GAME.TowerBoon.hooksFor(GAME.TowerRun.get());
+      this.boonList = GAME.TowerBoon.owned(GAME.TowerRun.get());
+    }
   }
   // 대전 컨트롤러 — 같은 예산에서 산 능력치 강화를 같은 규칙으로 얹는다.
   // ⚠ 탑과 **같은 계산식**(add × 레벨)을 쓴다. 두 곳이 갈라지면 같은 이름의 강화가
@@ -151,6 +161,15 @@ GAME.BattleScene.prototype.create = function () {
   // 훅을 걸었는데 한 번도 안 불리면 towerrun.js 가 경고를 내고 옛 방식(층 총액)으로 돌아간다.
   if (this.tower && GAME.TowerRun && GAME.TowerRun.get()) {
     GAME.TowerRun.attachKillGold(this.state, this.tower);
+  }
+  // 층 목표 — **유닛이 다 만들어진 지금** 붙인다('우두머리'를 고르려면 적이 있어야 한다).
+  // 목표가 없는 층이면 null 이라 전투는 예전처럼 전멸 판정만 쓴다.
+  if (this.tower && GAME.TowerObjective) {
+    GAME.TowerObjective.attach(this.state, this.tower);
+  }
+  // 탑 전용 정예 — 조건이 `elite` 훅을 켰으면 적 한 기를 승격한다.
+  if (this.tower && GAME.TowerElite) {
+    GAME.TowerElite.attach(this.state, this.towerRule);
   }
   // 내가 모는 유닛 — 머리 위 표식과 발밑 링의 대상이고, y 정렬에서도 빼 맨 위에 그린다.
   // (색은 더 이상 빨강이 아니다 — 흰 채움 + 잉크 테두리 2톤이다. `UI.selectArrow` 주석 참조)
@@ -210,11 +229,14 @@ GAME.BattleScene.prototype.create = function () {
   var tierLabel = this.tower
     ? ('탑 ' + this.tower + '층 · ' + tierObj.name)
     : ('난이도 ' + this.escalation + '단계 · ' + tierObj.name);
-  // ── 층 조건을 배지에 붙인다 (2026-07-30 대개편) ──────────────────────────
+  // ── 층 조건·목표를 배지에 붙인다 (2026-07-30 대개편) ─────────────────────
   //  싸우는 **중에** 규칙을 모르면 배울 수 없다. "왜 갑자기 아프지"로 끝나면
   //  조건은 난이도일 뿐이고, 이름이 보여야 다음 판에 대응이 된다.
   //  ⚠ 짧게 — 이름만 붙인다. 설명은 층 화면에서 이미 읽었다.
   if (this.towerRuleInfo) tierLabel += ' · ⚠' + this.towerRuleInfo.label;
+  //  목표는 **조건보다 중요하다** — 무엇을 해야 이기는지 모르면 아무것도 못 한다.
+  //  그래서 이름만이 아니라 설명까지 붙인다(짧게 유지되도록 desc 를 그렇게 썼다).
+  if (this.state.objective) tierLabel += ' · 🎯' + this.state.objective.label;
 
   // 세로 터치·폰 가로에서는 HUD 를 **맨 위**에 둔다(아레나는 그 아래에서 시작).
   this.hud = GAME.UI.battleHud(this, {
@@ -1499,7 +1521,7 @@ GAME.BattleScene.prototype.draw = function () {
     // 그 발밑 링이라, 링을 끈 상태에서 side 는 아무 일도 하지 않는 죽은 인자다.
     // (어깨띠는 양 진영 같은 모양이므로 side 를 필요로 하지 않는다.)
     var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, 1, u.facing, walk,
-                               undefined, { footRing: false });
+                               undefined, { footRing: false, sizeMul: u.eliteDraw || 1 });
 
     // 껍질 금 + 피격 번쩍 — 체력을 '읽지 않고 보게' 한다
     // ⚠ **여기 가드가 틀려 있었다** (2026-07-30 실측). 옛 코드는 `!GAME.isNonTarget(u.def)`
@@ -1574,12 +1596,22 @@ GAME.BattleScene.prototype.draw = function () {
     //
     //  ⚠ 좌표는 반드시 `pos`(drawUnit 이 돌려준 값)를 쓴다 — 걸음걸이·피격 휘청임(dx/dy)이
     //    반영된 값이다. 원좌표 `u.x/u.y` 를 쓰면 맞은 뒤 320ms 동안 링이 발밑에서 떨어진다.
+    // ── 정예 표시 (2026-07-31) ────────────────────────────────────────────
+    //  정예는 **눈에 띄어야 기제가 성립한다** — "두령을 먼저 끊어라"는 두령이 누군지
+    //  보일 때만 요구가 된다. 보스와 같은 문법(발밑 이중 고리)을 쓰되 색을 달리한다.
+    if (u.elite) {
+      var epulse = 0.5 + 0.25 * Math.sin(s.elapsed / 300);
+      ringInk(u.x, u.y, u.def.radius + 14, 3, FX.bossRing2 || FX.bossRing,
+              Math.min(1, epulse * RA));
+    }
+
     marks.push({
       // sx/sy = 화면 좌표(footRing 용), wx/wy = 월드 좌표(groundCircle 용).
       // 둘 다 휘청임(dx/dy)이 반영된 값이어야 한다 — 섞으면 맞은 동안 표식이 어긋난다.
       sx: pos.sx, sy: pos.sy, wx: u.x + dx, wy: u.y + dy,
       by: pos.by - u.def.radius - 10,
-      r: u.def.radius, drawR: u.def.radius * (GAME.UI.UNIT_DRAW_SCALE || 1),
+      r: u.def.radius * (u.eliteDraw || 1),
+      drawR: u.def.radius * (GAME.UI.UNIT_DRAW_SCALE || 1) * (u.eliteDraw || 1),
       side: u.side, isHero: u.isHero, mine: (u === this.arrowOn),
       ground: GAME.UI.artOf(u.def).ground,
       bw: u.isHero ? 64 : Math.max(22, u.def.radius * 2.3),

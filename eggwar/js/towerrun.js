@@ -145,10 +145,16 @@ GAME.TowerRun = {
   //      옛 방식으로 되돌리고 콘솔에 남긴다.
   // 층 조건의 보상 배수 — 지금은 `nosupply`(무보급, 1.5배)뿐이다.
   // "제약을 받아들이면 보상이 크다"가 성립해야 조건이 벌칙이 아니라 **선택**이 된다.
+  //  ⚠ 축복(탐욕)의 배수와 **곱해진다** — 무보급 층에서 탐욕을 들면 1.5 × 1.4 = 2.1배다.
+  //    의도한 것이다: 제약 둘을 겹쳐 받아들인 대가는 겹쳐서 준다.
   ruleGoldMul: function (floor) {
-    if (!GAME.TowerRule) return 1;
-    var r = GAME.TowerRule.ruleFor(floor);
-    return (r && r.goldMul) ? r.goldMul : 1;
+    var m = 1;
+    if (GAME.TowerRule) {
+      var r = GAME.TowerRule.ruleFor(floor);
+      if (r && r.goldMul) m *= r.goldMul;
+    }
+    if (GAME.TowerBoon) m *= GAME.TowerBoon.goldMul(this.get());
+    return m;
   },
 
   goldGainFor: function (floor, state) {

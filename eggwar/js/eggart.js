@@ -1566,7 +1566,11 @@ GAME.UI = GAME.UI || {};
   UI.drawUnit = function (g, def, worldX, worldY, color, alpha, facing, walk, idle, opts) {
     var Iso = GAME.Iso;
     var sx = worldX, sy = Iso.toScreenY(worldY);
-    var r = def.radius * (UI.UNIT_DRAW_SCALE || 1);   // 그리는 크기만 키운다(히트박스는 그대로)
+    // 그리는 크기만 키운다(히트박스는 그대로).
+    // `opts.sizeMul` — 탑 전용 정예처럼 **덩치로 존재를 알리는** 경우에 쓴다.
+    // ⚠ `def.radius` 자체를 키우면 사거리 판정(`range + 대상반지름`)이 바뀌어 밸런스가
+    //   조용히 움직인다(CLAUDE.md 의 파수꾼 radius 18→24 실측이 그 증거다).
+    var r = def.radius * (UI.UNIT_DRAW_SCALE || 1) * ((opts && opts.sizeMul) || 1);
     var a = alpha === undefined ? 1 : alpha;
     var art = UI.artOf(def);
     var f = facing === undefined ? Math.PI / 2 : facing;

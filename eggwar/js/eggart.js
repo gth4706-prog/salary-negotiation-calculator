@@ -61,7 +61,13 @@ GAME.UI = GAME.UI || {};
     coinBronze: 0xc9993f, coinSilver: 0xc3cbd4, coinGold: 0xe8bf3a,
     bone: 0xeae3cd, leaf: 0x63c26a, leafDark: 0x3f8a4a,
     clay: 0xb5794a, rope: 0xd9c9a2, stone: 0x9aa3ad, goo: 0xa8c14a,
-    feather: 0xe0705a,
+    // ⚠ 깃털은 **원칙 2(중립 재질은 진영색과 색역이 겹치지 않는다)를 어기고 있었다.**
+    //   옛 값 `0xe0705a` 는 색상 10° 로, 테마 A 의 전략가 크림슨(345°)과 **25° 차이**다 →
+    //   양 진영 궁수가 다 '적 색' 깃털을 달고 있었다. 여섯 진영색(남색220 · 크림슨345 ·
+    //   민트165 · 그레이프285 · 녹청168 · 연지320) 전부와 40° 이상 떨어진 대역은 따뜻한
+    //   황갈 쪽뿐이다. `0xd9a05b`(33°)는 최소 색상차 **48°** 로 여유가 있다.
+    //   ⚠ 새 진영색을 도입하면 이 값을 다시 검산할 것.
+    feather: 0xd9a05b,
     shell: 0xf6eeda, shellRim: 0xcbb98f,
     yolk: 0xffc233, yolkLite: 0xffe89a, albumen: 0xfff6e2,
     eye: 0x2b2233
@@ -155,6 +161,18 @@ GAME.UI = GAME.UI || {};
     if (f >= 0) { r += (255 - r) * f; g += (255 - g) * f; b += (255 - b) * f; }
     else { r *= (1 + f); g *= (1 + f); b *= (1 + f); }
     return ((r | 0) << 16) | ((g | 0) << 8) | (b | 0);
+  };
+
+  // 두 색을 섞는다. `t`=0 이면 a, 1 이면 b.
+  // `tint` 는 흰/검 방향으로만 밀 수 있어서, "재질감은 남기고 진영색을 섞는다"를 못 한다
+  // (예: 털가죽 갈색에 진영색을 절반 섞기). 그 자리를 위해 둔다.
+  UI.mix = function (a, b, t) {
+    t = Math.max(0, Math.min(1, t));
+    var ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+    var br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+    return ((((ar + (br - ar) * t) | 0) << 16) |
+            (((ag + (bg - ag) * t) | 0) << 8) |
+            (((ab + (bb - ab) * t) | 0)));
   };
 
   // ── 달걀 외곽선 ───────────────────────────────────────────────
@@ -429,12 +447,58 @@ GAME.UI = GAME.UI || {};
                 ivory ? color : UI.tint(color, -0.45), a);
     g.strokePoints(outer, true, true);
 
-    // ivory 시안 — 진영색 목도리
+    // ── ivory 시안 — 진영색 어깨띠 (2026-07-30 확대, 실측 근거) ──────────────
+    //  예전에는 목의 얇은 '목도리'(높이 r*0.30)였고, 그게 **알의 위쪽 절반에서 유일하게
+    //  살아남는 진영 신호**인데도 몸통 면적의 11% 밖에 안 됐다. 색상(hue)은 면적을
+    //  요구하는 저주파 정보라(명도의 1/3 해상도) 그 크기에서는 색이 안 읽힌다.
+    //  → 높이 0.30→0.62r, 폭 1.18→1.30 으로 키워 면적 11%→25% 로 올린다.
+    //    전사(알 폭 25px) 기준 약 16.8×7.8px — 색이 실제로 갈리는 크기다.
+    //
+    //  왜 **위쪽**인가: 폰 가로 근접 접촉 거리는 화면 세로차 16px 인데 알의 그린 높이는
+    //  25~33px 이다. 즉 앞 유닛이 뒤 유닛의 **아래쪽 44~52%** 를 덮는다. 살아남는 구간은
+    //  위쪽 절반이므로 진영 신호는 위에 둬야 한다. (세계관 검토는 '몸통 하반부 부족 염료'를
+    //  제안했는데 — 설정으로는 더 좋지만 하반부는 난전에서 가려지는 쪽이라 채택하지 않았다.
+    //  대신 이미 있는 '두른 천'을 키우는 쪽으로 갔다. 세계관 검토도 이걸 보조안으로 뒀다.)
+    //
+    //  ⚠ **잉크 경계선이 필수다.** 진영색 채움만으로는 테마 B/C 에서 껍질에 녹는다
+    //    (아이보리 대비 민트 1.73 · 녹청 1.85). 잉크는 아이보리 대비 13.69 이고
+    //    **껍질 색은 테마가 안 바꾸므로 이 값은 세 테마 고정**이다. 채움색이 안 보여도
+    //    잉크가 띠의 **형태**를 남기고, 형태가 진영을 전달한다(색은 보조로 강등).
+    //
+    //  ⚠ **띠에 진영별 형태(톱니 등)를 넣는 것은 기각했다.** 처음엔 아래 경계를
+    //    매끈한 호 / 톱니로 갈랐는데, 실측하니 톱니 높이가 `r*0.22` = **2.8px** 였다 —
+    //    25px 유닛에서 그 크기는 형태로 안 읽히고 지저분한 얼룩이 된다.
+    //    색맹용 형태 신호는 **발밑 링(실선/파선)** 이 전담한다. 그쪽은 오버레이 패스라
+    //    늘 보이고 조각 길이도 4.3px 로 잡아 뒀다(`UI.footRing`).
+    //    한 신호를 두 곳에서 어설프게 내는 것보다 **한 곳에서 확실히** 내는 것이 낫다.
+    //    → 띠는 '색을 실을 면적'만 담당한다. 양 진영이 같은 모양이다.
     if (ivory && r >= 8) {
+      var bh = r * 0.62;                          // 띠 높이
+      var bcx = sx + lean * 0.665;
+      var bcy = by - r * 0.42;                    // 어깨~목 높이
+      var ink = (UI.ART_INK_COLOR !== undefined) ? UI.ART_INK_COLOR : 0x2a2114;
+      var top = bcy - bh / 2, bot = bcy + bh / 2;
+
+      // 띠 폭 — 알 윤곽에서 살짝만 넘치게 한다. 많이 넘치면 스티커로 보이고,
+      // 모자라면 옆에서 볼 때 띠가 몸통에 파묻힌다. 모서리는 둥글게(각지면 종이 조각처럼 보인다).
+      var halfW = r * wide * 1.02;
       g.fillStyle(color, a);
-      g.fillEllipse(sx + lean * 0.665, by - r * 0.33, r * 1.18 * (wide / 0.78), r * 0.30);
+      g.fillRoundedRect(bcx - halfW, top, halfW * 2, bh, Math.max(2, r * 0.16));
+      // 아래쪽에 한 단 어두운 띠 — 천이 접힌 그늘. 입체감을 남긴다.
       g.fillStyle(UI.tint(color, -0.28), a);
-      g.fillEllipse(sx + lean * 0.63, by - r * 0.26, r * 1.18 * (wide / 0.78), r * 0.14);
+      g.fillRect(bcx - halfW * 0.94, bot - bh * 0.30, halfW * 1.88, bh * 0.26);
+
+      // 잉크 경계 — 위·아래 두 줄.
+      // **이게 필수인 이유**: 진영색 채움만으로는 테마 B/C 에서 껍질에 녹는다
+      // (아이보리 대비 민트 1.73 · 녹청 1.85). 잉크는 아이보리 대비 13.69 이고
+      // 껍질 색은 테마가 안 바꾸므로 **세 테마 고정**이다 — 채움이 안 보여도 띠의 존재가 남는다.
+      g.lineStyle(Math.max(1.2, r * 0.10), ink, a * 0.9);
+      g.beginPath();
+      g.moveTo(bcx - halfW, top); g.lineTo(bcx + halfW, top);
+      g.strokePath();
+      g.beginPath();
+      g.moveTo(bcx - halfW, bot); g.lineTo(bcx + halfW, bot);
+      g.strokePath();
     }
   };
 
@@ -830,7 +894,10 @@ GAME.UI = GAME.UI || {};
     if (kind === 'quiver') {                 // 화살통 — 등 뒤 대각선 + 화살깃 3개
       // 정배면일 때 정중앙에 오면 두건 자락과 겹치므로 옆으로 조금 비켜 멘다
       var qx = sx + ox + D.px * r * 0.20, qy = by + oy - r * 0.10;
-      g.lineStyle(Math.max(2, r * 0.30), M.leatherDark, a);
+      // 멜빵에 진영색을 섞는다 — 사냥꾼(quiver)은 진영색 천이 아예 없었다(2026-07-30).
+      // 가죽 재질감은 남기려고 원색이 아니라 절반만 섞는다.
+      g.lineStyle(Math.max(2, r * 0.30),
+                  UI.mix(M.leatherDark, color, 0.50), a);
       g.lineBetween(qx - r * 0.35, qy + r * 0.55, qx + r * 0.20, qy - r * 0.90);
       g.fillStyle(M.feather, a);
       for (i = 0; i < 3; i++) {
@@ -861,12 +928,18 @@ GAME.UI = GAME.UI || {};
       }
 
     } else if (kind === 'fur') {             // 어깨 털가죽
+      // ⚠ 여기는 **진영색을 써야 하는 자리다** (2026-07-30).
+      //   등 장비 중 진영색을 쓰는 것은 `cape` 하나뿐이었고 그건 파수꾼·족장만 멘다.
+      //   광전사(fur)와 사냥꾼(quiver)은 진영색 천이 **아예 없었다** — 컨트롤러가 가장
+      //   많이 쓰는 두 영웅에 진영 표식이 제일 적었다는 뜻이다(신고 화면의 영웅이 광전사다).
+      //   털가죽이라는 재질감은 남기려고 갈색을 진영색 쪽으로 섞는다(원색이 아니다).
       var fw = prof ? 0.52 : 0.72;
-      g.fillStyle(M.leatherDark, a);
+      var furC = UI.mix ? UI.mix(M.leatherDark, color, 0.55) : UI.tint(color, -0.34);
+      g.fillStyle(furC, a);
       g.fillEllipse(sx - r * 0.78, by - r * 0.02, r * fw, r * 0.54);
       g.fillEllipse(sx + r * 0.78, by - r * 0.02, r * fw, r * 0.54);
       if (back) {
-        g.fillStyle(UI.tint(M.leatherDark, 0.14), a);
+        g.fillStyle(UI.tint(furC, 0.14), a);
         g.fillEllipse(sx, by - r * 0.16, r * 1.30, r * 0.46);
       }
 
@@ -1435,13 +1508,22 @@ GAME.UI = GAME.UI || {};
 
   // ── 전장용 ────────────────────────────────────────────────────
   //  시그니처: 기존 7개 + walk 하나. 반환값 {sx, sy, by} 도 그대로(체력바가 이걸 쓴다).
-  UI.drawUnit = function (g, def, worldX, worldY, color, alpha, facing, walk, idle) {
+  // `opts` 는 **맨 뒤 선택 인자**다 — 안 넘기면 예전과 픽셀 단위로 같은 그림이 나오므로
+  // 기존 호출부(배치·드래프트·패널 등)를 한 곳도 고치지 않아도 된다.
+  //   opts.side     : 'controller' | 'strategist' — 발밑 링의 실선/파선을 가른다
+  //   opts.footRing : false 면 발밑 링을 그리지 않는다(전투 화면이 2패스로 따로 그린다)
+  // ⚠ 색(`color`)에서 진영을 되짚으면 안 된다 — 피격 순간 `color = 0xffffff` 로 덮이므로
+  //   그 프레임만 진영이 사라진다(battle.js 의 flash). 그래서 side 를 따로 받는다.
+  // ⚠ `opts` 를 `drawEggChar`·`eggBody` 까지 내려보내지 않는다 — 어깨띠는 양 진영이
+  //   같은 모양이라 쓸 곳이 없다. 안 쓰는 인자를 남기면 다음 사람이 그게 뭘 한다고 믿는다.
+  UI.drawUnit = function (g, def, worldX, worldY, color, alpha, facing, walk, idle, opts) {
     var Iso = GAME.Iso;
     var sx = worldX, sy = Iso.toScreenY(worldY);
     var r = def.radius * (UI.UNIT_DRAW_SCALE || 1);   // 그리는 크기만 키운다(히트박스는 그대로)
     var a = alpha === undefined ? 1 : alpha;
     var art = UI.artOf(def);
     var f = facing === undefined ? Math.PI / 2 : facing;
+    var side = opts && opts.side;
 
     g.fillStyle(0x000000, 0.32 * a);
     g.fillEllipse(sx, sy, r * 2.1, r * 2.1 * Iso.TILT);
@@ -1459,16 +1541,75 @@ GAME.UI = GAME.UI || {};
     // 다리 두 개 — 계란이 지면에 붙어 있다는 걸 알려준다
     UI.eggLegs(g, art, sx, by, sy, r, color, a, D, G);
 
-    // ivory 시안 — 발밑 진영 링으로 아군/적군을 한 번 더 못박는다
-    if (UI.EGG_STYLE === 'ivory') {
-      g.lineStyle(Math.max(1.5, r * 0.14), color, a * 0.85);
-      g.strokeEllipse(sx, sy, r * 2.0, r * 2.0 * Iso.TILT);
+    // ivory 시안 — 발밑 진영 링으로 아군/적군을 한 번 더 못박는다.
+    // ⚠ 전투 화면은 `opts.footRing: false` 로 이걸 끄고 루프 뒤 2패스로 다시 그린다.
+    //   이유는 `UI.footRing` 주석에 있다. 배치·드래프트 화면은 겹침이 없어 그대로 그린다.
+    //   **전역 플래그가 아니라 인자인 이유**: 전역이면 draw 가 중간에 예외로 죽었을 때
+    //   플래그가 false 로 남아 다른 화면의 링이 통째로 사라진다(이 폴더가 겪은 계열의 사고다).
+    if (UI.EGG_STYLE === 'ivory' && !(opts && opts.footRing === false)) {
+      UI.footRing(g, sx, sy, r, color, a * 0.85, side);
     }
 
     var lv = UI.rankOf(def);
     UI.eggRankGround(g, sx, sy, r, color, a, lv);
     UI.drawEggChar(g, art, sx, by, r, color, a, f, true, 1, walk, lv, idle);
     return { sx: sx, sy: sy, by: by };
+  };
+
+  // ── 발밑 진영 링 ────────────────────────────────────────────
+  //
+  //  전투 화면에서 이 링은 **거의 안 보이고 있었다.** 실측 근거:
+  //   · `strokeEllipse` 의 인자는 폭/높이라 세로 반경이 r*TILT ≈ 0.72r 밖에 안 된다
+  //   · 링은 `drawUnit` 안에서 몸통보다 **먼저** 그려지고, 유닛은 y 순으로 뒤→앞 그려진다
+  //   · 폰 가로 근접 접촉 거리는 화면 세로차 16px, 알의 그린 높이는 25~33px
+  //  → 링의 위쪽 절반은 자기 몸통에, 아래쪽 호는 **앞 유닛 몸통에** 덮여 좌우 조각만 남는다.
+  //
+  //  그래서 전투 화면은 이 함수를 끄고(`opts.footRing: false`) 모든 유닛을 그린 **뒤**
+  //  2패스로 다시 부른다. 이미 그리고 있던 200px² 를 **보이게만** 하는 것이라
+  //  새 아트 결정도, 화면 위 선 총량 증가도 없다(오히려 아래 반원만 그려 줄어든다).
+  //
+  //  진영 구분을 **형태**로도 싣는다 — controller 실선 / strategist 파선.
+  //  세 테마의 두 진영색은 명암비가 1.45~2.24 로 전부 3:1 미달이라(2형색각 1.37~1.86)
+  //  색만으로는 원리상 안 갈린다. 링 색 자체는 필드 위에 있어 대비가 좋다
+  //  (필드 대비 A 6.37/4.38 · B 8.59/3.83 · C 5.38/3.10 — 세 테마 전부 3:1 이상).
+  //  즉 여기가 진영색을 쓰기에 가장 좋은 자리이고, 형태는 색맹 대비다.
+  //
+  //  `front` 가 true 면 **앞쪽(아래) 반원만** 그린다. 위쪽 호는 어차피 자기 몸통 뒤라
+  //  값어치가 없고, 반원만 그리면 화면 위 선이 절반으로 줄어 노이즈가 안 늘어난다.
+  UI.footRing = function (g, sx, sy, r, color, a, side, front) {
+    var T = (GAME.Iso ? GAME.Iso.TILT : 1);
+    var rx = r * 1.0, ry = r * 1.0 * T;         // strokeEllipse 는 폭/높이 → 반경의 2배를 넘긴다
+    var lw = Math.max(1.5, r * 0.14);
+    g.lineStyle(lw, color, a);
+
+    // 실선 전체 원(배치 화면 등) — 예전과 픽셀 단위로 같은 그림이다.
+    if (!front && side !== 'strategist') {
+      g.strokeEllipse(sx, sy, rx * 2, ry * 2);
+      return;
+    }
+
+    // 호를 직접 그린다. `front` 면 아래 반원(화면 아래쪽 = 각 0~π)만.
+    // 파선은 16분할 중 홀수 조각을 건너뛴다(`mineRing` 이 쓰는 것과 같은 방식).
+    var a0 = 0;
+    var a1 = front ? Math.PI : Math.PI * 2;
+    // ⚠ 분할 수는 **실제 조각 길이**로 정한다. 16 분할이면 앞쪽 반원(호 길이 ≈34px)에서
+    //   조각이 2.1px 짜리가 되어 파선인지 뭉갠 선인지 구분이 안 된다(실측).
+    //   8 분할이면 조각 4.3px — 25px 유닛에서도 '끊긴 선'으로 읽힌다.
+    var SEG = front ? 8 : 16;
+    var dash = (side === 'strategist');
+    var step = (a1 - a0) / SEG;
+    for (var i = 0; i < SEG; i++) {
+      if (dash && (i % 2)) continue;
+      var t0 = a0 + step * i, t1 = t0 + step * (dash ? 1 : 1.02);
+      g.beginPath();
+      g.moveTo(sx + Math.cos(t0) * rx, sy + Math.sin(t0) * ry);
+      // 조각 안을 3등분해 타원 곡률을 따라간다(직선 하나면 작은 원에서 각져 보인다)
+      for (var k = 1; k <= 3; k++) {
+        var tt = t0 + (t1 - t0) * (k / 3);
+        g.lineTo(sx + Math.cos(tt) * rx, sy + Math.sin(tt) * ry);
+      }
+      g.strokePath();
+    }
   };
 
   // ── 껍질 금 + 피격 번쩍 ──────────────────────────────────────
@@ -1495,14 +1636,30 @@ GAME.UI = GAME.UI || {};
       var len = r * (0.5 + ((seed * 7 + i * 31) % 40) / 100);
       var x0 = sx + Math.cos(a0) * r * 0.30;
       var y0 = by + Math.sin(a0) * r * 0.34;
-      g.lineStyle(Math.max(1.2, r * 0.09), ink, 0.72);
-      g.beginPath();
-      g.moveTo(x0, y0);
       // 두 번 꺾어 번개 모양으로 — 직선이면 금이 아니라 흠집처럼 보인다
       var bx = x0 + Math.cos(a0) * len * 0.5 + Math.cos(a0 + 1.4) * r * 0.16;
       var byy = y0 + Math.sin(a0) * len * 0.5 + Math.sin(a0 + 1.4) * r * 0.16;
-      g.lineTo(bx, byy);
-      g.lineTo(x0 + Math.cos(a0) * len, y0 + Math.sin(a0) * len * 0.9);
+      var ex = x0 + Math.cos(a0) * len, ey = y0 + Math.sin(a0) * len * 0.9;
+
+      // ── 금을 **2톤**으로 그린다 (2026-07-30) ────────────────────────────
+      //  금은 잉크 한 색이었다. 아이보리 껍질 위에서는 대비 13.69 로 잘 보이지만,
+      //  진영색이 칠해진 자리(어깨띠·외곽선) 위에서는 **어두운 진영색과 붙어 사라진다** —
+      //  남색 대비 **1.64** / 크림슨 2.39. 즉 파란 진영만 체력을 시각적으로 못 읽는
+      //  **비대칭 결함**이었고, 진영색 면적을 늘리면 그게 더 커진다.
+      //  크림을 한 겹 깔고 잉크를 얹으면 실패 구간이 겹치지 않는다:
+      //    · 어두운 진영색 위 → 크림이 8.34(남색)/5.74(크림슨) 로 받는다
+      //    · 밝은 민트·녹청 위 → 잉크가 7.91/7.39 로 받는다
+      //    · 아이보리 껍질 위 → 잉크가 13.69 로 받는다
+      //  마커·발밑 링과 같은 상보 원리다.
+      var cream = (UI.MAT && UI.MAT.shell) ? UI.MAT.shell : 0xf6eeda;
+      g.lineStyle(Math.max(1.8, r * 0.15), cream, 0.55);
+      g.beginPath();
+      g.moveTo(x0, y0); g.lineTo(bx, byy); g.lineTo(ex, ey);
+      g.strokePath();
+
+      g.lineStyle(Math.max(1.2, r * 0.09), ink, 0.72);
+      g.beginPath();
+      g.moveTo(x0, y0); g.lineTo(bx, byy); g.lineTo(ex, ey);
       g.strokePath();
     }
 

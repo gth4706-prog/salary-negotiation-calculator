@@ -141,7 +141,9 @@ GAME.BattleScene.prototype.create = function () {
   if (this.tower && GAME.TowerRun && GAME.TowerRun.get()) {
     GAME.TowerRun.attachKillGold(this.state, this.tower);
   }
-  this.arrowOn = this.hero;      // 내가 모는 유닛 위에 빨간 화살표
+  // 내가 모는 유닛 — 머리 위 표식과 발밑 링의 대상이고, y 정렬에서도 빼 맨 위에 그린다.
+  // (색은 더 이상 빨강이 아니다 — 흰 채움 + 잉크 테두리 2톤이다. `UI.selectArrow` 주석 참조)
+  this.arrowOn = this.hero;
 
   // 학습형 AI: 이 배치도가 지금까지 배운 적응값을 전투에 적용한다
   // 학습값(배치도별로 쌓인 것) + 층 전술(통곡의 탑 전용). 큰 쪽을 쓴다 —
@@ -1395,15 +1397,27 @@ GAME.BattleScene.prototype.draw = function () {
   for (i = 0; i < s.units.length; i++) if (s.units[i].alive) alive.push(s.units[i]);
   alive.sort(function (a, b) { return a.y - b.y; });
 
+  // ⚠ **내가 모는 유닛은 y 정렬에서 빼 맨 위에 그린다** (2026-07-30, 실측 근거).
+  //   폰 가로에서 근접 접촉 거리는 화면 세로차 16px 인데 알의 그린 높이는 25~33px 이다.
+  //   즉 바로 앞 한 기가 뒤 유닛 몸통의 **아래쪽 44~52%** 를 덮는다. 난전에서 내 영웅이
+  //   적 몸통에 통째로 파묻히는 것이 그래서다(스크린샷으로 확인).
+  //   깊이감을 조금 잃지만, 회피 게임에서 **조작 대상의 위치를 잃는 비용이 훨씬 크다** —
+  //   못 찾으면 회피도 스킬 조준도 성립하지 않는다.
+  //   되돌릴 지점은 이 한 줄이다. `arrowOn` 을 쓰는 이유: 방어전의 `this.hero` 는 **적**
+  //   AI 영웅이라 hero 를 직접 쓰면 모드에 따라 적을 맨 위로 올린다.
+  var mine = this.arrowOn;
+  if (mine && mine.alive) {
+    var mi = alive.indexOf(mine);
+    if (mi >= 0) { alive.splice(mi, 1); alive.push(mine); }
+  }
+  // 매 프레임 새로 잡는다 — 죽거나 선택이 풀린 유닛의 옛 좌표에 표식이 남지 않게.
+  // (방어전은 `arrowOn` 이 null 로 시작하고 탭으로 고른다 → 아무것도 안 그린다.)
+  this._minePos = null;
+
   for (i = 0; i < alive.length; i++) {
     var u = alive[i];
     var color = GAME.UI.sideColor(u.side);
     if (u.flash > 0) color = 0xffffff;
-
-    if (u.isHero) {
-      g.lineStyle(2.5, C.controller, Math.min(1, 0.55 * RA));
-      GAME.UI.groundCircle(g, u.x, u.y, u.def.radius + 10);
-    }
 
     // 지원 유닛의 영향 범위를 보여준다 — 뭘 해야 할지 판단할 수 있게.
     // 알파 0.28~0.5 짜리 얇은 링은 밝은 들판에서 전부 증발했다 → FX.ringAlpha 로 증폭.
@@ -1464,16 +1478,31 @@ GAME.BattleScene.prototype.draw = function () {
       dy = Math.sin(hd) * amp * osc * 0.5;                 // 세로는 절반(투영 때문)
     }
 
-    var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, 1, u.facing, walk);
+    // `opts.side` 를 넘겨야 어깨띠의 아래 경계 형태(매끈/톱니)가 진영별로 갈린다.
+    // 색으로 되짚을 수 없다 — 바로 위에서 flash 가 color 를 흰색으로 덮는다.
+    // `footRing: false` — 발밑 링은 루프 뒤 2패스에서 그린다(여기서 그리면 앞 유닛에 덮인다).
+    var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, 1, u.facing, walk,
+                               undefined, { side: u.side, footRing: false });
 
     // 껍질 금 + 피격 번쩍 — 체력을 '읽지 않고 보게' 한다
-    if (pos && GAME.UI.eggDamage && !GAME.isNonTarget(u.def)) {
+    // ⚠ **여기 가드가 틀려 있었다** (2026-07-30 실측). `!GAME.isNonTarget(u.def)` 는
+    //   "공격 방식이 targeted 인가"를 묻는 것이고 그건 **투창병 한 기뿐**이다
+    //   (units.js 의 `def.attack !== 'targeted'`, 게임 전체에서 `attack:'targeted'` 1건).
+    //   즉 "체력이 줄면 껍질에 금이 간다 — 읽지 않고 보게 한다"는 이 게임의 문법이
+    //   **투창병에게만 작동하고 있었다.** 함수 이름이 "조준 대상이 아니다"로 읽히는 것이 원인이다.
+    //   금이 필요 없는 것은 '체력 개념이 없는 지면 고정물'이므로 아트로 판정한다.
+    if (pos && GAME.UI.eggDamage && !GAME.UI.artOf(u.def).ground) {
       if (u.__crackSeed === undefined) u.__crackSeed = Math.floor(Math.random() * 997);
       GAME.UI.eggDamage(g, pos.sx, pos.by,
         u.def.radius * (GAME.UI.UNIT_DRAW_SCALE || 1),
         u.maxHp ? u.hp / u.maxHp : 1, u.__crackSeed, hurt);
     }
 
+    // ⚠ 이름이 오해를 부른다. `FX.targetRing` 이지만 여기서 하는 일은 '조준 가능 표시'가
+    //   아니라 **"이 놈의 공격은 회피 불가"** 경고다(`isNonTarget` = attack !== 'targeted').
+    //   그래서 실제로 링이 붙는 것은 투창병 한 종류뿐이고, 그건 의도한 동작이다
+    //   — 자동명중 유닛을 눈에 띄게 하는 것. 링을 전 유닛에 붙이려면 여기가 아니라
+    //   진영 표식(발밑 링 2패스)이 담당한다. **두 링을 헷갈리지 말 것.**
     if (!u.isHero && !GAME.isNonTarget(u.def)) {
       g.lineStyle(2, FX.targetRing, Math.min(1, 0.9 * RA));
       GAME.UI.groundCircle(g, u.x, u.y, u.def.radius + 6);
@@ -1526,11 +1555,56 @@ GAME.BattleScene.prototype.draw = function () {
     GAME.UI.fieldHpBar(g, pos.sx - bw / 2, by, bw, u.isHero ? 7 : 4, ratio,
       { shield: u.shield > 0 ? Math.min(1, u.shield / u.maxHp) : 0 });
 
-    // 선택 표시. 전투에서는 내가 모는 영웅, 방어전에서는 전략가가 고른 유닛이다.
-    // (방어전의 this.hero 는 **적** AI 영웅이라 여기서 hero 를 직접 쓰면 안 된다)
+    // 선택 표시는 **여기서 그리지 않는다** — 루프 뒤 오버레이 패스로 옮겼다.
+    //   이 자리에서 그리면 뒤에 그려지는(= 더 앞에 있는) 유닛 몸통이 화살표를 덮는다.
+    //   발밑 링이 당하는 가림과 똑같은 일이 머리 위에서 나고 있었다.
+    //   내가 모는 유닛의 화면 좌표를 여기서 챙겨 뒀다가 루프 밖에서 쓴다
+    //   (pos 는 drawUnit 이 돌려주는 값이라 걸음걸이·휘청임까지 반영된 좌표다).
     if (u === this.arrowOn && u.alive) {
-      GAME.UI.selectArrow(g, pos.sx, by - 8, u.def.radius, s.elapsed);
+      this._minePos = { sx: pos.sx, by: by, r: u.def.radius, x: u.x, y: u.y };
     }
+  }
+
+  // ── 발밑 진영 링 2패스 — 모든 몸통 위에 앞쪽 반원만 (가림 0) ─────────────
+  //  앞쪽(아래) 반원만 그리는 이유: 위쪽 호는 어차피 자기 몸통 뒤라 값어치가 없고,
+  //  반원만 그리면 화면 위 선 총량이 절반으로 줄어 노이즈가 안 늘어난다.
+  //  형태로도 갈린다 — controller 실선 / strategist 파선.
+  if (GAME.UI.EGG_STYLE === 'ivory' && GAME.UI.footRing) {
+    for (i = 0; i < alive.length; i++) {
+      var fu = alive[i];
+      // ⚠ 여기서 `GAME.isNonTarget` 을 쓰면 **아무것도 안 그려진다.** 그 함수는 이름과 달리
+      //   "조준 대상이 아니다"가 아니라 **"이 유닛의 공격이 targeted 가 아니다"** 다
+      //   (units.js: `def.attack !== 'targeted'`). `attack:'targeted'` 는 게임 전체에서
+      //   투창병 한 기뿐이라, 그 가드는 투창병만 통과시킨다.
+      //   실측으로 잡았다 — draw 1회 footRing 호출 **0**(대상 14기 전부 걸러짐).
+      //   내가 원한 것은 '발밑이 있는 유닛'이고, 그건 아트가 지면 고정물이 아니라는 뜻이다
+      //   (`drawUnit` 도 `art.ground` 면 다리·링을 안 그리고 일찍 반환한다).
+      if (GAME.UI.artOf(fu.def).ground) continue;    // 함정·지면 고정물은 발밑이 없다
+      var fr = fu.def.radius * (GAME.UI.UNIT_DRAW_SCALE || 1);
+      GAME.UI.footRing(g, fu.x, GAME.Iso.toScreenY(fu.y), fr,
+                       GAME.UI.sideColor(fu.side), Math.min(1, 0.85 * RA), fu.side, true);
+    }
+  }
+
+  // ── 내가 모는 유닛 표식 — 오버레이 패스 (가림 0) ──────────────────────────
+  //  루프가 끝난 뒤라 어떤 유닛 몸통도 이 위에 오지 않는다. 이게 "난전에서 내 유닛을
+  //  못 찾는다"는 신고의 물리적 원인(가림)을 **제거**하는 부분이다.
+  //  발밑 링도 여기로 옮겼다 — 예전에는 루프 안에서 유닛보다 먼저 그려져 덮였다.
+  if (this._minePos) {
+    var mp = this._minePos;
+    // 발밑 이중 링: 잉크를 먼저 굵게 깔고 진영색을 얹는다. 밝은 목초지에서도
+    // 어두운 필드에서도 두 톤 중 한쪽이 살아남는다(마커와 같은 상보 원리).
+    g.lineStyle(4, GAME.UI.ART_INK_COLOR !== undefined ? GAME.UI.ART_INK_COLOR : 0x2a2114,
+                Math.min(1, 0.45 * RA));
+    GAME.UI.groundCircle(g, mp.x, mp.y, mp.r + 10);
+    g.lineStyle(2.5, GAME.UI.sideColor(this.arrowOn.side), Math.min(1, 0.75 * RA));
+    GAME.UI.groundCircle(g, mp.x, mp.y, mp.r + 10);
+    // 머리 위 마커 — 화살촉이 **체력바 바로 위**를 찍게 한다.
+    //   `mp.by` 는 체력바의 위쪽 줄이다(루프에서 `pos.by - radius - 10` 로 잡은 값).
+    //   4px 만 띄우면 체력바를 안 덮고, 알과 붙어 있어 '누구 것인지' 헷갈리지 않는다.
+    //   (예전에는 이 값에 함수 안에서 `radius + 12` 가 또 빠져 50px 넘게 떠 있었다.)
+    GAME.UI.selectArrow(g, mp.sx, mp.by - 4, mp.r, s.elapsed);
+    this._minePos = null;
   }
 
   // ── 동전 ──

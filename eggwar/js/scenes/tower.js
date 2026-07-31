@@ -985,7 +985,8 @@ GAME.TowerScene.prototype._buildChallenge = function () {
 //  축복 9종을 전부 외우고 있어야 한다 — 그건 선택이 아니라 퀴즈다.
 //  게다가 층을 오르는 흐름 한가운데에 팝업이 끼어 리듬을 끊었다.
 //  ⚠ 되살리려면 **값어치가 화면에서 바로 읽히는 형태**여야 한다. 이름만으로는 안 된다.
-//  축복은 살아 있다 — 이제 **선택 없이 자동으로** 주어진다(towerrun.js 의 clear 참조).
+//  ⚠ 그 뒤 '5층마다 자동 지급'으로 바꿨다가 그것도 폐기했다 — 받은 줄도 몰랐다.
+//  지금은 **전투 중에 적을 잡으면 구슬로 떨어진다**(`js/orb.js`). 얻는 순간이 손에 남는다.
 
 // 전투 진입 — 문 선택 경로와 일반 경로가 **같은 함수**를 쓴다.
 // 두 곳에 복사하면 한쪽만 고쳐져 조용히 갈라진다(이 폴더의 상습 사고).
@@ -1236,7 +1237,7 @@ GAME.TowerScene.prototype._refresh = function () {
   //  ⚠ **폰에서는 짧은 형태를 쓴다.** 설명까지 붙이면 네 줄이 되어 아래 '적 구성' 줄을
   //    화면 밖(y 401 > 설계 390)으로 밀어낸다 — 실측으로 잡았다.
   //    폰은 이름만, PC 는 이름 + 설명. 정보의 우선순위가 다른 게 아니라 **자리가 다르다.**
-  //  ⚠ **최대 두 줄이다.** 처음엔 네 줄(목표·진형·조건·축복에 각각 설명)을 넣었는데,
+  //  ⚠ **최대 두 줄이다.** 처음엔 네 줄(목표·진형·조건·구슬에 각각 설명)을 넣었는데,
   //    PC 에서도 '전투 시작' 버튼을 215×70px 덮었고 폰에서는 '적 구성' 줄을 화면 밖으로
   //    밀어냈다(둘 다 실측). 자리는 유한하고 설명은 무한히 길어질 수 있다.
   //    → 1줄 = **이름만 나열**(무엇이 걸려 있는지), 2줄 = **가장 중요한 하나의 설명**.
@@ -1246,16 +1247,18 @@ GAME.TowerScene.prototype._refresh = function () {
   if (f0.objectiveLabel) names.push('🎯 ' + f0.objectiveLabel);
   if (f0.planLabel) names.push('◈ ' + f0.planLabel);
   if (f0.ruleLabel) names.push('⚠ ' + f0.ruleLabel);
-  if (GAME.TowerBoon && this.run) {
-    var bl = GAME.TowerBoon.owned(this.run).map(function (k) {
-      var b = GAME.TowerBoon.byKey(k); return b ? b.label : k;
+  // 지금까지 주운 구슬. **이름을 그대로 쓴다** — 층 화면의 `✦ 탄력` 은 전투에서 주울 때
+  // 뜬 `재촉의 구슬` 과 다른 말이라 같은 것인 줄 몰랐다. 부르는 이름은 한 벌이어야 한다.
+  if (GAME.Orb && this.run) {
+    var bl = ((this.run && this.run.boons) || []).map(function (k) {
+      return GAME.Orb.nameOf(k);
     });
-    if (bl.length) names.push('✦ ' + bl.join(' · '));
+    if (bl.length) names.push('🔮 ' + bl.join(' · '));
   }
   // ⚠ 아래 축소 로직이 **덜 중요한 것부터 버릴 수 있게** 조각을 남겨 둔다.
   //   한 줄로 합쳐 두면 자동 줄바꿈으로 높이가 다시 늘어나는데, `\n` 개수로는 그걸 못 센다
   //   (실제로 그렇게 놓쳐 '전투 시작' 버튼을 325×15px 덮었다 — PC 실측).
-  //   버리는 순서는 중요도의 역순: 축복 → 진형 → 조건 → 목표.
+  //   버리는 순서는 중요도의 역순: 구슬 → 진형 → 조건 → 목표.
   this._tagParts = names.slice();
   var lead = GAME.CONFIG.SMALL ? null : (f0.objectiveDesc || f0.ruleDesc || f0.planHint);
   this._tagLead = lead || '';
@@ -1299,7 +1302,7 @@ GAME.TowerScene.prototype._refresh = function () {
     }
     // ⚠ **태그도 축소 대상이다.** 아래 루프는 `rationaleText` 만 깎는데, 도전 중에는
     //   그게 빈 문자열이라 `s.length <= 16` 로 즉시 빠져나간다 — 정작 자리를 먹는
-    //   `floorTagText`(목표·진형·조건·축복)는 한 번도 안 줄어든다.
+    //   `floorTagText`(목표·진형·조건·구슬)는 한 번도 안 줄어든다.
     //   그래서 '전투 시작' 버튼을 291×36px 덮었다(PC 실측).
     //   설명 줄(2줄째)을 먼저 버린다. 이름 줄은 남긴다 — 그게 이 층의 정체다.
     if (this.floorTagText && this._tagParts) {

@@ -130,13 +130,13 @@ GAME.BattleScene.prototype.create = function () {
       this.hero.hp = d.hp;
     }
     this.runBonus = bonus;
-    // ── 축복 (towerboon.js) ────────────────────────────────────────────────
-    //  레벨업(위)이 숫자를 키운다면 축복은 **행동을 바꾼다**. 둘은 다른 축이다.
-    //  스탯 배수는 여기서 def 에 얹고, 행동 훅은 state 를 통해 전투가 매 프레임 읽는다.
+    // ── 구슬 효과 (towerboon.js 의 훅 + orb.js 의 획득) ──────────────────────
+    //  레벨업(위)이 숫자를 키운다면 구슬은 **행동을 바꾼다**. 둘은 다른 축이다.
+    //  이전 층들에서 주워 둔 것을 여기서 다시 얹는다 — 스탯 배수는 def 에,
+    //  행동 훅은 state 에. 이번 층에서 새로 줍는 것은 `Orb.take` 가 그 자리에서 얹는다.
     if (GAME.TowerBoon) {
       GAME.TowerBoon.applyDefMods(this.hero, GAME.TowerRun.get());
       this.state.boons = GAME.TowerBoon.hooksFor(GAME.TowerRun.get());
-      this.boonList = GAME.TowerBoon.owned(GAME.TowerRun.get());
     }
   }
   // 대전 컨트롤러 — 같은 예산에서 산 능력치 강화를 같은 규칙으로 얹는다.
@@ -572,6 +572,71 @@ GAME.BattleScene.prototype.resetZoom = function () {
 };
 
 // 피해 숫자 렌더 — 위로 떠오르며 사라진다. 크리티컬은 크고 노랗고 '!' 가 붙는다.
+// ── 구슬 (2026-07-31, 사용자 지시) ────────────────────────────────────────────
+//  적을 잡으면 확률로 떨어지고(combat.js), 지나가면 줍는다. 동전과 **같은 문법**이라
+//  플레이어가 새로 배울 것이 없다. 주우면 능력이 그 자리에서 붙고 한 줄이 뜬다.
+//  ⚠ 줍기 판정은 **월드 좌표**에서만 한다 — 줌·투영과 무관해야 한다(동전과 같은 규율).
+GAME.BattleScene.prototype._updateOrbs = function (dt) {
+  var st = this.state;
+  if (!st || !st.orbs || !st.orbs.length || !GAME.Orb) return;
+  var h = this.hero;
+  if (!h || !h.alive) return;
+  var pickR = (h.def ? h.def.radius : 17) + 34;
+  for (var i = st.orbs.length - 1; i >= 0; i--) {
+    var o = st.orbs[i];
+    o.t += dt;
+    // 떨어진 직후 짧게는 못 줍는다 — 튀어나오는 것이 눈에 보여야 '떨어졌다'가 읽힌다.
+    if (o.t < 220) continue;
+    var dx = h.x - o.x, dy = h.y - o.y;
+    if (dx * dx + dy * dy > pickR * pickR) continue;
+    st.orbs.splice(i, 1);
+    if (GAME.Orb.take(st, o.key)) this._orbToast(GAME.Orb.lineFor(o.key));
+  }
+};
+
+//  주웠을 때 뜨는 한 줄. 사용자 예시 형식 그대로:
+//    "회피의 구슬 — 이동 중 받는 피해 18% 감소!"
+//  ⚠ 전장 한가운데가 아니라 **위쪽**에 띄운다. 가운데면 회피해야 할 투사체를 가린다.
+GAME.BattleScene.prototype._orbToast = function (text) {
+  var C = GAME.CONFIG.COLORS;
+  var W = GAME.CONFIG.WIDTH;
+  var y = (this.hud && this.hud.bottom ? this.hud.bottom : 40) + (GAME.CONFIG.SMALL ? 16 : 26);
+  if (this._orbMsg && this._orbMsg.scene) this._orbMsg.destroy();
+  this._orbMsg = GAME.UI.label(this, W / 2, y, text,
+    GAME.CONFIG.SMALL ? 17 : 20, C.accent, 0.5).setOrigin(0.5, 0).setDepth(60);
+  this._orbMsg.setAlign('center').setWordWrapWidth(W - 60);
+  var m = this._orbMsg;
+  // 4초 뒤 사라진다. 씬이 먼저 죽어도 안전하게(파괴된 객체를 만지면 Phaser 가 터진다).
+  this.time.delayedCall(4000, function () {
+    if (m && m.scene) m.destroy();
+  });
+};
+
+GAME.BattleScene.prototype._drawOrbs = function (g) {
+  var st = this.state;
+  if (!st || !st.orbs || !st.orbs.length) return;
+  var Iso = GAME.Iso, C = GAME.CONFIG.COLORS;
+  for (var i = 0; i < st.orbs.length; i++) {
+    var o = st.orbs[i];
+    var sx = o.x, sy = Iso.toScreenY(o.y);
+    // 위아래로 살짝 떠 있다 — 바닥에 붙은 동전과 구분되는 신호다.
+    var bob = Math.sin((o.t || 0) / 260) * 3;
+    var r = GAME.CONFIG.SMALL ? 7 : 9;
+    // 그림자(바닥에 있다는 표시)
+    g.fillStyle(0x000000, 0.22);
+    g.fillEllipse(sx, sy, r * 2.0, r * 2.0 * Iso.TILT);
+    // 구슬 — 잉크 테두리 + 밝은 알맹이. 어떤 바닥에서도 한쪽은 살아남는다
+    // (마커·발밑 링과 같은 2톤 원리).
+    var ink = (GAME.UI.ART_INK_COLOR !== undefined) ? GAME.UI.ART_INK_COLOR : 0x2a2114;
+    g.fillStyle(ink, 0.85);
+    g.fillCircle(sx, sy - r - bob, r + 2);
+    g.fillStyle(C.accent, 1);
+    g.fillCircle(sx, sy - r - bob, r);
+    g.fillStyle(0xffffff, 0.75);
+    g.fillCircle(sx - r * 0.3, sy - r - bob - r * 0.3, r * 0.34);
+  }
+};
+
 GAME.BattleScene.prototype.drawNumbers = function () {
   var C = GAME.CONFIG.COLORS;
   var Iso = GAME.Iso;
@@ -651,6 +716,8 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     this._coins.update(dt, this.hero);
     this._updateGoldHud(dt);
   }
+  // 구슬 줍기 — 동전과 **같은 문법**이다(지나가면 줍는다). 플레이어가 새로 배울 것이 없다.
+  this._updateOrbs(dt);
 
   for (var i = this.markers.length - 1; i >= 0; i--) {
     this.markers[i].t -= dt;
@@ -1682,6 +1749,7 @@ GAME.BattleScene.prototype.draw = function () {
   //  대신 지면 그림자를 함께 찍어 '떠 있는 것'이 아니라 '바닥에 놓인 것'으로 읽히게 했다.
   //  표시객체는 0개다 — 전부 이 Graphics 한 장에 들어간다.
   if (this._coins) this._coins.draw(g, this._dt || 16);
+  this._drawOrbs(g);
 
   // ── 투사체 ──
   //  "모든 공격은 눈에 보이는 투사체를 갖는다"가 이 게임의 규칙인데, 라이트 테마에서는

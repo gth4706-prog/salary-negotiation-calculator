@@ -146,17 +146,30 @@ GAME.TowerBoon = (function () {
     },
 
     // 영웅 def 에 곧바로 얹는 배수(훅이 아니라 스탯인 것). 지금은 `greed` 뿐이다.
+    // 전투 시작 시 한 번 부른다. `heroUnit.def` 는 `buildHero` 가 판마다 새로 만드는
+    // 객체라 여러 판에 걸쳐 누적되지 않는다(공유 def 였다면 층마다 체력이 깎였을 것이다).
     applyDefMods: function (heroUnit, rec) {
       var own = this.owned(rec);
-      for (var i = 0; i < own.length; i++) {
-        var b = byKey(own[i]);
-        if (!b || !b.mods) continue;
-        if (b.mods.hpMul) {
-          heroUnit.def.hp = Math.round(heroUnit.def.hp * b.mods.hpMul);
-          heroUnit.maxHp = heroUnit.def.hp;
-          heroUnit.hp = Math.min(heroUnit.hp, heroUnit.maxHp);
-        }
-      }
+      for (var i = 0; i < own.length; i++) this._mod(heroUnit, byKey(own[i]));
+    },
+
+    // 구슬을 **전투 중에** 주웠을 때 그 하나만 얹는다.
+    // ⚠ 이게 없으면 탐욕의 구슬이 거짓말을 한다 — 골드 배수는 판이 끝날 때 읽으니
+    //   이번 판부터 듣는데, 대가인 체력 −12% 는 다음 판 `buildHero` 에서야 붙는다.
+    //   "체력이 12% 줄어든다!" 라고 띄워 놓고 안 줄어드는 것은 문구가 틀린 것이다.
+    applyOneMod: function (heroUnit, key) {
+      if (!heroUnit) return false;
+      return this._mod(heroUnit, byKey(key));
+    },
+
+    _mod: function (heroUnit, b) {
+      if (!b || !b.mods || !b.mods.hpMul) return false;
+      heroUnit.def.hp = Math.round(heroUnit.def.hp * b.mods.hpMul);
+      heroUnit.maxHp = heroUnit.def.hp;
+      // 최대치가 내려가면 현재 체력도 같이 내려간다. 단 **죽이지는 않는다** —
+      // 구슬을 주운 행동이 곧바로 패배가 되면 보상이 아니라 함정이다.
+      heroUnit.hp = Math.max(1, Math.min(heroUnit.hp, heroUnit.maxHp));
+      return true;
     },
 
     // 축복의 골드 배수(탐욕). 층 조건의 배수와 **곱해진다** — 무보급+탐욕이면 2.1배다.

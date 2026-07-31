@@ -235,36 +235,17 @@ GAME.TowerRun = {
   // 층 클리어 — 골드를 준다.
   //  state 를 주면 **처치로 번 골드 + 작은 클리어 보너스**,
   //  안 주면(또는 훅이 안 붙었으면) 옛 방식대로 층 총액을 통째로 준다.
-  // ── 축복은 **자동으로** 주어진다 (2026-07-31, 두 갈래 문 제거에 따른 변경) ──
-  //  원래는 층 진입 전 '두 갈래 문'에서 골랐는데, 사용자가 그 팝업을 없애 달라고 했다
-  //  ("의도하고 많이 다르고 골라서 뭐가 좋은지도 모르겠어"). 이름만 뜨는 선택지는
-  //  조건 7종·축복 9종을 외우고 있어야 값어치를 잴 수 있어서 선택이 아니라 퀴즈였다.
-  //  → 문은 없애되 축복은 살린다. **5층마다 하나씩 자동으로** 붙는다.
-  //    고르는 화면이 없으니 흐름이 안 끊기고, 무엇을 받았는지는 층 화면의
-  //    `✦ …` 줄에 이미 뜬다(scenes/tower.js). 팝업을 하나도 늘리지 않는다.
-  //  ⚠ 선택이 사라진 대신 '내가 짠 조합'이라는 맛도 사라졌다. 되살리려면
-  //    **값어치가 화면에서 바로 읽히는 형태**여야 한다 — 이름만으로는 안 된다.
-  BOON_EVERY: 5,
-
-  grantBoonIfDue: function (rec, floor) {
-    if (!GAME.TowerBoon || !rec) return null;
-    if (floor % this.BOON_EVERY !== 0) return null;
-    var offer = GAME.TowerBoon.offer(1, ((rec.seed || 1) ^ (floor * 7919)) | 0, rec);
-    if (!offer.length) return null;
-    rec.boons = rec.boons || [];
-    if (rec.boons.indexOf(offer[0].key) >= 0) return null;
-    rec.boons.push(offer[0].key);
-    return offer[0];
-  },
+  // ⚠ **축복 자동 지급은 제거했다** (2026-07-31, 사용자 지시).
+  //   "차라리 저 사항들을 적 유닛을 잡았을 때 구슬 같은 걸로 랜덤하게 나오게 해줘."
+  //   맞다 — 문(선택)도 자동(무감각)도 실패한 이유가 같았다: **언제 무엇을 얻었는지가
+  //   몸에 안 남았다.** 이제 `js/orb.js` 가 전투 중에 떨어뜨리고 주우면 그 자리에서 붙는다.
+  //   얻는 순간이 전투 안에 있고, 주우러 가는 행동이 필요하고, 주운 즉시 글자가 뜬다.
 
   clear: function (floor, state) {
     var rec = this.get();
     if (!rec) return null;
     rec.gold += this.goldGainFor(floor, state);
     rec.floorsCleared = (rec.floorsCleared || 0) + 1;
-    // 5층마다 축복 하나. 깬 층 기준이라 '보상'으로 읽힌다.
-    var b = this.grantBoonIfDue(rec, floor);
-    if (b) rec.lastBoon = b.label;
     this._save(rec);
     return rec;
   },

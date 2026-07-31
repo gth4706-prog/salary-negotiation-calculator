@@ -25,6 +25,9 @@ GAME.TowerShopScene.prototype.constructor = GAME.TowerShopScene;
 GAME.TowerShopScene.prototype.init = function (data) {
   this.tab = (data && data.tab) || 'item';
   this.previewSkill = null;   // { slot, idx } — 스킬 탭에서 지금 보고 있는 스킬
+  // ⚠ 씬 인스턴스는 재사용된다 — 여기서 안 비우면 지난번에 고른 아이템이 다음 입장에
+  //   그대로 선택돼 있고, 확정 막대가 "구매" 상태로 대기한다(오조작의 씨앗).
+  this.itemPick = null;       // { slot, key } — 아이템 탭에서 지금 고른 것
 };
 
 GAME.TowerShopScene.prototype.create = function () {
@@ -298,8 +301,15 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
   var cur = curKey ? GAME.TowerShopItems.find(this.itemSlot, curKey) : null;
   var credit = cur ? Math.floor(cur.cost * GAME.TowerChar.SELL_RATE) : 0;
 
+  // 선택한 칸이 이 슬롯의 것이 아니면 버린다(탭을 옮기면 선택도 따라 옮겨야 한다).
+  if (this.itemPick && this.itemPick.slot !== this.itemSlot) this.itemPick = null;
+
+  // ⚠ **격자 아래에 '확정 막대'를 위한 자리를 먼저 뗀다** (2026-07-31 사용자 신고:
+  //   "클릭만 했더니 구매가 되어버렸어"). 카드를 누르면 곧장 사던 것을 고르기/확정
+  //   두 단계로 나눴다 — 되돌리기 어려운 행동은 한 번 더 물어야 한다.
+  var barH = P ? 34 : 44;
   var gridTop = top + stH + (P ? 6 : 10);
-  var gridBottom = statY - (P ? 4 : 12);
+  var gridBottom = statY - (P ? 4 : 12) - barH - (P ? 4 : 8);
   // 폰은 **2열 4행 + 가로형 카드**(아이콘 왼쪽 · 글 오른쪽)다. 4열로 쪼개면 칸 폭이
   // 127px 라 효과 문구가 4줄로 접힌다. 2열이면 258px 라 두 줄에 들어간다.
   // PC 는 카드가 커서 세로형(아이콘 위 · 글 아래)이 더 읽기 좋다.
@@ -312,6 +322,7 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
     var cx0 = leftX + (i % ncol) * (cardW + cgap);
     var cy0 = gridTop + Math.floor(i / ncol) * (cardH + cgap);
     var equipped = cur && cur.key === it.key;
+    var picked = self.itemPick && self.itemPick.key === it.key;
     var price = Math.max(0, it.cost - credit);
     var afford = self.char.gold >= price;
 
@@ -319,11 +330,13 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
     self._body.push(g);
     g.fillStyle(equipped ? GAME.UI.COL.panelTeal : GAME.UI.COL.surfaceAlt, 1);
     g.fillRoundedRect(cx0, cy0, cardW, cardH, 10);
-    g.lineStyle(equipped ? 2 : 1, equipped ? C.controller : GAME.UI.COL.border, 1);
+    // 테두리 세 상태: 고른 것(강조) > 장착 중(진영색) > 평소.
+    g.lineStyle(picked ? 3 : (equipped ? 2 : 1),
+                picked ? C.accent : (equipped ? C.controller : GAME.UI.COL.border), 1);
     g.strokeRoundedRect(cx0, cy0, cardW, cardH, 10);
 
     var sellBack = Math.floor(it.cost * GAME.TowerChar.SELL_RATE);
-    var priceTxt = equipped ? (P ? ('눌러 판매 ' + sellBack) : ('장착 중 · 눌러 판매 ' + sellBack))
+    var priceTxt = equipped ? '장착 중'
                             : (price === 0 ? '무료 교체' : ('💰 ' + price));
     var priceCol = equipped ? C.accent : (afford ? C.text : C.textDim);
 
@@ -370,33 +383,73 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
         priceTxt, 13, priceCol, 0.5).setOrigin(0.5, 1));
     }
 
-    // 카드 전체가 버튼이다 — 아이콘을 보고 바로 누르는 흐름이라 별도 [구매] 버튼을
-    // 두면 손가락이 갈 곳이 둘로 갈린다. 못 사는 것도 눌리게 두되 아무 일도 안 한다
-    // (막아 두면 왜 안 눌리는지 화면이 설명하지 않는다 — 가격이 흐린 것이 그 설명이다).
+    // 카드를 누르면 **고르기만 한다.** 사는 것은 아래 확정 막대의 버튼이 한다.
+    // (예전엔 카드가 곧 구매였는데, 구경하려고 누른 것이 그대로 결제됐다 — 사용자 신고.)
     var hit = self.add.rectangle(cx0 + cardW / 2, cy0 + cardH / 2, cardW, cardH, 0xffffff, 0.001)
-      .setInteractive({ useHandCursor: equipped || afford });
+      .setInteractive({ useHandCursor: true });
     hit.on('pointerdown', function () {
-      if (equipped) {
-        // 판매는 되돌리기 어려운 쪽이라 한 번 묻는다(구매는 안 묻는다 — 되팔 수 있으므로).
-        GAME.Modal.open(self, {
-          title: it.name + ' 판매',
-          items: [
-            { key: 'yes', name: '판매한다', note: sellBack + '골드를 돌려받습니다' },
-            { key: 'no', name: '취소' }
-          ],
-          onPick: function (m) {
-            if (!m || m.key !== 'yes') return;
-            GAME.TowerChar.sellItem(self.itemSlot);
-            self._buildBody(true);
-          }
-        });
-        return;
-      }
-      if (!afford) return;
-      if (GAME.TowerChar.buyItem(self.itemSlot, it.key)) self._buildBody(true);
+      self.itemPick = { slot: self.itemSlot, key: it.key };
+      self._buildBody();
     });
     self._body.push(hit);
   });
+
+  // ── 확정 막대 — 고른 것을 실제로 사고 파는 유일한 자리 ──
+  var barY = gridBottom + (P ? 4 : 8);
+  var pick = self.itemPick ? GAME.TowerShopItems.find(self.itemSlot, self.itemPick.key) : null;
+  var bg2 = this.add.graphics();
+  this._body.push(bg2);
+  bg2.fillStyle(GAME.UI.COL.surfaceAlt, 1);
+  bg2.fillRoundedRect(leftX, barY, leftW, barH, 10);
+  bg2.lineStyle(1, GAME.UI.COL.border, 1);
+  bg2.strokeRoundedRect(leftX, barY, leftW, barH, 10);
+
+  if (!pick) {
+    this._body.push(GAME.UI.label(this, leftX + leftW / 2, barY + barH / 2,
+      '살 물건을 고르세요', P ? 12 : 14, C.textDim, 0.5).setOrigin(0.5));
+  } else {
+    var pEquipped = cur && cur.key === pick.key;
+    var pPrice = Math.max(0, pick.cost - credit);
+    var pAfford = self.char.gold >= pPrice;
+    var pBack = Math.floor(pick.cost * GAME.TowerChar.SELL_RATE);
+    var bw2 = P ? 108 : 150;
+    this._body.push(GAME.UI.label(this, leftX + 12, barY + barH / 2,
+      pick.name + '  ·  ' + (pEquipped ? ('판매가 ' + pBack + '골드')
+                                       : (pPrice === 0 ? '무료 교체' : (pPrice + '골드'))),
+      P ? 12 : 15, pEquipped ? C.accent : (pAfford ? C.text : C.textDim), 0)
+      .setOrigin(0, 0.5).setWordWrapWidth(leftW - bw2 - 30));
+
+    var actLabel = pEquipped ? '판매' : (cur ? '교체' : '구매');
+    var ab2 = GAME.UI.button(this, leftX + leftW - 10 - bw2 / 2, barY + barH / 2,
+      bw2, barH - (P ? 8 : 12), actLabel, function () {
+        if (pEquipped) {
+          // 판매는 되돌리기 어렵다 — 여기서만 한 번 더 묻는다.
+          GAME.Modal.open(self, {
+            title: pick.name + ' 판매',
+            items: [
+              { key: 'yes', name: '판매한다', note: pBack + '골드를 돌려받습니다' },
+              { key: 'no', name: '취소' }
+            ],
+            onPick: function (m) {
+              if (!m || m.key !== 'yes') return;
+              GAME.TowerChar.sellItem(self.itemSlot);
+              self.itemPick = null;
+              self._buildBody(true);
+            }
+          });
+          return;
+        }
+        if (!pAfford) return;
+        if (GAME.TowerChar.buyItem(self.itemSlot, pick.key)) {
+          self.itemPick = null;
+          self._buildBody(true);
+        }
+      }, { fontSize: P ? 12 : 14 });
+    ab2.text.setColor(pEquipped ? C.accent : (pAfford ? C.accent : C.textDim));
+    ab2.rect.setStrokeStyle(pAfford || pEquipped ? 2 : 1,
+                            pAfford || pEquipped ? C.controller : GAME.UI.COL.borderUi);
+    this._body.push(ab2);
+  }
 };
 
 // `_openBuyList`(슬롯별 구매 팝업)는 **제거했다** — 격자가 그 일을 대신한다.

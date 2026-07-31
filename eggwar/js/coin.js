@@ -313,6 +313,54 @@ window.GAME = window.GAME || {};
     return got;
   };
 
+  // ── 층 돌파 보상 비 (2026-07-31 사용자 지시) ────────────────────────────────
+  //  "라운드 끝나고 골드 더 주는 건 플레이어 머리 위로 동전 떨궈주는 형식으로 바꾸자.
+  //   지금은 라운드 끝났다고 돈 더 받았단 걸 모르겠어."
+  //
+  //  ⚠ **회계에 절대 끼어들지 않는다.** 이 동전들은 `this.list` 가 아니라 별도 배열
+  //    (`this.rainList`)에 산다. 같은 리스트에 넣으면 `remainingGold`·`forfeit`·
+  //    줍기 판정이 전부 이걸 '아직 안 번 돈'으로 세어 총액이 어긋난다 — 이 파일의
+  //    계약(`state.killGold` = 주운 골드)이 그 자리에서 깨진다.
+  //    보상 골드는 이미 `TowerChar.addGold` 로 지급된 확정분이라, 여기 동전은
+  //    **순수 연출**이다: 줍지 않아도 되고 주울 수도 없다.
+  CoinField.prototype.rain = function (x, y, gold) {
+    if (!(gold > 0)) return;
+    this.rainList = this.rainList || [];
+    // 화폐 단위로 쪼갠다(처치 동전과 같은 문법이라 눈이 값을 바로 읽는다).
+    var units = [], left = gold;
+    for (var di = 0; di < DENOM.length; di++) {
+      var d = DENOM[di], cnt = Math.floor(left / d);
+      left -= cnt * d;
+      for (var ci = 0; ci < cnt && units.length < 18; ci++) units.push(d);
+    }
+    if (!units.length) units.push(gold);
+    var ws = this.ws;
+    for (var i = 0; i < units.length; i++) {
+      this.rainList.push({
+        x: x + (Math.random() - 0.5) * 52 * ws,
+        y: y + (Math.random() - 0.5) * 26 * ws,
+        v: units[i],
+        // 머리 위에서 시작해 발치로 떨어진다. 낱개마다 조금씩 늦게 출발시켜
+        // '쏟아진다'가 읽히게 한다(전부 동시에 떨어지면 한 덩어리로 보인다).
+        drop: 130 + Math.random() * 40,        // 시작 높이(화면px)
+        delay: i * 55 + Math.random() * 40,
+        t: 0, life: 1500
+      });
+    }
+    this._popup(x, y - 10, gold);
+    if (GAME.Sound) GAME.Sound.play('coinPick');
+  };
+
+  CoinField.prototype._updateRain = function (dt) {
+    var L = this.rainList;
+    if (!L || !L.length) return;
+    for (var i = L.length - 1; i >= 0; i--) {
+      var c = L[i];
+      c.t += dt;
+      if (c.t >= c.life + c.delay) L.splice(i, 1);
+    }
+  };
+
   // 라운드가 끝날 때 바닥에 남은 것 — **버린다**(자동 수거하지 않는다).
   // 근거는 보고서에 적었다. 여기서는 손실을 기록만 한다(디버그·검증용).
   CoinField.prototype.forfeit = function () {
@@ -378,6 +426,30 @@ window.GAME = window.GAME || {};
       var sy = Iso.toScreenY(c.y) - c.hop * K.HOP_H - r * 0.35;
       drawCoin(g, c.x, sy, r, c.v, a, INK, INKA);
     }
+
+    // 층 돌파 보상 비 — 머리 위에서 떨어져 발치에 쌓였다가 사라진다.
+    this._updateRain(dt || 16);
+    var RL = this.rainList;
+    if (RL) {
+      for (var j = 0; j < RL.length; j++) {
+        var b = RL[j];
+        var bt = b.t - b.delay;
+        if (bt < 0) continue;                      // 아직 안 떨어진 것
+        var FALL = 420;
+        var p = bt < FALL ? bt / FALL : 1;
+        // easeInQuad — 떨어질수록 빨라져야 '무게'가 읽힌다
+        var h = b.drop * (1 - p * p);
+        // 착지 뒤에는 살짝 튄다(두 번, 점점 작게)
+        if (p >= 1) {
+          var after = bt - FALL;
+          if (after < 260) h = Math.abs(Math.sin(after / 260 * Math.PI * 2)) * 9 * (1 - after / 260);
+        }
+        var ba = 1;
+        var rem2 = (b.life + b.delay) - b.t;
+        if (rem2 < 420) ba = Math.max(0, rem2 / 420);
+        drawCoin(g, b.x, Iso.toScreenY(b.y) - h - r * 0.35, r * 1.15, b.v, ba, INK, INKA);
+      }
+    }
   };
 
   CoinField.prototype.destroy = function () {
@@ -386,6 +458,7 @@ window.GAME = window.GAME || {};
     }
     this._pops.length = 0;
     this.list.length = 0;
+    if (this.rainList) this.rainList.length = 0;
     this.scene = null;
     this.state = null;
   };

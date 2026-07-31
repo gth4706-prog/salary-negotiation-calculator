@@ -874,7 +874,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     GAME.Profile.record(this.heroKey, t);
 
     // 통곡의 탑 진행 처리
-    var towerRec = null, runRec = null, goldGained = 0, bossDrop = null;
+    var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown = 0;
     if (this.tower) {
       // 탑 학습 — **이긴 판·진 판 모두** 기록한다. 진 판에서만 배우면 가설을 세울 수는
       // 있어도 그것이 통했는지 확인할 수가 없다(확인은 이긴 판에서 나온다).
@@ -900,6 +900,11 @@ GAME.BattleScene.prototype.update = function (time, delta) {
           var floorBonus = Math.round(floorBase * (0.75 + Math.random() * 0.5));
           goldGained = Math.round((rawGold + floorBonus) * GAME.TowerChar.luckGoldMul());
           runRec = GAME.TowerChar.addGold(goldGained);
+          // 층 보상은 **영웅 머리 위로 쏟아지는 동전**으로 보여준다 (2026-07-31 사용자
+          // 지시: "라운드 끝났다고 돈 더 받았단 걸 모르겠어"). 숫자만 허브에 적어 두면
+          // 그 사이 화면이 두 번 바뀌어 인과가 끊긴다 — 받은 순간이 손에 남아야 한다.
+          // ⚠ 회계와 무관한 **순수 연출**이다(js/coin.js 의 `rain` 주석 참조).
+          bonusShown = Math.round(floorBonus * GAME.TowerChar.luckGoldMul());
           // 보스 층은 **확정으로** 아이템이나 스킬북을 하나 떨군다(미보유분에서).
           if (GAME.Tower.bossFor(this.tower)) {
             bossDrop = GAME.TowerChar.grantBossDrop();
@@ -929,7 +934,28 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       GAME.Arena.pendingOpponent = null;
     }
 
-    this.time.delayedCall(1100, function () {
+    // 층 보상 동전을 영웅 머리 위로 쏟는다. **화면을 넘기기 전에** 뿌려야 보인다.
+    // ⚠ `forfeit()` 은 위에서 이미 불렸다 — 그건 `list`(주울 동전)만 비우고
+    //   `rainList`(연출 전용)는 안 건드리므로 순서가 안전하다.
+    var holdMs = 1100;
+    if (bonusShown > 0 && this._coins && this.hero) {
+      this._coins.rain(this.hero.x, this.hero.y, bonusShown);
+      holdMs = 2300;                 // 떨어지고 튀고 사라지는 데 필요한 시간
+      // 동전만으로는 "얼마"인지 안 읽힌다 — 액수를 글로 한 번 더 못박는다.
+      // 동전 줍기 팝업(+N)과 달리 이건 **한 판에 한 번**이라 크게 띄워도 시끄럽지 않다.
+      // ⚠ `toScreenY` 는 **발밑**을 준다. 계란 몸통은 거기서 위로 3.2r 뻗으므로
+      //   -74 로는 글자가 가슴께에 걸린다(실측 스크린샷). 머리 위로 확실히 띄운다.
+      var hr = (this.hero.def && this.hero.def.radius) || 17;
+      var bx = this.hero.x, by = GAME.Iso.toScreenY(this.hero.y) - hr * 3.6 - 34;
+      var blbl = GAME.UI.label(this, bx, by, '층 보상  +' + bonusShown + ' 골드',
+        GAME.CONFIG.SMALL ? 20 : 24, GAME.CONFIG.COLORS.accent, 0.5).setOrigin(0.5).setDepth(70);
+      if (this.worldLayer) this.worldLayer.add(blbl);
+      this.tweens.add({ targets: blbl, y: by - 34, duration: 900, ease: 'Cubic.easeOut' });
+      this.tweens.add({ targets: blbl, scale: { from: 0.6, to: 1 }, duration: 320, ease: 'Back.easeOut' });
+      this.tweens.add({ targets: blbl, alpha: 0, delay: 1500, duration: 600 });
+    }
+
+    this.time.delayedCall(holdMs, function () {
       self.scene.start('Result', {
         winner: self.state.winner,
         formationId: self.formation.id,

@@ -68,6 +68,15 @@ GAME.DraftScene.prototype.init = function (data) {
   if (!GAME.HEROES[this.heroKey]) this.heroKey = 'vanguard';
   this.heroLocked = !!(this.tower && data && data.heroKey);
 
+  // ── 대전: 영웅 선택 단계 (2026-07-31, 사용자 지시) ────────────────────────
+  //  신고: "대전은 궁수가 기본선택이던데 통곡의 탑처럼 캐릭터 선택창을 넣어 달라."
+  //  맞는 지적이었다 — 대전은 `lastHero`(마지막에 쓴 영웅)를 **묻지 않고** 그대로 썼다.
+  //  탑은 로비에서 고르고 오는데 대전만 그 단계가 없었다.
+  //  `heroPicked` 가 서기 전까지는 화면을 만들기 전에 선택창을 띄운다.
+  //  ⚠ 탑은 건드리지 않는다 — 거기는 **AI 가 그 영웅을 보고 배치를 짰으므로** 여기서
+  //    바꾸면 카운터가 어긋난다(위 주석). 대전은 상대 배치가 고정이라 바꿔도 된다.
+  this.needHeroPick = !!(this.versus && !(data && data.heroPicked));
+
   // 영웅 몫을 뗀 **장비 예산**. 화면·판정이 전부 이 값 하나를 본다.
   // this.budget 도 같은 값으로 맞춰 둔다 — 세로 패널(draft-mobile.js)이 this.budget 을
   // 직접 읽는데, 그쪽에서만 총예산을 쓰면 세로에서 장비를 두 배로 살 수 있게 된다.
@@ -121,6 +130,38 @@ GAME.DraftScene.prototype._heroBaseCost = function () {
   return (h && typeof h.cost === 'number') ? h.cost : 0;
 };
 
+// ── 대전 영웅 선택 (2026-07-31) ──────────────────────────────────────────────
+//  탑의 전용 선택 화면을 그대로 쓸 수 없어(TowerScene 의 메서드다) 같은 정보를
+//  `GAME.Modal` 로 낸다. 문 선택 팝업과 같은 부품이라 겹침·크기 규율이 이미 검증돼 있다.
+//  ⚠ `note` 는 **한 줄 슬롯**이다(modal.js). 설명을 문장으로 넣으면 행 밖으로 흘러
+//    화면을 덮는다 — 두 갈래 문에서 이미 겪었다. 숫자만 짧게 적는다.
+GAME.DraftScene.prototype._pickHero = function () {
+  var self = this;
+  var items = GAME.HERO_ORDER.map(function (k) {
+    var h = GAME.HEROES[k];
+    return {
+      key: k,
+      name: h.name + '  ·  ' + h.trait,
+      note: '체력 ' + h.hp + '  ·  공격 ' + h.damage + '  ·  방어 ' + h.armor +
+            '  ·  속도 ' + h.speed + '  ·  사거리 ' + h.range,
+      selected: k === self.heroKey
+    };
+  });
+  GAME.Modal.open(this, {
+    title: '⚔ 대전 — 어떤 영웅으로 갈 것인가',
+    items: items,
+    onPick: function (it) {
+      GAME.Modal.close();
+      GAME.Store.set('asymgame.lastHero', it.key);
+      // 같은 씬을 다시 시작한다. `heroPicked` 가 서 있으니 이번엔 선택창을 건너뛴다.
+      self.scene.restart({
+        formationId: self.formation && self.formation.id,
+        heroKey: it.key, versus: true, test: self.test, heroPicked: true
+      });
+    }
+  });
+};
+
 GAME.DraftScene.prototype.create = function () {
   var C = GAME.CONFIG.COLORS;
   var self = this;
@@ -130,6 +171,11 @@ GAME.DraftScene.prototype.create = function () {
   this.cameras.main.setBackgroundColor(C.bg);
   // 준비 화면은 정찰도를 축소해 그리므로 전투용 전체화면 투영이 새어 들어오면 안 된다.
   GAME.Iso.setMode('default');
+
+  // 대전 — 영웅부터 고르게 한다. 고르면 같은 씬을 `heroPicked` 로 다시 시작한다.
+  // (씬을 다시 시작하는 이유: 영웅이 바뀌면 예산·아이템·스킬 목록이 전부 달라지므로
+  //  부분 갱신보다 다시 만드는 쪽이 안전하다 — 이 씬은 캐시한 표시객체가 많다.)
+  if (this.needHeroPick) { this._pickHero(); return; }
 
   // 폰 가로(820×390)는 PC 도 세로도 아니다 — 높이 390 에 PC 구성을 그대로 쓰면
   // 아이템 줄 아래가 통째로 화면 밖으로 나간다(실측: 요소 50개 화면 밖).
@@ -190,6 +236,10 @@ GAME.DraftScene.prototype.create = function () {
       // 대전 컨트롤러 — 능력치 강화(통곡의 탑에서 가져온 것)를 같은 예산에서 산다.
       GAME.UI.button(this, this.split.panelX + this._backW * 1.6, ra.cy, this._backW, ra.h,
         '⚒ 능력치', function () { self._openArenaUpgrades(); }, { fontSize: 15 });
+      // 영웅을 다시 고를 수 있어야 한다(사용자 지시: "이전으로 돌아가서 골드 분배도").
+      // 영웅이 바뀌면 예산이 달라지므로 능력치·아이템을 다시 짜게 되는 것이 자연스럽다.
+      GAME.UI.button(this, this.split.panelX + this._backW * 2.7, ra.cy, this._backW, ra.h,
+        '↩ 영웅', function () { self.needHeroPick = true; self._pickHero(); }, { fontSize: 15 });
     }
   } else {
     // 우하단 끝에 붙이면 DOM 버전 배지(#ver)와 겹친다(실측) → 배지 폭만큼 왼쪽·위로 뗀다
@@ -199,6 +249,9 @@ GAME.DraftScene.prototype.create = function () {
     if (this.versus) {
       GAME.UI.button(this, W - 360, H - 34, 160, 36, '⚒ 능력치', function () {
         self._openArenaUpgrades();
+      }, { fontSize: 14 });
+      GAME.UI.button(this, W - 530, H - 34, 160, 36, '↩ 영웅 다시', function () {
+        self.needHeroPick = true; self._pickHero();
       }, { fontSize: 14 });
     }
   }

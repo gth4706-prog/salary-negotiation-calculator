@@ -488,6 +488,15 @@ GAME.DraftScene.prototype._createPhone = function () {
 
 GAME.DraftScene.prototype._phBack = function () {
   if (this._phStepIdx > 0) { this._phStep(this._phStepIdx - 1); return; }
+  // 대전은 첫 단계에서 뒤로 가면 **영웅 선택으로** 돌아간다(2026-07-31 사용자 지시:
+  // "이전으로 돌아가서 골드 분배할 수도 있게"). 대전 목록으로 나가려면 한 번 더 누른다.
+  // ⚠ 탑은 그대로 — 거기는 AI 가 그 영웅을 보고 배치를 짰으므로 바꾸면 카운터가 어긋난다.
+  if (this.versus && !this._phHeroBackUsed) {
+    this._phHeroBackUsed = true;
+    this.needHeroPick = true;
+    this._pickHero();
+    return;
+  }
   this.scene.start(this.tower ? 'Tower' : (this.versus ? 'Versus' : 'Select'));
 };
 

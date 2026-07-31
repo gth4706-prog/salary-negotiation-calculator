@@ -167,24 +167,33 @@ GAME.HEROES = {
     hint: '달려들며 휘두르면 밀어낸다',
     radius: 17, shape: 'square',
     skillOptions: {
+      // ── 2026-07-31 · 스킬 버프 (사용자 지시 2·3번) ──────────────────────────
+      //  "사냥꾼은 뺑뺑이를 컨트롤 스킬로 삼되, 광전사와 파수꾼은 **다른 타격감**이
+      //   있어야 한다."
+      //  방향을 갈랐다 — 사냥꾼의 재미는 '안 맞는 것'(위치 선정)이고,
+      //  **광전사의 재미는 '크게 맞히는 것'** 이어야 한다. 그래서 광전사는
+      //  **한 방의 크기와 도달 범위**를 키운다(쿨은 그대로 두거나 조금만 줄인다) —
+      //  쿨을 줄이면 '자주 누르는 손'이 되어 사냥꾼과 결이 같아진다.
+      //  피해 +25~40% · 반경 +10~20% · 돌진 거리 +15%.
+
       Q: [
-        { name: '박치기', type: 'dash', dist: 230, damage: 44, radius: 55, cooldown: 8000 },
-        { name: '대검 돌진', type: 'dash', dist: 150, damage: 68, radius: 70, cooldown: 9000 },
+        { name: '박치기', type: 'dash', dist: 265, damage: 60, radius: 64, cooldown: 8000 },
+        { name: '대검 돌진', type: 'dash', dist: 175, damage: 94, radius: 82, cooldown: 9000 },
         { name: '흙먼지 은신', type: 'dash', dist: 300, damage: 0, radius: 0, cooldown: 6000 }
       ],
       W: [
-        { name: '대검 회전', type: 'aoeSelf', radius: 88, damage: 50, cooldown: 11000 },
-        { name: '후려치기', type: 'pull', coneDeg: 100, dist: 170, damage: 56, cooldown: 10000 },
+        { name: '대검 회전', type: 'aoeSelf', radius: 102, damage: 70, cooldown: 11000 },
+        { name: '후려치기', type: 'pull', coneDeg: 110, dist: 200, damage: 78, cooldown: 10000 },
         { name: '모래 뿌리기', type: 'aoeSelf', radius: 130, damage: 24, rootMs: 1300, cooldown: 13000 }
       ],
       E: [
         { name: '가죽 두르기', type: 'buff', armorAdd: 45, speedMul: 0.85, duration: 3500, cooldown: 14000 },
-        { name: '광폭화', type: 'buff', damageMul: 1.55, speedMul: 1.15, duration: 4000, cooldown: 16000 },
+        { name: '광폭화', type: 'buff', damageMul: 1.85, speedMul: 1.20, duration: 4500, cooldown: 16000 },
         { name: '약초 씹기', type: 'buff', healNow: 260, shield: 120, duration: 3000, cooldown: 15000 }
       ],
       R: [
-        { name: '바위 내리치기', type: 'aoeSelf', radius: 150, damage: 84, knockback: 95, cooldown: 32000 },
-        { name: '가시 함정', type: 'trap', damage: 152, radius: 90, rootMs: 1500, life: 20000, cooldown: 26000 },
+        { name: '바위 내리치기', type: 'aoeSelf', radius: 172, damage: 118, knockback: 110, cooldown: 32000 },
+        { name: '가시 함정', type: 'trap', damage: 200, radius: 104, rootMs: 1700, life: 20000, cooldown: 26000 },
         { name: '낙석 유도', type: 'aoeTarget', radius: 140, damage: 48, repeat: 3, interval: 650, telegraph: 700, cooldown: 30000 }
       ]
     }
@@ -313,16 +322,26 @@ GAME.HEROES = {
     // 사용자 표현('덩치로 밟는다')을 그대로 못 쓴다 — 덩·곁·갉 이 800자 서브셋 밖이라
     // 폰트가 146KB 1파일 → 491KB 25파일이 된다. 뜻이 같은 서브셋 안 낱말로 바꿨다.
     hint: '무게로 밀고 주변을 깎는다',
+    // ── 2026-07-31 · 스킬 버프 (사용자 지시 2·3번) ──────────────────────────
+    //  세 영웅의 **재미의 축을 일부러 갈랐다**:
+    //    사냥꾼 = '안 맞는 것'   (위치 선정 · 뺑뺑이가 정당한 컨트롤 스킬)
+    //    광전사 = '크게 맞히는 것' (한 방의 크기 — 피해·반경·돌진 거리)
+    //    파수꾼 = '안 죽는 것'   (버티는 두께 — 보호막·장갑·회복·지속 장판)
+    //  그래서 파수꾼은 **한 방을 키우지 않는다.** 보호막 180→300, 장갑 70→110,
+    //  회복 340→480, 장판 dps 21→32·14→22 로 **버티는 시간**을 키웠다.
+    //  근접 스킬(갈고리·밀치기)만 흡혈 배수와 함께 올려 '오래 싸울수록 강해지는' 결을 세운다.
+    //  ⚠ 쿨타임은 셋 다 안 건드렸다 — 쿨을 줄이면 세 영웅이 전부 '자주 누르는 손'이 되어
+    //    결이 같아진다. 축을 가르는 것이 이번 변경의 목적이다.
     skillOptions: {
       Q: [
-        { name: '갈고리 찍기', type: 'strike', damage: 70, lifestealMul: 1.5, cooldown: 7000 },
-        { name: '방패 밀치기', type: 'aoeSelf', radius: 80, damage: 42, knockback: 60, cooldown: 8000 },
+        { name: '갈고리 찍기', type: 'strike', damage: 92, lifestealMul: 1.9, cooldown: 7000 },
+        { name: '방패 밀치기', type: 'aoeSelf', radius: 96, damage: 58, knockback: 78, cooldown: 8000 },
         { name: '그물 던지기', type: 'strike', damage: 37, rootMs: 1800, lifestealMul: 1, cooldown: 9000 }
       ],
       W: [
-        { name: '방패 세우기', type: 'buff', shield: 180, duration: 4500, cooldown: 15000 },
-        { name: '철벽 자세', type: 'buff', armorAdd: 70, duration: 4000, cooldown: 14000 },
-        { name: '숨 고르기', type: 'buff', healNow: 340, duration: 1000, cooldown: 17000 }
+        { name: '방패 세우기', type: 'buff', shield: 300, duration: 5500, cooldown: 15000 },
+        { name: '철벽 자세', type: 'buff', armorAdd: 110, duration: 5000, cooldown: 14000 },
+        { name: '숨 고르기', type: 'buff', healNow: 480, duration: 1000, cooldown: 17000 }
       ],
       E: [
         { name: '갈고리 당기기', type: 'pull', coneDeg: 120, dist: 240, damage: 26, cooldown: 13000 },
@@ -330,9 +349,9 @@ GAME.HEROES = {
         { name: '돌진', type: 'dash', dist: 200, damage: 32, radius: 60, cooldown: 9000 }
       ],
       R: [
-        { name: '파수 구역', type: 'aura', radius: 132, dps: 21, duration: 8000, cooldown: 34000 },
-        { name: '경계 화톳불', type: 'aura', radius: 190, dps: 14, duration: 10000, cooldown: 36000 },
-        { name: '대지 강타', type: 'aoeSelf', radius: 165, damage: 96, knockback: 70, cooldown: 28000 }
+        { name: '파수 구역', type: 'aura', radius: 152, dps: 32, duration: 9000, cooldown: 34000 },
+        { name: '경계 화톳불', type: 'aura', radius: 210, dps: 22, duration: 12000, cooldown: 36000 },
+        { name: '대지 강타', type: 'aoeSelf', radius: 182, damage: 130, knockback: 88, cooldown: 28000 }
       ]
     }
   }

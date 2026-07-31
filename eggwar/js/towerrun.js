@@ -29,13 +29,26 @@ GAME.TowerRun = {
   // (사용자 요청) 지금은 **적 유닛을 잡을 때마다 랜덤하게 쪼개서** 준다.
   // 이 함수는 이제 "그 층에서 나올 골드의 총량"이라는 뜻이고, 값 자체는 손대지 않았다 —
   // 성장 곡선을 그대로 유지하기 위해서다(층별 기대 총액이 변경 전과 같아야 한다).
-  GOLD_BASE: 14,
-  GOLD_PER_FLOOR: 2,
-  GOLD_BOSS_MUL: 2.0,
+  // ── 2026-08-01 · 수입 곡선을 **지수로** 바꿨다 ──────────────────────────────
+  //  사용자 지시로 아이템 가격이 15 → 42,000 까지 지수로 벌어졌다
+  //  (js/towershopitems.js). 수입이 예전처럼 `14 + 층×2` 로 **선형**이면
+  //  40층에서도 층당 92골드라, 4,800 짜리 6단계 하나 사는 데 50층을 더 올라야 한다 —
+  //  최상급이 "목표"가 아니라 "도달 불가"가 된다. 두 곡선은 같이 움직여야 한다.
+  //
+  //  goldFor(층) = BASE × RATE^(층-1)
+  //    1층 18 · 10층 50 · 20층 155 · 30층 480 · 40층 1,490 · 50층 4,630
+  //  누적(대략): 20층까지 ~1,100 · 30층까지 ~4,400 · 40층까지 ~15,000
+  //  → 3~4단계는 10층대, 5단계는 20층대, 6단계는 30층대, 7단계는 40층대가 목표가 된다.
+  //
+  //  ⚠ 이건 **성장 곡선**만 바꾸는 값이다. 전투 난이도(진형 예산·유닛 강화)는
+  //    `js/tower.js` 가 따로 정하므로 여기 손대도 R-1/R-3 기준선은 안 움직인다.
+  GOLD_BASE: 18,
+  GOLD_RATE: 1.12,
+  GOLD_BOSS_MUL: 2.5,
   goldFor: function (floor) {
-    var g = this.GOLD_BASE + Math.max(0, floor - 1) * this.GOLD_PER_FLOOR;
-    if (GAME.Tower.isBossFloor && GAME.Tower.isBossFloor(floor)) g = Math.round(g * this.GOLD_BOSS_MUL);
-    return g;
+    var g = this.GOLD_BASE * Math.pow(this.GOLD_RATE, Math.max(0, floor - 1));
+    if (GAME.Tower.isBossFloor && GAME.Tower.isBossFloor(floor)) g *= this.GOLD_BOSS_MUL;
+    return Math.round(g);
   },
 
   // ── 처치 보상 골드 (v0.36) ────────────────────────────────────────────────

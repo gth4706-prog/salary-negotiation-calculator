@@ -216,12 +216,31 @@ GAME.ResultScene.prototype.create = function () {
     else self.scene.start('Draft', { formationId: self.formationId });
   }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 17 : 18 });
 
-  GAME.UI.button(this, W / 2, btnTop + u * 9, bw, u * 6,
-    this.tower ? '일반 대전으로'
-      : (this.defendTower ? '메뉴로'
-        : (this.versus ? '메뉴로' : (this.defendMode ? '컨트롤러로 도전' : '다른 진형 고르기'))), function () {
-      self.scene.start((self.defendTower || self.versus) ? 'Menu' : 'Select');
-    }, { fontSize: P ? 15 : 16 });
+  // ── 탑 패배 화면의 갈래는 넷이다 (2026-08-01 사용자 신고: "로비로 가는 버튼이 없어") ──
+  //  재도전 / 상점 / 능력치 / 로비. 예전엔 '일반 대전으로' 하나뿐이라 **탑 안에서
+  //  성장하러 갈 길이 화면에 없었다** — 진 직후가 바로 장비를 보러 갈 순간인데도.
+  if (this.tower) {
+    var tc = GAME.Layout.cols(3, { gap: 8, width: bw, left: (W - bw) / 2, pad: 0 });
+    var opts = [
+      ['🛒 상점', function () { self.scene.start('TowerShop', { tab: 'item' }); }],
+      ['⚒ 능력치', function () { self.scene.start('TowerShop', { tab: 'stats' }); }],
+      ['🏠 로비', function () { self.scene.start('Tower', { step: 'challenge' }); }]
+    ];
+    opts.forEach(function (o, i) {
+      GAME.UI.button(self, tc[i].cx, btnTop + u * 9, tc[i].w, u * 6, o[0], o[1],
+        { fontSize: P ? 13 : 15 });
+    });
+    GAME.UI.button(this, W / 2, btnTop + u * 16, bw, u * 5, '← 메뉴로', function () {
+      self.scene.start('Menu');
+    }, { fontSize: P ? 13 : 14 });
+  } else {
+    GAME.UI.button(this, W / 2, btnTop + u * 9, bw, u * 6,
+      this.defendTower ? '메뉴로'
+        : (this.versus ? '메뉴로' : (this.defendMode ? '컨트롤러로 도전' : '다른 진형 고르기')),
+      function () {
+        self.scene.start((self.defendTower || self.versus) ? 'Menu' : 'Select');
+      }, { fontSize: P ? 15 : 16 });
+  }
 
   var rc = GAME.Layout.cols(2, { gap: 10, width: bw, left: (W - bw) / 2, pad: 0 });
   GAME.UI.button(this, rc[0].cx, btnTop + u * 18, rc[0].w, u * 6, '🏆 랭킹', function () {
@@ -349,16 +368,19 @@ GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
   }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
        hover: UI.COL.panelTealHi, color: C.accent, fontSize: 19 });
 
-  var b2 = this.tower ? '일반 대전으로'
-    : (this.defendTower ? '메뉴로' : (this.versus ? '메뉴로' : (this.defendMode ? '컨트롤러로 도전' : '다른 진형')));
   var bc = GAME.Layout.cols(3, { gap: 10, width: rw, left: rx, pad: 0 });
-  UI.button(this, bc[0].cx, secTop + secH / 2, bc[0].w, secH, b2, function () {
-    self.scene.start((self.defendTower || self.versus) ? 'Menu' : 'Select');
-  }, { fontSize: 15 });
-  UI.button(this, bc[1].cx, secTop + secH / 2, bc[1].w, secH, '🏆 랭킹', function () {
-    self.scene.start('Rank', { scope: 'live' });
-  }, { fontSize: 15 });
-  UI.button(this, bc[2].cx, secTop + secH / 2, bc[2].w, secH, '메뉴', function () {
-    self.scene.start('Menu');
-  }, { fontSize: 15 });
+  // 탑 패배 화면은 **성장하러 가는 길**이 있어야 한다(사용자 신고: 로비 버튼이 없다).
+  // 재도전은 위 큰 버튼이 맡으므로 여기 셋은 상점·능력치·로비다.
+  var row = this.tower
+    ? [['🛒 상점', function () { self.scene.start('TowerShop', { tab: 'item' }); }],
+       ['⚒ 능력치', function () { self.scene.start('TowerShop', { tab: 'stats' }); }],
+       ['🏠 로비', function () { self.scene.start('Tower', { step: 'challenge' }); }]]
+    : [[(this.defendTower ? '메뉴로' : (this.versus ? '메뉴로'
+          : (this.defendMode ? '컨트롤러로 도전' : '다른 진형'))),
+        function () { self.scene.start((self.defendTower || self.versus) ? 'Menu' : 'Select'); }],
+       ['🏆 랭킹', function () { self.scene.start('Rank', { scope: 'live' }); }],
+       ['메뉴', function () { self.scene.start('Menu'); }]];
+  row.forEach(function (o, i) {
+    UI.button(self, bc[i].cx, secTop + secH / 2, bc[i].w, secH, o[0], o[1], { fontSize: 15 });
+  });
 };

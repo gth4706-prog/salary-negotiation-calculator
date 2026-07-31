@@ -79,17 +79,17 @@ GAME.TowerShopScene.SOURCES = {
     rec: function () { return GAME.ArenaBuild.get(); },
     purse: function (rec) { return GAME.ArenaBuild.left(rec); },
     // 대전은 환급이 없다 — 값은 언제나 정가다(바꿔 끼면 옛 값이 예산으로 그냥 돌아온다).
-    priceOf: function (rec, slot, it) { return it.cost; },
+    priceOf: function (rec, slot, it) { return GAME.TowerShopItems.vsCostOf(it); },
     // ⚠ 같은 슬롯을 **바꿔 끼는** 경우, 지금 낀 것의 값은 예산으로 되돌아온다.
     //   그걸 안 세면 "예산이 남는데 못 산다"가 된다(실제로 그렇게 틀렸다).
     afford: function (rec, price, slot) {
       var CAT = GAME.TowerShopItems;
       var cur = (slot && rec.items[slot]) ? CAT.find(slot, rec.items[slot]) : null;
-      return GAME.ArenaBuild.left(rec) + (cur ? cur.cost : 0) >= price;
+      return GAME.ArenaBuild.left(rec) + (cur ? CAT.vsCostOf(cur) : 0) >= price;
     },
     buy: function (slot, key) { return GAME.ArenaBuild.equipItem(slot, key) !== null; },
     canSell: true,
-    sellBack: function (it) { return it.cost; },      // 벗으면 값이 그대로 예산으로 돌아온다
+    sellBack: function (it) { return GAME.TowerShopItems.vsCostOf(it); },  // 벗으면 값이 그대로 예산으로 돌아온다
     sell: function (slot) { return GAME.ArenaBuild.unequipItem(slot) !== null; },
     // 대전은 스킬을 사지 않는다 — 전부 보유·전부 해제 상태다(= 유사 밸런스).
     skillOwned: function () { return true; },
@@ -812,6 +812,12 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
   }
   var ps = this.previewSkill;
   var o = this.hero.skillOptions[ps.slot][ps.idx];
+  // ⚠ **가격 배수를 얹은 사본**을 쓴다. 전장에서는 `GAME.scaleSkillsByPrice` 가 비싼
+  //   스킬을 더 세게 만드는데(js/heroes.js), 여기서 원본 숫자·크기를 보여주면 상점이
+  //   거짓말을 한다. 미리보기 그림도 이 값으로 그린다(아래 drawSkillFx).
+  //   ⚠ 반드시 무대 그리기보다 **먼저** 정의해야 한다 — drawSkillFx 가 첫 프레임에
+  //     이걸 읽으므로, 아래에 두면 undefined 를 참조해 그 자리에서 터진다.
+  var shown = this.src.shownSkill(o);
   var ownedP = this.src.skillOwned(ps.slot, ps.idx, this.char);
 
   var ty = pTop + (P ? 10 : 16);
@@ -835,6 +841,65 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
   this._body.push(sg);
   var heroDef = this.hero, sceneRef = this;
   var dur = (GAME.UI.SKILL_DUR && GAME.UI.SKILL_DUR[o.type]) || 480;
+  // ── 실제 스킬을 미리 보여준다 (2026-08-01 사용자 지시) ────────────────────────
+  //  "스킬 상점에서 스킬 미리보기도 **실제 그 스킬을** 미리보기하게끔 바꾸고."
+  //
+  //  예전엔 영웅의 **자세**만 반복 재생했다 — 돌진이든 광역이든 몸이 조금 다르게
+  //  움직일 뿐이라 "이 스킬이 뭘 하는지"는 여전히 글로만 알 수 있었다.
+  //  이제 그 스킬의 **실제 값**(반경·거리·부채꼴·투사체)을 무대 바닥에 그린다.
+  //  ⚠ 값은 `shown`(가격 배수를 얹은 사본)에서 읽는다 — 전장에서 실제로 나갈 크기를
+  //    보여줘야 미리보기가 거짓말을 안 한다.
+  //  ⚠ 무대 폭에 맞춰 **비율로 줄인다.** 월드 좌표를 그대로 쓰면 반경 200 짜리가
+  //    패널을 뚫고 나간다. 서로 다른 스킬의 크기 비교가 유지되도록 한 배율만 쓴다.
+  var pvScale = Math.min(1, (rightW * 0.42) / 220);
+  var fxCol = GAME.UI.IS_LIGHT ? 0xB01F35 : 0xef4444;
+  function drawSkillFx(prog) {
+    var d = shown;
+    var rad = (d.radius || 0) * pvScale;
+    var dist = (d.dist || 0) * pvScale;
+    // 바닥 표시 — 이 스킬이 **어디에 닿는가**
+    if (d.type === 'dash' && dist > 0) {
+      sg.lineStyle(3, fxCol, 0.55);
+      sg.lineBetween(scx, sfeet, scx, sfeet - dist);
+      sg.fillStyle(fxCol, 0.30);
+      sg.fillCircle(scx, sfeet - dist, Math.max(4, rad * 0.5));
+    } else if (d.type === 'aoeSelf' && rad > 0) {
+      sg.fillStyle(fxCol, 0.14 + 0.10 * Math.sin(prog * Math.PI));
+      sg.fillEllipse(scx, sfeet, rad * 2, rad * 1.1);
+      sg.lineStyle(2, fxCol, 0.6); sg.strokeEllipse(scx, sfeet, rad * 2, rad * 1.1);
+    } else if (d.type === 'aoeTarget' && rad > 0) {
+      var ty = sfeet - dist * 0.6 - rad * 1.2;
+      sg.lineStyle(2, fxCol, 0.65); sg.strokeEllipse(scx, ty, rad * 2, rad * 1.1);
+      sg.fillStyle(fxCol, 0.10 + 0.22 * prog);
+      sg.fillEllipse(scx, ty, rad * 2 * prog, rad * 1.1 * prog);
+    } else if (d.type === 'projectile') {
+      var fly = sfeet - (sr * 5.5) * prog;
+      sg.fillStyle(fxCol, 0.85);
+      sg.fillCircle(scx, fly, Math.max(3, (d.projectileRadius || 6) * pvScale * 1.6));
+    } else if (d.type === 'pull' && dist > 0) {
+      // 부채꼴 — 각도를 그대로 보여준다
+      var half = ((d.coneDeg || 90) / 2) * Math.PI / 180;
+      sg.fillStyle(fxCol, 0.16);
+      sg.beginPath(); sg.moveTo(scx, sfeet);
+      for (var a = -half; a <= half; a += 0.08) {
+        sg.lineTo(scx + Math.sin(a) * dist, sfeet - Math.cos(a) * dist * 0.55);
+      }
+      sg.closePath(); sg.fillPath();
+    } else if (d.type === 'trap' && rad > 0) {
+      sg.lineStyle(2, fxCol, 0.7);
+      sg.strokeEllipse(scx, sfeet + sr * 0.6, rad * 2, rad * 1.0);
+    } else if (d.type === 'aura' && (d.radius || 0) > 0) {
+      var ar = rad * (0.9 + 0.1 * Math.sin(prog * Math.PI * 2));
+      sg.lineStyle(3, fxCol, 0.5); sg.strokeEllipse(scx, sfeet, ar * 2, ar * 1.05);
+    } else if (d.type === 'strike') {
+      sg.fillStyle(fxCol, 0.55 * (1 - prog));
+      sg.fillCircle(scx, sfeet - sr * 1.4, Math.max(6, sr * 0.9 * (0.4 + prog)));
+    } else if (d.type === 'buff') {
+      sg.lineStyle(3, fxCol, 0.35 + 0.35 * Math.sin(prog * Math.PI));
+      sg.strokeEllipse(scx, sfeet, sr * 3.0, sr * 1.5);
+    }
+  }
+
   function redrawSkill() {
     if (!sg || !sg.scene) return;
     sg.clear();
@@ -848,6 +913,8 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
     var act = t < dur
       ? { art: heroDef.art, t: t, dur: dur, wind: 0, kind: 'skill', type: o.type }
       : null;
+    // 효과는 **몸 뒤에** 깔린다(먼저 그린다) — 위에 얹으면 캐릭터를 가린다.
+    if (act) drawSkillFx(Math.min(1, t / dur));
     GAME.UI.drawUnitFlat(sg, heroDef, scx, sfeet, C.controller, 1,
       sr / (heroDef.radius || 17), Math.PI / 2, null, sceneRef.time.now, act,
       GAME.UI.gearTierOf(sceneRef.char.items && sceneRef.char.items.weapon));
@@ -859,10 +926,6 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
     if (self._skillPvTimer) self._skillPvTimer.remove(false);
   });
 
-  // ⚠ **가격 배수를 얹은 사본**을 설명한다. 전장에서는 `GAME.scaleSkillsByPrice` 가
-  //   비싼 스킬을 더 세게 만드는데(js/heroes.js), 여기서 원본 숫자를 보여주면 상점이
-  //   거짓말을 한다("140골드짜리가 왜 표기보다 세지?").
-  var shown = this.src.shownSkill(o);
   var desc = GAME.skillDesc ? GAME.skillDesc(shown) : '';
   this._body.push(GAME.UI.label(this, rightX + 14, descTop, desc || '',
     P ? 11 : 14, C.text, 0).setWordWrapWidth(rightW - 28).setLineSpacing(4));

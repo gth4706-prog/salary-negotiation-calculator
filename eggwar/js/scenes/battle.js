@@ -112,7 +112,13 @@ GAME.BattleScene.prototype.create = function () {
         GAME.UnitLevel.createUnitAt(e.type, wx, w.y, 'strategist', ulv, mods));
       continue;
     }
-    this.state.units.push(GAME.Combat.createUnit(e.type, wx, w.y, 'strategist', mods));
+    // 보스는 **자기 성장 곡선**을 쓴다(js/tower.js 의 bossModsFor) — 일반 유닛과
+    // 같은 선형 배수로는 지수로 자라는 영웅 화력을 못 따라간다.
+    var uMods = mods;
+    if (this.tower && GAME.UNITS[e.type] && GAME.UNITS[e.type].isBoss && GAME.Tower.bossModsFor) {
+      uMods = GAME.Tower.bossModsFor(this.tower);
+    }
+    this.state.units.push(GAME.Combat.createUnit(e.type, wx, w.y, 'strategist', uMods));
   }
 
   // ── 통곡의 탑: 영구 캐릭터(js/towerchar.js)에서 영웅을 만든다 (2026-08-01) ──
@@ -907,7 +913,10 @@ GAME.BattleScene.prototype.update = function (time, delta) {
           //  빈약해져 벽이 벽을 부른다. 층 보상은 **깼다는 사실 자체**에 붙는 바닥이라
           //  그 악순환을 끊는다. 층이 오를수록 조금씩 커지고 ±25% 로 흔들린다
           //  (매번 같은 숫자면 보상이 아니라 그냥 정산이다).
-          var floorBase = 12 + this.tower * 3;
+          // ⚠ 2026-08-01 — 층 보상을 **절반으로** 줄였다(사용자: "지금 라운드 끝났을 때
+          //   주는 골드가 너무 많다고 생각해 절반 정도로 줄여"). 처치 골드가 지수로
+          //   커졌으므로 '깼다는 사실'에 붙는 바닥은 작아도 된다.
+          var floorBase = (12 + this.tower * 3) * 0.5;
           var floorBonus = Math.round(floorBase * (0.75 + Math.random() * 0.5));
           goldGained = Math.round((rawGold + floorBonus) * GAME.TowerChar.luckGoldMul());
           runRec = GAME.TowerChar.addGold(goldGained);

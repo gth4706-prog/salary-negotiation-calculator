@@ -368,6 +368,34 @@ GAME.TowerChar = {
     if (!isFinite(cost) || rec.gold < cost) return null;
     rec.gold -= cost;
     rec.ownedSkills[slot] = (rec.ownedSkills[slot] || [0]).concat([idx]);
+    this._markNewSkill(rec, slot, idx);
+    this._save(rec);
+    return rec;
+  },
+
+  // ── 새로 얻은 스킬 표시 (2026-08-01 사용자 지시) ─────────────────────────────
+  //  "새로운 스킬을 얻거나 샀을 때는 전투 시작하기 전에 **딱 한 번만** 알려주고,
+  //   그다음부턴 장착된 상태를 유지하고 다시 알려줄 필요 없어."
+  //
+  //  예전엔 도전할 때마다 Q→W→E→R 팝업이 떴다(선택지가 2개 이상인 슬롯 전부).
+  //  매번 같은 것을 다시 고르게 하는 것은 선택이 아니라 통행세다.
+  //  그래서 **새로 생긴 것이 있을 때만** 그 슬롯 하나를 띄운다.
+  _markNewSkill: function (rec, slot, idx) {
+    if (!rec.newSkills) rec.newSkills = [];
+    rec.newSkills.push({ slot: slot, idx: idx });
+  },
+
+  // 알려줄 것이 남았는가 → [{slot, idx}, …] (없으면 빈 배열)
+  pendingNewSkills: function (rec) {
+    rec = rec || this.get();
+    return (rec && rec.newSkills) || [];
+  },
+
+  // 알렸다 — 목록을 비운다. 이걸 안 부르면 영원히 다시 뜬다.
+  clearNewSkills: function () {
+    var rec = this.get();
+    if (!rec) return null;
+    rec.newSkills = [];
     this._save(rec);
     return rec;
   },
@@ -427,6 +455,7 @@ GAME.TowerChar = {
       rec.items[pick.slot] = pick.key;
     } else {
       rec.ownedSkills[pick.slot] = (rec.ownedSkills[pick.slot] || [0]).concat([pick.idx]);
+      this._markNewSkill(rec, pick.slot, pick.idx);   // 드랍도 '새로 얻은 것'이다
     }
     this._save(rec);
     return pick;

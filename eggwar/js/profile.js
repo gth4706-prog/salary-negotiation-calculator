@@ -99,6 +99,30 @@ GAME.Profile = {
     };
   },
 
+  // ── "탑이 나를 이렇게 읽었다" 한 줄 (2026-08-01 사용자 지시) ──────────────────
+  //  "갈수록 어려워진다 + 나를 간파하네 라는 걸 꼭 느낄 수 있게 해야 해."
+  //
+  //  ⚠ 읽는 것만으로는 안 느껴진다 — **읽었다는 사실을 말해 줘야** 느껴진다.
+  //    이 게임은 이미 같은 실패를 두 번 겪었다(축복·구슬: 받은 줄도 몰랐다).
+  //    배치가 조용히 나를 카운터하면 플레이어에겐 그냥 "어려워졌다"로만 남는다.
+  //    그래서 관측 결과와 **그래서 무엇을 늘렸는지**를 짝지어 로딩 화면에 띄운다.
+  readNote: function (p, floor) {
+    p = p || this.read();
+    if (!p || p.battles < 1) return '';
+    var mul = Math.min(3.5, 1 + Math.max(0, (floor || 0) - 3) * 0.08);
+    var counter = p.style === 'brawler'
+      ? '가시덫과 투석꾼을 늘려 파고드는 순간을 노립니다'
+      : (p.style === 'kiter'
+          ? '투창병과 쇠뇌 진지를 늘려 도망칠 곳을 지웁니다'
+          : '궁수와 늪지기를 늘려 거리를 못 잡게 합니다');
+    var dodgeNote = p.dodge > 0.65
+      ? '  회피가 좋아 **피할 수 없는 공격**의 비중을 올렸습니다.'
+      : (p.dodge < 0.35 ? '  회피가 약해 광역 공격을 늘렸습니다.' : '');
+    return '👁 탑이 당신을 읽었습니다 — ' + p.styleLabel + ' · ' + p.dodgeLabel +
+           '\n' + counter + '.' + dodgeNote +
+           '\n(관측 ' + p.battles + '판 · 간파 강도 ' + mul.toFixed(1) + '배)';
+  },
+
   reset: function () {
     var all = this._all();
     delete all[this._key()];

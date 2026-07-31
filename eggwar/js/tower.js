@@ -127,6 +127,36 @@ GAME.Tower = {
     return GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor));
   },
 
+  // ── 보스 전용 성장 (2026-08-01 사용자 지시: "보스가 너무 약해") ────────────────
+  //  ⚠ 이 파일이 **이미 원인과 해법을 적어 두고 있었다**(아래 BOSS_ESCORT 주석):
+  //    "보스 기여가 자기가 밀어낸 예산보다 얇아진다 … 근본 해법은 보스 성장률을
+  //     예산 성장률에 맞추는 것이다." 그때는 미뤘고, 지금 그걸 한다.
+  //
+  //  왜 지금 특히 문제인가: 아이템 가격·효과가 지수가 되면서(js/towershopitems.js)
+  //  영웅 화력이 층당 지수로 자란다 — 40층 T7 무기 하나가 공격력 +620 이다.
+  //  그런데 보스는 `modsFor`(hp +1.2%/층)만 받아 40층에서도 hp 1,000×1.47 ≈ 1,470 이다.
+  //  두 번 휘두르면 끝나는 '보스'다. **선형 성장이 지수 성장을 못 따라간다.**
+  //
+  //  그래서 보스만 지수로 키운다. 목표는 "영웅 화력의 15~25대 분량"이다:
+  //    층    영웅 대략 화력   보스 hp(1,000 기준)
+  //    10       ~90            1,920
+  //    20      ~160            4,000
+  //    30      ~320            8,200
+  //    40      ~650           17,000
+  //  공격력은 조금 완만하게(1.065) — 영웅 체력도 방어구로 같이 자라지만 한 방에
+  //  죽으면 배울 기회가 없다. 보스는 두꺼워서가 아니라 **무서워서** 어려워야 한다는
+  //  아래 원칙은 유지한다(능력 `charge`/`barrage` 는 그대로다).
+  BOSS_HP_RATE: 1.075,
+  BOSS_DMG_RATE: 1.065,
+  bossModsFor: function (floor) {
+    var base = this.modsFor(floor);          // 층 조건(towerrule)도 그대로 태운다
+    var t = Math.max(0, floor - 1);
+    return {
+      hp: base.hp * Math.pow(this.BOSS_HP_RATE, t),
+      damage: base.damage * Math.pow(this.BOSS_DMG_RATE, t)
+    };
+  },
+
   // ── 보스 층 ──────────────────────────────────────────────────
   // 10층마다 보스가 나온다. 층수만 올라가는 무한의 탑에 '구간'을 만들어 주는 장치다.
   BOSS_EVERY: 10,
@@ -205,8 +235,16 @@ GAME.Tower = {
       tier: '탑 ' + floor + '층',
       heroKey: runActive ? null : (heroKey || null),
       allowTypes: allowTypes,
-      maxUnits: maxUnits
+      maxUnits: maxUnits,
+      // 층이 오를수록 **더 세게 읽는다**(js/autoformation.js 의 readMul 주석).
+      // 3층에서 1.0 으로 시작해 층당 +8%, 상한 3.5배(≈35층). 예산은 '많아진다'를,
+      // 이 값은 '읽힌다'를 담당한다 — 둘이 갈라져 있어야 후자가 느껴진다.
+      readMul: useProfile ? Math.min(3.5, 1 + Math.max(0, floor - 3) * 0.08) : 1
     });
+    // 이번 층이 **나를 어떻게 읽었는지**를 배치도에 실어 보낸다(로딩 화면이 띄운다).
+    if (useProfile && GAME.Profile && GAME.Profile.readNote) {
+      f.readNote = GAME.Profile.readNote(prof, floor);
+    }
 
     // ── 층 배치 원형 (2026-07-30 대개편) ────────────────────────────────────
     //  구성은 위에서 `AutoFormation` 이 정했고, **공간은 여기서 다시 정한다.**

@@ -46,7 +46,20 @@ GAME.AutoFormation = {
   },
 
   // 성향 → 유닛별 가중치. heroKey 를 주면 그 영웅의 카운터가 얹힌다.
-  weights: function (p, heroKey) {
+  //
+  // ── `readMul` — **얼마나 세게 읽을 것인가** (2026-08-01 사용자 지시) ────────────
+  //  "통곡의 탑에서 가장 중요한 건 AI 학습이야. 갈수록 어려워진다 + 나를 간파하네
+  //   라는 걸 꼭 느낄 수 있게 해야 해."
+  //
+  //  예전엔 성향 반영이 **켜짐/꺼짐**이었다(tower.js 의 `floor >= 3`). 3층에서 켜진 뒤
+  //  40층까지 세기가 똑같으니 "갈수록 나를 간파한다"가 성립할 수가 없었다 —
+  //  세지는 것은 예산뿐이었고 그건 '많아진다'이지 '읽힌다'가 아니다.
+  //  이제 층이 오를수록 성향 보정을 **곱해서** 키운다. 같은 성향이라도 고층일수록
+  //  카운터가 날카로워진다.
+  //  ⚠ 영웅 카운터(HERO_COUNTERS)에는 안 곱한다 — 그건 '무엇을 들고 왔나'라는
+  //    확정 정보이지 관측으로 배운 것이 아니다. 배운 것만 자라야 학습으로 읽힌다.
+  weights: function (p, heroKey, readMul) {
+    var RM = (typeof readMul === 'number' && readMul > 0) ? readMul : 1;
     // ── 2026-07-31 · 기여도 실측 반영 (tools/unit-contribution.js) ─────────────
     //  뺑뺑이 영웅 상대로 재 보니 유닛별 기당 피해가 **519 ~ 13** 으로 40배 벌어졌다.
     //  1위 쇠뇌 진지(519, 못때림 0%) — 고정이지만 사거리가 맵 전체라 **도망칠 수 없는
@@ -70,23 +83,26 @@ GAME.AutoFormation = {
       return w;
     }
 
+    // 관측으로 배운 보정은 전부 `RM` 배로 커진다(위 readMul 주석).
+    var add = function (k, v) { w[k] = (w[k] || 0) + v * RM; };
+
     if (p.style === 'brawler') {
-      w.mine += 14; w.grenadier += 10; w.shieldman += 9; w.bayonet += 6; w.sergeant += 3;
-      w.sniper -= 2; w.mgnest -= 1;
+      add('mine', 14); add('grenadier', 10); add('shieldman', 9); add('bayonet', 6); add('sergeant', 3);
+      add('sniper', -2); add('mgnest', -1);
     } else if (p.style === 'kiter') {
-      w.sniper += 14; w.mgnest += 10; w.rifleman += 5; w.medic += 3;
-      w.bayonet -= 4; w.mine -= 2; w.shieldman -= 2;
+      add('sniper', 14); add('mgnest', 10); add('rifleman', 5); add('medic', 3);
+      add('bayonet', -4); add('mine', -2); add('shieldman', -2);
     } else {
-      w.rifleman += 8; w.chemtrooper += 9; w.bayonet += 3; w.grenadier += 3;
+      add('rifleman', 8); add('chemtrooper', 9); add('bayonet', 3); add('grenadier', 3);
     }
 
     if (p.dodge > 0.65) {
       // 논타겟을 잘 피한다 → 반드시 맞는 쪽으로
-      w.sniper += 12; w.chemtrooper += 4;
-      w.rifleman -= 4; w.grenadier -= 3;
+      add('sniper', 12); add('chemtrooper', 4);
+      add('rifleman', -4); add('grenadier', -3);
     } else if (p.dodge < 0.35) {
-      w.rifleman += 7; w.grenadier += 6;
-      w.sniper -= 3;
+      add('rifleman', 7); add('grenadier', 6);
+      add('sniper', -3);
     }
 
     for (var k in w) if (w[k] < 1) w[k] = 1;
@@ -339,7 +355,8 @@ GAME.AutoFormation = {
     opts = opts || {};
     var heroKey = opts.heroKey || null;
     var counter = this.counterFor(heroKey);
-    var w = this.weights(profile, heroKey);
+    // 층이 오를수록 성향을 더 세게 읽는다(opts.readMul — tower.js 가 넘긴다).
+    var w = this.weights(profile, heroKey, opts.readMul);
     var UL = GAME.UnitLevel;
 
     // 정예 레벨은 `tierBudget` 으로 정한다. **기본값은 budget 이라 아무 것도 안 바뀐다.**

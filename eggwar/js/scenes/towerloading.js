@@ -68,7 +68,10 @@ GAME.TowerLoadingScene = function () {
 GAME.TowerLoadingScene.prototype = Object.create(Phaser.Scene.prototype);
 GAME.TowerLoadingScene.prototype.constructor = GAME.TowerLoadingScene;
 
+// 기본 3초. **새 유닛 데뷔 층은 여기에 더 준다**(사용자 지시: "로딩을 1초 정도 더
+// 길게 해서 사용자가 읽을 수 있게") — 읽을 것이 늘었는데 시간이 그대로면 못 읽는다.
 GAME.TowerLoadingScene.DURATION = 3000;
+GAME.TowerLoadingScene.DEBUT_EXTRA = 1600;
 
 GAME.TowerLoadingScene.prototype.init = function (data) {
   this.formationId = data.formationId;
@@ -76,6 +79,33 @@ GAME.TowerLoadingScene.prototype.init = function (data) {
   this.heroKey = data.heroKey;
   this._t = 0;
   this._meter = null;
+  // 데뷔 층이면 읽을 시간을 더 준다.
+  this._dur = GAME.TowerLoadingScene.DURATION +
+    ((GAME.TowerCurriculum && GAME.TowerCurriculum.debutOf(this.tower)) ? GAME.TowerLoadingScene.DEBUT_EXTRA : 0);
+};
+
+// 유닛 def → "어떤 공격을 하는가" 한 줄. `js/units.js` 의 값만 읽어 만든다
+// (설명을 손으로 또 쓰면 스탯을 바꿨을 때 조용히 거짓말이 된다).
+GAME.TowerLoadingScene.prototype._attackLineOf = function (d) {
+  if (!d) return '';
+  var W = GAME.CONFIG.WORLD_SCALE || 1;
+  var rng = Math.round((d.range || 0) / W);
+  var parts = [];
+  if (d.isMine) parts.push('밟으면 터지는 함정 — 먼저 공격하지 않는다');
+  else if (d.rangeSpan) parts.push('맵 전체에 닿는 사거리');
+  else if (d.attack === 'melee') parts.push('근접 ' + rng + ' 부채꼴 ' + (d.coneDeg || 90) + '°');
+  else if (d.attack === 'targeted') parts.push('사거리 ' + rng + ' · **자동 명중**(피할 수 없다)');
+  else if (d.attack === 'projectile') parts.push('사거리 ' + rng + ' 직선 투사체(피할 수 있다)');
+  else if (d.attack === 'lob') parts.push('사거리 ' + rng + ' 곡사 — 예고 뒤 착탄');
+  else parts.push('사거리 ' + rng);
+  if (d.damage) parts.push('피해 ' + d.damage);
+  if (d.cooldown) parts.push('간격 ' + (Math.round(d.cooldown / 100) / 10) + '초');
+  if (d.healRadius) parts.push('주변 아군 회복');
+  if (d.buffRadius) parts.push('주변 아군 강화');
+  if (d.intercept) parts.push('날아오는 공격을 대신 막는다');
+  if (d.slowMul) parts.push('맞으면 느려진다');
+  if (d.immobile) parts.push('움직이지 않는다');
+  return parts.join('  ·  ');
 };
 
 GAME.TowerLoadingScene.prototype.create = function () {
@@ -99,33 +129,44 @@ GAME.TowerLoadingScene.prototype.create = function () {
   var subLbl = GAME.UI.label(this, W / 2, titleLbl.y + titleLbl.height + 6,
     hero ? hero.name + ' 출전' : '', GAME.CONFIG.SMALL ? 15 : 17, C.textDim, 0.5).setOrigin(0.5, 0);
 
-  var lines = [];
-  // ── 새 유닛 데뷔 (2026-07-31) ────────────────────────────────────────────
-  //  교육 과정(js/towercurriculum.js)이 이 층에서 새 종류를 푼다면 **그 사실을 먼저**
-  //  말한다. 조용히 끼워 넣으면 플레이어는 새로 온 놈이 무엇인지 모른 채 맞고 죽는다
-  //  — 이 게임이 구슬·축복에서 두 번 겪은 실패(받은 줄도 몰랐다)와 같은 계열이다.
-  //  대처법 한 줄까지 같이 준다. 그게 이 개편의 목적이다.
   var debut = GAME.TowerCurriculum && GAME.TowerCurriculum.debutOf(this.tower);
   var debutDef = debut && GAME.UNITS[debut.type];
-  if (debutDef) {
-    lines.push('🆕 새로운 적 · ' + debutDef.name + ' — ' + debut.lesson);
-  }
-  if (bossDef) lines.push('☠ ' + bossDef.name + ' — ' + bossDef.desc);
-  if (formation && formation.planLabel) lines.push('◈ ' + formation.planLabel + ' — ' + formation.planHint);
-  if (formation && formation.ruleLabel) lines.push('⚠ ' + formation.ruleLabel + ' — ' + formation.ruleDesc);
 
-  // 이 층에 나오는 유닛 종류 중 하나를 랜덤으로 골라 전술 팁을 띄운다.
-  if (formation && formation.units && formation.units.length) {
-    var kinds = [];
-    formation.units.forEach(function (u) {
-      if (kinds.indexOf(u.type) < 0 && GAME.TOWER_UNIT_TIPS[u.type]) kinds.push(u.type);
-    });
-    if (kinds.length) {
-      var pick = kinds[Math.floor(Math.random() * kinds.length)];
-      var tips = GAME.TOWER_UNIT_TIPS[pick];
-      lines.push('💡 ' + tips[Math.floor(Math.random() * tips.length)]);
+  // ── 데뷔 층은 **그 유닛만** 보여준다 (2026-08-01 사용자 지시) ─────────────────
+  //  "새로운 적 유닛이 나올 때는 다른 설명 다 빼고 그 적 유닛에 대한 설명만 띄우고,
+  //   실루엣이랍시고 억지로 불투명도 주지 말고 그냥 유닛하고 어떤 유닛이고 어떤 공격을
+  //   하는지 자세히 보여줘. 로딩을 1초 정도 더 길게 해서 읽을 수 있게."
+  //
+  //  맞는 지적이다. 예전엔 데뷔 문구가 배치 원형·층 조건·랜덤 팁과 **같은 문단에
+  //  섞여** 넷 중 하나로 흘러갔고, 정작 새 유닛은 알파 0.55~0.92 로 흐리게 그려
+  //  "무엇이 새로 왔는가"가 화면에서 가장 약한 신호였다. 소개하는 층이면 소개만 한다.
+  var lines = [];
+  if (debutDef) {
+    lines.push('🆕 새로운 적  ·  ' + debutDef.name);
+    lines.push(debutDef.desc || '');
+    lines.push('▶ 공격 방식 — ' + this._attackLineOf(debutDef));
+    lines.push('▶ 대처 — ' + debut.lesson);
+  } else {
+    if (bossDef) lines.push('☠ ' + bossDef.name + ' — ' + bossDef.desc);
+    // 탑이 나를 어떻게 읽었는지 — **가장 먼저** 온다(보스 다음). 이게 이 모드의 정체성이다.
+    if (formation && formation.readNote) lines.push(formation.readNote);
+    if (formation && formation.planLabel) lines.push('◈ ' + formation.planLabel + ' — ' + formation.planHint);
+    if (formation && formation.ruleLabel) lines.push('⚠ ' + formation.ruleLabel + ' — ' + formation.ruleDesc);
+
+    // 이 층에 나오는 유닛 종류 중 하나를 랜덤으로 골라 전술 팁을 띄운다.
+    if (formation && formation.units && formation.units.length) {
+      var kinds = [];
+      formation.units.forEach(function (u) {
+        if (kinds.indexOf(u.type) < 0 && GAME.TOWER_UNIT_TIPS[u.type]) kinds.push(u.type);
+      });
+      if (kinds.length) {
+        var pick = kinds[Math.floor(Math.random() * kinds.length)];
+        var tips = GAME.TOWER_UNIT_TIPS[pick];
+        lines.push('💡 ' + tips[Math.floor(Math.random() * tips.length)]);
+      }
     }
   }
+  lines = lines.filter(function (s) { return s; });
 
   var infoLbl = GAME.UI.label(this, W / 2, subLbl.y + subLbl.height + 18, lines.join('\n\n'),
     GAME.CONFIG.SMALL ? 14 : 16, C.textDim, 0.5).setOrigin(0.5, 0).setAlign('center').setLineSpacing(8)
@@ -146,10 +187,12 @@ GAME.TowerLoadingScene.prototype.create = function () {
   if (bossDef) {
     GAME.UI.drawUnitFlat(this.add.graphics().setAlpha(0.92), bossDef,
       W / 2, silY, GAME.CONFIG.COLORS.strategist, 1, r / (bossDef.radius || 27), -Math.PI / 2);
-  } else if (debutDef && !debutDef.isMine) {
-    // 데뷔 층에서는 **그 유닛 하나만** 크게 세운다 — 이름과 그림을 붙여 외우게 하는 게
-    // 이 층의 목적이다. 여러 마리를 세우면 무엇이 새 것인지 도로 안 갈린다.
-    GAME.UI.drawUnitFlat(this.add.graphics().setAlpha(0.92), debutDef,
+  } else if (debutDef) {
+    // 데뷔 층에서는 **그 유닛 하나만, 또렷하게** 세운다.
+    // ⚠ 알파를 주지 않는다(사용자 지시: "실루엣이랍시고 억지로 불투명도 주지 마").
+    //   소개하는 화면에서 흐리게 그리는 것은 그 자체로 모순이다 — 외우라고 띄운 그림이다.
+    //   지면 고정물(가시덫)도 `drawUnitFlat` 이 알아서 접지 아트로 그린다.
+    GAME.UI.drawUnitFlat(this.add.graphics(), debutDef,
       W / 2, silY, GAME.CONFIG.COLORS.strategist, 1, r / (debutDef.radius || 12), -Math.PI / 2);
   } else if (formation && formation.units && formation.units.length) {
     var counts = {};
@@ -176,8 +219,9 @@ GAME.TowerLoadingScene.prototype.create = function () {
 GAME.TowerLoadingScene.prototype.update = function (time, delta) {
   if (this._done) return;
   this._t += delta;
-  if (this._meter) this._meter.set(Math.min(1, this._t / GAME.TowerLoadingScene.DURATION));
-  if (this._t >= GAME.TowerLoadingScene.DURATION) {
+  var dur = this._dur || GAME.TowerLoadingScene.DURATION;
+  if (this._meter) this._meter.set(Math.min(1, this._t / dur));
+  if (this._t >= dur) {
     this._done = true;
     var Z = GAME.CONFIG.ZONE_CONTROLLER;
     var picks = (GAME.TowerChar && GAME.TowerChar.get() && GAME.TowerChar.get().picks) ||

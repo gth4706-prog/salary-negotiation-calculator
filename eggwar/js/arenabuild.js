@@ -121,7 +121,7 @@ GAME.ArenaBuild = {
       var key = rec.items[slot];
       if (!key) continue;
       var it = this.findItem(slot, key);
-      if (it) t += it.cost;
+      if (it) t += GAME.TowerShopItems.vsCostOf(it);
     }
     return t;
   },

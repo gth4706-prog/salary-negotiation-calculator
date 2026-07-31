@@ -50,6 +50,9 @@ GAME.TowerScene.prototype.create = function (data) {
   // 캐릭터 선택 화면·랜딩 연출이 만든 것들도 반드시 함께 비운다.
   // 파괴된 Phaser 객체는 여전히 truthy 라 `if (!g) return` 가드를 통과해 버린다 —
   // 이 저장소에서 이미 한 번 터진 유형이다.
+  // 새 스킬 안내 큐 — 씬 인스턴스가 재사용되므로 매번 비운다(안 비우면 지난번
+  // 팝업 도중에 나간 잔여 큐가 다음 도전에 되살아난다).
+  this._newSkillQueue = null;
   this._heroCardG = null;
   this._heroCards = [];
   this._heroDesc = null;
@@ -985,19 +988,26 @@ GAME.TowerScene.prototype._enterBattle = function (floor) {
   this._equipSkillsThenBattle(floor, 0);
 };
 
-// 스킬 장착을 도전 진입 직전 팝업으로 (2026-07-31 사용자 지시: "스킬장착은 대전을
-// 시작할때 팝업창으로 띄워서 거기서 설정하게 해주고"). 상점 능력치 탭의 '스킬 장착'
-// 칸(towershop.js)은 그대로 둔다 — 미리 정해 두고 싶은 사람을 위한 경로다. 이 팝업은
-// **도전 버튼을 누른 직후**에 매번 확인/변경할 기회를 준다.
-// ⚠ Q→W→E→R 을 한 번에 한 슬롯씩 순차로 띄운다(GAME.Modal 은 목록 하나만 보여준다 —
-//   draft-mobile.js 의 5단계 마법사와 같은 패턴). 고를 스킬이 기본 하나뿐인 슬롯은
-//   팝업을 건너뛴다(고를 게 없는데 팝업만 뜨면 그냥 클릭 한 번 더 시키는 것뿐이다).
-//   **닫기/배경 탭으로 스킵해도 다음 슬롯으로 진행한다**(modal.js 의 onClose) — 안 그러면
-//   팝업을 닫는 순간 도전 자체가 멈춘다.
-GAME.TowerScene.prototype._equipSkillsThenBattle = function (floor, slotIdx) {
+// ── 새로 얻은 스킬만 딱 한 번 안내한다 (2026-08-01 사용자 지시) ────────────────
+//  "새로운 스킬을 얻거나 샀을 때는 전투 시작하기 전에 **딱 한 번만** 알려주고,
+//   그다음부턴 장착된 상태를 유지하고 다시 알려줄 필요 없어."
+//
+//  예전(2026-07-31)에는 도전할 때마다 Q→W→E→R 을 순차로 다 물었다. 선택지가 2개
+//  이상인 슬롯이 늘어날수록 **매번 같은 답을 다시 고르는 통행세**가 됐다.
+//  지금은 `TowerChar.pendingNewSkills()` 에 쌓인 것만 띄우고, 띄운 뒤 목록을 비운다.
+//  ⚠ 목록을 안 비우면 영원히 다시 뜬다 — `clearNewSkills()` 호출이 이 기능의 심장이다.
+//  ⚠ 닫기/배경 탭으로 스킵해도 다음으로 진행한다(modal.js 의 onClose). 안 그러면
+//    팝업을 닫는 순간 도전 자체가 멈춘다.
+GAME.TowerScene.prototype._equipSkillsThenBattle = function (floor, qIdx) {
   var self = this;
-  var slots = GAME.SKILL_SLOTS;
-  if (!slots || slotIdx >= slots.length) {
+  if (!this._newSkillQueue) {
+    this._newSkillQueue = GAME.TowerChar.pendingNewSkills().slice();
+    // 큐를 떠 왔으면 저장소는 바로 비운다 — 팝업 도중에 나가더라도 다시 안 뜬다.
+    if (this._newSkillQueue.length) GAME.TowerChar.clearNewSkills();
+  }
+  var q = this._newSkillQueue;
+  if (qIdx >= q.length) {
+    this._newSkillQueue = null;
     GAME.Tower.pending = this.formation;
     this.scene.start('TowerLoading', {
       formationId: this.formation.id,
@@ -1006,31 +1016,30 @@ GAME.TowerScene.prototype._equipSkillsThenBattle = function (floor, slotIdx) {
     });
     return;
   }
-  var slot = slots[slotIdx];
+
+  var slot = q[qIdx].slot;
   var rec = GAME.TowerChar.get();
   var owned = (rec && rec.ownedSkills[slot]) || [0];
-  if (owned.length <= 1) {
-    this._equipSkillsThenBattle(floor, slotIdx + 1);
-    return;
-  }
   var idx = rec.picks[slot];
   var hero = GAME.HEROES[this.heroKey];
+  var gotIdx = q[qIdx].idx;
+  var gotName = (hero.skillOptions[slot][gotIdx] || {}).name || '';
   var items = hero.skillOptions[slot].map(function (o, oi) {
     return {
       key: String(oi),
-      name: o.name + (oi === idx ? '  (장착 중)' : ''),
-      note: owned.indexOf(oi) >= 0 ? (o.desc || '') : '미보유 — 상점에서 구매하세요',
+      name: o.name + (oi === gotIdx ? '  ⭐ 새로 얻음' : (oi === idx ? '  (장착 중)' : '')),
+      note: owned.indexOf(oi) >= 0 ? (GAME.skillDesc ? GAME.skillDesc(o) : '') : '미보유',
       disabled: owned.indexOf(oi) < 0
     };
   });
   GAME.Modal.open(this, {
-    title: slot + ' 슬롯 스킬 선택',
+    title: '새 스킬 · ' + gotName + '  —  ' + slot + ' 슬롯에 끼울까요?',
     items: items,
     onPick: function (it) {
       if (it) GAME.TowerChar.equipSkill(slot, parseInt(it.key, 10));
-      self._equipSkillsThenBattle(floor, slotIdx + 1);
+      self._equipSkillsThenBattle(floor, qIdx + 1);
     },
-    onClose: function () { self._equipSkillsThenBattle(floor, slotIdx + 1); }
+    onClose: function () { self._equipSkillsThenBattle(floor, qIdx + 1); }
   });
 };
 

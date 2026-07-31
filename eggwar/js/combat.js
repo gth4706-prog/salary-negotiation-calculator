@@ -1456,6 +1456,33 @@ GAME.Combat = {
       state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: ab.radius,
                            t: 380, total: 380, side: u.side });
 
+    } else if (ab.type === 'healBurst') {
+      // 약초꾼 — 주변 아군을 한 번에 크게 회복. 공격하지 않는 유닛이라 피해 스킬은
+      // 정체성을 깬다. 대신 "약초꾼을 먼저 끊어야 한다"는 처치 순서를 강제한다.
+      for (i = 0; i < state.units.length; i++) {
+        o = state.units[i];
+        if (!o.alive || o.side !== u.side || this.isHazard(o)) continue;
+        if (this.dist(u, o) <= ab.radius) this.heal(o, ab.heal || 100);
+      }
+      state.effects.push({ kind: 'healPulse', x: u.x, y: u.y, r: ab.radius,
+                           t: 420, total: 420, side: u.side });
+
+    } else if (ab.type === 'warcry') {
+      // 족장 — 주변 아군에게 **일시적** 공격 버프. 상시 버프(buffDamageMul)가 정체성이라
+      // 그것을 잠깐 크게 키운다. 그 몇 초가 진형의 화력 정점이고, 붙어 있으면 위험하다.
+      for (i = 0; i < state.units.length; i++) {
+        o = state.units[i];
+        if (!o.alive || o.side !== u.side || this.isHazard(o)) continue;
+        if (this.dist(u, o) > ab.radius) continue;
+        var dup = false;
+        for (var wi = 0; wi < o.buffs.length; wi++) {
+          if (o.buffs[wi].warcryTag) { o.buffs[wi].t = ab.ms || 4000; dup = true; break; }
+        }
+        if (!dup) o.buffs.push({ damageMul: ab.dmgMul || 1.6, t: ab.ms || 4000, warcryTag: true });
+      }
+      state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: ab.radius,
+                           t: 420, total: 420, side: u.side });
+
     } else if (ab.type === 'barrage') {
       // 예고 원을 여러 개 뿌린다. 첫 발은 예고 지점, 나머지는 그 주변으로 흩는다 —
       // 한 점에 겹쳐 떨어지면 '한 발'과 다를 게 없어 피할 거리가 안 생긴다.
@@ -1468,7 +1495,9 @@ GAME.Combat = {
         var delay = r * (ab.interval || 420) + 340;
         state.effects.push({ kind: 'telegraph', x: sx, y: sy, r: ab.radius,
                              t: delay, total: delay,
-                             damage: ab.damage, side: u.side, owner: u, abil: true });
+                             damage: ab.damage, side: u.side, owner: u, abil: true,
+                             // 늪지기처럼 둔화를 얹는 스킬이면 예고에 실어 보낸다.
+                             slowMul: ab.slowMul, slowMs: ab.slowMs });
       }
     }
   },
@@ -2026,6 +2055,9 @@ GAME.Combat = {
           var ex = w.x - e.x, ey = w.y - e.y;
           if (Math.sqrt(ex * ex + ey * ey) <= e.r + w.def.radius) {
             this.applyDamage(w, e.damage, e.owner, state, e.abil ? { abil: true } : undefined);
+            // 늪지기 스킬 — 예고 폭발이 둔화도 건다. `slowMul` 이 실린 예고만 해당된다
+            // (없으면 아무 일도 안 하므로 기존 예고는 그대로다).
+            if (e.slowMul) this.applySlow(w, { slowMul: e.slowMul, slowMs: e.slowMs || 2000 });
           }
         }
         state.effects[i] = {

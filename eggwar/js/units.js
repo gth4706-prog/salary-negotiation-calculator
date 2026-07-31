@@ -20,7 +20,11 @@ GAME.UNITS = {
     key: 'bayonet', name: '전사', art: 'warrior',
 lore: '부족의 앞줄에 서기로 한 알. 뒤에 선 동료가 활을 당길 시간을 대신 벌어 준다.',
     desc: '청동 단검과 나무 방패. 싸고 튼튼한 벽.',
-    cost: 10, hp: 240, armor: 30, speed: 135, range: 52, damage: 28, cooldown: 800,
+    // 2026-07-31 · **공격력 버프** (사용자 지시 5번). damage 28→38 (dps 35.0→47.5).
+    //   전사는 가장 싸고 가장 많이 깔리는 유닛이라 **진형 전체의 화력 밀도를 사실상 이 값이**
+    //   정한다. 컨트롤러가 너무 쉽게 뚫는다는 신고에 대한 가장 직접적인 손잡이다.
+    //   체력·방어는 안 올린다 — 더 단단해지면 '오래 걸리는 판'이 되지 '위험한 판'이 안 된다.
+    cost: 10, hp: 240, armor: 30, speed: 135, range: 52, damage: 38, cooldown: 800,
     attack: 'melee', coneDeg: 90, radius: 13, shape: 'square', weapon: 'bayonet',
     chase: 270, aggro: 210,
     // 달려들기 — 가장 흔한 유닛이라 **압박의 밀도를 정하는 건 사실상 이 값이다.**
@@ -59,7 +63,13 @@ lore: '강가의 둥근 돌만 골라 담는 무릿매꾼. 겨눈 자리에 그�
     cost: 25, hp: 120, armor: 5, speed: 95, range: 300, damage: 69, cooldown: 2500,
     attack: 'aoe', aoeRadius: 62, telegraph: 900,
     radius: 12, shape: 'diamond', weapon: 'launcher',
-    chase: 130, aggro: 330, spacing: 41
+    chase: 130, aggro: 330, spacing: 41,
+    // 2026-07-31 · 스킬 신설. 정체성(구역 봉쇄)을 그대로 키운다 —
+    // 한 발이 아니라 **세 발을 흩어 떨어뜨려** 서 있을 자리를 지운다.
+    // 피해는 평타(69)보다 낮게 잡는다. 이 스킬의 일은 죽이는 게 아니라 **쫓아내는 것**이다.
+    ability: { type: 'barrage', cooldown: 11000, telegraph: 700,
+               minRange: 120, maxRange: 900,
+               damage: 38, radius: 66, repeat: 3, spread: 190, interval: 380 }
   },
 
   sniper: {
@@ -69,7 +79,12 @@ lore: '한 번 던지면 반드시 박히는 미늘 작살. 대신 다시 던질
     cost: 40, hp: 100, armor: 5, speed: 90, range: 420, damage: 81, cooldown: 3000,
     attack: 'targeted', bulletSpeed: 760,
     radius: 11, shape: 'hex', weapon: 'sniperRifle',
-    chase: 110, aggro: 440, spacing: 38
+    chase: 110, aggro: 440, spacing: 38,
+    // 2026-07-31 · 스킬 신설. 이미 자동명중이라 '맞추는 것'을 더 줘도 의미가 없다 →
+    // **예고가 보이는 큰 한 방**을 준다. 피할 수 있게 만들어 자동명중과 결이 달라진다.
+    ability: { type: 'barrage', cooldown: 13000, telegraph: 900,
+               minRange: 160, maxRange: 900,
+               damage: 96, radius: 82, repeat: 1 }
   },
 
   // ── 지원 계열 ──────────────────────────────────────────────
@@ -81,7 +96,12 @@ lore: '약초를 씹어 상처에 붙이는 손. 스스로는 안 싸우지만 �
     attack: 'none',
     healRadius: 150, healPerTick: 14, healInterval: 1000,
     radius: 11, shape: 'cross', weapon: 'aidkit',
-    chase: 140, aggro: 0
+    chase: 140, aggro: 0,
+    // 2026-07-31 · 스킬 신설. 공격하지 않는 유닛이라 피해 스킬은 정체성을 깬다 →
+    // **주변 아군을 한 번에 크게 회복**시킨다. 진형이 무너지기 직전을 되돌리는 장치라,
+    // 컨트롤러에게 '약초꾼을 먼저 끊어야 한다'는 처치 순서를 강제한다.
+    ability: { type: 'healBurst', cooldown: 14000, telegraph: 500,
+               radius: 190, heal: 130 }
   },
 
   shieldman: {
@@ -111,7 +131,11 @@ lore: '소뿔 투구를 쓰고 앞장서는 우두머리. 그가 보고 있는 �
     attack: 'projectile', projectileSpeed: 260, projectileRadius: 5,
     buffRadius: 190, buffDamageMul: 1.30,
     radius: 12, shape: 'star', weapon: 'pistol',
-    chase: 160, aggro: 300, spacing: 41
+    chase: 160, aggro: 300, spacing: 41,
+    // 2026-07-31 · 스킬 신설. 상시 버프(1.30)가 정체성이므로 **일시적으로 더 크게** 준다.
+    // 포효가 터지면 그 몇 초가 진형의 화력 정점이다 — 그때 붙어 있으면 위험하다는 신호.
+    ability: { type: 'warcry', cooldown: 15000, telegraph: 600,
+               radius: 220, dmgMul: 1.6, ms: 4000 }
   },
 
   // ── 고정·설치물 ────────────────────────────────────────────
@@ -126,7 +150,12 @@ lore: '통나무로 짜 세운 거치 쇠뇌. 한 발도 못 움직이는 대신
     attack: 'projectile', projectileSpeed: 340, projectileRadius: 5,
     radius: 14, shape: 'bunker', weapon: 'mg',
     chase: 0, aggro: 0,       // 고정
-    immobile: true
+    immobile: true,
+    // 2026-07-31 · 스킬 신설. 못 움직이는 대신 **집중 사격**으로 한 구역을 지운다.
+    // 고정물이라 컨트롤러가 위치만 바꾸면 피할 수 있다 — 대가가 분명한 스킬이다.
+    ability: { type: 'barrage', cooldown: 12000, telegraph: 620,
+               minRange: 100, maxRange: 900,
+               damage: 44, radius: 58, repeat: 4, spread: 150, interval: 300 }
   },
 
   chemtrooper: {
@@ -137,7 +166,12 @@ lore: '끈끈한 늪 수액을 단지에 담아 던진다. 맞은 자는 발이 
     attack: 'projectile', projectileSpeed: 210, projectileRadius: 9,
     slowMul: 0.55, slowMs: 2200,
     radius: 12, shape: 'diamond', weapon: 'launcher',
-    chase: 140, aggro: 320, spacing: 41
+    chase: 140, aggro: 320, spacing: 41,
+    // 2026-07-31 · 스킬 신설. 둔화가 정체성이므로 **넓게 한 번에** 건다.
+    // 카이팅(거리를 벌리는 답)을 직접 벌주는 유일한 전략 유닛 스킬이다.
+    ability: { type: 'barrage', cooldown: 13000, telegraph: 760,
+               minRange: 120, maxRange: 900,
+               damage: 26, radius: 110, repeat: 1, slowMul: 0.5, slowMs: 2600 }
   },
 
   mine: {

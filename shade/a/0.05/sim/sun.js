@@ -107,15 +107,14 @@ export function buildShadows(arena, p) {
         cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, hx: (x1 - x0) / 2, hy: (y1 - y0) / 2
       });
 
-    } else if (o.type === 'parasol') {
-      // 파라솔은 떠 있는 천이라 그림자만 옮겨 간다(기둥 밑은 그늘이 아니다)
+    } else {
+      /* 파라솔·그늘막은 떠 있는 천이라 그림자만 옮겨 간다(기둥 밑은 그늘이 아니다).
+       *
+       * **부분 그늘(나무 그늘 35%)은 없앴다.** 화면만 보고 "여기는 35% 로 녹는다"를
+       * 알 방법이 없어서 사용자가 "어떤 기준에서 녹는지 모르겠다"고 했다.
+       * 이제 그늘은 그늘이거나 아니거나다. 덤으로 나무 하나가 원 5~9개였던 게
+       * 하나로 줄어 그림자 도형이 250개 → 24개가 됐다. */
       out.push(ellipse(o.x + ox, o.y + oy, o.r, stretch, cx, cy, 0));
-
-    } else if (o.type === 'tree') {
-      // 잎 사이로 빛이 샌다 → 완전 차단이 아니라 35%
-      for (const c of o.canopy) {
-        out.push(ellipse(o.x + c.dx + ox, o.y + c.dy + oy, c.r, stretch, cx, cy, C.TREE_SUN));
-      }
     }
   }
   return out;

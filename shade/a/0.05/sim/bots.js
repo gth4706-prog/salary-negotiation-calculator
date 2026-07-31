@@ -14,6 +14,7 @@
  */
 import { C } from './consts.js';
 import { shadeAt } from './sun.js';
+import { ARENA, coldAt } from './arena.js';
 import { join, leave, setInput, radiusOf } from './world.js';
 
 const FLEE_R = 900;
@@ -106,21 +107,33 @@ export function botInput(s, bot) {
     return { angle, dash };
   }
 
-  // 4. 천장에 닿았으면 그늘로. 먹이만으로는 여기서 평형이라 더 못 큰다(실측 1,200~1,500)
-  if (inSun && bot.mass > CEILING) {
-    const sh = nearestShade(s, bot);
-    if (sh) return { angle: Math.atan2(sh.y - bot.y, sh.x - bot.x), dash: false };
-  }
-
-  // 5. 먹이. **그늘에 있는 조각을 더 쳐준다** — 조각도 햇볕에서 녹으니 그늘 쪽이 오래 남고,
-  //    거기서 먹으면 나도 안 녹는다. 사람이라면 당연히 그렇게 논다.
+  // 5. 냉기 지대로 간다. **여기가 유일한 성장 수단이다.**
+  //    그늘에 든 냉기를 더 쳐준다 — 커지면서 안 녹는 자리가 이 게임의 명당이다.
   let best = null, bd = Infinity;
-  for (const f of s.food.values()) {
-    const d = ((f.x - bot.x) ** 2 + (f.y - bot.y) ** 2) * (0.45 + 0.55 * (f.sun == null ? 1 : f.sun));
-    if (d < bd) { bd = d; best = f; }
+  for (const c of ARENA.cold) {
+    const d2 = (c.x - bot.x) ** 2 + (c.y - bot.y) ** 2;
+    const shaded = shadeAt(s.shadows, c.x, c.y) === 0;
+    const w = d2 * (shaded ? 0.45 : 1);
+    if (w < bd) { bd = w; best = c; }
   }
-  if (best) angle = Math.atan2(best.y - bot.y, best.x - bot.x);
-  else angle = bot.angle + (s.rng() - 0.5) * 0.4;
+  if (best) {
+    const d = Math.hypot(best.x - bot.x, best.y - bot.y);
+    if (coldAt(bot.x, bot.y)) {
+      /* 이미 냉기 안이다. 그래도 **그늘이 아니면 옮길 이유가 있다** —
+       * 햇볕 위의 냉기는 벌어들이는 만큼 녹아서 금방 평형에 걸린다(실측 질량 400~700).
+       * 그늘에 든 냉기가 있으면 그리로 간다. 안 그러면 봇이 한 자리에 눌러앉고
+       * 게임이 주차장이 된다(처음에 실제로 그랬다 — 냉기 체류 94.5%, 10분에 교전 2번). */
+      if (inSun) {
+        const better = ARENA.cold.find(c =>
+          shadeAt(s.shadows, c.x, c.y) === 0 &&
+          Math.hypot(c.x - bot.x, c.y - bot.y) > 40);
+        if (better) return { angle: Math.atan2(better.y - bot.y, better.x - bot.x), dash: false };
+      }
+      return { angle: bot.angle + (s.rng() - 0.5) * 0.25, dash: false };
+    }
+    angle = Math.atan2(best.y - bot.y, best.x - bot.x);
+    return { angle, dash: d > 700 && ttl > FLEE_TTL };
+  }
 
   return { angle, dash: false };
 }

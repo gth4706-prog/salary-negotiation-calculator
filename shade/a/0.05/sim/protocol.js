@@ -20,19 +20,16 @@ export const FLAG_DASH = 2;
 export const FLAG_BOT = 4;
 export const FLAG_INVULN = 8;
 export const FLAG_DEAD = 16;
+export const FLAG_COLD = 32;   // 냉기 지대 안 — 커지는 중
 
 /**
  * @param {object} s   월드 상태
- * @param {Array}  removed 이번 스냅샷 구간에 사라진 먹이 id
- * @param {Array}  added   이번 구간에 생긴 먹이 {id,x,y}
  */
-export function encodeSnapshot(s, removed = [], added = []) {
+export function encodeSnapshot(s) {
   const players = [...s.players.values()];
   const n = Math.min(players.length, 255);
-  const rm = removed.slice(0, 4000);
-  const ad = added.slice(0, 4000);
 
-  const size = 1 + 4 + 2 + 1 + n * 8 + 2 + rm.length * 2 + 2 + ad.length * 6;
+  const size = 1 + 4 + 2 + 1 + n * 8;
   const buf = new ArrayBuffer(size);
   const v = new DataView(buf);
   let o = 0;
@@ -50,6 +47,7 @@ export function encodeSnapshot(s, removed = [], added = []) {
     if (p.isBot) f |= FLAG_BOT;
     if (s.t < p.invulnUntil) f |= FLAG_INVULN;
     if (p.dead) f |= FLAG_DEAD;
+    if (p.cold && !p.dead) f |= FLAG_COLD;
     v.setUint8(o, p.id); o += 1;
     v.setUint16(o, Math.max(0, Math.min(65535, Math.round(p.x * POS)))); o += 2;
     v.setUint16(o, Math.max(0, Math.min(65535, Math.round(p.y * POS)))); o += 2;
@@ -57,15 +55,6 @@ export function encodeSnapshot(s, removed = [], added = []) {
     v.setUint8(o, f); o += 1;
   }
 
-  v.setUint16(o, rm.length); o += 2;
-  for (const id of rm) { v.setUint16(o, id); o += 2; }
-
-  v.setUint16(o, ad.length); o += 2;
-  for (const f of ad) {
-    v.setUint16(o, f.id); o += 2;
-    v.setUint16(o, Math.round(f.x * POS)); o += 2;
-    v.setUint16(o, Math.round(f.y * POS)); o += 2;
-  }
   return buf;
 }
 
@@ -91,24 +80,12 @@ export function decodeSnapshot(buf) {
       dashing: !!(f & FLAG_DASH),
       isBot: !!(f & FLAG_BOT),
       invuln: !!(f & FLAG_INVULN),
-      dead: !!(f & FLAG_DEAD)
+      dead: !!(f & FLAG_DEAD),
+      cold: !!(f & FLAG_COLD)
     });
   }
 
-  const rn = v.getUint16(o); o += 2;
-  const removed = [];
-  for (let i = 0; i < rn; i++) { removed.push(v.getUint16(o)); o += 2; }
-
-  const an = v.getUint16(o); o += 2;
-  const added = [];
-  for (let i = 0; i < an; i++) {
-    const id = v.getUint16(o); o += 2;
-    const x = v.getUint16(o) / POS; o += 2;
-    const y = v.getUint16(o) / POS; o += 2;
-    added.push({ id, x, y });
-  }
-
-  return { t, phase, players, removed, added };
+  return { t, phase, players };
 }
 
 /* ── 입력 ──────────────────────────────────────────────────────────────────

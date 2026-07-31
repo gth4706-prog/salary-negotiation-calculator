@@ -11,7 +11,7 @@
 <meta property="og:title" content="미친 폭염 그늘 쟁탈전">
 <meta property="og:description" content="햇볕에선 녹고 그늘에선 버틴다. 정오가 되면 그늘이 사라진다.">
 <meta property="og:url" content="https://joeltool.com/shade/">
-<link rel="stylesheet" href="a/0.04/css/style.css">
+<link rel="stylesheet" href="a/0.05/css/style.css">
 </head>
 <body>
 
@@ -21,18 +21,21 @@
   <div class="card">
     <h1>미친 폭염 그늘 쟁탈전</h1>
     <p class="tag">얼음이 되어 그늘을 뺏는 게임</p>
+    <p class="lead">서 있는 자리가 전부입니다. 딱 세 가지예요.</p>
     <ul class="rules">
-      <li><b>햇볕</b>에 있으면 계속 <b>녹는다</b>. <b>그늘</b>에선 안 녹는다</li>
-      <li>바닥의 <b>얼음조각</b>을 먹으면 커진다 — 조각도 그늘에 쌓인다</li>
-      <li>나보다 <b>작은 얼음</b>은 먹고, <b>빨간 고리</b>가 뜬 얼음은 도망친다</li>
+      <li><span class="z cold">💨 냉기</span> 가만히 있어도 <b>커진다</b></li>
+      <li><span class="z shade">🌑 그늘</span> 그대로 — <b>안 녹는다</b></li>
+      <li><span class="z sun">☀️ 햇볕</span> 계속 <b>녹는다</b>. 정오엔 두 배로</li>
     </ul>
+    <p class="rules-more">냉기는 <b>네 곳뿐</b>이라 싸움이 납니다.
+      나보다 작으면 먹고, <b>빨간 고리</b>가 뜬 얼음은 도망치세요.</p>
     <div class="row">
       <input id="nick" maxlength="12" autocomplete="off" aria-label="닉네임">
       <button id="reroll" class="ghost" type="button">새로 뽑기</button>
     </div>
     <button id="play" class="go" type="button">시작</button>
     <p class="how">끌어서 이동 · 버튼 하나로 냉기 분사<br>PC는 마우스 방향으로 이동 · 클릭이나 스페이스</p>
-    <p class="ver">v0.04</p>
+    <p class="ver">v0.05</p>
   </div>
 </div>
 
@@ -48,6 +51,6 @@
 
 <div id="status" class="gone"></div>
 
-<script type="module" src="a/0.04/js/game.js"></script>
+<script type="module" src="a/0.05/js/game.js"></script>
 </body>
 </html>

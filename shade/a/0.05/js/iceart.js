@@ -184,7 +184,18 @@ export function drawIce(ctx, o) {
    * 대부분의 .io 가 '대등' 구간을 비워 둬서 "왜 죽었는지 모르겠다"가 나온다. */
   if (!o.isMe) {
     if (o.rel === 'bigger') {
-      // 가시 5개 — 나를 먹는다. 도망쳐라
+      /* 나를 먹는 놈. 가시만으로는 **못 알아봤다**(사용자 신고: "왜 내가 잡아먹히는지 모르겠다").
+       * 가시는 테두리에 붙은 작은 돌기라 멀리서·작게 보일 때 사라진다.
+       * 그래서 몸 전체를 감싸는 붉은 고리를 하나 더 두른다 — 이건 크기와 무관하게 보인다. */
+      ctx.save();
+      ctx.strokeStyle = 'rgba(224,52,31,0.85)';
+      ctx.lineWidth = Math.max(2.5, r * 0.10);
+      ctx.beginPath();
+      ctx.arc(x, y, r + ctx.lineWidth * 0.9, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // 가시 5개 — 가까이서 보면 방향까지 읽힌다
       ctx.fillStyle = PAL.danger;
       for (let i = 0; i < 5; i++) {
         const a = (i / 5) * Math.PI * 2 + 0.3;
@@ -257,18 +268,45 @@ export function drawIce(ctx, o) {
   }
 }
 
-/** 바닥의 얼음조각 */
-export function drawShard(ctx, x, y, t) {
-  ctx.fillStyle = PAL.shard;
+/**
+ * 냉기 지대 — 쿨링포그. **여기 있으면 가만히 있어도 커진다.**
+ *
+ * 세 가지 자리 중 유일하게 좋은 것이므로 화면에서 **가장 알아보기 쉬워야** 한다.
+ * 그래서 색(차가운 하늘색)에만 기대지 않고 **테두리 + 안쪽 고리 + 눈 결정 십자**를
+ * 같이 쓴다. 저사양·모션 감소에서는 고리가 멈출 뿐 사라지지 않는다 — 상태 신호라서.
+ */
+export function drawCold(ctx, x, y, r, t, still) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(150,225,245,0.30)';
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+
+  ctx.lineWidth = Math.max(2, r * 0.045);
+  ctx.strokeStyle = 'rgba(226,250,255,0.92)';
+  ctx.stroke();
+  ctx.lineWidth = Math.max(1.2, r * 0.02);
+  ctx.strokeStyle = 'rgba(24,80,110,0.45)';
+  ctx.beginPath(); ctx.arc(x, y, r - Math.max(2, r * 0.05), 0, Math.PI * 2); ctx.stroke();
+
+  // 안쪽에서 퍼져 나가는 고리 — 여기가 '나오는 곳'임을 움직임으로 말한다
+  const k = still ? 0.5 : ((t || 0) % 2600) / 2600;
+  ctx.globalAlpha = 0.55 * (1 - k);
+  ctx.lineWidth = Math.max(1.5, r * 0.03);
+  ctx.strokeStyle = '#EAFBFF';
+  ctx.beginPath(); ctx.arc(x, y, r * (0.25 + 0.7 * k), 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // 눈 결정 — 색을 못 봐도 이 자리가 무엇인지 알 수 있게
+  ctx.strokeStyle = 'rgba(240,253,255,0.75)';
+  ctx.lineWidth = Math.max(1.5, r * 0.035);
+  const s = r * 0.30;
   ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const a = i * Math.PI / 3 + 0.4;
-    const rr = C.FOOD_R * (i % 2 ? 0.75 : 1.15);
-    i ? ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr)
-      : ctx.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  for (let i = 0; i < 3; i++) {
+    const a = i * Math.PI / 3;
+    ctx.moveTo(x - Math.cos(a) * s, y - Math.sin(a) * s);
+    ctx.lineTo(x + Math.cos(a) * s, y + Math.sin(a) * s);
   }
-  ctx.closePath();
-  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 }
 
 /** 월드 텍스트 — 바닥 밝기가 요동쳐서 **어떤 단색 글자도 4.5:1 을 못 지킨다.**

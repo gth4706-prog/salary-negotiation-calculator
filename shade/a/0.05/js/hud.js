@@ -15,32 +15,92 @@
 import { C } from '../sim/consts.js';
 import { worldText } from './iceart.js';
 
-/** 온보딩 — 튜토리얼 화면 없이. 규칙은 **필요해지는 순간에 그 자리에** 7자 이하로 */
+/**
+ * 지금 해야 할 일 한 줄 — **계속 떠 있는다**
+ *
+ * 처음엔 "규칙은 필요해지는 순간에 그 자리에 한 번만" 원칙으로 짧게 띄우고 지웠다.
+ * 그런데 만든 사람조차 **"뭘 해야 하는지 모르겠다"**고 했다. 한 번 스쳐 간 문구는
+ * 규칙이 안 된다. 특히 .io 는 죽고 다시 시작하는 게 기본이라, 매번 새 상황이 온다.
+ *
+ * 그래서 **지금 상황에 맞는 한 줄**을 상단에 계속 둔다. 배운 뒤에는(각 상황을 몇 번
+ * 겪고 나면) 그 줄은 다시 안 나온다 — 익숙해진 사람 화면을 잡음으로 덮지 않기 위해서다.
+ */
+const LESSONS = {
+  danger: { s: '빨간 고리 = 나를 먹는다. 도망!', cap: 6 },
+  melting: { s: '햇볕 — 녹는 중. 그늘로!', cap: 5 },
+  shade: { s: '그늘 안 — 안 녹는다', cap: 3 },
+  cold: { s: '💨 냉기 — 가만히 있어도 커진다', cap: 4 },
+  seek: { s: '💨 냉기를 찾아가야 커진다', cap: 5 },
+  hunt: { s: '얇은 테 = 내가 먹을 수 있다', cap: 3 },
+  noon: { s: '정오 — 그늘이 사라진다', cap: 99 }
+};
+
 export function createCoach() {
-  return {
-    born: 0, shownShade: false, shownSun: false, shownDash: false, dashUsed: false,
-    notes: []
-  };
+  let seen = {};
+  try { seen = JSON.parse(localStorage.getItem('shade.learned') || '{}'); } catch (e) {}
+  return { born: 0, seen, dashUsed: false, notes: [], line: null, lineAt: 0, lastKey: null };
 }
 
+function learn(coach, key) {
+  coach.seen[key] = (coach.seen[key] || 0) + 1;
+  try { localStorage.setItem('shade.learned', JSON.stringify(coach.seen)); } catch (e) {}
+}
+
+/**
+ * @param {object} o { now, noon, danger, prey, cold }
+ */
 export function coachTick(coach, v, o) {
   const me = v.me;
-  if (!me || me.dead) return;
-  const age = o.now - (coach.born || (coach.born = o.now));
-
-  if (!coach.shownShade && !me.melting && age < 4000) {
-    coach.shownShade = true;
-    coach.notes.push({ x: me.x, y: me.y + me.r + 34, s: '그늘 안 — 안 녹는다', until: o.now + 3000 });
-  }
-  if (!coach.shownSun && me.melting && age < 40000) {
-    coach.shownSun = true;
-    coach.notes.push({ x: me.x, y: me.y - me.r - 34, s: '햇볕 — 녹는 중', until: o.now + 3000 });
-  }
-  if (!coach.shownDash && !coach.dashUsed && age > 9000 && age < 40000) {
-    coach.shownDash = true;
-    coach.pulseDash = o.now;
-  }
+  if (!me) { coach.line = null; return; }
+  if (!coach.born) coach.born = o.now;
   coach.notes = coach.notes.filter(n => n.until > o.now);
+  if (me.dead) { coach.line = null; return; }
+
+  // 위가 급한 순서다. 위험이 있으면 다른 건 말하지 않는다.
+  let key = null;
+  if (o.danger) key = 'danger';
+  else if (o.noon) key = 'noon';
+  else if (me.melting) key = 'melting';
+  else if (o.prey) key = 'hunt';
+  else if (!me.melting && (coach.seen.shade || 0) < LESSONS.shade.cap) key = 'shade';
+  else if (o.cold) key = 'cold';
+  else key = 'seek';
+
+  if (key && (coach.seen[key] || 0) < LESSONS[key].cap) {
+    if (coach.lastKey !== key) { coach.lastKey = key; coach.lineAt = o.now; learn(coach, key); }
+    coach.line = LESSONS[key].s;
+  } else {
+    coach.line = null;
+    if (coach.lastKey !== key) coach.lastKey = key;
+  }
+
+  if (!coach.pulseDash && !coach.dashUsed && o.now - coach.born > 9000) coach.pulseDash = o.now;
+}
+
+/** 상단 안내 한 줄. HUD 아래, 전장 위. */
+export function drawCoachLine(ctx, coach, o, W) {
+  if (!coach.line) return;
+  const d = o.dpr;
+  const y = 62 * d;
+  const size = 17 * d;
+  ctx.save();
+  ctx.font = '800 ' + size + 'px "Gothic A1","Malgun Gothic",system-ui,sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const w = ctx.measureText(coach.line).width + 26 * d;
+  ctx.globalAlpha = Math.min(1, (o.now - coach.lineAt) / 180);
+  ctx.fillStyle = 'rgba(16,32,47,0.72)';
+  const h = 30 * d, x = (W - w) / 2;
+  ctx.beginPath();
+  ctx.moveTo(x + h / 2, y - h / 2);
+  ctx.arcTo(x + w, y - h / 2, x + w, y + h / 2, h / 2);
+  ctx.arcTo(x + w, y + h / 2, x, y + h / 2, h / 2);
+  ctx.arcTo(x, y + h / 2, x, y - h / 2, h / 2);
+  ctx.arcTo(x, y - h / 2, x + w, y - h / 2, h / 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillText(coach.line, W / 2, y);
+  ctx.restore();
 }
 
 export function drawCoach(ctx, coach, o, toScreen) {

@@ -15,9 +15,10 @@ import { attachInput } from './input.js';
 import { createView, applySnapshot, step } from './predict.js';
 import { createRenderer } from './render.js';
 import {
-  createCoach, coachTick, drawCoach, deathLine, drawDeath,
+  createCoach, coachTick, drawCoach, drawCoachLine, deathLine, drawDeath,
   drawHud, drawDashButton, drawJoystick
 } from './hud.js';
+import { isNoon } from '../sim/sun.js';
 
 const SERVER = 'https://shade-world.gth3941.workers.dev';
 
@@ -52,16 +53,14 @@ function demoStep(dt) {
   demo.snapAcc = 0;
   // 실제와 같은 경로를 태운다 — 인코드→디코드→적용. 데모 전용 렌더 경로를 따로 만들면
   // 그 경로만 멀쩡하고 진짜는 깨져 있는 상태를 못 잡는다.
-  const all = [...demo.world.food.values()].map(f => ({ id: f.id, x: f.x, y: f.y }));
-  view.food.clear();
-  applySnapshot(view, decodeSnapshot(encodeSnapshot(demo.world, [], all)), performance.now());
+  applySnapshot(view, decodeSnapshot(encodeSnapshot(demo.world)), performance.now());
   view.arena = ARENA;
   roster.clear();
   for (const p of demo.world.players.values()) roster.set(p.id, { id: p.id, name: p.name, bot: p.isBot, skin: p.skin });
   // 가장 큰 놈을 따라다닌다 — 빈 화면 대신 교전이 보인다
   let big = null;
   for (const p of demo.world.players.values()) if (!p.dead && (!big || p.mass > big.mass)) big = p;
-  if (big) { view.myId = big.id; view.me = { x: big.x, y: big.y, r: Math.sqrt(big.mass), melting: big.sun > 0 }; }
+  if (big) { view.myId = big.id; view.me = { x: big.x, y: big.y, r: Math.sqrt(big.mass), melting: big.sun > 0, cold: big.cold }; }
 }
 let death = null, lastFrame = 0, myName = '';
 const opts = {
@@ -94,7 +93,7 @@ function start() {
   // 데모가 남긴 상태를 지운다 — 안 지우면 데모의 큰 얼음이 내 얼음으로 남아
   // 첫 스냅샷이 올 때까지 엉뚱한 크기로 그려진다
   view.me = null; view.myId = null;
-  view.players.clear(); view.food.clear();
+  view.players.clear();
   roster.clear();
   if (!input) input = attachInput(canvas, { dashButton: dashBtn });
   if (!net) {
@@ -118,8 +117,6 @@ function onMessage(m) {
   if (m.t === 'welcome') {
     view.myId = m.you;
     view.arena = m.arena;
-    view.food.clear();
-    for (const f of m.food) view.food.set(f.id, f);
     roster.clear();
     for (const r of m.roster) roster.set(r.id, r);
     coach.born = performance.now();
@@ -151,6 +148,21 @@ function onMessage(m) {
   }
 }
 
+/** 지금 뭘 말해 줘야 하는지 판단할 재료. 안내 문구는 hud.js 가 고른다. */
+function situation() {
+  const me = view.me;
+  if (!me || me.dead) return { danger: false, prey: false, cold: false, noon: false };
+  let danger = false, prey = false;
+  for (const p of view.players.values()) {
+    if (p.dead || p.id === view.myId) continue;
+    const d = Math.hypot(p.x - me.x, p.y - me.y);
+    if (d > 620) continue;
+    if (p.r >= me.r * C.EAT_RATIO) danger = true;
+    else if (p.r <= me.r / C.EAT_RATIO) prey = true;
+  }
+  return { danger, prey, cold: !!(me && me.cold), noon: isNoon(view.phase) };
+}
+
 /* ── 순위 ── */
 function board() {
   const out = [];
@@ -174,7 +186,7 @@ function frame(now) {
     if (inp.dash) { lastDashAt = now; coach.dashUsed = true; }
     net.send(inp.angle, inp.dash);
     step(view, dt, inp, now);
-    coachTick(coach, view, { now });
+    coachTick(coach, view, { now, ...situation(now) });
   } else {
     demoStep(dt);
     step(view, dt, { angle: 0, dash: false }, now);
@@ -192,17 +204,12 @@ function frame(now) {
   const dpr = info.dpr || 1;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-  const W = canvas.width, H = canvas.height;
+  const W = info.W || canvas.width, H = info.H || canvas.height;
   const zoom = info.zoom || 1;
-  const portrait = H > W;
-  const me = view.me;
-  const camX = me ? me.x : C.WORLD / 2, camY = me ? me.y : C.WORLD / 2;
-  const lead = 60;
-  const ox = W / 2 - (camX + Math.cos(inp.angle) * lead) * zoom;
-  const oy = H * (portrait ? 0.44 : 0.5) - (camY + Math.sin(inp.angle) * lead) * zoom;
-  const toScreen = (x, y) => ({ x: x * zoom + ox, y: y * zoom + oy });
+  const toScreen = (x, y) => ({ x: x * zoom + (info.ox || 0), y: y * zoom + (info.oy || 0) });
 
   drawCoach(ctx, coach, { now, dpr }, toScreen);
+  drawCoachLine(ctx, coach, { now, dpr }, W);
   drawHud(ctx, { dpr, board: b, myRank, safeTop: 0, gearW: 44 * dpr }, W, H, view);
   drawDeath(ctx, death, { now, dpr }, W, H);
 

@@ -17,18 +17,30 @@
  */
 import { C } from '../sim/consts.js';
 import { buildShadows, shadowDir, isNoon, noonLeftMs, sunHeight } from '../sim/sun.js';
-import { drawIce, drawShard, worldText, PAL, colorOf } from './iceart.js';
+import { drawIce, drawCold, worldText, PAL, colorOf } from './iceart.js';
 
-/* 그늘 상태(= 진짜 색)가 원본이다. 햇볕 색은 위에 표백을 얹은 결과다. */
+/**
+ * 바닥 — **명도를 거의 붙여 놓았다.**
+ *
+ * 처음엔 고무포장·콘크리트·잔디·흙을 명확히 다른 색으로 칠했다. 그랬더니 사용자가
+ * **"바닥 색깔이 왜 다른지 모르겠다"**고 했다. 맞는 지적이다 — 그 색들은 아무 뜻도 없는데
+ * 화면에서 가장 눈에 띄니까, 플레이어가 **없는 규칙을 읽으려고 애쓴다.**
+ * 진짜 정보인 그늘/햇볕은 그 아래 깔려서 묻혔다.
+ *
+ * 그래서 바닥은 **질감**으로 내리고(색상만 조금 다르고 밝기는 거의 같다),
+ * 명도 채널은 통째로 그늘/햇볕에 준다. 장소감은 남기되 정보인 척은 안 하게.
+ */
 const GROUND = {
-  rubber: '#8A4A46', concrete: '#6E7488', grass: '#3F5C4A',
-  water: '#1E6E82', dirt: '#6B5642'
+  rubber: '#7A5A52', concrete: '#6E6A6E', grass: '#5A6A54',
+  water: '#3E6A78', dirt: '#6E6152'
 };
-const OBST = { block: '#4A5568', parasol: '#7A4A52', tree: '#2F4A38' };
+const OBST = { block: '#4A5568', canopy: '#6E4A54' };
 
 export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d', { alpha: false });
   let shadows = null, shadowPhase = -1;
+  /** 카메라 상태 — 목표를 부드럽게 따라간다. `lx/ly` 는 진행 방향으로 앞서 보는 양 */
+  const cam = { x: null, y: null, lx: 0, ly: 0 };
   let dpr = 1;
   const frames = [];
   let lowSpec = false;
@@ -128,17 +140,39 @@ export function createRenderer(canvas) {
     const me = v.me;
     const myR = me ? me.r : C.START_R;
 
-    // 카메라 — 내 반지름이 항상 화면 46px(세로 39px). 화면상 크기가 곧 상대 크기가 된다
-    // 클램프 폭을 넉넉히 잡는다. 좁게 잡으면(예 상한 1.9) 작을 때 내 반지름이 27px 로
-    // 쪼그라들어 "화면상 크기가 곧 상대 크기"라는 약속이 깨진다 — 실측으로 잡은 값이다.
-    const want = (portrait ? 39 : 46) * dpr / myR;
-    const zoom = Math.max(0.5, Math.min(3.6, want));
-    const camX = me ? me.x : C.WORLD / 2;
-    const camY = me ? me.y : C.WORLD / 2;
-    // 진행 방향으로 살짝 앞서 본다. 세로는 화면의 44% 지점에 나를 둔다(아래 띠는 손이 가린다)
-    const lead = o.input ? 60 : 0;
-    const ox = W / 2 - (camX + Math.cos(o.input ? o.input.angle : 0) * lead) * zoom;
-    const oy = H * (portrait ? 0.44 : 0.5) - (camY + Math.sin(o.input ? o.input.angle : 0) * lead) * zoom;
+    /* ── 카메라 ────────────────────────────────────────────────────────────
+     * 처음엔 "내 반지름을 항상 화면 46px 로 고정"했다. 화면상 크기가 곧 상대 크기가 되니까.
+     * 그런데 실제로 해보니 **너무 가까웠다**(사용자 신고). 폰에서 보이는 월드가 폭 177칸,
+     * 맵 전체의 6% 였다. 내 몸이 화면 폭의 20% 를 먹으니 앞이 안 보인다.
+     *
+     * 그리고 크기가 고정이면 **커진 게 안 느껴진다.** 커질수록 화면이 물러나되
+     * 내 몸도 조금씩은 커 보여야 한다. 그래서 화면상 반지름을 **r^0.35 로 천천히** 키운다.
+     *   r=18  → 약 15px (폭의 8%)  ·  r=45 → 21px  ·  r=100 → 27px
+     * 보이는 월드는 반대로 460칸 → 1,440칸으로 넓어진다.
+     *
+     * 크기 비교가 화면 크기만으로는 안 되는 대신, 가시·`=`·얇은 테가 그 일을 한다(8.3절). */
+    const onScreen = 5.4 * Math.pow(myR, 0.35) * (portrait ? 0.92 : 1);
+    const zoom = Math.max(0.18, Math.min(2.2, onScreen * dpr / myR));
+
+    /* 카메라를 목표에 **부드럽게 따라가게** 한다.
+     * 예전엔 진행 방향으로 60px 앞선 지점을 매 프레임 그대로 썼다. 방향이 바뀔 때마다
+     * 화면이 통째로 튀어서 폰에서 어지러웠다(사용자 신고). 앞서 보는 건 유지하되
+     * 그 지점 자체를 이징으로 따라간다. */
+    const tgtX = me ? me.x : C.WORLD / 2;
+    const tgtY = me ? me.y : C.WORLD / 2;
+    const leadLen = (portrait ? 34 : 58);
+    const la = o.input ? o.input.angle : 0;
+    const wantLX = Math.cos(la) * leadLen, wantLY = Math.sin(la) * leadLen;
+    const k = 1 - Math.pow(0.001, (o.dt || 16) / 1000);   // 프레임률과 무관한 이징
+    cam.lx += (wantLX - cam.lx) * k * 0.35;
+    cam.ly += (wantLY - cam.ly) * k * 0.35;
+    if (cam.x == null || Math.hypot(tgtX - cam.x, tgtY - cam.y) > 420) { cam.x = tgtX; cam.y = tgtY; }
+    cam.x += (tgtX - cam.x) * k;
+    cam.y += (tgtY - cam.y) * k;
+
+    const camX = cam.x + cam.lx, camY = cam.y + cam.ly;
+    const ox = W / 2 - camX * zoom;
+    const oy = H * (portrait ? 0.46 : 0.5) - camY * zoom;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#FFF3DC';                    // 아레나 밖 = 눈부신 백열
@@ -172,13 +206,22 @@ export function createRenderer(canvas) {
     const noon = isNoon(v.phase);
     const path = cachedPath(sh, v.phase, (vx0 + vx1) / 2, (vy0 + vy1) / 2,
       (vx1 - vx0) / 2, (vy1 - vy0) / 2);
+    /* 그늘을 **먼저 차갑게** 깐다. 햇볕을 밝게 하는 것만으로는 부족했다 —
+     * 사용자가 자기가 그늘 안인지 밖인지도 몰랐다. 이제 양쪽에서 벌린다:
+     * 그늘은 푸르게 가라앉고(한낮 그늘은 실제로 하늘빛이라 파랗다), 햇볕은 하얗게 날아간다. */
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = 'rgba(120,150,205,0.55)';
+    ctx.fillRect(vx0, vy0, vx1 - vx0, vy1 - vy0);
+    ctx.restore();
+
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     // 표백 세기를 **실제 녹는 세기와 같은 곡선**으로 움직인다.
     // 화면이 "지금 얼마나 뜨거운지"를 말해 주지 않으면 규칙과 그림이 따로 논다.
     const heat = C.MELT_DAWN + C.MELT_NOON_ADD * sunHeight(v.phase);
-    const glare = 0.30 + 0.34 * Math.min(1, heat / (C.MELT_DAWN + C.MELT_NOON_ADD));
-    ctx.fillStyle = 'rgba(255,217,160,' + (noon ? Math.min(0.80, glare + 0.12) : glare).toFixed(3) + ')';
+    const glare = 0.52 + 0.26 * Math.min(1, heat / (C.MELT_DAWN + C.MELT_NOON_ADD));
+    ctx.fillStyle = 'rgba(255,226,176,' + (noon ? Math.min(0.88, glare + 0.10) : glare).toFixed(3) + ')';
     ctx.fill(path, 'evenodd');
 
     /* 그늘 경계 — 이 게임에서 가장 중요한 선.
@@ -210,21 +253,18 @@ export function createRenderer(canvas) {
         ctx.strokeStyle = 'rgba(255,255,255,0.25)';
         ctx.lineWidth = 3;
         ctx.strokeRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
-      } else if (b.type === 'parasol') {
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,0.35)';
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.28, 0, Math.PI * 2); ctx.fill();
       } else {
-        for (const c of b.canopy) {
-          ctx.beginPath(); ctx.arc(b.x + c.dx, b.y + c.dy, c.r, 0, Math.PI * 2); ctx.fill();
-        }
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.30)';
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.22, 0, Math.PI * 2); ctx.fill();
       }
     }
 
-    /* 4) 얼음조각 — 화면 안만 그린다 */
-    for (const f of v.food.values()) {
-      if (f.x < vx0 || f.x > vx1 || f.y < vy0 || f.y > vy1) continue;
-      drawShard(ctx, f.x, f.y, o.now);
+    /* 4) 냉기 지대 — **여기 있으면 가만히 있어도 커진다.**
+     *    그늘 위에 그린다(그늘에 든 냉기가 명당이라는 게 화면에서 겹쳐 보여야 한다). */
+    for (const c of (arena.cold || [])) {
+      if (c.x + c.r < vx0 || c.x - c.r > vx1 || c.y + c.r < vy0 || c.y - c.r > vy1) continue;
+      drawCold(ctx, c.x, c.y, c.r, o.now, o.reduced || lowSpec);
     }
 
     /* 5) 사람 — **작은 것부터 큰 것 순.** 위험한 것이 절대 안 가려진다.
@@ -338,7 +378,9 @@ export function createRenderer(canvas) {
       ctx.restore();
     }
 
-    return { lowSpec, zoom, dpr };
+    // 화면 변환을 그대로 돌려준다 — 부르는 쪽이 같은 계산을 또 하면
+    // 카메라 이징이 들어간 순간 둘이 어긋나 월드 텍스트가 엉뚱한 자리에 찍힌다
+    return { lowSpec, zoom, dpr, ox, oy, W, H };
   }
 
   function chevron(ctx, cx, cy, W, H, dpr, target, me, zoom, color, showDist) {

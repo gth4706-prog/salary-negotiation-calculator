@@ -8,7 +8,7 @@
  * 안 그러면 같은 시드로 같은 판을 재현할 수 없고, desync 가 났을 때 쫓아갈 방법이 사라진다.
  */
 import { C } from './consts.js';
-import { ARENA, SPAWNS } from './arena.js';
+import { ARENA, SPAWNS, coldAt } from './arena.js';
 import { buildShadows, shadeAt, sunPhase, sunHeight } from './sun.js';
 
 export const radiusOf = (m) => Math.sqrt(m);
@@ -33,17 +33,14 @@ export function createWorld(seed = 1, opts = {}) {
     seed: seed >>> 0,
     rng: rngFrom(seed),
     players: new Map(),
-    food: new Map(),
     nextId: 1,
-    nextFoodId: 1,
     phase: 0,
     shadows: [],
     shadowPhase: -1,
     events: [],                       // 서버가 소비하고 비운다
-    opts: { food: opts.food !== false, bots: opts.bots !== false }
+    opts: { bots: opts.bots !== false }
   };
   refreshShadows(s);
-  if (s.opts.food) while (s.food.size < C.FOOD_TARGET) spawnFood(s);
   return s;
 }
 
@@ -60,19 +57,6 @@ function refreshShadows(s) {
     s.shadows = buildShadows(ARENA, p);
     s.shadowPhase = p;
   }
-}
-
-function spawnFood(s, x, y) {
-  const id = s.nextFoodId++;
-  if (s.nextFoodId > 65000) s.nextFoodId = 1;
-  s.food.set(id, {
-    id,
-    x: x != null ? x : s.rng() * C.WORLD,
-    y: y != null ? y : s.rng() * C.WORLD,
-    life: C.FOOD_LIFE_MS,
-    sun: 1
-  });
-  return id;
 }
 
 /** 그늘 안 스폰 지점 하나. 신규·부활 둘 다 여기로 간다. */
@@ -141,26 +125,12 @@ export function setInput(s, id, angle, dash) {
   if (dash) p.wantDash = true;      // 한 번 눌린 건 다음 틱까지 살려 둔다
 }
 
-function scatter(s, p) {
-  // 죽으면 내 몸이 먹이가 된다 — 연출이 아니라 실제 기제다
-  const n = C.CORPSE_PIECES;
-  const r = radiusOf(p.mass);
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + s.rng() * 0.5;
-    const d = r * (0.3 + s.rng() * 0.9);
-    spawnFood(s,
-      Math.max(4, Math.min(C.WORLD - 4, p.x + Math.cos(a) * d)),
-      Math.max(4, Math.min(C.WORLD - 4, p.y + Math.sin(a) * d)));
-  }
-}
-
 function kill(s, p, cause, killerName) {
   if (p.dead) return;
   p.dead = true;
   p.killedBy = cause;
   p.killerName = killerName || null;
   p.respawnAt = s.t + C.RESPAWN_MS;
-  scatter(s, p);
   s.events.push({ e: 'died', id: p.id, cause, by: killerName || null, mass: Math.round(p.mass) });
 }
 
@@ -220,47 +190,23 @@ export function tick(s, dtMs) {
       p.y = Math.max(m, Math.min(C.WORLD - m, p.y));
     }
 
-    // 녹기 — 지수 감소. sun 은 0(그늘)·0.35(나무)·1(땡볕)
+    /* ── 자리가 곧 규칙이다. 세 가지뿐. ──────────────────────────────────
+     *   냉기  가만히 있어도 커진다 (정액)
+     *   그늘  그대로
+     *   햇볕  계속 녹는다 (지수)
+     *
+     * 성장은 정액이고 손실은 지수인 비대칭이 균형을 만든다 —
+     * 작을수록 빨리 크고, 클수록 햇볕에서 훨씬 크게 잃는다. */
     const sun = shadeAt(s.shadows, p.x, p.y);
+    const cold = coldAt(p.x, p.y);
     p.sun = sun;
+    p.cold = cold;
+    if (cold) p.mass += C.COLD_GAIN * dt / 1000;
     if (sun > 0) p.mass *= Math.exp(-MELT_K * sun * s.heat * dt);
 
     if (p.mass > p.best) p.best = p.mass;
     if (p.mass <= C.MIN_MASS) {
       kill(s, p, s.t < p.dashCdUntil && s.t - (p.dashCdUntil - C.DASH_CD_MS) < 200 ? 'dash' : 'sun');
-    }
-  }
-
-  /* ── 조각 녹기 ──
-   * 조각의 그늘 판정은 **태양이 움직였을 때만** 다시 한다. 400개 × 20Hz 로 매 틱 재면
-   * 서버 CPU 의 대부분을 여기서 쓴다. 태양은 초당 0.75° 라 0.2초 갱신으로 충분하다. */
-  if (s.opts.food) {
-    const recheck = s.shadowPhase !== s._foodSunPhase;
-    if (recheck) s._foodSunPhase = s.shadowPhase;
-    for (const f of s.food.values()) {
-      if (recheck) f.sun = shadeAt(s.shadows, f.x, f.y);
-      f.life -= dt * (f.sun * C.FOOD_SUN_MUL + C.FOOD_LIFE_SHADE);
-      if (f.life <= 0) {
-        s.food.delete(f.id);
-        s.events.push({ e: 'gone', f: f.id });
-      }
-    }
-  }
-
-  /* ── 먹이 ──
-   * 전수 비교는 400개 × 24명 = 9,600 회/틱. 격자 없이도 여유롭다.
-   * 사람이 늘면 그때 격자를 넣는다(지금 넣으면 안 쓰는 코드를 유지하게 된다). */
-  for (const p of s.players.values()) {
-    if (p.dead) continue;
-    const r = radiusOf(p.mass);
-    const rr = r * r;
-    for (const f of s.food.values()) {
-      const dx = f.x - p.x, dy = f.y - p.y;
-      if (dx * dx + dy * dy <= rr) {
-        p.mass += C.FOOD_MASS;
-        s.food.delete(f.id);
-        s.events.push({ e: 'ate', f: f.id });
-      }
     }
   }
 
@@ -282,12 +228,6 @@ export function tick(s, dtMs) {
       big.mass += small.mass * C.ABSORB;
       kill(s, small, 'eaten', big.name);
     }
-  }
-
-  /* ── 먹이 보충 ── */
-  if (s.opts.food) {
-    let guard = 0;
-    while (s.food.size < C.FOOD_TARGET && guard++ < 40) spawnFood(s);
   }
 
   return s;

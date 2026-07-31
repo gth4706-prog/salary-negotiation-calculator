@@ -61,7 +61,42 @@ html, body {
   letter-spacing: -0.02em;
   line-height: 1.2;
 }
-.tag { margin: 0 0 20px; font-size: 15px; line-height: 1.55; opacity: 0.78; }
+.tag { margin: 0 0 12px; font-size: 15px; line-height: 1.5; opacity: 0.72; }
+
+/* 규칙 세 줄 — 시작 버튼을 누르기 전에 뭘 하는 게임인지 알아야 한다.
+   "만든 사람조차 뭘 해야 할지 모르겠다"는 신고를 받고 넣었다. */
+.rules {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  list-style: none;
+  text-align: left;
+  background: rgba(16, 32, 47, 0.06);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+.rules li { display: flex; align-items: center; gap: 10px; }
+.rules li + li { margin-top: 8px; }
+.rules b { font-weight: 800; }
+
+/* 자리 세 가지를 화면과 같은 색으로 보여준다 —
+   로비에서 본 색을 게임 안에서 그대로 만나야 규칙이 이어진다 */
+.z {
+  flex: none;
+  min-width: 74px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+}
+.z.cold  { background: #CDEFF9; color: #12556B; }
+.z.shade { background: #5E6F92; color: #EAF0FF; }
+.z.sun   { background: #FFE2B0; color: #7A4B12; }
+
+.lead { margin: 0 0 10px; font-size: 14px; font-weight: 700; opacity: 0.8; }
+.rules-more { margin: 10px 0 18px; font-size: 13px; line-height: 1.6; opacity: 0.72; }
 
 .row { display: flex; gap: 8px; margin-bottom: 12px; }
 #nick {

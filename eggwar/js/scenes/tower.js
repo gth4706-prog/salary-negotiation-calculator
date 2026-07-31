@@ -66,6 +66,17 @@ GAME.TowerScene.prototype.create = function (data) {
   //    덮어쓴다. 안 그러면 랭킹에 갔다 돌아와도 "+18 골드"가 계속 붙어 있는다.
   this._cleared = (data && data.cleared) || null;
 
+  // ── 패배 후 즉시 재도전 (2026-07-31 사용자 지시: "재도전 누르면 그 상태에서 바로
+  //   그 라운드를 재도전하게") ────────────────────────────────────────────────
+  //  결과 화면(`scenes/result.js`)의 재도전 버튼이 `{instantRetry:true}` 로 이 씬을 연다.
+  //  위에서 이미 층·캐릭터·시드·이번 층 배치(`this.formation`)를 전부 새로 구했으므로
+  //  (허브에 들어올 때와 완전히 같은 절차) 허브 화면을 그리는 대신 곧장 `_enterBattle`
+  //  로 들어간다 — "허브를 한 번 더 거쳐야 한다"는 번거로움이 요청의 핵심이었다.
+  if (data && data.instantRetry && this.char) {
+    this._enterBattle(floor);
+    return;
+  }
+
   var step = (data && data.step) || 'landing';
   // Phaser 의 `Systems.start(data)` 는 data 가 없으면 **이전 settings.data 를 그대로 둔다.**
   // 그래서 `restart({step:'challenge'})` 뒤에 메뉴를 거쳐 인자 없는 `scene.start('Tower')`
@@ -971,11 +982,55 @@ GAME.TowerScene.prototype._buildChallenge = function () {
 //   영웅/아이템/스킬은 Loading 씬이 `GAME.TowerChar` 에서 직접 읽으므로 여기서
 //   Battle 의 진입 데이터를 만들지 않는다(만들면 두 곳이 같은 계약을 복제하게 된다).
 GAME.TowerScene.prototype._enterBattle = function (floor) {
-  GAME.Tower.pending = this.formation;
-  this.scene.start('TowerLoading', {
-    formationId: this.formation.id,
-    tower: floor,
-    heroKey: this.heroKey
+  this._equipSkillsThenBattle(floor, 0);
+};
+
+// 스킬 장착을 도전 진입 직전 팝업으로 (2026-07-31 사용자 지시: "스킬장착은 대전을
+// 시작할때 팝업창으로 띄워서 거기서 설정하게 해주고"). 상점 능력치 탭의 '스킬 장착'
+// 칸(towershop.js)은 그대로 둔다 — 미리 정해 두고 싶은 사람을 위한 경로다. 이 팝업은
+// **도전 버튼을 누른 직후**에 매번 확인/변경할 기회를 준다.
+// ⚠ Q→W→E→R 을 한 번에 한 슬롯씩 순차로 띄운다(GAME.Modal 은 목록 하나만 보여준다 —
+//   draft-mobile.js 의 5단계 마법사와 같은 패턴). 고를 스킬이 기본 하나뿐인 슬롯은
+//   팝업을 건너뛴다(고를 게 없는데 팝업만 뜨면 그냥 클릭 한 번 더 시키는 것뿐이다).
+//   **닫기/배경 탭으로 스킵해도 다음 슬롯으로 진행한다**(modal.js 의 onClose) — 안 그러면
+//   팝업을 닫는 순간 도전 자체가 멈춘다.
+GAME.TowerScene.prototype._equipSkillsThenBattle = function (floor, slotIdx) {
+  var self = this;
+  var slots = GAME.SKILL_SLOTS;
+  if (!slots || slotIdx >= slots.length) {
+    GAME.Tower.pending = this.formation;
+    this.scene.start('TowerLoading', {
+      formationId: this.formation.id,
+      tower: floor,
+      heroKey: this.heroKey
+    });
+    return;
+  }
+  var slot = slots[slotIdx];
+  var rec = GAME.TowerChar.get();
+  var owned = (rec && rec.ownedSkills[slot]) || [0];
+  if (owned.length <= 1) {
+    this._equipSkillsThenBattle(floor, slotIdx + 1);
+    return;
+  }
+  var idx = rec.picks[slot];
+  var hero = GAME.HEROES[this.heroKey];
+  var items = hero.skillOptions[slot].map(function (o, oi) {
+    return {
+      key: String(oi),
+      name: o.name + (oi === idx ? '  (장착 중)' : ''),
+      note: owned.indexOf(oi) >= 0 ? (o.desc || '') : '미보유 — 상점에서 구매하세요',
+      disabled: owned.indexOf(oi) < 0
+    };
+  });
+  GAME.Modal.open(this, {
+    title: slot + ' 슬롯 스킬 선택',
+    items: items,
+    onPick: function (it) {
+      if (it) GAME.TowerChar.equipSkill(slot, parseInt(it.key, 10));
+      self._equipSkillsThenBattle(floor, slotIdx + 1);
+    },
+    onClose: function () { self._equipSkillsThenBattle(floor, slotIdx + 1); }
   });
 };
 

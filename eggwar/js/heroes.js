@@ -493,6 +493,66 @@ GAME.defaultSkillPicks = function () {
   return { Q: 0, W: 0, E: 0, R: 0 };
 };
 
+// ── 값이 비쌀수록 세다 — **통곡의 탑에서만** (2026-07-31 사용자 지시) ─────────────
+//  "지금 비싼 스킬이 저렴한 스킬 대비 좋은 걸 못 느끼겠어. 그거 업데이트하고,
+//   대전에서는 스킬끼리 비슷한 능력치를 갖게 해주는 게 맞아."
+//
+//  진단: `skillOptions` 는 **탑과 대전이 공유하는 한 벌**이다(대전에는 스킬 구매 개념이
+//  없어 선택지가 늘어난 것만으로 순수 이득이었다). 그래서 표의 숫자를 그냥 올리면
+//  대전이 같이 움직여 "비슷한 능력치" 요구와 정면으로 부딪친다. 실제 격차도 작았다 —
+//  광전사 Q 기준 무료 박치기 7.5dps vs 140골드 부딪쳐깨기 12.0dps(1.6배)뿐이고,
+//  무료 쪽이 돌진 거리는 오히려 더 길었다.
+//
+//  해법: 표는 그대로 두고 **탑 전투에서만** 가격에 비례해 배수를 얹는다.
+//   · 대전(`js/scenes/battle.js` 의 versus 경로)은 이 함수를 부르지 않는다 → 무변화.
+//   · 무료(cost 0) 스킬은 배수 1.0 이라 `tools/regress.js` 의 R-1(무조작 돌파 0%)은
+//     기준선이 그대로다 — 무조작 시뮬은 언제나 기본 픽(0번)을 쓴다.
+//  배수 크기는 실측으로 정했다(`scratchpad/skillprice.js` — 슬롯별 위력지수 표).
+//  처음 잡은 0.0022(200골드 = 피해 1.44배)로는 12개 슬롯 중 여러 곳에서 유료 스킬이
+//  무료 스킬보다 지수가 낮게 나왔다. 지금 값은 200골드에서 **피해 1.68배 · 쿨 0.88배
+//  = 지속 화력 약 1.9배**다 — "비싼 게 좋은 걸 못 느끼겠다"는 신고에 답하는 크기.
+GAME.SKILL_PRICE_SCALE = { dmg: 0.0034, rad: 0.0011, cd: 0.0006, capDmg: 1.90 };
+
+GAME.skillPriceMul = function (cost) {
+  var S = GAME.SKILL_PRICE_SCALE;
+  var c = (typeof cost === 'number' && cost > 0) ? cost : 0;
+  return {
+    dmg: Math.min(S.capDmg, 1 + c * S.dmg),
+    rad: 1 + c * S.rad,
+    cd: Math.max(0.82, 1 - c * S.cd)
+  };
+};
+
+// 스킬 하나에 배수를 얹는다(제자리 수정). 상점 미리보기도 **같은 함수**를 거쳐야
+// 화면의 숫자와 전장의 숫자가 갈리지 않는다.
+GAME.scaleSkillByPrice = function (sk) {
+  if (!sk || !sk.cost) return sk;
+  var m = GAME.skillPriceMul(sk.cost);
+  if (sk.damage) sk.damage = Math.round(sk.damage * m.dmg);
+  if (sk.healNow) sk.healNow = Math.round(sk.healNow * m.dmg);
+  if (sk.shield) sk.shield = Math.round(sk.shield * m.dmg);
+  if (sk.armorAdd) sk.armorAdd = Math.round(sk.armorAdd * m.dmg);
+  // 배수형 버프는 **보너스 부분만** 키운다(1.85 를 통째로 곱하면 폭주한다).
+  if (sk.damageMul && sk.damageMul > 1) sk.damageMul = 1 + (sk.damageMul - 1) * m.dmg;
+  if (sk.radius) sk.radius = Math.round(sk.radius * m.rad);
+  if (sk.dist) sk.dist = Math.round(sk.dist * m.rad);
+  if (sk.cooldown) sk.cooldown = Math.round(sk.cooldown * m.cd);
+  return sk;
+};
+
+GAME.scaleSkillsByPrice = function (skills) {
+  if (!skills) return skills;
+  for (var i = 0; i < skills.length; i++) GAME.scaleSkillByPrice(skills[i]);
+  return skills;
+};
+
+// 미리보기용 — 원본을 안 건드리고 배수를 얹은 사본을 돌려준다.
+GAME.skillPricedCopy = function (opt) {
+  var c = {};
+  for (var k in opt) c[k] = opt[k];
+  return GAME.scaleSkillByPrice(c);
+};
+
 // 영웅도 스탯 막대로 비교할 수 있게 — 유닛과 같은 축을 쓰되 최댓값은 영웅끼리 잡는다.
 GAME.HERO_STAT_DEFS = [
   { key: '공격력', get: function (h) { return h.damage; }, fmt: function (h) { return String(h.damage); } },

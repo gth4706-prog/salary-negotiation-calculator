@@ -38,6 +38,16 @@ GAME.TowerChar = {
   // 아이템 판매 환급률 (요청 14: "되팔면 70% 가격으로")
   SELL_RATE: 0.70,
 
+  // 영웅별 기본 스탯 head-start (2026-07-31 사용자 지시: "전사는 공격력, 궁수는
+  // 이동속도, 파수꾼은 체력과 방어력이 더 있는 상태에서 능력치 업그레이드하게").
+  // 상점 레벨업(statGain)과는 별개의 축이다 — 캐릭터를 만드는 순간부터 항상 붙어 있고,
+  // 레벨업 보너스는 그 위에 더해진다. `statBonus()` 가 이 값을 합산해 반환한다.
+  HERO_BASE: {
+    vanguard: { damage: 20 },
+    ranger:   { speed: 20 },
+    warden:   { hp: 20, armor: 20 }
+  },
+
   statDef: function (key) {
     for (var i = 0; i < this.STAT_DEFS.length; i++) if (this.STAT_DEFS[i].key === key) return this.STAT_DEFS[i];
     return null;
@@ -73,6 +83,16 @@ GAME.TowerChar = {
     if (!rec.picks) rec.picks = { Q: 0, W: 0, E: 0, R: 0 };
     if (typeof rec.gold !== 'number') rec.gold = 0;
     if (typeof rec.climbSeed !== 'number') rec.climbSeed = this._rollSeed();
+    // statGain — 레벨업으로 실제 얻은 누적치(복권형 랜덤이라 lv × add 와 더 이상 같지 않다).
+    // 이 필드가 없는 옛 캐릭터(개편 전)는 예전 확정식(d.add*lv)으로 역산해 채운다 —
+    // 그래야 개편 순간 화면에 뜨는 능력치 총합이 갑자기 줄어드는 일이 없다.
+    if (!rec.statGain) {
+      rec.statGain = {};
+      for (var gi = 0; gi < this.STAT_DEFS.length; gi++) {
+        var gd = this.STAT_DEFS[gi];
+        rec.statGain[gd.key] = gd.add * (rec.stats[gd.key] || 0);
+      }
+    }
     return rec;
   },
 
@@ -125,7 +145,19 @@ GAME.TowerChar = {
     return rec;
   },
 
-  // ── 스탯 레벨업 ───────────────────────────────────────────────────────
+  // ── 스탯 레벨업 — 복권형(2026-07-31 사용자 지시: "구매하면 일정 범위만큼 오르는거지
+  // 대신 꽝은 없도록") ─────────────────────────────────────────────────
+  // 구매 횟수(`rec.stats[key]`)는 그대로 **가격 계단**으로만 쓰고, 실제로 얻는 능력치는
+  // `rec.statGain[key]`에 누적한다. `d.add`를 중앙값으로 0.6~1.4배 범위에서 굴리고
+  // 반올림 후 최소 1을 보장해 "꽝"(0 증가)이 나오지 않게 한다.
+  rollGain: function (key) {
+    var d = this.statDef(key);
+    if (!d) return 0;
+    var roll = d.add * (0.6 + Math.random() * 0.8);
+    var val = Math.round(roll);
+    return val < 1 ? 1 : val;
+  },
+
   levelUp: function (key) {
     var rec = this.get();
     var d = this.statDef(key);
@@ -136,12 +168,16 @@ GAME.TowerChar = {
     if (rec.gold < cost) return null;
     rec.gold -= cost;
     rec.stats[key] = lv + 1;
+    var gain = this.rollGain(key);
+    rec.statGain[key] = (rec.statGain[key] || 0) + gain;
     this._save(rec);
-    return rec;
+    return { rec: rec, gain: gain };
   },
 
   // 전투 시작 때 영웅에게 더할 보정. luck 은 hero.def 에 얹는 스탯이 아니라
   // 골드·치유구역 확률의 배수로 쓰이므로 여기 반환값에는 안 담는다(아래 luckLevel 참조).
+  // 영웅별 기본 head-start(HERO_BASE, 요청 7번)도 여기서 합산한다 — 상점 레벨업과
+  // 같은 반환값에 섞여야 towershop.js 의 스탯바·능력치 탭 총합 표시가 한 곳만 고치면 된다.
   statBonus: function (rec) {
     rec = rec || this.get();
     var out = { damage: 0, hp: 0, armor: 0, speed: 0 };
@@ -149,17 +185,72 @@ GAME.TowerChar = {
     for (var i = 0; i < this.STAT_DEFS.length; i++) {
       var d = this.STAT_DEFS[i];
       if (d.key === 'luck') continue;
-      out[d.key] = d.add * (rec.stats[d.key] || 0);
+      out[d.key] = rec.statGain[d.key] || 0;
+    }
+    var base = this.HERO_BASE[rec.heroKey];
+    if (base) {
+      for (var k in base) if (out[k] !== undefined) out[k] += base[k];
     }
     return out;
   },
 
-  // 능력치의 행운 레벨 + 장신구의 luckAdd 를 합친다. 장비도 행운을 줄 수 있으므로
+  // 게이지의 분모 — "이 스탯을 끝까지 올리면 얼마인가". 상점 하단 스탯바가 `frac:1`
+  // 로 박혀 있어서 **0 인데도 파란 막대가 꽉 차 있었다**(사용자 신고). 막대는 비율을
+  // 말해야 하므로 분모가 필요하다.
+  //  = 영웅 기본 head-start 최대 + 복권 상한(add×max×1.4) + 슬롯별 최고 아이템 합.
+  // 영웅마다 다른 head-start 는 **최대값**을 쓴다 — 분모가 영웅마다 달라지면 같은
+  // 수치가 영웅에 따라 다른 길이로 보여 비교가 안 된다.
+  statCeil: function (key) {
+    if (this._ceil && this._ceil[key] !== undefined) return this._ceil[key];
+    if (!this._ceil) this._ceil = {};
+    var d = this.statDef(key);
+    if (!d) return 1;
+    var total = d.add * d.max * 1.4;
+    var hb = 0, h;
+    for (h in this.HERO_BASE) if (this.HERO_BASE[h][key]) hb = Math.max(hb, this.HERO_BASE[h][key]);
+    total += hb;
+    var CAT = GAME.TowerShopItems;
+    if (CAT) {
+      var field = { damage: 'damageAdd', hp: 'hpAdd', armor: 'armorAdd', speed: 'speedAdd', luck: 'luckAdd' }[key];
+      for (var i = 0; i < CAT.SLOTS.length; i++) {
+        var list = CAT.CATALOG[CAT.SLOTS[i].key] || [], best = 0;
+        for (var j = 0; j < list.length; j++) if (list[j][field]) best = Math.max(best, list[j][field]);
+        total += best;
+      }
+    }
+    this._ceil[key] = Math.max(1, Math.round(total));
+    return this._ceil[key];
+  },
+
+  // 복권 결과의 등급 — 사용자 지시: "이번에 오른게 많이오른건지 적게오른건지
+  // 쪽박·중박·대박·개대박으로 구분해서 알려줘". 굴림 범위가 add 의 0.6~1.4배이므로
+  // 그 안에서의 **상대 위치**로 나눈다(절대 수치로 나누면 스탯마다 기준이 달라진다).
+  // 세계관 어휘(계란 부족 전쟁)에 맞춰 도박 용어 대신 '알' 비유로 이름을 붙였다.
+  GRADES: [
+    { min: 0.00, key: 'dud',   name: '쪽박',   flavor: '작은 알',     color: 0x9a8f7c },
+    { min: 0.35, key: 'ok',    name: '중박',   flavor: '여문 알',     color: 0x5aa9e6 },
+    { min: 0.70, key: 'good',  name: '대박',   flavor: '황금 알',     color: 0xf0a500 },
+    { min: 0.92, key: 'jack',  name: '개대박', flavor: '여명의 알',   color: 0xe8455f }
+  ],
+
+  // gain 이 그 스탯의 굴림 범위 어디쯤인지 → 등급. `levelUp` 이 돌려준 gain 을 넣는다.
+  gradeOf: function (key, gain) {
+    var d = this.statDef(key);
+    if (!d) return this.GRADES[0];
+    var lo = Math.max(1, Math.round(d.add * 0.6)), hi = Math.round(d.add * 1.4);
+    var t = hi > lo ? (gain - lo) / (hi - lo) : 1;
+    if (t < 0) t = 0; if (t > 1) t = 1;
+    var g = this.GRADES[0];
+    for (var i = 0; i < this.GRADES.length; i++) if (t >= this.GRADES[i].min) g = this.GRADES[i];
+    return g;
+  },
+
+  // 능력치의 행운 누적치 + 장신구의 luckAdd 를 합친다. 장비도 행운을 줄 수 있으므로
   // 스탯만 읽으면 장신구로 얻은 행운이 골드·치유구역 확률에 반영되지 않는다.
   luckLevel: function (rec) {
     rec = rec || this.get();
     if (!rec) return 0;
-    var lv = (rec.stats && rec.stats.luck) || 0;
+    var lv = (rec.statGain && rec.statGain.luck) || 0;
     return lv + (this.itemBonus(rec).luck || 0);
   },
 

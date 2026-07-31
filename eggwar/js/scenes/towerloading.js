@@ -88,10 +88,16 @@ GAME.TowerLoadingScene.prototype.create = function () {
   var hero = GAME.HEROES[this.heroKey];
   var bossDef = formation && formation.boss ? GAME.UNITS[formation.boss] : null;
 
-  GAME.UI.label(this, W / 2, H * 0.28, this.tower + '층 진입', GAME.CONFIG.SMALL ? 26 : 34,
-    C.text, 0.5).setOrigin(0.5, 0);
-  GAME.UI.label(this, W / 2, H * 0.28 + 44, hero ? hero.name + ' 출전' : '',
-    GAME.CONFIG.SMALL ? 15 : 17, C.textDim, 0.5).setOrigin(0.5, 0);
+  // 보스 층 강조(디자인 검토 #5) — 이 게임은 이미 어디서나 `bossDef ? 위험색 : 본문색`
+  // 규칙을 쓴다(tower.js 의 여러 화면). 로딩 화면만 그 규칙이 빠져 있었다 — 전투가
+  // 시작되기도 전에 "이번 층은 다르다"가 읽혀야 그 규칙이 완성된다.
+  var bossNumeric = bossDef ? (GAME.UI.IS_LIGHT ? 0xB01F35 : 0xef4444) : C.controller;
+  var titleColor = bossDef ? GAME.UI.TXT.danger : C.text;
+
+  var titleLbl = GAME.UI.label(this, W / 2, H * 0.10, this.tower + '층 진입', GAME.CONFIG.SMALL ? 26 : 34,
+    titleColor, 0.5).setOrigin(0.5, 0);
+  var subLbl = GAME.UI.label(this, W / 2, titleLbl.y + titleLbl.height + 6,
+    hero ? hero.name + ' 출전' : '', GAME.CONFIG.SMALL ? 15 : 17, C.textDim, 0.5).setOrigin(0.5, 0);
 
   var lines = [];
   if (bossDef) lines.push('☠ ' + bossDef.name + ' — ' + bossDef.desc);
@@ -111,13 +117,42 @@ GAME.TowerLoadingScene.prototype.create = function () {
     }
   }
 
-  GAME.UI.label(this, W / 2, H * 0.45, lines.join('\n\n'), GAME.CONFIG.SMALL ? 14 : 16,
-    C.textDim, 0.5).setOrigin(0.5, 0).setAlign('center').setLineSpacing(8)
+  var infoLbl = GAME.UI.label(this, W / 2, subLbl.y + subLbl.height + 18, lines.join('\n\n'),
+    GAME.CONFIG.SMALL ? 14 : 16, C.textDim, 0.5).setOrigin(0.5, 0).setAlign('center').setLineSpacing(8)
     .setWordWrapWidth(Math.min(W - 60, 640));
 
-  var barW = Math.min(W - 80, 480), barH = 14;
-  this._meter = GAME.UI.meter(this, (W - barW) / 2, H * 0.78, barW, barH, {
-    color: C.controller, frac: 0
+  // 이 층 적 실루엣(디자인 검토 #3) — formation.units 는 이미 읽어 온 데이터라
+  // 텍스트로만 쓰고 버리고 있었다. 보스가 있으면 보스를, 없으면 가장 많이 나오는
+  // 유닛을 세 마리 정도 흐릿하게 세워 "무엇과 싸우는지"를 로딩 중에도 보여준다.
+  // ⚠ 실루엣 크기·위치를 **실제로 잰 텍스트 높이**에서 역산한다 — 고정 비율(H*0.62 등)로
+  //   박았더니 문구가 1~3줄로 늘어나는 층에서 위 정보 문단과 겹쳤다(실측으로 잡음,
+  //   eggart 의 "몸통은 sy 기준 위로 3.2r·아래로 1.8r 뻗는다" 규칙을 거꾸로 쓴 것).
+  var barW = Math.min(W - 80, 480), barH = 14, barY = H - Math.max(60, H * 0.10);
+  var bandTop = infoLbl.y + infoLbl.height + 14;
+  var bandBottom = barY - 16;
+  var bandH = Math.max(20, bandBottom - bandTop);
+  var r = bandH / 5;
+  var silY = bandTop + r * 3.2;
+  if (bossDef) {
+    GAME.UI.drawUnitFlat(this.add.graphics().setAlpha(0.92), bossDef,
+      W / 2, silY, GAME.CONFIG.COLORS.strategist, 1, r / (bossDef.radius || 27), -Math.PI / 2);
+  } else if (formation && formation.units && formation.units.length) {
+    var counts = {};
+    formation.units.forEach(function (u) { counts[u.type] = (counts[u.type] || 0) + 1; });
+    var top3 = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; }).slice(0, 3);
+    var silG = this.add.graphics().setAlpha(0.55);
+    var spread = Math.min(W * 0.22, r * 3.6);
+    top3.forEach(function (k, i) {
+      var def = GAME.UNITS[k];
+      if (!def || def.isMine) return;                            // 지뢰류는 서 있는 실루엣이 없다
+      var sx = W / 2 + (i - (top3.length - 1) / 2) * spread;
+      GAME.UI.drawUnitFlat(silG, def, sx, silY, GAME.CONFIG.COLORS.strategist, 1,
+        r * 0.82 / (def.radius || 12), -Math.PI / 2);
+    });
+  }
+
+  this._meter = GAME.UI.meter(this, (W - barW) / 2, barY, barW, barH, {
+    color: bossNumeric, frac: 0
   });
 
   this._done = false;

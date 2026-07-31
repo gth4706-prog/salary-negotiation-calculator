@@ -1,16 +1,27 @@
 // ============================================================================
-//  Egg War — 아이템 아이콘 아트  (무기 3 · 방어구 3 · 신발 3 · 물약 3)
+//  Egg War — 아이템 아이콘 아트
+//  (무기 8 · 방어구 8 · 신발 8 · 물약 3 · 장신구 8 — 2026-08-01 통곡의 탑 상점
+//   확충 때 각 4~8단계 및 장신구 슬롯을 새로 추가했다. 물약 3종은 대전·수성의
+//   탑이 쓰는 옛 카탈로그 그대로다.)
 //  이미지 애셋 없음. Phaser.GameObjects.Graphics 도형 API 만 쓴다.
 //  eggart.js 와 같은 손맛: 재질 팔레트(UI.MAT) + 라이트 테마 잉크 윤곽(UI.inkLayer).
 //
 //  API
 //    GAME.UI.drawItem(g, slotKey, itemKey, cx, cy, size)
 //      g       : Phaser Graphics (또는 eggart 의 잉크 프록시)
-//      slotKey : 'weapon' | 'armor' | 'boots' | 'potion'   (없어도 동작 — itemKey 로 찾는다)
-//      itemKey : 'w1'~'w3' | 'a1'~'a3' | 'b1'~'b3' | 'p1'~'p3'
+//      slotKey : 'weapon' | 'armor' | 'boots' | 'potion' | 'accessory' (없어도 동작 — itemKey 로 찾는다)
+//      itemKey : 'w1'~'w8' | 'a1'~'a8' | 'b1'~'b8' | 'p1'~'p3' | 'c1'~'c8'
 //      cx, cy  : 아이콘 중심
 //      size    : 아이콘 한 변(px). 권장 40~80. 모든 좌표가 이 값의 비율이다.
 //    → 알 수 없는 키는 나무 상자 아이콘을 그린다(빈 칸이 생기지 않게).
+//
+//  ⚠ 4~8단계·장신구는 기존 12종보다 장식 레이어(바느질·잔짚 등 미세 디테일)를
+//    줄였다 — 32칸을 다 감당하면서 실루엣+2톤 대비는 그대로 지키는 선에서 밀도를
+//    낮춘 것이다(디자인 검토 의견 #1·#12). 새 재질색은 이 파일 상단의 `C` 객체
+//    후반부(steel·darkIron·fang·dawnGold·scaleTeal·earthBrown·gilt·fur·windPale·
+//    ghostPale·stormDark·shadowInk·swampGreen)에 몰아 뒀다 — `UI.MAT`(eggart.js
+//    공용 재질)에는 안 더했다. 이 아이템들만 쓰는 색이라 공용 팔레트를 늘리면
+//    다른 화면에 영향이 갈 수 있기 때문이다.
 //
 //  설계 원칙 (eggart.js 의 제1원칙과 같다)
 //   1) **흑백으로 봐도 구분된다.** 같은 칸의 3종은 실루엣부터 다르게 잡았다.
@@ -51,7 +62,32 @@ GAME.UI = GAME.UI || {};
     shellGreen:   0x5F7C3E,   // 거북 등껍질
     shellLite:    0x8FAE5E,
     shellDark:    0x37471F,
-    cloth:        0xC9B487    // 삼베 주머니
+    cloth:        0xC9B487,   // 삼베 주머니
+
+    // ── 2026-08-01 · 통곡의 탑 상점 확장(4~8단계 + 장신구) 전용 색 ──────────────
+    //  기존 12종(물약 포함)과 같은 원칙: 재질이 등급을 말한다. 상위 재질일수록
+    //  1~3단계보다 채도·명도 대비를 키워 "더 좋아 보인다"가 실루엣 없이도 읽히게 했다.
+    steel:        0x9AA4B4,   // 강철 — bronze(청동)보다 차갑고 밝다
+    steelDark:    0x5C6675,
+    darkIron:     0x2E3138,   // 흑철 — iron(0x4b5260)보다 더 어둡다
+    fang:         0xEFE6C8,   // 용골(뼈보다 상아빛이 강하다)
+    fangEdge:     0xC9BB8E,
+    dawnGold:     0xF2B24A,   // '여명' 계열 아이템 공통 강조색(장식용, 실루엣은 재질이 담당)
+    dawnGlow:     0xFFE1A6,
+    scaleTeal:    0x2E6B5E,   // 용비늘
+    scaleTealLite:0x59A38C,
+    earthBrown:   0x6B5230,   // 대지의 갑주
+    earthMoss:    0x7C8F4A,
+    gilt:         0xE8C25A,   // 불멸의 등딱지 금테
+    fur:          0xD9B98A,   // 여우가죽
+    furDark:      0xB08F5E,
+    windPale:     0xE6F3F2,   // 바람 신발
+    ghostPale:    0xD8D6EC,   // 유령 걸음(옅은 보랏빛 흰색)
+    stormDark:    0x2B2E45,   // 폭풍 딛기
+    stormBolt:    0xF4E86A,
+    shadowInk:    0x2A2338,   // 그림자 반지
+    swampGreen:   0x4C6B3A,   // 늪지 정수병
+    swampGlow:    0x9ED14E
   };
 
   function tint(c, f) {
@@ -242,6 +278,108 @@ GAME.UI = GAME.UI || {};
   }
 
   // ============================================================================
+  //  무기 4~8단계 (2026-08-01, 통곡의 탑 상점 확충) — 뼈창 → 강철 손도끼 →
+  //  흑철 대검 → 용골 단검 → 여명의 창.
+  //  ⚠ 기존 12종보다 장식 레이어를 줄였다(디자인 검토 의견 #1 — 실루엣+2톤 우선,
+  //    바느질·잔짚 같은 미세 디테일은 뺐다) — 32칸을 감당할 수 있는 밀도로 낮춘 것이다.
+  // ============================================================================
+
+  // w4 뼈창 : 창이라 실루엣이 검·도끼보다 훨씬 길고 가늘다(축 하나 + 좁은 촉).
+  function w4(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var wood = mat('wood', 0x8a6a45), woodD = mat('woodDark', 0x5a452c);
+    var bone = mat('bone', 0xeae3cd), rope = mat('rope', 0xd9c9a2);
+    var A = ax(-0.40, 0.40, 0.30, -0.40);
+
+    c.line(0.058, wood); c.segP(A(0, 0), A(0.78, 0));           // 긴 자루
+    c.fill(woodD); c.circ(A(0, 0)[0], A(0, 0)[1], 0.045);
+    c.line(0.040, rope); c.segP(A(0.60, -0.02), A(0.68, 0.02)); // 결속
+
+    c.fill(bone);                                                // 뼈 촉(좁고 긴 삼각)
+    c.fillP([A(0.72, -0.075), A(1, 0), A(0.72, 0.075), A(0.80, 0)]);
+    c.line(0.020, tint(bone, -0.30), 0.9); c.segP(A(0.74, 0), A(0.98, 0));
+  }
+
+  // w5 강철 손도끼 : w2(청동 도끼)와 같은 관용이지만 더 넓은 날 + 리벳으로 상급을 낸다.
+  function w5(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var wood = mat('wood', 0x8a6a45), woodD = mat('woodDark', 0x5a452c);
+    var st = C.steel, stD = C.steelDark;
+
+    c.line(0.082, wood); c.seg(-0.34, 0.40, 0.22, -0.34);
+    c.fill(woodD); c.circ(-0.35, 0.41, 0.058);
+
+    var head = [[0.00, -0.10], [0.20, -0.36], [0.46, -0.32], [0.52, -0.06], [0.32, 0.09], [0.10, 0.03]];
+    c.fill(stD); c.fillP(head);
+    c.fill(st);
+    c.fillP([[0.10, -0.12], [0.24, -0.30], [0.40, -0.26], [0.44, -0.09], [0.28, 0.01], [0.14, -0.03]]);
+    c.fill(tint(st, 0.45));                                      // 갈아 놓은 날
+    c.seg(0.46, -0.32, 0.52, -0.06); c.seg(0.52, -0.06, 0.32, 0.09);
+    c.fill(mat('bronze', 0xc9993f));                              // 리벳 2개(강철=상급 표식)
+    c.circ(0.18, -0.16, 0.026); c.circ(0.30, -0.10, 0.026);
+    c.line(0.024, stD); c.strokeP(head);
+  }
+
+  // w6 흑철 대검 : 셋 중 가장 넓고 두꺼운 양날. 검게 벼린 철이라 광택이 거의 없다.
+  function w6(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var leD = mat('leatherDark', 0x5f4630), br = mat('bronze', 0xc9993f);
+    var di = C.darkIron;
+
+    c.line(0.090, leD); c.seg(-0.38, 0.40, -0.20, 0.22);         // 두꺼운 자루
+    c.fill(br); c.circ(-0.40, 0.41, 0.058);
+    c.line(0.075, br); c.seg(-0.29, 0.11, -0.09, 0.31);          // 코등이
+
+    var A = ax(-0.16, 0.14, 0.46, -0.44);
+    var blade = [A(0, 0.130), A(0.50, 0.115), A(0.86, 0.062), A(1, 0),
+                 A(0.86, -0.062), A(0.50, -0.115), A(0, -0.130)];
+    c.fill(di); c.fillP(blade);
+    c.fill(tint(di, 0.20));                                      // 무딘 반광
+    c.fillP([A(0.06, -0.095), A(0.80, -0.045), A(0.42, -0.010), A(0.10, -0.020)]);
+    c.line(0.026, tint(di, 0.60), 0.85); c.strokeP(blade);        // 밝은 테두리(다크테마 대비)
+    c.line(0.022, tint(di, -0.40), 0.9); c.segP(A(0.08, 0), A(0.92, 0));
+  }
+
+  // w7 용골 단검 : 짧고 휘어진 어금니 모양 — 검·도끼·창과 실루엣이 확실히 다르다.
+  function w7(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var leD = mat('leatherDark', 0x5f4630), br = mat('bronze', 0xc9993f);
+    var fg = C.fang, fgE = C.fangEdge;
+
+    c.line(0.060, leD); c.seg(-0.30, 0.34, -0.13, 0.16);
+    c.fill(br); c.circ(-0.31, 0.35, 0.045);
+    c.line(0.055, br); c.seg(-0.22, 0.07, -0.06, 0.23);
+
+    // 완만히 휜 어금니 실루엣(직선 대신 이차곡선을 짧은 폴리라인으로 근사)
+    c.fill(fg);
+    c.fillP([[-0.12, 0.10], [0.02, -0.08], [0.20, -0.28], [0.34, -0.40],
+             [0.30, -0.30], [0.16, -0.14], [0.02, 0.04], [-0.06, 0.14]]);
+    c.fill(tint(fg, -0.14));
+    c.fillP([[-0.05, 0.06], [0.10, -0.14], [0.24, -0.32], [0.16, -0.16], [0.02, 0.00]]);
+    c.line(0.020, fgE, 0.9); c.seg(0.30, -0.30, 0.34, -0.40); c.seg(-0.12, 0.10, -0.06, 0.14);
+  }
+
+  // w8 여명의 창 : w4 뼈창의 확대판 + 청동 소켓·금빛 장식(최상급 표식, 색만이 아니라
+  // 촉 형태를 더 크고 겹장식으로 키워 실루엣으로도 구분된다).
+  function w8(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var wood = mat('wood', 0x8a6a45), br = mat('bronze', 0xc9993f);
+    var fe = mat('feather', 0xe0705a);
+    var A = ax(-0.42, 0.40, 0.28, -0.42);
+
+    c.line(0.062, wood); c.segP(A(0, 0), A(0.66, 0));
+    c.fill(br); c.circ(A(0, 0)[0], A(0, 0)[1], 0.048);
+    featherAt(c, A(0.30, 0)[0], A(0.30, 0)[1], A(0.30, 0)[0] - 0.10, A(0.30, 0)[1] - 0.16, 0.05, fe);
+
+    c.fill(br); c.rrect(A(0.60, -0.05)[0], A(0.60, -0.05)[1], 0.10, 0.10, 0.02); // 청동 소켓
+    c.fill(C.dawnGold);                                          // 넓은 촉
+    c.fillP([A(0.62, -0.11), A(0.98, -0.03), A(1, 0), A(0.98, 0.03), A(0.62, 0.11), A(0.72, 0)]);
+    c.fill(C.dawnGlow, 0.9);
+    c.fillP([A(0.66, -0.06), A(0.92, -0.015), A(0.66, 0.01)]);
+    c.line(0.020, tint(C.dawnGold, -0.35), 0.9); c.segP(A(0.64, 0), A(0.97, 0));
+  }
+
+  // ============================================================================
   //  방어구 — 가죽 → 뼈 → 거북등
   // ============================================================================
 
@@ -326,6 +464,115 @@ GAME.UI = GAME.UI || {};
     c.ell(-0.13, -0.21, 0.26, 0.11);
     c.line(0.030, C.shellDark); c.strokeP(SH);
     c.fill(rope); c.circ(-0.40, 0.10, 0.045); c.circ(0.40, 0.10, 0.045);
+  }
+
+  // ============================================================================
+  //  방어구 4~8단계 — 강철 흉갑 → 흑요석 판금 → 용비늘 갑옷 → 대지의 갑주 →
+  //  불멸의 등딱지. VEST(조끼) 실루엣을 4~5단계까지 이어 쓰고(재질로 등급),
+  //  6~7단계에서 거북등(a3)과 다른 새 실루엣으로 넘어간다(대지·불멸은 등껍질류).
+  // ============================================================================
+
+  // a4 강철 흉갑 : 조끼 위에 판금 두 장(가슴판). 뼈갑옷보다 매끈하고 각지다.
+  function a4(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var le = mat('leather', 0x8d6b4b), leD = mat('leatherDark', 0x5f4630);
+    var st = C.steel, stD = C.steelDark;
+
+    c.fill(tint(le, -0.20)); c.fillP(VEST);
+    c.fill(stD);                                                 // 가슴판 2장
+    c.fillP([[-0.24, -0.24], [-0.02, -0.16], [-0.02, 0.22], [-0.24, 0.16]]);
+    c.fillP([[0.24, -0.24], [0.02, -0.16], [0.02, 0.22], [0.24, 0.16]]);
+    c.fill(st);
+    c.fillP([[-0.20, -0.20], [-0.05, -0.14], [-0.05, 0.10], [-0.20, 0.06]]);
+    c.fillP([[0.20, -0.20], [0.05, -0.14], [0.05, 0.10], [0.20, 0.06]]);
+    c.fill(mat('bronze', 0xc9993f));                              // 중앙 죔쇠 3개
+    c.circ(0, -0.10, 0.030); c.circ(0, 0.03, 0.030); c.circ(0, 0.16, 0.030);
+    c.line(0.028, stD); c.seg(-0.02, -0.16, -0.02, 0.22); c.seg(0.02, -0.16, 0.02, 0.22);
+    c.line(0.032, leD); c.strokeP(VEST);
+  }
+
+  // a5 흑요석 판금 : 강철 흉갑보다 더 넓은 판 + 유리질 광택(무기 w3 와 같은 재질 언어).
+  function a5(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var ob = C.obsidian, obE = C.obsidianEdge;
+
+    c.fill(tint(ob, 0.12)); c.fillP(VEST);
+    var PL = shrink(VEST, 0.90, 0, -0.02);
+    c.fill(ob); c.fillP(PL);
+    c.fill(C.obsidianLite, 0.55);                                // 광택 밴드
+    c.fillP([[-0.20, -0.16], [0.20, -0.16], [0.16, -0.02], [-0.16, -0.02]]);
+    c.fill(tint(ob, 0.20));
+    c.fillP([[-0.14, 0.02], [0.14, 0.02], [0.11, 0.22], [-0.11, 0.22]]);
+    c.line(0.026, obE, 0.95); c.strokeP(PL);                      // 밝은 테두리(다크테마 대비)
+    c.line(0.018, obE, 0.7); c.seg(0, -0.28, 0, 0.28);
+  }
+
+  // a6 용비늘 갑옷 : 겹친 비늘 — hexAt 을 작은 반원 형태로 눕혀 비늘 열을 만든다.
+  function a6(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var teal = C.scaleTeal, tealL = C.scaleTealLite;
+    var row, col, y, x, w;
+
+    c.fill(tint(teal, -0.35)); c.fillP(VEST);
+    for (row = 0; row < 4; row++) {
+      y = -0.20 + row * 0.135;
+      w = 0.30 - row * 0.02;
+      for (col = -1; col <= 1; col++) {
+        x = col * 0.16 + (row % 2 ? 0.08 : 0);
+        if (Math.abs(x) > w) continue;
+        c.fill(row % 2 ? tealL : teal);
+        c.ell(x, y, 0.11, 0.075);
+        c.line(0.014, tint(teal, -0.45), 0.8); c.scirc(x, y, 0.055);
+      }
+    }
+    c.line(0.030, tint(teal, -0.5)); c.strokeP(VEST);
+  }
+
+  // a7 대지의 갑주 : 두꺼운 돌·이끼 판. 거북등(a3)과 다르게 사각 판을 이어붙인 갑주다.
+  function a7(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var eb = C.earthBrown, mo = C.earthMoss;
+    var i, y;
+
+    c.fill(tint(eb, -0.30)); c.fillP(VEST);
+    for (i = 0; i < 3; i++) {                                    // 가로 판 3단
+      y = -0.18 + i * 0.155;
+      c.fill(tint(eb, i * 0.06));
+      c.fillP([[-0.28 + i * 0.02, y], [0.28 - i * 0.02, y], [0.24 - i * 0.02, y + 0.13], [-0.24 + i * 0.02, y + 0.13]]);
+      c.line(0.020, tint(eb, -0.4), 0.85);
+      c.seg(-0.28 + i * 0.02, y, 0.28 - i * 0.02, y);
+    }
+    c.fill(mo, 0.85);                                            // 이끼 얼룩
+    c.ell(-0.16, -0.10, 0.10, 0.06); c.ell(0.14, 0.10, 0.09, 0.055); c.ell(-0.05, 0.22, 0.08, 0.05);
+    c.line(0.032, tint(eb, -0.5)); c.strokeP(VEST);
+  }
+
+  // a8 불멸의 등딱지 : a3(거북등)의 확대·도금판 — 같은 실루엣 계열의 최상급으로
+  // 이어지되 금테와 중앙 보석으로 '불멸'급임을 표시한다.
+  function a8(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var rope = mat('rope', 0xd9c9a2);
+    var gilt = C.gilt;
+    var i, a;
+
+    var SH = [[-0.42, 0.12], [-0.38, -0.15], [-0.21, -0.32], [0, -0.38], [0.21, -0.32],
+              [0.38, -0.15], [0.42, 0.12], [0.23, 0.25], [0, 0.28], [-0.23, 0.25]];
+    c.fill(gilt); c.fillP(SH);                                    // 금테(가장 두껍다)
+    c.fill(C.shellDark); c.fillP(shrink(SH, 0.90, 0, -0.03));
+    c.fill(C.shellGreen); c.fillP(shrink(SH, 0.78, 0, -0.05));
+    hexAt(c, 0, -0.06, 0.145, C.shellLite, C.shellDark);
+    hexAt(c, -0.23, -0.02, 0.11, tint(C.shellLite, -0.12), C.shellDark);
+    hexAt(c, 0.23, -0.02, 0.11, tint(C.shellLite, -0.12), C.shellDark);
+    for (i = -2; i <= 2; i++) {                                  // 금박 테두리 갑판
+      a = i * 0.15;
+      c.fill(tint(gilt, -0.15));
+      c.fillP([[a - 0.06, 0.14], [a + 0.06, 0.14], [a + 0.048, 0.235], [a - 0.048, 0.235]]);
+    }
+    c.fill(mat('bronze', 0xc9993f));                              // 중앙 보석
+    c.circ(0, -0.06, 0.05);
+    c.fill(tint(mat('bronze', 0xc9993f), 0.5)); c.circ(-0.012, -0.075, 0.02);
+    c.line(0.028, tint(gilt, -0.3)); c.strokeP(SH);
+    c.fill(rope); c.circ(-0.42, 0.11, 0.045); c.circ(0.42, 0.11, 0.045);
   }
 
   // ============================================================================
@@ -420,6 +667,90 @@ GAME.UI = GAME.UI || {};
   }
 
   // ============================================================================
+  //  신발 4~8단계 — 여우가죽 장화 → 바람 신발 → 유령 걸음 → 폭풍 딛기 →
+  //  시간을 앞선 신. b2(장화)의 L자 실루엣을 재질만 바꿔 잇다가(b4),
+  //  b3(날개깃)의 '가벼움' 계열로 갈라져(b5~b8) 최상급으로 갈수록 판타지 색이 짙어진다.
+  // ============================================================================
+
+  var BOOT2 = [[-0.14, -0.32], [0.14, -0.32], [0.15, 0.01], [0.36, 0.07], [0.40, 0.20],
+               [-0.18, 0.20], [-0.16, -0.08]];
+
+  // b4 여우가죽 장화 : b2 와 같은 장화 실루엣 + 목에 두른 털.
+  function b4(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var le = mat('leather', 0x8d6b4b), leD = mat('leatherDark', 0x5f4630);
+    var fur = C.fur, furD = C.furDark;
+
+    c.fill(le); c.fillP(BOOT2);
+    c.fill(tint(le, 0.18));
+    c.fillP([[-0.02, -0.28], [0.12, -0.28], [0.13, 0.02], [0.33, 0.07], [0.34, 0.16], [-0.02, 0.16]]);
+    c.fill(fur);                                                  // 털 목
+    c.ell(0, -0.35, 0.22, 0.075);
+    c.fill(furD, 0.6); c.ell(-0.05, -0.36, 0.12, 0.05); c.ell(0.08, -0.34, 0.10, 0.045);
+    c.fill(leD);
+    c.fillP([[-0.19, 0.145], [0.40, 0.185], [0.42, 0.28], [-0.21, 0.28]]);
+    c.line(0.026, leD); c.strokeP(BOOT2);
+  }
+
+  // b5 바람 신발 : 가볍고 트인 샌들형 — 장화보다 실루엣이 훨씬 얇다.
+  function b5(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var le = mat('leather', 0x8d6b4b);
+    var pale = C.windPale, br = mat('bronze', 0xc9993f);
+
+    var SOLE = [[-0.30, 0.14], [0.30, 0.10], [0.34, 0.22], [-0.32, 0.26]];
+    c.fill(tint(le, -0.2)); c.fillP(SOLE);
+    c.line(0.030, br); c.seg(0.02, -0.20, 0.02, 0.12);            // 발등 끈
+    c.seg(-0.14, -0.02, 0.18, -0.06); c.seg(-0.16, 0.06, 0.20, 0.02);
+    featherAt(c, 0.02, -0.20, -0.20, -0.42, 0.045, pale);         // 발목 날개 한 쌍
+    featherAt(c, 0.02, -0.20, 0.24, -0.40, 0.045, tint(pale, -0.1));
+    c.line(0.018, tint(pale, -0.3), 0.85); c.scirc(0.02, -0.20, 0.035);
+  }
+
+  // b6 유령 걸음 : 옅은 반투명 톤 — 발이 아니라 '자국'처럼 보이게 알파를 낮춘다.
+  function b6(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var ph = C.ghostPale;
+
+    c.fill(tint(ph, -0.1), 0.55); c.fillP(BOOT2);
+    c.fill(ph, 0.35);
+    c.fillP([[-0.02, -0.24], [0.11, -0.24], [0.12, 0.04], [0.30, 0.09], [0.31, 0.16], [-0.02, 0.16]]);
+    c.line(0.022, ph, 0.9); c.strokeP(BOOT2);                     // 실선 테두리만으로 실루엣 유지
+    c.fill(ph, 0.5); c.ell(-0.30, 0.24, 0.10, 0.035); c.ell(-0.10, 0.27, 0.08, 0.03); // 흐릿한 발자국
+  }
+
+  // b7 폭풍 딛기 : 어두운 장화 + 번개 자국(2톤 대비가 확실한 밝은 지그재그).
+  function b7(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var sd = C.stormDark, bolt = C.stormBolt;
+
+    c.fill(sd); c.fillP(BOOT2);
+    c.fill(tint(sd, 0.22));
+    c.fillP([[-0.02, -0.28], [0.12, -0.28], [0.13, 0.02], [0.33, 0.07], [0.34, 0.16], [-0.02, 0.16]]);
+    c.line(0.026, bolt, 0.95);                                    // 번개 지그재그
+    c.segP([-0.02, -0.24], [0.06, -0.06]); c.segP([0.06, -0.06], [-0.02, 0.02]); c.segP([-0.02, 0.02], [0.08, 0.16]);
+    c.line(0.024, tint(sd, 0.5), 0.9); c.strokeP(BOOT2);          // 밝은 테두리(다크테마 대비)
+  }
+
+  // b8 시간을 앞선 신 : b3(깃털 장화)의 확대판 — 깃털 5장을 부채꼴로 펼치고 금테로
+  // 최상급을 표시한다(b3 은 3장 + 청동테).
+  function b8(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var le = mat('leather', 0x8d6b4b);
+    var gilt = C.gilt, fe = C.dawnGold;
+    var tips = [[-0.50, -0.22], [-0.50, -0.02], [-0.46, 0.16], [-0.38, 0.32], [-0.26, 0.42]];
+    var i;
+
+    for (i = 0; i < tips.length; i++) {
+      featherAt(c, -0.11, 0.05, tips[i][0], tips[i][1], 0.052, i % 2 ? fe : tint(fe, -0.2));
+    }
+    c.fill(tint(le, 0.14)); c.fillP(BOOT2);
+    c.fill(gilt); c.rrect(-0.16, -0.36, 0.32, 0.10, 0.032);       // 금테
+    c.fill(tint(gilt, 0.4)); c.circ(0, -0.31, 0.028);
+    c.line(0.026, tint(gilt, -0.3), 0.9); c.strokeP(BOOT2);
+  }
+
+  // ============================================================================
   //  물약 — 옹달샘 물 → 말린 열매 → 약초 주머니
   // ============================================================================
 
@@ -504,6 +835,130 @@ GAME.UI = GAME.UI || {};
     c.line(0.030, tint(C.cloth, -0.45)); c.strokeP(BAG);
   }
 
+  // ============================================================================
+  //  장신구 — 완전히 새로운 슬롯(2026-08-01, 통곡의 탑 상점). 무기/방어구/신발과
+  //  달리 이어받을 실루엣이 없어서 **목에 거는 부적** 계열을 새 기본형으로 잡았다
+  //  (c6 만 반지라 예외 — 걸 곳이 없는 물건이라 실루엣 자체를 바꿨다).
+  //  공통 부위: 끈(rope) + 매듭 하나 + 늘어진 부적/이빨/깃 — 무엇이 붙었는지만 바뀐다.
+  // ============================================================================
+
+  function cordAt(c, rope) {
+    c.line(0.040, rope);                                         // V자 끈
+    c.seg(0, -0.30, -0.22, -0.10); c.seg(0, -0.30, 0.22, -0.10);
+    c.fill(tint(rope, -0.25)); c.circ(0, -0.30, 0.032);           // 목뒤 매듭
+  }
+
+  // c1 부적 목걸이 : 가장 낮은 등급 — 나무 원판 부적 하나.
+  function c1(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var rope = mat('rope', 0xd9c9a2), wood = mat('wood', 0x8a6a45), woodD = mat('woodDark', 0x5a452c);
+    cordAt(c, rope);
+    c.fill(wood); c.circ(0, 0.10, 0.16);
+    c.fill(tint(wood, 0.22)); c.circ(-0.03, 0.07, 0.11);
+    c.line(0.020, woodD, 0.9); c.scirc(0, 0.10, 0.16);
+    c.line(0.016, woodD, 0.8); c.seg(-0.08, 0.02, 0.08, 0.18); c.seg(0.08, 0.02, -0.08, 0.18); // 새김
+  }
+
+  // c2 늑대 이빨 목걸이 : 나란히 매단 이빨 3개 — 실루엣이 뾰족뾰족하다.
+  function c2(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var rope = mat('rope', 0xd9c9a2), bone = mat('bone', 0xeae3cd);
+    var i, x;
+    cordAt(c, rope);
+    for (i = -1; i <= 1; i++) {
+      x = i * 0.13;
+      c.fill(bone);
+      c.fillP([[x - 0.055, 0.03], [x + 0.055, 0.03], [x + 0.025, 0.24 - Math.abs(i) * 0.05], [x, 0.28 - Math.abs(i) * 0.05], [x - 0.025, 0.24 - Math.abs(i) * 0.05]]);
+      c.line(0.016, tint(bone, -0.3), 0.85);
+      c.seg(x - 0.04, 0.06, x - 0.01, 0.20 - Math.abs(i) * 0.05);
+    }
+  }
+
+  // c3 매의 깃털 장식 : featherAt 재사용 — 이 슬롯에서 유일하게 깃털이 실루엣을 정한다.
+  function c3(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var rope = mat('rope', 0xd9c9a2), fe = mat('feather', 0xe0705a);
+    cordAt(c, rope);
+    featherAt(c, 0, 0.02, -0.08, 0.30, 0.075, tint(fe, -0.15));
+    featherAt(c, 0, 0.02, 0.10, 0.34, 0.08, fe);
+    c.fill(tint(rope, -0.2)); c.circ(0, 0.02, 0.028);
+  }
+
+  // c4 곰 발톱 부적 : 굽은 발톱 3개를 부채꼴로 매단다 — 늑대 이빨보다 굵고 휘었다.
+  function c4(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var rope = mat('rope', 0xd9c9a2), bone = mat('bone', 0xeae3cd);
+    var claws = [[-0.15, 0.30], [0, 0.34], [0.15, 0.30]];
+    var i, p;
+    cordAt(c, rope);
+    for (i = 0; i < claws.length; i++) {
+      p = claws[i];
+      c.fill(tint(bone, -0.06));
+      c.fillP([[0, 0.02], [p[0] * 0.6, p[1] * 0.55], [p[0], p[1]], [p[0] * 0.75, p[1] * 0.7]]);
+      c.line(0.016, tint(bone, -0.35), 0.85); c.segP([p[0] * 0.7, p[1] * 0.62], [p[0], p[1]]);
+    }
+  }
+
+  // c5 심장 조각 : 붉은 결정 조각 — 무기/방어구에 없는 '보석' 실루엣을 처음 도입한다.
+  function c5(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var rope = mat('rope', 0xd9c9a2);
+    var red = C.berry, redL = C.berryLite;
+    cordAt(c, rope);
+    c.fill(tint(red, -0.2));
+    c.fillP([[0, 0.00], [0.13, 0.10], [0.09, 0.30], [0, 0.38], [-0.09, 0.30], [-0.13, 0.10]]);
+    c.fill(red);
+    c.fillP([[0, 0.03], [0.09, 0.11], [0.06, 0.27], [0, 0.32], [-0.06, 0.27], [-0.09, 0.11]]);
+    c.fill(redL, 0.85); c.fillP([[0, 0.05], [0.05, 0.12], [0.01, 0.22], [-0.03, 0.14]]);  // 결정 광택
+    c.line(0.018, tint(red, 0.4), 0.9); c.seg(0, 0.00, 0, 0.38);   // 밝은 능선(다크테마 대비)
+  }
+
+  // c6 그림자 반지 : 이 슬롯의 유일한 예외 — 목걸이가 아니라 고리. 실루엣부터 다르다.
+  // ⚠ `strokeCircle`(두꺼운 선)로 띠를 그린다 — `fillCircle` 두 겹으로 '구멍'을 내려면
+  //   배경색을 알아야 하는데(다크/라이트 테마마다 다르다), 굵은 원 테두리는 안쪽이
+  //   원래 배경 그대로 비쳐서 테마와 무관하게 항상 고리로 보인다.
+  function c6(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var sh = C.shadowInk;
+    c.line(0.115, sh, 1); c.scirc(0, 0.06, 0.18);                 // 띠(두꺼운 원)
+    c.line(0.030, tint(sh, 0.55), 0.7); c.scirc(-0.03, 0.01, 0.16); // 옅은 광택 테
+    c.fill(mat('bronze', 0xc9993f)); c.circ(0, -0.15, 0.040);     // 반지 위 보석
+    c.fill(tint(mat('bronze', 0xc9993f), 0.5)); c.circ(-0.01, -0.16, 0.015);
+    c.line(0.018, tint(sh, -0.3), 0.9); c.scirc(0, -0.15, 0.040);
+  }
+
+  // c7 늪지 정수병 : 물약 p1(옹달샘)과 같은 호리병 문법이되 늪지색으로 슬롯을 구분한다
+  // (장신구 칸에 있으므로 물약과 헷갈리지 않게 끈으로 매단다 — 손에 드는 물건이 아니다).
+  function c7(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var rope = mat('rope', 0xd9c9a2), clay = mat('clay', 0xb5794a);
+    var sw = C.swampGreen, swG = C.swampGlow;
+    cordAt(c, rope);
+    c.fill(tint(clay, -0.3)); c.rect(-0.045, 0.00, 0.09, 0.10);
+    c.fill(clay); c.circ(0, 0.24, 0.145);
+    c.fill(sw); c.circ(-0.02, 0.20, 0.09);
+    c.fill(swG, 0.7); c.ell(-0.05, 0.15, 0.04, 0.03);
+    c.line(0.026, tint(rope, 0.1)); c.seg(-0.06, 0.00, 0.06, 0.00);
+  }
+
+  // c8 여명의 인장 : 가장 화려하다 — 둥근 인장(도장) 펜던트 + 광선 장식, 금테.
+  function c8(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var rope = mat('rope', 0xd9c9a2);
+    var gilt = C.gilt, gold = C.dawnGold, glow = C.dawnGlow;
+    var i, a;
+    cordAt(c, rope);
+    c.fill(gilt); c.circ(0, 0.16, 0.185);                         // 금테
+    c.fill(gold); c.circ(0, 0.16, 0.135);
+    for (i = 0; i < 8; i++) {                                     // 광선 장식(여명 = 새벽빛)
+      a = (Math.PI * 2 / 8) * i;
+      c.line(0.020, glow, 0.85);
+      c.seg(Math.cos(a) * 0.09, 0.16 + Math.sin(a) * 0.09, Math.cos(a) * 0.16, 0.16 + Math.sin(a) * 0.16);
+    }
+    c.fill(glow); c.circ(0, 0.16, 0.05);
+    c.line(0.022, tint(gilt, -0.3), 0.9); c.scirc(0, 0.16, 0.185);
+  }
+
   // ── 알 수 없는 키 — 나무 상자 ────────────────────────────────
   function box(g, cx, cy, U) {
     var c = ctx(g, cx, cy, U);
@@ -520,10 +975,21 @@ GAME.UI = GAME.UI || {};
   // ============================================================================
   //  진입점
   // ============================================================================
-  var DRAW = { w1: w1, w2: w2, w3: w3, a1: a1, a2: a2, a3: a3,
-               b1: b1, b2: b2, b3: b3, p1: p1, p2: p2, p3: p3 };
+  var DRAW = {
+    w1: w1, w2: w2, w3: w3, w4: w4, w5: w5, w6: w6, w7: w7, w8: w8,
+    a1: a1, a2: a2, a3: a3, a4: a4, a5: a5, a6: a6, a7: a7, a8: a8,
+    b1: b1, b2: b2, b3: b3, b4: b4, b5: b5, b6: b6, b7: b7, b8: b8,
+    p1: p1, p2: p2, p3: p3,
+    c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, c6: c6, c7: c7, c8: c8
+  };
 
-  UI.ITEM_ART_KEYS = ['w1', 'w2', 'w3', 'a1', 'a2', 'a3', 'b1', 'b2', 'b3', 'p1', 'p2', 'p3'];
+  UI.ITEM_ART_KEYS = [
+    'w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8',
+    'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8',
+    'b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7', 'b8',
+    'p1', 'p2', 'p3',
+    'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8'
+  ];
 
   //  g 에만 그린다. 반환값 없음 · 상태 없음.
   UI.drawItem = function (g, slotKey, itemKey, cx, cy, size) {

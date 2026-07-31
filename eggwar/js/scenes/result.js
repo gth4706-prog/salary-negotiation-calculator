@@ -203,7 +203,10 @@ GAME.ResultScene.prototype.create = function () {
   else if (this.defendMode) b1 = '배치 고쳐 다시';
   else b1 = '같은 진형에 다시 도전';
   GAME.UI.button(this, W / 2, btnTop, bw, u * 7, b1, function () {
-    if (self.tower) self.scene.start('Tower');
+    // 2026-07-31 — 이 화면의 `self.tower` 분기는 **패배했을 때만** 온다(승리는
+    // `_skipToNextFloor` 가 이 화면 자체를 건너뛴다). 그래서 여기는 항상 "같은 층 재도전"
+    // 이고, 허브를 한 번 더 거치지 않고 `instantRetry` 로 곧장 그 층 전투로 들어간다.
+    if (self.tower) self.scene.start('Tower', { step: 'challenge', instantRetry: true });
     else if (self.defendTower) self.scene.start('DefendTower',
       { cleared: self.winner !== 'controller' });   // 막아냈으면 성장 화면부터 연다
     else if (self.versus) self.scene.start('Versus');
@@ -332,7 +335,10 @@ GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
   else b1 = '같은 진형에 다시 도전';
 
   UI.button(this, rx + rw / 2, mainTop + mainH / 2, rw, mainH, b1, function () {
-    if (self.tower) self.scene.start('Tower');
+    // 2026-07-31 — 이 화면의 `self.tower` 분기는 **패배했을 때만** 온다(승리는
+    // `_skipToNextFloor` 가 이 화면 자체를 건너뛴다). 그래서 여기는 항상 "같은 층 재도전"
+    // 이고, 허브를 한 번 더 거치지 않고 `instantRetry` 로 곧장 그 층 전투로 들어간다.
+    if (self.tower) self.scene.start('Tower', { step: 'challenge', instantRetry: true });
     else if (self.defendTower) self.scene.start('DefendTower',
       { cleared: self.winner !== 'controller' });   // 막아냈으면 성장 화면부터 연다
     else if (self.versus) self.scene.start('Versus');

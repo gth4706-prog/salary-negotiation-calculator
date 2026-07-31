@@ -1305,11 +1305,73 @@ GAME.UI = GAME.UI || {};
   //  칼류는 정면일수록 **더 세워 든다** — 옆으로만 밀면 눈앞을 가로지르는 각이 남는다.
   UI.GEAR_FACE_UP = 0.85;
 
+  // ── 무기 등급 (2026-07-31, 사용자 지시: "아이템을 장착하면 오른쪽 캐릭터 화면에서도
+  //    바뀌고 실제 인게임에서도 그 무기가 보이길 원해. 비싼 무기일수록 화려한 디자인이나
+  //    화려한 효과를 넣어줘") ──────────────────────────────────────────────────
+  //  바뀌는 것은 **재질(색) · 형태(크기·장식) · 광휘(반짝임)** 셋이다:
+  //    돌 → 청동 → 흑요석 → 뼈 → 강철 → 흑철 → 용골 → 여명.
+  //    상점 카탈로그(js/towershopitems.js)의 이름 순서 그대로다.
+  //
+  //  ⚠ **무기 종류 자체는 안 바꾼다** (2026-07-31 사용자 지시: "많이는 아니더라도").
+  //    이 파일의 제1원칙이 "종류는 실루엣이 전담한다"라, 광전사가 등급마다 활을 들거나
+  //    하면 정체성이 무너지고 색맹 대비 규율도 같이 깨진다. 대신 **같은 무기가 자란다** —
+  //    날이 길고 두꺼워지고, 날밑이 커지고, 상위 등급은 날개·보석·톱니가 붙는다.
+  //    실루엣의 '종류'는 그대로이면서 '급'은 한눈에 갈린다.
+  //
+  //  형태 값의 뜻:
+  //    len   날/팔 길이 배수      wide  두께 배수
+  //    grd   날밑·테두리 배수     orn   장식 단계(0 없음 · 1 보석 · 2 +날개 · 3 +톱니/가시)
+  //
+  //  ⚠ 등급 0(= 아무것도 안 낌)은 아무것도 안 건드린다 — 대전·수성의 탑·카드 화면이
+  //    전부 등급을 안 넘기므로 **픽셀 단위로 예전과 같은 그림**이 나온다.
+  //  ⚠ `len` 을 올려도 파수꾼 창끝은 `tipCap`(판정 사거리) 안에 묶인다 — 아래 hookShield
+  //    참조. 그림이 사거리보다 길어지면 회피 게임이 거짓말을 한다(v0.81 에서 겪은 사고).
+  UI.GEAR_TIERS = [
+    // `iron` 도 같이 바꾼다 — 파수꾼의 갈고리 방패(hookShield)는 판을 `iron` 으로 칠하므로
+    // 그 키를 빼면 **파수꾼만 등급이 거의 안 보인다**(자루 구슬 색만 바뀐다 — 실측).
+    null,                                                                     // 0 · 맨손(기본)
+    { mat: { blade: 0x9aa3ad, bladeDark: 0x6d7681, bronze: 0x8a7a5c, iron: 0x6e7681 },    // 1 돌
+      len: 0.88, wide: 1.10, grd: 0.80, orn: 0 },
+    { mat: { blade: 0xd6a44a, bladeDark: 0x8f6a22, bronze: 0xb07f2e, iron: 0x8a6526 },    // 2 청동
+      len: 0.94, wide: 1.04, grd: 0.92, orn: 0 },
+    { mat: { blade: 0x585070, bladeDark: 0x2e2942, bronze: 0x8b7ab0, iron: 0x3a3352 },    // 3 흑요석
+      len: 1.00, wide: 0.90, grd: 0.96, orn: 1 },
+    { mat: { blade: 0xeae3cd, bladeDark: 0xb3a888, bronze: 0xc0aa72, iron: 0xa89c7e },    // 4 뼈
+      len: 1.05, wide: 1.00, grd: 1.00, orn: 1 },
+    { mat: {}, len: 1.08, wide: 1.02, grd: 1.06, orn: 1 },                    // 5 강철 = 기본 색
+    { mat: { blade: 0x79828f, bladeDark: 0x3a414d, bronze: 0xb3bcc9, iron: 0x2f3640 },    // 6 흑철
+      glow: 0xcfe0f5, spark: 2, len: 1.13, wide: 1.10, grd: 1.20, orn: 2 },
+    { mat: { blade: 0xf6ecd2, bladeDark: 0xc3a973, bronze: 0xe0b243, iron: 0x9a7f45 },    // 7 용골
+      glow: 0xffd98a, spark: 3, len: 1.19, wide: 1.06, grd: 1.30, orn: 2 },
+    { mat: { blade: 0xffe6a8, bladeDark: 0xe3a733, bronze: 0xfff3cd, iron: 0xc08c22 },    // 8 여명
+      glow: 0xffc94d, spark: 5, len: 1.26, wide: 1.16, grd: 1.45, orn: 3 }
+  ];
+
+  // 상점 아이템 키('w1'…'w8') → 등급 숫자. 카탈로그를 아트가 직접 읽지 않게 하는 얇은 변환.
+  UI.gearTierOf = function (itemKey) {
+    if (!itemKey) return 0;
+    var m = /^[a-z](\d+)$/.exec(String(itemKey));
+    return m ? Math.max(0, Math.min(UI.GEAR_TIERS.length - 1, parseInt(m[1], 10))) : 0;
+  };
+
   //  atk : -1(끝까지 당김) … 0(정지) … +1(때린 순간). 0 이면 지금과 픽셀 단위로 동일하다.
   //  guard/gearDrop/spin/tipCap 은 **전투 모션 전용 선택 인자**다.
   //  안 넘기면 전부 0/무제한이라 예전과 픽셀 단위로 같은 그림이 나온다(카드 화면 무변경).
-  UI.eggGear = function (g, kind, sx, by, r, color, a, D, reach, atk, guard, gearDrop, spin, tipCap) {
+  UI.eggGear = function (g, kind, sx, by, r, color, a, D, reach, atk, guard, gearDrop, spin, tipCap, tier) {
     if (!kind) return;
+    // ⚠ 아래 본문 전체가 `M`(=UI.MAT)을 직접 읽는다. 등급별 재질을 무기 종류마다
+    //   손으로 갈아 끼우면 12종 × 8등급을 다 건드려야 하고 한 곳만 빠져도 조용히 어긋난다.
+    //   그래서 **이 함수 안에서만 `M` 을 가린다** — 등급이 없으면 원본 그대로다.
+    var TI = UI.GEAR_TIERS[tier || 0];
+    var M = UI.MAT;
+    if (TI) {
+      M = {};
+      for (var mk in UI.MAT) M[mk] = UI.MAT[mk];
+      for (var tk in TI.mat) M[tk] = TI.mat[tk];
+    }
+    // 형태 배수 — 등급이 없으면 전부 1(=예전 그림과 픽셀 단위로 동일).
+    var tLen = (TI && TI.len) || 1, tWide = (TI && TI.wide) || 1;
+    var tGrd = (TI && TI.grd) || 1, tOrn = (TI && TI.orn) || 0;
     D = UI.asDir(D);
     reach = (typeof reach === 'number' && isFinite(reach)) ? reach : 1;
     atk = (typeof atk === 'number' && isFinite(atk)) ? atk : 0;
@@ -1328,6 +1390,30 @@ GAME.UI = GAME.UI || {};
     var Y = function (f, p, up) { return by + drop + fy * r * f * reach + py * r * LP(p) - r * (up || 0); };
     var hx = X(0.82, 0.30), hy = Y(0.82, 0.30, 0.05);   // 주손 위치
     var side = D.lat >= 0 ? 1 : -1;
+
+    // 고급 무기의 광휘 — 무기 종류별 그림을 건드리지 않고 **손 위치에** 얹는다.
+    // 종류마다 날 끝 좌표가 다른데 거기에 맞춰 효과를 짜면 12종을 따로 손봐야 하고,
+    // 하나만 빠져도 "이 무기만 안 빛난다"가 된다. 손은 모든 무기가 공유하는 한 점이다.
+    // 무기 **뒤에** 깔리도록 여기서(본체 그리기 전에) 그린다.
+    if (TI && TI.spark) {
+      // ⚠ **채워진 광휘 원은 못 쓴다.** 두 번 시도해서 두 번 다 실패했다:
+      //   0.95r 은 계란 몸을 통째로 덮었고, 0.46r 로 줄여도 라이트 테마의 잉크 윤곽
+      //   (`UI.inkLayer`)이 그 원에도 테두리를 둘러 **회갈색 얼룩**으로 보였다
+      //   (사냥꾼 T6~T8 이 활 위에 때가 묻은 것처럼 나왔다 — 실측 스크린샷).
+      //   그래서 면이 아니라 **점**으로만 말한다. 작은 점은 윤곽이 둘려도 구슬로 읽힌다.
+      var gox = hx - sx, goy = hy - by;
+      var gol = Math.sqrt(gox * gox + goy * goy) || 1;
+      var gcx = hx + (gox / gol) * r * 0.30, gcy = hy + (goy / gol) * r * 0.30 - r * 0.16;
+      // 반짝이 — 시간이 아니라 **위치**로 흩는다(렌더 전용이라 상태를 안 만든다).
+      var sd = (sx * 0.7 + by * 1.3);
+      for (var si = 0; si < TI.spark; si++) {
+        var sa = sd * 0.05 + si * (Math.PI * 2 / TI.spark);
+        var srr = r * (0.42 + 0.20 * ((si % 2) ? 1 : 0.35));
+        g.fillStyle(TI.glow, (0.78 + 0.18 * (si % 2)) * a);
+        g.fillCircle(gcx + Math.cos(sa) * srr, gcy + Math.sin(sa) * srr * 0.8,
+                     Math.max(0.8, r * 0.062));
+      }
+    }
 
     // ── 칼날 방향 ────────────────────────────────────────────────────────
     //  지면 정면축(fx, fy)만으로 무기를 뻗으면 **관객 쪽·반대쪽을 볼 때 길이가 0 으로 눌린다.**
@@ -1394,14 +1480,33 @@ GAME.UI = GAME.UI || {};
     } else if (kind === 'bow' || kind === 'longbow') {   // 궁수/사냥꾼 — 세로 C
       var big = kind === 'longbow' ? 1.30 : 1.0;
       var cxp = X(0.72, 0.10), cyp = Y(0.72, 0.10, 0.10);
-      var h = r * 1.05 * big, bulge = r * 0.46 * big * side;
+      // 등급이 오르면 활채가 길어지고(len) 굵어지며(wide) 더 깊게 휜다.
+      var h = r * 1.05 * big * tLen, bulge = r * 0.46 * big * side * (1 + (tLen - 1) * 0.6);
       var arc = [], k, t;
       for (k = 0; k <= 6; k++) {
         t = -1 + (2 / 6) * k;
         arc.push({ x: cxp + bulge * (1 - t * t), y: cyp + h * t });
       }
-      g.lineStyle(lw(0.13 * big), M.wood, a);
+      g.lineStyle(lw(0.13 * big * tWide), M.wood, a);
       g.strokePoints(arc, false, false);
+      if (tOrn >= 1) {                          // 활채 중앙 손잡이 감개
+        g.lineStyle(lw(0.16 * big * tWide), M.bronze, a);
+        g.lineBetween(cxp + bulge * 0.86, cyp - h * 0.16, cxp + bulge * 0.86, cyp + h * 0.16);
+      }
+      if (tOrn >= 2) {                          // 양 끝 고자 장식
+        g.fillStyle(M.bronze, a);
+        g.fillCircle(arc[0].x, arc[0].y, Math.max(0.9, r * 0.10 * tGrd));
+        g.fillCircle(arc[6].x, arc[6].y, Math.max(0.9, r * 0.10 * tGrd));
+      }
+      if (tOrn >= 3) {                          // 활채 바깥으로 뻗은 깃 장식(위·아래)
+        g.fillStyle(M.blade, a);
+        for (var bw = 0; bw <= 6; bw += 6) {
+          var bo = bw === 0 ? -1 : 1;
+          g.fillTriangle(arc[bw].x, arc[bw].y,
+                         arc[bw].x - bulge * 0.62, arc[bw].y + h * 0.20 * bo,
+                         arc[bw].x + bulge * 0.16, arc[bw].y + h * 0.30 * bo);
+        }
+      }
       //  활은 휘두르는 게 아니라 **당겼다 놓는다** — atk<0 시위를 끌고, atk>0 화살이 날아간다.
       var pull = atk < 0 ? -atk : 0, shot = atk > 0 ? atk : 0;
       var apex = cxp - bulge * (0.28 + pull * 0.80 - shot * 0.16);
@@ -1539,20 +1644,55 @@ GAME.UI = GAME.UI || {};
       //  atk 로 머리 위(-1) ↔ 앞으로 내려찍기(+1) 사이를 쓸어내린다. 대검이라 각이 더 크다.
       var gsDir = bladeDir(1.55 - atk * 1.90);
       var gsGripX = hx - gsDir.x * r * 0.30, gsGripY = hy - gsDir.y * r * 0.30;
+      // 자루에 직교하는 축(날밑·날개·톱니가 전부 이 축을 쓴다)
+      var gsPx = gsDir.y, gsPy = -gsDir.x;
       // 두 손 자루
       g.lineStyle(lw(0.20), M.woodDark, a);
       g.lineBetween(gsGripX - gsDir.x * r * 0.55, gsGripY - gsDir.y * r * 0.55, gsGripX, gsGripY);
       g.fillStyle(M.bronze, a);              // 자루 끝 구슬
-      g.fillCircle(gsGripX - gsDir.x * r * 0.62, gsGripY - gsDir.y * r * 0.62, Math.max(1.2, r * 0.15));
-      // 날 — 몸 높이의 2배 남짓
+      var gsPomX = gsGripX - gsDir.x * r * 0.62, gsPomY = gsGripY - gsDir.y * r * 0.62;
+      g.fillCircle(gsPomX, gsPomY, Math.max(1.2, r * 0.15 * tGrd));
+      // 날 — 몸 높이의 2배 남짓. 등급이 오르면 길고 두꺼워진다.
+      var gsLen = r * 2.15 * tLen, gsW0 = r * 0.34 * tWide, gsW1 = r * 0.17 * tWide;
       taperBlade(gsGripX + gsDir.x * r * 0.34, gsGripY + gsDir.y * r * 0.34,
-                 gsDir, r * 2.15, r * 0.34, r * 0.17, M.blade);
+                 gsDir, gsLen, gsW0, gsW1, M.blade);
       // 날밑 — 자루에 직교하는 굵은 막대
-      g.lineStyle(lw(0.17), M.bronze, a);
-      g.lineBetween(gsGripX + gsDir.y * r * 0.52 + gsDir.x * r * 0.30,
-                    gsGripY - gsDir.x * r * 0.52 + gsDir.y * r * 0.30,
-                    gsGripX - gsDir.y * r * 0.52 + gsDir.x * r * 0.30,
-                    gsGripY + gsDir.x * r * 0.52 + gsDir.y * r * 0.30);
+      var gsG = r * 0.52 * tGrd;
+      g.lineStyle(lw(0.17 * tGrd), M.bronze, a);
+      g.lineBetween(gsGripX + gsPx * gsG + gsDir.x * r * 0.30,
+                    gsGripY + gsPy * gsG + gsDir.y * r * 0.30,
+                    gsGripX - gsPx * gsG + gsDir.x * r * 0.30,
+                    gsGripY - gsPy * gsG + gsDir.y * r * 0.30);
+      if (tOrn >= 1) {                       // 자루 끝 보석
+        g.fillStyle(M.blade, a);
+        g.fillCircle(gsPomX, gsPomY, Math.max(0.8, r * 0.075 * tGrd));
+      }
+      if (tOrn >= 2) {                       // 날밑 날개 — 위로 젖혀진 두 갈래
+        var gsWx = gsGripX + gsDir.x * r * 0.30, gsWy = gsGripY + gsDir.y * r * 0.30;
+        g.fillStyle(M.bronze, a);
+        for (var gw = -1; gw <= 1; gw += 2) {
+          g.fillTriangle(gsWx + gsPx * gsG * gw, gsWy + gsPy * gsG * gw,
+                         gsWx + gsPx * gsG * 1.42 * gw + gsDir.x * r * 0.34,
+                         gsWy + gsPy * gsG * 1.42 * gw + gsDir.y * r * 0.34,
+                         gsWx + gsPx * gsG * 0.55 * gw + gsDir.x * r * 0.40,
+                         gsWy + gsPy * gsG * 0.55 * gw + gsDir.y * r * 0.40);
+        }
+      }
+      if (tOrn >= 3) {                       // 날 한가운데 홈(피홈) + 날끝 가시
+        g.lineStyle(Math.max(0.9, r * 0.06), M.bladeDark, a * 0.85);
+        g.lineBetween(gsGripX + gsDir.x * r * 0.55, gsGripY + gsDir.y * r * 0.55,
+                      gsGripX + gsDir.x * (r * 0.34 + gsLen * 0.82),
+                      gsGripY + gsDir.y * (r * 0.34 + gsLen * 0.82));
+        var gsTx = gsGripX + gsDir.x * (r * 0.34 + gsLen * 0.55);
+        var gsTy = gsGripY + gsDir.y * (r * 0.34 + gsLen * 0.55);
+        g.fillStyle(M.bronze, a);
+        for (var gs2 = -1; gs2 <= 1; gs2 += 2) {
+          g.fillTriangle(gsTx + gsPx * gsW0 * 0.55 * gs2, gsTy + gsPy * gsW0 * 0.55 * gs2,
+                         gsTx + gsPx * gsW0 * 1.55 * gs2, gsTy + gsPy * gsW0 * 1.55 * gs2,
+                         gsTx + gsPx * gsW0 * 0.55 * gs2 + gsDir.x * r * 0.30,
+                         gsTy + gsPy * gsW0 * 0.55 * gs2 + gsDir.y * r * 0.30);
+        }
+      }
 
     } else if (kind === 'hookShield') {      // 파수꾼 — 연꼴 방패 + 갈고리 창
       //  휘두르는 무기가 아니라 **찔러 넣었다 당기는** 무기다 → 자기 축으로 늘였다 줄인다.
@@ -1565,6 +1705,9 @@ GAME.UI = GAME.UI || {};
       //   폰에서 창이 84.6px 그려지는데 판정은 58.7px 까지였다(실측, 26px 초과).
       //   회피 게임에서 "어디까지 닿는가"를 그림으로 배우는데 그 그림이 거짓말을 한다.
       //   → 호출부가 준 `tipCap`(px) 안으로 신장을 묶는다. 안 주면(카드 화면) 무제한이다.
+      // ⚠ 등급의 `len` 은 **창을 늘이는 데 쓰지 않는다.** 창끝은 판정 사거리(tipCap)에
+      //   묶여 있고 그 약속이 이 게임의 회피 문법이다(v0.81 에서 26px 초과로 겪은 사고).
+      //   등급은 방패 크기·장식으로만 드러낸다 — 아래 kite 참조.
       var ex = 1 + (atk > 0 ? atk * 0.60 : atk * 0.25);
       if (typeof tipCap === 'number' && isFinite(tipCap) && tipCap > 0 && r > 0) {
         var exMax = (tipCap / r + 0.90) / 2.50;
@@ -1585,17 +1728,41 @@ GAME.UI = GAME.UI || {};
       // 방패는 몸 옆·앞으로 크게 빼둔다 — 정면에 붙이면 계란이 통째로 사라진다
       // 때릴 때는 들어올리며 바깥으로 내민다(방패 밀치기) — 창과 같이 나가면 안 된다.
       var kx = X(1.14, 0.66 + sh * 0.7), ky = Y(1.14, 0.66 + sh * 0.7, 0.02 + sh);
+      // 방패가 등급을 나른다 — 세로로 길어지고(len) 가로로 두꺼워진다(wide).
+      var kV = tLen, kH = tWide;
       var kite = [
-        { x: kx - r * 0.56, y: ky - r * 0.88 },
-        { x: kx + r * 0.56, y: ky - r * 0.88 },
-        { x: kx + r * 0.52, y: ky + r * 0.52 },
-        { x: kx, y: ky + r * 1.20 },
-        { x: kx - r * 0.52, y: ky + r * 0.52 }
+        { x: kx - r * 0.56 * kH, y: ky - r * 0.88 * kV },
+        { x: kx + r * 0.56 * kH, y: ky - r * 0.88 * kV },
+        { x: kx + r * 0.52 * kH, y: ky + r * 0.52 * kV },
+        { x: kx, y: ky + r * 1.20 * kV },
+        { x: kx - r * 0.52 * kH, y: ky + r * 0.52 * kV }
       ];
       g.fillStyle(M.iron, a); g.fillPoints(kite, true);
-      g.lineStyle(lw(0.11), UI.tint(M.iron, 0.30), a); g.strokePoints(kite, true, true);
+      g.lineStyle(lw(0.11 * tGrd), UI.tint(M.iron, 0.30), a); g.strokePoints(kite, true, true);
+      if (tOrn >= 3) {                       // 테두리 한 겹 더 — 두꺼운 판금 느낌
+        g.lineStyle(Math.max(0.8, r * 0.05), M.bronze, a * 0.9);
+        g.strokePoints([
+          { x: kx - r * 0.40 * kH, y: ky - r * 0.66 * kV },
+          { x: kx + r * 0.40 * kH, y: ky - r * 0.66 * kV },
+          { x: kx + r * 0.37 * kH, y: ky + r * 0.38 * kV },
+          { x: kx, y: ky + r * 0.90 * kV },
+          { x: kx - r * 0.37 * kH, y: ky + r * 0.38 * kV }
+        ], true, true);
+      }
       g.fillStyle(M.bronze, a);
-      g.fillCircle(kx, ky - r * 0.10, r * 0.24);
+      g.fillCircle(kx, ky - r * 0.10, r * 0.24 * tGrd);
+      if (tOrn >= 1) {                       // 방패 심 보석
+        g.fillStyle(M.blade, a);
+        g.fillCircle(kx, ky - r * 0.10, r * 0.11 * tGrd);
+      }
+      if (tOrn >= 2) {                       // 위 모서리 두 뿔
+        g.fillStyle(M.bronze, a);
+        for (var kw = -1; kw <= 1; kw += 2) {
+          g.fillTriangle(kx + r * 0.56 * kH * kw, ky - r * 0.88 * kV,
+                         kx + r * 0.80 * kH * kw, ky - r * 1.16 * kV,
+                         kx + r * 0.30 * kH * kw, ky - r * 0.88 * kV);
+        }
+      }
     }
   };
 
@@ -1790,7 +1957,8 @@ GAME.UI = GAME.UI || {};
   //  grounded=true 면 전장(투영 적용), false 면 UI 패널용 평면
   //  walk : number | {phase, amp} | null   ← v2 추가 (생략하면 v1 과 동일)
   //  lv   : 1~5 계급 (생략하면 1 = 장식 없음, v2 와 픽셀 단위로 동일)
-  UI.drawEggChar = function (g, art, sx, by, r, color, a, facing, grounded, reach, walk, lv, idle, act, tipCap) {
+  //  gearTier : 1~8 이면 무기 재질·광휘가 등급을 따른다(UI.GEAR_TIERS). 생략하면 무변경.
+  UI.drawEggChar = function (g, art, sx, by, r, color, a, facing, grounded, reach, walk, lv, idle, act, tipCap, gearTier) {
     var Iso = GAME.Iso, T = (grounded && Iso) ? Iso.TILT : 1;
     var D = UI.dir8(facing === undefined ? Math.PI / 2 : facing, T);
     var G = UI.gait(walk, art);
@@ -1851,7 +2019,7 @@ GAME.UI = GAME.UI || {};
     var rank = UI.rankOf({ lv: lv });     // 생략·이상값이면 1 (= 장식 없음)
     var back = function (gg) { UI.eggBack(gg, art.back, cx, cy + dyGear, r, color, a, D); };
     var gear = function (gg) { UI.eggGear(gg, art.gear, cx + lean * 0.5, cy + dyGear, r, color, a, D,
-                                          rch, atk, guard, gearDrop, spin, tipCap); };
+                                          rch, atk, guard, gearDrop, spin, tipCap, gearTier); };
     var helm = function (gg) { UI.eggHelm(gg, art.helm, cx + lean, cy + dyHead, r, color, a, D); };
     // 계급 장식도 장비와 같은 레이어 규칙을 탄다(잉크 윤곽 포함) — 라이트 테마에서
     // 청동/강철이 목초지에 묻히지 않게 하려면 반드시 inkLayer 를 거쳐야 한다.
@@ -1933,7 +2101,8 @@ GAME.UI = GAME.UI || {};
     // 카드 화면의 원본 def 는 사거리가 커서 상한이 사실상 안 걸린다 — 의도한 것이다
     // (카드는 '어디까지 닿는가'를 가르치는 화면이 아니다).
     var tipCap = (typeof def.range === 'number' && def.range > 0) ? def.range + 12 : 0;
-    UI.drawEggChar(g, art, sx, by, r, color, a, f, true, 1, walk, lv, idle, act, tipCap);
+    UI.drawEggChar(g, art, sx, by, r, color, a, f, true, 1, walk, lv, idle, act, tipCap,
+                   opts && opts.gearTier);
     return { sx: sx, sy: sy, by: by };
   };
 
@@ -2071,13 +2240,16 @@ GAME.UI = GAME.UI || {};
   //    var t = self.time.now;                       // 씬이 가진 시각
   //    GAME.UI.drawUnitFlat(g, h, cx, feetY, C.controller, 1, sc, Math.PI / 2,
   //                         null, on ? t : undefined);
-  UI.drawUnitFlat = function (g, def, sx, sy, color, alpha, scale, facing, walk, idle) {
+  //  `act` 는 `drawUnit` 과 **같은 모양**이다({art,t,dur,wind,kind,type}). 상점의 스킬
+  //  미리보기가 이 인자로 모션 포즈를 되풀이 재생한다 — 전장이 아니므로 반복이 안전하다.
+  //  안 넘기면 예전 그림 그대로다(칩·미니맵은 픽셀 단위로 무변경).
+  UI.drawUnitFlat = function (g, def, sx, sy, color, alpha, scale, facing, walk, idle, act, gearTier) {
     var r = def.radius * (scale || 1);
     var a = alpha === undefined ? 1 : alpha;
     var art = UI.artOf(def);
     if (art.ground) { UI.drawGroundArt(g, art, sx, sy, r, color, a); return; }
     UI.drawEggChar(g, art, sx, sy, r, color, a, facing === undefined ? 0 : facing, false, 0.72,
-                   walk, UI.rankOf(def), idle);
+                   walk, UI.rankOf(def), idle, act, 0, gearTier);
   };
 
 })(GAME.UI);

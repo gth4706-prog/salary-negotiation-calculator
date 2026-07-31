@@ -13,6 +13,10 @@ GAME.Modal = {
   isOpen: function () { return !!this.active; },
 
   // items: [{ key, name, note, cost, disabled, selected }]
+  // opts.onPick(it) — 항목을 골랐을 때만. opts.onClose() — 닫기/배경 탭으로 **고르지 않고**
+  // 닫았을 때만(둘 다 안 겹친다). 순차 팝업 체인(도전 진입 스킬 선택 등)이 "안 골라도
+  // 다음 단계로 진행"하려면 onClose 도 반드시 넘길 것 — 안 그러면 사용자가 팝업을 닫는
+  // 순간 흐름이 거기서 멈춘다.
   open: function (scene, opts) {
     this.close();
     var C = GAME.CONFIG.COLORS;
@@ -37,7 +41,7 @@ GAME.Modal = {
     // 배경 — 뒤 화면을 눌러도 팝업이 먹는다(오조작 방지)
     var veil = scene.add.rectangle(W / 2, H / 2, W, H, 0x05050a, 0.78).setDepth(1000);
     veil.setInteractive();
-    veil.on('pointerdown', function () { self.close(); });
+    veil.on('pointerdown', function () { self.close(); if (opts.onClose) opts.onClose(); });
     objs.push(veil);
 
     var panel = scene.add.rectangle(W / 2, panelY, panelW, panelH, UI.COL.surface)
@@ -80,7 +84,7 @@ GAME.Modal = {
 
     var cy = y + listH + 16;
     var cb = UI.button(scene, W / 2, cy + closeH / 2, Math.min(panelW - 24, 260), closeH,
-      '닫기', function () { self.close(); }, { fontSize: 'button' });
+      '닫기', function () { self.close(); if (opts.onClose) opts.onClose(); }, { fontSize: 'button' });
     cb.rect.setDepth(1002); cb.text.setDepth(1003);
     if (cb.gfx) cb.gfx.setDepth(1002);
     objs.push(cb.rect, cb.text);

@@ -144,6 +144,13 @@ GAME.BattleScene.prototype.create = function () {
       this.hero.hp = d.hp;
     }
     this.runBonus = bonus;
+    // 장착한 무기가 **전장에서도 보인다**(2026-07-31 사용자 지시). 실루엣은 그대로 두고
+    // 재질·광휘만 등급을 따른다 — 이유는 js/eggart.js 의 `UI.GEAR_TIERS` 주석 참조.
+    // 렌더 전용 값이라 `_hurt` 처럼 유닛에 얹어 둔다(combat 은 이 키를 모른다).
+    this.hero._gearTier = GAME.UI.gearTierOf(tc.items && tc.items.weapon);
+    // 비싼 스킬이 실제로 더 세다 — **탑에서만**(대전은 이 줄을 안 지난다).
+    // 근거와 배수는 js/heroes.js 의 `GAME.SKILL_PRICE_SCALE` 주석 참조.
+    GAME.scaleSkillsByPrice(this.hero.skills);
     // 구슬(js/orb.js)은 그대로 쓴다 — **이번 전투 안에서만** 적용된다.
     // 옛 방식은 `TowerRun.boons` 에 쌓아 다음 층까지 이어 붙였지만, 도전(run)이라는
     // 단위 자체가 없어졌으니 "이번 판에서 주운 것만 이번 판에 듣는다"로 자연히
@@ -275,10 +282,13 @@ GAME.BattleScene.prototype.create = function () {
   rowSpec.push({ name: 'hint', h: P ? 34 : 20, gap: 0 });
   var rows = L.rows(rowSpec);
 
-  // 스킬 바 5칸(QWER + 물약).
+  // 스킬 바 4~5칸(QWER + 물약).
   // **세로 터치에서는 만들지 않는다** — 오른쪽 원형 패드가 같은 역할을 하고,
   // 둘 다 두면 좁은 세로 화면에서 전장이 그만큼 줄어든다(중복 조작면).
-  var cols = L.cols(5, { gap: P ? 6 : 10, max: 104 });
+  // ⚠ 통곡의 탑은 물약 슬롯이 없다(js/towershopitems.js 카탈로그에 물약 자체가 없다).
+  //   5칸 그대로 두고 물약 칸만 안 그리면 빈 칸이 남아 "지웠는데 왜 자리가 남지"로 보인다
+  //   (사용자 신고: "물약은 삭제됐는데 왜 아직도 보이는거지"). QWER 4칸으로 폭을 다시 나눈다.
+  var cols = L.cols(this.tower ? 4 : 5, { gap: P ? 6 : 10, max: 104 });
   var boxH = rows.skills ? rows.skills.h : 0;
   this.skillBoxes = [];
   var slots = padMode ? [] : ['Q', 'W', 'E', 'R'];
@@ -328,7 +338,7 @@ GAME.BattleScene.prototype.create = function () {
       .setAlign('center').setWordWrapWidth(W - 32);
   }
 
-  if (!padMode) {
+  if (!padMode && !this.tower) {
     var pc = cols[4];
     var prect = this.add.rectangle(pc.cx, rows.skills.cy, pc.w, boxH, GAME.UI.COL.surface).setStrokeStyle(1, GAME.UI.COL.border);
     prect.setInteractive({ useHandCursor: true });
@@ -479,9 +489,10 @@ GAME.BattleScene.prototype._hintDefault = function () {
   // 보스 층은 HUD 가 158px 로 커져서 이 문구가 스킬 버튼 위로 내려앉는다.
   // (조준 대기 같은 **일시적 안내**는 계속 이 라벨을 쓴다)
   if (GAME.isTouch && (GAME.CONFIG.PORTRAIT || GAME.CONFIG.PHONE)) return '';
-  return GAME.isTouch
-    ? '한 번 탭: 이동하며 교전   ·   두 번 탭: 이동만   ·   스킬 버튼: 바라보는 방향 시전'
-    : '우클릭 이동 / 적 클릭 공격   ·   방향키 직접 이동   ·   Q W E R 바라보는 방향 시전   ·   F 물약';
+  // 통곡의 탑은 물약이 없다 — 'F 물약' 을 그대로 두면 없는 조작을 안내하게 된다.
+  if (GAME.isTouch) return '한 번 탭: 이동하며 교전   ·   두 번 탭: 이동만   ·   스킬 버튼: 바라보는 방향 시전';
+  return '우클릭 이동 / 적 클릭 공격   ·   방향키 직접 이동   ·   Q W E R 바라보는 방향 시전' +
+    (this.tower ? '' : '   ·   F 물약');
 };
 
 GAME.BattleScene.prototype.showMarker = function (x, y, type) {
@@ -610,15 +621,20 @@ GAME.BattleScene.prototype._updateOrbs = function (dt) {
 
 //  주웠을 때 뜨는 한 줄. 사용자 예시 형식 그대로:
 //    "회피의 구슬 — 이동 중 받는 피해 18% 감소!"
-//  ⚠ 전장 한가운데가 아니라 **위쪽**에 띄운다. 가운데면 회피해야 할 투사체를 가린다.
+//  ⚠ **전장 안쪽 아래**에 띄운다(2026-07-31 사용자 지시: "필드 바깥에서 뜨니까 글자를
+//    읽기 힘들어"). 예전엔 HUD 바닥 바로 아래였는데 그 자리는 전장 **밖**의 배경색
+//    구간이라 글자가 배경에 묻혔다. 전장 안이면 목초지 위라 잉크 테두리가 살아난다.
+//    가운데가 아니라 아래쪽인 이유는 그대로다 — 가운데면 회피해야 할 투사체를 가린다.
 GAME.BattleScene.prototype._orbToast = function (text) {
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH;
-  var y = (this.hud && this.hud.bottom ? this.hud.bottom : 40) + (GAME.CONFIG.SMALL ? 16 : 26);
+  var r = GAME.Iso.screenRect();
+  // 전장 바닥에서 한 줄 높이만큼 위 — 영웅이 주로 서 있는 아래쪽 가장자리는 피한다.
+  var y = r.bottom - (GAME.CONFIG.SMALL ? 34 : 46);
   if (this._orbMsg && this._orbMsg.scene) this._orbMsg.destroy();
   this._orbMsg = GAME.UI.label(this, W / 2, y, text,
-    GAME.CONFIG.SMALL ? 17 : 20, C.accent, 0.5).setOrigin(0.5, 0).setDepth(60);
-  this._orbMsg.setAlign('center').setWordWrapWidth(W - 60);
+    GAME.CONFIG.SMALL ? 17 : 20, C.accent, 0.5).setOrigin(0.5, 1).setDepth(60);
+  this._orbMsg.setAlign('center').setWordWrapWidth(Math.min(W - 60, r.w - 40));
   var m = this._orbMsg;
   // 4초 뒤 사라진다. 씬이 먼저 죽어도 안전하게(파괴된 객체를 만지면 Phaser 가 터진다).
   this.time.delayedCall(4000, function () {
@@ -1666,7 +1682,7 @@ GAME.BattleScene.prototype.draw = function () {
     // (어깨띠는 양 진영 같은 모양이므로 side 를 필요로 하지 않는다.)
     var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, 1, u.facing, walk,
                                undefined, { footRing: false, sizeMul: u.eliteDraw || 1,
-                                            act: act });
+                                            act: act, gearTier: u._gearTier });
 
     // 껍질 금 + 피격 번쩍 — 체력을 '읽지 않고 보게' 한다
     // ⚠ **여기 가드가 틀려 있었다** (2026-07-30 실측). 옛 코드는 `!GAME.isNonTarget(u.def)`

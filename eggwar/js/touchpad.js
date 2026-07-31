@@ -168,12 +168,16 @@ GAME.TouchPad.prototype._build = function () {
   // 물약 — 세로에서는 스틱 위쪽(왼손 엄지 자리).
   // 폰 가로에서는 **하단 중앙**으로 뺀다: 자주 안 쓰는 버튼이라 두 엄지의 사정권
   // 한가운데(= 가장 덜 붐비는 자리)에 두는 편이 스틱·스킬 오조작을 줄인다.
-  if (PHONE) {
-    this._addButton('POTION', W / 2, H - S.potionR - margin, S.potionR, '물약', PAD.amber,
-      function () { GAME.Combat.usePotion(self.hero, self.scene && self.scene.state); });
-  } else {
-    this._addButton('POTION', sx, baseY - S.stickR - S.potionR - 10, S.potionR, '물약', PAD.amber,
-      function () { GAME.Combat.usePotion(self.hero, self.scene && self.scene.state); });
+  // ⚠ 통곡의 탑은 물약이 없다(js/towershopitems.js 카탈로그 자체에 없음) — 버튼을
+  //   만들어 두면 "삭제됐는데 왜 아직 보이지"가 된다(사용자 신고). scene.tower 로 건너뛴다.
+  if (!(this.scene && this.scene.tower)) {
+    if (PHONE) {
+      this._addButton('POTION', W / 2, H - S.potionR - margin, S.potionR, '물약', PAD.amber,
+        function () { GAME.Combat.usePotion(self.hero, self.scene && self.scene.state); });
+    } else {
+      this._addButton('POTION', sx, baseY - S.stickR - S.potionR - 10, S.potionR, '물약', PAD.amber,
+        function () { GAME.Combat.usePotion(self.hero, self.scene && self.scene.state); });
+    }
   }
 
   this._bind();

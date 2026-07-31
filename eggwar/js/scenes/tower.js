@@ -28,10 +28,15 @@ GAME.TowerScene.prototype.create = function (data) {
   this._floor = floor;
   this._prof = GAME.Profile.read();
 
-  // 진행 중인 도전이 있으면 그 세팅을 그대로 쓴다(층마다 다시 고르지 않는다).
-  this.run = (GAME.TowerRun && GAME.TowerRun.get()) || null;
-  this.heroKey = this.run ? this.run.heroKey
-                          : GAME.Store.get('asymgame.lastHero', GAME.HERO_ORDER[0]);
+  // ── 영구 캐릭터 (2026-08-01 대개편, js/towerchar.js) ──────────────────────
+  //  예전엔 "진행 중인 도전"(TowerRun)이 있으면 그 세팅을 썼다 — 지금은 **캐릭터**가
+  //  그 역할이다. 캐릭터는 한 번 만들면 지울 때까지 유지된다(요청 4번).
+  //  등반 시도(이 화면에 들어올 때마다)마다 배치를 다시 섞는다 — 시드를 캐릭터에
+  //  고정해 두면 "이 캐릭터에게 7층은 평생 같은 배치"가 된다(towerplan.js 경고 참조).
+  if (GAME.TowerChar && GAME.TowerChar.exists()) GAME.TowerChar.rollClimbSeed();
+  this.char = (GAME.TowerChar && GAME.TowerChar.get()) || null;
+  this.heroKey = this.char ? this.char.heroKey
+                           : GAME.Store.get('asymgame.lastHero', GAME.HERO_ORDER[0]);
   if (!GAME.HEROES[this.heroKey]) this.heroKey = GAME.HERO_ORDER[0];
   this.formation = GAME.Tower.formationFor(floor, this.heroKey);
 
@@ -68,9 +73,9 @@ GAME.TowerScene.prototype.create = function (data) {
   // 읽었으면 비운다 — 다음 진입의 기본값은 언제나 랜딩이다.
   if (this.scene && this.scene.settings) this.scene.settings.data = {};
   if (step === 'challenge') {
-    // 새 도전 + PC → 캐릭터 아트를 보여주는 전용 선택 화면.
-    // 진행 중인 도전(골드 상점)과 세로 화면은 기존 흐름을 그대로 쓴다.
-    if (!this.run && !GAME.CONFIG.PORTRAIT) this._buildHeroSelect();
+    // 캐릭터 없음 + PC → 캐릭터 아트를 보여주는 전용 생성 화면.
+    // 캐릭터가 있거나(허브) 세로 화면은 기존 흐름(_buildChallenge)이 갈라 처리한다.
+    if (!this.char && !GAME.CONFIG.PORTRAIT) this._buildHeroSelect();
     else this._buildChallenge();
   } else this._buildLanding();
 };
@@ -347,7 +352,7 @@ GAME.TowerScene.prototype._buildLanding = function () {
     }, Object.assign({ fontSize: P ? 17 : 16 }, darkBtnOpts));
   }
 
-  var challengeLabel = this.run ? ('도전 계속하기  —  ' + floor + '층') : '도전';
+  var challengeLabel = this.char ? ('도전 계속하기  —  ' + floor + '층') : '도전';
   GAME.UI.button(this, colCx, challengeCy, bw, bigH, challengeLabel,
     function () { self.scene.restart({ step: 'challenge' }); },
     { fill: 0x2a2016, line: 0xffd166, hover: 0x352a1e, press: 0x1e1710,
@@ -445,7 +450,7 @@ GAME.TowerScene.prototype._buildHeroSelect = function () {
 
   var title = GAME.UI.label(this, W / 2, u * 2.2, '캐릭터 선택', 38, C.text, 0.5).setOrigin(0.5, 0);
   var sub = GAME.UI.label(this, W / 2, title.y + title.height + 4,
-    '이 도전이 끝날 때까지 함께 갈 영웅을 선택해주세요.', 15, C.textDim, 0.5).setOrigin(0.5, 0);
+    '캐릭터를 삭제할 때까지 함께 갈 영웅을 선택해주세요.', 15, C.textDim, 0.5).setOrigin(0.5, 0);
 
   var slots = GAME.HERO_ORDER.length + 1;   // +1 = 준비 중 슬롯
   GAME.UI.label(this, W - PAD, u * 3.0,
@@ -470,8 +475,8 @@ GAME.TowerScene.prototype._buildHeroSelect = function () {
     (floor <= E ? ('  1~' + E + '층은 연습 구간, ' + (E + 1) + '층부터는 조작 없이 이길 수 없다.') : ''),
     14, C.textDim, 0).setWordWrapWidth(panelW - 160);
   var l3 = GAME.UI.label(this, tx, l2.y + l2.height + 5,
-    '영웅·장비·스킬은 도전 시작에 한 번만 고른다. 이후로는 적 유닛을 잡을 때마다 떨어지는 골드로 성장한다.' +
-    '   ·   한 번이라도 지면 1층부터 다시 (빌드도 초기화)',
+    '영웅은 이 캐릭터가 삭제될 때까지 고정된다. 적 유닛을 잡아 얻는 골드로 상점에서 성장한다.' +
+    '   ·   패배해도 캐릭터와 층은 그대로 남는다',
     14, GAME.UI.TXT.crit, 0).setWordWrapWidth(panelW - 160);
 
   var panelH = (l3.y + l3.height + 14) - panelY;
@@ -551,21 +556,12 @@ GAME.TowerScene.prototype._buildHeroSelect = function () {
     self.scene.restart({ step: 'landing' });
   }, { fontSize: 15 });
 
+  // 캐릭터 생성 — 아이템·스킬 선택 없이 영웅만 확정한다(요청 2번). 그 뒤로는 허브로 간다.
   this._startBtn = GAME.UI.button(this, W / 2, actCy, startW, actH, '', function () {
-    GAME.Tower.pending = self.formation;
-    self.scene.start('Draft', {
-      formationId: self.formation.id, tower: floor, heroKey: self.heroKey
-    });
+    GAME.TowerChar.create(self.heroKey);
+    self.scene.restart({ step: 'challenge' });
   }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
        hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: 22 });
-
-  if (floor > 1) {
-    GAME.UI.button(this, W - PAD - 110, actCy, 220, actH * 0.78, '1층부터 다시', function () {
-      GAME.Tower.fail();
-      if (GAME.TowerRun && GAME.TowerRun.get()) GAME.TowerRun.end();
-      self.scene.restart({ step: 'landing' });
-    }, { fontSize: 14 });
-  }
 
   this._refreshHeroSelect();
 };
@@ -607,9 +603,8 @@ GAME.TowerScene.prototype._buildHeroSelectPhone = function () {
     (rec.best ? ('   ·   최고 ' + rec.best + '층') : '   ·   첫 도전'),
     15, bossDef ? UI.TXT.danger : C.text, 0);
   UI.label(this, W - PAD, infoY,
-    (floor <= E ? ('1~' + E + '층 연습 · ' + (E + 1) + '층부터 조작 필수   ·   ')
-                : '영웅·장비는 도전 시작에 한 번만   ·   ') +
-    '지면 1층부터 다시',
+    (floor <= E ? ('1~' + E + '층 연습 · ' + (E + 1) + '층부터 조작 필수   ·   ') : '') +
+    '영웅은 캐릭터가 삭제될 때까지 고정',
     15, UI.TXT.crit, 1).setOrigin(1, 0);
 
   // ── ② 카드 ──
@@ -674,20 +669,10 @@ GAME.TowerScene.prototype._buildHeroSelectPhone = function () {
   }, { fontSize: 16 });
 
   this._startBtn = UI.button(this, W / 2, actCy, 380, actH, '', function () {
-    GAME.Tower.pending = self.formation;
-    self.scene.start('Draft', {
-      formationId: self.formation.id, tower: floor, heroKey: self.heroKey
-    });
+    GAME.TowerChar.create(self.heroKey);
+    self.scene.restart({ step: 'challenge' });
   }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
        hover: UI.COL.panelTealHi, color: C.accent, fontSize: 19 });
-
-  if (floor > 1) {
-    UI.button(this, W - PAD - 80, actCy, 160, actH, '1층부터 다시', function () {
-      GAME.Tower.fail();
-      if (GAME.TowerRun && GAME.TowerRun.get()) GAME.TowerRun.end();
-      self.scene.restart({ step: 'landing' });
-    }, { fontSize: 16 });
-  }
 
   this._refreshHeroSelect();
 };
@@ -769,9 +754,7 @@ GAME.TowerScene.prototype._refreshHeroSelect = function () {
       (sel.lifesteal ? ('   ·   흡혈 ' + Math.round(sel.lifesteal * 100) + '%') : ''));
   }
   if (this._startBtn) {
-    this._startBtn.text.setText(GAME.CONFIG.PHONE
-      ? (this._floor + '층 도전  —  장비 세팅')
-      : (this._floor + '층 도전  —  장비 & 스킬 세팅'));
+    this._startBtn.text.setText('이 영웅으로 시작  —  ' + this._floor + '층부터');
   }
 };
 
@@ -786,8 +769,8 @@ GAME.TowerScene.prototype._buildChallenge = function () {
   var u = H / 100;
 
   if (GAME.CONFIG.PHONE) {
-    // 새 도전이면 캐릭터 선택 화면이 담당한다(create 에서 이미 갈라지지만, 안전망).
-    if (!this.run) { this._buildHeroSelectPhone(); return; }
+    // 캐릭터가 없으면 생성 화면이 담당한다(create 에서 이미 갈라지지만, 안전망).
+    if (!this.char) { this._buildHeroSelectPhone(); return; }
     this._buildChallengePhone();
     return;
   }
@@ -830,10 +813,9 @@ GAME.TowerScene.prototype._buildChallenge = function () {
   }
 
   stack(GAME.UI.label(this, W / 2, y,
-    this.run
+    this.char
       ? ('적 진형 ' + budget + '   ·   내 빌드 유지 중   ·   최고 ' + (rec.best || 0) + '층')
-      : ('적 진형 ' + budget + '   vs   시작 예산 ' + GAME.TowerRun.START_BUDGET +
-         '   ·   최고 ' + (rec.best || 0) + '층'),
+      : ('적 진형 ' + budget + '   ·   영웅만 고르면 시작   ·   최고 ' + (rec.best || 0) + '층'),
     P ? 15 : 19, C.text, 0.5)
     .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 30));
 
@@ -849,52 +831,36 @@ GAME.TowerScene.prototype._buildChallenge = function () {
   var pw = Math.min(W - 30, 640);
   this.heroBtns = [];
 
-  if (this.run) {
-    // ── 도전 진행 중: 골드로 능력치를 올린다 ──
+  if (this.char) {
+    // ── 캐릭터 존재: 허브(상점 / 능력치 / 도전) — 2026-08-01 대개편 ──────────
+    //  예전엔 여기가 능력치 4칸 + 물약 버튼이 인라인으로 박힌 골드 상점이었다.
+    //  이제 그 기능은 `TowerShop` 씬(아이템/스킬 탭)과 능력치 탭으로 옮겼고,
+    //  이 화면은 세 갈래로 보내는 허브만 남는다.
     var hero = GAME.HEROES[this.heroKey];
     stack(GAME.UI.label(this, W / 2, y,
-      '내 영웅  ' + hero.name + '  (' + hero.trait + ')  —  도전 내내 유지됩니다',
+      '내 영웅  ' + hero.name + '  (' + hero.trait + ')  —  캐릭터가 삭제될 때까지 유지됩니다',
       P ? 14 : 16, GAME.UI.TXT.crit, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 30), u * 0.8);
 
     this.goldLabel = GAME.UI.label(this, W / 2, y, '', P ? 20 : 24, C.accent, 0.5).setOrigin(0.5, 0);
     y = this.goldLabel.y + this.goldLabel.height + u * 1.2;
 
-    var sc = GAME.Layout.cols(2, { gap: 8, width: pw, left: (W - pw) / 2, pad: 0 });
-    var rowH = Math.max(GAME.UI.BTN_H_SM || 52, u * 6);
-    this.statBtns = [];
-    GAME.TowerRun.STATS.forEach(function (d, i) {
-      var col = sc[i % 2];
-      var ry = y + Math.floor(i / 2) * (rowH + 8);
-      var b = GAME.UI.button(self, col.cx, ry + rowH / 2, col.w, rowH, '', function () {
-        if (GAME.TowerRun.levelUp(d.key)) {
-          self.run = GAME.TowerRun.get();
-          self._refreshRun(true);
-        }
-      }, { fontSize: P ? 13 : 14 });
-      b.text.setAlign('center');
-      self.statBtns.push({ def: d, btn: b });
-    });
-    y += Math.ceil(GAME.TowerRun.STATS.length / 2) * (rowH + 8) + u * 0.6;
-
-    // 물약 보급 — 능력치와 같은 줄 높이로 한 칸 (PC 보조줄과 같은 기능)
-    this.potionBtn = GAME.UI.button(self, W / 2, y + rowH / 2, pw, rowH, '', function () {
-      var nx = GAME.TowerRun.nextPotion(self.run);
-      if (!nx || !nx.item) return;
-      if (GAME.TowerRun.buyItem('potion', nx.item.key)) {
-        self.run = GAME.TowerRun.get();
-        self._refreshRun(true);
-      }
-    }, { fontSize: P ? 13 : 14 });
-    this.potionBtn.text.setAlign('center');
-    y += rowH + u * 0.8;
+    var hubH = Math.max(GAME.UI.BTN_H_SM || 52, u * 7);
+    var hc2 = GAME.Layout.cols(2, { gap: 10, width: pw, left: (W - pw) / 2, pad: 0 });
+    GAME.UI.button(self, hc2[0].cx, y + hubH / 2, hc2[0].w, hubH, '🛒 상점', function () {
+      self.scene.start('TowerShop', { tab: 'item' });
+    }, { fontSize: P ? 15 : 16 });
+    GAME.UI.button(self, hc2[1].cx, y + hubH / 2, hc2[1].w, hubH, '⚒ 능력치', function () {
+      self.scene.start('TowerShop', { tab: 'stats' });
+    }, { fontSize: P ? 15 : 16 });
+    y += hubH + u * 0.8;
 
     this.runHint = GAME.UI.label(this, W / 2, y,
       this._runHintText(), P ? 13 : 13, C.textDim, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 40);
     y = this.runHint.y + this.runHint.height + u * 1.6;
   } else {
-    // ── 새 도전: 영웅을 먼저 고른다 ──
+    // ── 새 캐릭터: 영웅을 먼저 고른다 (세로 화면 전용 경로) ──────────────────
     stack(GAME.UI.label(this, W / 2, y,
-      '영웅을 고르세요 — 이 도전이 끝날 때까지 함께 갑니다',
+      '영웅을 고르세요 — 캐릭터가 삭제될 때까지 함께 갑니다',
       P ? 13 : 13, C.text, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 30), u * 1.0);
 
     var hc = GAME.Layout.cols(GAME.HERO_ORDER.length, {
@@ -918,7 +884,7 @@ GAME.TowerScene.prototype._buildChallenge = function () {
   // AI가 읽은 내 성향 + 이 영웅에 대한 대응 (내용 길이에 맞춰 패널을 그린다)
   var panelTop = y;
   var lx = W / 2 - pw / 2 + 14;
-  var profLine = this.run
+  var profLine = this.char
     ? (prof.battles ? ('내 성향 — ' + prof.styleLabel + ' · ' + prof.dodgeLabel)
                     : '내 성향 — 아직 기록 없음')
     : (prof.battles ? ('AI가 읽은 당신 — ' + prof.styleLabel + ' · ' + prof.dodgeLabel +
@@ -927,7 +893,7 @@ GAME.TowerScene.prototype._buildChallenge = function () {
   var l1 = GAME.UI.label(this, lx, y + 10, profLine,
     P ? 13 : 13, C.crit, 0).setWordWrapWidth(pw - 28);
   // ── 이 층이 무엇이 다른가 (2026-07-30 대개편) ────────────────────────────
-  //  ⚠ 아래 `rationaleText` 는 **도전 중에는 빈 문자열**이다(`this.run ? ''`).
+  //  ⚠ 아래 `rationaleText` 는 **도전 중에는 빈 문자열**이다(`this.char ? ''`).
   //    그런데 도전이야말로 탑의 본 모드다 — 거기서 층 정보가 통째로 안 보이면
   //    배치 원형과 조건을 넣어도 플레이어는 "그냥 어려워졌다"로만 느낀다.
   //    그래서 **원형·조건 전용 줄**을 따로 둔다. 이 줄은 도전 중에도 항상 뜬다.
@@ -945,14 +911,26 @@ GAME.TowerScene.prototype._buildChallenge = function () {
   var bw = Math.min(W - 30, 420);
   var bh = u * 7;
   var gap = u * 1.4;
-  var restH = floor > 1 ? (u * 5 + gap) : 0;
+  var restH = this.char ? (u * 5 + gap) : 0;
   var byBottom = H - u * 2 - restH;
 
-  if (floor > 1) {
-    GAME.UI.button(this, W / 2, H - u * 2 - u * 2.5, Math.min(W - 60, 240), u * 5, '1층부터 다시', function () {
-      GAME.Tower.fail();
-      if (GAME.TowerRun && GAME.TowerRun.get()) GAME.TowerRun.end();
-      self.scene.restart({ step: 'landing' });
+  // 캐릭터 삭제 — 요청 4번의 유일한 "1층부터 다시" 경로. 확인 없이 지우면 실수로
+  // 성장을 통째로 날릴 수 있어 반드시 팝업으로 한 번 더 확인한다.
+  if (this.char) {
+    GAME.UI.button(this, W / 2, H - u * 2 - u * 2.5, Math.min(W - 60, 240), u * 5, '캐릭터 삭제', function () {
+      GAME.Modal.open(self, {
+        title: '캐릭터를 삭제할까요?',
+        items: [
+          { key: 'yes', name: '삭제하고 1층부터 다시', note: '골드·아이템·스킬·성장이 전부 사라집니다' },
+          { key: 'no', name: '취소' }
+        ],
+        onPick: function (it) {
+          if (!it || it.key !== 'yes') return;
+          GAME.TowerChar.remove();
+          GAME.Tower.resetFloor();
+          self.scene.restart({ step: 'landing' });
+        }
+      });
     }, { fontSize: P ? 13 : 13 });
   }
   GAME.UI.button(this, W / 2, byBottom - bh * 0.5, bw, bh, '← 메뉴', function () {
@@ -962,15 +940,14 @@ GAME.TowerScene.prototype._buildChallenge = function () {
     self.scene.start('Rank', { scope: 'live' });
   }, { fontSize: P ? 17 : 16 });
   this.panelMaxBottom = byBottom - bh * 2.5 - gap * 2 - (bh + u * 0.8) / 2 - 8;
+  // 허브의 세 번째 갈래("도전") — 있으면 로딩 화면을 거쳐 전투로, 없으면 캐릭터를 만든다.
   GAME.UI.button(this, W / 2, byBottom - bh * 2.5 - gap * 2, bw, bh + u * 0.8,
-    this.run ? (floor + '층 전투 시작') : (floor + '층 도전 — 장비 & 스킬 세팅'), function () {
-    GAME.Tower.pending = self.formation;
-    if (self.run) {
+    this.char ? (floor + '층 도전') : '이 영웅으로 시작', function () {
+    if (self.char) {
       self._enterBattle(floor);
     } else {
-      self.scene.start('Draft', {
-        formationId: self.formation.id, tower: floor, heroKey: self.heroKey
-      });
+      GAME.TowerChar.create(self.heroKey);
+      self.scene.restart({ step: 'challenge' });
     }
   }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 20 : 22 });
 
@@ -988,17 +965,17 @@ GAME.TowerScene.prototype._buildChallenge = function () {
 //  ⚠ 그 뒤 '5층마다 자동 지급'으로 바꿨다가 그것도 폐기했다 — 받은 줄도 몰랐다.
 //  지금은 **전투 중에 적을 잡으면 구슬로 떨어진다**(`js/orb.js`). 얻는 순간이 손에 남는다.
 
-// 전투 진입 — 문 선택 경로와 일반 경로가 **같은 함수**를 쓴다.
+// 전투 진입 — 허브의 모든 "도전" 버튼(PC/폰가로)이 **같은 함수**를 쓴다.
 // 두 곳에 복사하면 한쪽만 고쳐져 조용히 갈라진다(이 폴더의 상습 사고).
+// ⚠ 2026-08-01 — Battle 로 바로 가지 않고 `TowerLoading`(3초 로딩, 요청 12번)을 거친다.
+//   영웅/아이템/스킬은 Loading 씬이 `GAME.TowerChar` 에서 직접 읽으므로 여기서
+//   Battle 의 진입 데이터를 만들지 않는다(만들면 두 곳이 같은 계약을 복제하게 된다).
 GAME.TowerScene.prototype._enterBattle = function (floor) {
-  var Z = GAME.CONFIG.ZONE_CONTROLLER;
-  this.scene.start('Battle', {
+  GAME.Tower.pending = this.formation;
+  this.scene.start('TowerLoading', {
     formationId: this.formation.id,
-    heroKey: this.run.heroKey,
-    items: this.run.items,
-    picks: this.run.picks,
     tower: floor,
-    startPos: { x: Z.x + Z.w / 2, y: Z.y + Z.h * 0.55 }
+    heroKey: this.heroKey
   });
 };
 
@@ -1051,10 +1028,10 @@ GAME.TowerScene.prototype._buildChallengePhone = function () {
   this.panelRect = null;
   this.panelMaxBottom = H - 10;
 
-  // ── 오른쪽: 무엇을 할 것인가 ──
+  // ── 오른쪽: 무엇을 할 것인가 (2026-08-01 대개편 — 허브 3버튼) ────────────────
   var hero = GAME.HEROES[this.heroKey];
   UI.label(this, rx, 10,
-    '내 영웅  ' + hero.name + '  (' + hero.trait + ')  —  도전 내내 유지', 15, UI.TXT.crit, 0)
+    '내 영웅  ' + hero.name + '  (' + hero.trait + ')  —  캐릭터가 삭제될 때까지 유지', 15, UI.TXT.crit, 0)
     .setWordWrapWidth(rw);
 
   this.goldLabel = UI.label(this, rx, 32, '', 24, C.accent, 0);
@@ -1065,48 +1042,26 @@ GAME.TowerScene.prototype._buildChallengePhone = function () {
 
   var secH = 56, secTop = H - 12 - secH;
   var mainH = 66, mainTop = secTop - 10 - mainH;
-  var rowH = 62, rowGap = 10;
-  var gridTop = mainTop - 12 - (rowH * 2 + rowGap);
   var sc = GAME.Layout.cols(2, { gap: 12, width: rw, left: rx, pad: 0 });
 
-  this.statBtns = [];
-  GAME.TowerRun.STATS.forEach(function (d, i) {
-    var col = sc[i % 2];
-    var ry = gridTop + Math.floor(i / 2) * (rowH + rowGap);
-    var b = UI.button(self, col.cx, ry + rowH / 2, col.w, rowH, '', function () {
-      if (GAME.TowerRun.levelUp(d.key)) {
-        self.run = GAME.TowerRun.get();
-        self._refreshRun(true);
-      }
-    }, { fontSize: 15 });
-    b.text.setAlign('center');
-    self.statBtns.push({ def: d, btn: b });
-  });
+  UI.button(self, sc[0].cx, mainTop - 10 - mainH / 2, sc[0].w, mainH, '🛒 상점', function () {
+    self.scene.start('TowerShop', { tab: 'item' });
+  }, { fontSize: 17 });
+  UI.button(self, sc[1].cx, mainTop - 10 - mainH / 2, sc[1].w, mainH, '⚒ 능력치', function () {
+    self.scene.start('TowerShop', { tab: 'stats' });
+  }, { fontSize: 17 });
 
-  UI.button(this, rx + rw / 2, mainTop + mainH / 2, rw, mainH, floor + '층 전투 시작', function () {
-    GAME.Tower.pending = self.formation;
+  UI.button(this, rx + rw / 2, mainTop + mainH / 2, rw, mainH, floor + '층 도전', function () {
     // ⚠ PC 판과 **같은 경로**를 쓴다 — 전투 진입이 복사돼 있으면 한쪽만 고쳐진다.
     self._enterBattle(floor);
   }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
        hover: UI.COL.panelTealHi, color: C.accent, fontSize: 21 });
 
-  var keys = ['potion', 'rank', 'menu'];
-  if (floor > 1) keys.push('reset');
+  var keys = ['delete', 'rank', 'menu'];
   var bc = GAME.Layout.cols(keys.length, { gap: 10, width: rw, left: rx, pad: 0 });
   for (var i = 0; i < keys.length; i++) {
     (function (k, col) {
-      if (k === 'potion') {
-        // 층간 물약 보급 — 라벨은 _refreshRun 이 매번 다시 쓴다(골드·등급이 바뀌므로).
-        self.potionBtn = UI.button(self, col.cx, secTop + secH / 2, col.w, secH, '', function () {
-          var nx = GAME.TowerRun.nextPotion(self.run);
-          if (!nx || !nx.item) return;
-          if (GAME.TowerRun.buyItem('potion', nx.item.key)) {
-            self.run = GAME.TowerRun.get();
-            self._refreshRun(true);
-          }
-        }, { fontSize: 15 });
-        self.potionBtn.text.setAlign('center');
-      } else if (k === 'rank') {
+      if (k === 'rank') {
         UI.button(self, col.cx, secTop + secH / 2, col.w, secH, '🏆 랭킹', function () {
           self.scene.start('Rank', { scope: 'live' });
         }, { fontSize: 16 });
@@ -1115,10 +1070,21 @@ GAME.TowerScene.prototype._buildChallengePhone = function () {
           self.scene.start('Menu');
         }, { fontSize: 16 });
       } else {
-        UI.button(self, col.cx, secTop + secH / 2, col.w, secH, '1층부터 다시', function () {
-          GAME.Tower.fail();
-          if (GAME.TowerRun && GAME.TowerRun.get()) GAME.TowerRun.end();
-          self.scene.restart({ step: 'landing' });
+        // 캐릭터 삭제 — PC 판과 같은 확인 팝업(요청 4번).
+        UI.button(self, col.cx, secTop + secH / 2, col.w, secH, '캐릭터 삭제', function () {
+          GAME.Modal.open(self, {
+            title: '캐릭터를 삭제할까요?',
+            items: [
+              { key: 'yes', name: '삭제하고 1층부터 다시', note: '골드·아이템·스킬·성장이 전부 사라집니다' },
+              { key: 'no', name: '취소' }
+            ],
+            onPick: function (it) {
+              if (!it || it.key !== 'yes') return;
+              GAME.TowerChar.remove();
+              GAME.Tower.resetFloor();
+              self.scene.restart({ step: 'landing' });
+            }
+          });
         }, { fontSize: 16 });
       }
     })(keys[i], bc[i]);
@@ -1127,67 +1093,33 @@ GAME.TowerScene.prototype._buildChallengePhone = function () {
   this._refresh();
 };
 
-// 도전 중 골드·능력치 표시 갱신. bump=true 면 골드 숫자가 튕기는 연출을 준다.
+// 허브의 골드 표시 갱신. bump=true 면 골드 숫자가 튕기는 연출을 준다.
+// ⚠ 2026-08-01 대개편 — 능력치·물약 버튼이 상점 씬으로 옮겨가면서 이 함수가
+//   할 일은 골드 라벨 + 안내 한 줄로 크게 줄었다.
 GAME.TowerScene.prototype._refreshRun = function (bump) {
-  if (!this.run || !this.goldLabel) return;
-  var C = GAME.CONFIG.COLORS;
-  var self = this;
-  var TR = GAME.TowerRun;
+  if (!this.char || !this.goldLabel) return;
 
   // 방금 층을 깬 직후라면 **얼마를 벌었는지**를 보유액 옆에 붙인다.
   // 결과 화면을 건너뛰므로 이 줄이 유일한 획득 표시다.
   var gained = (this._cleared && this._cleared.gold) ? ('   (+' + this._cleared.gold + ')') : '';
-  this.goldLabel.setText('💰 골드  ' + this.run.gold + gained);
+  this.goldLabel.setText('💰 골드  ' + this.char.gold + gained);
   if (bump) {
     this.goldLabel.setScale(1.25);
     this.tweens.add({ targets: this.goldLabel, scale: 1, duration: 260, ease: 'Back.easeOut' });
   }
 
-  // 물약 칸 — 지금 든 것과 다음 등급·차액을 그대로 보여준다.
-  if (this.potionBtn && this.potionBtn.text && this.potionBtn.text.scene) {
-    var nx = TR.nextPotion(this.run);
-    var curName = nx && nx.cur ? nx.cur.name : '없음';
-    if (!nx || !nx.item) {
-      this.potionBtn.text.setText('🧪 물약  ' + curName + '\n최고 등급');
-      this.potionBtn.text.setColor(C.textDim);
-    } else {
-      var okBuy = this.run.gold >= nx.price;
-      this.potionBtn.text.setText('🧪 물약  ' + curName +
-        '\n→ ' + nx.item.name + '  ' + nx.price + '골드');
-      this.potionBtn.text.setColor(okBuy ? C.accent : C.textDim);
-      this.potionBtn.rect.setStrokeStyle(okBuy ? 2 : 1,
-        okBuy ? GAME.CONFIG.COLORS.controller : GAME.UI.COL.borderUi);
-    }
-  }
-
-  var bonus = TR.statBonus(this.run);
-  this.statBtns.forEach(function (s) {
-    var d = s.def;
-    var lv = self.run.levels[d.key] || 0;
-    var maxed = lv >= d.max;
-    var cost = TR.costOf(d.key, lv);
-    var can = !maxed && self.run.gold >= cost;
-    s.btn.text.setText(d.name + '  Lv.' + lv + (maxed ? ' (최대)' : '')
-      + '\n' + (maxed ? ('+' + bonus[d.key]) : ('+' + bonus[d.key] + '  →  ' + cost + '골드')));
-    s.btn.text.setColor(can ? C.accent : C.textDim);
-    s.btn.rect.setStrokeStyle(can ? 2 : 1, can ? C.controller : GAME.UI.COL.borderUi);
-    s.btn.rect.setFillStyle(can ? GAME.UI.COL.panelTeal : GAME.UI.COL.surfaceAlt);
-  });
-
   if (this.runHint) {
     this.runHint.setText(this._runHintText());
     // 클리어 직후에는 이 줄이 '방금 무슨 일이 있었나'라서 장비 요약보다 앞에 읽혀야 한다.
-    this.runHint.setColor(this._cleared ? C.accent : C.textDim);
+    this.runHint.setColor(this._cleared ? GAME.CONFIG.COLORS.accent : GAME.CONFIG.COLORS.textDim);
   }
 };
 
-// 도전 중 장비 요약 한 줄.
+// 허브의 장비 요약 한 줄.
 // **방금 층을 깨고 들어온 직후에는** 그 자리에 클리어 요약(돌파 층·골드·점수·다음 층)을 띄운다 —
 // 결과 화면을 건너뛰기 때문에(요청) 그 정보가 갈 곳이 여기밖에 없다.
-// 새 줄을 만들지 않고 기존 줄을 바꿔 쓰는 이유: 폰 가로(820×390)는 골드 줄과 능력치 버튼
-// 사이 여유가 17px 뿐이라 한 줄만 더 넣어도 버튼을 파고든다(실측).
 GAME.TowerScene.prototype._runHintText = function () {
-  var rec = this.run || (GAME.TowerRun && GAME.TowerRun.get());
+  var rec = this.char;
   if (!rec) return '';
 
   var cl = this._cleared;
@@ -1198,16 +1130,17 @@ GAME.TowerScene.prototype._runHintText = function () {
               (cl.score ? ('  ·  점수 +' + cl.score) : '');
     if (GAME.CONFIG.PHONE) return head + got + '  ·  다음 ' + next + '층';
     return head + got + '  ·  다음 ' + next + '층 적 진형 ' +
-           GAME.Tower.budgetFor(next) + '  —  골드로 능력치를 올리고 올라가세요';
+           GAME.Tower.budgetFor(next) + '  —  상점에서 성장하고 올라가세요';
   }
 
   var it = rec.items || {};
-  var worn = GAME.ITEM_SLOTS.map(function (s) {
+  var CAT = GAME.TowerShopItems;
+  var worn = (CAT ? CAT.SLOTS : []).map(function (s) {
     var k = it[s.key];
-    return k ? GAME.Items.find(s.key, k).name : null;
+    return k ? CAT.find(s.key, k).name : null;
   }).filter(Boolean);
   // 폰 가로(820×390)는 이 줄에 한 줄분 폭(514px)밖에 없다 —
-  // 장비 이름 4개를 넣으면 두 줄이 되어 아래 능력치 버튼(y=100)을 파고든다.
+  // 장비 이름 4개를 넣으면 두 줄이 되어 아래 버튼을 파고든다.
   if (GAME.CONFIG.PHONE) return '적 유닛을 잡을 때마다 골드 — 비쌀수록 많이, 보스는 크게';
   return '장비 ' + (worn.length ? worn.join(' · ') : '없음') +
          '  ·  적 유닛을 잡을 때마다 골드 (비쌀수록 많이, 보스는 크게)';
@@ -1218,7 +1151,7 @@ GAME.TowerScene.prototype._refresh = function () {
   var self = this;
 
   // 클리어 직후 첫 그리기에서는 골드 숫자를 튕겨준다 — 결과 화면의 보상 연출을 대신한다.
-  if (this.run) { this._refreshRun(!!this._cleared); }
+  if (this.char) { this._refreshRun(!!this._cleared); }
 
   this.heroBtns.forEach(function (h) {
     var on = h.key === self.heroKey;
@@ -1247,14 +1180,10 @@ GAME.TowerScene.prototype._refresh = function () {
   if (f0.objectiveLabel) names.push('🎯 ' + f0.objectiveLabel);
   if (f0.planLabel) names.push('◈ ' + f0.planLabel);
   if (f0.ruleLabel) names.push('⚠ ' + f0.ruleLabel);
-  // 지금까지 주운 구슬. **이름을 그대로 쓴다** — 층 화면의 `✦ 탄력` 은 전투에서 주울 때
-  // 뜬 `재촉의 구슬` 과 다른 말이라 같은 것인 줄 몰랐다. 부르는 이름은 한 벌이어야 한다.
-  if (GAME.Orb && this.run) {
-    var bl = ((this.run && this.run.boons) || []).map(function (k) {
-      return GAME.Orb.nameOf(k);
-    });
-    if (bl.length) names.push('🔮 ' + bl.join(' · '));
-  }
+  // ⚠ 2026-08-01 — "지금까지 주운 구슬" 표시를 제거했다. 도전(run)이라는 단위가
+  //   없어지면서 구슬 효과는 이제 **그 전투 안에서만** 듣는다(js/orb.js 는 그대로 두고
+  //   battle.js 가 층 사이에 안 이어 붙일 뿐이다) — 층 화면에 보여줄 "누적된 구슬"이
+  //   더 이상 존재하지 않는다.
   // ⚠ 아래 축소 로직이 **덜 중요한 것부터 버릴 수 있게** 조각을 남겨 둔다.
   //   한 줄로 합쳐 두면 자동 줄바꿈으로 높이가 다시 늘어나는데, `\n` 개수로는 그걸 못 센다
   //   (실제로 그렇게 놓쳐 '전투 시작' 버튼을 325×15px 덮었다 — PC 실측).
@@ -1273,7 +1202,7 @@ GAME.TowerScene.prototype._refresh = function () {
     tagH = tag.length ? (this.floorTagText.height + 6) : 0;
     this.rationaleText.setY(this.floorTagText.y + tagH);
   }
-  this.rationaleText.setText(this.run ? '' : ('이 층의 대응: ' + this.formation.rationale));
+  this.rationaleText.setText(this.char ? '' : ('이 층의 대응: ' + this.formation.rationale));
 
   var counts = {};
   this.formation.units.forEach(function (x) { counts[x.type] = (counts[x.type] || 0) + 1; });

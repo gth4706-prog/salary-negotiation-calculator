@@ -121,7 +121,10 @@ GAME.TowerObjective = (function () {
     };
   }
 
+  // 2026-08-01 — towerplan.js 의 seedNow() 와 같은 이유로 TowerChar.climbSeed 를 먼저 본다.
   function seedNow() {
+    var tc = GAME.TowerChar && GAME.TowerChar.get();
+    if (tc && tc.climbSeed) return (tc.climbSeed ^ 0xabcd) | 0;
     var run = GAME.TowerRun && GAME.TowerRun.get();
     return (run && run.seed) ? ((run.seed ^ 0xabcd) | 0) : 0x0b1e;
   }

@@ -317,10 +317,18 @@ GAME.TowerPlan = (function () {
     return a;
   }
 
+  // ⚠ 2026-08-01 — 영구 캐릭터(js/towerchar.js)의 `climbSeed` 를 먼저 본다.
+  //   `climbSeed` 는 캐릭터 자체의 시드(고정)가 아니라 **등반 시도마다 재롤되는**
+  //   값이다 — 캐릭터가 영구화된 지금 `heroKey` 처럼 고정된 값을 쓰면 "이 캐릭터에게
+  //   7층은 평생 같은 배치"가 되어 이 파일이 이미 경고한 실패 모드로 되돌아간다.
+  //   옛 `TowerRun.seed`(도전 단위)는 폴백으로만 남긴다 — 대전이 그 파일을 계속
+  //   쓰므로 삭제하지 않았을 뿐, 탑은 더 이상 이 경로를 타지 않는다.
   function seedNow() {
+    var tc = GAME.TowerChar && GAME.TowerChar.get();
+    if (tc && tc.climbSeed) return tc.climbSeed | 0;
     var run = GAME.TowerRun && GAME.TowerRun.get();
     if (run && run.seed) return run.seed | 0;
-    // 도전이 없을 때(단층 도전·도구)는 결정적으로 고정한다 — 측정이 재현돼야 한다.
+    // 캐릭터도 도전도 없을 때(단층 도전·도구)는 결정적으로 고정한다 — 측정이 재현돼야 한다.
     return 0x5eed;
   }
 

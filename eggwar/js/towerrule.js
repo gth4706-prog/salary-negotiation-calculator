@@ -158,7 +158,11 @@ GAME.TowerRule = (function () {
     return a;
   }
 
+  // 2026-08-01 — towerplan.js 의 seedNow() 와 같은 이유로 TowerChar.climbSeed 를
+  // 먼저 본다(등반 시도마다 재롤되는 값 — 캐릭터 고정 시드를 쓰면 배치가 영원히 굳는다).
   function seedNow() {
+    var tc = GAME.TowerChar && GAME.TowerChar.get();
+    if (tc && tc.climbSeed) return (tc.climbSeed ^ 0x1234) | 0;
     var run = GAME.TowerRun && GAME.TowerRun.get();
     if (run && run.seed) return (run.seed ^ 0x1234) | 0;
     return 0x8eed;

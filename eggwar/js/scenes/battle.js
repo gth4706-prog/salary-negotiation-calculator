@@ -82,6 +82,8 @@ GAME.BattleScene.prototype.create = function () {
   this.towerRule = this.tower && GAME.TowerRule
     ? GAME.TowerRule.hooksFor(this.tower) : null;
   this.state.towerRule = this.towerRule;
+  // 치유 구역 — 통곡의 탑 전투에서만 켠다(물약을 대신하는 자리라 탑 전용이다).
+  this.state.towerHealOn = !!this.tower;
   this.towerRuleInfo = this.tower && GAME.TowerRule
     ? GAME.TowerRule.ruleFor(this.tower) : null;
   // 층 목표는 **유닛이 다 만들어진 뒤** 붙여야 한다(우두머리를 고르려면 적이 있어야 한다).
@@ -113,31 +115,40 @@ GAME.BattleScene.prototype.create = function () {
     this.state.units.push(GAME.Combat.createUnit(e.type, wx, w.y, 'strategist', mods));
   }
 
+  // ── 통곡의 탑: 영구 캐릭터(js/towerchar.js)에서 영웅을 만든다 (2026-08-01) ──
+  //  ⚠ **아이템은 `createHero` 에 안 넘긴다.** `GAME.Items.applyTo`(combat.js 가 부름)는
+  //    `GAME.ITEMS`(대전·수성탑 공용, w1~w3 등)만 알고, 탑의 새 카탈로그
+  //    (`GAME.TowerShopItems`, w1~w8 + accessory)는 키 이름부터 다르다 — 그대로
+  //    넘기면 `Items.find` 가 못 찾아 **조용히 보정 0** 이 된다(에러도 없다).
+  //    그래서 빈 아이템으로 영웅을 만들고, 아래에서 `TowerChar.itemBonus` 를
+  //    스탯 레벨업과 같은 방식으로 **직접 def 에 더한다**(대전의 ArenaBuild.statBonus
+  //    와 완전히 같은 패턴 — CLAUDE.md: "두 곳이 갈라지면 강화가 모드마다 다른 값이 된다").
+  var towerItems = this.tower ? {} : this.items;
   this.hero = GAME.Combat.createHero(
-    this.heroKey, this.startPos.x, this.startPos.y, 'controller', this.items, this.picks);
+    this.heroKey, this.startPos.x, this.startPos.y, 'controller', towerItems, this.picks);
 
-  // 통곡의 탑 도전 중이면 **층을 깨며 올린 능력치 레벨**을 얹는다.
-  // 장비(items)는 이미 createHero 가 반영했고, 레벨업은 그 위에 더해지는 성장분이다.
-  if (this.tower && GAME.TowerRun && GAME.TowerRun.get()) {
-    var bonus = GAME.TowerRun.statBonus();
+  if (this.tower && GAME.TowerChar && GAME.TowerChar.exists()) {
+    var tc = GAME.TowerChar.get();
+    var bonus = GAME.TowerChar.statBonus(tc);
+    var ib = GAME.TowerChar.itemBonus(tc);
     var d = this.hero.def;
-    if (bonus.damage) d.damage += bonus.damage;
-    if (bonus.armor) d.armor += bonus.armor;
-    if (bonus.speed) d.speed += bonus.speed;
-    if (bonus.hp) {
-      d.hp += bonus.hp;
+    d.damage += bonus.damage + ib.damage;
+    d.armor += bonus.armor + ib.armor;
+    d.speed += bonus.speed + ib.speed;
+    d.lifesteal = (d.lifesteal || 0) + ib.lifesteal;
+    this.hero.cdrMul = (this.hero.cdrMul || 1) * ib.cdrMul;
+    var hpBonus = bonus.hp + ib.hp;
+    if (hpBonus) {
+      d.hp += hpBonus;
       this.hero.maxHp = d.hp;
       this.hero.hp = d.hp;
     }
     this.runBonus = bonus;
-    // ── 구슬 효과 (towerboon.js 의 훅 + orb.js 의 획득) ──────────────────────
-    //  레벨업(위)이 숫자를 키운다면 구슬은 **행동을 바꾼다**. 둘은 다른 축이다.
-    //  이전 층들에서 주워 둔 것을 여기서 다시 얹는다 — 스탯 배수는 def 에,
-    //  행동 훅은 state 에. 이번 층에서 새로 줍는 것은 `Orb.take` 가 그 자리에서 얹는다.
-    if (GAME.TowerBoon) {
-      GAME.TowerBoon.applyDefMods(this.hero, GAME.TowerRun.get());
-      this.state.boons = GAME.TowerBoon.hooksFor(GAME.TowerRun.get());
-    }
+    // 구슬(js/orb.js)은 그대로 쓴다 — **이번 전투 안에서만** 적용된다.
+    // 옛 방식은 `TowerRun.boons` 에 쌓아 다음 층까지 이어 붙였지만, 도전(run)이라는
+    // 단위 자체가 없어졌으니 "이번 판에서 주운 것만 이번 판에 듣는다"로 자연히
+    // 단순해졌다 — orb.js/towerboon.js 는 한 줄도 안 건드렸다.
+    if (GAME.TowerBoon) this.state.boons = GAME.TowerBoon.hooksFor({ boons: [] });
   }
   // 대전 컨트롤러 — 같은 예산에서 산 능력치 강화를 같은 규칙으로 얹는다.
   // ⚠ 탑과 **같은 계산식**(add × 레벨)을 쓴다. 두 곳이 갈라지면 같은 이름의 강화가
@@ -159,7 +170,10 @@ GAME.BattleScene.prototype.create = function () {
   this.state.units.push(this.hero);
   // 처치 보상 골드 — **영웅까지 units 에 들어간 뒤에** 훅을 건다.
   // 훅을 걸었는데 한 번도 안 불리면 towerrun.js 가 경고를 내고 옛 방식(층 총액)으로 돌아간다.
-  if (this.tower && GAME.TowerRun && GAME.TowerRun.get()) {
+  // ⚠ `TowerRun.attachKillGold`/`goldGainFor` 는 **순수 계산**이라 `TowerRun.get()` 이
+  //   null(도전이라는 개념이 없어졌으므로 항상 null) 이어도 안전하게 동작한다 —
+  //   가격표만 빌려 쓰고 실제 지급은 `TowerChar.addGold` 가 한다(아래 승패 블록).
+  if (this.tower && GAME.TowerChar && GAME.TowerChar.exists() && GAME.TowerRun) {
     GAME.TowerRun.attachKillGold(this.state, this.tower);
   }
   // 층 목표 — **유닛이 다 만들어진 지금** 붙인다('우두머리'를 고르려면 적이 있어야 한다).
@@ -369,7 +383,7 @@ GAME.BattleScene.prototype.create = function () {
   // 처치 골드 자체가 없으므로 동전도 없어야 한다 — 없는 보상을 뿌리면 거짓말이 된다.
   if (this.state.killGoldEvents && GAME.Coins) {
     this._coins = GAME.Coins.create(this, this.state);
-    this._goldBase = (GAME.TowerRun.get() || {}).gold || 0;
+    this._goldBase = (GAME.TowerChar && GAME.TowerChar.get() || {}).gold || 0;
     this._buildGoldHud();
   }
 
@@ -637,6 +651,50 @@ GAME.BattleScene.prototype._drawOrbs = function (g) {
   }
 };
 
+// ── 치유 구역 (2026-08-01, 물약을 대신한다) ────────────────────────────────
+//  구슬과 완전히 같은 문법이다(지나가면 줍는다) — 아래 세 함수는 `_updateOrbs`/
+//  `_orbToast`/`_drawOrbs` 를 그대로 본떴다.
+GAME.BattleScene.prototype._updateHealZones = function (dt) {
+  var st = this.state;
+  if (!st || !st.healZones || !st.healZones.length || !GAME.HealZone) return;
+  var h = this.hero;
+  if (!h || !h.alive) return;
+  var pickR = (h.def ? h.def.radius : 17) + 34;
+  for (var i = st.healZones.length - 1; i >= 0; i--) {
+    var z = st.healZones[i];
+    z.t += dt;
+    if (z.t < 220) continue;
+    var dx = h.x - z.x, dy = h.y - z.y;
+    if (dx * dx + dy * dy > pickR * pickR) continue;
+    st.healZones.splice(i, 1);
+    var amount = GAME.HealZone.take(st, h);
+    if (amount > 0) this._orbToast('회복의 샘 — 체력 ' + amount + ' 회복!');
+  }
+};
+
+GAME.BattleScene.prototype._drawHealZones = function (g) {
+  var st = this.state;
+  if (!st || !st.healZones || !st.healZones.length) return;
+  var Iso = GAME.Iso, C = GAME.CONFIG.COLORS;
+  for (var i = 0; i < st.healZones.length; i++) {
+    var z = st.healZones[i];
+    var sx = z.x, sy = Iso.toScreenY(z.y);
+    var bob = Math.sin((z.t || 0) / 300) * 3;
+    var r = GAME.CONFIG.SMALL ? 9 : 12;
+    g.fillStyle(0x000000, 0.20);
+    g.fillEllipse(sx, sy, r * 2.4, r * 2.4 * Iso.TILT);
+    // 구슬과 겹치지 않는 신호 — 초록 계열 십자(회복)로 형태를 다르게 한다(색맹 대비).
+    var ink = (GAME.UI.ART_INK_COLOR !== undefined) ? GAME.UI.ART_INK_COLOR : 0x2a2114;
+    g.fillStyle(ink, 0.85);
+    g.fillCircle(sx, sy - bob, r + 3);
+    g.fillStyle(0x4fd07a, 1);
+    g.fillCircle(sx, sy - bob, r + 1);
+    g.fillStyle(0xffffff, 0.9);
+    g.fillRect(sx - r * 0.32, sy - bob - r * 0.7, r * 0.64, r * 1.4);
+    g.fillRect(sx - r * 0.7, sy - bob - r * 0.32, r * 1.4, r * 0.64);
+  }
+};
+
 GAME.BattleScene.prototype.drawNumbers = function () {
   var C = GAME.CONFIG.COLORS;
   var Iso = GAME.Iso;
@@ -718,6 +776,8 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   }
   // 구슬 줍기 — 동전과 **같은 문법**이다(지나가면 줍는다). 플레이어가 새로 배울 것이 없다.
   this._updateOrbs(dt);
+  // 치유 구역 — 통곡의 탑 전투에서만 존재한다(state.towerHealOn).
+  this._updateHealZones(dt);
 
   for (var i = this.markers.length - 1; i >= 0; i--) {
     this.markers[i].t -= dt;
@@ -805,14 +865,16 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       if (GAME.TowerLearn) {
         GAME.TowerLearn.record(this.tower, this.state, this.state.winner === 'strategist');
       }
+      // ⚠ 2026-08-01 — **패배해도 층이 안 돌아간다.** `Tower.fail()` 은 이제 `runs++`
+      //   만 하고 `floor` 는 그대로 둔다(사용자 지시: "실패해도 1층으로 안 돌아가게").
       towerRec = won ? GAME.Tower.clear(this.tower) : GAME.Tower.fail();
-      // 도전(run) — 이기면 골드를 주고, 지면 도전이 끝난다(다음엔 처음부터 고른다)
-      if (GAME.TowerRun && GAME.TowerRun.get()) {
+      // 영구 캐릭터 — 이기면 골드를 적립한다. **지든 이기든 캐릭터는 그대로 남는다**
+      // (예전 `TowerRun.end()` 처럼 지워지지 않는다 — 그게 이번 개편의 핵심이다).
+      if (GAME.TowerChar && GAME.TowerChar.exists()) {
         if (won) {
-          goldGained = GAME.TowerRun.goldGainFor(this.tower, this.state);
-          runRec = GAME.TowerRun.clear(this.tower, this.state);
-        } else {
-          GAME.TowerRun.end();
+          var rawGold = GAME.TowerRun ? GAME.TowerRun.goldGainFor(this.tower, this.state) : 0;
+          goldGained = Math.round(rawGold * GAME.TowerChar.luckGoldMul());
+          runRec = GAME.TowerChar.addGold(goldGained);
         }
       }
     }
@@ -1766,6 +1828,7 @@ GAME.BattleScene.prototype.draw = function () {
   //  표시객체는 0개다 — 전부 이 Graphics 한 장에 들어간다.
   if (this._coins) this._coins.draw(g, this._frameDt());
   this._drawOrbs(g);
+  this._drawHealZones(g);
 
   // ── 투사체 ──
   //  "모든 공격은 눈에 보이는 투사체를 갖는다"가 이 게임의 규칙인데, 라이트 테마에서는

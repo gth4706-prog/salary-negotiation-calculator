@@ -176,25 +176,37 @@ GAME.HEROES = {
       //  쿨을 줄이면 '자주 누르는 손'이 되어 사냥꾼과 결이 같아진다.
       //  피해 +25~40% · 반경 +10~20% · 돌진 거리 +15%.
 
+      // ── 2026-08-01 · 상점 확충(요청 6·9) — 슬롯당 3→5. 기본(0번)은 무료 내장이고
+      //  나머지는 전부 골드로 구매해야 장착할 수 있다(`js/towerchar.js` 의 `ownedSkills`).
+      //  새로 늘린 두 개(3·4번)는 **기존 타입의 숫자 변형**이다 — combat.js 에 새 로직을
+      //  안 만들어 회귀 위험을 없앤다. 가격은 슬롯 안에서 상대 위력에 맞춰 매겼다.
       Q: [
-        { name: '박치기', type: 'dash', dist: 265, damage: 60, radius: 64, cooldown: 8000 },
-        { name: '대검 돌진', type: 'dash', dist: 175, damage: 94, radius: 82, cooldown: 9000 },
-        { name: '흙먼지 은신', type: 'dash', dist: 300, damage: 0, radius: 0, cooldown: 6000 }
+        { name: '박치기', type: 'dash', dist: 265, damage: 60, radius: 64, cooldown: 8000, cost: 0 },
+        { name: '대검 돌진', type: 'dash', dist: 175, damage: 94, radius: 82, cooldown: 9000, cost: 70 },
+        { name: '흙먼지 은신', type: 'dash', dist: 300, damage: 0, radius: 0, cooldown: 6000, cost: 60 },
+        { name: '폭풍 돌진', type: 'dash', dist: 340, damage: 70, radius: 70, cooldown: 7000, cost: 90 },
+        { name: '부딪쳐깨기', type: 'dash', dist: 220, damage: 120, radius: 90, cooldown: 10000, cost: 140 }
       ],
       W: [
-        { name: '대검 회전', type: 'aoeSelf', radius: 102, damage: 70, cooldown: 11000 },
-        { name: '후려치기', type: 'pull', coneDeg: 110, dist: 200, damage: 78, cooldown: 10000 },
-        { name: '모래 뿌리기', type: 'aoeSelf', radius: 130, damage: 24, rootMs: 1300, cooldown: 13000 }
+        { name: '대검 회전', type: 'aoeSelf', radius: 102, damage: 70, cooldown: 11000, cost: 0 },
+        { name: '후려치기', type: 'pull', coneDeg: 110, dist: 200, damage: 78, cooldown: 10000, cost: 80 },
+        { name: '모래 뿌리기', type: 'aoeSelf', radius: 130, damage: 24, rootMs: 1300, cooldown: 13000, cost: 70 },
+        { name: '강타 후려치기', type: 'pull', coneDeg: 130, dist: 230, damage: 100, cooldown: 11500, cost: 120 },
+        { name: '광역 휩쓸기', type: 'aoeSelf', radius: 140, damage: 95, cooldown: 13000, cost: 150 }
       ],
       E: [
-        { name: '가죽 두르기', type: 'buff', armorAdd: 45, speedMul: 0.85, duration: 3500, cooldown: 14000 },
-        { name: '광폭화', type: 'buff', damageMul: 1.85, speedMul: 1.20, duration: 4500, cooldown: 16000 },
-        { name: '약초 씹기', type: 'buff', healNow: 260, shield: 120, duration: 3000, cooldown: 15000 }
+        { name: '가죽 두르기', type: 'buff', armorAdd: 45, speedMul: 0.85, duration: 3500, cooldown: 14000, cost: 0 },
+        { name: '광폭화', type: 'buff', damageMul: 1.85, speedMul: 1.20, duration: 4500, cooldown: 16000, cost: 90 },
+        { name: '약초 씹기', type: 'buff', healNow: 260, shield: 120, duration: 3000, cooldown: 15000, cost: 80 },
+        { name: '전장의 함성', type: 'buff', damageMul: 1.45, armorAdd: 30, duration: 4000, cooldown: 15000, cost: 130 },
+        { name: '불굴', type: 'buff', healNow: 400, shield: 220, duration: 3200, cooldown: 17000, cost: 170 }
       ],
       R: [
-        { name: '바위 내리치기', type: 'aoeSelf', radius: 172, damage: 118, knockback: 110, cooldown: 32000 },
-        { name: '가시 함정', type: 'trap', damage: 200, radius: 104, rootMs: 1700, life: 20000, cooldown: 26000 },
-        { name: '낙석 유도', type: 'aoeTarget', radius: 140, damage: 48, repeat: 3, interval: 650, telegraph: 700, cooldown: 30000 }
+        { name: '바위 내리치기', type: 'aoeSelf', radius: 172, damage: 118, knockback: 110, cooldown: 32000, cost: 0 },
+        { name: '가시 함정', type: 'trap', damage: 200, radius: 104, rootMs: 1700, life: 20000, cooldown: 26000, cost: 110 },
+        { name: '낙석 유도', type: 'aoeTarget', radius: 140, damage: 48, repeat: 3, interval: 650, telegraph: 700, cooldown: 30000, cost: 100 },
+        { name: '유성 낙하', type: 'aoeTarget', radius: 160, damage: 65, repeat: 4, interval: 600, telegraph: 750, cooldown: 32000, cost: 180 },
+        { name: '대지 붕괴', type: 'aoeSelf', radius: 200, damage: 150, knockback: 130, cooldown: 34000, cost: 200 }
       ]
     }
   },
@@ -228,25 +240,34 @@ GAME.HEROES = {
     attack: 'projectile', projectileSpeed: 420, projectileRadius: 7, lifesteal: 0,
     radius: 15, shape: 'triangle',
     skillOptions: {
+      // ── 2026-08-01 · 상점 확충(요청 6·9). 0번 무료 내장, 나머지 구매 필요.
       Q: [
-        { name: '관통 화살', type: 'projectile', damage: 54, speed: 520, pierce: true, radius: 9, cooldown: 8000 },
-        { name: '연사', type: 'projectile', damage: 27, speed: 620, pierce: false, radius: 7, burst: 3, burstDelay: 110, cooldown: 7000 },
-        { name: '불화살', type: 'aoeTarget', radius: 95, damage: 58, repeat: 1, telegraph: 500, cooldown: 9000 }
+        { name: '관통 화살', type: 'projectile', damage: 54, speed: 520, pierce: true, radius: 9, cooldown: 8000, cost: 0 },
+        { name: '연사', type: 'projectile', damage: 27, speed: 620, pierce: false, radius: 7, burst: 3, burstDelay: 110, cooldown: 7000, cost: 70 },
+        { name: '불화살', type: 'aoeTarget', radius: 95, damage: 58, repeat: 1, telegraph: 500, cooldown: 9000, cost: 80 },
+        { name: '연쇄 사격', type: 'projectile', damage: 22, speed: 650, pierce: false, radius: 7, burst: 5, burstDelay: 100, cooldown: 8500, cost: 110 },
+        { name: '독화살', type: 'projectile', damage: 70, speed: 560, pierce: true, radius: 8, cooldown: 9000, cost: 140 }
       ],
       W: [
-        { name: '구르기', type: 'dash', dist: 210, damage: 0, radius: 0, cooldown: 5000 },
-        { name: '도약', type: 'dash', dist: 330, damage: 0, radius: 0, cooldown: 8000 },
-        { name: '뒷걸음 사격', type: 'dash', dist: 160, damage: 38, radius: 60, cooldown: 6500, backward: true }
+        { name: '구르기', type: 'dash', dist: 210, damage: 0, radius: 0, cooldown: 5000, cost: 0 },
+        { name: '도약', type: 'dash', dist: 330, damage: 0, radius: 0, cooldown: 8000, cost: 60 },
+        { name: '뒷걸음 사격', type: 'dash', dist: 160, damage: 38, radius: 60, cooldown: 6500, backward: true, cost: 70 },
+        { name: '회피 사격', type: 'dash', dist: 200, damage: 55, radius: 70, cooldown: 7000, backward: true, cost: 110 },
+        { name: '장거리 도약', type: 'dash', dist: 420, damage: 0, radius: 0, cooldown: 9000, cost: 130 }
       ],
       E: [
-        { name: '올가미', type: 'trap', damage: 44, radius: 55, rootMs: 1400, life: 12000, cooldown: 11000 },
-        { name: '끈끈이 덫', type: 'trap', damage: 16, radius: 90, rootMs: 2400, life: 14000, cooldown: 10000 },
-        { name: '풀숲 위장', type: 'buff', armorAdd: 30, speedMul: 1.25, duration: 3000, cooldown: 12000 }
+        { name: '올가미', type: 'trap', damage: 44, radius: 55, rootMs: 1400, life: 12000, cooldown: 11000, cost: 0 },
+        { name: '끈끈이 덫', type: 'trap', damage: 16, radius: 90, rootMs: 2400, life: 14000, cooldown: 10000, cost: 70 },
+        { name: '풀숲 위장', type: 'buff', armorAdd: 30, speedMul: 1.25, duration: 3000, cooldown: 12000, cost: 80 },
+        { name: '그림자 위장', type: 'buff', armorAdd: 20, speedMul: 1.40, duration: 3200, cooldown: 13000, cost: 110 },
+        { name: '가시 올가미', type: 'trap', damage: 65, radius: 70, rootMs: 1800, life: 13000, cooldown: 12000, cost: 140 }
       ],
       R: [
-        { name: '화살비', type: 'aoeTarget', radius: 115, damage: 27, repeat: 3, interval: 700, telegraph: 600, cooldown: 30000 },
-        { name: '폭풍 화살', type: 'aoeTarget', radius: 180, damage: 21, repeat: 5, interval: 500, telegraph: 800, cooldown: 34000 },
-        { name: '일격 화살', type: 'projectile', damage: 132, speed: 800, pierce: true, radius: 11, cooldown: 26000 }
+        { name: '화살비', type: 'aoeTarget', radius: 115, damage: 27, repeat: 3, interval: 700, telegraph: 600, cooldown: 30000, cost: 0 },
+        { name: '폭풍 화살', type: 'aoeTarget', radius: 180, damage: 21, repeat: 5, interval: 500, telegraph: 800, cooldown: 34000, cost: 120 },
+        { name: '일격 화살', type: 'projectile', damage: 132, speed: 800, pierce: true, radius: 11, cooldown: 26000, cost: 140 },
+        { name: '유성비', type: 'aoeTarget', radius: 140, damage: 30, repeat: 4, interval: 550, telegraph: 650, cooldown: 32000, cost: 190 },
+        { name: '관통 저격', type: 'projectile', damage: 170, speed: 850, pierce: true, radius: 12, cooldown: 28000, cost: 210 }
       ]
     }
   },
@@ -333,25 +354,34 @@ GAME.HEROES = {
     //  ⚠ 쿨타임은 셋 다 안 건드렸다 — 쿨을 줄이면 세 영웅이 전부 '자주 누르는 손'이 되어
     //    결이 같아진다. 축을 가르는 것이 이번 변경의 목적이다.
     skillOptions: {
+      // ── 2026-08-01 · 상점 확충(요청 6·9). 0번 무료 내장, 나머지 구매 필요.
       Q: [
-        { name: '갈고리 찍기', type: 'strike', damage: 92, lifestealMul: 1.9, cooldown: 7000 },
-        { name: '방패 밀치기', type: 'aoeSelf', radius: 96, damage: 58, knockback: 78, cooldown: 8000 },
-        { name: '그물 던지기', type: 'strike', damage: 37, rootMs: 1800, lifestealMul: 1, cooldown: 9000 }
+        { name: '갈고리 찍기', type: 'strike', damage: 92, lifestealMul: 1.9, cooldown: 7000, cost: 0 },
+        { name: '방패 밀치기', type: 'aoeSelf', radius: 96, damage: 58, knockback: 78, cooldown: 8000, cost: 80 },
+        { name: '그물 던지기', type: 'strike', damage: 37, rootMs: 1800, lifestealMul: 1, cooldown: 9000, cost: 70 },
+        { name: '방패 강타', type: 'aoeSelf', radius: 110, damage: 75, knockback: 95, cooldown: 8500, cost: 120 },
+        { name: '강철 갈고리', type: 'strike', damage: 120, lifestealMul: 2.1, cooldown: 8000, cost: 150 }
       ],
       W: [
-        { name: '방패 세우기', type: 'buff', shield: 300, duration: 5500, cooldown: 15000 },
-        { name: '철벽 자세', type: 'buff', armorAdd: 110, duration: 5000, cooldown: 14000 },
-        { name: '숨 고르기', type: 'buff', healNow: 480, duration: 1000, cooldown: 17000 }
+        { name: '방패 세우기', type: 'buff', shield: 300, duration: 5500, cooldown: 15000, cost: 0 },
+        { name: '철벽 자세', type: 'buff', armorAdd: 110, duration: 5000, cooldown: 14000, cost: 90 },
+        { name: '숨 고르기', type: 'buff', healNow: 480, duration: 1000, cooldown: 17000, cost: 80 },
+        { name: '재생의 숨결', type: 'buff', healNow: 620, duration: 1200, cooldown: 18000, cost: 140 },
+        { name: '불굴의 방패', type: 'buff', shield: 420, duration: 6000, cooldown: 16000, cost: 160 }
       ],
       E: [
-        { name: '갈고리 당기기', type: 'pull', coneDeg: 120, dist: 240, damage: 26, cooldown: 13000 },
-        { name: '회전 갈고리', type: 'pull', coneDeg: 360, dist: 200, damage: 21, cooldown: 15000 },
-        { name: '돌진', type: 'dash', dist: 200, damage: 32, radius: 60, cooldown: 9000 }
+        { name: '갈고리 당기기', type: 'pull', coneDeg: 120, dist: 240, damage: 26, cooldown: 13000, cost: 0 },
+        { name: '회전 갈고리', type: 'pull', coneDeg: 360, dist: 200, damage: 21, cooldown: 15000, cost: 70 },
+        { name: '돌진', type: 'dash', dist: 200, damage: 32, radius: 60, cooldown: 9000, cost: 90 },
+        { name: '대지 돌진', type: 'dash', dist: 250, damage: 45, radius: 70, cooldown: 10000, cost: 120 },
+        { name: '강철 사슬', type: 'pull', coneDeg: 140, dist: 280, damage: 38, cooldown: 14000, cost: 140 }
       ],
       R: [
-        { name: '파수 구역', type: 'aura', radius: 152, dps: 32, duration: 9000, cooldown: 34000 },
-        { name: '경계 화톳불', type: 'aura', radius: 210, dps: 22, duration: 12000, cooldown: 36000 },
-        { name: '대지 강타', type: 'aoeSelf', radius: 182, damage: 130, knockback: 88, cooldown: 28000 }
+        { name: '파수 구역', type: 'aura', radius: 152, dps: 32, duration: 9000, cooldown: 34000, cost: 0 },
+        { name: '경계 화톳불', type: 'aura', radius: 210, dps: 22, duration: 12000, cooldown: 36000, cost: 110 },
+        { name: '대지 강타', type: 'aoeSelf', radius: 182, damage: 130, knockback: 88, cooldown: 28000, cost: 130 },
+        { name: '지진 강타', type: 'aoeSelf', radius: 210, damage: 160, knockback: 100, cooldown: 30000, cost: 190 },
+        { name: '불굴의 구역', type: 'aura', radius: 170, dps: 40, duration: 10000, cooldown: 35000, cost: 200 }
       ]
     }
   }

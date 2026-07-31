@@ -9,6 +9,9 @@ GAME.Combat = {
       units: [], projectiles: [], effects: [], traps: [],
       // 구슬(js/orb.js) — 적을 잡으면 확률로 떨어진다. 씬이 그리고 줍는다.
       orbs: [], orbTaken: [],
+      // 치유 구역(js/healzone.js) — 물약을 대신한다. `towerHealOn` 은 통곡의 탑
+      // 전투에서만 battle.js 가 켠다(대전·수성의 탑은 이 기제가 안 돈다).
+      healZones: [], healTaken: 0, towerHealOn: false,
       numbers: [],          // 떠오르는 피해 숫자 (렌더 전용 데이터)
       elapsed: 0, over: false, winner: null,
       // 전략가가 영웅에게 마지막으로 피해를 준 뒤 흐른 시간 → 교착 압박 계산에 쓴다
@@ -468,6 +471,9 @@ GAME.Combat = {
       // 구슬 — 전략가 유닛을 잡았을 때만. 위험물(가시덫)은 '잡았다'로 안 친다.
       if (state && GAME.Orb && unit.side === 'strategist' && !this.isHazard(unit)) {
         GAME.Orb.maybeDrop(state, unit.x, unit.y);
+      }
+      if (state && state.towerHealOn && GAME.HealZone && unit.side === 'strategist' && !this.isHazard(unit)) {
+        GAME.HealZone.maybeDrop(state, unit.x, unit.y);
       }
       if (state && state.onKill) state.onKill(unit, state);
       // 관측: 원거리 유닛이 근접 공격에 죽었나 (kite 학습 신호)

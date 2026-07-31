@@ -87,8 +87,10 @@ GAME.ResultScene.prototype.create = function () {
       sub = '다음은 ' + (this.tower + 1) + '층 — 적 진형 ' + GAME.Tower.budgetFor(this.tower + 1) +
             '. 골드로 능력치를 올리고 올라가세요. AI는 이번 전투 양상을 보고 배치를 바꿉니다.';
     } else {
+      // 2026-08-01 — 패배해도 층이 안 돌아간다(캐릭터가 영구화됐다). "1층부터"
+      //  문구를 없애고 같은 층 재도전을 안내한다.
       title = this.tower + '층에서 탈락'; color = C.accentAlt;
-      sub = '도전이 끝났습니다 — 1층부터 새로 세팅합니다.' +
+      sub = '같은 층에서 다시 도전할 수 있습니다 — 캐릭터와 성장은 그대로 남습니다.' +
             (this.towerRec ? ' 최고 기록 ' + (this.towerRec.best || 0) + '층.' : '');
     }
   } else if (this.defendTower) {
@@ -194,7 +196,8 @@ GAME.ResultScene.prototype.create = function () {
   var btnTop = Math.max(ry + u * 3, u * 68);
 
   var b1;
-  if (this.tower) b1 = (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : '1층부터 다시');
+  // 2026-08-01 — 패배해도 층이 안 돌아가므로 재도전 문구도 같은 층을 가리킨다.
+  if (this.tower) b1 = (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : this.tower + '층 재도전');
   else if (this.defendTower) b1 = (this.winner === 'controller' ? '1층부터 다시' : (this.defendTower + 1) + '층 방어');
   else if (this.versus) b1 = '다음 상대';
   else if (this.defendMode) b1 = '배치 고쳐 다시';
@@ -321,7 +324,8 @@ GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
   }
 
   var b1;
-  if (this.tower) b1 = (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : '1층부터 다시');
+  // 2026-08-01 — 패배해도 층이 안 돌아가므로 재도전 문구도 같은 층을 가리킨다.
+  if (this.tower) b1 = (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : this.tower + '층 재도전');
   else if (this.defendTower) b1 = (this.winner === 'controller' ? '1층부터 다시' : (this.defendTower + 1) + '층 방어');
   else if (this.versus) b1 = '다음 상대';
   else if (this.defendMode) b1 = '배치 고쳐 다시';

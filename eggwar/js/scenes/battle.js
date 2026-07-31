@@ -724,7 +724,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     if (this.markers[i].t <= 0) this.markers.splice(i, 1);
   }
 
-  this._dt = dt;          // 걸음걸이 위상 계산용 (렌더에서만 쓴다)
+  this._dt = dt;          // 걸음걸이·공격 모션 위상 계산용 (렌더에서만 쓴다)
   this.draw();
   this.drawNumbers();
   this.updateHud();
@@ -848,6 +848,14 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       });
     });
   }
+};
+
+// 이 프레임에 애니메이션이 흘러야 할 시간(ms).
+// **히트스톱 중에는 0 이다** — 시뮬이 멎었는데 그림만 움직이면 '멎었다가 터진다'는
+// 연출 자체가 성립하지 않는다. 예전 `this._dt || 16` 은 0 을 16 으로 되돌려 놓아
+// 그 약속을 조용히 깨고 있었다(0 은 falsy 다).
+GAME.BattleScene.prototype._frameDt = function () {
+  return (typeof this._dt === 'number' && isFinite(this._dt)) ? this._dt : 16;
 };
 
 // 체력이 줄어든 유닛을 찾아 타격 연출을 붙인다. **렌더 전용** — 상태를 읽기만 한다.
@@ -1568,7 +1576,14 @@ GAME.BattleScene.prototype.draw = function () {
     }
 
     // 이동량으로 보행 위상을 굴린다 — 걷는 동안만 다리가 움직인다
-    var walk = GAME.UI.updateGait(u, this._dt || 16);
+    // ⚠ `this._dt || 16` 은 **히트스톱을 무시한다.** 히트스톱 중에는 위 697행이
+    //   `this._dt = 0` 으로 두는데 `0 || 16` 은 16 이라, 시뮬이 멎은 프레임에도
+    //   애니메이션만 계속 흘렀다. 걸음걸이는 45ms 라 눈에 안 띄었지만 **공격 모션은
+    //   타격 순간과 히트스톱이 정확히 겹치므로** 거기서는 진짜로 보인다.
+    var fdt = this._frameDt();
+    var walk = GAME.UI.updateGait(u, fdt);
+    // 전투 모션 — 영웅만. 렌더 전용 관측자라 combat 을 한 줄도 안 읽어 바꾸지 않는다.
+    var act = GAME.UI.updateAct(u, fdt);
     // 피격 휘청임 — 계란은 무게중심이 위에 있는 오뚝이라 맞으면 흔들려야 한다.
     // 맞은 반대 방향으로 밀렸다가 감쇠 진동으로 돌아온다. **그리는 좌표만** 흔들고
     // 월드 좌표(u.x/u.y)는 건드리지 않는다 — 판정·밸런스 불변.
@@ -1588,7 +1603,8 @@ GAME.BattleScene.prototype.draw = function () {
     // 그 발밑 링이라, 링을 끈 상태에서 side 는 아무 일도 하지 않는 죽은 인자다.
     // (어깨띠는 양 진영 같은 모양이므로 side 를 필요로 하지 않는다.)
     var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, 1, u.facing, walk,
-                               undefined, { footRing: false, sizeMul: u.eliteDraw || 1 });
+                               undefined, { footRing: false, sizeMul: u.eliteDraw || 1,
+                                            act: act });
 
     // 껍질 금 + 피격 번쩍 — 체력을 '읽지 않고 보게' 한다
     // ⚠ **여기 가드가 틀려 있었다** (2026-07-30 실측). 옛 코드는 `!GAME.isNonTarget(u.def)`
@@ -1748,7 +1764,7 @@ GAME.BattleScene.prototype.draw = function () {
   //  다음 유닛이 그 위에 서는 순간 통째로 가려진다 — 주우라고 만든 물건이 안 보인다.
   //  대신 지면 그림자를 함께 찍어 '떠 있는 것'이 아니라 '바닥에 놓인 것'으로 읽히게 했다.
   //  표시객체는 0개다 — 전부 이 Graphics 한 장에 들어간다.
-  if (this._coins) this._coins.draw(g, this._dt || 16);
+  if (this._coins) this._coins.draw(g, this._frameDt());
   this._drawOrbs(g);
 
   // ── 투사체 ──

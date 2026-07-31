@@ -422,6 +422,276 @@ GAME.UI = GAME.UI || {};
     };
   };
 
+  // ── 전투 모션 (2026-07-31, 사용자 지시: "공격모션과 스킬모션 만들어줘 일단 영웅한테만") ──
+  //
+  //  `idlePose` 가 **주기함수**(2.8초마다 저절로 휘두른다)라면 이건 **이벤트**다.
+  //  둘을 한 함수에 넣지 않은 이유가 그것이다 — 합치면 "선택 화면의 반복 재생"이
+  //  전장으로 새어 들어온다. 카드 화면은 지금처럼 idle 만 쓰고, 전장은 여기를 쓴다.
+  //
+  //  ## 예비 동작을 판정을 안 건드리고 만드는 법
+  //  `Combat.fire()` 는 때린 뒤 `u.cd = def.cooldown` 으로 리셋한다. 즉 **남은 쿨타임이
+  //  곧 다음 타격까지 남은 시간**이라, 렌더가 그걸 읽기만 해도 진짜 예비 동작이 된다.
+  //  `cd <= 0` 이면 감은 채 멈춘다 — "장전됐다, 사거리에 들어오면 친다"가 사실 그대로다.
+  //
+  //  ⚠ **예비 동작으로 피해를 늦추지 않는다.** `castSkill` 은 시전 프레임에 피해를 넣는데,
+  //    거기에 windup 을 넣으면 그건 아트가 아니라 밸런스 변경이다(쿨 경제·회피 판정·
+  //    regress.js 의 R-1/R-3/R-4/R-5 기준선이 전부 같이 움직인다). 지연이 이미 있는
+  //    타입(aoeTarget 의 telegraph, aura 의 duration, 투사체 비행)에서만 예비가 진짜다.
+  //    나머지는 정직하게 짧은 스매어로 두고 공정성 신호는 `skillfx` 에 맡긴다.
+  //
+  //  ## 기울기(lean/pitch)를 주 신호로 쓰지 않는 이유 — 8방향 중 2방향에서 사라진다
+  //  `drawEggChar` 는 `lean_px = r*(lean*D.px + pitch*D.fx)` 로 합치는데
+  //  `D.px = -sin θ`, `D.fx = cos θ` 이므로
+  //      lean_px = r·k·√(A²+B²)·sin(θ + φ),   φ = atan2(B, A)
+  //  **영점이 θ = -φ 와 180°-φ 두 곳에 생긴다.** 8방향은 45° 스냅이라 φ 가 45°의
+  //  홀수배 근처면 영점이 스냅각과 정확히 겹쳐 그 두 방향에서 기울기가 0 이 된다.
+  //  이건 이 파일이 볏·깃발에서 이미 두 번 겪은 사고(정면에서 신호가 사라짐)와 같은 계열이다.
+  //  → **φ 를 67.5° 로 고정**한다(B/A = tan67.5° = 2.414). 그러면 8방향에서
+  //    |sin(θ+φ)| ∈ {0.383, 0.924} 이라 최악에서도 진폭의 38.3% 가 남는다.
+  //  → 그리고 주 신호는 방향 무관 채널(ky·rise·reach·무기각 atk)이 맡는다.
+  var TAN675 = 2.414213562373095;
+
+  //  영웅별 모션 상수. **아트 수치라 heroes.js 가 아니라 여기 둔다** — heroes.js 를
+  //  건드리면 통곡의 탑 회귀를 다시 돌려야 한다(CLAUDE.md). 이 값들은 밸런스가 아니다.
+  UI.ACT = {
+    //  WIND : 예비 동작 길이  ·  DUR : 모션 총 길이  ·  A : 기울기 진폭(측면축)
+    //  B = A × TAN675 로 자동 계산한다 — φ 를 손으로 적으면 어긋난다.
+    berserker: { wind: 240, dur: 600, A: 0.120 },   // 큰 각 — 대검이 주 신호
+    hunter:    { wind: 200, dur: 420, A: 0.092 },   // 가장 얕다 — 몸을 안 쓰는 게 정체성
+    guardian:  { wind: 300, dur: 620, A: 0.099 },   // 느리게 감고 버틴다
+    _default:  { wind: 200, dur: 480, A: 0.100 }
+  };
+
+  //  ky 는 이 범위를 벗어나면 안 된다. `eggBody` 가 면적을 보존하느라 가로를 1/ky 로
+  //  늘리므로, 0.70 까지 눌리면 파수꾼 알 폭이 48 → 68.6px 가 되어 폰 근접 거리에서
+  //  옆 유닛과 겹친다. 하한 0.78 · 상한 1.20 이 그 선이다.
+  var KY_MIN = 0.78, KY_MAX = 1.20;
+  function clampKy(v) { return v < KY_MIN ? KY_MIN : (v > KY_MAX ? KY_MAX : v); }
+  function ease(u) { return u <= 0 ? 0 : (u >= 1 ? 1 : u * u * (3 - 2 * u)); }
+  function clamp01(u) { return u < 0 ? 0 : (u > 1 ? 1 : u); }
+
+  //  기본 공격의 k 곡선. u = 발동 후 경과 / 타격 길이.
+  //  광전사는 정점을 **+0.82** 에 둔다 — `bladeDir(1.55 - atk*1.90)` 이 atk=+1 에서
+  //  1.55-1.90 = -0.35 라 칼이 아래로 기울어 화면 최원점이 오히려 짧아진다.
+  //  앞뒤축과 정확히 나란해지는 값이 1.55/1.90 = 0.816 이다. +1 은 그 뒤 추종에서 지나간다.
+  var PEAK = { berserker: 0.82, hunter: 1.0, guardian: 1.0 };
+
+  //  스킬 타입별 모션 길이(ms). 타입이 9종인데 그림이 하나면 "스킬을 썼다"만 알고
+  //  **무엇을 썼는지**는 모른다 — 그건 모션이 아니라 깜빡임이다.
+  //  ⚠ `castSkill` 은 시전 프레임에 피해를 넣는다. 여기 길이를 늘려도 피해는 안 늦는다
+  //    (늦추면 그건 아트가 아니라 밸런스다). 그림만 뒤따라간다.
+  UI.SKILL_DUR = {
+    dash: 320, aoeSelf: 520, aoeTarget: 620, projectile: 240,
+    buff: 520, pull: 520, trap: 460, aura: 480, strike: 560
+  };
+
+  //  타입마다 **주 신호를 하나씩** 다르게 잡는다. 셋 다 크게 움직이면 셋 다 안 읽힌다.
+  //    돌진 = 몸이 뒤늦게 따라붙음(drift 음수)   ·  광역자기 = 눌렸다 펴짐(ky)
+  //    광역지정 = 팔을 든 채 유지(reach·rise)     ·  투사체 = 짧고 빠른 무기각
+  //    버프 = 웅크렸다 부풀기(ky 하나가 전부)      ·  당기기 = 팔 뻗음 0.80↔1.42
+  //    덫 = 아래로 내려앉기(유일하게 아래로)       ·  오라 = 땅에 꽂고 유지(gearDrop)
+  //    강타 = 박은 채 유지(reach 1.46)
+  function skillPose(type, u, P) {
+    var e = ease(u), fall = Math.cos(u * Math.PI * 0.5);
+    if (type === 'dash') {
+      var g1 = (1 - u) * (1 - u);
+      P.ky = clampKy(1 - 0.14 * g1); P.drift = -1.20 * g1; P.atk = -0.5 * (1 - u);
+      P.legF = 1.0 * (1 - u); P.legSpread = 0.50 * (1 - u); P.reach = 1 - 0.06 * g1;
+    } else if (type === 'aoeSelf') {
+      P.spin = Math.pow(clamp01((u - 0.12) / 0.58), 0.6);
+      P.ky = clampKy(1 - 0.14 * Math.sin(Math.PI * P.spin));
+      P.atk = u < 0.12 ? -1 : 0.4; P.reach = 1 + 0.18 * Math.sin(Math.PI * P.spin);
+      P.rise = -0.06 * Math.sin(Math.PI * P.spin);
+    } else if (type === 'aoeTarget') {
+      // 유일하게 **진짜 예비**가 있는 타입 — 예고(telegraph)가 실제 지연이라 정직하다.
+      var hold = u < 0.22 ? u / 0.22 : (u < 0.80 ? 1 : (1 - u) / 0.20);
+      P.reach = 1 + 0.30 * hold; P.rise = -0.10 * hold;
+      P.ky = clampKy(1 + 0.08 * hold); P.atk = -0.85 * hold;
+    } else if (type === 'projectile') {
+      P.atk = u < 0.25 ? -1 : (u < 0.42 ? -1 + 2 * ((u - 0.25) / 0.17) : (1 - (u - 0.42) / 0.58));
+      P.reach = u < 0.25 ? 0.90 : 1 + 0.14 * (1 - u); P.drift = -0.12 * (1 - u);
+      P.ky = clampKy(1 - 0.05 * Math.sin(Math.PI * u));
+    } else if (type === 'buff') {
+      P.ky = clampKy(u < 0.18 ? 1 - 0.16 * (u / 0.18)
+                   : (u < 0.50 ? 0.84 + 0.34 * ease((u - 0.18) / 0.32)
+                               : 1.18 - 0.18 * ease((u - 0.50) / 0.50)));
+      P.rise = u < 0.18 ? 0.08 * (u / 0.18) : -0.12 * ease(clamp01((u - 0.18) / 0.32)) * fall;
+      P.reach = u < 0.18 ? 0.84 : 1; P.atk = 0;
+    } else if (type === 'pull') {
+      P.reach = u < 0.14 ? 1 + 0.42 * (u / 0.14)
+              : (u < 0.29 ? 1.42 : 1.42 - 0.62 * ease((u - 0.29) / 0.35));
+      if (u >= 0.64) P.reach = 0.80 + 0.20 * ease((u - 0.64) / 0.36);
+      P.atk = u < 0.29 ? 1 : 1 - 2 * ease((u - 0.29) / 0.71) * 0.6;
+      P.ky = clampKy(1 - 0.06 * (u > 0.14 ? 1 : 0)); P.drift = u < 0.29 ? 0.14 : -0.10;
+    } else if (type === 'trap') {
+      var d = u < 0.26 ? u / 0.26 : (u < 0.52 ? 1 : 1 - ease((u - 0.52) / 0.48));
+      P.ky = clampKy(1 - 0.22 * d); P.rise = 0.14 * d;
+      P.reach = 1 + 0.36 * d; P.gearDrop = 0.30 * d; P.atk = -0.3 * d;
+    } else if (type === 'aura') {
+      var s2 = u < 0.33 ? u / 0.33 : 1;
+      P.gearDrop = 0.44 * s2; P.reach = 1 + 0.20 * s2 - 0.28 * clamp01((u - 0.33) / 0.67);
+      P.ky = clampKy(1 - 0.12 * s2); P.atk = -1 * s2; P.guard = 0.18 * s2;
+    } else if (type === 'strike') {
+      var h2 = u < 0.09 ? 0 : (u < 0.23 ? (u - 0.09) / 0.14 : (u < 0.54 ? 1 : fall));
+      P.atk = -1 + 2 * h2; P.reach = 0.88 + 0.58 * h2;
+      P.drift = -0.06 + 0.32 * h2; P.ky = clampKy(1.06 - 0.20 * h2);
+    }
+    return P;
+  }
+
+  //  act 를 포즈로 바꾼다. **순수 함수** — 같은 인자면 같은 반환(gait·idlePose 와 같은 규율).
+  //  act : null | { art:'berserker'|…, t:ms(발동 후), wind:0..1, kind:'atk'|'skill', type:… }
+  //  반환 키 중 ky/rise/lean/pitch/reach/atk 는 idlePose 와 같은 이름이라 합산할 수 있다.
+  UI.actPose = function (act) {
+    if (!act) return null;
+
+    // ── 스킬 ── 기본 공격과 **다른 곡선**을 쓴다. 기울기(φ 고정)만 공유한다.
+    if (act.kind === 'skill') {
+      var Cs = UI.ACT[act.art] || UI.ACT._default;
+      var ds = act.dur || UI.SKILL_DUR[act.type] || 480;
+      if (typeof act.t !== 'number' || !isFinite(act.t) || act.t < 0 || act.t > ds) return null;
+      var Ps = { ky: 1, rise: 0, reach: 1, atk: 0, drift: 0,
+                 guard: act.art === 'guardian' ? 0.10 : 0,
+                 gearDrop: 0, spin: 0, legF: 0, legSpread: 0 };
+      skillPose(act.type, clamp01(act.t / ds), Ps);
+      if (Ps.drift > 1.4) Ps.drift = 1.4; else if (Ps.drift < -1.4) Ps.drift = -1.4;
+      Ps.lean = -Cs.A * Ps.atk;
+      Ps.pitch = Cs.A * TAN675 * Ps.atk;
+      return Ps;
+    }
+    var C = UI.ACT[act.art] || UI.ACT._default;
+    var t = act.t, dur = act.dur || C.dur;
+    if (typeof t !== 'number' || !isFinite(t) || t > dur) return null;
+    var w = clamp01(act.wind || 0);
+    var peak = PEAK[act.art] || 1;
+
+    var k, ky = 1, rise = 0, reach = 1, drift = 0, guard = 0, gearDrop = 0, spin = 0;
+    var legF = 0, legSpread = 0;
+
+    if (t < 0) {
+      // ── 예비 ── 아직 안 때렸다. w 가 1 에 가까울수록 완전히 감긴 상태.
+      k = -Math.pow(w, act.art === 'guardian' ? 1 : 0.7);   // 파수꾼만 선형(느리다=무겁다)
+      ky = 1 + 0.10 * w * (act.art === 'hunter' ? 0.5 : 1);
+      rise = -0.05 * w;
+      reach = 1 - 0.12 * w;
+      drift = -0.10 * w;
+      legF = -0.40 * w;
+    } else {
+      var strike = act.strike || 90;
+      if (t < strike) {
+        // ── 타격 ── 짧고 빠르다. 만화 타이밍의 핵심은 여기가 예비의 1/3 이라는 것.
+        var u = t / strike;
+        k = -1 + (1 + peak) * Math.pow(u, 0.55);
+        ky = clampKy(1.10 - 0.26 * Math.sqrt(u));
+        rise = -0.05 + 0.15 * u;
+        reach = 1 + 0.34 * u;
+        drift = -0.10 + 0.36 * u;
+        legF = -0.40 + 0.95 * u;
+      } else {
+        // ── 추종·복귀 ── cos 로 부드럽게 0 으로. 파수꾼만 중간에 '버티는' 구간이 있다.
+        var v = clamp01((t - strike) / (dur - strike));
+        var hold = act.art === 'guardian' ? 0.38 : 0;   // 창을 박은 채 유지
+        var fall = Math.cos(v * Math.PI * 0.5);
+        k = peak * (hold ? (1 - (1 - hold) * ease(v)) : fall);
+        ky = clampKy(0.84 + 0.16 * ease(v));
+        rise = 0.10 * fall;
+        reach = 1 + 0.34 * fall;
+        drift = 0.26 * fall;
+        legF = 0.55 * fall;
+      }
+    }
+
+    // 파수꾼은 방패를 **절대 내리지 않는다**. 하한 0.10 이 그 약속이다.
+    if (act.art === 'guardian') guard = 0.10 + 0.20 * (k > 0 ? k : 0);
+
+    // 정면(D.fx≈0)에서는 legFA 가 화면에서 죽는다 — 옆으로 벌려 보완한다.
+    legSpread = 0.50 * (legF > 0 ? legF : -legF);
+
+    return {
+      ky: ky, rise: rise, reach: reach, atk: k,
+      lean: -C.A * k, pitch: C.A * TAN675 * k,   // φ = 67.5° 고정 (위 주석)
+      drift: drift, guard: guard, gearDrop: gearDrop, spin: spin,
+      legF: legF, legSpread: legSpread
+    };
+  };
+
+  //  `updateGait` 의 형제. **렌더 전용 관측자** — combat 의 값을 읽기만 하고
+  //  자기 상태는 `u._act*` 에만 쓴다(battle.js 의 `_juice` 가 `_prevHp` 를 쓰는 것과 같은 패턴).
+  //  ⚠ combat 을 한 줄도 안 고친다. 이 경계를 깨면 렌더가 밸런스를 움직이게 된다.
+  UI.updateAct = function (u, dtMs) {
+    if (!u || !u.isHero || !u.alive) { if (u) u._act = null; return null; }
+    // ⚠ `u.def.art` 를 먼저 보면 안 된다 — `createHero` 의 def 는 **화이트리스트**라
+    //   `art` 가 거기 없다(CLAUDE.md 가 chargeKnock 으로 이미 경고한 그 함정이다).
+    //   영웅의 아트 키는 `u.hero`(원본 HEROES 항목)에만 있다.
+    var art = (u.hero && u.hero.art) || (u.def && u.def.art);
+    var C = UI.ACT[art] || UI.ACT._default;
+    var dt = (typeof dtMs === 'number' && isFinite(dtMs)) ? dtMs : 0;
+
+    // ① 스킬 슬롯의 쿨이 **올라갔으면** 방금 시전한 것이다(`castSkill` 이 리셋한다).
+    //    기본 공격보다 먼저 본다 — 스킬이 곧 그 순간의 주인공이다.
+    var skType = null, slot, prev = u._actPrevSkCd || (u._actPrevSkCd = {});
+    if (u.skillCd) {
+      for (slot in u.skillCd) {
+        var sc = u.skillCd[slot] || 0;
+        if (prev[slot] !== undefined && sc > prev[slot] + 1) {
+          skType = _skillTypeOf(u, slot);
+        }
+        prev[slot] = sc;
+      }
+    }
+    if (skType) {
+      u._actT = 0; u._actOn = true; u._actKind = 'skill'; u._actType = skType;
+      u._actDur = UI.SKILL_DUR[skType] || 480;
+    }
+
+    // ② 쿨타임이 올라갔으면 방금 때린 것이다(fire 가 def.cooldown 으로 리셋한다).
+    var cd = u.cd || 0;
+    if (!skType && u._actPrevCd !== undefined && cd > u._actPrevCd + 1) {
+      u._actT = 0; u._actOn = true; u._actKind = 'atk'; u._actType = null;
+      u._actDur = C.dur;
+    }
+    u._actPrevCd = cd;
+
+    // ③ 진행 중이면 시간을 흘린다.
+    if (u._actOn) {
+      u._actT = (u._actT || 0) + dt;
+      if (u._actT > (u._actDur || C.dur)) { u._actOn = false; u._actT = 0; u._actKind = null; }
+    }
+
+    // ④ 예비 — 다음 타격까지 남은 시간이 곧 예비 진행도다.
+    //    쿨이 아이템·버프로 짧아질 수 있으므로 쿨의 30% 를 넘지 않게 묶는다.
+    var wind = 0, base = (u.def && u.def.cooldown) || 900;
+    var W = Math.min(C.wind, base * 0.30);
+    if (!u._actOn) {
+      // 쿨이 다 찼는데 사거리 밖이면 **얼마든지 오래** 이 상태로 있을 수 있다.
+      // 그때 완전히 감은 자세(1.0)로 두면 정지 화면이 몇 초씩 이어져 뻣뻣해 보인다
+      // — 200ms 넘게 멈춘 포즈를 만들지 않는다는 규율에 걸린다.
+      // 0.65 는 "무기를 들었다"는 읽히되 극단이 아닌 지점이고, 완전히 감기는 것은
+      // 타격 직전 W 구간 안에서만 일어난다.
+      if (cd <= 0) wind = 0.65;
+      else if (cd < W) wind = 1 - cd / W;
+    }
+
+    if (u._actOn) {
+      u._act = { art: art, t: u._actT, dur: u._actDur || C.dur, wind: 0,
+                 kind: u._actKind || 'atk', type: u._actType || null };
+    } else if (wind > 0) {
+      u._act = { art: art, t: -1, dur: C.dur, wind: wind, kind: 'atk', type: null };
+    } else u._act = null;
+    return u._act;
+  };
+
+  //  QWER 슬롯 → 스킬 타입. `u.skills` 는 `GAME.buildSkills` 가 만든 배열이고
+  //  각 항목이 `slot`('Q'…'R')과 `type` 을 갖는다.
+  function _skillTypeOf(u, slot) {
+    var list = u.skills;
+    if (!list || !list.length) return null;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].slot === slot) return list[i].type || null;
+    }
+    return null;
+  }
+
   // ── 몸통 ──────────────────────────────────────────────────────
   //  ky : 세로 배율(스쿼시&스트레치). 생략·1 이면 지금과 완전히 같다.
   //       발밑(알 아랫점)을 고정하고 가로를 1/ky 로 줄여 **면적을 보존**한다.
@@ -1036,17 +1306,22 @@ GAME.UI = GAME.UI || {};
   UI.GEAR_FACE_UP = 0.85;
 
   //  atk : -1(끝까지 당김) … 0(정지) … +1(때린 순간). 0 이면 지금과 픽셀 단위로 동일하다.
-  UI.eggGear = function (g, kind, sx, by, r, color, a, D, reach, atk) {
+  //  guard/gearDrop/spin/tipCap 은 **전투 모션 전용 선택 인자**다.
+  //  안 넘기면 전부 0/무제한이라 예전과 픽셀 단위로 같은 그림이 나온다(카드 화면 무변경).
+  UI.eggGear = function (g, kind, sx, by, r, color, a, D, reach, atk, guard, gearDrop, spin, tipCap) {
     if (!kind) return;
     D = UI.asDir(D);
     reach = (typeof reach === 'number' && isFinite(reach)) ? reach : 1;
     atk = (typeof atk === 'number' && isFinite(atk)) ? atk : 0;
+    guard = (typeof guard === 'number' && isFinite(guard)) ? guard : 0;
+    spin = (typeof spin === 'number' && isFinite(spin)) ? spin : 0;
     var fx = D.fx, fy = D.fy, px = D.px, py = D.py;
     var lw = function (m) { return Math.max(1.2, r * m); };
     var faceOn = 1 - Math.abs(fx);              // 0 옆모습 … 1 정면·정배면
     var spread = UI.GEAR_SPREAD[kind] || 0;
     var sprd = spread * faceOn;
-    var drop = (UI.GEAR_DROP[kind] || 0) * faceOn * r;
+    var drop = (UI.GEAR_DROP[kind] || 0) * faceOn * r
+             + ((typeof gearDrop === 'number' && isFinite(gearDrop)) ? gearDrop * r : 0);
     var LP = function (p) { return p + (p < 0 ? -sprd : sprd); };
     // 로컬 → 화면
     var X = function (f, p) { return sx + fx * r * f * reach + px * r * LP(p); };
@@ -1284,8 +1559,19 @@ GAME.UI = GAME.UI || {};
       //  방패는 같이 나가면 안 되므로(막고 있는 물건이다) 창만 ex 를 곱하고 방패는 살짝 든다.
       //  ⚠ 자루 밑동(f=-0.90, up=0.30)을 축으로 **거기서부터** 늘여야 한다.
       //    f 와 up 을 원점에서 각각 배수하면 정면에서 두 성분이 상쇄돼 창끝이 제자리다(실측 계산).
+      // ⚠ **창끝이 판정 사거리를 넘으면 안 된다.** 창끝의 앞뒤축 성분은 유닛 중심에서
+      //   `(-0.90 + 2.50·ex)·r` 인데, `UNIT_DRAW_SCALE` 은 폰에서 1.30 배로 키우고
+      //   `WORLD_SCALE` 은 폰에서 사거리를 0.556 배로 **줄인다**. 두 배율이 반대로 가서
+      //   폰에서 창이 84.6px 그려지는데 판정은 58.7px 까지였다(실측, 26px 초과).
+      //   회피 게임에서 "어디까지 닿는가"를 그림으로 배우는데 그 그림이 거짓말을 한다.
+      //   → 호출부가 준 `tipCap`(px) 안으로 신장을 묶는다. 안 주면(카드 화면) 무제한이다.
       var ex = 1 + (atk > 0 ? atk * 0.60 : atk * 0.25);
-      var sh = (atk > 0 ? atk : 0) * 0.26;
+      if (typeof tipCap === 'number' && isFinite(tipCap) && tipCap > 0 && r > 0) {
+        var exMax = (tipCap / r + 0.90) / 2.50;
+        if (exMax < 1) exMax = 1;                  // 쉬는 자세보다 짧아지지는 않는다
+        if (ex > exMax) ex = exMax;
+      }
+      var sh = (atk > 0 ? atk : 0) * 0.26 + guard;
       var hf = function (d) { return -0.90 + d * ex; };            // f 성분
       var hu = function (d) { return 0.30 + d * ex; };             // up 성분
       g.lineStyle(lw(0.13), M.wood, a);      // 갈고리 창 (E = 끌어당김)
@@ -1315,7 +1601,10 @@ GAME.UI = GAME.UI || {};
 
   // ── 다리 ──────────────────────────────────────────────────────
   //  G 가 null 이면 v1 과 완전히 같은 좌표를 그린다.
-  UI.eggLegs = function (g, art, sx, by, sy, r, color, a, D, G) {
+  //  L : 전투 모션의 발 자세 { f, spread } — 선택 인자다. 안 넘기면 걸음걸이만 그린다.
+  //  ⚠ `spread` 가 필요한 이유: 정면(D.fx≈0)에서는 `legFA` 의 앞뒤 변위가 화면에서
+  //    통째로 죽는다. 옆으로 벌려야 정면에서도 "발을 내디뎠다"가 남는다.
+  UI.eggLegs = function (g, art, sx, by, sy, r, color, a, D, G, L) {
     if (art.squat || art.ground) return;
     D = UI.asDir(D);
     var lw = Math.max(1.4, r * 0.16);
@@ -1330,6 +1619,13 @@ GAME.UI = GAME.UI || {};
       if (G) {
         fex[i] += D.fx * r * 0.42 * G.legFA[i];
         fey[i] += D.fy * r * 0.42 * G.legFA[i] - r * 0.30 * G.legLift[i];
+      }
+      if (L) {
+        // 앞발은 내딛고 뒷발은 버틴다. 걸음걸이 위에 **더한 뒤** ±1.2 로 묶는다.
+        var lf = (i === 1 ? L.f : -L.f * 0.36);
+        if (lf > 1.2) lf = 1.2; else if (lf < -1.2) lf = -1.2;
+        fex[i] += D.fx * r * 0.42 * lf + s * r * 0.42 * (L.spread || 0);
+        fey[i] += D.fy * r * 0.42 * lf;
       }
     }
     g.lineStyle(lw, UI.tint(color, -0.45), a * 0.9);
@@ -1494,11 +1790,17 @@ GAME.UI = GAME.UI || {};
   //  grounded=true 면 전장(투영 적용), false 면 UI 패널용 평면
   //  walk : number | {phase, amp} | null   ← v2 추가 (생략하면 v1 과 동일)
   //  lv   : 1~5 계급 (생략하면 1 = 장식 없음, v2 와 픽셀 단위로 동일)
-  UI.drawEggChar = function (g, art, sx, by, r, color, a, facing, grounded, reach, walk, lv, idle) {
+  UI.drawEggChar = function (g, art, sx, by, r, color, a, facing, grounded, reach, walk, lv, idle, act, tipCap) {
     var Iso = GAME.Iso, T = (grounded && Iso) ? Iso.TILT : 1;
     var D = UI.dir8(facing === undefined ? Math.PI / 2 : facing, T);
     var G = UI.gait(walk, art);
-    var I = UI.idlePose(idle, art);
+    var A = UI.actPose(act);
+    // ⚠ **전투 모션이 있으면 idle 의 주기 공격을 끈다.** 둘 다 `atk` 를 만들기 때문에
+    //   그대로 두면 칼이 두 번 돈다. 이 판단을 호출부에 맡기면 한 곳만 고쳐져 갈라진다
+    //   — 그래서 여기서 한다(이 파일의 상습 사고 패턴이다).
+    var I = UI.idlePose(A && idle && typeof idle === 'object' ? { t: idle.t, seed: idle.seed,
+                          amp: idle.amp, attack: false }
+                        : (A && typeof idle === 'number' ? { t: idle, attack: false } : idle), art);
 
     var cx = sx, cy = by, lean = 0, rch = (reach === undefined ? 1 : reach);
     if (G) {
@@ -1510,12 +1812,30 @@ GAME.UI = GAME.UI || {};
 
     // 아이들 — 호흡(스쿼시&스트레치)과 공격. 머리 장식은 **알 꼭대기가 움직인 만큼** 따라간다.
     var ky = 1, dyHead = 0, dyFace = 0, dyGear = 0, atk = 0;
-    if (I) {
-      cy += r * I.rise;
-      lean += r * (I.lean * D.px + I.pitch * D.fx);
-      rch *= I.reach;
-      ky = I.ky;
-      atk = I.atk;
+    var guard = 0, gearDrop = 0, spin = 0, legF = 0, legSpread = 0;
+    if (A) {
+      cy += r * A.rise;
+      lean += r * (A.lean * D.px + A.pitch * D.fx);
+      rch *= A.reach;
+      // 앞뒤축 이동. **화면 벡터로 옮긴다** — 정면에서도 TILT(0.60~0.72)가 남아 0 이 안 된다.
+      // ⚠ 상한 1.4r. 그림을 판정 위치에서 크게 떼면 "저기 보이는데 여기서 맞는다"가 된다.
+      var dr = A.drift; if (dr > 1.4) dr = 1.4; else if (dr < -1.4) dr = -1.4;
+      cx += r * dr * D.fx;
+      cy += r * dr * D.fy;
+      guard = A.guard; gearDrop = A.gearDrop; spin = A.spin;
+      legF = A.legF; legSpread = A.legSpread;
+    }
+    if (I || A) {
+      if (I) {
+        cy += r * I.rise;
+        lean += r * (I.lean * D.px + I.pitch * D.fx);
+        rch *= I.reach;
+      }
+      // 면적 보존이 곱셈이므로 ky 는 곱하고, 나머지는 더한다.
+      ky = (I ? I.ky : 1) * (A ? A.ky : 1);
+      if (ky < KY_MIN) ky = KY_MIN; else if (ky > KY_MAX) ky = KY_MAX;
+      // atk 만 **덮어쓰기**다(위 주석의 '칼이 두 번 돈다').
+      atk = A ? A.atk : (I ? I.atk : 0);
       dyHead = 2 * r * (1 - ky);          // 알 꼭대기의 이동량
       // 눈은 몸통 안이라 덜 움직인다. 단 투구 틈(slit) 안의 눈은 투구를 따라가야 어긋나지 않는다.
       dyFace = (art.face === 'slit') ? dyHead : dyHead * 0.45;
@@ -1530,7 +1850,8 @@ GAME.UI = GAME.UI || {};
     // 잉크를 한 겹 더 두르면 진영색이 눌려 아군/적군 구분이 흐려진다.
     var rank = UI.rankOf({ lv: lv });     // 생략·이상값이면 1 (= 장식 없음)
     var back = function (gg) { UI.eggBack(gg, art.back, cx, cy + dyGear, r, color, a, D); };
-    var gear = function (gg) { UI.eggGear(gg, art.gear, cx + lean * 0.5, cy + dyGear, r, color, a, D, rch, atk); };
+    var gear = function (gg) { UI.eggGear(gg, art.gear, cx + lean * 0.5, cy + dyGear, r, color, a, D,
+                                          rch, atk, guard, gearDrop, spin, tipCap); };
     var helm = function (gg) { UI.eggHelm(gg, art.helm, cx + lean, cy + dyHead, r, color, a, D); };
     // 계급 장식도 장비와 같은 레이어 규칙을 탄다(잉크 윤곽 포함) — 라이트 테마에서
     // 청동/강철이 목초지에 묻히지 않게 하려면 반드시 inkLayer 를 거쳐야 한다.
@@ -1563,6 +1884,7 @@ GAME.UI = GAME.UI || {};
   //   그 프레임만 진영이 사라진다(battle.js 의 flash). 그래서 side 를 따로 받는다.
   // ⚠ `opts` 를 `drawEggChar`·`eggBody` 까지 내려보내지 않는다 — 어깨띠는 양 진영이
   //   같은 모양이라 쓸 곳이 없다. 안 쓰는 인자를 남기면 다음 사람이 그게 뭘 한다고 믿는다.
+  //   opts.act      : `UI.updateAct` 가 만든 전투 모션. 안 넘기면 예전 그림 그대로다.
   UI.drawUnit = function (g, def, worldX, worldY, color, alpha, facing, walk, idle, opts) {
     var Iso = GAME.Iso;
     var sx = worldX, sy = Iso.toScreenY(worldY);
@@ -1590,7 +1912,10 @@ GAME.UI = GAME.UI || {};
     var G = UI.gait(walk, art);
 
     // 다리 두 개 — 계란이 지면에 붙어 있다는 걸 알려준다
-    UI.eggLegs(g, art, sx, by, sy, r, color, a, D, G);
+    var act = (opts && opts.act) || null;
+    var AP = UI.actPose(act);
+    UI.eggLegs(g, art, sx, by, sy, r, color, a, D, G,
+               AP ? { f: AP.legF, spread: AP.legSpread } : null);
 
     // ivory 시안 — 발밑 진영 링으로 아군/적군을 한 번 더 못박는다.
     // ⚠ 전투 화면은 `opts.footRing: false` 로 이걸 끄고 루프 뒤 2패스로 다시 그린다.
@@ -1603,7 +1928,12 @@ GAME.UI = GAME.UI || {};
 
     var lv = UI.rankOf(def);
     UI.eggRankGround(g, sx, sy, r, color, a, lv);
-    UI.drawEggChar(g, art, sx, by, r, color, a, f, true, 1, walk, lv, idle);
+    // 무기 그림이 판정 사거리를 넘지 않게 하는 상한(px). `def.range` 는 전투에서
+    // 이미 `Combat.scaleDef` 로 WORLD_SCALE 이 곱해진 **실효 사거리**다.
+    // 카드 화면의 원본 def 는 사거리가 커서 상한이 사실상 안 걸린다 — 의도한 것이다
+    // (카드는 '어디까지 닿는가'를 가르치는 화면이 아니다).
+    var tipCap = (typeof def.range === 'number' && def.range > 0) ? def.range + 12 : 0;
+    UI.drawEggChar(g, art, sx, by, r, color, a, f, true, 1, walk, lv, idle, act, tipCap);
     return { sx: sx, sy: sy, by: by };
   };
 

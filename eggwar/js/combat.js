@@ -1401,8 +1401,44 @@ GAME.Combat = {
 
     u.abilCd = ab.cooldown;
     u.abilT = ab.telegraph;
-    u.abilX = tgt.x; u.abilY = tgt.y;          // 예고 시점의 위치를 박아둔다 = 피할 여지
-    this.faceAttack(u, Math.atan2(tgt.y - u.y, tgt.x - u.x));
+    // ── 예측 사격 (2026-07-31, 뺑뺑이의 **진짜 원인**을 고친다) ────────────────
+    //  ⚠ 여기가 "22층인데 뺑뺑이만 돌리면 깨진다"의 구조적 원인이었다.
+    //    예고를 **대상의 현재 위치**에 박으면, 대상이 예고 시간 동안 이동한 거리가
+    //    폭발 반경보다 크면 **등속으로 도망치기만 해도 절대 안 맞는다.**
+    //    실측: 궁수 예고 640ms × 사냥꾼 속도 158 = **101px 이동** vs 반경 72 → 항상 빗나감.
+    //    화력·체력을 아무리 올려도 닿지를 못하니 의미가 없었다.
+    //
+    //  → 대상의 **진행 방향으로 미리 쏜다.** `aimLead` 는 유닛별 계수(0=예전과 동일).
+    //    이러면 컨트롤러는 예고가 뜰 때마다 **방향을 꺾어야** 한다. 꺾을 때마다 진행
+    //    성분을 잃으므로 실효 속도가 158 아래로 떨어진다 — 스탯을 한 줄도 안 건드리고
+    //    "영웅이 제일 빠르다"를 상황 의존적으로 해소한다. 잘 꺾는 사람은 여전히 빠르다.
+    //
+    //  ⚠ `aimLead` 는 **무차원 계수라 `DIST_KEYS` 에 넣으면 안 된다.** 넣으면 세로
+    //    (WORLD_SCALE 0.636)에서만 리드가 0.64배로 조용히 약해진다.
+    u.abilX = tgt.x; u.abilY = tgt.y;          // 기본 = 예고 시점의 자리(예전과 동일)
+    var lead = ab.aimLead || 0;
+    if (lead > 0 && tgt._px !== undefined) {
+      var vx = tgt.x - tgt._px, vy = tgt.y - tgt._py;
+      var vlen = Math.sqrt(vx * vx + vy * vy);
+      if (vlen > 0.01) {                        // 멈춰 있으면 리드하지 않는다
+        var sp = this.effSpeed(tgt);            // 프레임 이동량이 아니라 초당 속도를 쓴다
+        var lt = (ab.telegraph || 0) / 1000;
+        u.abilX = tgt.x + (vx / vlen) * sp * lt * lead;
+        u.abilY = tgt.y + (vy / vlen) * sp * lt * lead;
+        // 아레나 밖으로 나가면 벽 뒤에 떨어져 아무도 안 맞는다 — 안으로 물린다.
+        // ⚠ `clampToArena` 는 **유닛**을 받는다(`u.def.radius` 를 읽는다). 좌표만 넘기면
+        //   `Cannot read properties of undefined (reading 'radius')` 로 **전투 루프가 죽는다.**
+        //   실제로 그렇게 짰다가 잡았다 — 예측 사격이 켜지는 순간 게임이 멈추는 버그였다.
+        //   여기서는 점 하나를 물리는 것뿐이므로 아레나 경계를 직접 쓴다.
+        var AR = GAME.CONFIG.ARENA;
+        if (AR) {
+          var pad = ab.radius || 60;
+          u.abilX = Math.max(AR.x + pad * 0.5, Math.min(AR.x + AR.w - pad * 0.5, u.abilX));
+          u.abilY = Math.max(AR.y + pad * 0.5, Math.min(AR.y + AR.h - pad * 0.5, u.abilY));
+        }
+      }
+    }
+    this.faceAttack(u, Math.atan2(u.abilY - u.y, u.abilX - u.x));
     state.effects.push({
       kind: 'telegraph', x: ab.type === 'shockwave' ? u.x : u.abilX,
       y: ab.type === 'shockwave' ? u.y : u.abilY,

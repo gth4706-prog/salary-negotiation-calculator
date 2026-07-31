@@ -53,7 +53,9 @@ lore: '숲에서 새알을 노리던 사냥꾼. 화살은 곧게 날아가니 �
     // 그 자리에 계속 서 있으면 맞는다. 피하는 법은 하나뿐 — 움직이는 것.
     ability: { type: 'barrage', cooldown: 10000, telegraph: 640,
                minRange: 150, maxRange: 900,
-               damage: 46, radius: 72, repeat: 1 }
+               damage: 46, radius: 72, repeat: 1,
+               // 예측 사격 계수 — 진행 방향으로 미리 쏜다(combat.js 주석 참조)
+               aimLead: 0.75 }
   },
 
   grenadier: {
@@ -69,7 +71,9 @@ lore: '강가의 둥근 돌만 골라 담는 무릿매꾼. 겨눈 자리에 그�
     // 피해는 평타(69)보다 낮게 잡는다. 이 스킬의 일은 죽이는 게 아니라 **쫓아내는 것**이다.
     ability: { type: 'barrage', cooldown: 11000, telegraph: 700,
                minRange: 120, maxRange: 900,
-               damage: 38, radius: 66, repeat: 3, spread: 190, interval: 380 }
+               damage: 38, radius: 66, repeat: 3, spread: 190, interval: 380,
+               // 예측 사격 계수 — 진행 방향으로 미리 쏜다(combat.js 주석 참조)
+               aimLead: 0.55 }
   },
 
   sniper: {
@@ -84,7 +88,9 @@ lore: '한 번 던지면 반드시 박히는 미늘 작살. 대신 다시 던질
     // **예고가 보이는 큰 한 방**을 준다. 피할 수 있게 만들어 자동명중과 결이 달라진다.
     ability: { type: 'barrage', cooldown: 13000, telegraph: 900,
                minRange: 160, maxRange: 900,
-               damage: 96, radius: 82, repeat: 1 }
+               damage: 96, radius: 82, repeat: 1,
+               // 예측 사격 계수 — 진행 방향으로 미리 쏜다(combat.js 주석 참조)
+               aimLead: 0.7 }
   },
 
   // ── 지원 계열 ──────────────────────────────────────────────
@@ -155,7 +161,9 @@ lore: '통나무로 짜 세운 거치 쇠뇌. 한 발도 못 움직이는 대신
     // 고정물이라 컨트롤러가 위치만 바꾸면 피할 수 있다 — 대가가 분명한 스킬이다.
     ability: { type: 'barrage', cooldown: 12000, telegraph: 620,
                minRange: 100, maxRange: 900,
-               damage: 44, radius: 58, repeat: 4, spread: 150, interval: 300 }
+               damage: 44, radius: 58, repeat: 4, spread: 150, interval: 300,
+               // 예측 사격 계수 — 진행 방향으로 미리 쏜다(combat.js 주석 참조)
+               aimLead: 0.6 }
   },
 
   chemtrooper: {
@@ -180,7 +188,9 @@ lore: '끈끈한 늪 수액을 단지에 담아 던진다. 맞은 자는 발이 
     // 카이팅(거리를 벌리는 답)을 직접 벌주는 유일한 전략 유닛 스킬이다.
     ability: { type: 'barrage', cooldown: 13000, telegraph: 760,
                minRange: 120, maxRange: 900,
-               damage: 26, radius: 110, repeat: 1, slowMul: 0.5, slowMs: 2600 }
+               damage: 26, radius: 110, repeat: 1, slowMul: 0.5, slowMs: 2600,
+               // 예측 사격 계수 — 진행 방향으로 미리 쏜다(combat.js 주석 참조)
+               aimLead: 0.85 }
   },
 
   mine: {

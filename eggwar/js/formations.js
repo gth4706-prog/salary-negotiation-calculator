@@ -52,8 +52,11 @@ GAME.SEED_FORMATIONS = [
       { type: 'chemtrooper', nx: 0.38, ny: 0.24 }, { type: 'chemtrooper', nx: 0.62, ny: 0.24 },
       { type: 'bayonet', nx: 0.30, ny: 0.33 }, { type: 'bayonet', nx: 0.43, ny: 0.35 },
       { type: 'bayonet', nx: 0.57, ny: 0.35 }, { type: 'bayonet', nx: 0.70, ny: 0.33 },
-      { type: 'bayonet', nx: 0.50, ny: 0.29 },
-      { type: 'mine', nx: 0.50, ny: 0.46 }
+      { type: 'bayonet', nx: 0.50, ny: 0.29 }
+      // ⚠ 가시덫을 뺐다 (2026-07-31). 늪지기 비용이 30→38 로 오르면서 이 시드가
+      //   예산 220 을 236 으로 넘겼다(R-4 가 잡았다). 뺄 것을 고를 때 가시덫을 골랐다 —
+      //   기여도 실측에서 뺑뺑이 상대 못때림 100% 로 가장 값을 못 하는 칸이었다.
+      //   합계 198 (투석꾼 25×3 + 늪지기 38×2 + 전사 10×5 = 75+76+50 = 201… 실제 201)
     ]
   },
   {

@@ -47,9 +47,18 @@ GAME.AutoFormation = {
 
   // 성향 → 유닛별 가중치. heroKey 를 주면 그 영웅의 카운터가 얹힌다.
   weights: function (p, heroKey) {
+    // ── 2026-07-31 · 기여도 실측 반영 (tools/unit-contribution.js) ─────────────
+    //  뺑뺑이 영웅 상대로 재 보니 유닛별 기당 피해가 **519 ~ 13** 으로 40배 벌어졌다.
+    //  1위 쇠뇌 진지(519, 못때림 0%) — 고정이지만 사거리가 맵 전체라 **도망칠 수 없는
+    //  유일한 유닛**이다. 그런데 가중치가 3 이라 거의 안 뽑혔다.
+    //  꼴찌 늪지기(13) 는 사거리를 390 으로 올려 역할을 바꿨다(units.js 참조) →
+    //  이제 '거리 유지'를 벌주는 유닛이므로 가중치를 함께 올린다.
+    //  투창병(sniper, 사거리 420·자동명중)도 뺑뺑이에 강한데 4 로 낮았다.
+    //  ⚠ 이 표는 **뺑뺑이 대응 능력** 순으로 다시 잡은 것이다. 값을 되돌리려면
+    //    먼저 unit-contribution 을 다시 돌려 근거를 갱신할 것.
     var w = {
-      bayonet: 10, rifleman: 10, grenadier: 6, sniper: 4,
-      shieldman: 5, medic: 4, sergeant: 4, chemtrooper: 4, mgnest: 3, mine: 3
+      bayonet: 10, rifleman: 9, grenadier: 6, sniper: 8,
+      shieldman: 5, medic: 3, sergeant: 4, chemtrooper: 8, mgnest: 8, mine: 0
     };
 
     // 영웅 카운터가 성향보다 우선한다 — 상대가 뭘 들고 오는지가 가장 확실한 정보다
@@ -93,7 +102,15 @@ GAME.AutoFormation = {
   //
   // costOf 를 주면 그걸로 단가를 읽는다 — **정예(레벨업)는 단가가 오르므로**
   // 원본 단가로 뽑으면 "비싼 걸 싼 값에 뽑는" 셈이 되어 예산이 초과된다.
+  // `def.aiExclude` 가 붙은 유닛은 AI 가 뽑지 않는다(2026-07-31, 기여도 실측).
+  // 가중치를 0 으로 두는 것만으로는 부족하다 — 다른 경로가 가중치를 더해 살아난다.
+  _aiAllowed: function (t) {
+    var d = GAME.UNITS[t];
+    return !!d && !d.aiExclude;
+  },
+
   _pick: function (w, allowed, costOf) {
+    allowed = (allowed || []).filter(GAME.AutoFormation._aiAllowed);
     var total = 0, k, i;
     var eff = {};
     for (i = 0; i < allowed.length; i++) {

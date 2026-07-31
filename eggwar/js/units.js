@@ -162,9 +162,18 @@ lore: '통나무로 짜 세운 거치 쇠뇌. 한 발도 못 움직이는 대신
     key: 'chemtrooper', name: '늪지기', art: 'bogman',
 lore: '끈끈한 늪 수액을 단지에 담아 던진다. 맞은 자는 발이 붙어 달아나지 못한다.',
     desc: '끈끈한 수액 단지를 던진다. 맞으면 영웅이 느려진다.',
-    cost: 30, hp: 130, armor: 10, speed: 100, range: 300, damage: 21, cooldown: 2200,
+    // ── 2026-07-31 · **역할 재정의: 뺑뺑이 잡는 유닛** (기여도 실측 근거) ──────
+    //   `tools/unit-contribution.js` 로 재니 전 유닛 중 **꼴찌**였다 —
+    //   기당 피해 13, 한 번도 못 때린 개체 44%. 이유는 스탯이 아니라 **구조**다:
+    //   사거리 300 < 영웅 340, 속도 100 < 영웅 158 → 쏠 수도 붙을 수도 없었다.
+    //   숫자를 조금 올려도 여전히 못 닿으니 의미가 없다. **일을 바꾼다.**
+    //   range 300→**390** (영웅 340 을 넘긴다) · 둔화 0.55→**0.45**, 2200→**3000ms**.
+    //   이제 늪지기는 '거리를 유지하는 것' 자체를 벌준다 — 늪에 걸리면 느려져
+    //   전사(135)·방패병 돌진에게 따라잡힌다. 화력(21)은 그대로 — 죽이는 유닛이 아니다.
+    //   대신 비용 30→38: 뺑뺑이의 유일한 해답이 싸면 진형이 늪지기만 깔게 된다.
+    cost: 38, hp: 130, armor: 10, speed: 100, range: 390, damage: 21, cooldown: 2200,
     attack: 'projectile', projectileSpeed: 210, projectileRadius: 9,
-    slowMul: 0.55, slowMs: 2200,
+    slowMul: 0.45, slowMs: 3000,
     radius: 12, shape: 'diamond', weapon: 'launcher',
     chase: 140, aggro: 320, spacing: 41,
     // 2026-07-31 · 스킬 신설. 둔화가 정체성이므로 **넓게 한 번에** 건다.
@@ -183,7 +192,12 @@ lore: '마른 풀로 덮어둔 뼈 가시 함정. 밟기 전까지는 거기 있
     isMine: true, triggerRadius: 52, pctMaxHp: 0.30, blastRadius: 80,
     radius: 9, shape: 'mine', weapon: null,
     chase: 0, aggro: 0, immobile: true,
-    maxPerFormation: 1
+    maxPerFormation: 1,
+    // ⚠ **AI 진형에서는 뺀다** (2026-07-31, 기여도 실측). 뺑뺑이 영웅은 함정을 밟을
+    //   일이 없어 못때림 **100%** · 이동 0 이었다 — 비용 35 를 그냥 버리는 칸이었다.
+    //   플레이어 배치(대전·수성의 탑)에서는 그대로 쓸 수 있다. 사람은 상대가 지나갈
+    //   길을 읽고 놓을 수 있지만, AI 는 그 판단을 못 한다는 것이 데이터의 결론이다.
+    aiExclude: true
   }
 };
 

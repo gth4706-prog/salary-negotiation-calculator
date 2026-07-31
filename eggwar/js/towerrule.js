@@ -172,21 +172,6 @@ GAME.TowerRule = (function () {
     // ⚠ 보스 층에는 조건을 붙이지 않는다 — 보스 기제 자체가 그 층의 '조건' 이고,
     //   둘을 겹치면 보스 층이 벽이 된다(BOSS_ESCORT 를 잡느라 겪은 일과 같은 계열).
     ruleFor: function (floor, seed) {
-      // ── 문 선택이 있으면 그것이 우선이다 (towerdoor.js) ────────────────────
-      //  플레이어가 '무난한 길' 을 골랐으면 조건이 없어야 하고, '험한 길' 을 골랐으면
-      //  그 문에 적혀 있던 조건이어야 한다. 여기서 존중하지 않으면 **화면에 보여준 것과
-      //  실제 전투가 달라진다** — 이 게임에서 가장 하면 안 되는 종류의 거짓말이다.
-      //  ⚠ `seed` 를 명시로 넘긴 호출(도구·측정)은 문을 무시한다 — 재현성이 우선이다.
-      if (seed === undefined && GAME.TowerDoor) {
-        var picked = GAME.TowerDoor.pickedRuleKey(floor);
-        if (picked !== undefined) {
-          if (!picked) return null;
-          for (var pi = 0; pi < RULES.length; pi++) {
-            if (RULES[pi].key === picked) return RULES[pi];
-          }
-          return null;
-        }
-      }
       if (floor < FROM_FLOOR) return null;
       if (GAME.Tower && GAME.Tower.isBossFloor && GAME.Tower.isBossFloor(floor)) return null;
       var n = floor - FROM_FLOOR;

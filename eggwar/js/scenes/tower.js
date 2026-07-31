@@ -966,13 +966,6 @@ GAME.TowerScene.prototype._buildChallenge = function () {
     this.run ? (floor + '층 전투 시작') : (floor + '층 도전 — 장비 & 스킬 세팅'), function () {
     GAME.Tower.pending = self.formation;
     if (self.run) {
-      // ── 두 갈래 문 (towerdoor.js) ──────────────────────────────────────
-      //  전투로 바로 가지 않고 **먼저 고르게 한다.** 층이 순번이 아니라 경로가 되는 지점이다.
-      //  고르고 나면 되돌릴 수 없다 — 그래야 고민이 성립한다.
-      if (GAME.TowerDoor && GAME.TowerDoor.shouldOffer(floor)) {
-        self._openDoors(floor);
-        return;
-      }
       self._enterBattle(floor);
     } else {
       self.scene.start('Draft', {
@@ -984,38 +977,15 @@ GAME.TowerScene.prototype._buildChallenge = function () {
   this._refresh();
 };
 
-// ── 두 갈래 문 (2026-07-31 대개편 2단계) ──────────────────────────────────
-//  전투 진입 전에 **경로를 고르게 한다.** 무엇이 기다리는지 다 보여 주고 고르게 하는 것이
-//  핵심이다 — 모르고 고르면 그건 도박이지 선택이 아니다.
-//  ⚠ 고른 뒤에는 `TowerRule.ruleFor` 가 그 선택을 존중한다. 화면에 보여준 것과 실제
-//    전투가 다르면 이 게임에서 가장 하면 안 되는 종류의 거짓말이 된다.
-GAME.TowerScene.prototype._openDoors = function (floor) {
-  var self = this;
-  var doors = GAME.TowerDoor.doorsFor(floor);
-  //  ⚠ `note` 는 **한 줄 슬롯**이다(`js/modal.js` 가 행 높이를 안 늘린다).
-  //    처음엔 조건·축복의 **설명 문장을 통째로** 넣었는데, 두 줄이 되면서 행 밖으로
-  //    흘러 화면 전체를 덮었다 — 폰 가로에서 겹침 14건(실측). 이름만 짧게 적는다.
-  //    전체 설명은 문을 고른 뒤 층 화면(`floorTagText`)이 보여 주므로 정보가 사라지지 않는다.
-  var items = doors.map(function (d) {
-    var bits = [];
-    bits.push(d.ruleLabel ? ('⚠ ' + d.ruleLabel) : '조건 없음');
-    if (d.boonLabel) bits.push('✦ ' + d.boonLabel);
-    if (d.gold) bits.push('◈ +' + d.gold);
-    return { key: d.key, name: d.label, note: bits.join('   ·   ') };
-  });
-  GAME.Modal.open(this, {
-    title: floor + '층 — 어느 길로 갈 것인가',
-    items: items,
-    onPick: function (it) {
-      GAME.Modal.close();
-      GAME.TowerDoor.pick(floor, it.key);
-      // 고른 문이 층의 조건을 바꿨으므로 **진형을 다시 만든다** — 안 그러면 방금 고른 것과
-      // 다른 조건으로 싸우게 된다.
-      self.formation = GAME.Tower.formationFor(floor, self.heroKey);
-      self._enterBattle(floor);
-    }
-  });
-};
+// ── 두 갈래 문은 **제거했다** (2026-07-31, 사용자 지시) ─────────────────────
+//  "갈림길 고르는 건 왜 나오는 거지? 의도하고 많이 다르고 골라서 뭐가 좋은지도
+//   모르겠어. 그냥 없애줘."
+//  맞는 지적이다. 문은 '위험과 보상을 맞바꾸는 결정'이어야 했는데, 화면에는
+//  `⚠ 질풍 · ✦ 탐욕` 처럼 **이름만** 떴다. 이름만 보고 값어치를 재려면 조건 7종과
+//  축복 9종을 전부 외우고 있어야 한다 — 그건 선택이 아니라 퀴즈다.
+//  게다가 층을 오르는 흐름 한가운데에 팝업이 끼어 리듬을 끊었다.
+//  ⚠ 되살리려면 **값어치가 화면에서 바로 읽히는 형태**여야 한다. 이름만으로는 안 된다.
+//  축복은 살아 있다 — 이제 **선택 없이 자동으로** 주어진다(towerrun.js 의 clear 참조).
 
 // 전투 진입 — 문 선택 경로와 일반 경로가 **같은 함수**를 쓴다.
 // 두 곳에 복사하면 한쪽만 고쳐져 조용히 갈라진다(이 폴더의 상습 사고).
@@ -1114,12 +1084,7 @@ GAME.TowerScene.prototype._buildChallengePhone = function () {
 
   UI.button(this, rx + rw / 2, mainTop + mainH / 2, rw, mainH, floor + '층 전투 시작', function () {
     GAME.Tower.pending = self.formation;
-    // ⚠ PC 판과 **같은 경로**를 쓴다. 예전에는 여기에 `scene.start('Battle')` 이 복사돼
-    //   있었는데, 그러면 문 선택을 PC 에만 붙이고 폰에서는 조용히 건너뛰게 된다.
-    if (GAME.TowerDoor && GAME.TowerDoor.shouldOffer(floor)) {
-      self._openDoors(floor);
-      return;
-    }
+    // ⚠ PC 판과 **같은 경로**를 쓴다 — 전투 진입이 복사돼 있으면 한쪽만 고쳐진다.
     self._enterBattle(floor);
   }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
        hover: UI.COL.panelTealHi, color: C.accent, fontSize: 21 });

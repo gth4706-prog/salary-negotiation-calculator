@@ -19,9 +19,16 @@ GAME.LoginScene.prototype.create = function () {
 
   // ── 상단: 간판 ──────────────────────────────────────────────────────────
   //    12%~92% 를 고른 리듬으로 채운다 — 예전엔 상단·중앙에 큰 빈 띠가 남았다.
-  GAME.UI.label(this, W / 2, u * 15, '🥚 EGG WAR', P ? 'display' : 50, C.text, 0.5);
-  GAME.UI.label(this, W / 2, u * 22, '계란 부족 비대칭 실시간 대전', P ? 'caption' : 18, C.textDim, 0.5);
-  if (GAME.UI.titleRule) GAME.UI.titleRule(this, W / 2, u * 26, P ? 170 : 240);
+  // ⚠ **폰 가로(H=390)는 여기서 PC 분기를 타고 있었다.** `P` 는 PORTRAIT 이라
+  //   폰 가로면 false → 제목이 50px 로 그려진다. 390px 화면에서 그 크기면 부제와
+  //   11px 겹친다(실측). 세로 리듬(u = H/100)도 900px 기준이라 같이 어긋난다.
+  //   → 화면이 작으면(SMALL) 제목을 줄이고 부제를 한 칸 내린다.
+  var S = GAME.CONFIG.SMALL;
+  GAME.UI.label(this, W / 2, u * 15, '🥚 EGG WAR',
+    P ? 'display' : (S ? 30 : 50), C.text, 0.5);
+  GAME.UI.label(this, W / 2, u * (S ? 24 : 22), '계란 부족 비대칭 실시간 대전',
+    P ? 'caption' : (S ? 14 : 18), C.textDim, 0.5);
+  if (GAME.UI.titleRule) GAME.UI.titleRule(this, W / 2, u * (S ? 29 : 26), P ? 170 : 240);
 
   // ── 중앙: 핵심 상호작용 (입력 + 시작) ────────────────────────────────────
   //    입력창은 DOM 이라 캔버스 밖에서 논다. 캔버스 스케일에 맞춰 크기/위치를 잡는다.
@@ -38,7 +45,9 @@ GAME.LoginScene.prototype.create = function () {
   // ── 하단: 최근 닉네임 빠른 선택 ──────────────────────────────────────────
   var recent = GAME.Account.list().filter(function (r) { return !r.blocked; }).slice(0, 3);
   if (recent.length) {
-    GAME.UI.label(this, W / 2, u * 71, '최근 사용', P ? 'micro' : 13, C.textDim, 0.5);
+    // 버튼(u*78, 높이 52)의 위쪽 경계는 폰에서 y≈278 이다. 라벨을 u*71(=277)에 두면
+    // 정확히 물린다(실측 8px) — 한 칸 위로 올린다.
+    GAME.UI.label(this, W / 2, u * (S ? 66 : 71), '최근 사용', P ? 'micro' : 13, C.textDim, 0.5);
     // 화면 좌우 여백(pagePad)을 두고 균등 분할 — 예전엔 가장자리에 딱 붙어 잘려 보였다.
     var pad = (GAME.UI.SP && GAME.UI.SP.pagePad) || 16;
     var cols = GAME.Layout.cols(recent.length, { gap: 10, width: W, left: 0, pad: pad });

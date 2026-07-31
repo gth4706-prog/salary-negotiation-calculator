@@ -992,13 +992,16 @@ GAME.TowerScene.prototype._buildChallenge = function () {
 GAME.TowerScene.prototype._openDoors = function (floor) {
   var self = this;
   var doors = GAME.TowerDoor.doorsFor(floor);
+  //  ⚠ `note` 는 **한 줄 슬롯**이다(`js/modal.js` 가 행 높이를 안 늘린다).
+  //    처음엔 조건·축복의 **설명 문장을 통째로** 넣었는데, 두 줄이 되면서 행 밖으로
+  //    흘러 화면 전체를 덮었다 — 폰 가로에서 겹침 14건(실측). 이름만 짧게 적는다.
+  //    전체 설명은 문을 고른 뒤 층 화면(`floorTagText`)이 보여 주므로 정보가 사라지지 않는다.
   var items = doors.map(function (d) {
     var bits = [];
-    if (d.ruleLabel) bits.push('⚠ ' + d.ruleLabel + ' — ' + d.ruleDesc);
-    else bits.push('조건 없음');
-    if (d.boonLabel) bits.push('✦ ' + d.boonLabel + ' — ' + d.boonDesc);
-    else if (d.gold) bits.push('◈ 골드 +' + d.gold);
-    return { key: d.key, name: d.label, note: bits.join('\n') };
+    bits.push(d.ruleLabel ? ('⚠ ' + d.ruleLabel) : '조건 없음');
+    if (d.boonLabel) bits.push('✦ ' + d.boonLabel);
+    if (d.gold) bits.push('◈ +' + d.gold);
+    return { key: d.key, name: d.label, note: bits.join('   ·   ') };
   });
   GAME.Modal.open(this, {
     title: floor + '층 — 어느 길로 갈 것인가',
@@ -1265,17 +1268,35 @@ GAME.TowerScene.prototype._refresh = function () {
   //    아직 없다. 파괴된/없는 Phaser 객체를 만지면 씬이 통째로 죽는다(이 폴더의 상습 함정).
   //  순서: **목표 → 진형 → 조건**. 목표가 맨 위인 이유는 그것을 모르면 나머지가
   //  무의미하기 때문이다("무엇을 하면 이기는가" 없이 "어떻게 생겼는가"는 쓸모가 없다).
-  var f0 = this.formation, tag = [];
-  if (f0.objectiveLabel) tag.push('🎯 ' + f0.objectiveLabel + ' — ' + f0.objectiveDesc);
-  if (f0.planLabel) tag.push('◈ ' + f0.planLabel + ' — ' + f0.planHint);
-  if (f0.ruleLabel) tag.push('⚠ ' + f0.ruleLabel + ' — ' + f0.ruleDesc);
-  // 가진 축복 — 내 쪽이 무엇을 할 수 있는지도 같은 자리에서 보여 준다.
+  //  ⚠ **폰에서는 짧은 형태를 쓴다.** 설명까지 붙이면 네 줄이 되어 아래 '적 구성' 줄을
+  //    화면 밖(y 401 > 설계 390)으로 밀어낸다 — 실측으로 잡았다.
+  //    폰은 이름만, PC 는 이름 + 설명. 정보의 우선순위가 다른 게 아니라 **자리가 다르다.**
+  //  ⚠ **최대 두 줄이다.** 처음엔 네 줄(목표·진형·조건·축복에 각각 설명)을 넣었는데,
+  //    PC 에서도 '전투 시작' 버튼을 215×70px 덮었고 폰에서는 '적 구성' 줄을 화면 밖으로
+  //    밀어냈다(둘 다 실측). 자리는 유한하고 설명은 무한히 길어질 수 있다.
+  //    → 1줄 = **이름만 나열**(무엇이 걸려 있는지), 2줄 = **가장 중요한 하나의 설명**.
+  //      중요도 순서는 목표 > 조건 > 진형이다 — 목표를 모르면 나머지가 무의미하다.
+  var f0 = this.formation;
+  var names = [];
+  if (f0.objectiveLabel) names.push('🎯 ' + f0.objectiveLabel);
+  if (f0.planLabel) names.push('◈ ' + f0.planLabel);
+  if (f0.ruleLabel) names.push('⚠ ' + f0.ruleLabel);
   if (GAME.TowerBoon && this.run) {
     var bl = GAME.TowerBoon.owned(this.run).map(function (k) {
       var b = GAME.TowerBoon.byKey(k); return b ? b.label : k;
     });
-    if (bl.length) tag.push('✦ 축복 — ' + bl.join(' · '));
+    if (bl.length) names.push('✦ ' + bl.join(' · '));
   }
+  // ⚠ 아래 축소 로직이 **덜 중요한 것부터 버릴 수 있게** 조각을 남겨 둔다.
+  //   한 줄로 합쳐 두면 자동 줄바꿈으로 높이가 다시 늘어나는데, `\n` 개수로는 그걸 못 센다
+  //   (실제로 그렇게 놓쳐 '전투 시작' 버튼을 325×15px 덮었다 — PC 실측).
+  //   버리는 순서는 중요도의 역순: 축복 → 진형 → 조건 → 목표.
+  this._tagParts = names.slice();
+  var lead = GAME.CONFIG.SMALL ? null : (f0.objectiveDesc || f0.ruleDesc || f0.planHint);
+  this._tagLead = lead || '';
+  var tag = [];
+  if (names.length) tag.push(names.join('   '));
+  if (lead) tag.push(lead);
   var tagH = 0;
   if (this.floorTagText) {
     this.floorTagText.setText(tag.join('\n'));
@@ -1302,6 +1323,8 @@ GAME.TowerScene.prototype._refresh = function () {
   var ratH = String(this.rationaleText.text) ? (this.rationaleText.height + 6) : 0;
   this.compText.setY(this.rationaleText.y + ratH);
   this.compText.setText('적 ' + this.formation.units.length + '기 — ' + comp);
+  // 지난 갱신에서 숨겼을 수 있다 — 매번 되돌린다(안 그러면 한 번 숨은 뒤 영영 안 뜬다).
+  this.compText.setVisible(true);
 
   if (this.panelMaxBottom) {
     var n = keys.length;
@@ -1309,12 +1332,50 @@ GAME.TowerScene.prototype._refresh = function () {
       n--;
       this.compText.setText('적 ' + this.formation.units.length + '기 — ' + compFor(n));
     }
+    // ⚠ **태그도 축소 대상이다.** 아래 루프는 `rationaleText` 만 깎는데, 도전 중에는
+    //   그게 빈 문자열이라 `s.length <= 16` 로 즉시 빠져나간다 — 정작 자리를 먹는
+    //   `floorTagText`(목표·진형·조건·축복)는 한 번도 안 줄어든다.
+    //   그래서 '전투 시작' 버튼을 291×36px 덮었다(PC 실측).
+    //   설명 줄(2줄째)을 먼저 버린다. 이름 줄은 남긴다 — 그게 이 층의 정체다.
+    if (this.floorTagText && this._tagParts) {
+      var self2 = this;
+      var parts = this._tagParts.slice();
+      var lead2 = this._tagLead;
+      function relayout() {
+        var t2 = [];
+        if (parts.length) t2.push(parts.join('   '));
+        if (lead2) t2.push(lead2);
+        self2.floorTagText.setText(t2.join('\n'));
+        var th = t2.length ? (self2.floorTagText.height + 6) : 0;
+        self2.rationaleText.setY(self2.floorTagText.y + th);
+        self2.compText.setY(self2.rationaleText.y +
+          (String(self2.rationaleText.text) ? self2.rationaleText.height + 6 : 0));
+      }
+      // 설명 줄 → 축복 → 진형 → 조건 순으로 버린다. 목표(맨 앞)는 마지막까지 남긴다.
+      var tGuard = 0;
+      while (this.compText.getBounds().bottom > this.panelMaxBottom && tGuard++ < 12) {
+        if (lead2) { lead2 = ''; }
+        else if (parts.length > 1) { parts.pop(); }
+        else break;
+        relayout();
+      }
+    }
     var guard = 0;
     while (this.compText.getBounds().bottom > this.panelMaxBottom && guard++ < 80) {
       var s = String(this.rationaleText.text).replace(/…$/, '');
       if (s.length <= 16) break;
       this.rationaleText.setText(s.slice(0, -4) + '…');
       this.compText.setY(this.rationaleText.y + this.rationaleText.height + 6);
+    }
+    // ⚠ **마지막 안전장치.** 위 축소를 다 해도(유닛 종류 1개, 태그 이름만, 설명 없음)
+    //   넘치는 조합이 있다 — 종류 이름이 길면 한 줄이 두 줄로 접히기 때문이다.
+    //   그러면 '적 구성' 줄이 아래 버튼을 덮는다(PC 실측 49×16px).
+    //   이 줄은 참고 정보라 **글자를 줄여서라도 자리를 지킨다.**
+    var cGuard = 0;
+    while (this.compText.getBounds().bottom > this.panelMaxBottom && cGuard++ < 60) {
+      var cs = String(this.compText.text).replace(/…$/, '');
+      if (cs.length <= 10) { this.compText.setVisible(false); break; }
+      this.compText.setText(cs.slice(0, -3) + '…');
     }
   }
 

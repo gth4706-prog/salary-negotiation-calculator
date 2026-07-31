@@ -1,0 +1,336 @@
+/**
+ * 화면 — 정오의 아파트 단지 놀이터
+ *
+ * ── 그늘을 반투명 검정으로 칠하지 않는 이유 ───────────────────────────────
+ * 흔한 구현은 그림자 폴리곤을 rgba(0,0,0,0.35) 로 덮는 것이다. 세 가지로 기각했다.
+ *
+ *  1. 물리적으로 틀렸다. 한낮의 그늘은 회색이 아니라 **파랗다** — 직사광이 막히면
+ *     그 자리를 하늘 산란광(10000K+)이 채운다. 진짜 차이는 명도가 아니라 색온도이고,
+ *     이걸 쓰면 명도 채널을 통째로 게임 정보용으로 아낄 수 있다.
+ *  2. 게임적으로 거꾸로다. 그늘은 안전지대라 사람이 몰리고 교전이 일어난다.
+ *     **가장 붐비는 곳을 가장 어둡게 만드는 건 가독성 예산을 정확히 반대로 쓰는 것이다.**
+ *  3. 이 게임에서 유일하게 좋은 곳이 음침해 보이면 안 된다.
+ *
+ * 그래서 **역전 합성**을 쓴다. 바닥을 그늘 색(= 진짜 색)으로 전부 그린 뒤,
+ * 햇볕 영역에만 따뜻한 표백을 얹는다. `evenodd` 덕분에 "전체에서 그림자를 뺀 영역"을
+ * 역계산 없이 드로우콜 **한 번**에 칠한다.
+ */
+import { C } from '../sim/consts.js';
+import { buildShadows, shadowDir, isNoon, noonLeftMs } from '../sim/sun.js';
+import { drawIce, drawShard, worldText, PAL, colorOf } from './iceart.js';
+
+/* 그늘 상태(= 진짜 색)가 원본이다. 햇볕 색은 위에 표백을 얹은 결과다. */
+const GROUND = {
+  rubber: '#8A4A46', concrete: '#6E7488', grass: '#3F5C4A',
+  water: '#1E6E82', dirt: '#6B5642'
+};
+const OBST = { block: '#4A5568', parasol: '#7A4A52', tree: '#2F4A38' };
+
+export function createRenderer(canvas) {
+  const ctx = canvas.getContext('2d', { alpha: false });
+  let shadows = null, shadowPhase = -1;
+  let dpr = 1;
+  const frames = [];
+  let lowSpec = false;
+
+  function resize() {
+    const want = Math.min(window.devicePixelRatio || 1, lowSpec ? 1.5 : 2);
+    dpr = want;
+    canvas.width = Math.round(canvas.clientWidth * dpr);
+    canvas.height = Math.round(canvas.clientHeight * dpr);
+  }
+  window.addEventListener('resize', resize);
+
+  /** 프레임 시간이 22ms 를 넘으면 저사양 모드로 자동 전환 */
+  function watchPerf(dt) {
+    frames.push(dt);
+    if (frames.length > 120) frames.shift();
+    if (frames.length === 120 && !lowSpec) {
+      const avg = frames.reduce((a, b) => a + b, 0) / frames.length;
+      if (avg > 22) { lowSpec = true; resize(); }
+    }
+  }
+
+  function shadowsFor(arena, phase) {
+    // 태양이 움직인 만큼만 다시 만든다. 매 프레임 만들면 저사양 폰에서 이것만으로 예산을 다 쓴다
+    if (!shadows || Math.abs(phase - shadowPhase) > 0.0012) {
+      shadows = buildShadows(arena, phase);
+      shadowPhase = phase;
+    }
+    return shadows;
+  }
+
+  function shadowPath(list) {
+    const p = new Path2D();
+    p.rect(0, 0, C.WORLD, C.WORLD);
+    for (const s of list) {
+      if (s.kind === 'ellipse') {
+        p.moveTo(s.cx + s.a, s.cy);
+        p.ellipse(s.cx, s.cy, s.a, s.b, Math.atan2(s.uy, s.ux), 0, Math.PI * 2);
+      } else if (s.kind === 'disc') {
+        p.moveTo(s.cx + s.r, s.cy);
+        p.arc(s.cx, s.cy, s.r, 0, Math.PI * 2);
+      } else {
+        p.moveTo(s.pts[0].x, s.pts[0].y);
+        for (let i = 1; i < s.pts.length; i++) p.lineTo(s.pts[i].x, s.pts[i].y);
+        p.closePath();
+      }
+    }
+    return p;
+  }
+
+  /**
+   * @param {object} v   view (predict.js)
+   * @param {object} o   { arena, roster, myId, input, reduced, colorblind, dt, now, leaderId }
+   */
+  function draw(v, o) {
+    watchPerf(o.dt);
+    if (canvas.width !== Math.round(canvas.clientWidth * dpr)) resize();
+
+    const W = canvas.width, H = canvas.height;
+    const portrait = H > W;
+    const me = v.me;
+    const myR = me ? me.r : C.START_R;
+
+    // 카메라 — 내 반지름이 항상 화면 46px(세로 39px). 화면상 크기가 곧 상대 크기가 된다
+    // 클램프 폭을 넉넉히 잡는다. 좁게 잡으면(예 상한 1.9) 작을 때 내 반지름이 27px 로
+    // 쪼그라들어 "화면상 크기가 곧 상대 크기"라는 약속이 깨진다 — 실측으로 잡은 값이다.
+    const want = (portrait ? 39 : 46) * dpr / myR;
+    const zoom = Math.max(0.5, Math.min(3.6, want));
+    const camX = me ? me.x : C.WORLD / 2;
+    const camY = me ? me.y : C.WORLD / 2;
+    // 진행 방향으로 살짝 앞서 본다. 세로는 화면의 44% 지점에 나를 둔다(아래 띠는 손이 가린다)
+    const lead = o.input ? 60 : 0;
+    const ox = W / 2 - (camX + Math.cos(o.input ? o.input.angle : 0) * lead) * zoom;
+    const oy = H * (portrait ? 0.44 : 0.5) - (camY + Math.sin(o.input ? o.input.angle : 0) * lead) * zoom;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#FFF3DC';                    // 아레나 밖 = 눈부신 백열
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.setTransform(zoom, 0, 0, zoom, ox, oy);
+
+    const arena = o.arena;
+    if (!arena) { ctx.restore(); return; }
+
+    /* 1) 바닥을 **그늘 색**(진짜 색)으로 전부 그린다 */
+    ctx.fillStyle = '#7C6F6A';
+    ctx.fillRect(0, 0, C.WORLD, C.WORLD);
+    for (const g of arena.ground) {
+      ctx.fillStyle = GROUND[g.kind] || '#6E7488';
+      ctx.fillRect(g.x, g.y, g.w, g.h);
+    }
+    ctx.strokeStyle = '#9AA0AE';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    for (const l of arena.lines) { ctx.moveTo(l.x1, l.y1); ctx.lineTo(l.x2, l.y2); }
+    ctx.stroke();
+
+    /* 2) 햇볕만 표백한다 — 드로우콜 한 번 */
+    const sh = shadowsFor(arena, v.phase);
+    const noon = isNoon(v.phase);
+    const path = shadowPath(sh);
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = noon ? 'rgba(255,217,160,0.78)' : 'rgba(255,217,160,0.55)';
+    ctx.fill(path, 'evenodd');
+
+    /* 그늘 경계 — 이 게임에서 가장 중요한 선.
+     *
+     * 부드러운 반그림자가 물리적으로는 맞지만 **판정선을 흐린다.** 여기서 한 발 차이로
+     * 녹느냐 마느냐가 갈리므로 경계는 칼같아야 한다. 그래서 바깥(햇볕 쪽)으로만
+     * 열기를 번지게 하고, 경계선 자체는 1px 하드 라인으로 둔다.
+     *
+     * 이걸 빼고 한 번 돌려봤더니 그늘 얼룩이 **물체처럼 보였다** — 바닥색만 다른
+     * 평평한 면이라 파라솔인지 파라솔 그림자인지 구분이 안 됐다. */
+    ctx.lineWidth = 7 * dpr / zoom;
+    ctx.strokeStyle = 'rgba(255,214,150,0.55)';
+    ctx.stroke(path);
+    ctx.restore();
+
+    ctx.save();
+    ctx.lineWidth = Math.max(0.6, 1.4 * dpr / zoom);
+    ctx.strokeStyle = 'rgba(20,32,60,0.42)';
+    ctx.stroke(path);
+    ctx.restore();
+
+    /* 3) 물체 자체 */
+    for (const b of arena.obstacles) {
+      ctx.fillStyle = OBST[b.type] || '#555';
+      if (b.type === 'block') {
+        ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+      } else if (b.type === 'parasol') {
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.28, 0, Math.PI * 2); ctx.fill();
+      } else {
+        for (const c of b.canopy) {
+          ctx.beginPath(); ctx.arc(b.x + c.dx, b.y + c.dy, c.r, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
+
+    /* 4) 얼음조각 — 화면 안만 그린다 */
+    const pad = 60;
+    const vx0 = (-ox) / zoom - pad, vy0 = (-oy) / zoom - pad;
+    const vx1 = (W - ox) / zoom + pad, vy1 = (H - oy) / zoom + pad;
+    for (const f of v.food.values()) {
+      if (f.x < vx0 || f.x > vx1 || f.y < vy0 || f.y > vy1) continue;
+      drawShard(ctx, f.x, f.y, o.now);
+    }
+
+    /* 5) 사람 — **작은 것부터 큰 것 순.** 위험한 것이 절대 안 가려진다.
+     *    로컬 플레이어는 크기와 무관하게 맨 위(내가 사라지면 게임이 끝난다) */
+    const sunDir = shadowDir(v.phase);
+    const list = [...v.players.values()]
+      .filter(p => !p.dead && p.id !== o.myId)
+      .filter(p => p.x > vx0 - p.r && p.x < vx1 + p.r && p.y > vy0 - p.r && p.y < vy1 + p.r)
+      .sort((a, b) => a.r - b.r);
+
+    const info = (id) => (o.roster && o.roster.get(id)) || {};
+    const relOf = (r) => r >= myR * C.EAT_RATIO ? 'bigger'
+      : (r <= myR / C.EAT_RATIO ? 'smaller' : 'even');
+
+    for (const p of list) {
+      const nfo = info(p.id);
+      drawIce(ctx, {
+        x: p.x, y: p.y, r: p.r, skin: nfo.skin || 0,
+        isMe: false, rel: relOf(p.r),
+        melting: p.melting ? 1 : 0,
+        sunDir: p.melting ? sunDir : null,
+        crown: o.leaderId === p.id,
+        invuln: p.invuln, dashing: p.dashing,
+        t: o.now, reduced: o.reduced, lowSpec, colorblind: o.colorblind
+      });
+    }
+
+    if (me && !me.dead) {
+      drawIce(ctx, {
+        x: me.x, y: me.y, r: me.r, skin: (o.roster.get(o.myId) || {}).skin || 0,
+        isMe: true, melting: me.melting ? 1 : 0,
+        sunDir: me.melting ? sunDir : null,
+        crown: o.leaderId === o.myId,
+        invuln: me.invuln, dashing: me.dashing,
+        t: o.now, reduced: o.reduced, lowSpec, colorblind: o.colorblind
+      });
+    }
+
+    /* 6) 이름표 — 20명 전원을 그리면 글자 벽이 된다.
+     *    화면상 22px 이상 + 최대 8개, 우선순위는 ①나를 먹을 수 있는 것 ②가까운 것 */
+    const labels = list
+      .filter(p => p.r * zoom > 22 * dpr)
+      .map(p => ({ p, danger: p.r >= myR * C.EAT_RATIO, d: Math.hypot(p.x - camX, p.y - camY) }))
+      .sort((a, b) => (b.danger - a.danger) || (a.d - b.d))
+      .slice(0, 8);
+
+    ctx.save();
+    for (const { p } of labels) {
+      const nfo = info(p.id);
+      const size = Math.max(14 * dpr, 15 * dpr) / zoom;
+      let nx = p.x;
+      if (nfo.bot) {
+        // 봇 칩 — **사람인 척하지 않는다**
+        const chipW = size * 1.5;
+        ctx.fillStyle = 'rgba(16,32,47,0.55)';
+        const cy = p.y + p.r + size * 0.9;
+        roundRect(ctx, p.x - chipW - size * 0.2, cy - size * 0.55, chipW, size * 1.1, size * 0.55);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = '700 ' + (size * 0.72) + 'px system-ui, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('봇', p.x - chipW / 2 - size * 0.2, cy);
+        nx = p.x + size * 0.6;
+      }
+      worldText(ctx, nfo.name || '?', nx, p.y + p.r + size * 0.9, size, nfo.bot ? 'left' : 'center');
+    }
+    if (me && !me.dead) {
+      const size = 15 * dpr / zoom;
+      worldText(ctx, (o.roster.get(o.myId) || {}).name || '나', me.x, me.y + me.r + size * 0.9, size);
+    }
+    ctx.restore();
+
+    ctx.restore();
+
+    /* 7) 화면 밖 지시 — **최대 2개만.** 항상 떠 있으면 잡음이 된다 */
+    if (me && !me.dead) {
+      const cx = W / 2, cy = H * (portrait ? 0.44 : 0.5);
+      const lead2 = v.players.get(o.leaderId);
+      if (lead2 && o.leaderId !== o.myId) chevron(ctx, cx, cy, W, H, dpr, lead2, me, zoom, PAL.crown, true);
+      let near = null, nd = Infinity;
+      for (const p of v.players.values()) {
+        if (p.dead || p.id === o.myId) continue;
+        if (p.r < myR * C.EAT_RATIO) continue;
+        const d = Math.hypot(p.x - me.x, p.y - me.y);
+        if (d < nd) { nd = d; near = p; }
+      }
+      if (near && nd < 900) {
+        const onScreen = Math.abs((near.x - camX) * zoom) < W / 2 && Math.abs((near.y - camY) * zoom) < H / 2;
+        if (!onScreen) chevron(ctx, cx, cy, W, H, dpr, near, me, zoom, PAL.danger, false);
+      }
+    }
+
+    /* 8) 녹는 중이면 화면 테두리가 달아오른다 — 딴 데 봐도 주변시로 잡힌다 */
+    if (me && me.melting && !me.dead) {
+      const a = o.reduced ? 0.22 : 0.30;
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      ctx.fillStyle = 'rgba(255,190,120,' + a + ')';
+      const t = 26 * dpr;
+      ctx.fillRect(0, 0, W, t); ctx.fillRect(0, H - t, W, t);
+      ctx.fillRect(0, 0, t, H); ctx.fillRect(W - t, 0, t, H);
+      ctx.restore();
+    }
+
+    /* 9) 정오 — 라운드 없는 게임에 공유되는 리듬을 만드는 12초 */
+    if (noon) {
+      const left = Math.ceil(noonLeftMs(v.phase) / 1000);
+      ctx.save();
+      worldText(ctx, '정오 ' + left, W / 2, 92 * dpr, 34 * dpr);
+      ctx.restore();
+    }
+
+    return { lowSpec, zoom, dpr };
+  }
+
+  function chevron(ctx, cx, cy, W, H, dpr, target, me, zoom, color, showDist) {
+    const dx = (target.x - me.x) * zoom, dy = (target.y - me.y) * zoom;
+    const a = Math.atan2(dy, dx);
+    const m = 40 * dpr;
+    const rx = Math.min(W / 2 - m, H / 2 - m);
+    const px = cx + Math.cos(a) * rx, py = cy + Math.sin(a) * rx;
+    const dist = Math.hypot(target.x - me.x, target.y - me.y);
+    const alpha = Math.max(0, Math.min(1, (2500 - dist) / 900));
+    if (alpha <= 0.02) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(px, py); ctx.rotate(a);
+    ctx.fillStyle = color;
+    const s = 15 * dpr;
+    ctx.beginPath();
+    ctx.moveTo(s, 0); ctx.lineTo(-s * 0.7, -s * 0.75); ctx.lineTo(-s * 0.7, s * 0.75);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+    if (showDist) {
+      ctx.save();
+      worldText(ctx, Math.round(dist / 10) + 'm', px - Math.cos(a) * 26 * dpr, py - Math.sin(a) * 26 * dpr, 15 * dpr);
+      ctx.restore();
+    }
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  resize();
+  return { draw, resize, get dpr() { return dpr; }, get lowSpec() { return lowSpec; } };
+}

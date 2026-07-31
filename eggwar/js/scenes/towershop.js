@@ -555,7 +555,9 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
 
     if (P) {
       // ── 폰: 가로형 — 아이콘 왼쪽, [이름 / 효과] 오른쪽, 가격은 이름 줄 오른쪽 끝 ──
-      var pIcon = Math.min(cardH - 8, 42);
+      // 아이콘을 조금 줄여 글 폭을 6px 벌었다 — 효과 4개짜리 장신구가 한 줄에 들어가는
+      // 경계가 그만큼 여유로워진다(실측: 마지막 행에서만 2줄로 접혀 카드를 넘쳤다).
+      var pIcon = Math.min(cardH - 8, 36);
       var pIx = cx0 + 5;
       g.fillStyle(GAME.UI.COL.bg, equipped ? 0.5 : 1);
       g.fillRoundedRect(pIx, cy0 + (cardH - pIcon) / 2, pIcon, pIcon, 6);
@@ -570,16 +572,13 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
       self._body.push(GAME.UI.label(self, tx, cy0 + 4, it.name, 13,
         equipped ? C.accent : C.text, 0).setWordWrapWidth(Math.max(40, tw - priceLbl.width - 8)));
       // 효과 문구 — 이 줄이 사용자가 요구한 "어떤 능력치를 추가해주는지"다.
-      // ⚠ 가장 긴 것("공격력 +78, 흡혈 +12%, 스킬 쿨 -6%")은 이 폭에서 두 줄로 접히고,
-      //   둘째 줄이 카드 밖 확정 막대까지 흘러 겹쳤다(겹침 감사가 잡음).
-      //   글꼴은 13px 하한이라 줄일 수 없으니 **문자열을 압축**한다 — 쉼표·공백을
-      //   걷어내면 같은 정보가 한 줄에 들어간다.
-      var noteTxt = it.note.replace(/,\s+/g, '  ').replace(/\s+\+/g, '+').replace(/\s+-/g, '-');
-      var noteLbl2 = GAME.UI.label(self, tx, cy0 + 22, noteTxt, 13, C.textDim, 0)
-        .setWordWrapWidth(tw).setLineSpacing(0);
-      self._body.push(noteLbl2);
-      // 압축해도 넘치면 숨긴다 — 측정에 기대는 배치는 바닥을 같이 정해 둬야 한다.
-      if (noteLbl2.y + noteLbl2.height > cy0 + cardH - 2) noteLbl2.setVisible(false);
+      // ⚠ **숨기지 않는다.** 예전엔 넘치면 `setVisible(false)` 로 감췄는데, 효과가
+      //   3~4개인 장신구(그림자 반지·여명의 인장)가 통째로 설명 없는 카드가 됐다
+      //   (사용자 신고). 지금은 값에서 **짧게 다시 만들어**(라벨 축약 + 큰 수 k 표기)
+      //   폭 안에 들어가게 한다 — 감추는 대신 줄이는 것이 맞다.
+      var noteTxt = GAME.TowerShopItems.noteOf(it, true);
+      self._body.push(GAME.UI.label(self, tx, cy0 + 22, noteTxt, 13, C.textDim, 0)
+        .setWordWrapWidth(tw).setLineSpacing(0));
 
     } else {
       // ── PC: 세로형 — 아이콘 위, 이름·효과 가운데, 가격 바닥 ──
@@ -598,7 +597,7 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
         .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(cardW - 8);
       self._body.push(nameLbl);
       self._body.push(GAME.UI.label(self, cx0 + cardW / 2, nameLbl.y + nameLbl.height + 3,
-        it.note, 13, C.textDim, 0.5).setOrigin(0.5, 0).setAlign('center')
+        GAME.TowerShopItems.noteOf(it, false), 13, C.textDim, 0.5).setOrigin(0.5, 0).setAlign('center')
         .setWordWrapWidth(cardW - 12));
       self._body.push(GAME.UI.label(self, cx0 + cardW / 2, cy0 + cardH - 6,
         priceTxt, 13, priceCol, 0.5).setOrigin(0.5, 1));

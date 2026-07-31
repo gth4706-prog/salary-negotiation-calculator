@@ -96,6 +96,50 @@ GAME.TowerShopItems = (function () {
     // 대전 가격 — 없으면 탑 가격으로 떨어진다(표에 빠진 항목이 있어도 안 죽는다).
     vsCostOf: function (it) {
       return (it && typeof it.vsCost === 'number') ? it.vsCost : (it ? it.cost : 0);
+    },
+
+    // ── 효과 문구를 **값에서 만든다** (2026-08-01 사용자 신고: "아이템 설명이 안 뜨는
+    //    게 있어") ──────────────────────────────────────────────────────────────
+    //  원인: 효과가 3~4개인 장신구(그림자 반지·여명의 인장)는 손으로 쓴 `note` 가 길어
+    //  폰 카드에서 두 줄을 넘겼고, 넘치면 **숨기는** 안전장치가 발동해 설명이 통째로
+    //  사라졌다. 숨기는 건 답이 아니다 — 사용자가 요구한 것이 바로 그 설명이다.
+    //
+    //  그래서 문자열을 자르는 대신 **값에서 짧게 다시 만든다**:
+    //   · 라벨을 줄인다(공격력→공격 · 이동속도→속도 · 스킬 쿨→쿨)
+    //   · 큰 수는 축약한다(9000 → 9k) — `UI.numAbbr` 과 같은 규칙
+    //  덤으로 손으로 쓴 `note` 가 실제 값과 어긋날 위험도 사라진다(값이 곧 설명이다).
+    noteOf: function (it, compact) {
+      if (!it) return '';
+      var ab = function (n) {
+        return (GAME.UI && GAME.UI.numAbbr) ? GAME.UI.numAbbr(n) : String(n);
+      };
+      // ⚠ 라벨 길이를 **효과 개수에 따라** 바꾼다. 폰 카드 한 줄은 실측 약 26자인데,
+      //   효과 4개짜리(여명의 인장)는 2자 라벨로도 25자라 아슬아슬하게 두 줄로 접혀
+      //   카드를 11px 넘쳤다(실측). 4개 이상일 때만 1자 라벨로 줄인다 —
+      //   흔한 1~3효과 아이템의 가독성은 그대로 두고 예외만 조인다.
+      var n4 = 0;
+      ['damageAdd', 'hpAdd', 'armorAdd', 'speedAdd', 'lifestealAdd', 'luckAdd'].forEach(function (k) {
+        if (it[k]) n4++;
+      });
+      if (it.cdrMul && it.cdrMul !== 1) n4++;
+      var tight = compact && n4 >= 4;
+      var L = tight
+        ? { dmg: '공', hp: '체', arm: '방', spd: '속', ls: '흡', cd: '쿨', lk: '운' }
+        : (compact
+            ? { dmg: '공격', hp: '체력', arm: '방어', spd: '속도', ls: '흡혈', cd: '쿨', lk: '행운' }
+            : { dmg: '공격력', hp: '체력', arm: '방어력', spd: '이동속도', ls: '흡혈', cd: '스킬 쿨', lk: '행운' });
+      // 압축 모드는 라벨과 값 사이 공백도 뺀다 — 실측으로 이 한 칸이 줄바꿈을 갈랐다.
+      //   4효과 장신구 기준: "공격 +700  체력 +9k …"(2줄) → "공격+700 체력+9k …"(1줄)
+      var sp = compact ? '' : ' ';
+      var p = [];
+      if (it.damageAdd) p.push(L.dmg + sp + '+' + ab(it.damageAdd));
+      if (it.hpAdd) p.push(L.hp + sp + '+' + ab(it.hpAdd));
+      if (it.armorAdd) p.push(L.arm + sp + '+' + ab(it.armorAdd));
+      if (it.speedAdd) p.push(L.spd + sp + '+' + ab(it.speedAdd));
+      if (it.lifestealAdd) p.push(L.ls + sp + '+' + Math.round(it.lifestealAdd * 100) + '%');
+      if (it.cdrMul && it.cdrMul !== 1) p.push(L.cd + sp + '-' + Math.round((1 - it.cdrMul) * 100) + '%');
+      if (it.luckAdd) p.push(L.lk + sp + '+' + it.luckAdd);
+      return p.join(compact ? ' ' : ', ');
     }
   };
 })();

@@ -741,7 +741,10 @@ GAME.BattleScene.prototype.drawNumbers = function () {
     var t = pool[used++];
     var prog = 1 - n.t / n.total;
     t.setVisible(true);
-    t.setText(n.crit ? n.value + '!' : String(n.value));
+    // 큰 수는 축약한다("2559!" → "2.6k!") — 아이템이 지수로 세지며 네 자리 숫자가
+    // 여러 개 겹쳐 전장을 가렸다(사용자 승인). 자릿수가 줄면 겹칠 확률도 같이 준다.
+    var nTxt = GAME.UI.numAbbr(n.value);
+    t.setText(n.crit ? nTxt + '!' : nTxt);
 
     // 요청: "데미지도 플레이어가 입히는 게 더 중요하니 그 부분을 강조하고,
     //        맞는 건 조금 더 조그맣게 / 눈에 덜 띄는 색으로."
@@ -1275,7 +1278,7 @@ GAME.BattleScene.prototype.updateHud = function () {
     heroName:   h.hero.name,
     hpFrac:     (h.alive && h.maxHp) ? h.hp / h.maxHp : 0,
     shieldFrac: h.maxHp ? (h.shield || 0) / h.maxHp : 0,
-    hpText:     h.alive ? (Math.ceil(h.hp) + ' / ' + h.maxHp) : '전사',
+    hpText:     h.alive ? (GAME.UI.numAbbr(Math.ceil(h.hp)) + ' / ' + GAME.UI.numAbbr(h.maxHp)) : '전사',
     shieldText: h.shield > 0 ? ('보호막 +' + Math.ceil(h.shield)) : '',
 
     timeFrac:   TOTAL ? remain / TOTAL : 0,
@@ -1286,7 +1289,7 @@ GAME.BattleScene.prototype.updateHud = function () {
 
     bossName:   bossAlive ? bossU.def.name : '보스 처치',
     bossFrac:   (bossAlive && bossU.maxHp) ? bossU.hp / bossU.maxHp : 0,
-    bossText:   bossAlive ? (Math.ceil(bossU.hp) + ' / ' + bossU.maxHp) : '처치'
+    bossText:   bossAlive ? (GAME.UI.numAbbr(Math.ceil(bossU.hp)) + ' / ' + GAME.UI.numAbbr(bossU.maxHp)) : '처치'
   });
 
   for (var i = 0; i < this.skillBoxes.length; i++) {

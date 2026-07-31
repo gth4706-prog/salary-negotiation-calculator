@@ -41,22 +41,28 @@
 .tile.off:hover{fill:color-mix(in srgb,var(--accent) 16%,var(--surface-2))}
 .tile.on:hover{fill:color-mix(in srgb,var(--bad) 14%,var(--soft))}
 
-/* 가구 */
+/* 가구·가전 — 이제 하나의 목록이다(2026-08-01). kind="fixture"(옛 필수가전)만
+   색을 다르게 칠해 "고정 설비"임을 구분한다. 조작(드래그·회전·삭제)은 완전히 같다. */
 .furn{cursor:grab}
 .furn.dragging{cursor:grabbing}
 .furn rect{fill:color-mix(in srgb,var(--accent) 18%,var(--surface));stroke:var(--accent-ink);stroke-width:2;vector-effect:non-scaling-stroke;rx:3}
 .furn.sel rect{stroke:var(--accent);stroke-width:4;vector-effect:non-scaling-stroke}
 .furn.bad rect{fill:color-mix(in srgb,var(--bad) 22%,var(--surface));stroke:var(--bad)}
+.furn.is-fixture rect{fill:color-mix(in srgb,var(--warm-ink) 20%,var(--surface));stroke:var(--warm-ink)}
+.furn.is-fixture.sel rect{stroke:var(--bad);stroke-width:3}
 .furn text{fill:var(--ink);font-size:19px;text-anchor:middle;dominant-baseline:middle;pointer-events:none;font-weight:700}
+.furn.is-fixture text{fill:var(--warm-ink)}
 .furn .sz{fill:var(--muted);font-size:16px;font-weight:500;font-family:var(--mono)}
 .furn .front{stroke:var(--accent-ink);stroke-width:5;vector-effect:non-scaling-stroke;opacity:.55}
+.furn.is-fixture .front{stroke:var(--warm-ink)}
 .clear-zone{fill:color-mix(in srgb,var(--warn) 16%,transparent);stroke:none;pointer-events:none}
 
-/* 필수 가전(고정) */
-.builtin rect{fill:color-mix(in srgb,var(--warm-ink) 20%,var(--surface));stroke:var(--warm-ink);stroke-width:2;stroke-dasharray:none;vector-effect:non-scaling-stroke;rx:3}
-.builtin.sel rect{stroke:var(--bad);stroke-width:3;vector-effect:non-scaling-stroke}
-.builtin text{fill:var(--warm-ink);font-size:18px;text-anchor:middle;dominant-baseline:middle;pointer-events:none;font-weight:700}
-.draw-preview{fill:color-mix(in srgb,var(--accent) 22%,transparent);stroke:var(--accent);stroke-width:2;stroke-dasharray:8 5;vector-effect:non-scaling-stroke;pointer-events:none}
+/* 대표 가구(사이즈가 정해진 프리셋) 실루엣 — 사각형만 봐서는 뭔지 안 읽히던 걸
+   한눈에 알아보게. 색은 정보가 아니라 장식이라 낮은 불투명도로만 얹는다. */
+.furn-ico{color:var(--accent-ink);opacity:.20;pointer-events:none}
+.furn.is-fixture .furn-ico{color:var(--warm-ink);opacity:.22}
+.furn.bad .furn-ico{color:var(--bad)}
+.furn.sel .furn-ico{opacity:.28}
 
 /* 드래그 힌트(플로팅) */
 .drag-hint{position:absolute;pointer-events:none;font-size:12.5px;font-weight:800;padding:6px 11px;border-radius:999px;box-shadow:var(--shadow);white-space:nowrap;transform:translate(-50%,-130%);z-index:30;transition:background .15s,color .15s}
@@ -88,10 +94,6 @@
 .unit-btn{font:inherit;font-size:13px;font-weight:700;padding:10px 16px;border-radius:10px;cursor:pointer;border:1.5px solid var(--line-strong);background:var(--paper);color:var(--muted)}
 .unit-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 
-/* 필수가전 요약 */
-.builtin-summary{font-size:13px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-top:6px;line-height:1.6}
-.builtin-summary b{color:var(--ink)}
-
 /* 진단 */
 .diag{display:flex;flex-direction:column;gap:9px}
 .diag-item{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;padding:11px 13px;border-radius:10px;line-height:1.55}
@@ -114,7 +116,22 @@
 .item-list li .nm{font-weight:700;flex:1}
 .item-list li .sz{font-family:var(--mono);font-size:12px;color:var(--muted)}
 
-/* 요약 칩 목록(가전) */
-.op-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
-.op-chip{display:flex;align-items:center;gap:7px;font-size:12.5px;padding:7px 11px;border:1px solid var(--line);border-radius:999px;background:var(--paper)}
-.op-chip button{border:0;background:none;color:var(--bad);cursor:pointer;font:inherit;font-weight:800;padding:0 2px;line-height:1}
+/* ---------- 온보딩 (첫 방문 1회) ---------- */
+.onboard-steps{list-style:none;padding:0;margin:16px 0 0;display:flex;flex-direction:column;gap:14px}
+.onboard-steps li{display:flex;gap:12px;align-items:flex-start}
+.onb-ico{flex:none;font-size:23px;line-height:1.35;width:34px;text-align:center}
+.onboard-steps b{display:block;font-size:14px;font-weight:800;letter-spacing:-.01em}
+.onboard-steps span{display:block;font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.55}
+.onb-again{margin:8px 0 0}
+.link-btn{background:none;border:0;color:var(--accent-ink);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;padding:0}
+.link-btn:hover{text-decoration:underline}
+
+/* ---------- 말풍선 코치마크 ---------- */
+.coach{position:fixed;z-index:45;max-width:216px;background:var(--ink);color:var(--paper);font-size:12.5px;font-weight:700;line-height:1.5;padding:10px 13px;border-radius:12px;box-shadow:var(--shadow-lg);pointer-events:none;animation:coach-in .18s ease}
+.coach::after{content:"";position:absolute;left:22px;width:11px;height:11px;background:var(--ink);transform:rotate(45deg)}
+.coach.below::after{top:-4px}
+.coach.above::after{bottom:-4px}
+@keyframes coach-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+/* ---------- 언어 전환 ---------- */
+.lang-switch{font-size:12px!important;font-weight:800!important;letter-spacing:.02em}

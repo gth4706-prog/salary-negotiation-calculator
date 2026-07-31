@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#A56F63">
+<title>Room Furniture Layout Simulator | Plan your floor plan before you buy</title>
+<meta name="description" content="Enter your room size and we'll build a floor plan shaped like your room. Place a sink, fridge, bed, and desk at real sizes and get an instant check on passage width and clearance.">
+<link rel="canonical" href="https://joeltool.com/room-planner/en/">
+<link rel="alternate" hreflang="ko" href="https://joeltool.com/room-planner/">
+<link rel="alternate" hreflang="en" href="https://joeltool.com/room-planner/en/">
+<link rel="alternate" hreflang="x-default" href="https://joeltool.com/room-planner/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Room Furniture Layout Simulator">
+<meta property="og:description" content="Enter your size → build a floor plan shaped like your room → place appliances & furniture → instant passage/clearance check.">
+<meta property="og:url" content="https://joeltool.com/room-planner/en/">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%8B%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="../../css/style.css?v=0.08">
+<link rel="stylesheet" href="../../css/planner.css?v=0.08">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Room Furniture Layout Simulator","applicationCategory":"DesignApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"Free tool that builds a room-shaped floor plan from your room size, then lets you place appliances and furniture to check passage width and clearance."}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"Do I really need to preview furniture placement?","acceptedAnswer":{"@type":"Answer","text":"Many people only discover after moving in that the passage is too narrow or a door won't open once the bed or sofa is in place. Trying your room size, shape, and furniture dimensions beforehand lets you catch overlaps and passage problems before you measure the real room."}},
+{"@type":"Question","name":"What if I don't know the exact furniture size?","acceptedAnswer":{"@type":"Answer","text":"Beds come as presets in standard sizes (Twin/Full/Queen/King) so you can place one without knowing the exact size. For everything else, measure it yourself or enter the width × depth printed on the product page."}},
+{"@type":"Question","name":"How much passage width should I leave in a small room?","acceptedAnswer":{"@type":"Answer","text":"A basic walking passage should be at least 60cm. This simulator warns you in real time whenever a passage narrows below that as you place furniture."}},
+{"@type":"Question","name":"Can I paste a product link to auto-fill the size?","acceptedAnswer":{"@type":"Answer","text":"Not currently. Most furniture retail sites block automated scraping, so this tool uses manual size entry instead — you can toggle between cm and mm."}},
+{"@type":"Question","name":"Can I save or share my layout?","acceptedAnswer":{"@type":"Answer","text":"Yes. Press the \"Copy layout link\" button and your current layout is encoded into a single URL. Opening that link reproduces the exact same layout."}}
+]}
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<nav class="nav"><div class="in">
+  <a class="brand" href="../../index.html">
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
+    <span class="n">Gakjab Salim</span>
+  </a>
+  <div class="links">
+    <a href="../../about.html">About</a>
+    <a class="lang-switch" href="../" title="한국어로 보기" hreflang="ko">KO</a>
+    <button class="theme-btn" id="theme-btn" type="button">◐</button>
+    <span class="ver-badge" title="Build version — for cache checks">v0.08</span>
+  </div>
+</div></nav>
+
+<!-- Fixed-position floor plan at top: hidden until a room exists -->
+<div class="plan-sticky" id="plan-sticky" hidden>
+  <div class="plan-sticky-in">
+    <div class="plan-topbar">
+      <span class="phase-badge" id="phase-badge">Adjusting shape</span>
+      <span class="plan-size" id="plan-size-txt">–</span>
+    </div>
+    <div class="plan-wrap"><svg id="plan" viewBox="0 0 520 520" role="img" aria-label="Room floor plan"></svg></div>
+    <div class="drag-hint" id="drag-hint" hidden></div>
+    <div class="sel-bar" id="sel-bar" hidden>
+      <span class="nm" id="sel-nm">–</span>
+      <button type="button" id="rot">↻ Rotate 90°</button>
+      <button type="button" id="del" class="del">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Onboarding: shown once, before the first-run modal -->
+<div class="modal-backdrop" id="onboard-modal" hidden>
+  <div class="modal-box onboard-box">
+    <div class="modal-scroll">
+      <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">How it works<span class="s">Takes about 30 seconds.</span></h2>
+      <ol class="onboard-steps">
+        <li><span class="onb-ico">📐</span><div><b>Enter your size and pick a shape</b><span>Choose the shape closest to your room and a floor plan is built for you.</span></div></li>
+        <li><span class="onb-ico">🛋️</span><div><b>Tap furniture to add it</b><span>It appears on the plan instantly — everything from beds and sofas to sinks and fridges lives in the same list.</span></div></li>
+        <li><span class="onb-ico">✅</span><div><b>Drag to move it, get checked automatically</b><span>You'll be warned right away if a passage is too narrow or two things overlap.</span></div></li>
+      </ol>
+    </div>
+    <button class="cta" id="onboard-cta" type="button">Try it →</button>
+  </div>
+</div>
+
+<!-- STEP A: size + shape (single popup, one confirm button) -->
+<div class="modal-backdrop" id="stepA-modal">
+  <div class="modal-box">
+    <div class="modal-scroll">
+      <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">How big is your room?<span class="s">Enter the size in pyeong (1 pyeong ≈ 3.3m²) and we'll preview the shape.</span></h2>
+      <div class="row" style="margin-top:16px">
+        <div class="field"><label class="lbl" for="py">Size (pyeong)</label><div class="money"><input class="txt" id="py" type="number" min="1" max="30" step="0.5" value="6" inputmode="decimal"><span class="u">py</span></div></div>
+        <div class="field"><label class="lbl">Converted size</label><div class="age-out" id="py-out">–</div></div>
+      </div>
+      <div class="helper" style="margin-top:16px">💡 Pick the shape closest to your room. You can fine-tune it afterward.</div>
+      <div class="shape-grid" id="shape-grid" style="margin-top:10px"></div>
+    </div>
+    <button class="cta" id="gen-room" type="button">Build this shape →</button>
+  </div>
+</div>
+
+<main class="wrap-wide page stack">
+  <header class="hero" id="hero">
+    <h1>Room Furniture Layout Simulator</h1>
+    <p>Enter your room size, build a shape <b>close to your actual room</b>, then place appliances and furniture. We'll tell you right away <b>whether that layout is realistic.</b></p>
+    <p class="onb-again"><button type="button" id="onb-again-btn" class="link-btn">❔ Show how it works again</button></p>
+  </header>
+
+  <div class="note" id="privacy-note"><span>ℹ️</span><span>All calculations happen <b>only in your browser</b> — nothing is stored or sent anywhere. Always measure the real room before construction or purchase.</span></div>
+
+  <!-- Fine-tuning step (optional) -->
+  <section class="card step" id="stepShape" hidden>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">Fine-tune the shape if you'd like<span class="s">This is optional — tap or drag on the plan above to add or remove tiles.</span></h2>
+    <div class="cat-row" id="tile-mode-row" style="margin-top:14px">
+      <button type="button" class="cat-btn on" id="tile-add" data-mode="add">➕ Add tiles</button>
+      <button type="button" class="cat-btn" id="tile-remove" data-mode="remove">➖ Remove tiles</button>
+      <button type="button" class="cat-btn" id="rotate-room">↻ Rotate plan 90°</button>
+    </div>
+    <button class="cta" id="shape-done" type="button" style="margin-top:14px">Next: place furniture & appliances →</button>
+  </section>
+
+  <div class="ad-slot" aria-hidden="true" id="adwrap" hidden><span class="lab">Ad slot (pending approval)</span></div>
+
+  <!-- STEP D: unified furniture + appliance placement -->
+  <section class="card step" id="stepD" hidden>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">Add furniture and appliances<span class="s">Tap something and it appears on the plan above — drag it into place. Fixed items like a sink or fridge live in the same list as movable furniture.</span></h2>
+    <div class="cat-row" id="cat-row" style="margin-top:14px"></div>
+    <div class="preset-grid" id="preset-grid"></div>
+
+    <div class="helper" style="margin-top:20px">📐 Don't see it in the list? Enter it manually below. We recommend copying the size straight from the product page.</div>
+    <div class="row" style="margin-top:14px">
+      <div class="field full"><label class="lbl" for="c-name">Name</label><input class="txt" id="c-name" type="text" placeholder="e.g. Solid wood desk" maxlength="14"></div>
+      <div class="field">
+        <label class="lbl" for="c-w">Width</label>
+        <div class="money"><input class="txt" id="c-w" type="number" min="1" placeholder="120" inputmode="numeric"><span class="u" id="c-w-u">cm</span></div>
+      </div>
+      <div class="field">
+        <label class="lbl" for="c-h">Depth</label>
+        <div class="money"><input class="txt" id="c-h" type="number" min="1" placeholder="60" inputmode="numeric"><span class="u" id="c-h-u">cm</span></div>
+      </div>
+      <div class="field full">
+        <label class="lbl">Unit</label>
+        <div class="unit-toggle">
+          <button type="button" class="unit-btn on" id="unit-cm" data-unit="cm">cm</button>
+          <button type="button" class="unit-btn" id="unit-mm" data-unit="mm">mm</button>
+        </div>
+      </div>
+      <div class="field full"><label class="lbl" for="c-cl">Clearance in front <span class="hint">(about 60cm if it has drawers/doors that open)</span></label><div class="money"><input class="txt" id="c-cl" type="number" min="0" max="150" step="10" value="0" inputmode="numeric"><span class="u">cm</span></div></div>
+    </div>
+    <button class="cta" id="add-custom" type="button">+ Add this furniture</button>
+  </section>
+
+  <!-- Diagnosis -->
+  <section class="card step" id="stepDiag" hidden>
+    <h2>Layout diagnosis</h2>
+    <p class="desc">Checks passage width and clearance.</p>
+    <div class="diag" id="diag"></div>
+    <div class="occ">
+      <div class="occ-head"><span>Furniture coverage</span><span><b id="occ-v">0%</b> · <span id="occ-note">–</span></span></div>
+      <div class="occ-bar"><div class="occ-fill" id="occ-f"></div></div>
+    </div>
+  </section>
+
+  <!-- Placed items -->
+  <section class="card step" id="stepList" hidden>
+    <h2>Placed items</h2>
+    <ul class="item-list" id="ilist"></ul>
+    <div class="sel-empty" id="ilist-empty">Nothing placed yet.</div>
+    <div class="share-row">
+      <button id="share" type="button">🔗 Copy layout link</button>
+      <button id="clear-all" type="button">↺ Start over</button>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="card">
+    <h2>Frequently asked questions</h2>
+    <div class="faq">
+      <details>
+        <summary>Do I really need to preview furniture placement?</summary>
+        <p>Many people only discover after moving in that <strong>the passage is too narrow or a door won't open</strong> once the bed or sofa is in place. Trying your room size, shape, and furniture dimensions beforehand lets you catch overlaps and passage problems before you measure the real room.</p>
+      </details>
+      <details>
+        <summary>What if I don't know the exact furniture size?</summary>
+        <p>Beds come as presets in <strong>standard sizes (Twin/Full/Queen/King)</strong> so you can place one without knowing the exact size. For everything else, measure it yourself or enter the width × depth printed on the product page.</p>
+      </details>
+      <details>
+        <summary>How much passage width should I leave in a small room?</summary>
+        <p>A basic walking passage should be <strong>at least 60cm</strong>. This simulator warns you in real time whenever a passage narrows below that as you place furniture.</p>
+      </details>
+      <details>
+        <summary>Can I paste a product link to auto-fill the size?</summary>
+        <p>Not currently. Most furniture retail sites block automated scraping, so this tool uses <strong>manual size entry</strong> instead — you can toggle between cm and mm depending on what's printed on the label.</p>
+      </details>
+      <details>
+        <summary>Can I save or share my layout?</summary>
+        <p>Yes. Press "Copy layout link" and your current layout is encoded into a single URL. Opening that link reproduces the exact same layout — handy for sharing a plan with family or a roommate.</p>
+      </details>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>More tools</h2>
+    <p class="more-tools"><a href="../../index.html">← See the rest of the toolkit</a></p>
+  </section>
+</main>
+
+<footer class="footer"><div class="in">
+  <a href="../../about.html">About</a><span class="sep">·</span>
+  <a href="../../privacy.html">Privacy</a><span class="sep">·</span>
+  <a href="../../contact.html">Contact</a>
+  <div class="cp">A reference tool — always measure the real room before construction or purchase. © Gakjab Salim</div>
+</div></footer>
+
+<script src="../../js/furniture-icons.js?v=0.08"></script>
+<script>window.ROOM_LANG="en";</script>
+<script src="../../js/site.js?v=0.08"></script>
+<script src="../../js/planner.js?v=0.08"></script>
+</body>
+</html>

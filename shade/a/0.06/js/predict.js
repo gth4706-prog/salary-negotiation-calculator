@@ -18,7 +18,6 @@ export function createView() {
   return {
     me: null,                 // {x,y,r} 예측 좌표
     players: new Map(),       // id → {x,y,r,...,ax,ay,bx,by,t0,t1}
-    food: new Map(),
     phase: 0,
     serverT: 0,
     myId: null
@@ -45,8 +44,6 @@ export function applySnapshot(view, snap, now) {
   // 스냅샷에 없는 사람은 나갔다
   for (const [id, e] of view.players) if (e.seen !== now) view.players.delete(id);
 
-  for (const id of snap.removed) view.food.delete(id);
-  for (const f of snap.added) view.food.set(f.id, f);
 
   /* 내 얼음 — 서버가 진실이다. 예측과 어긋난 만큼을 목표로 잡고 부드럽게 당긴다 */
   const srv = snap.players.find(p => p.id === view.myId);

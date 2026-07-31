@@ -53,16 +53,14 @@ function demoStep(dt) {
   demo.snapAcc = 0;
   // 실제와 같은 경로를 태운다 — 인코드→디코드→적용. 데모 전용 렌더 경로를 따로 만들면
   // 그 경로만 멀쩡하고 진짜는 깨져 있는 상태를 못 잡는다.
-  const all = [...demo.world.food.values()].map(f => ({ id: f.id, x: f.x, y: f.y }));
-  view.food.clear();
-  applySnapshot(view, decodeSnapshot(encodeSnapshot(demo.world, [], all)), performance.now());
+  applySnapshot(view, decodeSnapshot(encodeSnapshot(demo.world)), performance.now());
   view.arena = ARENA;
   roster.clear();
   for (const p of demo.world.players.values()) roster.set(p.id, { id: p.id, name: p.name, bot: p.isBot, skin: p.skin });
   // 가장 큰 놈을 따라다닌다 — 빈 화면 대신 교전이 보인다
   let big = null;
   for (const p of demo.world.players.values()) if (!p.dead && (!big || p.mass > big.mass)) big = p;
-  if (big) { view.myId = big.id; view.me = { x: big.x, y: big.y, r: Math.sqrt(big.mass), melting: big.sun > 0 }; }
+  if (big) { view.myId = big.id; view.me = { x: big.x, y: big.y, r: Math.sqrt(big.mass), melting: big.sun > 0, cold: big.cold }; }
 }
 let death = null, lastFrame = 0, myName = '';
 const opts = {
@@ -95,7 +93,7 @@ function start() {
   // 데모가 남긴 상태를 지운다 — 안 지우면 데모의 큰 얼음이 내 얼음으로 남아
   // 첫 스냅샷이 올 때까지 엉뚱한 크기로 그려진다
   view.me = null; view.myId = null;
-  view.players.clear(); view.food.clear();
+  view.players.clear();
   roster.clear();
   if (!input) input = attachInput(canvas, { dashButton: dashBtn });
   if (!net) {
@@ -119,8 +117,6 @@ function onMessage(m) {
   if (m.t === 'welcome') {
     view.myId = m.you;
     view.arena = m.arena;
-    view.food.clear();
-    for (const f of m.food) view.food.set(f.id, f);
     roster.clear();
     for (const r of m.roster) roster.set(r.id, r);
     coach.born = performance.now();
@@ -155,7 +151,7 @@ function onMessage(m) {
 /** 지금 뭘 말해 줘야 하는지 판단할 재료. 안내 문구는 hud.js 가 고른다. */
 function situation() {
   const me = view.me;
-  if (!me || me.dead) return { danger: false, prey: false, foodNear: false, noon: false };
+  if (!me || me.dead) return { danger: false, prey: false, cold: false, noon: false };
   let danger = false, prey = false;
   for (const p of view.players.values()) {
     if (p.dead || p.id === view.myId) continue;
@@ -164,11 +160,7 @@ function situation() {
     if (p.r >= me.r * C.EAT_RATIO) danger = true;
     else if (p.r <= me.r / C.EAT_RATIO) prey = true;
   }
-  let foodNear = false;
-  for (const f of view.food.values()) {
-    if (Math.abs(f.x - me.x) < 260 && Math.abs(f.y - me.y) < 260) { foodNear = true; break; }
-  }
-  return { danger, prey, foodNear, noon: isNoon(view.phase) };
+  return { danger, prey, cold: !!(me && me.cold), noon: isNoon(view.phase) };
 }
 
 /* ── 순위 ── */
@@ -241,10 +233,14 @@ $('#gear').addEventListener('click', () => {
   // 열려 있는 동안만 갱신한다 — 닫힌 시트를 위해 초당 두 번씩 DOM 을 만질 이유가 없다
   const tick = () => {
     const s = renderer.stats();
-    $('#perf').textContent = s
-      ? `${s.fps}fps · 프레임 ${s.p50}ms(느릴 때 ${s.p95}ms) · ${(s.px / 1e6).toFixed(1)}Mpx @${s.dpr}x`
-        + (s.lowSpec ? ' · 가볍게 켜짐' : '')
-      : '성능 측정 중…';
+    if (!s) { $('#perf').textContent = '성능 측정 중…'; return; }
+    const p = s.parts;
+    // 어느 단계가 비싼지까지 보여준다 — 이 줄을 그대로 읽어 주시면 다음 수를 숫자로 정한다
+    $('#perf').innerHTML =
+      `<b>${s.fps}fps</b> · 프레임 ${s.p50}ms<span class="dim">(느릴 때 ${s.p95}ms)</span>`
+      + `<br><span class="dim">땅 ${p.땅} · 그늘 ${p.그늘} · 물체 ${p.물체} · 얼음 ${p.얼음} · 글자 ${p.글자} ms</span>`
+      + `<br><span class="dim">${(s.px / 1e6).toFixed(1)}Mpx @${s.dpr}x · 그림자 ${s.shapes}개`
+      + (s.lowSpec ? ' · 가볍게 켜짐' : '') + '</span>';
   };
   tick();
   perfTimer = setInterval(tick, 500);

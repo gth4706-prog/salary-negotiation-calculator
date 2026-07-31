@@ -17,7 +17,7 @@
  */
 import { C } from '../sim/consts.js';
 import { buildShadows, shadowDir, isNoon, noonLeftMs, sunHeight } from '../sim/sun.js';
-import { drawIce, drawShard, worldText, PAL, colorOf } from './iceart.js';
+import { drawIce, drawCold, worldText, PAL, colorOf } from './iceart.js';
 
 /**
  * 바닥 — **명도를 거의 붙여 놓았다.**
@@ -34,7 +34,7 @@ const GROUND = {
   rubber: '#7A5A52', concrete: '#6E6A6E', grass: '#5A6A54',
   water: '#3E6A78', dirt: '#6E6152'
 };
-const OBST = { block: '#4A5568', parasol: '#7A4A52', tree: '#2F4A38' };
+const OBST = { block: '#4A5568', canopy: '#6E4A54' };
 
 export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d', { alpha: false });
@@ -44,6 +44,14 @@ export function createRenderer(canvas) {
   let dpr = 1;
   const frames = [];
   let lowSpec = false;
+
+  /* 단계별 계측 — 이동평균. **개발자 PC 에서만 재면 사용자 기기를 영영 모른다.**
+   * 조사에서 "실제 폰·Safari 에서는 안 쟀다"가 끝까지 남았기 때문에 화면이 스스로 말하게 한다.
+   * `performance.now()` 호출 자체는 프레임당 10회뿐이라 비용이 무시할 만하다. */
+  const stage = { ground: 0, shade: 0, obst: 0, ice: 0, text: 0 };
+  let lastShapes = 0;
+  const T = () => performance.now();
+  const mark = (k, t0) => { stage[k] += (T() - t0 - stage[k]) * 0.05; };
 
   function resize() {
     // **DPR 상한 1.5.** 2.0 으로 두면 픽셀이 1.8배가 되는데, 이 게임 화면은
@@ -109,9 +117,11 @@ export function createRenderer(canvas) {
   function shadowPath(list, vx0, vy0, vx1, vy1) {
     const p = new Path2D();
     p.rect(vx0, vy0, vx1 - vx0, vy1 - vy0);
+    let n = 0;
     for (const s of list) {
       if (s.cx + s.hx < vx0 || s.cx - s.hx > vx1 ||
           s.cy + s.hy < vy0 || s.cy - s.hy > vy1) continue;
+      n++;
       if (s.kind === 'ellipse') {
         p.moveTo(s.cx + s.a, s.cy);
         p.ellipse(s.cx, s.cy, s.a, s.b, Math.atan2(s.uy, s.ux), 0, Math.PI * 2);
@@ -124,6 +134,7 @@ export function createRenderer(canvas) {
         p.closePath();
       }
     }
+    lastShapes = n;
     return p;
   }
 
@@ -188,6 +199,8 @@ export function createRenderer(canvas) {
     const vx0 = (-ox) / zoom - pad, vy0 = (-oy) / zoom - pad;
     const vx1 = (W - ox) / zoom + pad, vy1 = (H - oy) / zoom + pad;
 
+    let _t = T();
+
     /* 1) 바닥을 **그늘 색**(진짜 색)으로 전부 그린다 */
     ctx.fillStyle = '#7C6F6A';
     ctx.fillRect(0, 0, C.WORLD, C.WORLD);
@@ -200,6 +213,8 @@ export function createRenderer(canvas) {
     ctx.beginPath();
     for (const l of arena.lines) { ctx.moveTo(l.x1, l.y1); ctx.lineTo(l.x2, l.y2); }
     ctx.stroke();
+
+    mark('ground', _t); _t = T();
 
     /* 2) 햇볕만 표백한다 — 드로우콜 한 번 */
     const sh = shadowsFor(arena, v.phase);
@@ -224,24 +239,24 @@ export function createRenderer(canvas) {
     ctx.fillStyle = 'rgba(255,226,176,' + (noon ? Math.min(0.88, glare + 0.10) : glare).toFixed(3) + ')';
     ctx.fill(path, 'evenodd');
 
-    /* 그늘 경계 — 이 게임에서 가장 중요한 선.
-     *
-     * 부드러운 반그림자가 물리적으로는 맞지만 **판정선을 흐린다.** 여기서 한 발 차이로
-     * 녹느냐 마느냐가 갈리므로 경계는 칼같아야 한다. 그래서 바깥(햇볕 쪽)으로만
-     * 열기를 번지게 하고, 경계선 자체는 1px 하드 라인으로 둔다.
-     *
-     * 이걸 빼고 한 번 돌려봤더니 그늘 얼룩이 **물체처럼 보였다** — 바닥색만 다른
-     * 평평한 면이라 파라솔인지 파라솔 그림자인지 구분이 안 됐다. */
-    ctx.lineWidth = 7 * dpr / zoom;
-    ctx.strokeStyle = 'rgba(255,214,150,0.55)';
-    ctx.stroke(path);
     ctx.restore();
 
+    /* 그늘 경계 — 이 게임에서 가장 중요한 선.
+     *
+     * 부드러운 반그림자가 물리적으로는 맞지만 **판정선을 흐린다.** 한 발 차이로 녹느냐가
+     * 갈리므로 경계는 칼같아야 한다. 이 선이 없으면 그늘 얼룩이 **물체처럼 보인다** —
+     * 파라솔인지 파라솔 그림자인지 구분이 안 됐다.
+     *
+     * ⚠ **`stroke()` 는 한 번만.** 예전엔 바깥쪽 열기 띠(7px)까지 두 번 그었는데,
+     *    실측에서 **경로 stroke 두 번이 프레임의 절반(-31.6ms)** 이었다. 굵은 쪽은
+     *    장식이고 판정에 아무 기여도 안 하므로 지웠다. 남긴 하드 라인이 정보다. */
     ctx.save();
     ctx.lineWidth = Math.max(0.6, 1.4 * dpr / zoom);
     ctx.strokeStyle = 'rgba(20,32,60,0.42)';
     ctx.stroke(path);
     ctx.restore();
+
+    mark('shade', _t); _t = T();
 
     /* 3) 물체 자체 — 화면에 걸리는 것만 */
     for (const b of arena.obstacles) {
@@ -253,22 +268,21 @@ export function createRenderer(canvas) {
         ctx.strokeStyle = 'rgba(255,255,255,0.25)';
         ctx.lineWidth = 3;
         ctx.strokeRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
-      } else if (b.type === 'parasol') {
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,0.35)';
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.28, 0, Math.PI * 2); ctx.fill();
       } else {
-        for (const c of b.canopy) {
-          ctx.beginPath(); ctx.arc(b.x + c.dx, b.y + c.dy, c.r, 0, Math.PI * 2); ctx.fill();
-        }
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.30)';
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.22, 0, Math.PI * 2); ctx.fill();
       }
     }
 
-    /* 4) 얼음조각 — 화면 안만 그린다 */
-    for (const f of v.food.values()) {
-      if (f.x < vx0 || f.x > vx1 || f.y < vy0 || f.y > vy1) continue;
-      drawShard(ctx, f.x, f.y, o.now);
+    /* 4) 냉기 지대 — **여기 있으면 가만히 있어도 커진다.**
+     *    그늘 위에 그린다(그늘에 든 냉기가 명당이라는 게 화면에서 겹쳐 보여야 한다). */
+    for (const c of (arena.cold || [])) {
+      if (c.x + c.r < vx0 || c.x - c.r > vx1 || c.y + c.r < vy0 || c.y - c.r > vy1) continue;
+      drawCold(ctx, c.x, c.y, c.r, o.now, o.reduced || lowSpec);
     }
+
+    mark('obst', _t); _t = T();
 
     /* 5) 사람 — **작은 것부터 큰 것 순.** 위험한 것이 절대 안 가려진다.
      *    로컬 플레이어는 크기와 무관하게 맨 위(내가 사라지면 게임이 끝난다) */
@@ -306,6 +320,8 @@ export function createRenderer(canvas) {
       });
     }
 
+    mark('ice', _t); _t = T();
+
     /* 6) 이름표 — 20명 전원을 그리면 글자 벽이 된다.
      *    화면상 22px 이상 + 최대 8개, 우선순위는 ①나를 먹을 수 있는 것 ②가까운 것 */
     const labels = list
@@ -341,6 +357,7 @@ export function createRenderer(canvas) {
     ctx.restore();
 
     ctx.restore();
+    mark('text', _t);
 
     /* 7) 화면 밖 지시 — **최대 2개만.** 항상 떠 있으면 잡음이 된다 */
     if (me && !me.dead) {
@@ -433,7 +450,16 @@ export function createRenderer(canvas) {
       p95: +s[Math.floor(s.length * 0.95)].toFixed(1),
       dpr: +dpr.toFixed(2),
       px: canvas.width * canvas.height,
-      lowSpec
+      lowSpec,
+      /** 단계별 소요(ms). 어디가 비싼지는 기기마다 다르므로 **사용자 기기가 말하게 한다** */
+      parts: {
+        땅: +stage.ground.toFixed(2),
+        그늘: +stage.shade.toFixed(2),
+        물체: +stage.obst.toFixed(2),
+        얼음: +stage.ice.toFixed(2),
+        글자: +stage.text.toFixed(2)
+      },
+      shapes: lastShapes
     };
   }
 

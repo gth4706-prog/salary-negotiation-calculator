@@ -29,7 +29,8 @@ const LESSONS = {
   danger: { s: '빨간 고리 = 나를 먹는다. 도망!', cap: 6 },
   melting: { s: '햇볕 — 녹는 중. 그늘로!', cap: 5 },
   shade: { s: '그늘 안 — 안 녹는다', cap: 3 },
-  eat: { s: '얼음조각을 먹으면 커진다', cap: 4 },
+  cold: { s: '💨 냉기 — 가만히 있어도 커진다', cap: 4 },
+  seek: { s: '💨 냉기를 찾아가야 커진다', cap: 5 },
   hunt: { s: '얇은 테 = 내가 먹을 수 있다', cap: 3 },
   noon: { s: '정오 — 그늘이 사라진다', cap: 99 }
 };
@@ -46,7 +47,7 @@ function learn(coach, key) {
 }
 
 /**
- * @param {object} o { now, noon, danger, prey, foodNear }
+ * @param {object} o { now, noon, danger, prey, cold }
  */
 export function coachTick(coach, v, o) {
   const me = v.me;
@@ -62,7 +63,8 @@ export function coachTick(coach, v, o) {
   else if (me.melting) key = 'melting';
   else if (o.prey) key = 'hunt';
   else if (!me.melting && (coach.seen.shade || 0) < LESSONS.shade.cap) key = 'shade';
-  else if (o.foodNear) key = 'eat';
+  else if (o.cold) key = 'cold';
+  else key = 'seek';
 
   if (key && (coach.seen[key] || 0) < LESSONS[key].cap) {
     if (coach.lastKey !== key) { coach.lastKey = key; coach.lineAt = o.now; learn(coach, key); }

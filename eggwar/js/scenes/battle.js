@@ -157,21 +157,31 @@ GAME.BattleScene.prototype.create = function () {
     // 단순해졌다 — orb.js/towerboon.js 는 한 줄도 안 건드렸다.
     if (GAME.TowerBoon) this.state.boons = GAME.TowerBoon.hooksFor({ boons: [] });
   }
-  // 대전 컨트롤러 — 같은 예산에서 산 능력치 강화를 같은 규칙으로 얹는다.
-  // ⚠ 탑과 **같은 계산식**(add × 레벨)을 쓴다. 두 곳이 갈라지면 같은 이름의 강화가
-  //   모드마다 다른 값이 되어 플레이어가 배운 것이 거짓이 된다.
+  // ── 대전 컨트롤러 (2026-08-01 개편) ────────────────────────────────────────
+  //  **능력치 강화는 없앴다**(사용자 지시). 강해지는 길은 아이템 하나뿐이다.
+  //  아이템은 탑과 **같은 카탈로그**(`GAME.TowerShopItems`)를 쓰는데,
+  //  `Combat.createHero` 는 옛 표(`GAME.ITEMS`, 3단계)로 해석하므로 그쪽에는
+  //  `{}` 를 넘기고 보정을 여기서 직접 얹는다 — 탑이 쓰는 방식과 똑같다.
+  //  ⚠ 두 모드가 **같은 itemBonus 규칙**을 쓴다(TowerChar.itemBonus ↔ ArenaBuild.itemBonus).
+  //    갈라지면 같은 아이템이 모드마다 다른 값이 된다.
   if (this.versus && GAME.ArenaBuild) {
-    var ab = GAME.ArenaBuild.statBonus();
+    var ab = GAME.ArenaBuild.get();
+    var aib = GAME.ArenaBuild.itemBonus(ab);
     var ad = this.hero.def;
-    if (ab.damage) ad.damage += ab.damage;
-    if (ab.armor) ad.armor += ab.armor;
-    if (ab.speed) ad.speed += ab.speed;
-    if (ab.hp) {
-      ad.hp += ab.hp;
+    ad.damage += aib.damage;
+    ad.armor += aib.armor;
+    ad.speed += aib.speed;
+    ad.lifesteal = (ad.lifesteal || 0) + aib.lifesteal;
+    this.hero.cdrMul = (this.hero.cdrMul || 1) * aib.cdrMul;
+    if (aib.hp) {
+      ad.hp += aib.hp;
       this.hero.maxHp = ad.hp;
       this.hero.hp = ad.hp;
     }
-    this.runBonus = ab;
+    // 장착 무기가 전장에서도 보인다(탑과 같은 등급 아트).
+    this.hero._gearTier = GAME.UI.gearTierOf(ab.items && ab.items.weapon);
+    // ⚠ `GAME.scaleSkillsByPrice` 는 **부르지 않는다** — 대전은 모든 스킬이
+    //   표에 적힌 값 그대로다(사용자 지시: "모든 스킬은 유사한 밸런스를 가진다").
   }
 
   this.state.units.push(this.hero);
@@ -288,7 +298,8 @@ GAME.BattleScene.prototype.create = function () {
   // ⚠ 통곡의 탑은 물약 슬롯이 없다(js/towershopitems.js 카탈로그에 물약 자체가 없다).
   //   5칸 그대로 두고 물약 칸만 안 그리면 빈 칸이 남아 "지웠는데 왜 자리가 남지"로 보인다
   //   (사용자 신고: "물약은 삭제됐는데 왜 아직도 보이는거지"). QWER 4칸으로 폭을 다시 나눈다.
-  var cols = L.cols(this.tower ? 4 : 5, { gap: P ? 6 : 10, max: 104 });
+  var noPotion = this.tower || this.versus;
+  var cols = L.cols(noPotion ? 4 : 5, { gap: P ? 6 : 10, max: 104 });
   var boxH = rows.skills ? rows.skills.h : 0;
   this.skillBoxes = [];
   var slots = padMode ? [] : ['Q', 'W', 'E', 'R'];
@@ -338,7 +349,7 @@ GAME.BattleScene.prototype.create = function () {
       .setAlign('center').setWordWrapWidth(W - 32);
   }
 
-  if (!padMode && !this.tower) {
+  if (!padMode && !noPotion) {
     var pc = cols[4];
     var prect = this.add.rectangle(pc.cx, rows.skills.cy, pc.w, boxH, GAME.UI.COL.surface).setStrokeStyle(1, GAME.UI.COL.border);
     prect.setInteractive({ useHandCursor: true });
@@ -492,7 +503,7 @@ GAME.BattleScene.prototype._hintDefault = function () {
   // 통곡의 탑은 물약이 없다 — 'F 물약' 을 그대로 두면 없는 조작을 안내하게 된다.
   if (GAME.isTouch) return '한 번 탭: 이동하며 교전   ·   두 번 탭: 이동만   ·   스킬 버튼: 바라보는 방향 시전';
   return '우클릭 이동 / 적 클릭 공격   ·   방향키 직접 이동   ·   Q W E R 바라보는 방향 시전' +
-    (this.tower ? '' : '   ·   F 물약');
+    ((this.tower || this.versus) ? '' : '   ·   F 물약');
 };
 
 GAME.BattleScene.prototype.showMarker = function (x, y, type) {

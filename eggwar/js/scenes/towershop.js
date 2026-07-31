@@ -22,20 +22,112 @@ GAME.TowerShopScene = function () {
 GAME.TowerShopScene.prototype = Object.create(Phaser.Scene.prototype);
 GAME.TowerShopScene.prototype.constructor = GAME.TowerShopScene;
 
+// ══════════════════════════════════════════════════════════════════════════
+//  데이터 어댑터 — **이 화면은 두 모드가 같이 쓴다** (2026-08-01)
+//
+//  사용자 지시: "대전도 통곡의 탑에서 업데이트한 아이템UI와 스킬, 전투화면은 모두
+//  가져가야 해. 안 가져오는 건 단 둘 — 모든 스킬은 유사한 밸런스, 능력치 강화 없음."
+//
+//  ⚠ **화면을 복제하지 않는다.** 600줄짜리 상점 UI를 대전용으로 한 벌 더 만들면
+//    이 저장소가 반복해서 겪은 사고(두 벌이 조용히 갈라진다)가 그대로 재현된다.
+//    대신 데이터 출처만 갈아끼운다 — UI 코드는 `self.src.*` 하나만 본다.
+//
+//  두 모드의 차이(여기 표에 다 있다):
+//              탑                              대전
+//    지갑      영구 골드                        한 판 예산(GAME.Arena.BUDGET)
+//    아이템    사면 소모, 되팔면 70% 환급        예산 안에서 착용/해제(환급 개념 없음)
+//    스킬      돈 주고 사고, 싼 것부터 잠금 해제  전부 무료·전부 열림(= 유사 밸런스)
+//    능력치    탭 있음                          **없음**
+//    영웅      캐릭터 생성 때 고정               여기서 고른다
+GAME.TowerShopScene.SOURCES = {
+  tower: {
+    mode: 'tower',
+    title: '통곡의 탑 상점',
+    backLabel: '←  허브로',
+    purseLabel: '💰 골드  ',
+    tabs: [['item', '🛒 아이템'], ['skill', '📖 스킬'], ['stats', '⚒ 능력치']],
+    back: function (sc) { sc.scene.start('Tower', { step: 'challenge' }); },
+    rec: function () { return GAME.TowerChar.get(); },
+    purse: function (rec) { return rec.gold; },
+    // 교체하면 옛 것이 70% 로 자동 판매되어 차액만 낸다(TowerChar.buyItem 의 계약).
+    priceOf: function (rec, slot, it) {
+      var CAT = GAME.TowerShopItems;
+      var cur = rec.items[slot] ? CAT.find(slot, rec.items[slot]) : null;
+      var credit = cur ? Math.floor(cur.cost * GAME.TowerChar.SELL_RATE) : 0;
+      return Math.max(0, it.cost - credit);
+    },
+    afford: function (rec, price, slot) { return rec.gold >= price; },
+    buy: function (slot, key) { return !!GAME.TowerChar.buyItem(slot, key); },
+    canSell: true,
+    sellBack: function (it) { return Math.floor(it.cost * GAME.TowerChar.SELL_RATE); },
+    sell: function (slot) { return !!GAME.TowerChar.sellItem(slot); },
+    skillOwned: function (slot, idx, rec) { return GAME.TowerChar.ownsSkill(slot, idx, rec); },
+    skillLocked: function (slot, idx, rec) { return GAME.TowerChar.skillLocked(slot, idx, rec); },
+    skillBuy: function (slot, idx) { return !!GAME.TowerChar.buySkill(slot, idx); },
+    skillEquip: function (slot, idx) { return !!GAME.TowerChar.equipSkill(slot, idx); },
+    // 탑은 가격 배수가 걸린다 — 상점 표기도 그 값이어야 거짓말을 안 한다.
+    shownSkill: function (o) { return GAME.skillPricedCopy ? GAME.skillPricedCopy(o) : o; }
+  },
+
+  arena: {
+    mode: 'arena',
+    title: '대전 준비',
+    backLabel: '←  대전으로',
+    purseLabel: '◈ 남은 예산  ',
+    tabs: [['hero', '🥚 영웅'], ['item', '🛒 아이템'], ['skill', '📖 스킬']],
+    back: function (sc) { sc.scene.start('Versus'); },
+    rec: function () { return GAME.ArenaBuild.get(); },
+    purse: function (rec) { return GAME.ArenaBuild.left(rec); },
+    // 대전은 환급이 없다 — 값은 언제나 정가다(바꿔 끼면 옛 값이 예산으로 그냥 돌아온다).
+    priceOf: function (rec, slot, it) { return it.cost; },
+    // ⚠ 같은 슬롯을 **바꿔 끼는** 경우, 지금 낀 것의 값은 예산으로 되돌아온다.
+    //   그걸 안 세면 "예산이 남는데 못 산다"가 된다(실제로 그렇게 틀렸다).
+    afford: function (rec, price, slot) {
+      var CAT = GAME.TowerShopItems;
+      var cur = (slot && rec.items[slot]) ? CAT.find(slot, rec.items[slot]) : null;
+      return GAME.ArenaBuild.left(rec) + (cur ? cur.cost : 0) >= price;
+    },
+    buy: function (slot, key) { return GAME.ArenaBuild.equipItem(slot, key) !== null; },
+    canSell: true,
+    sellBack: function (it) { return it.cost; },      // 벗으면 값이 그대로 예산으로 돌아온다
+    sell: function (slot) { return GAME.ArenaBuild.unequipItem(slot) !== null; },
+    // 대전은 스킬을 사지 않는다 — 전부 보유·전부 해제 상태다(= 유사 밸런스).
+    skillOwned: function () { return true; },
+    skillLocked: function () { return false; },
+    skillBuy: function () { return false; },
+    skillEquip: function (slot, idx) {
+      var rec = GAME.ArenaBuild.get();
+      rec.picks[slot] = idx;
+      GAME.ArenaBuild.setHero(null, null, rec.picks);
+      return true;
+    },
+    // 대전은 배수를 안 태운다 — 표에 적힌 값 그대로다.
+    shownSkill: function (o) { return o; }
+  }
+};
 GAME.TowerShopScene.prototype.init = function (data) {
-  this.tab = (data && data.tab) || 'item';
+  this.mode = (data && data.mode === 'arena') ? 'arena' : 'tower';
+  this.src = GAME.TowerShopScene.SOURCES[this.mode];
+  var defTab = this.mode === 'arena' ? 'hero' : 'item';
+  this.tab = (data && data.tab) || defTab;
   this.previewSkill = null;   // { slot, idx } — 스킬 탭에서 지금 보고 있는 스킬
   // ⚠ 씬 인스턴스는 재사용된다 — 여기서 안 비우면 지난번에 고른 아이템이 다음 입장에
   //   그대로 선택돼 있고, 확정 막대가 "구매" 상태로 대기한다(오조작의 씨앗).
   this.itemPick = null;       // { slot, key } — 아이템 탭에서 지금 고른 것
+  this.itemSlot = null;
+  this.skillSlot = null;
+  this.arenaFormationId = (data && data.formationId) || null;
+  this.arenaTest = !!(data && data.test);
 };
 
 GAME.TowerShopScene.prototype.create = function () {
   var self = this;
   if (!GAME.Account.current()) { this.scene.start('Login'); return; }
-  if (!GAME.TowerChar || !GAME.TowerChar.exists()) { this.scene.start('Tower'); return; }
+  if (this.mode === 'tower' && (!GAME.TowerChar || !GAME.TowerChar.exists())) {
+    this.scene.start('Tower'); return;
+  }
 
-  this.char = GAME.TowerChar.get();
+  this.char = this.src.rec();
   this.hero = GAME.HEROES[this.char.heroKey];
 
   // 씬 인스턴스는 재사용된다 — 이전 그리기의 파괴된 참조가 남지 않게 비운다.
@@ -48,19 +140,19 @@ GAME.TowerShopScene.prototype.create = function () {
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var PAD = GAME.CONFIG.SMALL ? 14 : 24;
 
-  GAME.UI.label(this, PAD, 10, '←  허브로', 15, C.textDim, 0)
+  GAME.UI.label(this, PAD, 10, this.src.backLabel, 15, C.textDim, 0)
     .setInteractive({ useHandCursor: true })
-    .on('pointerdown', function () { self.scene.start('Tower', { step: 'challenge' }); });
+    .on('pointerdown', function () { self.src.back(self); });
 
-  GAME.UI.label(this, W / 2, 6, '통곡의 탑 상점', GAME.CONFIG.SMALL ? 22 : 30, C.text, 0.5)
+  GAME.UI.label(this, W / 2, 6, this.src.title, GAME.CONFIG.SMALL ? 22 : 30, C.text, 0.5)
     .setOrigin(0.5, 0);
 
   this.goldLabel = GAME.UI.label(this, W - PAD, 10, '', 20, C.accent, 1).setOrigin(1, 0);
 
   var tabY = 46;
+  var TABS = this.src.tabs;
   var tabW = Math.min(W - PAD * 2, 420);
-  var tc = GAME.Layout.cols(3, { gap: 8, width: tabW, left: (W - tabW) / 2, pad: 0 });
-  var TABS = [['item', '🛒 아이템'], ['skill', '📖 스킬'], ['stats', '⚒ 능력치']];
+  var tc = GAME.Layout.cols(TABS.length, { gap: 8, width: tabW, left: (W - tabW) / 2, pad: 0 });
   this._tabBtns = [];
   TABS.forEach(function (t, i) {
     var b = GAME.UI.button(self, tc[i].cx, tabY + 22, tc[i].w, 40, t[1], function () {
@@ -71,7 +163,42 @@ GAME.TowerShopScene.prototype.create = function () {
   });
 
   this._bodyTop = tabY + 52;
+
+  // 대전 전용 — 출전 버튼은 **탭과 무관하게 항상 보인다**(_body 에 안 넣는다).
+  // 어느 탭에서든 준비가 끝났다고 느끼는 순간 나갈 수 있어야 한다.
+  // ⚠ 이 버튼은 _body 밖에 있으므로 **탭 내용이 그 아래로 파고들 수 있다.**
+  //   실제로 겹침 감사가 세 탭 전부에서 잡았다(장비 박스·미리보기 문구 위에 얹혔다).
+  //   그래서 본문이 쓸 수 있는 세로를 그만큼 줄여 둔다 — 각 탭이 이 값을 읽는다.
+  this._bottomPad = 0;
+  if (this.mode === 'arena') {
+    var bw = GAME.CONFIG.SMALL ? 130 : 180;
+    var bh = GAME.CONFIG.SMALL ? 32 : 40;
+    this._bottomPad = bh + (GAME.CONFIG.SMALL ? 8 : 12);
+    GAME.UI.button(this, W - PAD - bw / 2, H - PAD - bh / 2 + 6, bw, bh, '⚔ 출전',
+      function () { self._arenaSortie(); },
+      { fill: GAME.UI.COL.panelTeal, line: C.controller, hover: GAME.UI.COL.panelTealHi,
+        color: C.accent, fontSize: GAME.CONFIG.SMALL ? 14 : 17 });
+  }
+
   this._buildBody();
+};
+
+// 대전 출전 — 준비한 영웅/아이템/스킬 그대로 전투로.
+// ⚠ 아이템은 `{}` 로 넘긴다. `Combat.createHero` 는 **`GAME.ITEMS`(3단계 옛 표)** 로
+//   해석하는데 우리 키(w5·c8 …)는 그 표에 없다. 탑이 이미 쓰는 방식 그대로,
+//   보정은 `js/scenes/battle.js` 의 versus 블록이 `ArenaBuild.itemBonus` 로 직접 얹는다.
+GAME.TowerShopScene.prototype._arenaSortie = function () {
+  var rec = GAME.ArenaBuild.get();
+  var Z = GAME.CONFIG.ZONE_CONTROLLER;
+  this.scene.start('Battle', {
+    formationId: this.arenaFormationId,
+    heroKey: rec.heroKey,
+    items: {},
+    picks: rec.picks,
+    versus: true,
+    test: this.arenaTest,
+    startPos: { x: Z.x + Z.w / 2, y: Z.y + Z.h * 0.55 }
+  });
 };
 
 GAME.TowerShopScene.prototype._clearBody = function () {
@@ -83,7 +210,8 @@ GAME.TowerShopScene.prototype._clearBody = function () {
 // `_refreshRun` 과 같은 관용, 디자인 검토 #7: 이 화면만 그 연출이 빠져 있었다).
 GAME.TowerShopScene.prototype._buildBody = function (bump) {
   this._clearBody();
-  this.char = GAME.TowerChar.get();     // 구매 직후 최신 상태로 다시 읽는다
+  this.char = this.src.rec();           // 구매 직후 최신 상태로 다시 읽는다
+  this.hero = GAME.HEROES[this.char.heroKey] || this.hero;
   var C = GAME.CONFIG.COLORS;
   var self = this;
 
@@ -93,13 +221,14 @@ GAME.TowerShopScene.prototype._buildBody = function (bump) {
     t.btn.rect.setFillStyle(on ? GAME.UI.COL.panelTeal : GAME.UI.COL.surfaceAlt);
   });
 
-  this.goldLabel.setText('💰 골드  ' + this.char.gold);
+  this.goldLabel.setText(this.src.purseLabel + this.src.purse(this.char));
   if (bump) {
     this.goldLabel.setScale(1.25);
     this.tweens.add({ targets: this.goldLabel, scale: 1, duration: 260, ease: 'Back.easeOut' });
   }
 
-  if (this.tab === 'item') this._buildItemTab();
+  if (this.tab === 'hero') this._buildHeroTab();
+  else if (this.tab === 'item') this._buildItemTab();
   else if (this.tab === 'skill') this._buildSkillTab();
   else this._buildStatsTab();
 };
@@ -212,16 +341,26 @@ GAME.TowerShopScene.prototype.statBarsHeight = function () {
 GAME.TowerShopScene.prototype._drawStatBars = function (x, y, w) {
   var C = GAME.CONFIG.COLORS;
   var self = this;
-  var bonus = GAME.TowerChar.statBonus(this.char);
-  var ib = GAME.TowerChar.itemBonus(this.char);
-  var luck = GAME.TowerChar.luckLevel(this.char);
-  var rows = [
-    ['공격력', bonus.damage + ib.damage],
-    ['체력', bonus.hp + ib.hp],
-    ['방어력', bonus.armor + ib.armor],
-    ['이동속도', bonus.speed + ib.speed],
-    ['행운', luck]
-  ];
+  // 대전에는 능력치 강화가 없다 — 막대는 **아이템이 준 것**만 말한다.
+  // 탑은 강화 + 아이템 합계다. 같은 막대를 두 모드가 쓰되 더하는 항이 다르다.
+  var rows;
+  if (this.mode === 'arena') {
+    var aib = GAME.ArenaBuild.itemBonus(this.char);
+    rows = [
+      ['공격력', aib.damage], ['체력', aib.hp], ['방어력', aib.armor],
+      ['이동속도', aib.speed], ['행운', aib.luck]
+    ];
+  } else {
+    var bonus = GAME.TowerChar.statBonus(this.char);
+    var ib = GAME.TowerChar.itemBonus(this.char);
+    rows = [
+      ['공격력', bonus.damage + ib.damage],
+      ['체력', bonus.hp + ib.hp],
+      ['방어력', bonus.armor + ib.armor],
+      ['이동속도', bonus.speed + ib.speed],
+      ['행운', GAME.TowerChar.luckLevel(this.char)]
+    ];
+  }
   var rowH = GAME.CONFIG.PHONE ? 17 : (GAME.CONFIG.SMALL ? 18 : 22);
   var gap = GAME.CONFIG.PHONE ? 3 : (GAME.CONFIG.SMALL ? 3 : 4);
   var fs = GAME.CONFIG.PHONE ? 10 : (GAME.CONFIG.SMALL ? 11 : 13);
@@ -239,6 +378,82 @@ GAME.TowerShopScene.prototype._drawStatBars = function (x, y, w) {
     });
     m.setText('+' + Math.round(r[1] * 10) / 10);
     self._body.push({ destroy: function () { m.destroy(); } });
+  });
+};
+
+// ── 영웅 탭 (대전 전용) ──────────────────────────────────────────────────
+//  탑은 캐릭터를 만들 때 영웅이 정해져 평생 안 바뀐다. 대전은 판마다 고를 수 있다.
+//  ⚠ 영웅을 바꾸면 **스킬 선택이 그 영웅 것이 아니게 된다** — 슬롯별 선택지 배열이
+//    영웅마다 다르기 때문이다. 그래서 바꾸는 즉시 기본값으로 되돌린다.
+GAME.TowerShopScene.prototype._buildHeroTab = function () {
+  var C = GAME.CONFIG.COLORS;
+  var self = this;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var top = this._bodyTop;
+  var PAD = GAME.CONFIG.SMALL ? 14 : 24;
+  var P = GAME.CONFIG.PHONE;
+
+  var order = GAME.HERO_ORDER;
+  var gap = P ? 8 : 16;
+  var cardW = Math.min((W - PAD * 2 - gap * (order.length - 1)) / order.length, 300);
+  var totalW = cardW * order.length + gap * (order.length - 1);
+  var left = (W - totalW) / 2;
+  var cardH = Math.min(H - top - (P ? 60 : 96) - this._bottomPad, P ? 250 : 470);
+
+  order.forEach(function (hk, i) {
+    var h = GAME.HEROES[hk];
+    var on = self.char.heroKey === hk;
+    var cx0 = left + i * (cardW + gap);
+
+    var g = self.add.graphics();
+    self._body.push(g);
+    g.fillStyle(on ? GAME.UI.COL.panelTeal : GAME.UI.COL.surfaceAlt, 1);
+    g.fillRoundedRect(cx0, top, cardW, cardH, 12);
+    g.lineStyle(on ? 3 : 1, on ? C.controller : GAME.UI.COL.border, 1);
+    g.strokeRoundedRect(cx0, top, cardW, cardH, 12);
+
+    self._body.push(GAME.UI.label(self, cx0 + cardW / 2, top + 10,
+      h.name, P ? 16 : 22, on ? C.accent : C.text, 0.5).setOrigin(0.5, 0));
+    self._body.push(GAME.UI.label(self, cx0 + cardW / 2, top + (P ? 30 : 40),
+      h.trait, P ? 11 : 13, C.textDim, 0.5).setOrigin(0.5, 0));
+
+    // ⚠ 아래 두 줄(스탯 요약·버튼)의 자리를 **먼저 떼고** 무대를 잡는다.
+    //   예전엔 셋을 각자 카드 바닥에서 역산했다가 스탯 줄과 버튼이 겹쳤다(감사가 잡음).
+    var btnH = P ? 26 : 34;
+    var statLineH = P ? 15 : 18;
+    var footH = btnH + statLineH + (P ? 12 : 18);
+    var stageTop = top + (P ? 46 : 62);
+    var stageH = cardH - (stageTop - top) - footH;
+    var r = Math.min(cardW * 0.215, stageH / 5.2);
+    var feetY = stageTop + (stageH - r * 5) / 2 + r * 3.2;
+    var pg = self.add.graphics();
+    self._body.push(pg);
+    pg.fillStyle(GAME.UI.COL.surfaceHi, 0.42);
+    pg.fillEllipse(cx0 + cardW / 2, feetY + r * 0.32, r * 2.5, r * 0.85);
+    pg.fillStyle(0x000000, GAME.UI.IS_LIGHT ? 0.13 : 0.28);
+    pg.fillEllipse(cx0 + cardW / 2, feetY + r * 0.36, r * 1.7, r * 0.4);
+    GAME.UI.drawUnitFlat(pg, h, cx0 + cardW / 2, feetY, C.controller, 1,
+      r / (h.radius || 17), Math.PI / 2, null, self.time.now, null,
+      on ? GAME.UI.gearTierOf(self.char.items && self.char.items.weapon) : 0);
+
+    // 스탯 요약은 무대 바로 아래, 버튼은 카드 바닥 — 둘 사이가 겹치지 않게 떼어 놨다.
+    self._body.push(GAME.UI.label(self, cx0 + cardW / 2, stageTop + stageH + 2,
+      '체력 ' + h.hp + ' · 공격 ' + h.damage + ' · 속도 ' + h.speed,
+      P ? 10 : 12, C.textDim, 0.5).setOrigin(0.5, 0));
+
+    var bw = cardW - (P ? 20 : 32);
+    var b = GAME.UI.button(self, cx0 + cardW / 2, top + cardH - (P ? 8 : 12) - btnH / 2, bw, btnH,
+      on ? '선택됨' : '이 영웅으로', function () {
+        if (on) return;
+        // 영웅이 바뀌면 스킬 선택은 그 영웅의 것이 아니다 → 기본값으로 되돌린다.
+        GAME.ArenaBuild.setHero(hk, null, GAME.defaultSkillPicks());
+        self.previewSkill = null;
+        self.skillSlot = null;
+        self._buildBody(true);
+      }, { fontSize: P ? 12 : 14 });
+    b.text.setColor(on ? C.textDim : C.accent);
+    b.rect.setStrokeStyle(on ? 1 : 2, on ? GAME.UI.COL.borderUi : C.controller);
+    self._body.push(b);
   });
 };
 
@@ -271,7 +486,7 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
   //   안 내려가므로 폰트를 줄여 우겨넣는 길도 없다 — 하한이 곧 벽이다).
   //   능력치 총합은 이제 **능력치 탭**이 더 잘 보여주므로, 좁은 화면에서는 그쪽에 맡긴다.
   var statH = P ? 0 : this.statBarsHeight();
-  var statY = H - (P ? 12 : 10) - statH;
+  var statY = H - (P ? 12 : 10) - statH - this._bottomPad;
   this._drawCharPanel(W - PAD - rightW, top, rightW, statY - top - 10);
   if (!P) this._drawStatBars(leftX, statY, leftW);
 
@@ -299,7 +514,6 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
   var list = GAME.TowerShopItems.CATALOG[this.itemSlot] || [];
   var curKey = this.char.items[this.itemSlot];
   var cur = curKey ? GAME.TowerShopItems.find(this.itemSlot, curKey) : null;
-  var credit = cur ? Math.floor(cur.cost * GAME.TowerChar.SELL_RATE) : 0;
 
   // 선택한 칸이 이 슬롯의 것이 아니면 버린다(탭을 옮기면 선택도 따라 옮겨야 한다).
   if (this.itemPick && this.itemPick.slot !== this.itemSlot) this.itemPick = null;
@@ -323,8 +537,8 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
     var cy0 = gridTop + Math.floor(i / ncol) * (cardH + cgap);
     var equipped = cur && cur.key === it.key;
     var picked = self.itemPick && self.itemPick.key === it.key;
-    var price = Math.max(0, it.cost - credit);
-    var afford = self.char.gold >= price;
+    var price = self.src.priceOf(self.char, self.itemSlot, it);
+    var afford = self.src.afford(self.char, price, self.itemSlot);
 
     var g = self.add.graphics();
     self._body.push(g);
@@ -335,7 +549,6 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
                 picked ? C.accent : (equipped ? C.controller : GAME.UI.COL.border), 1);
     g.strokeRoundedRect(cx0, cy0, cardW, cardH, 10);
 
-    var sellBack = Math.floor(it.cost * GAME.TowerChar.SELL_RATE);
     var priceTxt = equipped ? '장착 중'
                             : (price === 0 ? '무료 교체' : ('💰 ' + price));
     var priceCol = equipped ? C.accent : (afford ? C.text : C.textDim);
@@ -357,8 +570,16 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
       self._body.push(GAME.UI.label(self, tx, cy0 + 4, it.name, 13,
         equipped ? C.accent : C.text, 0).setWordWrapWidth(Math.max(40, tw - priceLbl.width - 8)));
       // 효과 문구 — 이 줄이 사용자가 요구한 "어떤 능력치를 추가해주는지"다.
-      self._body.push(GAME.UI.label(self, tx, cy0 + 22, it.note, 13, C.textDim, 0)
-        .setWordWrapWidth(tw).setLineSpacing(0));
+      // ⚠ 가장 긴 것("공격력 +78, 흡혈 +12%, 스킬 쿨 -6%")은 이 폭에서 두 줄로 접히고,
+      //   둘째 줄이 카드 밖 확정 막대까지 흘러 겹쳤다(겹침 감사가 잡음).
+      //   글꼴은 13px 하한이라 줄일 수 없으니 **문자열을 압축**한다 — 쉼표·공백을
+      //   걷어내면 같은 정보가 한 줄에 들어간다.
+      var noteTxt = it.note.replace(/,\s+/g, '  ').replace(/\s+\+/g, '+').replace(/\s+-/g, '-');
+      var noteLbl2 = GAME.UI.label(self, tx, cy0 + 22, noteTxt, 13, C.textDim, 0)
+        .setWordWrapWidth(tw).setLineSpacing(0);
+      self._body.push(noteLbl2);
+      // 압축해도 넘치면 숨긴다 — 측정에 기대는 배치는 바닥을 같이 정해 둬야 한다.
+      if (noteLbl2.y + noteLbl2.height > cy0 + cardH - 2) noteLbl2.setVisible(false);
 
     } else {
       // ── PC: 세로형 — 아이콘 위, 이름·효과 가운데, 가격 바닥 ──
@@ -408,22 +629,31 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
     this._body.push(GAME.UI.label(this, leftX + leftW / 2, barY + barH / 2,
       '살 물건을 고르세요', P ? 12 : 14, C.textDim, 0.5).setOrigin(0.5));
   } else {
+    var arena = self.mode === 'arena';
     var pEquipped = cur && cur.key === pick.key;
-    var pPrice = Math.max(0, pick.cost - credit);
-    var pAfford = self.char.gold >= pPrice;
-    var pBack = Math.floor(pick.cost * GAME.TowerChar.SELL_RATE);
+    var pPrice = self.src.priceOf(self.char, self.itemSlot, pick);
+    var pAfford = self.src.afford(self.char, pPrice, self.itemSlot);
+    var pBack = self.src.sellBack(pick);
     var bw2 = P ? 108 : 150;
+    // 대전은 '판매'가 아니라 '벗기'다 — 통화가 아니라 예산이라 값이 그대로 돌아온다.
+    var offWord = arena ? '벗기' : '판매';
     this._body.push(GAME.UI.label(this, leftX + 12, barY + barH / 2,
-      pick.name + '  ·  ' + (pEquipped ? ('판매가 ' + pBack + '골드')
-                                       : (pPrice === 0 ? '무료 교체' : (pPrice + '골드'))),
+      pick.name + '  ·  ' + (pEquipped ? (arena ? ('벗으면 ' + pBack + ' 돌려받음')
+                                                 : ('판매가 ' + pBack + '골드'))
+                                       : (pPrice === 0 ? '무료 교체' : (pPrice + (arena ? '' : '골드')))),
       P ? 12 : 15, pEquipped ? C.accent : (pAfford ? C.text : C.textDim), 0)
       .setOrigin(0, 0.5).setWordWrapWidth(leftW - bw2 - 30));
 
-    var actLabel = pEquipped ? '판매' : (cur ? '교체' : '구매');
+    var actLabel = pEquipped ? offWord : (cur ? '교체' : (arena ? '장착' : '구매'));
     var ab2 = GAME.UI.button(this, leftX + leftW - 10 - bw2 / 2, barY + barH / 2,
       bw2, barH - (P ? 8 : 12), actLabel, function () {
         if (pEquipped) {
-          // 판매는 되돌리기 어렵다 — 여기서만 한 번 더 묻는다.
+          // 탑의 판매는 되돌리기 어려워 한 번 묻는다. 대전은 그냥 벗는 것이라 안 묻는다
+          // (예산이 그대로 돌아오므로 되돌릴 수 있다 — 물어야 할 이유가 없다).
+          if (arena) {
+            if (self.src.sell(self.itemSlot)) { self.itemPick = null; self._buildBody(true); }
+            return;
+          }
           GAME.Modal.open(self, {
             title: pick.name + ' 판매',
             items: [
@@ -432,7 +662,7 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
             ],
             onPick: function (m) {
               if (!m || m.key !== 'yes') return;
-              GAME.TowerChar.sellItem(self.itemSlot);
+              self.src.sell(self.itemSlot);
               self.itemPick = null;
               self._buildBody(true);
             }
@@ -440,7 +670,7 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
           return;
         }
         if (!pAfford) return;
-        if (GAME.TowerChar.buyItem(self.itemSlot, pick.key)) {
+        if (self.src.buy(self.itemSlot, pick.key)) {
           self.itemPick = null;
           self._buildBody(true);
         }
@@ -501,15 +731,15 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
   var opts = this.hero.skillOptions[slot].map(function (o, i) { return { o: o, idx: i }; })
     .sort(function (a, b) { return ((a.o.cost || 0) - (b.o.cost || 0)) || (a.idx - b.idx); });
   var listTop = top + stH + (P ? 6 : 10);
-  var listBottom = H - (P ? 12 : 20);
+  var listBottom = H - (P ? 12 : 20) - this._bottomPad;
   var rgap = P ? 4 : 8;
   var rowH = Math.min((listBottom - listTop - rgap * (opts.length - 1)) / opts.length, P ? 54 : 76);
 
   opts.forEach(function (entry, row) {
     var o = entry.o, idx = entry.idx;
     var ry = listTop + row * (rowH + rgap);
-    var owned = GAME.TowerChar.ownsSkill(slot, idx, self.char);
-    var locked = !owned && GAME.TowerChar.skillLocked(slot, idx, self.char);
+    var owned = self.src.skillOwned(slot, idx, self.char);
+    var locked = !owned && self.src.skillLocked(slot, idx, self.char);
     var equipped = self.char.picks[slot] === idx;
     var previewing = self.previewSkill && self.previewSkill.slot === slot && self.previewSkill.idx === idx;
     var afford = self.char.gold >= (o.cost || 0);
@@ -531,9 +761,11 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
     var typeLabel = GAME.SKILL_TYPE_LABEL[o.type] || o.type;
     // 잠긴 칸은 **왜 못 사는지**를 그 자리에 적는다 — 안 적으면 "왜 안 눌리지"가 된다.
     self._body.push(GAME.UI.label(self, leftX + 12, ry + (P ? 22 : 32),
+      // 대전은 스킬을 사지 않는다 — 가격을 적으면 있지도 않은 통화를 말하게 된다.
       locked ? '앞 단계 스킬을 먼저 사야 열립니다'
              : (typeLabel + '  ·  쿨 ' + (o.cooldown ? (o.cooldown / 1000) + '초' : '—') +
-                (o.cost ? ('  ·  ' + o.cost + '골드') : '  ·  기본 내장')),
+                (self.mode === 'arena' ? ''
+                  : (o.cost ? ('  ·  ' + o.cost + '골드') : '  ·  기본 내장'))),
       P ? 10 : 12, C.textDim, 0).setWordWrapWidth(txtW));
 
     // 카드 본체 = 미리보기 (사용자 지시: "클릭하면 미리보기가 보이게")
@@ -551,11 +783,11 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
       // 앞 단계를 아직 안 산 상태 — 값을 보여주되 누를 수 없다는 걸 자물쇠로 말한다.
       act = '🔒 잠김'; fn = function () {};
     } else if (!owned) { act = afford ? ('💰 ' + (o.cost || 0)) : ('💰 ' + (o.cost || 0)); fn = function () {
-      if (GAME.TowerChar.buySkill(slot, idx)) self._buildBody(true);
+      if (self.src.skillBuy(slot, idx)) self._buildBody(true);
     }; }
     else if (equipped) { act = '장착 중'; fn = function () {}; }
     else { act = '장착'; fn = function () {
-      GAME.TowerChar.equipSkill(slot, idx); self._buildBody();
+      self.src.skillEquip(slot, idx); self._buildBody();
     }; }
     var ab = GAME.UI.button(self, leftX + leftW - 12 - btnW / 2, ry + rowH / 2,
       btnW, rowH - (P ? 12 : 18), act, fn, { fontSize: P ? 11 : 13 });
@@ -569,7 +801,7 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
   // ── 미리보기 창 — 넓어진 폭을 실제로 쓴다 ──
   var pg = this.add.graphics();
   this._body.push(pg);
-  var pTop = top, pH = H - top - (P ? 12 : 20);
+  var pTop = top, pH = H - top - (P ? 12 : 20) - this._bottomPad;
   pg.fillStyle(GAME.UI.COL.surfaceAlt, 1);
   pg.fillRoundedRect(rightX, pTop, rightW, pH, 12);
   pg.lineStyle(1, GAME.UI.COL.border, 1);
@@ -580,7 +812,7 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
   }
   var ps = this.previewSkill;
   var o = this.hero.skillOptions[ps.slot][ps.idx];
-  var ownedP = GAME.TowerChar.ownsSkill(ps.slot, ps.idx, this.char);
+  var ownedP = this.src.skillOwned(ps.slot, ps.idx, this.char);
 
   var ty = pTop + (P ? 10 : 16);
   var titleLbl = GAME.UI.label(this, rightX + rightW / 2, ty,
@@ -630,16 +862,19 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
   // ⚠ **가격 배수를 얹은 사본**을 설명한다. 전장에서는 `GAME.scaleSkillsByPrice` 가
   //   비싼 스킬을 더 세게 만드는데(js/heroes.js), 여기서 원본 숫자를 보여주면 상점이
   //   거짓말을 한다("140골드짜리가 왜 표기보다 세지?").
-  var shown = GAME.skillPricedCopy ? GAME.skillPricedCopy(o) : o;
+  var shown = this.src.shownSkill(o);
   var desc = GAME.skillDesc ? GAME.skillDesc(shown) : '';
   this._body.push(GAME.UI.label(this, rightX + 14, descTop, desc || '',
     P ? 11 : 14, C.text, 0).setWordWrapWidth(rightW - 28).setLineSpacing(4));
+  var arenaMode = this.mode === 'arena';
   this._body.push(GAME.UI.label(this, rightX + 14, pTop + pH - (P ? 34 : 52),
     '쿨타임 ' + (shown.cooldown ? (Math.round(shown.cooldown / 100) / 10) + '초' : '—') +
-    (o.cost ? ('    ·    ' + o.cost + '골드') : '    ·    기본 내장(무료)'),
+    (arenaMode ? '' : (o.cost ? ('    ·    ' + o.cost + '골드') : '    ·    기본 내장(무료)')),
     P ? 11 : 13, C.textDim, 0));
   this._body.push(GAME.UI.label(this, rightX + 14, pTop + pH - (P ? 18 : 28),
-    ownedP ? '보유함 — 오른쪽 [장착] 으로 끼웁니다' : '미보유 — 먼저 구매해야 장착할 수 있습니다',
+    arenaMode ? '대전에서는 모든 스킬을 값 없이 고를 수 있습니다'
+              : (ownedP ? '보유함 — 오른쪽 [장착] 으로 끼웁니다'
+                        : '미보유 — 먼저 구매해야 장착할 수 있습니다'),
     P ? 11 : 13, ownedP ? C.accent : C.textDim, 0));
 };
 

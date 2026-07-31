@@ -82,9 +82,11 @@ GAME.DraftScene.prototype.init = function (data) {
   // 직접 읽는데, 그쪽에서만 총예산을 쓰면 세로에서 장비를 두 배로 살 수 있게 된다.
   // 대전에서는 **능력치 강화**(통곡의 탑에서 가져온 것)도 같은 예산에서 산다.
   // 이미 산 강화의 값을 먼저 떼야 장비 예산이 거짓말을 하지 않는다.
-  var upSpent = (this.versus && GAME.ArenaBuild)
-    ? GAME.ArenaBuild.statsSpent(GAME.ArenaBuild.get()) : 0;
-  this.itemBudget = Math.max(0, this.totalBudget - this._heroBaseCost() - upSpent);
+  // ⚠ 2026-08-01 — **대전은 더 이상 이 화면을 쓰지 않는다.** 대전 준비는 통곡의 탑
+  //   상점과 같은 화면(`TowerShop`, mode:'arena')으로 옮겼고, 능력치 강화도 없앴다
+  //   (사용자 지시). 그래서 여기서 강화 지출을 뗄 이유가 사라졌다.
+  //   이 화면은 이제 **일반 대전(Select → Draft)** 전용이다.
+  this.itemBudget = Math.max(0, this.totalBudget - this._heroBaseCost());
   this.budget = this.itemBudget;
 
   this.items = { weapon: null, armor: null, boots: null, potion: null };
@@ -233,12 +235,8 @@ GAME.DraftScene.prototype.create = function () {
         self.scene.start(self.tower ? 'Tower' : (self.versus ? 'Versus' : 'Select'));
       }, { fontSize: 15 });
     if (this.versus) {
-      // 대전 컨트롤러 — 능력치 강화(통곡의 탑에서 가져온 것)를 같은 예산에서 산다.
+      // '⚒ 능력치' 버튼은 제거했다(2026-08-01) — 대전에 능력치 강화가 없다.
       GAME.UI.button(this, this.split.panelX + this._backW * 1.6, ra.cy, this._backW, ra.h,
-        '⚒ 능력치', function () { self._openArenaUpgrades(); }, { fontSize: 15 });
-      // 영웅을 다시 고를 수 있어야 한다(사용자 지시: "이전으로 돌아가서 골드 분배도").
-      // 영웅이 바뀌면 예산이 달라지므로 능력치·아이템을 다시 짜게 되는 것이 자연스럽다.
-      GAME.UI.button(this, this.split.panelX + this._backW * 2.7, ra.cy, this._backW, ra.h,
         '↩ 영웅', function () { self.needHeroPick = true; self._pickHero(); }, { fontSize: 15 });
     }
   } else {
@@ -247,28 +245,16 @@ GAME.DraftScene.prototype.create = function () {
       self.scene.start(self.tower ? 'Tower' : (self.versus ? 'Versus' : 'Select'));
     }, { fontSize: 14 });
     if (this.versus) {
-      GAME.UI.button(this, W - 360, H - 34, 160, 36, '⚒ 능력치', function () {
-        self._openArenaUpgrades();
-      }, { fontSize: 14 });
-      GAME.UI.button(this, W - 530, H - 34, 160, 36, '↩ 영웅 다시', function () {
+      // '⚒ 능력치' 버튼은 제거했다(2026-08-01) — 대전에 능력치 강화가 없다.
+      GAME.UI.button(this, W - 360, H - 34, 160, 36, '↩ 영웅 다시', function () {
         self.needHeroPick = true; self._pickHero();
       }, { fontSize: 14 });
     }
   }
 
-  // 대전 컨트롤러 — 능력치 강화 패널. 산 만큼 장비 예산이 줄어드는 것이 이 모드의 선택이다
-  // (좋은 장비 하나 vs 능력치 여러 단). 사고 나면 장비가 예산을 넘칠 수 있으니
-  // 기존 정리 규칙(_trimItems)을 그대로 태운다.
-  var _self = this;
-  this._openArenaUpgrades = function () {
-    GAME.ArenaBuild.openUpgrades(_self, 'stats', null, function () {
-      var up = GAME.ArenaBuild.statsSpent(GAME.ArenaBuild.get());
-      _self.itemBudget = Math.max(0, _self.totalBudget - _self._heroBaseCost() - up);
-      _self.budget = _self.itemBudget;
-      _self._trim();                     // 예산이 줄어 장비가 넘치면 싼 칸부터 벗긴다
-      _self.redraw && _self.redraw();
-    });
-  };
+  // 능력치 강화 패널은 **제거했다**(2026-08-01) — 대전에 능력치 강화가 없어졌고,
+  // 이 화면은 일반 대전 전용이 되어 애초에 그 개념이 없다.
+  this._openArenaUpgrades = null;
 
   // 씬을 떠날 때 트윈·타이머·마스크가 남지 않게 한다.
   this.events.once('shutdown', function () { self._teardown(); });

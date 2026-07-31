@@ -156,7 +156,7 @@ GAME.VersusScene.prototype._createRolePick = function () {
         // 전장을 고르면 **컨트롤러로 도전**한다(한쪽은 반드시 전략가다).
         GAME.Arena.pendingOpponent = { formationId: f.id, trophy: o.trophy };
         GAME.ArenaBuild.setRole('controller');
-        self.scene.start('Draft', { formationId: f.id, versus: true });
+        self.scene.start('TowerShop', { mode: 'arena', formationId: f.id });
       }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
            hover: UI.COL.panelTealHi, color: C.accent, fontSize: PH ? 13 : 15 });
       b.text.setText(self._fieldLines(f, o));
@@ -204,7 +204,7 @@ GAME.VersusScene.prototype._createRolePick = function () {
       function () {
         GAME.ArenaBuild.setRole('controller');
         GAME.Arena.pendingOpponent = null;          // 트로피 정산을 아예 걸지 않는다
-        self.scene.start('Draft', { formationId: base.id, versus: true, test: true });
+        self.scene.start('TowerShop', { mode: 'arena', formationId: base.id, test: true });
       }, { fontSize: PH ? 12 : 14 });
   }
 
@@ -342,7 +342,7 @@ GAME.VersusScene.prototype.create = function () {
     var ry = y + i * (rowH + 8);
     var b = GAME.UI.button(self, W / 2, ry + rowH / 2, tw, rowH, '', function () {
       GAME.Arena.pendingOpponent = { formationId: f.id, trophy: o.trophy };
-      self.scene.start('Draft', { formationId: f.id, versus: true });
+      self.scene.start('TowerShop', { mode: 'arena', formationId: f.id });
     }, { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
          hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 15 : 16 });
     var br = GAME.Arena.breachRate(f);
@@ -467,7 +467,7 @@ GAME.VersusScene.prototype._createPhone = function () {
     var cx0 = K.PAD + i * (cw + K.CARD_GAP);
     var b = UI.button(self, cx0 + cw / 2, K.BODY_TOP + ch / 2, cw, ch, '', function () {
       GAME.Arena.pendingOpponent = { formationId: f.id, trophy: o.trophy };
-      self.scene.start('Draft', { formationId: f.id, versus: true });
+      self.scene.start('TowerShop', { mode: 'arena', formationId: f.id });
     }, { fill: UI.COL.panelTeal, line: C.controller, hover: UI.COL.panelTealHi,
          color: C.accent, fontSize: 'micro', noExpand: true });
     return { o: o, f: f, x: cx0, btn: b };

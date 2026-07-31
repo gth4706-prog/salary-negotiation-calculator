@@ -1183,6 +1183,12 @@ GAME.TowerScene.prototype._runHintText = function () {
     var head = '✅ ' + cl.floor + '층 돌파';
     var got = (cl.gold ? ('  ·  골드 +' + cl.gold) : '') +
               (cl.score ? ('  ·  점수 +' + cl.score) : '');
+    // 보스 확정 드랍 — 결과 화면을 건너뛰므로 **이 줄이 유일한 획득 표시**다.
+    // 조용히 넣어두면 "보스를 깼는데 뭘 받았지"가 된다(구슬·축복에서 겪은 실패).
+    if (cl.drop) {
+      got += '  ·  ' + (cl.drop.kind === 'item' ? '🎁 ' : '📖 ') + cl.drop.name +
+             (cl.drop.kind === 'item' ? ' 장착!' : ' 습득!');
+    }
     if (GAME.CONFIG.PHONE) return head + got + '  ·  다음 ' + next + '층';
     return head + got + '  ·  다음 ' + next + '층 적 진형 ' +
            GAME.Tower.budgetFor(next) + '  —  상점에서 성장하고 올라가세요';

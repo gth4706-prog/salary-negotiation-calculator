@@ -874,7 +874,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     GAME.Profile.record(this.heroKey, t);
 
     // 통곡의 탑 진행 처리
-    var towerRec = null, runRec = null, goldGained = 0;
+    var towerRec = null, runRec = null, goldGained = 0, bossDrop = null;
     if (this.tower) {
       // 탑 학습 — **이긴 판·진 판 모두** 기록한다. 진 판에서만 배우면 가설을 세울 수는
       // 있어도 그것이 통했는지 확인할 수가 없다(확인은 이긴 판에서 나온다).
@@ -889,8 +889,29 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       if (GAME.TowerChar && GAME.TowerChar.exists()) {
         if (won) {
           var rawGold = GAME.TowerRun ? GAME.TowerRun.goldGainFor(this.tower, this.state) : 0;
-          goldGained = Math.round(rawGold * GAME.TowerChar.luckGoldMul());
+          // ── 층 돌파 보상 골드 (2026-07-31 사용자 지시: "라운드를 깨면 라운드 보상
+          //    골드도 랜덤하게 조금씩 줬으면") ─────────────────────────────────
+          //  처치 골드(rawGold)와 **별개의 축**이다. 처치 골드는 "얼마나 많이 잡았나"의
+          //  보상이라 잘 싸울수록 커지는데, 그러면 고전한 판일수록 다음 층 준비가
+          //  빈약해져 벽이 벽을 부른다. 층 보상은 **깼다는 사실 자체**에 붙는 바닥이라
+          //  그 악순환을 끊는다. 층이 오를수록 조금씩 커지고 ±25% 로 흔들린다
+          //  (매번 같은 숫자면 보상이 아니라 그냥 정산이다).
+          var floorBase = 12 + this.tower * 3;
+          var floorBonus = Math.round(floorBase * (0.75 + Math.random() * 0.5));
+          goldGained = Math.round((rawGold + floorBonus) * GAME.TowerChar.luckGoldMul());
           runRec = GAME.TowerChar.addGold(goldGained);
+          // 보스 층은 **확정으로** 아이템이나 스킬북을 하나 떨군다(미보유분에서).
+          if (GAME.Tower.bossFor(this.tower)) {
+            bossDrop = GAME.TowerChar.grantBossDrop();
+            // 더 줄 게 없으면(전부 최상급 보유) 골드로 갈음한다 — 확정 보상인데
+            // 아무 일도 안 일어나면 "보스를 깼는데 왜 아무것도 없지"가 된다.
+            if (!bossDrop) {
+              var solace = 120 + this.tower * 6;
+              goldGained += solace;
+              runRec = GAME.TowerChar.addGold(solace);
+            }
+            runRec = GAME.TowerChar.get();
+          }
         }
       }
     }
@@ -919,6 +940,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
         towerRec: towerRec,
         runRec: runRec,
         goldGained: goldGained,
+        bossDrop: bossDrop,
         versus: self.versus,
         test: self.test,
         arenaResult: arenaResult,

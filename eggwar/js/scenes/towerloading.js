@@ -100,6 +100,16 @@ GAME.TowerLoadingScene.prototype.create = function () {
     hero ? hero.name + ' 출전' : '', GAME.CONFIG.SMALL ? 15 : 17, C.textDim, 0.5).setOrigin(0.5, 0);
 
   var lines = [];
+  // ── 새 유닛 데뷔 (2026-07-31) ────────────────────────────────────────────
+  //  교육 과정(js/towercurriculum.js)이 이 층에서 새 종류를 푼다면 **그 사실을 먼저**
+  //  말한다. 조용히 끼워 넣으면 플레이어는 새로 온 놈이 무엇인지 모른 채 맞고 죽는다
+  //  — 이 게임이 구슬·축복에서 두 번 겪은 실패(받은 줄도 몰랐다)와 같은 계열이다.
+  //  대처법 한 줄까지 같이 준다. 그게 이 개편의 목적이다.
+  var debut = GAME.TowerCurriculum && GAME.TowerCurriculum.debutOf(this.tower);
+  var debutDef = debut && GAME.UNITS[debut.type];
+  if (debutDef) {
+    lines.push('🆕 새로운 적 · ' + debutDef.name + ' — ' + debut.lesson);
+  }
   if (bossDef) lines.push('☠ ' + bossDef.name + ' — ' + bossDef.desc);
   if (formation && formation.planLabel) lines.push('◈ ' + formation.planLabel + ' — ' + formation.planHint);
   if (formation && formation.ruleLabel) lines.push('⚠ ' + formation.ruleLabel + ' — ' + formation.ruleDesc);
@@ -136,6 +146,11 @@ GAME.TowerLoadingScene.prototype.create = function () {
   if (bossDef) {
     GAME.UI.drawUnitFlat(this.add.graphics().setAlpha(0.92), bossDef,
       W / 2, silY, GAME.CONFIG.COLORS.strategist, 1, r / (bossDef.radius || 27), -Math.PI / 2);
+  } else if (debutDef && !debutDef.isMine) {
+    // 데뷔 층에서는 **그 유닛 하나만** 크게 세운다 — 이름과 그림을 붙여 외우게 하는 게
+    // 이 층의 목적이다. 여러 마리를 세우면 무엇이 새 것인지 도로 안 갈린다.
+    GAME.UI.drawUnitFlat(this.add.graphics().setAlpha(0.92), debutDef,
+      W / 2, silY, GAME.CONFIG.COLORS.strategist, 1, r / (debutDef.radius || 12), -Math.PI / 2);
   } else if (formation && formation.units && formation.units.length) {
     var counts = {};
     formation.units.forEach(function (u) { counts[u.type] = (counts[u.type] || 0) + 1; });

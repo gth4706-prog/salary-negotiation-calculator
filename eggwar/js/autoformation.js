@@ -302,11 +302,12 @@ GAME.AutoFormation = {
   // 정예로 키울 '주력 종류'를 고른다. 무작위가 아니라 **가중치(=성향+영웅 카운터)에
   // 비례**해서 뽑는다 — 그래야 어떤 판은 전사가, 어떤 판은 궁수가 강화되면서도
   // 그 선택에 근거가 남는다. 늘 최고 가중치를 고르면 매판 같은 종류만 커진다.
-  _pickCore: function (w, doctrine, budget, tierBudget) {
+  _pickCore: function (w, doctrine, budget, tierBudget, allow) {
     var core = {};
     if (!doctrine.group || !doctrine.coreN) return core;
     var self = this;
     var pool = (doctrine.group === 'melee' ? this.MELEE_POOL : this.RANGED_POOL)
+      .filter(function (t) { return !allow || allow.indexOf(t) >= 0; })
       .filter(function (t) {
         // 정예 단가가 예산의 1/4 을 넘으면 몇 기 못 세워 진형이 성립하지 않는다
         if (!GAME.UNITS[t]) return false;
@@ -352,10 +353,16 @@ GAME.AutoFormation = {
     // 훅만 남겨 둔다 — 나중에 '보스 + 소수 정예 호위'를 만들고 싶을 때 쓸 자리이고,
     // 안 넘기면 동작이 완전히 동일하다.
     var tierBudget = opts.tierBudget || budget;
+    // 등장 가능한 유닛 종류 제한 — 통곡의 탑의 '교육 과정'(js/towercurriculum.js)이
+    // 층에 따라 넘긴다. **안 넘기면 전 종류**라 대전·수성의 탑은 완전히 무변경이다.
+    var allow = (opts.allowTypes && opts.allowTypes.length) ? opts.allowTypes : null;
+    function isAllowed(t) { return !allow || allow.indexOf(t) >= 0; }
+    var MELEE = this.MELEE_POOL.filter(isAllowed);
+    var RANGED = this.RANGED_POOL.filter(isAllowed);
     var docKey = opts.doctrine || this.chooseDoctrine(profile, budget, heroKey);
     var D = this.DOCTRINES[docKey] || this.DOCTRINES.swarm;
     var lv = Math.min(this.tierFor(tierBudget), D.lvCap || 5);
-    var core = (lv > 1) ? this._pickCore(w, D, budget, tierBudget) : {};
+    var core = (lv > 1) ? this._pickCore(w, D, budget, tierBudget, allow) : {};
 
     // 기본 종류 → 실제로 배치할 키. 정예면 파생 def 의 키가 나온다.
     function keyOf(t) {
@@ -372,8 +379,11 @@ GAME.AutoFormation = {
     var chosen = [];               // { t: 기본종류, key: 실제키 }
     var spent = 0;
     var counts = {};               // **기본 종류 기준** (maxPerFormation 이 종류 단위라서)
-    var pool = GAME.UNIT_ORDER.slice();
+    var pool = GAME.UNIT_ORDER.filter(isAllowed);
     var guard = 0;
+    // 머릿수 상한 — 통곡의 탑 연습 구간(1~3층)만 쓴다. 0 이면 무제한(예전과 동일).
+    var maxUnits = opts.maxUnits || 0;
+    function full() { return maxUnits > 0 && chosen.length >= maxUnits; }
     function take(t, key) {
       chosen.push({ t: t, key: key || keyOf(t) });
       counts[t] = (counts[t] || 0) + 1;
@@ -388,15 +398,15 @@ GAME.AutoFormation = {
     // 비율은 교리가 정한다 — 돌격 정예는 앞줄에 더, 저격 정예는 뒷줄에 더 쓴다.
     var wallBudget = budget * D.wall;
     var wallSpent = 0, wguard = 0;
-    while (wguard++ < 200) {
-      var wt = this._pick(w, this.MELEE_POOL.filter(function (t) {
+    while (wguard++ < 200 && !full()) {
+      var wt = this._pick(w, MELEE.filter(function (t) {
         return costOf(t) <= wallBudget - wallSpent && costOf(t) <= budget - spent;
       }), costOf);
       if (!wt) break;
       take(wt); wallSpent += costOf(wt);
     }
     // 최소 골격 — 벽 예산이 아주 작아도 앞줄 2기는 세운다
-    for (var s = 0; chosen.length < 2 && s < 2; s++) {
+    for (var s = 0; chosen.length < 2 && s < 2 && !full(); s++) {
       if (spent + costOf('bayonet') > budget) break;
       take('bayonet');
     }
@@ -407,8 +417,8 @@ GAME.AutoFormation = {
     // 지속 화력이 없으면 아무리 물량이 많아도 소용없다 → 예산의 일부를 원거리에 묶는다.
     var rangedBudget = budget * D.ranged;
     var rangedSpent = 0, rguard = 0;
-    while (rguard++ < 200) {
-      var rt = this._pick(w, this.RANGED_POOL.filter(function (t) {
+    while (rguard++ < 200 && !full()) {
+      var rt = this._pick(w, RANGED.filter(function (t) {
         var d = GAME.UNITS[t];
         if (costOf(t) > rangedBudget - rangedSpent) return false;
         if (costOf(t) > budget - spent) return false;
@@ -419,7 +429,7 @@ GAME.AutoFormation = {
       take(rt); rangedSpent += costOf(rt);
     }
 
-    while (guard++ < 400) {
+    while (guard++ < 400 && !full()) {
       var left = budget - spent;
       var allowed = pool.filter(function (t) {
         var d = GAME.UNITS[t];
@@ -440,8 +450,11 @@ GAME.AutoFormation = {
     // **강화하지 않은(기본 레벨)** 전사로 메운다 — `assertBuild` 의 예산 소진율
     // 하한(0.90)을 정예 때문에 깨뜨리지 않기 위한 안전장치다. 실제로도 자연스럽다:
     // 정예 핵심 + 값싼 잡졸이라는 그림이 된다.
+    // ⚠ 이 줄도 상한을 봐야 한다. 위 네 루프만 막고 여기를 빼놨더니 남은 예산이
+    //   전부 전사로 되돌아와 상한이 아무 일도 안 했다(1층 무조작 13% — 실측).
+    //   "예산을 다 쓴다"는 규칙보다 "연습 구간은 적다"는 약속이 우선한다.
     var fguard = 0;
-    while (fguard++ < 40 && budget - spent >= GAME.UNITS.bayonet.cost) {
+    while (fguard++ < 40 && !full() && budget - spent >= GAME.UNITS.bayonet.cost) {
       take('bayonet', 'bayonet');
     }
 

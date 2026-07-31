@@ -334,16 +334,102 @@ GAME.TowerChar = {
     return opt ? (opt.cost || 0) : Infinity;
   },
 
+  // 선행 조건 — **더 싼 스킬을 전부 사야 다음 것을 살 수 있다** (2026-07-31 사용자 지시:
+  // "이전 스킬을 구매해야만 다음 스킬을 구매할 수 있게"). 0번(무료 내장)은 항상 열려 있다.
+  //
+  // ⚠ **배열 순서(idx)가 아니라 가격 순위로 잠근다.** `skillOptions` 의 인덱스는 가격
+  //   오름차순이 아니다(광전사 Q 는 0·70·60·90·140 — 2번이 1번보다 싸다). 그렇다고 배열을
+  //   가격순으로 재정렬하면 저장된 `picks`/`ownedSkills` 가 **다른 스킬을 가리키게** 되고,
+  //   같은 배열을 쓰는 **대전(js/arenabuild.js)의 저장된 조합까지** 조용히 바뀐다.
+  //   가격으로 판정하면 인덱스를 한 칸도 안 건드리고 같은 규칙을 얻는다.
+  skillLocked: function (slot, idx, rec) {
+    rec = rec || this.get();
+    if (!rec || idx <= 0) return false;
+    var h = GAME.HEROES[rec.heroKey];
+    var list = (h && h.skillOptions[slot]) || [];
+    var myCost = (list[idx] && list[idx].cost) || 0;
+    for (var i = 0; i < list.length; i++) {
+      if (i === idx) continue;
+      var c = list[i].cost || 0;
+      // 더 싼 것(같은 값이면 앞 번호)이 하나라도 미보유면 잠긴다.
+      if (c < myCost || (c === myCost && i < idx)) {
+        if (!this.ownsSkill(slot, i, rec)) return true;
+      }
+    }
+    return false;
+  },
+
   buySkill: function (slot, idx) {
     var rec = this.get();
     if (!rec) return null;
     if (this.ownsSkill(slot, idx, rec)) return null;
+    if (this.skillLocked(slot, idx, rec)) return null;   // 앞 번호부터 사야 한다
     var cost = this.skillCost(slot, idx);
     if (!isFinite(cost) || rec.gold < cost) return null;
     rec.gold -= cost;
     rec.ownedSkills[slot] = (rec.ownedSkills[slot] || [0]).concat([idx]);
     this._save(rec);
     return rec;
+  },
+
+  // ── 보스 처치 보상 (2026-07-31 사용자 지시) ─────────────────────────────
+  //  "보스를 깨면 아이템이나 스킬북을 확정적으로 1개 이상 드랍하게 해줘.
+  //   당연히 보유하지 않은 걸로."
+  //
+  //  후보를 만드는 규칙 — 둘 다 "받고 나서 손해가 아닌 것"만 넣는다:
+  //   · 아이템: 그 슬롯에서 **지금 낀 것보다 비싼 것 중 가장 싼 것**(= 바로 윗 단계).
+  //     아무거나 주면 최상급을 낀 슬롯에 하급이 꽂혀 오히려 약해진다.
+  //   · 스킬  : 그 슬롯에서 **미보유 중 가장 싼 것**. 그게 곧 잠금이 풀려 있는 다음
+  //     칸이라(위 `skillLocked`) 사다리 규칙을 건너뛰지 않는다.
+  dropCandidates: function (rec) {
+    rec = rec || this.get();
+    var out = [];
+    if (!rec) return out;
+    var CAT = GAME.TowerShopItems;
+    if (CAT) {
+      for (var i = 0; i < CAT.SLOTS.length; i++) {
+        var sk = CAT.SLOTS[i].key;
+        var curKey = rec.items[sk];
+        var curCost = curKey ? (CAT.find(sk, curKey) || {}).cost || 0 : -1;
+        var list = CAT.CATALOG[sk] || [], best = null;
+        for (var j = 0; j < list.length; j++) {
+          if (list[j].cost > curCost && (!best || list[j].cost < best.cost)) best = list[j];
+        }
+        if (best) out.push({ kind: 'item', slot: sk, key: best.key, name: best.name, note: best.note });
+      }
+    }
+    var h = GAME.HEROES[rec.heroKey];
+    if (h) {
+      for (var s = 0; s < GAME.SKILL_SLOTS.length; s++) {
+        var slot = GAME.SKILL_SLOTS[s];
+        var opts = h.skillOptions[slot] || [], pick = null, pickIdx = -1;
+        for (var k = 0; k < opts.length; k++) {
+          if (this.ownsSkill(slot, k, rec)) continue;
+          if (!pick || (opts[k].cost || 0) < (pick.cost || 0)) { pick = opts[k]; pickIdx = k; }
+        }
+        if (pick) out.push({ kind: 'skill', slot: slot, idx: pickIdx, name: pick.name,
+                             note: slot + ' 슬롯 스킬북' });
+      }
+    }
+    return out;
+  },
+
+  // 확정 드랍 — 후보에서 무작위 1개를 실제로 지급한다(골드 안 든다).
+  // 줄 게 하나도 없으면(전부 최상급 보유) null 대신 골드로 갈음하도록 호출부가 판단한다.
+  grantBossDrop: function () {
+    var rec = this.get();
+    if (!rec) return null;
+    var cands = this.dropCandidates(rec);
+    if (!cands.length) return null;
+    var pick = cands[Math.floor(Math.random() * cands.length)];
+    if (pick.kind === 'item') {
+      // 상점 구매와 달리 **공짜로** 꽂는다(교체 차액도 안 받는다).
+      rec.items[pick.slot] = pick.key;
+    } else {
+      rec.ownedSkills[pick.slot] = (rec.ownedSkills[pick.slot] || [0]).concat([pick.idx]);
+    }
+    this._save(rec);
+    return pick;
   },
 
   // 보유한 스킬만 장착할 수 있다(요청 10: "구매하지 않은 스킬은 미리볼 순 있지만

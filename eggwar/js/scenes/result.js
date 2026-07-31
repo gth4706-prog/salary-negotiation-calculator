@@ -23,6 +23,7 @@ GAME.ResultScene.prototype.init = function (data) {
   this.towerRec = data.towerRec || null;
   this.runRec = data.runRec || null;          // 통곡의 탑 도전 상태(골드·레벨)
   this.goldGained = data.goldGained || 0;
+  this.bossDrop = data.bossDrop || null;       // 보스 확정 드랍 { kind, name, note }
   this.versus = !!data.versus;                // 대전(비동기 PvP) 공격이었는가
   this.arenaResult = data.arenaResult || null;// { delta, trophy, league }
 };
@@ -49,7 +50,8 @@ GAME.ResultScene.prototype._skipToNextFloor = function () {
       floor: this.tower,
       gold: this.goldGained || 0,
       score: this.score || 0,
-      best: (this.towerRec && this.towerRec.best) || 0
+      best: (this.towerRec && this.towerRec.best) || 0,
+      drop: this.bossDrop || null
     }
   });
   return true;

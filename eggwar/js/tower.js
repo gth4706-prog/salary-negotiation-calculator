@@ -189,11 +189,23 @@ GAME.Tower = {
     //   `TowerChar`(캐릭터 단위, 영구)로 바뀌었다 — 판정 대상만 바뀌었을 뿐
     //   "고정된 영웅에게는 카운터를 끈다"는 규칙 자체는 그대로다.
     var runActive = !!(GAME.TowerChar && GAME.TowerChar.exists());
+    // 유닛 교육 과정(js/towercurriculum.js) — 층에 따라 등장 종류를 늘려 간다.
+    // 1층은 전사만, 3층에 궁수, 5층에 투석꾼… 한 층에 한 종류씩 소개한다.
+    // 표를 다 푼 층부터는 null 을 넘겨 예전과 같은 전 종류 뽑기가 된다.
+    var allowTypes = null, maxUnits = 0;
+    if (GAME.TowerCurriculum && floor <= GAME.TowerCurriculum.fullFloor()) {
+      allowTypes = GAME.TowerCurriculum.typesFor(floor);
+      // 연습 구간(1~3층)은 머릿수도 묶는다 — 종류만 줄이면 예산이 최저가 유닛으로
+      // 몰려 오히려 더 빽빽해진다(towercurriculum.js 의 MAX_UNITS 주석 참조).
+      maxUnits = GAME.TowerCurriculum.maxUnitsFor(floor);
+    }
     var f = GAME.AutoFormation.generate(budget, useProfile ? prof : null, {
       id: 'tower-' + floor,
       name: floor + '층',
       tier: '탑 ' + floor + '층',
-      heroKey: runActive ? null : (heroKey || null)
+      heroKey: runActive ? null : (heroKey || null),
+      allowTypes: allowTypes,
+      maxUnits: maxUnits
     });
 
     // ── 층 배치 원형 (2026-07-30 대개편) ────────────────────────────────────

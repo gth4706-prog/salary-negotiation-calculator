@@ -261,10 +261,16 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
   // ⚠ 능력치 바가 먼저 차지할 높이를 실제로 계산한 뒤(statBarsHeight), 그 위 공간을
   // 캐릭터 패널에 준다 — 예전엔 "바닥에서 몇 px" 매직넘버였고 그 값이 실제 바 높이보다
   // 작아서 폰 가로(844×390)에서 마지막 줄("행운")이 화면 밖으로 잘렸다(실측으로 잡음).
-  var statH = this.statBarsHeight();
-  var statY = H - (P ? 14 : 10) - statH;
+  // ⚠ **폰 가로에서는 하단 능력치 바를 안 그린다** (2026-07-31).
+  //   사용자 요구가 "아이템 이름과 어떤 능력치를 추가해주는지도 박스 안에 보여줘"인데,
+  //   390px 화면에서 능력치 바(97px)까지 깔면 카드에 남는 세로가 66px 뿐이라
+  //   아이콘·이름·효과·가격을 물리적으로 못 담는다(글자는 `UI.size` 가 13px 아래로
+  //   안 내려가므로 폰트를 줄여 우겨넣는 길도 없다 — 하한이 곧 벽이다).
+  //   능력치 총합은 이제 **능력치 탭**이 더 잘 보여주므로, 좁은 화면에서는 그쪽에 맡긴다.
+  var statH = P ? 0 : this.statBarsHeight();
+  var statY = H - (P ? 12 : 10) - statH;
   this._drawCharPanel(W - PAD - rightW, top, rightW, statY - top - 10);
-  this._drawStatBars(leftX, statY, leftW);
+  if (!P) this._drawStatBars(leftX, statY, leftW);
 
   var slots = GAME.TowerShopItems.SLOTS;
   if (!this.itemSlot) this.itemSlot = slots[0].key;
@@ -293,11 +299,14 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
   var credit = cur ? Math.floor(cur.cost * GAME.TowerChar.SELL_RATE) : 0;
 
   var gridTop = top + stH + (P ? 6 : 10);
-  var gridBottom = statY - (P ? 6 : 12);
-  var ncol = 4, nrow = Math.ceil(list.length / ncol);
+  var gridBottom = statY - (P ? 4 : 12);
+  // 폰은 **2열 4행 + 가로형 카드**(아이콘 왼쪽 · 글 오른쪽)다. 4열로 쪼개면 칸 폭이
+  // 127px 라 효과 문구가 4줄로 접힌다. 2열이면 258px 라 두 줄에 들어간다.
+  // PC 는 카드가 커서 세로형(아이콘 위 · 글 아래)이 더 읽기 좋다.
+  var ncol = P ? 2 : 4, nrow = Math.ceil(list.length / ncol);
   var cgap = P ? 5 : 10;
   var cardW = (leftW - cgap * (ncol - 1)) / ncol;
-  var cardH = Math.min((gridBottom - gridTop - cgap * (nrow - 1)) / nrow, P ? 66 : 150);
+  var cardH = Math.min((gridBottom - gridTop - cgap * (nrow - 1)) / nrow, P ? 58 : 150);
 
   list.forEach(function (it, i) {
     var cx0 = leftX + (i % ncol) * (cardW + cgap);
@@ -313,54 +322,53 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
     g.lineStyle(equipped ? 2 : 1, equipped ? C.controller : GAME.UI.COL.border, 1);
     g.strokeRoundedRect(cx0, cy0, cardW, cardH, 10);
 
-    // 아이콘 — 이 화면의 주인공이다. 카드 높이의 절반 가까이를 준다.
-    var iconSz = Math.min(cardW - (P ? 14 : 26), cardH * (P ? 0.44 : 0.42));
-    var iconCy = cy0 + (P ? 4 : 8) + iconSz / 2;
-    g.fillStyle(GAME.UI.COL.bg, equipped ? 0.5 : 1);
-    g.fillRoundedRect(cx0 + (cardW - iconSz) / 2 - 3, iconCy - iconSz / 2 - 3, iconSz + 6, iconSz + 6, 7);
-    GAME.UI.drawItem(g, self.itemSlot, it.key, cx0 + cardW / 2, iconCy, iconSz);
-
-    // ⚠ 이름·효과·가격은 **위에서부터 실제 높이를 재며 쌓는다.** 처음엔 이름을 위에서,
-    //   효과를 아래(cardH-44)에서 잡았더니 두 줄짜리 이름과 만나 겹쳤다(실측으로 잡음).
-    //   이 파일 위쪽 주석의 "좌표를 손으로 박으면 겹친다"가 그대로 재현된 사례다.
-    var flowY = iconCy + iconSz / 2 + (P ? 3 : 7);
-    var nameLbl = GAME.UI.label(self, cx0 + cardW / 2, flowY,
-      it.name, P ? 10 : 13, equipped ? C.accent : C.text, 0.5)
-      .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(cardW - 8);
-    self._body.push(nameLbl);
-    flowY = nameLbl.y + nameLbl.height;
-
-    // PC 는 카드가 커서 효과 문구까지 들어간다. 폰은 이름+가격만(넣으면 겹친다).
-    // ⚠ **카드 밖으로 흘러넘치면 지운다.** 글꼴이 아직 로드되기 전에 재면 줄 수가 달라져
-    //   효과 문구가 한 줄 더 접히고, 그 줄이 아래 칸 카드의 이름과 겹쳤다(겹침 감사가
-    //   드문드문 1~5건으로 잡았다 — 매번은 아니라 원인을 찾는 데 시간이 걸렸다).
-    //   측정에 기대는 배치는 **측정이 틀렸을 때의 바닥**을 같이 정해 둬야 한다.
-    var priceH = P ? 14 : 20;
-    var textBottomMax = cy0 + cardH - priceH - 4;
-    if (!P) {
-      var noteLbl = GAME.UI.label(self, cx0 + cardW / 2, flowY + 5,
-        it.note, 10, C.textDim, 0.5).setOrigin(0.5, 0).setAlign('center')
-        .setWordWrapWidth(cardW - 12);
-      self._body.push(noteLbl);
-      if (noteLbl.y + noteLbl.height > textBottomMax) noteLbl.setVisible(false);
-      else flowY = noteLbl.y + noteLbl.height;
-    }
-    if (nameLbl.y + nameLbl.height > textBottomMax) nameLbl.setVisible(false);
-
-    // 장착 중인 카드는 **되파는 자리**를 겸한다 — 격자에서는 카드가 곧 행동이라
-    // 별도의 [판매] 버튼을 둘 자리가 없고, 되팔 수 있는 것은 언제나 장착 중인 하나뿐이다.
     var sellBack = Math.floor(it.cost * GAME.TowerChar.SELL_RATE);
-    var priceTxt = equipped ? (P ? ('판매 ' + sellBack) : ('장착 중 · 눌러 판매 ' + sellBack))
+    var priceTxt = equipped ? (P ? ('눌러 판매 ' + sellBack) : ('장착 중 · 눌러 판매 ' + sellBack))
                             : (price === 0 ? '무료 교체' : ('💰 ' + price));
-    // ⚠ 가격을 카드 **바닥에서** 잡으면 이름이 한 줄 늘어나는 순간 겹친다(폰 가로에서
-    //   8건 전부 겹쳤다 — 겹침 감사가 잡았다). 이름 아래로 이어 붙이되, 카드 바닥을
-    //   넘지 않도록 둘 중 아래쪽을 쓴다.
-    // 가격은 언제나 카드 안에 있다 — 위 문구가 아무리 길어져도 카드 바닥을 안 넘는다.
-    var priceY = Math.min(Math.max(flowY + (P ? 1 : 4), cy0 + cardH - (P ? 14 : 26)),
-                          cy0 + cardH - priceH);
-    self._body.push(GAME.UI.label(self, cx0 + cardW / 2, priceY,
-      priceTxt, P ? 9 : 13, equipped ? C.accent : (afford ? C.text : C.textDim), 0.5)
-      .setOrigin(0.5, 0));
+    var priceCol = equipped ? C.accent : (afford ? C.text : C.textDim);
+
+    if (P) {
+      // ── 폰: 가로형 — 아이콘 왼쪽, [이름 / 효과] 오른쪽, 가격은 이름 줄 오른쪽 끝 ──
+      var pIcon = Math.min(cardH - 8, 42);
+      var pIx = cx0 + 5;
+      g.fillStyle(GAME.UI.COL.bg, equipped ? 0.5 : 1);
+      g.fillRoundedRect(pIx, cy0 + (cardH - pIcon) / 2, pIcon, pIcon, 6);
+      GAME.UI.drawItem(g, self.itemSlot, it.key, pIx + pIcon / 2, cy0 + cardH / 2, pIcon - 4);
+
+      var tx = pIx + pIcon + 8;
+      var tw = cx0 + cardW - 6 - tx;
+      var priceLbl = GAME.UI.label(self, cx0 + cardW - 6, cy0 + 4, priceTxt, 13, priceCol, 0)
+        .setOrigin(1, 0);
+      self._body.push(priceLbl);
+      // 이름은 가격이 차지하고 남은 폭만 쓴다 — 안 그러면 둘이 겹친다.
+      self._body.push(GAME.UI.label(self, tx, cy0 + 4, it.name, 13,
+        equipped ? C.accent : C.text, 0).setWordWrapWidth(Math.max(40, tw - priceLbl.width - 8)));
+      // 효과 문구 — 이 줄이 사용자가 요구한 "어떤 능력치를 추가해주는지"다.
+      self._body.push(GAME.UI.label(self, tx, cy0 + 22, it.note, 13, C.textDim, 0)
+        .setWordWrapWidth(tw).setLineSpacing(0));
+
+    } else {
+      // ── PC: 세로형 — 아이콘 위, 이름·효과 가운데, 가격 바닥 ──
+      // ⚠ 아이콘 비중을 0.42 → 0.34 로 낮췄다. 0.42 면 글 자리가 48px 뿐이라
+      //   이름(17) + 두 줄짜리 효과(34) = 51px 가 안 들어가 효과가 통째로 숨겨졌다
+      //   (사용자 신고: "어떤 능력치 추가해주는지도 박스 안에 보여줘"). 60px 로 벌었다.
+      var iconSz = Math.min(cardW - 26, cardH * 0.34);
+      var iconCy = cy0 + 8 + iconSz / 2;
+      g.fillStyle(GAME.UI.COL.bg, equipped ? 0.5 : 1);
+      g.fillRoundedRect(cx0 + (cardW - iconSz) / 2 - 3, iconCy - iconSz / 2 - 3, iconSz + 6, iconSz + 6, 7);
+      GAME.UI.drawItem(g, self.itemSlot, it.key, cx0 + cardW / 2, iconCy, iconSz);
+
+      var flowY = iconCy + iconSz / 2 + 7;
+      var nameLbl = GAME.UI.label(self, cx0 + cardW / 2, flowY,
+        it.name, 13, equipped ? C.accent : C.text, 0.5)
+        .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(cardW - 8);
+      self._body.push(nameLbl);
+      self._body.push(GAME.UI.label(self, cx0 + cardW / 2, nameLbl.y + nameLbl.height + 3,
+        it.note, 13, C.textDim, 0.5).setOrigin(0.5, 0).setAlign('center')
+        .setWordWrapWidth(cardW - 12));
+      self._body.push(GAME.UI.label(self, cx0 + cardW / 2, cy0 + cardH - 6,
+        priceTxt, 13, priceCol, 0.5).setOrigin(0.5, 1));
+    }
 
     // 카드 전체가 버튼이다 — 아이콘을 보고 바로 누르는 흐름이라 별도 [구매] 버튼을
     // 두면 손가락이 갈 곳이 둘로 갈린다. 못 사는 것도 눌리게 두되 아무 일도 안 한다
@@ -433,16 +441,22 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
   });
 
   // ── 그 슬롯의 5종 카드 ──
+  //  **화면에서는 가격 오름차순으로 세운다.** 잠금 규칙이 "더 싼 것부터"(towerchar.js 의
+  //  `skillLocked`)라 목록도 그 순서로 보여야 사다리가 눈에 보인다. 원본 배열은 그대로
+  //  두고 표시 순서만 바꾼다 — 배열을 재정렬하면 저장된 picks 가 다른 스킬을 가리킨다.
   var slot = this.skillSlot;
-  var opts = this.hero.skillOptions[slot];
+  var opts = this.hero.skillOptions[slot].map(function (o, i) { return { o: o, idx: i }; })
+    .sort(function (a, b) { return ((a.o.cost || 0) - (b.o.cost || 0)) || (a.idx - b.idx); });
   var listTop = top + stH + (P ? 6 : 10);
   var listBottom = H - (P ? 12 : 20);
   var rgap = P ? 4 : 8;
   var rowH = Math.min((listBottom - listTop - rgap * (opts.length - 1)) / opts.length, P ? 54 : 76);
 
-  opts.forEach(function (o, idx) {
-    var ry = listTop + idx * (rowH + rgap);
+  opts.forEach(function (entry, row) {
+    var o = entry.o, idx = entry.idx;
+    var ry = listTop + row * (rowH + rgap);
     var owned = GAME.TowerChar.ownsSkill(slot, idx, self.char);
+    var locked = !owned && GAME.TowerChar.skillLocked(slot, idx, self.char);
     var equipped = self.char.picks[slot] === idx;
     var previewing = self.previewSkill && self.previewSkill.slot === slot && self.previewSkill.idx === idx;
     var afford = self.char.gold >= (o.cost || 0);
@@ -458,12 +472,15 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
     var btnW = P ? 78 : 104;
     var txtW = leftW - 24 - btnW - 10;
     self._body.push(GAME.UI.label(self, leftX + 12, ry + (P ? 5 : 9),
-      o.name + (equipped ? '  ✓ 장착 중' : (owned ? '  · 보유' : '')),
+      (locked ? '🔒 ' : '') + o.name +
+      (equipped ? '  ✓ 장착 중' : (owned ? '  · 보유' : '')),
       P ? 12 : 15, owned ? C.text : C.textDim, 0).setWordWrapWidth(txtW));
     var typeLabel = GAME.SKILL_TYPE_LABEL[o.type] || o.type;
+    // 잠긴 칸은 **왜 못 사는지**를 그 자리에 적는다 — 안 적으면 "왜 안 눌리지"가 된다.
     self._body.push(GAME.UI.label(self, leftX + 12, ry + (P ? 22 : 32),
-      typeLabel + '  ·  쿨 ' + (o.cooldown ? (o.cooldown / 1000) + '초' : '—') +
-      (o.cost ? ('  ·  ' + o.cost + '골드') : '  ·  기본 내장'),
+      locked ? '앞 단계 스킬을 먼저 사야 열립니다'
+             : (typeLabel + '  ·  쿨 ' + (o.cooldown ? (o.cooldown / 1000) + '초' : '—') +
+                (o.cost ? ('  ·  ' + o.cost + '골드') : '  ·  기본 내장')),
       P ? 10 : 12, C.textDim, 0).setWordWrapWidth(txtW));
 
     // 카드 본체 = 미리보기 (사용자 지시: "클릭하면 미리보기가 보이게")
@@ -477,7 +494,10 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
 
     // 오른쪽 버튼 = 구매 / 장착. 미리보기와 손가락이 갈리도록 자리를 나눈다.
     var act, fn;
-    if (!owned) { act = afford ? ('💰 ' + (o.cost || 0)) : ('🔒 ' + (o.cost || 0)); fn = function () {
+    if (locked) {
+      // 앞 단계를 아직 안 산 상태 — 값을 보여주되 누를 수 없다는 걸 자물쇠로 말한다.
+      act = '🔒 잠김'; fn = function () {};
+    } else if (!owned) { act = afford ? ('💰 ' + (o.cost || 0)) : ('💰 ' + (o.cost || 0)); fn = function () {
       if (GAME.TowerChar.buySkill(slot, idx)) self._buildBody(true);
     }; }
     else if (equipped) { act = '장착 중'; fn = function () {}; }
@@ -486,7 +506,8 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
     }; }
     var ab = GAME.UI.button(self, leftX + leftW - 12 - btnW / 2, ry + rowH / 2,
       btnW, rowH - (P ? 12 : 18), act, fn, { fontSize: P ? 11 : 13 });
-    ab.text.setColor(equipped ? C.textDim : ((owned || afford) ? C.accent : C.textDim));
+    ab.text.setColor(locked ? C.textDim
+                            : (equipped ? C.textDim : ((owned || afford) ? C.accent : C.textDim)));
     ab.rect.setStrokeStyle((owned && !equipped) || (!owned && afford) ? 2 : 1,
       (owned && !equipped) ? C.controller : GAME.UI.COL.borderUi);
     self._body.push(ab);

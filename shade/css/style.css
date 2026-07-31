@@ -140,6 +140,15 @@ button { font: inherit; cursor: pointer; }
 #sheet.gone { display: none; }
 #sheet label { display: flex; align-items: center; gap: 10px; min-height: 52px; }
 #sheet input[type=checkbox] { width: 22px; height: 22px; }
+#sheet .perf {
+  margin: 6px 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(16, 32, 47, 0.07);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.86;
+}
 #sheet .note { margin: 4px 0 12px; font-size: 13px; opacity: 0.72; }
 #sheet a { color: #1E6E82; font-weight: 700; }
 

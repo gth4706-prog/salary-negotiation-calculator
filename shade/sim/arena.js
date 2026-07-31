@@ -68,22 +68,63 @@ const OBSTACLES = [
   { type: 'block', x: 2560, y: 1220, w: 130, h: 300, height: 88,  name: '벽' },
   { type: 'block', x: 1180, y: 2600, w: 300, h: 120, height: 78,  name: '자전거 보관소' },
 
-  /* 파라솔 — 작고 완전한 그늘이라 자리싸움이 난다 */
-  { type: 'parasol', x: 500,  y: 480,  r: 74, height: 132 },
-  { type: 'parasol', x: 1020, y: 300,  r: 70, height: 128 },
-  { type: 'parasol', x: 1420, y: 1480, r: 78, height: 134 },
-  { type: 'parasol', x: 2020, y: 1720, r: 72, height: 130 },
-  { type: 'parasol', x: 860,  y: 1760, r: 70, height: 128 },
-  { type: 'parasol', x: 2420, y: 700,  r: 74, height: 132 },
+  /* 파라솔 — 완전한 그늘. 여기가 사람이 사는 자리다 */
+  { type: 'parasol', x: 500,  y: 480,  r: 104, height: 132 },
+  { type: 'parasol', x: 1020, y: 300,  r: 98,  height: 128 },
+  { type: 'parasol', x: 1420, y: 1480, r: 110, height: 134 },
+  { type: 'parasol', x: 2020, y: 1720, r: 101, height: 130 },
+  { type: 'parasol', x: 860,  y: 1760, r: 98,  height: 128 },
+  { type: 'parasol', x: 2420, y: 700,  r: 104, height: 132 },
+  { type: 'parasol', x: 1900, y: 2560, r: 100, height: 130 },
+  { type: 'parasol', x: 260,  y: 2560, r: 96,  height: 126 },
 
-  /* 가로수 — 원 뭉치라 구멍이 뚫린다. 넓지만 천천히 녹는다 */
-  { type: 'tree', x: 1750, y: 1050, r: 96, height: 170, seed: 11 },
-  { type: 'tree', x: 640,  y: 1420, r: 104, height: 176, seed: 23 },
-  { type: 'tree', x: 2300, y: 1620, r: 92, height: 166, seed: 37 },
-  { type: 'tree', x: 1120, y: 2180, r: 100, height: 172, seed: 41 },
-  { type: 'tree', x: 2700, y: 2000, r: 88, height: 162, seed: 53 },
-  { type: 'tree', x: 300,  y: 900,  r: 90, height: 164, seed: 67 }
+  /* 가로수 — 원 뭉치라 구멍이 뚫린다. 넓지만 35%로 녹는다.
+   * 완전 그늘과 땡볕 사이의 **중간 지대**라, 여기서 버틸지 더 갈지가 판단이 된다. */
+  { type: 'tree', x: 1750, y: 1050, r: 134, height: 170, seed: 11 },
+  { type: 'tree', x: 640,  y: 1420, r: 146, height: 176, seed: 23 },
+  { type: 'tree', x: 2300, y: 1620, r: 129, height: 166, seed: 37 },
+  { type: 'tree', x: 1120, y: 2180, r: 140, height: 172, seed: 41 },
+  { type: 'tree', x: 2700, y: 2000, r: 123, height: 162, seed: 53 },
+  { type: 'tree', x: 300,  y: 900,  r: 126, height: 164, seed: 67 },
+  { type: 'tree', x: 2560, y: 2620, r: 118, height: 158, seed: 71 },
+  { type: 'tree', x: 1560, y: 2180, r: 122, height: 160, seed: 83 },
+  { type: 'tree', x: 2150, y: 1150, r: 116, height: 156, seed: 89 },
+  { type: 'tree', x: 760,  y: 2560, r: 120, height: 158, seed: 97 }
 ];
+
+/**
+ * **가로수길** — 완전 그늘(집)과 완전 그늘 사이를 잇는 길.
+ *
+ * 이걸 넣기 전에는 그늘이 맵 여기저기 흩어진 섬이라, 봇이 그늘을 노리고 움직여도
+ * **시간의 76% 를 이동 중(= 땡볕)에서 보냈다.** 그러면 "그늘에서 산다"가 성립하지 않는다.
+ *
+ * 나무 그늘은 35% 로만 녹으므로 길에서는 천천히 줄어든다. 그래서 지형이 세 단계가 된다 —
+ *   완전 그늘(파라솔·정자) = 산다 · 나무 그늘(가로수길) = 지나간다 · 땡볕 = 죽는다.
+ * 어느 길로 갈지가 곧 판단이 되고, 길목이 자연스러운 교전 지점이 된다.
+ */
+const AVENUES = [
+  { x1: 500,  y1: 480,  x2: 1420, y2: 1480, n: 6, seed: 201 },
+  { x1: 1420, y1: 1480, x2: 2020, y2: 1720, n: 4, seed: 211 },
+  { x1: 2420, y1: 700,  x2: 2020, y2: 1720, n: 5, seed: 223 },
+  { x1: 860,  y1: 1760, x2: 1420, y2: 1480, n: 4, seed: 227 },
+  { x1: 860,  y1: 1760, x2: 260,  y2: 2560, n: 5, seed: 233 },
+  { x1: 1900, y1: 2560, x2: 2020, y2: 1720, n: 4, seed: 239 },
+  { x1: 1020, y1: 300,  x2: 2420, y2: 700,  n: 6, seed: 251 },
+  { x1: 1900, y1: 2560, x2: 760,  y2: 2560, n: 5, seed: 257 }
+];
+for (const av of AVENUES) {
+  for (let i = 1; i <= av.n; i++) {
+    const t = i / (av.n + 1);
+    OBSTACLES.push({
+      type: 'tree',
+      x: Math.round(av.x1 + (av.x2 - av.x1) * t),
+      y: Math.round(av.y1 + (av.y2 - av.y1) * t),
+      r: 92 + ((av.seed + i * 7) % 22),
+      height: 140 + ((av.seed + i * 11) % 26),
+      seed: av.seed + i
+    });
+  }
+}
 
 /** 가로수 뭉치를 이루는 작은 원들. 시드로 고정 — 매번 달라지면 맵이 아니다. */
 function canopy(o) {
@@ -99,7 +140,8 @@ function canopy(o) {
   }
   return out;
 }
-for (const o of OBSTACLES) if (o.type === 'tree') o.canopy = canopy(o);
+/* 가로수길까지 다 만든 뒤에 잎을 붙인다 — 순서가 바뀌면 길에 심은 나무가 잎이 없다 */
+for (const o of OBSTACLES) if (o.type === 'tree' && !o.canopy) o.canopy = canopy(o);
 
 export const ARENA = {
   w: C.WORLD,

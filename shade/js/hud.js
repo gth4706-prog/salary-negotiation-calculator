@@ -148,16 +148,53 @@ export function drawDashButton(ctx, btn, o) {
   ctx.restore();
 }
 
-/** 드래그 원점 링 — 원판을 안 그린다. 전장을 가리는 면적이 사실상 0 */
-export function drawDragRing(ctx, ring, pull, dpr) {
+/**
+ * 조이스틱 — **누른 자리에 생긴다**(플로팅). 고정 스틱은 엄지를 정확히 그 자리에
+ * 올려야 해서 "조작이 어렵다"는 평의 가장 큰 원인이다.
+ *
+ * 처음엔 원판 없이 얇은 링만 그렸다. 전장을 덜 가리기 때문인데, 사용자가 직접
+ * "클릭하는 곳에 조이스틱을 만들어달라"고 했다. 손가락이 지금 어디를 가리키는지
+ * 눈으로 확인되는 편이 낫다는 판단이고, 그래서 **밑판은 비우고 테두리만** 그려
+ * 가림을 줄이는 선에서 절충했다.
+ *
+ * @param {object} ring   {x,y} 원점(CSS px)
+ * @param {object} knob   {x,y} 손가락 현재 위치(CSS px)
+ */
+export function drawJoystick(ctx, ring, knob, pull, dpr) {
   if (!ring) return;
+  const BASE = 46, KNOB = 26;
+  const bx = ring.x * dpr, by = ring.y * dpr;
   ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+
+  // 밑판 — 속을 아주 옅게만 채운다(완전히 비우면 어디가 중심인지 안 읽힌다)
+  ctx.fillStyle = 'rgba(16,32,47,0.13)';
+  ctx.beginPath(); ctx.arc(bx, by, BASE * dpr, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.lineWidth = 2 * dpr;
+  ctx.stroke();
+
+  // 중심 십자 — 원점이 어디인지 한 눈에
+  ctx.strokeStyle = 'rgba(255,255,255,0.30)';
   ctx.lineWidth = 1.5 * dpr;
-  ctx.beginPath(); ctx.arc(ring.x * dpr, ring.y * dpr, 22 * dpr, 0, Math.PI * 2); ctx.stroke();
-  if (pull > 0.05) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.beginPath(); ctx.arc(ring.x * dpr, ring.y * dpr, (8 + 14 * pull) * dpr, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(bx - 7 * dpr, by); ctx.lineTo(bx + 7 * dpr, by);
+  ctx.moveTo(bx, by - 7 * dpr); ctx.lineTo(bx, by + 7 * dpr);
+  ctx.stroke();
+
+  // 손잡이 — 밑판 안으로 물린다. 최고속이면 테두리가 밝아진다
+  let kx = bx, ky = by;
+  if (knob) {
+    const dx = (knob.x - ring.x) * dpr, dy = (knob.y - ring.y) * dpr;
+    const d = Math.hypot(dx, dy);
+    const max = (BASE - KNOB * 0.55) * dpr;
+    const k = d > max ? max / d : 1;
+    kx = bx + dx * k; ky = by + dy * k;
   }
+  ctx.fillStyle = 'rgba(240,250,255,0.80)';
+  ctx.beginPath(); ctx.arc(kx, ky, KNOB * dpr, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = pull >= 0.99 ? 'rgba(255,255,255,0.95)' : 'rgba(22,40,63,0.55)';
+  ctx.lineWidth = (pull >= 0.99 ? 3 : 2) * dpr;
+  ctx.stroke();
+
   ctx.restore();
 }

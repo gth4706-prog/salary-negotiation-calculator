@@ -16,7 +16,7 @@
  * 역계산 없이 드로우콜 **한 번**에 칠한다.
  */
 import { C } from '../sim/consts.js';
-import { buildShadows, shadowDir, isNoon, noonLeftMs } from '../sim/sun.js';
+import { buildShadows, shadowDir, isNoon, noonLeftMs, sunHeight } from '../sim/sun.js';
 import { drawIce, drawShard, worldText, PAL, colorOf } from './iceart.js';
 
 /* 그늘 상태(= 진짜 색)가 원본이다. 햇볕 색은 위에 표백을 얹은 결과다. */
@@ -34,7 +34,10 @@ export function createRenderer(canvas) {
   let lowSpec = false;
 
   function resize() {
-    const want = Math.min(window.devicePixelRatio || 1, lowSpec ? 1.5 : 2);
+    // **DPR 상한 1.5.** 2.0 으로 두면 픽셀이 1.8배가 되는데, 이 게임 화면은
+    // 큰 색면과 굵은 도형이라 그만큼의 선명함을 못 돌려받는다.
+    // 햇볕 합성이 화면 전체를 한 번 훑기 때문에 픽셀 수가 곧 프레임 시간이다.
+    const want = Math.min(window.devicePixelRatio || 1, lowSpec ? 1.25 : 1.5);
     dpr = want;
     canvas.width = Math.round(canvas.clientWidth * dpr);
     canvas.height = Math.round(canvas.clientHeight * dpr);
@@ -60,10 +63,43 @@ export function createRenderer(canvas) {
     return shadows;
   }
 
-  function shadowPath(list) {
+  /**
+   * 화면에 걸리는 그림자만 경로에 넣는다.
+   *
+   * 가로수길을 넣으면서 장애물이 18 → 63개가 됐고 그림자 도형이 250개를 넘었다.
+   * 그걸 매 프레임 전부 경로로 만들어 채우기 1번 + 테두리 2번, 즉 **세 번** 훑으면
+   * 프레임이 끊긴다(사용자가 실제로 느꼈다). 줌이 3.6배까지 가므로 화면에 걸리는 것은
+   * 보통 열 개 남짓이다 — 나머지는 그릴 이유가 없다.
+   *
+   * 바깥 사각형도 월드 전체(3000×3000)가 아니라 **보이는 만큼만** 잡는다.
+   * evenodd 로 뒤집을 면적 자체가 줄어든다.
+   */
+  /**
+   * 경로를 **매 프레임 다시 만들지 않는다.**
+   *
+   * 그림자 도형은 월드 좌표라 카메라가 움직여도 모양이 안 바뀐다. 바뀌는 건
+   * "어디까지 걸러낼까"뿐이므로, 컬링 범위를 넉넉히 잡아 두면 카메라가 조금 움직이는 동안
+   * 같은 경로를 계속 쓸 수 있다. 태양이 움직였거나 카메라가 많이 옮겨 갔을 때만 다시 만든다.
+   */
+  let pathCache = null, pcPhase = -1, pcX = 0, pcY = 0;
+  function cachedPath(list, phase, cx, cy, halfW, halfH) {
+    const grow = 420;
+    if (pathCache && Math.abs(phase - pcPhase) < 0.0012 &&
+        Math.abs(cx - pcX) < grow * 0.6 && Math.abs(cy - pcY) < grow * 0.6) {
+      return pathCache;
+    }
+    pcPhase = phase; pcX = cx; pcY = cy;
+    pathCache = shadowPath(list, cx - halfW - grow, cy - halfH - grow,
+      cx + halfW + grow, cy + halfH + grow);
+    return pathCache;
+  }
+
+  function shadowPath(list, vx0, vy0, vx1, vy1) {
     const p = new Path2D();
-    p.rect(0, 0, C.WORLD, C.WORLD);
+    p.rect(vx0, vy0, vx1 - vx0, vy1 - vy0);
     for (const s of list) {
+      if (s.cx + s.hx < vx0 || s.cx - s.hx > vx1 ||
+          s.cy + s.hy < vy0 || s.cy - s.hy > vy1) continue;
       if (s.kind === 'ellipse') {
         p.moveTo(s.cx + s.a, s.cy);
         p.ellipse(s.cx, s.cy, s.a, s.b, Math.atan2(s.uy, s.ux), 0, Math.PI * 2);
@@ -113,6 +149,11 @@ export function createRenderer(canvas) {
     const arena = o.arena;
     if (!arena) { ctx.restore(); return; }
 
+    // 보이는 월드 범위 — 그림자·물체·먹이를 전부 이걸로 걸러낸다
+    const pad = 80;
+    const vx0 = (-ox) / zoom - pad, vy0 = (-oy) / zoom - pad;
+    const vx1 = (W - ox) / zoom + pad, vy1 = (H - oy) / zoom + pad;
+
     /* 1) 바닥을 **그늘 색**(진짜 색)으로 전부 그린다 */
     ctx.fillStyle = '#7C6F6A';
     ctx.fillRect(0, 0, C.WORLD, C.WORLD);
@@ -129,10 +170,15 @@ export function createRenderer(canvas) {
     /* 2) 햇볕만 표백한다 — 드로우콜 한 번 */
     const sh = shadowsFor(arena, v.phase);
     const noon = isNoon(v.phase);
-    const path = shadowPath(sh);
+    const path = cachedPath(sh, v.phase, (vx0 + vx1) / 2, (vy0 + vy1) / 2,
+      (vx1 - vx0) / 2, (vy1 - vy0) / 2);
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
-    ctx.fillStyle = noon ? 'rgba(255,217,160,0.78)' : 'rgba(255,217,160,0.55)';
+    // 표백 세기를 **실제 녹는 세기와 같은 곡선**으로 움직인다.
+    // 화면이 "지금 얼마나 뜨거운지"를 말해 주지 않으면 규칙과 그림이 따로 논다.
+    const heat = C.MELT_DAWN + C.MELT_NOON_ADD * sunHeight(v.phase);
+    const glare = 0.30 + 0.34 * Math.min(1, heat / (C.MELT_DAWN + C.MELT_NOON_ADD));
+    ctx.fillStyle = 'rgba(255,217,160,' + (noon ? Math.min(0.80, glare + 0.12) : glare).toFixed(3) + ')';
     ctx.fill(path, 'evenodd');
 
     /* 그늘 경계 — 이 게임에서 가장 중요한 선.
@@ -154,8 +200,10 @@ export function createRenderer(canvas) {
     ctx.stroke(path);
     ctx.restore();
 
-    /* 3) 물체 자체 */
+    /* 3) 물체 자체 — 화면에 걸리는 것만 */
     for (const b of arena.obstacles) {
+      const br = b.r != null ? b.r : Math.max(b.w, b.h) / 2;
+      if (b.x + br < vx0 || b.x - br > vx1 || b.y + br < vy0 || b.y - br > vy1) continue;
       ctx.fillStyle = OBST[b.type] || '#555';
       if (b.type === 'block') {
         ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
@@ -174,9 +222,6 @@ export function createRenderer(canvas) {
     }
 
     /* 4) 얼음조각 — 화면 안만 그린다 */
-    const pad = 60;
-    const vx0 = (-ox) / zoom - pad, vy0 = (-oy) / zoom - pad;
-    const vx1 = (W - ox) / zoom + pad, vy1 = (H - oy) / zoom + pad;
     for (const f of v.food.values()) {
       if (f.x < vx0 || f.x > vx1 || f.y < vy0 || f.y > vy1) continue;
       drawShard(ctx, f.x, f.y, o.now);
@@ -331,6 +376,32 @@ export function createRenderer(canvas) {
     ctx.closePath();
   }
 
+  /** 설정 시트에 띄운다 — 끊긴다는 신고를 숫자로 받기 위해서다.
+   *  개발자가 자기 PC 에서만 재면 사용자의 기기에서 무슨 일이 나는지 영영 모른다. */
+  function stats() {
+    if (frames.length < 20) return null;
+    const s = frames.slice().sort((a, b) => a - b);
+    const p50 = s[s.length >> 1];
+    return {
+      fps: Math.round(1000 / p50),
+      p50: +p50.toFixed(1),
+      p95: +s[Math.floor(s.length * 0.95)].toFixed(1),
+      dpr: +dpr.toFixed(2),
+      px: canvas.width * canvas.height,
+      lowSpec
+    };
+  }
+
+  function forceLowSpec(on) {
+    lowSpec = !!on;
+    frames.length = 0;
+    pathCache = null;
+    resize();
+  }
+
   resize();
-  return { draw, resize, get dpr() { return dpr; }, get lowSpec() { return lowSpec; } };
+  return {
+    draw, resize, stats, forceLowSpec,
+    get dpr() { return dpr; }, get lowSpec() { return lowSpec; }
+  };
 }

@@ -16,7 +16,7 @@ import { createView, applySnapshot, step } from './predict.js';
 import { createRenderer } from './render.js';
 import {
   createCoach, coachTick, drawCoach, deathLine, drawDeath,
-  drawHud, drawDashButton, drawDragRing
+  drawHud, drawDashButton, drawJoystick
 } from './hud.js';
 
 const SERVER = 'https://shade-world.gth3941.workers.dev';
@@ -207,7 +207,7 @@ function frame(now) {
   drawDeath(ctx, death, { now, dpr }, W, H);
 
   if (input && input.isTouch) {
-    drawDragRing(ctx, input.ring, input.pull, dpr);
+    drawJoystick(ctx, input.ring, input.knob, input.pull, dpr);
     const cd = Math.min(1, (now - lastDashAt) / C.DASH_CD_MS);
     const pulse = coach.pulseDash && now - coach.pulseDash < 600
       ? 1 - (now - coach.pulseDash) / 600 : 0;
@@ -217,9 +217,31 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 /* 설정 */
-$('#gear').addEventListener('click', () => $('#sheet').classList.toggle('gone'));
+let perfTimer = null;
+$('#gear').addEventListener('click', () => {
+  const sheet = $('#sheet');
+  sheet.classList.toggle('gone');
+  clearInterval(perfTimer);
+  if (sheet.classList.contains('gone')) return;
+  // 열려 있는 동안만 갱신한다 — 닫힌 시트를 위해 초당 두 번씩 DOM 을 만질 이유가 없다
+  const tick = () => {
+    const s = renderer.stats();
+    $('#perf').textContent = s
+      ? `${s.fps}fps · 프레임 ${s.p50}ms(느릴 때 ${s.p95}ms) · ${(s.px / 1e6).toFixed(1)}Mpx @${s.dpr}x`
+        + (s.lowSpec ? ' · 가볍게 켜짐' : '')
+      : '성능 측정 중…';
+  };
+  tick();
+  perfTimer = setInterval(tick, 500);
+});
 $('#cb').checked = opts.colorblind;
 $('#cb').addEventListener('change', (e) => {
   opts.colorblind = e.target.checked;
   localStorage.setItem('shade.cb', e.target.checked ? '1' : '0');
+});
+$('#lite').checked = localStorage.getItem('shade.lite') === '1';
+if ($('#lite').checked) renderer.forceLowSpec(true);
+$('#lite').addEventListener('change', (e) => {
+  localStorage.setItem('shade.lite', e.target.checked ? '1' : '0');
+  renderer.forceLowSpec(e.target.checked);
 });

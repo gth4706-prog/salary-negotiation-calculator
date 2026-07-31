@@ -9,7 +9,7 @@
  */
 import { C } from './consts.js';
 import { ARENA, SPAWNS } from './arena.js';
-import { buildShadows, shadeAt, sunPhase } from './sun.js';
+import { buildShadows, shadeAt, sunPhase, sunHeight } from './sun.js';
 
 export const radiusOf = (m) => Math.sqrt(m);
 export const speedOf = (r) => C.BASE_SPEED * Math.pow(C.START_R / r, C.SPEED_POW);
@@ -54,6 +54,8 @@ export function createWorld(seed = 1, opts = {}) {
 function refreshShadows(s) {
   const p = sunPhase(s.t);
   s.phase = p;
+  // 정오에 더 뜨겁다 — 그림자 길이뿐 아니라 **햇볕의 세기**도 하루를 따라 움직인다
+  s.heat = C.MELT_DAWN + C.MELT_NOON_ADD * sunHeight(p);
   if (s.shadowPhase < 0 || Math.abs(p - s.shadowPhase) > 0.0008) {   // 약 0.2초마다
     s.shadows = buildShadows(ARENA, p);
     s.shadowPhase = p;
@@ -221,7 +223,7 @@ export function tick(s, dtMs) {
     // 녹기 — 지수 감소. sun 은 0(그늘)·0.35(나무)·1(땡볕)
     const sun = shadeAt(s.shadows, p.x, p.y);
     p.sun = sun;
-    if (sun > 0) p.mass *= Math.exp(-MELT_K * sun * dt);
+    if (sun > 0) p.mass *= Math.exp(-MELT_K * sun * s.heat * dt);
 
     if (p.mass > p.best) p.best = p.mass;
     if (p.mass <= C.MIN_MASS) {
@@ -237,7 +239,7 @@ export function tick(s, dtMs) {
     if (recheck) s._foodSunPhase = s.shadowPhase;
     for (const f of s.food.values()) {
       if (recheck) f.sun = shadeAt(s.shadows, f.x, f.y);
-      f.life -= dt * (f.sun + C.FOOD_LIFE_SHADE);
+      f.life -= dt * (f.sun * C.FOOD_SUN_MUL + C.FOOD_LIFE_SHADE);
       if (f.life <= 0) {
         s.food.delete(f.id);
         s.events.push({ e: 'gone', f: f.id });

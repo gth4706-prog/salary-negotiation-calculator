@@ -96,7 +96,16 @@ export function buildShadows(arena, p) {
       ];
       // 건물은 자기 몸도 그늘이다 → 원래 자리와 밀어낸 자리를 함께 감싼다
       const moved = base.map(q => ({ x: q.x + ox, y: q.y + oy }));
-      out.push({ kind: 'poly', pts: hull(base.concat(moved)), sun: 0 });
+      const pts = hull(base.concat(moved));
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const q of pts) {
+        if (q.x < x0) x0 = q.x; if (q.x > x1) x1 = q.x;
+        if (q.y < y0) y0 = q.y; if (q.y > y1) y1 = q.y;
+      }
+      out.push({
+        kind: 'poly', pts, sun: 0,
+        cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, hx: (x1 - x0) / 2, hy: (y1 - y0) / 2
+      });
 
     } else if (o.type === 'parasol') {
       // 파라솔은 떠 있는 천이라 그림자만 옮겨 간다(기둥 밑은 그늘이 아니다)
@@ -114,7 +123,12 @@ export function buildShadows(arena, p) {
 
 /** 햇빛 방향(ux,uy)으로 늘어난 타원. `a` 가 장축(그림자 방향), `b` 가 단축. */
 function ellipse(cx, cy, r, stretch, ux, uy, sun) {
-  return { kind: 'ellipse', cx, cy, a: r * stretch, b: r, ux, uy, sun };
+  const a = r * stretch;
+  // 경계상자를 여기서 한 번 계산해 둔다 — 화면 밖 그림자를 걸러내는 데 쓴다.
+  // 매 프레임 250개를 전부 그리면 저사양 기기에서 프레임이 끊긴다(실제로 겪었다).
+  const hx = Math.sqrt((a * ux) ** 2 + (r * uy) ** 2);
+  const hy = Math.sqrt((a * uy) ** 2 + (r * ux) ** 2);
+  return { kind: 'ellipse', cx, cy, a, b: r, ux, uy, sun, hx, hy };
 }
 
 function inPoly(pts, x, y) {

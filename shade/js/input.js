@@ -92,6 +92,8 @@ export function attachInput(canvas, opts) {
       return out;
     },
     get ring() { return st.ring; },
+    /** 손가락 현재 위치 — 조이스틱 손잡이를 그리는 데 쓴다 */
+    get knob() { return st.active ? { x: st.curX, y: st.curY } : null; },
     get isTouch() { return st.isTouch; },
     /** 드래그 세기 0~1. 화면 링 크기에만 쓴다(속도는 서버가 크기로 정한다) */
     get pull() {

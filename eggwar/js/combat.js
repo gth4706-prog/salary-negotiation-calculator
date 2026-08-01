@@ -1864,30 +1864,51 @@ GAME.Combat = {
 
       }
 
-      // 발목지뢰 — 밟으면 최대 체력의 일정 비율이 날아간다
+      // ── 가시덫 — 밟으면 **도화선이 타고** 그 뒤에 터진다 (2026-08-01) ──────────
+      //  예전엔 밟는 즉시 피해였다. 지금은 두 단계다:
+      //   ① 밟는다 → `u.fuse` 가 켜진다(이때부터 화면에 폭발 범위가 보인다)
+      //   ② 도화선이 다 타면 **blastRadius 안의 적 전부**가 맞는다.
+      //  ⚠ 피해 대상이 '밟은 놈'이 아니라 '그때 범위 안에 있는 놈'이라는 것이 핵심이다.
+      //    그래야 빠져나가면 안 맞는다 — 그게 이 개편의 목적이다(js/units.js 주석 참조).
       if (u.def.isMine) {
-        for (k = 0; k < state.units.length; k++) {
-          var vic = state.units[k];
-          if (!vic.alive || vic.side === u.side) continue;
-          if (this.dist(u, vic) > u.def.triggerRadius) continue;
-          var pct = vic.maxHp * u.def.pctMaxHp;
-          // 방어력을 무시하고 비율로 깎는다 — 지뢰는 방탄복으로 막는 게 아니다
-          vic.hp -= pct; vic.flash = 200;
-          if (vic.hp <= 0) {
-            vic.hp = 0; vic.alive = false; this.spawnYolk(state, vic);
-            // state.onKill 이 있으면 호출한다. 렌더/경제 계층이 여기에 붙는다(골드 보상 등).
-            if (state.onKill) state.onKill(vic, state);
+        if (u.fuse === undefined) u.fuse = -1;
+        if (u.fuse < 0) {
+          for (k = 0; k < state.units.length; k++) {
+            var trg = state.units[k];
+            if (!trg.alive || trg.side === u.side) continue;
+            if (this.dist(u, trg) > u.def.triggerRadius) continue;
+            u.fuse = u.def.fuseMs || 450;
+            u.armedAt = state.elapsed;
+            break;
           }
-          this.pushNumber(state, vic, pct, true);
-          state.effects.push({
-            kind: 'blast', x: u.x, y: u.y, r: u.def.blastRadius,
-            t: 320, total: 320, side: u.side
-          });
-          u.alive = false;   // 1회용
-          this.spawnYolk(state, u);
-          // state.onKill 이 있으면 호출한다. 렌더/경제 계층이 여기에 붙는다(골드 보상 등).
-          if (state.onKill) state.onKill(u, state);
-          break;
+        } else {
+          // ⚠ 이 함수의 델타 인자 이름은 `dtMs` 다. `dt` 로 썼더니 도화선이 한 번도
+          //   안 줄어 **지뢰가 영원히 안 터졌다**(실측으로 잡음 — 조용히 아무 일도
+          //   안 일어나는 종류의 버그다).
+          u.fuse -= dtMs;
+          if (u.fuse <= 0) {
+            var br = u.def.blastRadius;
+            for (k = 0; k < state.units.length; k++) {
+              var vic = state.units[k];
+              if (!vic.alive || vic.side === u.side) continue;
+              if (this.dist(u, vic) > br) continue;         // 빠져나갔으면 안 맞는다
+              var pct = vic.maxHp * u.def.pctMaxHp;
+              // 방어력을 무시하고 비율로 깎는다 — 지뢰는 방탄복으로 막는 게 아니다
+              vic.hp -= pct; vic.flash = 200;
+              if (vic.hp <= 0) {
+                vic.hp = 0; vic.alive = false; this.spawnYolk(state, vic);
+                if (state.onKill) state.onKill(vic, state);
+              }
+              this.pushNumber(state, vic, pct, true);
+            }
+            state.effects.push({
+              kind: 'blast', x: u.x, y: u.y, r: br,
+              t: 320, total: 320, side: u.side
+            });
+            u.alive = false;   // 1회용
+            this.spawnYolk(state, u);
+            if (state.onKill) state.onKill(u, state);
+          }
         }
         if (!u.alive) continue;
       }

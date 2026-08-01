@@ -29,17 +29,22 @@ GAME.TowerCurriculum = {
   // 층 → 그 층에서 **처음 등장**하는 유닛. 위 원칙 ①②③ 을 그대로 옮긴 표다.
   // `js/scenes/towerloading.js` 의 `TOWER_UNIT_TIPS` 가 각 유닛의 대처법을 한 줄로
   // 갖고 있으므로, 데뷔 층 로딩 화면에서 그 줄을 강조해 띄운다(아래 `debutOf`).
+  //  ⚠ 2026-08-01 — **1~10층은 튜토리얼이다**(사용자 재확인: "초반 1~10층은 거의
+  //    튜토리얼이라 생각해야 해. 1층에서 적 유닛이 많이 나올 필요 없고 전사만 보여줘도
+  //    되고. 한 20층 가서부터 쇠뇌 진지 나와도 돼").
+  //    그래서 소개 간격을 넓혔다 — 1~10층에는 **네 종류만** 나오고, 뒤로 갈수록
+  //    까다로운 것들이 천천히 들어온다. 쇠뇌 진지(맵 전체 사거리)는 20층으로 미뤘다.
   UNLOCK: [
     { floor: 1,  type: 'bayonet',     lesson: '뭉쳐서 벽을 만든다 — 벽을 허물 한 방이 필요하다' },
     { floor: 3,  type: 'rifleman',    lesson: '화살은 직선으로만 온다 — 좌우로 움직이면 피한다' },
-    { floor: 5,  type: 'grenadier',   lesson: '돌은 예고 뒤에 터진다 — 그림자가 보이면 그 자리를 뜬다' },
-    { floor: 7,  type: 'shieldman',   lesson: '날아가는 공격을 대신 맞는다 — 먼저 지워야 뒤가 뚫린다' },
-    { floor: 9,  type: 'medic',       lesson: '진형을 되살린다 — 먼저 끊지 않으면 끝나지 않는다' },
-    { floor: 11, type: 'sniper',      lesson: '이 창은 피할 수 없다 — 보이면 먼저 지운다' },
-    { floor: 13, type: 'mgnest',      lesson: '움직이지 않지만 맵 어디든 닿는다 — 숨지 말고 붙어라' },
-    { floor: 15, type: 'chemtrooper', lesson: '맞으면 느려진다 — 거리를 두는 전략이 오히려 위험하다' },
-    { floor: 17, type: 'sergeant',    lesson: '살아 있으면 주변이 강해진다 — 우두머리부터 노린다' },
-    { floor: 19, type: 'mine',        lesson: '밟기 전까지 보이지 않는다 — 급하게 뛰어들지 마라' }
+    { floor: 6,  type: 'grenadier',   lesson: '돌은 예고 뒤에 터진다 — 그림자가 보이면 그 자리를 뜬다' },
+    { floor: 9,  type: 'shieldman',   lesson: '날아가는 공격을 대신 맞는다 — 먼저 지워야 뒤가 뚫린다' },
+    { floor: 12, type: 'medic',       lesson: '진형을 되살린다 — 먼저 끊지 않으면 끝나지 않는다' },
+    { floor: 15, type: 'sniper',      lesson: '이 창은 피할 수 없다 — 보이면 먼저 지운다' },
+    { floor: 18, type: 'chemtrooper', lesson: '맞으면 느려진다 — 거리를 두는 전략이 오히려 위험하다' },
+    { floor: 20, type: 'mgnest',      lesson: '움직이지 않지만 맵 어디든 닿는다 — 숨지 말고 붙어라' },
+    { floor: 24, type: 'sergeant',    lesson: '살아 있으면 주변이 강해진다 — 우두머리부터 노린다' },
+    { floor: 28, type: 'mine',        lesson: '보이지 않는다 — 밟으면 붉은 원이 뜨고, 이동 스킬로만 벗어난다' }
   ],
 
   // 이 층까지 **풀린** 유닛 종류. AutoFormation 이 이 목록 밖에서는 안 뽑는다.
@@ -61,7 +66,11 @@ GAME.TowerCurriculum = {
   //    아는 사실 그대로다 — "방어력이 비율 경감이라 물량이 실제로 강한 축"이다.
   //    CLAUDE.md 의 약속은 "1~3층은 연습 구간, 4층부터 조작 없이는 진다"이므로
   //    **연습 구간에서는 머릿수를 직접 묶는다.** 4층부터는 상한이 없다(설계된 벽).
-  MAX_UNITS: { 1: 4, 2: 6, 3: 8 },
+  //  2026-08-01 — 상한을 **10층까지** 늘렸다(1~10층 = 튜토리얼). 1층은 전사 3기다.
+  //  ⚠ 다만 **4층부터 무조작 0%** 라는 약속(CLAUDE.md·R-1)은 깨면 안 된다.
+  //    머릿수를 너무 낮추면 조작 없이도 이겨서 그 약속이 무너진다 —
+  //    아래 값은 R-1 을 돌려 가며 잡은 것이다(측정 없이 손대지 말 것).
+  MAX_UNITS: { 1: 3, 2: 5, 3: 7, 4: 10, 5: 11, 6: 12, 7: 13, 8: 14, 9: 15, 10: 16 },
   maxUnitsFor: function (floor) { return this.MAX_UNITS[floor] || 0; },
 
   // 이 층이 **데뷔 층**인가 → 그 항목(없으면 null). 로딩 화면이 이걸로 강조 문구를 만든다.
@@ -70,6 +79,48 @@ GAME.TowerCurriculum = {
       if (this.UNLOCK[i].floor === floor) return this.UNLOCK[i];
     }
     return null;
+  },
+
+  // ── 테마 층 — **가끔은 웃겨도 된다** (2026-08-01 사용자 지시) ────────────────
+  //  "가끔은 유머러스한 배치도가 나와도 재밌을 것 같아. 예를 들면 '방패병이 화나서
+  //   모였습니다' 라는 설명 띄우고 방패병만 15마리 온다거나, 늪지대만 엄청 나온다거나."
+  //
+  //  한 종류만 잔뜩 나오는 판은 **난이도 장치가 아니라 리듬 장치**다. 매 층 잘 짜인
+  //  진형만 나오면 긴장이 평평해진다 — 가끔 어이없는 판이 끼면 그 다음 정상 층이
+  //  다시 무겁게 느껴진다. 그리고 한 종류만 나오면 그 유닛의 성질을 몸으로 배운다
+  //  (교육 과정과 같은 목적을 다른 방식으로 한 번 더 하는 셈이다).
+  //
+  //  ⚠ 규칙 셋:
+  //   · **보스 층에는 안 나온다** — 그 층은 이미 자기 정체성이 있다.
+  //   · **해금된 종류만** 고른다(교육 과정을 앞지르지 않는다).
+  //   · 확률은 등반 시드에 묶는다 — 같은 등반 안에서는 같은 층이 같은 판이어야
+  //     "이 층은 그런 층"이라고 배울 수 있다.
+  THEMES: [
+    { type: 'shieldman',   label: '방패병들이 화가 났습니다', hint: '전부 방패병입니다. 뚫을 한 방이 필요합니다' },
+    { type: 'chemtrooper', label: '온통 늪지대가 되었습니다', hint: '전부 늪지기입니다. 느려지는 걸 각오하세요' },
+    { type: 'rifleman',    label: '궁수 대회가 열렸습니다',   hint: '화살이 사방에서 날아옵니다. 계속 움직이세요' },
+    { type: 'grenadier',   label: '돌 던지기 축제입니다',     hint: '그림자가 보이면 그 자리를 뜨세요' },
+    { type: 'bayonet',     label: '전사들이 우르르 몰려왔습니다', hint: '수는 많지만 하나하나는 약합니다' },
+    { type: 'medic',       label: '약초꾼들이 소풍을 나왔습니다', hint: '서로를 계속 살립니다. 한 곳씩 끊으세요' },
+    { type: 'sniper',      label: '투창 시합이 한창입니다',   hint: '피할 수 없는 창입니다. 빨리 붙으세요' },
+    { type: 'mgnest',      label: '쇠뇌 진지를 잔뜩 지었습니다', hint: '숨을 곳이 없습니다. 곧장 파고드세요' }
+  ],
+  THEME_FROM_FLOOR: 6,        // 5층까지는 기본기를 배우는 자리라 변주를 안 넣는다
+  THEME_CHANCE: 0.11,
+
+  // 이 층이 테마 층인가 → 테마 항목(아니면 null). seed 는 등반 시드다.
+  themeFor: function (floor, seed, unlockedTypes) {
+    if (floor < this.THEME_FROM_FLOOR) return null;
+    if (GAME.Tower && GAME.Tower.isBossFloor && GAME.Tower.isBossFloor(floor)) return null;
+    // 시드 + 층으로 결정적 난수 — 같은 등반에서 같은 층은 늘 같은 판이다.
+    var h = ((seed || 1) * 2654435761 + floor * 40503) >>> 0;
+    var r = (h % 1000) / 1000;
+    if (r >= this.THEME_CHANCE) return null;
+    var pool = this.THEMES.filter(function (t) {
+      return !unlockedTypes || unlockedTypes.indexOf(t.type) >= 0;
+    });
+    if (!pool.length) return null;
+    return pool[(h >>> 10) % pool.length];
   },
 
   // 전부 풀리는 층. 이 위로는 제한이 없다(= 예전과 같은 뽑기).

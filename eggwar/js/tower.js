@@ -246,6 +246,32 @@ GAME.Tower = {
       f.readNote = GAME.Profile.readNote(prof, floor);
     }
 
+    // ── 테마 층 — 한 종류만 잔뜩 (2026-08-01) ────────────────────────────────
+    //  구성을 통째로 갈아끼운다. 좌표는 그대로 두고 아래 `TowerPlan.apply` 가
+    //  원형에 맞춰 다시 놓으므로, 여기서는 **무엇이 몇 기인가**만 정하면 된다.
+    //  ⚠ 예산을 지킨다 — 한 종류로 채우되 총액이 원래 예산을 넘지 않게 센다.
+    //    안 지키면 '재미있는 판'이 그냥 '불공정한 판'이 된다.
+    if (GAME.TowerCurriculum) {
+      var seedNow = (GAME.TowerChar && GAME.TowerChar.get() && GAME.TowerChar.get().climbSeed) || 1;
+      var theme = GAME.TowerCurriculum.themeFor(floor, seedNow, allowTypes);
+      var tDef = theme && GAME.UNITS[theme.type];
+      if (tDef && tDef.cost > 0) {
+        var n = Math.max(3, Math.min(24, Math.floor(budget / tDef.cost)));
+        var tu = [];
+        for (var ti = 0; ti < n; ti++) {
+          // 좌표는 임시다(원형이 다시 놓는다). 그래도 원형이 없을 때를 대비해
+          // 앞뒤로 고르게 흩어 둔다 — 한 점에 겹쳐 두면 그대로 뭉텅이가 된다.
+          tu.push({ type: theme.type,
+                    nx: 0.10 + 0.80 * ((ti % 6) / 5),
+                    ny: 0.12 + 0.26 * (Math.floor(ti / 6) / Math.max(1, Math.ceil(n / 6) - 1 || 1)) });
+        }
+        f.units = tu;
+        f.themeLabel = theme.label;
+        f.themeHint = theme.hint;
+        f.name = floor + '층 · ' + theme.label;
+      }
+    }
+
     // ── 층 배치 원형 (2026-07-30 대개편) ────────────────────────────────────
     //  구성은 위에서 `AutoFormation` 이 정했고, **공간은 여기서 다시 정한다.**
     //  이게 "매번 똑같은 진형"이라는 신고의 직접 해답이다 — 구성 다양성은 이미

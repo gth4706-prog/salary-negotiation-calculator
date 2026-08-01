@@ -57,8 +57,8 @@ GAME.TOWER_UNIT_TIPS = {
     '쇠뇌 진지는 맵 어디든 닿으니, 숨을 곳을 찾기보다 빠르게 접근하는 것이 낫습니다.'
   ],
   mine: [
-    '가시덫은 밟기 전까지 보이지 않으니, 급하게 뛰어들지 마세요.',
-    '가시덫은 배치도당 하나뿐이니, 한 번 확인하면 그 자리만 피하면 됩니다.'
+    '가시덫은 보이지 않습니다. 밟으면 붉은 원이 뜨고 잠깐 뒤 터지니, 그때 이동 스킬로 빠져나가세요.',
+    '가시덫은 걸어서는 못 벗어납니다 — 붉은 원이 보이면 곧바로 이동 스킬을 쓰세요.'
   ]
 };
 
@@ -148,7 +148,11 @@ GAME.TowerLoadingScene.prototype.create = function () {
     lines.push('▶ 대처 — ' + debut.lesson);
   } else {
     if (bossDef) lines.push('☠ ' + bossDef.name + ' — ' + bossDef.desc);
-    // 탑이 나를 어떻게 읽었는지 — **가장 먼저** 온다(보스 다음). 이게 이 모드의 정체성이다.
+    // 테마 층이면 그 사실이 가장 먼저 읽혀야 한다 — 판의 성격이 통째로 다르다.
+    if (formation && formation.themeLabel) {
+      lines.push('🎪 ' + formation.themeLabel + ' — ' + (formation.themeHint || ''));
+    }
+    // 탑이 나를 어떻게 읽었는지. 이게 이 모드의 정체성이다.
     if (formation && formation.readNote) lines.push(formation.readNote);
     if (formation && formation.planLabel) lines.push('◈ ' + formation.planLabel + ' — ' + formation.planHint);
     if (formation && formation.ruleLabel) lines.push('⚠ ' + formation.ruleLabel + ' — ' + formation.ruleDesc);

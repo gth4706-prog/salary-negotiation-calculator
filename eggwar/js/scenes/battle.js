@@ -1676,10 +1676,36 @@ GAME.BattleScene.prototype.draw = function () {
   // 죽은 유닛의 옛 좌표가 남는다(이 폴더가 겪은 계열의 함정). 매 프레임 새로 만든다.
   var marks = [];
 
+  // 내 편은 어느 쪽인가 — 가시덫을 숨길지 판단하는 기준이다.
+  // (`_heroIsPlayer` 는 방어전에서 뒤집힌다: 거기서는 영웅이 적이고 내가 전략가다.)
+  var myMineSide = ((this._heroIsPlayer === undefined) ? true : this._heroIsPlayer)
+    ? 'controller' : 'strategist';
+
   for (i = 0; i < alive.length; i++) {
     var u = alive[i];
     var color = GAME.UI.sideColor(u.side);
     if (u.flash > 0) color = 0xffffff;
+
+    // ── 남의 가시덫은 **보이지 않는다** (2026-08-01 사용자 지시) ─────────────────
+    //  "지뢰는 상대방 눈에 안 보이게 하고, 대신 밟으면 …"
+    //  밟기 전까지는 유닛도 링도 안 그린다. **도화선이 켜지면**(u.fuse >= 0) 그때부터
+    //  폭발 범위를 크게 보여준다 — 그 원이 곧 "여기서 나가라"는 유일한 안내다.
+    //  ⚠ 내 가시덫(대전·수성의 탑에서 내가 놓은 것)은 그대로 보인다. 내가 놓은 함정의
+    //    위치를 나도 모르면 배치라는 행위 자체가 성립하지 않는다.
+    if (u.def.isMine && u.side !== myMineSide) {
+      var armed = (u.fuse !== undefined && u.fuse >= 0);
+      if (!armed) continue;                        // 안 밟았으면 통째로 안 그린다
+      // 도화선 진행도(1 → 0). 남을수록 옅고, 터지기 직전에 가장 진하다.
+      var fp = 1 - Math.max(0, u.fuse) / (u.def.fuseMs || 450);
+      g.fillStyle(FX.mineRing, 0.10 + 0.22 * fp);
+      GAME.UI.groundCircleFill(g, u.x, u.y, u.def.blastRadius);
+      g.lineStyle(3, FX.mineRing, 0.55 + 0.45 * fp);
+      GAME.UI.groundCircle(g, u.x, u.y, u.def.blastRadius);
+      // 안쪽에서 바깥으로 차오르는 링 — 남은 시간이 눈으로 읽힌다.
+      g.lineStyle(2, FX.mineRing, 0.85);
+      GAME.UI.groundCircle(g, u.x, u.y, u.def.blastRadius * fp);
+      continue;                                    // 함정 본체는 끝까지 안 보인다
+    }
 
     // 지원 유닛의 영향 범위를 보여준다 — 뭘 해야 할지 판단할 수 있게.
     // 알파 0.28~0.5 짜리 얇은 링은 밝은 들판에서 전부 증발했다 → FX.ringAlpha 로 증폭.

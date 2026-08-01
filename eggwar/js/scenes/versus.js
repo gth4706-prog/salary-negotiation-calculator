@@ -255,6 +255,7 @@ GAME.VersusScene.prototype._kickRemote = function () {
 };
 
 GAME.VersusScene.prototype.create = function () {
+  if (GAME.Music) GAME.Music.play('versus');
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var P = GAME.CONFIG.PORTRAIT;

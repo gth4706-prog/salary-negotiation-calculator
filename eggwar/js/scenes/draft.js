@@ -165,6 +165,7 @@ GAME.DraftScene.prototype._pickHero = function () {
 };
 
 GAME.DraftScene.prototype.create = function () {
+  if (GAME.Music) GAME.Music.play('versus');
   var C = GAME.CONFIG.COLORS;
   var self = this;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;

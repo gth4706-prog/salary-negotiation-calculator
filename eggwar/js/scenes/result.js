@@ -72,12 +72,15 @@ GAME.ResultScene.prototype.create = function () {
 
   // 결과음 — 이겼는지 졌는지를 소리로 먼저 알린다.
   // 방어전은 '내가 막았는가'가 승리이므로 판정이 반대다.
-  if (GAME.Sound) {
-    var good = this.defendMode || this.defendTower
-      ? (this.winner !== 'controller')
-      : (this.winner === 'controller');
-    GAME.Sound.play(good ? 'win' : 'lose');
-  }
+  //  ⚠ 판정을 **한 곳에서만** 낸다. 예전엔 이 블록이 `Sound` 전용이었는데, 음악
+  //    스팅어를 붙이면서 같은 조건문을 또 쓰고 싶어진다 — 그러면 방어전의 뒤집힌
+  //    판정이 한쪽에서만 반영되어 "이겼는데 패배 음악이 나오는" 상태가 된다.
+  var good = this.defendMode || this.defendTower
+    ? (this.winner !== 'controller')
+    : (this.winner === 'controller');
+  if (GAME.Sound) GAME.Sound.play(good ? 'win' : 'lose');
+  // 결과 화면에는 배경음악을 깔지 않는다 — 스팅어가 이 화면의 주인공이다.
+  if (GAME.Music) { GAME.Music.stop(); GAME.Music.sting(good ? 'win' : 'lose'); }
 
   var title, sub, color;
   if (this.tower) {

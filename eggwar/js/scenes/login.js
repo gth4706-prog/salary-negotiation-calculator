@@ -9,6 +9,7 @@ GAME.LoginScene.prototype = Object.create(Phaser.Scene.prototype);
 GAME.LoginScene.prototype.constructor = GAME.LoginScene;
 
 GAME.LoginScene.prototype.create = function () {
+  if (GAME.Music) GAME.Music.play('lobby');
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var P = GAME.CONFIG.PORTRAIT;

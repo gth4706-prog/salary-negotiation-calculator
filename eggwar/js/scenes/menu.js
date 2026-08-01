@@ -7,6 +7,7 @@ GAME.MenuScene.prototype = Object.create(Phaser.Scene.prototype);
 GAME.MenuScene.prototype.constructor = GAME.MenuScene;
 
 GAME.MenuScene.prototype.create = function () {
+  if (GAME.Music) GAME.Music.play('lobby');
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var P = GAME.CONFIG.PORTRAIT;
@@ -135,23 +136,43 @@ GAME.MenuScene.prototype.create = function () {
   // 아이폰은 전체화면 API 가 (일반 요소에 대해) 없어서 위 버튼이 아예 안 만들어진다.
   // 빈자리로 두면 "내 폰만 버튼이 없다"가 되므로, 같은 칸에 **가는 길**을 넣는다.
   var iosGuide = !hasFs && GAME.PWA && GAME.PWA.isIOS() && !GAME.PWA.isStandalone();
-  var utilW = Math.min(W - 60, (hasFs || iosGuide) ? 320 : 200);
-  var uc = (hasFs || iosGuide)
-    ? GAME.Layout.cols(2, { gap: 10, width: utilW, left: (W - utilW) / 2, pad: 0 })
-    : [{ cx: W / 2, w: utilW }];
+  //  ⚠ 칸 수를 손으로 박지 않는다. 예전엔 `(hasFs||iosGuide) ? 2 : 1` 이라
+  //    버튼이 하나 늘 때마다 이 식을 같이 고쳐야 했고, 안 고치면 두 버튼이
+  //    같은 칸에 겹쳐 그려진다(이 저장소가 반복해 겪은 '좌표를 손으로 박기' 계열).
+  //    이제 **있는 버튼을 세어** 배분한다.
+  var uslots = [];
+  if (GAME.Sound) uslots.push('sound');
+  if (GAME.Music) uslots.push('music');
+  if (hasFs || iosGuide) uslots.push('fs');
+  var utilW = Math.min(W - 40, [200, 320, 430][Math.min(uslots.length, 3) - 1] || 200);
+  var uc = GAME.Layout.cols(Math.max(1, uslots.length),
+    { gap: 10, width: utilW, left: (W - utilW) / 2, pad: 0 });
+  var uAt = function (k) { var i = uslots.indexOf(k); return i < 0 ? null : uc[i]; };
 
   if (GAME.Sound) {
-    var sndLbl = function () { return GAME.Sound.enabled ? '🔊 소리 켜짐' : '🔈 소리 꺼짐'; };
-    var sb = GAME.UI.button(this, uc[0].cx, utilY, uc[0].w, utilH, sndLbl(), function () {
+    var scol = uAt('sound');
+    // 라벨이 짧아졌다 — 세 칸이 되면 '소리 켜짐'은 폭을 넘긴다(세로 420px 기준).
+    var sndLbl = function () { return GAME.Sound.enabled ? '🔊 효과음' : '🔈 효과음'; };
+    var sb = GAME.UI.button(this, scol.cx, utilY, scol.w, utilH, sndLbl(), function () {
       GAME.Sound.toggle();
       sb.text.setText(sndLbl());
     }, { fontSize: P ? 13 : 13 });
     this._soundBtnBottom = utilY + utilH / 2;
   }
 
+  if (GAME.Music) {
+    var mcol = uAt('music');
+    var musLbl = function () { return GAME.Music.enabled ? '🎵 음악' : '🔕 음악'; };
+    var mb = GAME.UI.button(this, mcol.cx, utilY, mcol.w, utilH, musLbl(), function () {
+      GAME.Music.toggle();
+      mb.text.setText(musLbl());
+    }, { fontSize: P ? 13 : 13 });
+    this._soundBtnBottom = utilY + utilH / 2;
+  }
+
   if (hasFs) {
     var fsLbl = function () { return GAME.PWA.isFullscreen() ? '⤡ 전체화면 해제' : '⛶ 전체화면'; };
-    var fb = GAME.UI.button(this, uc[1].cx, utilY, uc[1].w, utilH, fsLbl(), function () {
+    var fb = GAME.UI.button(this, uAt('fs').cx, utilY, uAt('fs').w, utilH, fsLbl(), function () {
       GAME.PWA.toggleFullscreen(function (ok) {
         if (!fb.text || !fb.text.scene) return;
         // 껐다 켜기 둘 다 실패(= 브라우저가 거부)면 이 버튼은 쓸모가 없다 → 치운다.
@@ -164,7 +185,7 @@ GAME.MenuScene.prototype.create = function () {
   } else if (iosGuide) {
     // 아이폰 — 누르면 '홈 화면에 추가' 방법을 띄운다. 한 번 눌러 설치시키는 API 가
     // 아이폰에는 없으므로(beforeinstallprompt 부재) 안내가 최선이다.
-    GAME.UI.button(this, uc[1].cx, utilY, uc[1].w, utilH, '⛶ 전체화면 방법', function () {
+    GAME.UI.button(this, uAt('fs').cx, utilY, uAt('fs').w, utilH, '⛶ 전체화면 방법', function () {
       GAME.PWA.showHomeScreenGuide();
     }, { fontSize: P ? 13 : 13 });
     this._soundBtnBottom = utilY + utilH / 2;
@@ -319,6 +340,7 @@ GAME.MenuScene.prototype._buildPhone = function () {
   slots.push('rank');
   slots.push('nick');
   if (GAME.Sound) slots.push('sound');
+  if (GAME.Music) slots.push('music');
   // 아이폰은 전체화면 API 가 없어 'fs' 칸이 통째로 빠진다 → 같은 자리에 안내를 넣는다.
   var iosGuide = !hasFs && GAME.PWA && GAME.PWA.isIOS() && !GAME.PWA.isStandalone();
   if (hasFs) slots.push('fs');
@@ -336,6 +358,12 @@ GAME.MenuScene.prototype._buildPhone = function () {
         UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, '닉네임 변경', function () {
           GAME.Account.logout();
           self.scene.start('Login');
+        }, { fontSize: 16 });
+      } else if (kind === 'music') {
+        var musLbl = function () { return GAME.Music.enabled ? '🎵 음악' : '🔕 음악'; };
+        var mb = UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, musLbl(), function () {
+          GAME.Music.toggle();
+          mb.text.setText(musLbl());
         }, { fontSize: 16 });
       } else if (kind === 'sound') {
         var sndLbl = function () { return GAME.Sound.enabled ? '🔊 켜짐' : '🔈 꺼짐'; };

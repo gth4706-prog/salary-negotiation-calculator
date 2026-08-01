@@ -7,6 +7,7 @@ GAME.SelectScene.prototype = Object.create(Phaser.Scene.prototype);
 GAME.SelectScene.prototype.constructor = GAME.SelectScene;
 
 GAME.SelectScene.prototype.create = function () {
+  if (GAME.Music) GAME.Music.play('versus');
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var P = GAME.CONFIG.PORTRAIT;

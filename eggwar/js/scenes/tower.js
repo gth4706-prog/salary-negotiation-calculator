@@ -15,6 +15,7 @@ GAME.TowerScene.prototype = Object.create(Phaser.Scene.prototype);
 GAME.TowerScene.prototype.constructor = GAME.TowerScene;
 
 GAME.TowerScene.prototype.create = function (data) {
+  if (GAME.Music) GAME.Music.play('tower');
   var C = GAME.CONFIG.COLORS;
 
   if (!GAME.Account.current()) { this.scene.start('Login'); return; }

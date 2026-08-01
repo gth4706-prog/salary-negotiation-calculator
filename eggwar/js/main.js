@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v0.91';
+GAME.VERSION = 'v0.92';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -22,6 +22,7 @@ window.addEventListener('load', function () {
 
   // 사운드 — 자동재생 정책 때문에 첫 사용자 입력에서 열린다(init 은 리스너만 건다)
   if (GAME.Sound) GAME.Sound.init();
+  if (GAME.Music) GAME.Music.init();
 
   // ── 폰트가 도착한 뒤에 게임을 만든다 ──────────────────────────────────────
   //  Phaser 의 Text 는 캔버스에 **한 번 구워지고 다시 안 그려진다.** 웹폰트가 늦게

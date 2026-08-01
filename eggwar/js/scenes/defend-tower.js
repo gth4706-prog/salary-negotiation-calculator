@@ -53,6 +53,7 @@ GAME.DefendTowerScene.prototype.init = function (data) {
 };
 
 GAME.DefendTowerScene.prototype.create = function () {
+  if (GAME.Music) GAME.Music.play('defend');
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var P = GAME.CONFIG.PORTRAIT;

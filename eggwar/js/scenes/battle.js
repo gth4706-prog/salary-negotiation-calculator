@@ -50,6 +50,7 @@ GAME.BattleScene.prototype.init = function (data) {
 };
 
 GAME.BattleScene.prototype.create = function () {
+  if (GAME.Music) GAME.Music.stop();
   var C = GAME.CONFIG.COLORS;
   var self = this;
 

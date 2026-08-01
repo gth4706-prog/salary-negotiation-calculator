@@ -127,6 +127,8 @@ GAME.TowerShopScene.prototype.create = function () {
     this.scene.start('Tower'); return;
   }
 
+  // 이 씬은 탑과 대전이 함께 쓴다 — 곡도 그 모드를 따라간다.
+  if (GAME.Music) GAME.Music.play(this.mode === 'arena' ? 'versus' : 'tower');
   this.char = this.src.rec();
   this.hero = GAME.HEROES[this.char.heroKey];
 

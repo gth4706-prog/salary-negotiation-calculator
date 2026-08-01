@@ -237,6 +237,8 @@ GAME.BuildScene.prototype._applyBoardProjection = function () {
 };
 
 GAME.BuildScene.prototype.create = function () {
+  // 배치 화면은 두 갈래다 — 수성의 탑이면 출정 행진, 대전이면 대기실.
+  if (GAME.Music) GAME.Music.play(this.defendTower ? 'defend' : 'versus');
   var C = GAME.CONFIG.COLORS;
   var UI = GAME.UI;
   var self = this;

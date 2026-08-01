@@ -110,6 +110,7 @@ GAME.RankScene.prototype._myText = function () {
 
 // ── PC(1340×900) · 세로(420×900) ───────────────────────────────────────────
 GAME.RankScene.prototype.create = function () {
+  if (GAME.Music) GAME.Music.play('lobby');
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var P = GAME.CONFIG.PORTRAIT;

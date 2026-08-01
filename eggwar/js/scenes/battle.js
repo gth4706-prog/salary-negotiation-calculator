@@ -941,6 +941,29 @@ GAME.BattleScene.prototype.update = function (time, delta) {
             }
             runRec = GAME.TowerChar.get();
           }
+        } else {
+          // ── 져도 **주운 동전은 내 것이다** (2026-08-01 사용자 신고) ──────────
+          //  "라운드가 끝나고 상점으로 바로 이동했더니 골드가 저장이 안 돼."
+          //  버그가 맞다. 전투 중 HUD 는 `_goldBase + _coins.collected` 를 띄워
+          //  **골드가 올라가는 걸 눈앞에서 세어 보여 준다.** 그런데 적립은 `if (won)`
+          //  안에만 있어서, 지면 그 숫자가 통째로 사라졌다. 화면이 거짓말을 한 것이다.
+          //
+          //  왜 주는 게 맞는가: `js/coin.js` 의 계약이 "`state.killGold` = **주운** 골드"다
+          //  (죽인 만큼이 아니라 발로 밟아 주운 만큼). 즉 이건 이미 플레이어가 몸으로
+          //  번 돈이다. 게다가 이번 개편에서 **패배해도 층이 안 돌아가고 캐릭터도 남는데**
+          //  주운 동전만 빼앗는 것은 그 설계와 어긋난다.
+          //
+          //  ⚠ 다만 **층 돌파 보너스는 안 준다.** 그건 '깼다는 사실'에 붙는 값이라
+          //    지면 안 붙는 게 맞다. 여기서 주는 것은 딱 주운 만큼이다.
+          //  ⚠ `goldGainFor` 를 쓰지 않는 이유: 그 함수에는 훅이 안 불렸을 때 층 총액을
+          //    통째로 주는 안전망이 있다. 이긴 판에서는 타당하지만 진 판에 그게 걸리면
+          //    **져서 오히려 많이 받는** 역전이 생긴다.
+          var picked = GAME.TowerRun ? GAME.TowerRun.earnedFrom(this.state) : 0;
+          if (picked > 0) {
+            goldGained = Math.round(picked * GAME.TowerRun.ruleGoldMul(this.tower) *
+                                    GAME.TowerChar.luckGoldMul());
+            if (goldGained > 0) runRec = GAME.TowerChar.addGold(goldGained);
+          }
         }
       }
     }

@@ -17,8 +17,20 @@
 .plan-size{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 
 /* 평면도 캔버스 */
-.plan-wrap{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;box-shadow:var(--shadow-sm)}
+.plan-wrap{position:relative;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;box-shadow:var(--shadow-sm)}
 #plan{display:block;width:100%;height:auto;touch-action:none;-webkit-user-select:none;user-select:none;max-height:min(40vh,380px)}
+
+/* 휴지통 영역 — 우측 구석. "화면 밖으로 나가야 삭제"가 아니라 눈에 보이는
+   자리에 정확히 놓아야만 지워지게 바꿨다(실수로 지워지는 사고를 줄인다).
+   드래그 중에만 나타난다 — 평소엔 화면을 안 차지한다. */
+.trash-zone{position:absolute;right:9px;bottom:9px;z-index:8;display:flex;align-items:center;gap:6px;
+  padding:8px 12px;border-radius:999px;background:color-mix(in srgb,var(--surface) 88%,transparent);
+  border:1.5px dashed var(--line-strong);box-shadow:var(--shadow);pointer-events:none;
+  transition:background .12s,border-color .12s,transform .12s}
+.trash-zone .tz-ic{font-size:16px;line-height:1}
+.trash-zone .tz-lb{font-size:11.5px;font-weight:800;color:var(--muted);white-space:nowrap}
+.trash-zone.over{background:var(--bad-bg);border-color:var(--bad);border-style:solid;transform:scale(1.08)}
+.trash-zone.over .tz-lb{color:var(--bad)}
 .room-fill{fill:var(--surface)}
 .room-wall{fill:none;stroke:var(--ink);stroke-width:6;vector-effect:non-scaling-stroke;stroke-linejoin:miter}
 .dim-txt{fill:var(--muted);font-size:20px;font-family:var(--mono);text-anchor:middle;dominant-baseline:middle}
@@ -50,9 +62,14 @@
 .furn.bad rect{fill:color-mix(in srgb,var(--bad) 22%,var(--surface));stroke:var(--bad)}
 .furn.is-fixture rect{fill:color-mix(in srgb,var(--warm-ink) 20%,var(--surface));stroke:var(--warm-ink)}
 .furn.is-fixture.sel rect{stroke:var(--bad);stroke-width:3}
-.furn text{fill:var(--ink);font-size:19px;text-anchor:middle;dominant-baseline:middle;pointer-events:none;font-weight:700}
+/* 글자 가독성 — 실루엣 아이콘이 밑에 깔리면서 배경이 일정하지 않아졌다.
+   흰 테두리(halo)를 둘러 어떤 실루엣·바닥색 위에서도 읽히게 한다.
+   paint-order:stroke 로 테두리를 글자 밑에 먼저 깐다(테두리가 획을 먹지 않게). */
+.furn text{fill:var(--ink);font-size:19px;text-anchor:middle;dominant-baseline:middle;pointer-events:none;font-weight:800;
+  paint-order:stroke fill;stroke:var(--paper);stroke-width:3.5px;stroke-linejoin:round}
 .furn.is-fixture text{fill:var(--warm-ink)}
-.furn .sz{fill:var(--muted);font-size:16px;font-weight:500;font-family:var(--mono)}
+.furn .sz{fill:var(--muted);font-size:16px;font-weight:700;font-family:var(--mono);
+  paint-order:stroke fill;stroke:var(--paper);stroke-width:3px;stroke-linejoin:round}
 .furn .front{stroke:var(--accent-ink);stroke-width:5;vector-effect:non-scaling-stroke;opacity:.55}
 .furn.is-fixture .front{stroke:var(--warm-ink)}
 .clear-zone{fill:color-mix(in srgb,var(--warn) 16%,transparent);stroke:none;pointer-events:none}
@@ -135,3 +152,24 @@
 
 /* ---------- 언어 전환 ---------- */
 .lang-switch{font-size:12px!important;font-weight:800!important;letter-spacing:.02em}
+
+/* ---------- 예시 띠지 ──────────────────────────────────────────────────
+ * "이렇게 만들어볼 수 있다"를 말이 아니라 실물로 보여준다. 실제 렌더링
+ * 코드로 만든 배치도 20개가 오른쪽에서 왼쪽으로 흐른다(세트를 두 번 이어
+ * 붙이고 -50% 만 옮기면 이음매 없이 반복된다 — planner.js `renderExamples`).
+ * `prefers-reduced-motion` 은 style.css 의 전역 규칙이 애니메이션 자체를
+ * 꺼 준다(별도 처리 불필요). */
+.example-wrap{margin:4px 0 2px}
+.example-lead{margin:0 0 10px;font-size:13px;font-weight:800;color:var(--muted);letter-spacing:-.01em;text-align:center}
+.example-viewport{
+  overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);
+}
+.example-track{display:flex;gap:14px;width:max-content;animation:example-scroll 110s linear infinite}
+.example-track:hover{animation-play-state:paused}
+@keyframes example-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.example-card{flex:none;width:clamp(200px,46vw,258px);display:flex;flex-direction:column;gap:7px}
+.example-svg{display:block;width:100%;height:clamp(150px,38vw,196px);background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:var(--shadow-sm)}
+.example-svg .room-wall{stroke-width:7}
+.example-cap{font-size:11.5px;font-weight:700;color:var(--faint);text-align:center}

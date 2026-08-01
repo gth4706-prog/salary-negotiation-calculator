@@ -90,6 +90,34 @@
     ]}
   ];
 
+  /* ---------- 첫 화면 예시 띠지(마퀴) — "이렇게 만들어볼 수 있다"를 실물로 보여준다 ----------
+   * 가짜 이미지를 만드는 대신 **실제 렌더링 코드를 그대로 재사용**한다 — 방 모양 생성
+   * (buildShapeTileSet)·자동 배치·아이콘까지 실제 도구가 만드는 것과 완전히 똑같다.
+   * `picks` 는 [카테고리 인덱스, 그 안의 항목 인덱스] — PRESETS 를 그대로 가리킨다.
+   * 16가지 방 형태를 고루 돌아가게 골랐다. */
+  var EXAMPLES=[
+    {py:6,   shape:"square",    picks:[[0,3],[2,0],[2,2],[1,0]]},
+    {py:4.5, shape:"tall",      picks:[[0,0],[2,0],[1,3]]},
+    {py:8,   shape:"wide",      picks:[[3,1],[3,2],[3,4]]},
+    {py:5,   shape:"corner-tr", picks:[[4,0],[4,1],[4,7]]},
+    {py:6,   shape:"square",    picks:[[0,3],[2,3],[1,1]]},
+    {py:7,   shape:"verywide",  picks:[[0,4],[1,2],[3,2]]},
+    {py:4,   shape:"verytall",  picks:[[0,1],[2,1],[1,4]]},
+    {py:9,   shape:"corner-tl", picks:[[3,0],[3,2],[3,3],[4,1]]},
+    {py:6,   shape:"corner-br", picks:[[0,2],[2,0],[4,0]]},
+    {py:10,  shape:"ushape",    picks:[[3,1],[0,3],[1,0]]},
+    {py:7,   shape:"tshape",    picks:[[0,0],[4,0],[4,1],[4,3]]},
+    {py:5.5, shape:"alcove",    picks:[[0,1],[2,0],[1,5]]},
+    {py:6,   shape:"nick",      picks:[[0,3],[1,1],[2,3]]},
+    {py:8,   shape:"octagon",   picks:[[3,0],[3,3],[1,4]]},
+    {py:7,   shape:"stair",     picks:[[0,2],[2,1],[4,2]]},
+    {py:9,   shape:"hall",      picks:[[4,11],[4,3],[0,3],[1,0]]},
+    {py:11,  shape:"verywide",  picks:[[3,1],[3,2],[0,4],[4,2]]},
+    {py:10,  shape:"square",    picks:[[0,4],[2,1],[1,2],[2,3]]},
+    {py:6,   shape:"tall",      picks:[[0,3],[4,1],[4,0]]},
+    {py:7,   shape:"wide",      picks:[[0,2],[2,0],[1,3]]}
+  ];
+
   /* ---------- 문구 (동적으로 만들어지는 것만 — 정적 HTML은 페이지별로 직접 번역) ---------- */
   var T={
     ko:{
@@ -114,7 +142,9 @@
       defName:"가구",
       coachPreset:"가구를 눌러보세요 — 바로 추가돼요",
       coachDrag:"평면도에서 끌어서 옮겨보세요",
-      coachDiag:"여기서 통로·겹침을 확인하세요"
+      coachDiag:"여기서 통로·겹침을 확인하세요",
+      exampleLead:"이렇게 만들어볼 수 있어요",
+      exampleCap:function(py){return py+"평 예시"}
     },
     en:{
       phaseShape:"Adjusting shape", phasePlace:"Placing furniture",
@@ -138,7 +168,9 @@
       defName:"Furniture",
       coachPreset:"Tap a piece — it's added instantly",
       coachDrag:"Drag it on the plan to move it",
-      coachDiag:"Check passages and overlaps here"
+      coachDiag:"Check passages and overlaps here",
+      exampleLead:"Here's what you can build",
+      exampleCap:function(py){return "Example (" + py + " py)"}
     }
   };
   var S=T[LANG];
@@ -497,9 +529,91 @@
     if($("stepA-modal"))$("stepA-modal").hidden=true;
     if($("hero"))$("hero").hidden=true;
     if($("privacy-note"))$("privacy-note").hidden=true;
+    if($("example-wrap"))$("example-wrap").hidden=true;
     applyShape(py*PYEONG,state.pendingShapeKind);
     reveal("stepShape");
   });
+
+  /* ---------- 예시 띠지 ---------- */
+  /**
+   * 예시 하나를 실제 렌더링 코드로 그려 카드 하나(<div class="example-card">)로 만든다.
+   * `buildShapeTileSet`(방 형태 생성)와 `inter`(겹침 판정)는 그대로 재사용한다 —
+   * 진짜 도구가 만드는 배치와 100% 같은 결과가 나온다는 뜻이다(가짜 목업이 아니다).
+   * 방 범위는 roomBBox() 와 같은 방식으로 **꽉 채워서** 자른다 — 작은 카드 안에서
+   * 여백 낭비 없이 방이 크게 보여야 "충분한 사이즈"라는 요청을 만족한다.
+   */
+  function exampleCard(cfg){
+    var built=buildShapeTileSet(cfg.py*PYEONG,cfg.shape);
+    var ts=built.tileSet, gw=built.gridW, gh=built.gridH;
+
+    var minC=Infinity,minR=Infinity,maxC=-Infinity,maxR=-Infinity;
+    ts.forEach(function(k){
+      var p=k.split(","),c=+p[0],r=+p[1];
+      if(c<minC)minC=c; if(c>maxC)maxC=c; if(r<minR)minR=r; if(r>maxR)maxR=r;
+    });
+    var bb={x:minC*TILE,y:minR*TILE,w:(maxC-minC+1)*TILE,h:(maxR-minR+1)*TILE};
+
+    var items=[];
+    cfg.picks.forEach(function(pick){
+      var p=PRESETS[pick[0]].l[pick[1]], isFixture=!!PRESETS[pick[0]].fixture;
+      var it={w:p.w,h:p.h,x:0,y:0,kind:isFixture?"fixture":"furn",ic:p.ic||null};
+      var placed=false;
+      for(var r=0;r<gh*TILE-p.h+1&&!placed;r+=SNAP)for(var c=0;c<gw*TILE-p.w+1&&!placed;c+=SNAP){
+        var rr={x:c,y:r,w:p.w,h:p.h};
+        var pts=[[rr.x+1,rr.y+1],[rr.x+rr.w-1,rr.y+1],[rr.x+1,rr.y+rr.h-1],[rr.x+rr.w-1,rr.y+rr.h-1],[rr.x+rr.w/2,rr.y+rr.h/2]];
+        var okIn=true;
+        for(var pi=0;pi<pts.length;pi++){
+          var cc=Math.floor(pts[pi][0]/TILE), rw=Math.floor(pts[pi][1]/TILE);
+          if(!ts.has(tileKey(cc,rw))){okIn=false;break;}
+        }
+        if(okIn&&!items.some(function(o){return inter(rr,o)>0})){it.x=c;it.y=r;placed=true;}
+      }
+      if(placed)items.push(it);
+    });
+
+    var pad=TILE*0.7;
+    var svgEl=el("svg",{
+      viewBox:(bb.x-pad)+" "+(bb.y-pad)+" "+(bb.w+pad*2)+" "+(bb.h+pad*2),
+      class:"example-svg","aria-hidden":"true",focusable:"false"
+    });
+    var gf=el("g",{},svgEl);
+    ts.forEach(function(k){
+      var p=k.split(","),c=+p[0],r=+p[1];
+      el("rect",{x:c*TILE,y:r*TILE,width:TILE,height:TILE,class:"room-fill"},gf);
+    });
+    var gfu=el("g",{},svgEl);
+    items.forEach(function(it){
+      var grp=el("g",{class:"furn"+(it.kind==="fixture"?" is-fixture":"")},gfu);
+      el("rect",{x:it.x,y:it.y,width:it.w,height:it.h},grp);
+      if(window.FURN_ICONS&&it.ic&&window.FURN_ICONS[it.ic]){
+        var ic=el("svg",{x:it.x,y:it.y,width:it.w,height:it.h,viewBox:"0 0 100 100",preserveAspectRatio:"none",class:"furn-ico"},grp);
+        ic.innerHTML=window.FURN_ICONS[it.ic];
+      }
+    });
+    var go=el("g",{},svgEl);
+    ts.forEach(function(k){
+      var p=k.split(","),c=+p[0],r=+p[1],x=c*TILE,y=r*TILE;
+      if(!ts.has(tileKey(c,r-1)))el("line",{x1:x,y1:y,x2:x+TILE,y2:y,class:"room-wall"},go);
+      if(!ts.has(tileKey(c,r+1)))el("line",{x1:x,y1:y+TILE,x2:x+TILE,y2:y+TILE,class:"room-wall"},go);
+      if(!ts.has(tileKey(c-1,r)))el("line",{x1:x,y1:y,x2:x,y2:y+TILE,class:"room-wall"},go);
+      if(!ts.has(tileKey(c+1,r)))el("line",{x1:x+TILE,y1:y,x2:x+TILE,y2:y+TILE,class:"room-wall"},go);
+    });
+
+    var card=document.createElement("div"); card.className="example-card";
+    card.appendChild(svgEl);
+    var cap=document.createElement("span"); cap.className="example-cap"; cap.textContent=S.exampleCap(cfg.py);
+    card.appendChild(cap);
+    return card;
+  }
+
+  /** 세트를 두 번 이어붙여 넣는다 — CSS가 -50% 만큼만 옮기면 이음매 없이 반복된다. */
+  function renderExamples(){
+    var track=$("example-track"); if(!track)return;
+    for(var pass=0;pass<2;pass++){
+      EXAMPLES.forEach(function(cfg){ track.appendChild(exampleCard(cfg)); });
+    }
+    if($("example-lead"))$("example-lead").textContent=S.exampleLead;
+  }
 
   /* ---------- 방 형태 프리셋(공간 감각 없어도 고를 수 있게, 16종) ---------- */
   function baseDims(area,ratio){
@@ -684,6 +798,22 @@
     return pt.matrixTransform(svg.getScreenCTM().inverse());
   }
 
+  /* ---------- 삭제는 휴지통 영역으로 ────────────────────────────────────
+     예전엔 "화면 밖으로 드래그하면 삭제"였다. 사용자 피드백: "화면밖으로
+     나가야 삭제가아니라 우측 구석에 휴지통 영역을 만들어줘." 목표가 안 보이는
+     채로 "여기쯤이면 없어지겠지" 하고 던지는 조작은 위험하다 — 살짝만 세게
+     끌어도 실수로 지워진다. 이제 **눈에 보이는 자리**에 놓아야만 지워진다.
+     화면 밖으로 나가면 그냥 '방 밖'으로 빨갛게 표시될 뿐 사라지지 않는다
+     (기존 validate() 의 "방 밖으로 나가 있습니다" 오류가 그대로 처리한다). */
+  var trashEl=$("trash-zone");
+  function inTrash(clientX,clientY){
+    if(!trashEl)return false;
+    var r=trashEl.getBoundingClientRect();
+    return clientX>=r.left&&clientX<=r.right&&clientY>=r.top&&clientY<=r.bottom;
+  }
+  function showTrash(){ if(trashEl)trashEl.hidden=false; }
+  function hideTrash(){ if(trashEl){trashEl.hidden=true; trashEl.classList.remove("over");} }
+
   /* ---------- 포인터 통합 핸들러 ---------- */
   var drag=null; // {ref, dx, dy}
 
@@ -707,6 +837,7 @@
     drag={ref:it,dx:p.x-it.x,dy:p.y-it.y};
     fEl.classList.add("dragging");
     svg.setPointerCapture(e.pointerId);
+    showTrash();
     e.preventDefault();
   });
 
@@ -720,11 +851,11 @@
     }
     if(!drag)return;
     var p2=toSvg(e);
-    var svgRect=svg.getBoundingClientRect();
-    var outNow=e.clientX<svgRect.left||e.clientX>svgRect.right||e.clientY<svgRect.top||e.clientY>svgRect.bottom;
+    var overTrash=inTrash(e.clientX,e.clientY);
+    if(trashEl)trashEl.classList.toggle("over",overTrash);
     drag.ref.x=snap(p2.x-drag.dx); drag.ref.y=snap(p2.y-drag.dy);
     renderDiag();
-    if(outNow)showHint(e.clientX,e.clientY,S.hintDelete,"err");
+    if(overTrash)showHint(e.clientX,e.clientY,S.hintDelete,"err");
     else{var h=itemHint(rect(drag.ref),drag.ref); showHint(e.clientX,e.clientY,h.t,h.l);}
     e.preventDefault();
   });
@@ -736,15 +867,14 @@
       return;
     }
     if(!drag)return;
-    var svgRect2=svg.getBoundingClientRect();
-    var outEnd=e.clientX<svgRect2.left||e.clientX>svgRect2.right||e.clientY<svgRect2.top||e.clientY>svgRect2.bottom;
-    if(outEnd){
+    if(inTrash(e.clientX,e.clientY)){
       state.items=state.items.filter(function(x){return x.id!==drag.ref.id});
       state.selId=null; syncSel();
     }
     drag=null;
     try{svg.releasePointerCapture(e.pointerId)}catch(_){}
     hideHint();
+    hideTrash();
     renderDiag();
   }
   svg.addEventListener("pointerup",endDrag);
@@ -859,10 +989,12 @@
   /* ---------- 초기화 ---------- */
   updPyOut();
   renderShapeGrid((+$("py").value||6)*PYEONG);
+  renderExamples();
   if(decode()){
     if($("stepA-modal"))$("stepA-modal").hidden=true;
     if($("hero"))$("hero").hidden=true;
     if($("privacy-note"))$("privacy-note").hidden=true;
+    if($("example-wrap"))$("example-wrap").hidden=true;
     state.phase="D";
     $("plan-sticky").hidden=false;
     $("phase-badge").textContent=S.phasePlace;

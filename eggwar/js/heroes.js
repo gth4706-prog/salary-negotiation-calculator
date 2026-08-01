@@ -588,7 +588,9 @@ GAME.skillAtkCoef = function (sk) {
   if (!sk) return 0;
   // 피해가 0 인 스킬(은신·정화 같은 순수 유틸)은 계수를 안 준다 — 줘도 쓸 데가 없고,
   // 0 에 곱해 봐야 0 이라 오히려 '왜 안 세지지' 하는 혼란만 만든다.
-  if (!(sk.damage > 0)) return 0;
+  //  ⚠ 단 **`dps` 도 피해다**(구역 스킬). `damage` 만 보다가 파수꾼 궁극기가
+  //    통째로 계수 밖에 있었다(2026-08-02 사용자 신고).
+  if (!(sk.damage > 0) && !(sk.dps > 0)) return 0;
   if (typeof sk.atkCoef === 'number') return sk.atkCoef;      // 손으로 준 값이 있으면 그것
   var S = GAME.SKILL_COEF;
   // 값에 따른 차등은 **탑에서만**. 대전은 전부 같은 기본 계수를 쓴다(위 주석 참조).
@@ -620,6 +622,13 @@ GAME.scaleSkillByPrice = function (sk) {
   sk._priced = true;
   var m = GAME.skillPriceMul(sk.cost);
   if (sk.damage) sk.damage = Math.round(sk.damage * m.dmg);
+  // ⚠ **`dps` 를 빠뜨리고 있었다** (2026-08-02, 사용자 신고: "파수꾼 궁극기에 적용
+  //   안 된 것 같아"). 구역(aura) 스킬은 피해를 `damage` 가 아니라 `dps` 로 적는데
+  //   여기 목록에 없어서 값 배수가 통째로 안 걸렸다. 그 결과 파수꾼 R 슬롯에서
+  //   **무료 '파수 구역' 초당 32 가 250골드 '경계 화톳불' 초당 22 보다 셌다** —
+  //   돈을 쓸수록 약해지는 역전이다.
+  //   교훈: 새 능력 필드를 만들면 **이 목록과 `skillAtkCoef` 둘 다** 손봐야 한다.
+  if (sk.dps) sk.dps = Math.round(sk.dps * m.dmg);
   if (sk.healNow) sk.healNow = Math.round(sk.healNow * m.dmg);
   if (sk.shield) sk.shield = Math.round(sk.shield * m.dmg);
   if (sk.armorAdd) sk.armorAdd = Math.round(sk.armorAdd * m.dmg);
@@ -651,6 +660,11 @@ GAME.skillEffective = function (sk, atk, arm) {
   if (ac > 0 && sk.damage > 0) {
     var flat = Math.max(sk.damage * S.floorRatio, sk.damage - S.refAtk * ac);
     out.damage = Math.round(flat + (atk || 0) * ac);
+  }
+  // 구역 스킬 — 초당 피해도 같은 규칙으로 자란다.
+  if (ac > 0 && sk.dps > 0) {
+    var fl3 = Math.max(sk.dps * S.floorRatio, sk.dps - S.refAtk * ac);
+    out.dps = Math.round(fl3 + (atk || 0) * ac);
   }
   var dc = GAME.skillDefCoef(sk);
   if (dc > 0 && sk.shield > 0) {

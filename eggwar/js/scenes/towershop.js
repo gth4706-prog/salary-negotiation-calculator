@@ -972,11 +972,17 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
     var K = GAME.SKILL_COEF;
     var b = GAME.TowerChar.statBonus(self.char), ib = GAME.TowerChar.itemBonus(self.char);
     var line;
-    if (ac > 0) {
+    if (ac > 0 && priced.damage > 0) {
       var atk = (self.hero.damage || 0) + (b.damage || 0) + (ib.damage || 0);
       var flat = Math.max(priced.damage * K.floorRatio, priced.damage - K.refAtk * ac);
       line = '기본 ' + Math.round(flat) + '  +  공격력 ' + GAME.UI.numAbbr(atk) +
              ' × ' + ac.toFixed(2) + '  =  ' + GAME.UI.numAbbr(shown.damage);
+    } else if (ac > 0 && priced.dps > 0) {
+      // 구역 스킬 — 초당 피해로 같은 식을 보여 준다(2026-08-02).
+      var atk2 = (self.hero.damage || 0) + (b.damage || 0) + (ib.damage || 0);
+      var fl3 = Math.max(priced.dps * K.floorRatio, priced.dps - K.refAtk * ac);
+      line = '초당  기본 ' + Math.round(fl3) + '  +  공격력 ' + GAME.UI.numAbbr(atk2) +
+             ' × ' + ac.toFixed(2) + '  =  ' + GAME.UI.numAbbr(shown.dps);
     } else {
       var arm = (self.hero.armor || 0) + (b.armor || 0) + (ib.armor || 0);
       var fl2 = Math.max(priced.shield * K.floorRatio, priced.shield - K.refArm * dc);

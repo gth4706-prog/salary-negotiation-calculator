@@ -837,6 +837,19 @@ GAME.Combat = {
     return Math.round(flat + atk * coef);
   },
 
+  // 구역(aura) 스킬의 초당 피해. `damage` 와 같은 규칙을 쓴다 —
+  //  ⚠ 이 필드를 빠뜨려서 파수꾼 궁극기만 계수 밖에 있었다(2026-08-02 신고).
+  _skillDps: function (u, sk) {
+    var base = (sk && sk.dps) || 0;
+    if (!(base > 0) || !GAME.skillAtkCoef) return base;
+    var coef = GAME.skillAtkCoef(sk);
+    if (!(coef > 0)) return base;
+    var S = GAME.SKILL_COEF;
+    var atk = (u && u.def && u.def.damage) || 0;
+    var flat = Math.max(base * S.floorRatio, base - S.refAtk * coef);
+    return Math.round(flat + atk * coef);
+  },
+
   // 보호막·방어 부여는 **방어력**을 탄다(공격력을 태우면 딜러가 더 단단해진다).
   _skillShield: function (u, sk) {
     var base = (sk && sk.shield) || 0;
@@ -1027,7 +1040,9 @@ GAME.Combat = {
       });
 
     } else if (sk.type === 'aura') {
-      u.auras.push({ radius: sk.radius, dps: sk.dps, t: sk.duration, tick: 0 });
+      // 구역 스킬의 초당 피해도 계수를 탄다(`_skillPower` 와 같은 규칙).
+      u.auras.push({ radius: sk.radius, dps: this._skillDps(u, sk),
+                     t: sk.duration, tick: 0 });
     }
 
     u.skillCd[slot] = sk.cooldown * (u.cdrMul || 1);

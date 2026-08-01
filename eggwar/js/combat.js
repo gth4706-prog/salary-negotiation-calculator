@@ -562,9 +562,16 @@ GAME.Combat = {
 
   pushNumber: function (state, unit, amount, crit) {
     if (amount <= 0) return;
+    // ⚠ **세로로 층을 나눈다** (2026-08-01). 광역기 한 방이 열 기를 동시에 때리면
+    //   숫자 열 개가 **같은 높이로** 나란히 떠서 서로를 밟는다. 좌우로만 흩어서는
+    //   안 풀린다 — 유닛들이 애초에 가까이 붙어 있기 때문이다.
+    //   스킬에 계수가 붙어 숫자가 길어진 뒤(예: "2.6k!") 겹침이 눈에 띄게 늘었다
+    //   (겹침 감사 0건 → 13건). 뜨는 순서대로 세 층에 번갈아 올린다.
+    state._numSeq = ((state._numSeq || 0) + 1) % 3;
     state.numbers.push({
-      x: unit.x + (Math.random() - 0.5) * 30,
+      x: unit.x + (Math.random() - 0.5) * 44,
       y: unit.y,
+      yOff: state._numSeq * 17,
       // 좌우로 퍼지게 흘려보낸다 — 같은 자리에서 여러 대 맞으면 숫자가 뭉쳐 읽을 수 없다
       drift: (Math.random() - 0.5) * 46,
       value: Math.round(amount),
@@ -807,6 +814,32 @@ GAME.Combat = {
     return this.castSkill(u, slot, u.x + Math.cos(ang) * reach, u.y + Math.sin(ang) * reach, state);
   },
 
+  // 이번 시전의 실제 피해 — 고정값 + 공격력 × 계수.
+  //  ⚠ 계수는 `damage > 0` 인 스킬에만 붙는다(유틸 스킬은 0 이라 곱해도 0).
+  _skillPower: function (u, sk) {
+    var base = (sk && sk.damage) || 0;
+    if (!(base > 0) || !GAME.skillAtkCoef) return base;
+    var coef = GAME.skillAtkCoef(sk);
+    if (!(coef > 0)) return base;
+    var S = GAME.SKILL_COEF;
+    var atk = (u && u.def && u.def.damage) || 0;
+    // 기준 공격력에서 **손익 0** 이 되게 고정값을 미리 깎는다(SKILL_COEF 주석 참조).
+    var flat = Math.max(base * S.floorRatio, base - S.refAtk * coef);
+    return Math.round(flat + atk * coef);
+  },
+
+  // 보호막·방어 부여는 **방어력**을 탄다(공격력을 태우면 딜러가 더 단단해진다).
+  _skillShield: function (u, sk) {
+    var base = (sk && sk.shield) || 0;
+    if (!(base > 0) || !GAME.skillDefCoef) return base;
+    var coef = GAME.skillDefCoef(sk);
+    if (!(coef > 0)) return base;
+    var S = GAME.SKILL_COEF;
+    var arm = (u && u.def && u.def.armor) || 0;
+    var flat = Math.max(base * S.floorRatio, base - S.refArm * coef);
+    return Math.round(flat + arm * coef);
+  },
+
   castSkill: function (u, slot, tx, ty, state) {
     if (!this.skillReady(u, slot)) return false;
     var sk = null;
@@ -819,6 +852,14 @@ GAME.Combat = {
     u.facing = ang;
     var self = this;
     var i2, o;
+
+    // ── 스킬 계수 (2026-08-01 사용자 지시) ──────────────────────────────────
+    //  `피해 = 고정값 + 공격력 × 계수`. **여기서 계산해야** 아이템·능력치·버프가
+    //  전부 실린다 — 스킬을 만들 때 곱하면 그 뒤에 붙는 보정이 하나도 안 들어간다.
+    //  아래에서 `sk.damage` 대신 `skDmg` 를 쓴다(전부 바꿔야 한다. 하나만 놓치면
+    //  그 스킬만 조용히 옛 수치로 돈다 — 이 저장소가 반복해 겪은 실패 모드다).
+    var skDmg = this._skillPower(u, sk);
+    var skShield = this._skillShield(u, sk);
 
     // 스킬 시전음 — 광역/폭발 계열은 묵직하게, 나머지는 솟는 톤으로
     if (GAME.Sound) {
@@ -834,13 +875,13 @@ GAME.Combat = {
       var fromX = u.x, fromY = u.y;
       u.x = nx; u.y = ny;
       this.clampToArena(u);
-      if (sk.damage > 0) {
+      if (skDmg > 0) {
         var dashHit = 0, dashLs = this._lsBudget(u);
         for (i2 = 0; i2 < state.units.length; i2++) {
           o = state.units[i2];
           if (!o.alive || o.side === u.side) continue;
           if (this._distToSegment(o, fromX, fromY, u.x, u.y) <= sk.radius + o.def.radius) {
-            this.applyDamage(o, sk.damage, u, state, { lsScale: this._ls(dashHit++), lsBudget: dashLs });
+            this.applyDamage(o, skDmg, u, state, { lsScale: this._ls(dashHit++), lsBudget: dashLs });
           }
         }
       }
@@ -856,7 +897,7 @@ GAME.Combat = {
         if (!o.alive || o.side === u.side) continue;
         var d = this.dist(u, o);
         if (d <= sk.radius + o.def.radius) {
-          this.applyDamage(o, sk.damage, u, state, { lsScale: this._ls(aoeHit++), lsBudget: aoeLs });
+          this.applyDamage(o, skDmg, u, state, { lsScale: this._ls(aoeHit++), lsBudget: aoeLs });
           if (sk.rootMs) o.rootedFor = Math.max(o.rootedFor, sk.rootMs);
           if (sk.knockback && d > 0.1) {
             var kx = (o.x - u.x) / d, ky = (o.y - u.y) / d;
@@ -877,7 +918,7 @@ GAME.Combat = {
           kind: 'telegraph', x: tx, y: ty, r: sk.radius,
           t: sk.telegraph + r * (sk.interval || 600),
           total: sk.telegraph,
-          damage: sk.damage, side: u.side, owner: u
+          damage: skDmg, side: u.side, owner: u
         });
       }
 
@@ -888,7 +929,7 @@ GAME.Combat = {
           x: u.x, y: u.y,
           vx: Math.cos(ang) * sk.speed,
           vy: Math.sin(ang) * sk.speed,
-          damage: sk.damage,
+          damage: skDmg,
           side: u.side,
           radius: sk.radius,
           life: 3000,
@@ -908,7 +949,7 @@ GAME.Combat = {
       var tgt = this.nearestEnemy(u, state.units);
       if (tgt && this.dist(u, tgt) <= u.def.range + 70) {
         u._lsMul = sk.lifestealMul || 1;
-        this.applyDamage(tgt, sk.damage, u, state);
+        this.applyDamage(tgt, skDmg, u, state);
         u._lsMul = 1;
         if (sk.rootMs) tgt.rootedFor = Math.max(tgt.rootedFor, sk.rootMs);
         state.effects.push({
@@ -926,7 +967,7 @@ GAME.Combat = {
         damageMul: sk.damageMul || 1,
         t: sk.duration
       });
-      if (sk.shield) u.shield += sk.shield;
+      if (skShield) u.shield += skShield;
       if (sk.healNow) this.heal(u, sk.healNow);
       state.effects.push({
         kind: 'ring', x: u.x, y: u.y, r: u.def.radius + 26,
@@ -944,7 +985,7 @@ GAME.Combat = {
         var aa = Math.atan2(o.y - u.y, o.x - u.x);
         var df = Math.atan2(Math.sin(aa - ang), Math.cos(aa - ang));
         if (Math.abs(df) > halfP) continue;
-        this.applyDamage(o, sk.damage, u, state, { lsScale: this._ls(pullHit++), lsBudget: pullLs });
+        this.applyDamage(o, skDmg, u, state, { lsScale: this._ls(pullHit++), lsBudget: pullLs });
         // 영웅 쪽으로 끌어당긴다 (leash는 그대로 적용되어 진형이 무너지진 않는다)
         var pullTo = Math.max(0, dd - 120);
         o.x = u.x + Math.cos(aa) * pullTo;
@@ -964,7 +1005,7 @@ GAME.Combat = {
       var px2 = td > maxD ? u.x + (tdx / td) * maxD : tx;
       var py2 = td > maxD ? u.y + (tdy / td) * maxD : ty;
       state.traps.push({
-        x: px2, y: py2, radius: sk.radius, damage: sk.damage,
+        x: px2, y: py2, radius: sk.radius, damage: skDmg,
         rootMs: sk.rootMs, life: sk.life, side: u.side, owner: u
       });
 

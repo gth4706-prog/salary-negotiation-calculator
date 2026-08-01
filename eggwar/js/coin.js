@@ -387,6 +387,9 @@ window.GAME = window.GAME || {};
           color: TXT.crit, stroke: GAME.UI.outlineFor(TXT.crit), strokeThickness: 4
         }).setOrigin(0.5);
         if (t.setResolution && GAME.UI.TEXT_RES > 1) t.setResolution(GAME.UI.TEXT_RES);
+        // 피해 숫자와 **같은 성격**이다 — 떠올랐다 사라지는 연출이라 겹침 감사에서 뺀다
+        // (이유는 js/scenes/battle.js 의 `__floating` 주석 참조).
+        t.__floating = true;
         // 전장의 일부다 — 확대하면 같이 움직여야 한다(피해 숫자와 같은 취급)
         if (sc.worldLayer) sc.worldLayer.add(t);
         slot = { txt: t, t: 0, x: 0, y: 0 };

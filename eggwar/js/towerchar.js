@@ -28,6 +28,9 @@ GAME.TowerChar = {
   //  `luck`(행운)은 5번째 축 — 골드 획득 배수 + 치유 구역 등장 확률을 같이 올린다
   //  (js/healzone.js 의 `luckHealMul`, 아래 `luckGoldMul` 참조).
   STAT_DEFS: [
+    // ⚠ `max` 는 이제 **상한이 아니라 막대의 기준선**이다(2026-08-01 상한 폐지).
+    //   구매를 막는 데는 안 쓰이고, 진행 막대의 분모로만 쓴다. 그 선을 넘어서면
+    //   `statCeil` 이 분모를 함께 늘려 막대가 꽉 찬 채 멈추지 않게 한다.
     { key: 'damage', name: '공격력',   add: 2,  cost: 8,  step: 3, max: 60 },
     { key: 'hp',     name: '체력',     add: 45, cost: 8,  step: 3, max: 60 },
     { key: 'armor',  name: '방어력',   add: 3,  cost: 9,  step: 4, max: 50 },
@@ -163,7 +166,11 @@ GAME.TowerChar = {
     var d = this.statDef(key);
     if (!rec || !d) return null;
     var lv = rec.stats[key] || 0;
-    if (lv >= d.max) return null;
+    // ⚠ **상한이 없다** (2026-08-01 사용자 지시: "능력치 업그레이드는 한계없도록해줘").
+    //   예전엔 `lv >= d.max` 에서 막고 화면에 '최대' 를 띄웠다. 무한의 탑에 상한이
+    //   있으면 어느 시점부터 골드가 갈 곳을 잃는다 — 층은 끝없이 오르는데 성장만 멈춘다.
+    //   대신 **값이 계단으로 오르므로**(costOf = cost + step×lv) 경제가 스스로 제동을
+    //   건다. 50레벨이면 공격력 한 칸에 158골드다.
     var cost = this.costOf(key, lv);
     if (rec.gold < cost) return null;
     rec.gold -= cost;
@@ -200,7 +207,18 @@ GAME.TowerChar = {
   //  = 영웅 기본 head-start 최대 + 복권 상한(add×max×1.4) + 슬롯별 최고 아이템 합.
   // 영웅마다 다른 head-start 는 **최대값**을 쓴다 — 분모가 영웅마다 달라지면 같은
   // 수치가 영웅에 따라 다른 길이로 보여 비교가 안 된다.
-  statCeil: function (key) {
+  //  ⚠ 상한을 없앤 뒤로는 **분모도 같이 자라야 한다.** 안 그러면 기준선을 넘는 순간
+  //    막대가 꽉 찬 채로 멈춰서 "더 올려도 아무 일 없다"처럼 보인다(상한이 없다는
+  //    사실과 화면이 어긋난다). `current` 를 주면 그 값보다 항상 여유 있는 분모를 준다.
+  statCeil: function (key, current) {
+    var base = this._statCeilBase(key);
+    if (typeof current === 'number' && current > base * 0.92) {
+      return Math.max(base, current * 1.22);
+    }
+    return base;
+  },
+
+  _statCeilBase: function (key) {
     if (this._ceil && this._ceil[key] !== undefined) return this._ceil[key];
     if (!this._ceil) this._ceil = {};
     var d = this.statDef(key);

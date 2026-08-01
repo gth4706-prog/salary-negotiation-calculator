@@ -66,7 +66,19 @@ GAME.TowerShopScene.SOURCES = {
     skillBuy: function (slot, idx) { return !!GAME.TowerChar.buySkill(slot, idx); },
     skillEquip: function (slot, idx) { return !!GAME.TowerChar.equipSkill(slot, idx); },
     // 탑은 가격 배수가 걸린다 — 상점 표기도 그 값이어야 거짓말을 안 한다.
-    shownSkill: function (o) { return GAME.skillPricedCopy ? GAME.skillPricedCopy(o) : o; }
+    //  ⚠ 2026-08-01 — **계수까지 얹는다.** 스킬 피해가 `고정값 + 공격력 × 계수` 로
+    //    바뀌었으므로, 값 배수만 얹은 숫자는 이제 실제 피해가 아니다.
+    //    여기서 지금 내 능력치를 넣어 계산해야 "무기를 사면 스킬도 세진다"가
+    //    **화면에서 보인다** — 그게 이번 개편의 목적이기도 하다.
+    shownSkill: function (o, rec) {
+      var c = GAME.skillPricedCopy ? GAME.skillPricedCopy(o) : o;
+      if (!rec || !GAME.skillEffective) return c;
+      var h = GAME.HEROES[rec.heroKey] || {};
+      var b = GAME.TowerChar.statBonus(rec), ib = GAME.TowerChar.itemBonus(rec);
+      return GAME.skillEffective(c,
+        (h.damage || 0) + (b.damage || 0) + (ib.damage || 0),
+        (h.armor || 0) + (b.armor || 0) + (ib.armor || 0));
+    }
   },
 
   arena: {
@@ -372,7 +384,7 @@ GAME.TowerShopScene.prototype._drawStatBars = function (x, y, w) {
   rows.forEach(function (r, i) {
     var ry = y + i * (rowH + gap);
     self._body.push(GAME.UI.label(self, x, ry, r[0], fs, C.textDim, 0));
-    var ceil = GAME.TowerChar.statCeil(keys[i]);
+    var ceil = GAME.TowerChar.statCeil(keys[i], r[1]);
     var frac = Math.max(0, Math.min(1, r[1] / ceil));
     var m = GAME.UI.meter(self, x + 76, ry + 1, w - 76, rowH - 2, {
       color: C.controller, frac: frac,
@@ -818,7 +830,7 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
   //   거짓말을 한다. 미리보기 그림도 이 값으로 그린다(아래 drawSkillFx).
   //   ⚠ 반드시 무대 그리기보다 **먼저** 정의해야 한다 — drawSkillFx 가 첫 프레임에
   //     이걸 읽으므로, 아래에 두면 undefined 를 참조해 그 자리에서 터진다.
-  var shown = this.src.shownSkill(o);
+  var shown = this.src.shownSkill(o, this.char);
   var ownedP = this.src.skillOwned(ps.slot, ps.idx, this.char);
 
   var ty = pTop + (P ? 10 : 16);
@@ -975,9 +987,10 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
   GAME.TowerChar.STAT_DEFS.forEach(function (d, i) {
     var ry = top + i * (rowH + gap);
     var lv = self.char.stats[d.key] || 0;
-    var maxed = lv >= d.max;
+    // ⚠ 2026-08-01 — **상한이 없어졌다**(사용자 지시). '최대' 상태 자체가 사라진다.
+    //   살 수 있느냐는 이제 골드가 있느냐만 본다.
     var cost = GAME.TowerChar.costOf(d.key, lv);
-    var can = !maxed && self.char.gold >= cost;
+    var can = self.char.gold >= cost;
     var total = d.key === 'luck' ? GAME.TowerChar.luckLevel(self.char)
                                  : ((totalBonus[d.key] || 0) + (itemBonus[d.key] || 0));
     var fromItem = d.key === 'luck' ? (itemBonus.luck || 0) : (itemBonus[d.key] || 0);
@@ -1001,20 +1014,20 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
 
     // 상한 대비 막대 — 하단 스탯바와 **같은 분모**(statCeil)를 써야 두 화면이 같은 말을 한다.
     var barX = leftX + (P ? 78 : 96), barW = colW - (P ? 78 : 96) - (P ? 116 : 150) - 14;
-    var ceil = GAME.TowerChar.statCeil(d.key);
+    var ceil = GAME.TowerChar.statCeil(d.key, total);   // 분모가 총합을 따라 자란다
     var m = GAME.UI.meter(self, barX, ry + rowH / 2 - (P ? 6 : 7), barW, P ? 12 : 14, {
       color: C.controller, frac: Math.max(0, Math.min(1, total / ceil))
     });
     self._body.push({ destroy: function () { m.destroy(); } });
     // 총합 중 얼마가 장비 몫인지 같이 적는다 — 안 적으면 "능력치를 안 샀는데 왜 135 지"가 된다.
     self._body.push(GAME.UI.label(self, barX, ry + rowH / 2 + (P ? 8 : 10),
-      (maxed ? '더 올릴 수 없습니다' : ('굴림 범위  +' + rangeLo + ' ~ +' + rangeHi)) +
+      ('굴림 범위  +' + rangeLo + ' ~ +' + rangeHi) +
       (fromItem ? ('    (장비 +' + fromItem + ' 포함)') : ''),
       P ? 10 : 11, C.textDim, 0));
 
     var bw = P ? 110 : 144;
     var b = GAME.UI.button(self, leftX + colW - 14 - bw / 2, ry + rowH / 2, bw, rowH - (P ? 12 : 16),
-      maxed ? '최대' : ('🎲 ' + cost + '골드'), function () {
+      '🎲 ' + cost + '골드', function () {
         var res = GAME.TowerChar.levelUp(d.key);
         if (!res) return;
         // 결과를 **다시 그리기 전에** 기억해 둔다 — _buildBody 가 화면을 통째로 새로 만든다.

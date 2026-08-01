@@ -538,10 +538,86 @@ GAME.skillPriceMul = function (cost) {
   };
 };
 
+// ── 스킬 계수 — **스킬이 내 능력치를 탄다** (2026-08-01 사용자 지시) ─────────────
+//  "스킬에 공격력과 방어력 등의 계수를 넣어주고, 골드별로 스킬별로 능력치 차이를 더 줘."
+//
+//  ## 무엇이 문제였나
+//  지금까지 스킬 피해는 **완전한 고정값**이었다. 공격력 620짜리 무기를 사도
+//  '박치기 60' 은 그대로 60 이다. 그래서 두 가지가 동시에 죽어 있었다:
+//   ① **성장이 안 느껴진다** — 장비를 사도 기본 공격만 세지고 스킬은 제자리다
+//   ② **비싼 스킬이 안 비싸다** — 값 배수(skillPriceMul)는 고정값을 키울 뿐이라
+//      투자와 스킬 사이에 아무 관계가 없다
+//
+//  ## 어떻게 고치나
+//  `피해 = 고정값 + 공격력 × 계수` 로 바꾼다. 그리고 **계수를 값에서 뽑는다** —
+//  비싼 스킬일수록 내 공격력을 더 많이 탄다. 그래야 "저 스킬을 사면 내 장비가
+//  더 값어치를 한다"가 성립하고, 그게 사용자가 말한 '골드별 차이'다.
+//
+//  ⚠ **계수는 시전 순간에 곱한다**(js/combat.js 의 `_skillPower`). 스킬을 만들 때
+//    곱하면 그 뒤에 붙는 아이템·능력치·버프가 하나도 안 실린다 — 이 저장소가
+//    `u.auras = []` 로 이미 한 번 겪은 계열의 사고다.
+//  ⚠ 방어형(보호막·방어력)은 **방어력**을 탄다. 공격력을 태우면 딜러가 탱커보다
+//    단단해지는 역전이 생긴다.
+GAME.SKILL_COEF = {
+  pow: 0.42,          // 값이 오를수록 계수가 오르되 완만하게(제곱근보다 완만)
+  k: 0.030,           // 계수 기울기
+  base: 0.35,         // 공짜 스킬도 최소한 이만큼은 공격력을 탄다
+  cap: 1.45,          // 상한 — 없으면 최고가 스킬이 후반에 혼자 다 한다
+  defRatio: 0.55,     // 방어형 계수는 공격형의 절반쯤(방어력 수치가 더 작다)
+
+  // ── 기준점 — **여기서 손익이 0 이다** ────────────────────────────────────
+  //  계수를 그냥 더하기만 하면 맨몸 영웅까지 같이 세져서 **밸런스가 통째로 밀린다.**
+  //  실제로 그랬다: 처음 넣자마자 R-1(4층 무조작 0% 약속)이 13% 로 깨졌다.
+  //  원인은 계수가 아니라 **공짜 버프**였다 — 기본 장비만 든 영웅의 스킬도 15~29%
+  //  세졌기 때문이다.
+  //  그래서 고정값에서 `기준공격력 × 계수` 만큼을 미리 빼 둔다. 그러면
+  //    · 기준 장비(공격력 50)에서는 **예전과 똑같은 피해**
+  //    · 그보다 투자한 만큼만 더 세진다
+  //  이게 사용자가 말한 "성장이 체감된다"의 정확한 모양이다. 강화가 아니라 **연결**이다.
+  //  refAtk 50 은 추측이 아니라 실측이다 — 탑의 영웅 예산으로 자동 구매했을 때
+  //  세 영웅의 공격력이 48·50·52 로 나온다(층이 올라도 예산 상한 때문에 거의 안 변한다).
+  refAtk: 50,
+  refArm: 40,
+  // 고정값을 아무리 깎아도 이 비율 밑으로는 안 내린다 — 공격력 0 인 상황(디버프 등)에서
+  // 스킬이 통째로 무력해지면 그건 계수가 아니라 버그처럼 느껴진다.
+  floorRatio: 0.30
+};
+
+// 스킬 하나의 공격 계수. 값이 없으면(=공짜) `base` 다.
+GAME.skillAtkCoef = function (sk) {
+  if (!sk) return 0;
+  // 피해가 0 인 스킬(은신·정화 같은 순수 유틸)은 계수를 안 준다 — 줘도 쓸 데가 없고,
+  // 0 에 곱해 봐야 0 이라 오히려 '왜 안 세지지' 하는 혼란만 만든다.
+  if (!(sk.damage > 0)) return 0;
+  if (typeof sk.atkCoef === 'number') return sk.atkCoef;      // 손으로 준 값이 있으면 그것
+  var S = GAME.SKILL_COEF;
+  // 값에 따른 차등은 **탑에서만**. 대전은 전부 같은 기본 계수를 쓴다(위 주석 참조).
+  if (!sk._priced) return S.base;
+  var c = (typeof sk.cost === 'number' && sk.cost > 0) ? sk.cost : 0;
+  return Math.min(S.cap, S.base + Math.pow(c, S.pow) * S.k);
+};
+
+// 방어형(보호막·방어력 부여) 계수.
+GAME.skillDefCoef = function (sk) {
+  if (!sk) return 0;
+  if (!(sk.shield > 0 || sk.armorAdd > 0)) return 0;
+  if (typeof sk.defCoef === 'number') return sk.defCoef;
+  var S = GAME.SKILL_COEF;
+  if (!sk._priced) return S.base * S.defRatio;
+  var c = (typeof sk.cost === 'number' && sk.cost > 0) ? sk.cost : 0;
+  return Math.min(S.cap, S.base + Math.pow(c, S.pow) * S.k) * S.defRatio;
+};
+
 // 스킬 하나에 배수를 얹는다(제자리 수정). 상점 미리보기도 **같은 함수**를 거쳐야
 // 화면의 숫자와 전장의 숫자가 갈리지 않는다.
 GAME.scaleSkillByPrice = function (sk) {
   if (!sk || !sk.cost) return sk;
+  // ⚠ **탑을 지났다는 표식**을 남긴다. 계수(skillAtkCoef)가 값에 따라 달라지는 것은
+  //   탑에서만이어야 한다 — 대전은 "모든 스킬이 유사한 밸런스"가 약속이고(CLAUDE.md),
+  //   `skillOptions` 는 두 모드가 **같은 한 벌을 공유**하므로 cost 필드가 대전 쪽
+  //   스킬에도 그대로 붙어 있다. 표식 없이 cost 만 보면 대전에서도 9000짜리 스킬이
+  //   1.45 계수를 받아 그 약속이 조용히 깨진다.
+  sk._priced = true;
   var m = GAME.skillPriceMul(sk.cost);
   if (sk.damage) sk.damage = Math.round(sk.damage * m.dmg);
   if (sk.healNow) sk.healNow = Math.round(sk.healNow * m.dmg);
@@ -559,6 +635,29 @@ GAME.scaleSkillsByPrice = function (skills) {
   if (!skills) return skills;
   for (var i = 0; i < skills.length; i++) GAME.scaleSkillByPrice(skills[i]);
   return skills;
+};
+
+// 표시용 — **지금 내 능력치로 이 스킬이 얼마나 나오는가**.
+//  ⚠ 이게 없으면 상점이 거짓말을 한다. 계수가 붙은 뒤로 표에 적힌 고정값과
+//    실제 피해가 갈라지기 때문이다. 이 저장소는 "화면이 거짓말하면 그건 아트가
+//    아니라 버그다"를 이미 여러 번 겪었다(파수꾼 창 길이·물약 표시 등).
+//  atk/arm 은 **영웅 기본 + 능력치 + 아이템** 을 다 더한 최종값을 넣어야 한다.
+GAME.skillEffective = function (sk, atk, arm) {
+  if (!sk) return sk;
+  var S = GAME.SKILL_COEF;
+  var out = {};
+  for (var k in sk) out[k] = sk[k];
+  var ac = GAME.skillAtkCoef(sk);
+  if (ac > 0 && sk.damage > 0) {
+    var flat = Math.max(sk.damage * S.floorRatio, sk.damage - S.refAtk * ac);
+    out.damage = Math.round(flat + (atk || 0) * ac);
+  }
+  var dc = GAME.skillDefCoef(sk);
+  if (dc > 0 && sk.shield > 0) {
+    var fl2 = Math.max(sk.shield * S.floorRatio, sk.shield - S.refArm * dc);
+    out.shield = Math.round(fl2 + (arm || 0) * dc);
+  }
+  return out;
 };
 
 // 미리보기용 — 원본을 안 건드리고 배수를 얹은 사본을 돌려준다.

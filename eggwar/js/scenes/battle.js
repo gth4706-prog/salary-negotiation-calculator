@@ -393,6 +393,12 @@ GAME.BattleScene.prototype.create = function () {
       fontFamily: GAME.CONFIG.FONT, fontSize: '18px', color: this.numFill,
       stroke: this.numStroke, strokeThickness: 4
     }).setOrigin(0.5).setVisible(false);
+    // ⚠ **떠서 흘러가는 글자**라고 표시해 둔다. 겹침 감사(tools/overlap-audit.js)는
+    //   좌표를 손으로 박아 생기는 '고정 라벨 겹침'을 잡으려고 만든 도구인데,
+    //   피해 숫자는 일부러 무작위로 흩어 놓고 0.75초 만에 사라지는 연출이라
+    //   순간적으로 스치는 것을 결함으로 셀 이유가 없다. 안 걸러 두면 전투 화면이
+    //   찍는 순간마다 4~16건씩 흔들려서, 그 소음이 **진짜 겹침을 가린다.**
+    numTxt.__floating = true;
     // 피해 숫자는 전장의 일부다 — 확대하면 전장과 같이 움직여야 한다.
     // (drawNumbers 는 그대로 둔다. 레이어가 좌표를 대신 변환한다)
     if (this.worldLayer) this.worldLayer.add(numTxt);
@@ -769,7 +775,7 @@ GAME.BattleScene.prototype.drawNumbers = function () {
     if (t.__col !== color) { t.setColor(color); t.__col = color; }
     if (t.__sw !== sw) { t.setStroke(this.numStroke, sw); t.__sw = sw; }
     t.setAlpha(Math.max(0, 1 - prog * prog) * (mine ? 1 : 0.78));
-    t.setPosition(n.x + (n.drift || 0) * prog, Iso.toScreenY(n.y) - 26 - prog * 46);
+    t.setPosition(n.x + (n.drift || 0) * prog, Iso.toScreenY(n.y) - 26 - (n.yOff || 0) - prog * 46);
   }
   for (; used < pool.length; used++) pool[used].setVisible(false);
 };

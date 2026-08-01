@@ -2062,6 +2062,10 @@ GAME.UI = GAME.UI || {};
     //   조용히 움직인다(CLAUDE.md 의 파수꾼 radius 18→24 실측이 그 증거다).
     var r = def.radius * (UI.UNIT_DRAW_SCALE || 1) * ((opts && opts.sizeMul) || 1);
     var a = alpha === undefined ? 1 : alpha;
+    // ── 계란이 아닌 것들(용 권속)은 별도 파일이 그린다 (2026-08-02) ─────────────
+    //  eggart 는 `eggBody` 를 뿌리로 지어져 있어서 용을 여기 끼우면 계란 유닛 60여 종이
+    //  같이 위험해진다. 갈래를 하나만 내고 나머지는 손대지 않는다.
+    if (GAME.BossArt && GAME.BossArt.draw(g, def, sx, sy, r, a, idle || (GAME.Iso && GAME.Iso.now) || 0, facing)) return;
     var art = UI.artOf(def);
     var f = facing === undefined ? Math.PI / 2 : facing;
     var side = opts && opts.side;
@@ -2246,6 +2250,8 @@ GAME.UI = GAME.UI || {};
   UI.drawUnitFlat = function (g, def, sx, sy, color, alpha, scale, facing, walk, idle, act, gearTier) {
     var r = def.radius * (scale || 1);
     var a = alpha === undefined ? 1 : alpha;
+    // 용 권속은 별도 파일이 그린다(위 `drawUnit` 과 같은 이유).
+    if (GAME.BossArt && GAME.BossArt.draw(g, def, sx, sy, r, a, idle || 0, facing)) return;
     var art = UI.artOf(def);
     if (art.ground) { UI.drawGroundArt(g, art, sx, sy, r, color, a); return; }
     UI.drawEggChar(g, art, sx, sy, r, color, a, facing === undefined ? 0 : facing, false, 0.72,

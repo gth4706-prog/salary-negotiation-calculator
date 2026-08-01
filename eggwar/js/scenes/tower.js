@@ -69,6 +69,9 @@ GAME.TowerScene.prototype.create = function (data) {
   //  ⚠ 인스턴스 프로퍼티라 `scene.restart` 후에도 남는다 → 매 create 에서 반드시
   //    덮어쓴다. 안 그러면 랭킹에 갔다 돌아와도 "+18 골드"가 계속 붙어 있는다.
   this._cleared = (data && data.cleared) || null;
+  // ⚠ 씬 인스턴스는 살아남는다 — init 에서 되돌리지 않으면 두 번째 획득부터
+  //   팝업이 영영 안 뜬다(이 폴더의 '지연생성 가드' 함정과 같은 계열이다).
+  this._dropShown = false;
 
   // ── 패배 후 즉시 재도전 (2026-07-31 사용자 지시: "재도전 누르면 그 상태에서 바로
   //   그 라운드를 재도전하게") ────────────────────────────────────────────────
@@ -1193,8 +1196,9 @@ GAME.TowerScene.prototype._runHintText = function () {
     var head = '✅ ' + cl.floor + '층 돌파';
     var got = (cl.gold ? ('  ·  골드 +' + cl.gold) : '') +
               (cl.score ? ('  ·  점수 +' + cl.score) : '');
-    // 보스 확정 드랍 — 결과 화면을 건너뛰므로 **이 줄이 유일한 획득 표시**다.
-    // 조용히 넣어두면 "보스를 깼는데 뭘 받았지"가 된다(구슬·축복에서 겪은 실패).
+    // 획득 — 보스 확정분과 일반 층 저확률분이 같은 자리에 온다(2026-08-02).
+    // 팝업이 따로 뜨지만 이 줄도 남긴다: 팝업을 닫고 나면 무엇을 받았는지 확인할
+    // 곳이 없어진다.
     if (cl.drop) {
       got += '  ·  ' + (cl.drop.kind === 'item' ? '🎁 ' : '📖 ') + cl.drop.name +
              (cl.drop.kind === 'item' ? ' 장착!' : ' 습득!');
@@ -1223,6 +1227,16 @@ GAME.TowerScene.prototype._refresh = function () {
 
   // 클리어 직후 첫 그리기에서는 골드 숫자를 튕겨준다 — 결과 화면의 보상 연출을 대신한다.
   if (this.char) { this._refreshRun(!!this._cleared); }
+
+  // ── 획득 팝업 (2026-08-02 사용자 지시) ────────────────────────────────────
+  //  아래 힌트 줄에도 한 줄로 적히지만, **그 줄은 못 보고 지나간다**(구슬·축복이
+  //  두 번 죽은 이유가 그것이다). 화면을 멈춰 세우고 무엇을 얼마나 얻었는지 알린다.
+  //  ⚠ `_dropShown` 으로 한 번만 띄운다. `_refresh` 는 탭 전환·되돌아오기마다
+  //    다시 불리므로 가드가 없으면 상점을 다녀올 때마다 축하 팝업이 뜬다.
+  if (this._cleared && this._cleared.drop && !this._dropShown && GAME.DropPopup) {
+    this._dropShown = true;
+    GAME.DropPopup.open(this, this._cleared.drop);
+  }
 
   this.heroBtns.forEach(function (h) {
     var on = h.key === self.heroKey;

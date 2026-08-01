@@ -901,7 +901,9 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     GAME.Profile.record(this.heroKey, t);
 
     // 통곡의 탑 진행 처리
-    var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown = 0;
+    // ⚠ `bossDrop` 이라는 이름이지만 2026-08-02 부터 **일반 층 드랍도 여기 담긴다.**
+//   이름을 바꾸지 않은 이유는 `result.js`·`tower.js` 가 같은 키로 받고 있어서다.
+var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown = 0;
     if (this.tower) {
       // 탑 학습 — **이긴 판·진 판 모두** 기록한다. 진 판에서만 배우면 가설을 세울 수는
       // 있어도 그것이 통했는지 확인할 수가 없다(확인은 이긴 판에서 나온다).
@@ -946,6 +948,12 @@ GAME.BattleScene.prototype.update = function (time, delta) {
               runRec = GAME.TowerChar.addGold(solace);
             }
             runRec = GAME.TowerChar.get();
+          } else {
+            // 일반 층 — **낮은 확률로** 하나 떨어진다(2026-08-02 사용자 지시).
+            // 확률·후보 규칙은 전부 `TowerChar` 안에 있다. 여기서 숫자를 또 쓰면
+            // 두 벌이 되어 조용히 갈라진다(이 폴더가 반복해서 겪은 실패).
+            bossDrop = GAME.TowerChar.rollFloorDrop();
+            if (bossDrop) runRec = GAME.TowerChar.get();
           }
         } else {
           // ── 져도 **주운 동전은 내 것이다** (2026-08-01 사용자 신고) ──────────

@@ -182,10 +182,43 @@ GAME.Tower = {
     return floor > 0 && floor % this.BOSS_EVERY === 0;
   },
 
+  // ── 층별 보스 — **올라갈수록 세계관이 깊어진다** (2026-08-02 사용자 지시) ─────
+  //  "올라갈수록 세계관과 연결된 강한 몹이 나왔으면 좋겠고 최종 보스는 정말 큰 용.
+  //   50, 100 정도엔 용의 부하나 용의 몸 일부하고 싸우면서 그 강함의 크기를 미리 느꼈으면."
+  //
+  //  예전엔 셋을 무한히 돌렸다(`BOSS_ORDER` 순환). 100층에서도 10층과 같은 놈이
+  //  나오니 **올라가는 의미가 보스에서는 하나도 안 났다.**
+  //  이제 층이 이야기를 탄다:
+  //    10·20·30  계란 부족의 강자 (족장 → 골렘 → 둥지)
+  //    40        재 파수병      — 계란 부족의 마지막. '용의 재'가 처음 나온다
+  //    50        잿날개        — 용의 부하. 용이 실재한다는 첫 증거
+  //    60        재 파수병(재등장) 70 서리 권속 · 80 잿날개 · 90 폭풍 권속
+  //    100       용의 발톱     — 몸의 일부
+  //    110~140   권속들이 다시 돈다(이때는 이미 그 크기를 안다)
+  //    150~      태초의 용     — 이후 50층마다 다시 나온다
+  //  ⚠ 무한의 탑이라 '최종'이 진짜 끝일 수 없다. 대신 **150층부터 50층 간격으로만**
+  //    나오게 해서, 만나는 것 자체가 사건이 되게 한다.
+  BOSS_SCHEDULE: {
+    10: 'bossChief', 20: 'bossShell', 30: 'bossNest',
+    40: 'bossAshSentry', 50: 'bossDrakeAsh',
+    60: 'bossAshSentry', 70: 'bossDrakeFrost',
+    80: 'bossDrakeAsh',  90: 'bossDrakeStorm',
+    100: 'bossDragonClaw'
+  },
+  //  100층 위로는 이 목록이 돈다(용은 아래에서 따로 끼워 넣는다).
+  BOSS_LATE: ['bossDrakeFrost', 'bossDrakeStorm', 'bossDragonClaw', 'bossDrakeAsh'],
+  DRAGON_FROM: 150,
+  DRAGON_EVERY: 50,
+
   bossKeyFor: function (floor) {
     if (!this.isBossFloor(floor)) return null;
-    var idx = Math.floor(floor / this.BOSS_EVERY) - 1;
-    return this.BOSS_ORDER[idx % this.BOSS_ORDER.length];
+    if (floor >= this.DRAGON_FROM && (floor - this.DRAGON_FROM) % this.DRAGON_EVERY === 0) {
+      return 'bossDragonLord';
+    }
+    if (this.BOSS_SCHEDULE[floor]) return this.BOSS_SCHEDULE[floor];
+    var n = Math.floor(floor / this.BOSS_EVERY) - 11;      // 110층이 0 번
+    if (n < 0) n = 0;
+    return this.BOSS_LATE[n % this.BOSS_LATE.length];
   },
 
   bossFor: function (floor) {

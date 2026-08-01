@@ -231,6 +231,102 @@ lore: '마른 풀로 덮어둔 뼈 가시 함정. 밟기 전까지는 거기 있
 // 새 메커니즘을 만들지 않고 기존 공격 타입만 크게 굴린다(위험을 늘리지 않으려고).
 // 체급으로 존재감을 주되 **회피 가능한 논타겟**이라 실력으로 넘을 수 있어야 한다.
 GAME.BOSS_UNITS = {
+  // ── 40층~ · **계란이 아닌 것들** (2026-08-02 사용자 지시) ────────────────────
+  //  "정말 강력해 보이는 몬스터 … 올라갈수록 세계관과 연결된 강한 몹 … 최종 보스는
+  //   정말 큰 용 … 50, 100 정도엔 용의 부하나 용의 몸 일부하고 싸우면서 그 강함의
+  //   크기를 미리 느꼈으면."
+  //
+  //  세계관 층위: 계란 부족의 전쟁 **위에 더 오래된 것**이 있다.
+  //    40층  재 파수병 — 계란 부족의 마지막. 여기서 '용의 재'가 처음 나온다
+  //    50층  잿날개    — 용의 부하. 용이 실재한다는 첫 증거
+  //    70/90 서리·폭풍 권속
+  //    100층 용의 발톱 — **몸의 일부**. 나머지는 화면 밖이라는 게 요점이다
+  //    150층~ 용 본체
+  //  ⚠ 새 전투 메커니즘을 만들지 않는다 — 기존 `charge`/`barrage` 만 크게 굴린다.
+  //    새 타입을 넣으면 combat.js 전체가 회귀 위험에 들어간다(이 폴더의 오랜 규율).
+  //  ⚠ 아트는 `beast:종류:결` 문자열이다(js/bossart.js). eggart 의 ART 표는
+  //    계란 전용이라 건드리지 않는다.
+  bossAshSentry: {
+    key: 'bossAshSentry', name: '재 파수병', art: 'beast:sentry:ash', isBoss: true,
+    lore: '탑 위에서 내려온 재를 뒤집어쓴 채 굳어 버린 파수병. 뿔이 돋기 시작했다.',
+    desc: '재를 뒤집어쓴 파수병. 재가 쌓인 자리를 넓게 짓밟는다.',
+    cost: 0, hp: 1150, armor: 30, speed: 92, range: 104, damage: 60, cooldown: 1250,
+    attack: 'melee', coneDeg: 120,
+    radius: 29, shape: 'star', weapon: 'riotShield',
+    chase: 460, aggro: 460,
+    ability: { type: 'charge', cooldown: 6000, telegraph: 560,
+               minRange: 150, maxRange: 500, dist: 500,
+               damage: 86, radius: 70, knockback: 58 }
+  },
+
+  bossDrakeAsh: {
+    key: 'bossDrakeAsh', name: '잿날개', art: 'beast:drake:ash', isBoss: true,
+    lore: '용이 거느린 것 중 가장 작은 것. 그런데도 부족 하나를 하룻밤에 지웠다.',
+    desc: '용의 부하. 낮게 날아와 덮치고, 재를 흩뿌린다.',
+    cost: 0, hp: 1250, armor: 30, speed: 118, range: 112, damage: 66, cooldown: 1150,
+    attack: 'melee', coneDeg: 110,
+    radius: 30, shape: 'star', weapon: 'rifle',
+    chase: 560, aggro: 560,
+    // 급강하 — 가장 빠른 놈이라 거리를 더 멀리 지운다. 예고는 짧지만 사거리가 길다.
+    ability: { type: 'charge', cooldown: 5000, telegraph: 480,
+               minRange: 170, maxRange: 640, dist: 640,
+               damage: 96, radius: 78, knockback: 70 }
+  },
+
+  bossDrakeFrost: {
+    key: 'bossDrakeFrost', name: '서리 권속', art: 'beast:drake:frost', isBoss: true,
+    lore: '숨을 뱉으면 골짜기가 하얗게 언다. 얼어붙은 것은 다시 움직이지 못한다.',
+    desc: '서리를 뿌리는 권속. 넓은 자리를 얼려 발을 묶는다.',
+    cost: 0, hp: 1320, armor: 34, speed: 104, range: 120, damage: 70, cooldown: 1250,
+    attack: 'melee', coneDeg: 120,
+    radius: 30, shape: 'star', weapon: 'riotShield',
+    chase: 560, aggro: 560,
+    ability: { type: 'barrage', cooldown: 6200, telegraph: 700,
+               minRange: 0, maxRange: 4000,
+               damage: 78, radius: 130, repeat: 3, interval: 400, spread: 250 }
+  },
+
+  bossDrakeStorm: {
+    key: 'bossDrakeStorm', name: '폭풍 권속', art: 'beast:drake:storm', isBoss: true,
+    lore: '날개 한 번에 하늘이 갈린다. 용이 오기 전에 길을 여는 것이 이것의 일이다.',
+    desc: '폭풍을 몰고 오는 권속. 하늘에서 연달아 내리꽂는다.',
+    cost: 0, hp: 1400, armor: 34, speed: 126, range: 116, damage: 74, cooldown: 1100,
+    attack: 'melee', coneDeg: 115,
+    radius: 31, shape: 'star', weapon: 'rifle',
+    chase: 620, aggro: 620,
+    ability: { type: 'barrage', cooldown: 5400, telegraph: 560,
+               minRange: 0, maxRange: 4000,
+               damage: 88, radius: 118, repeat: 4, interval: 320, spread: 300 }
+  },
+
+  bossDragonClaw: {
+    key: 'bossDragonClaw', name: '용의 발톱', art: 'beast:claw:ember', isBoss: true,
+    lore: '땅을 뚫고 올라온 것은 발톱 하나뿐이다. 나머지는 아직 아래에 있다.',
+    desc: '용의 발톱. 이것 하나가 진형을 통째로 긁어낸다.',
+    // 움직이지 않는다 — **크기로** 위협한다. 대신 닿는 범위가 압도적으로 넓다.
+    cost: 0, hp: 1800, armor: 40, speed: 0, range: 190, damage: 110, cooldown: 1500,
+    attack: 'melee', coneDeg: 150,
+    radius: 32, shape: 'bunker', weapon: 'riotShield',
+    chase: 0, aggro: 0, immobile: true,
+    ability: { type: 'barrage', cooldown: 5600, telegraph: 760,
+               minRange: 0, maxRange: 4000,
+               damage: 104, radius: 150, repeat: 4, interval: 360, spread: 330 }
+  },
+
+  bossDragonLord: {
+    key: 'bossDragonLord', name: '태초의 용', art: 'beast:dragon:ember', isBoss: true,
+    lore: '계란 부족이 서로를 치는 동안, 그것은 산 아래에서 자고 있었다. 이제 깨어났다.',
+    desc: '태초의 용. 날개 한 번에 전장이 뒤집힌다.',
+    cost: 0, hp: 2600, armor: 44, speed: 108, range: 170, damage: 130, cooldown: 1300,
+    attack: 'melee', coneDeg: 140,
+    radius: 34, shape: 'star', weapon: 'riotShield',
+    chase: 720, aggro: 720,
+    // 둘을 다 가진 유일한 보스 — 거리도 지우고 설 자리도 지운다.
+    ability: { type: 'barrage', cooldown: 5000, telegraph: 620,
+               minRange: 0, maxRange: 4000,
+               damage: 120, radius: 160, repeat: 5, interval: 300, spread: 360 }
+  },
+
   bossChief: {
     key: 'bossChief', name: '거대 족장', art: 'chieftain', isBoss: true,
 lore: '오래 살아남아 둥지만큼 커진 우두머리. 그가 포효하면 부족 전체가 세게 친다.',

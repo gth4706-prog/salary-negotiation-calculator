@@ -188,7 +188,13 @@ GAME.TowerChar = {
   statBonus: function (rec) {
     rec = rec || this.get();
     var out = { damage: 0, hp: 0, armor: 0, speed: 0 };
-    if (!rec) return out;
+    //  ⚠ 2026-08-02 — **대전(ArenaBuild) 레코드가 이 함수로 들어온다.**
+    //    `towershop.js` 의 `shownSkill` 은 mode 와 무관하게 이걸 부르는데, 대전에는
+    //    능력치 강화가 없어서 레코드에 `statGain` 자체가 없다 → `rec.statGain[..]`
+    //    에서 TypeError 가 나 **대전 스킬 탭이 통째로 죽었다**(overlap 감사가 잡았다.
+    //    사람 눈에는 "탭이 안 열린다"로만 보인다). 능력치가 없는 레코드에는 0 이 맞고,
+    //    아래 `HERO_BASE` head-start 도 같이 건너뛰어야 한다 — 그건 탑 전용 축이다.
+    if (!rec || !rec.statGain) return out;
     for (var i = 0; i < this.STAT_DEFS.length; i++) {
       var d = this.STAT_DEFS[i];
       if (d.key === 'luck') continue;
@@ -436,12 +442,16 @@ GAME.TowerChar = {
       for (var i = 0; i < CAT.SLOTS.length; i++) {
         var sk = CAT.SLOTS[i].key;
         var curKey = rec.items[sk];
-        var curCost = curKey ? (CAT.find(sk, curKey) || {}).cost || 0 : -1;
-        var list = CAT.CATALOG[sk] || [], best = null;
+        var cur = curKey ? CAT.find(sk, curKey) : null;
+        var curCost = cur ? cur.cost : -1;
+        var list = CAT.CATALOG[sk] || [], best = null, tier = 0;
         for (var j = 0; j < list.length; j++) {
-          if (list[j].cost > curCost && (!best || list[j].cost < best.cost)) best = list[j];
+          if (list[j].cost > curCost && (!best || list[j].cost < best.cost)) { best = list[j]; tier = j + 1; }
         }
-        if (best) out.push({ kind: 'item', slot: sk, key: best.key, name: best.name, note: best.note });
+        if (best) out.push({ kind: 'item', slot: sk, key: best.key, name: best.name, note: best.note,
+                             slotName: CAT.SLOTS[i].name, tier: tier, total: list.length,
+                             cost: best.cost, prevName: cur ? cur.name : null,
+                             gain: this._itemGain(cur, best) });
       }
     }
     var h = GAME.HEROES[rec.heroKey];
@@ -454,20 +464,37 @@ GAME.TowerChar = {
           if (!pick || (opts[k].cost || 0) < (pick.cost || 0)) { pick = opts[k]; pickIdx = k; }
         }
         if (pick) out.push({ kind: 'skill', slot: slot, idx: pickIdx, name: pick.name,
-                             note: slot + ' 슬롯 스킬북' });
+                             note: slot + ' 슬롯 스킬북', cost: pick.cost || 0,
+                             desc: GAME.skillDesc ? GAME.skillDesc(pick) : '',
+                             prevName: (opts[rec.picks[slot]] || {}).name || null });
       }
     }
     return out;
   },
 
-  // 확정 드랍 — 후보에서 무작위 1개를 실제로 지급한다(골드 안 든다).
-  // 줄 게 하나도 없으면(전부 최상급 보유) null 대신 골드로 갈음하도록 호출부가 판단한다.
-  grantBossDrop: function () {
+  //  **무엇이 얼마나 좋아지는가**를 숫자로 만든다. 팝업이 "축하합니다"만 하고
+  //  끝나면 받은 사람은 그게 좋은 건지도 모른다 — 사용자 요구의 핵심이 여기다.
+  //  ⚠ 카탈로그의 `note` 는 **그 아이템의 절대값**이라 교체분이 아니다.
+  //    3단계(공 +24)를 끼고 4단계(공 +60)를 받으면 실제 증가분은 +36 이다.
+  _itemGain: function (cur, next) {
+    var F = [['damageAdd', '공격력'], ['hpAdd', '체력'], ['armorAdd', '방어력'],
+             ['speedAdd', '이동속도'], ['luckAdd', '행운']];
+    var out = [], i, d;
+    for (i = 0; i < F.length; i++) {
+      d = (next[F[i][0]] || 0) - ((cur && cur[F[i][0]]) || 0);
+      if (d) out.push(F[i][1] + ' ' + (d > 0 ? '+' : '') + d);
+    }
+    d = Math.round(((next.lifestealAdd || 0) - ((cur && cur.lifestealAdd) || 0)) * 100);
+    if (d) out.push('흡혈 ' + (d > 0 ? '+' : '') + d + '%');
+    d = Math.round((((cur && cur.cdrMul) || 1) - (next.cdrMul || 1)) * 100);
+    if (d) out.push('스킬 쿨 ' + (d > 0 ? '-' : '+') + Math.abs(d) + '%');
+    return out;
+  },
+
+  //  후보 하나를 실제로 지급한다(골드 안 든다). 보스·일반 층이 같은 문을 쓴다.
+  _grantDrop: function (pick) {
     var rec = this.get();
-    if (!rec) return null;
-    var cands = this.dropCandidates(rec);
-    if (!cands.length) return null;
-    var pick = cands[Math.floor(Math.random() * cands.length)];
+    if (!rec || !pick) return null;
     if (pick.kind === 'item') {
       // 상점 구매와 달리 **공짜로** 꽂는다(교체 차액도 안 받는다).
       rec.items[pick.slot] = pick.key;
@@ -477,6 +504,42 @@ GAME.TowerChar = {
     }
     this._save(rec);
     return pick;
+  },
+
+  // 확정 드랍 — 후보에서 무작위 1개를 실제로 지급한다.
+  // 줄 게 하나도 없으면(전부 최상급 보유) null 대신 골드로 갈음하도록 호출부가 판단한다.
+  grantBossDrop: function () {
+    var cands = this.dropCandidates();
+    if (!cands.length) return null;
+    var pick = cands[Math.floor(Math.random() * cands.length)];
+    pick.from = 'boss';
+    return this._grantDrop(pick);
+  },
+
+  // ── 일반 층 드랍 (2026-08-02 사용자 지시) ───────────────────────────────────
+  //  "일반 몹에서도 낮은 확률로 나와야 하고 당연히 갖고 있는 것보다 1단계만 높은 것만."
+  //
+  //  뒷조건은 이미 `dropCandidates` 가 지키고 있다(슬롯마다 **지금 낀 것보다 비싼 것 중
+  //  가장 싼 것** 하나, 스킬은 미보유 중 가장 싼 것 = 잠금이 풀린 다음 칸). 그래서
+  //  여기서 새로 정하는 것은 **확률뿐**이다.
+  //
+  //  왜 10% 인가: 보스가 10층마다 확정 1개다. 일반 층 9개에 10% 를 걸면 한 구간당
+  //  기대 0.9개 — 확정분과 거의 같은 양이 '언제 올지 모르는 형태'로 더 들어온다.
+  //  이보다 높이면 상점에서 돈 주고 사는 것이 의미를 잃고(전부 주워진다), 낮추면
+  //  일반 층에서 뭔가 나온다는 사실 자체를 몇십 층 동안 모르게 된다.
+  //  행운은 골드·치유구역과 같은 배수로 여기에도 붙는다 — 행운의 축이 셋이 된다.
+  FLOOR_DROP_CHANCE: 0.10,
+  luckDropMul: function (rec) { return 1 + this.luckLevel(rec) * 0.025; },
+
+  rollFloorDrop: function () {
+    var rec = this.get();
+    if (!rec) return null;
+    if (Math.random() >= this.FLOOR_DROP_CHANCE * this.luckDropMul(rec)) return null;
+    var cands = this.dropCandidates(rec);
+    if (!cands.length) return null;
+    var pick = cands[Math.floor(Math.random() * cands.length)];
+    pick.from = 'floor';
+    return this._grantDrop(pick);
   },
 
   // 보유한 스킬만 장착할 수 있다(요청 10: "구매하지 않은 스킬은 미리볼 순 있지만

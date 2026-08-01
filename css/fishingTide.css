@@ -54,7 +54,6 @@ body{
 }
 .guides a:hover{border-color:var(--ft-teal);box-shadow:0 0 0 2px rgba(46,196,182,.25)}
 .guides a span{color:var(--ft-muted)}
-.ad-slot{border:1px dashed var(--ft-line);background:#0C2C4B;color:var(--ft-muted)}
 
 /* ---------- 히어로: 속보 배너 시그니처 ---------- */
 .hero.ft-theme{

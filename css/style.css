@@ -119,15 +119,11 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 .cta.ghost{background:var(--surface);color:var(--accent-ink);border:1.5px solid var(--accent);box-shadow:none}
 
 /* 결과 */
-.result[hidden],.adwrap[hidden],[hidden]{display:none}
+.result[hidden],[hidden]{display:none}
 .verdict{display:flex;align-items:center;gap:13px;padding:15px;border-radius:var(--r-sm);background:var(--vbg,var(--surface-2));border:1px solid var(--line);margin-bottom:15px}
 .verdict .dot{width:13px;height:13px;border-radius:50%;background:var(--vc,var(--accent));flex:none;box-shadow:0 0 0 4px color-mix(in srgb,var(--vc,var(--accent)) 18%,transparent)}
 .verdict .vt{font-weight:800;font-size:17px;color:var(--vc,var(--ink));letter-spacing:-.02em}.verdict .vd{font-size:12.5px;color:var(--muted);margin-top:1px}
 
-/* 광고 슬롯 */
-.ad-slot{margin:20px 0;min-height:90px;display:flex;align-items:center;justify-content:center;border:1px dashed var(--line-strong);border-radius:var(--r-sm);background:var(--surface-2);color:var(--faint);font-size:12px;text-align:center}
-.ad-slot[hidden]{display:none}
-.ad-slot .lab{color:var(--muted);font-weight:700;font-size:11px;letter-spacing:.06em}
 
 /* 아티클 */
 .article{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:clamp(20px,4.5vw,38px)}

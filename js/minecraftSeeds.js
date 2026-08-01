@@ -221,7 +221,6 @@
     bindCopy();
     $("stepResult").hidden=false;
     $("stepResult").scrollIntoView({behavior:"smooth",block:"start"});
-    if($("adwrap"))$("adwrap").hidden=false;
   }
 
   $("mc-more").addEventListener("click",function(){

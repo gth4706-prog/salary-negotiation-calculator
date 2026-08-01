@@ -827,7 +827,6 @@
 
     $("stepResult").hidden=false;
     $("stepResult").scrollIntoView({behavior:"smooth",block:"start"});
-    if($("adwrap"))$("adwrap").hidden=false;
   }
 
   /* 입문 가이드들이 공통으로 쓰는 바다낚시 4분류. 버튼으로 묻지 않고 여기서 알려준다. */

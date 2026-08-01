@@ -84,14 +84,6 @@ body{
 }
 .guides a span{color:#b9b9ac}
 
-/* 광고 슬롯 */
-.ad-slot{
-  border:3px dashed #000;
-  border-radius:0;
-  background:#33332d;
-  color:#9a9a8c;
-}
-.ad-slot .lab{color:#c9c9bd}
 
 /* ---------- 히어로: 잔디→흙 단면 ---------- */
 .hero.mc-theme{

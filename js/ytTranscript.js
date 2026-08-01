@@ -172,7 +172,6 @@
         $("stepIn").hidden=true;
         $("stepResult").hidden=false;
         $("stepResult").scrollIntoView({behavior:"smooth",block:"start"});
-        if($("adwrap"))$("adwrap").hidden=false;
       })
       .catch(function(){
         $("yt-go").disabled=false; $("yt-go").textContent="텍스트로 변환하기 →";

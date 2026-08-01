@@ -105,8 +105,6 @@
     if(hire>today){
       state.comboDate=null;
       $("stepResult").hidden=true;
-      /* 결과가 사라진 자리에 광고 슬롯만 남지 않게 같이 접는다. */
-      if($("adwrap"))$("adwrap").hidden=true;
       if(hint){
         hint.innerHTML="🗓️ 입력하신 <b>"+fmt(hire)+"</b>은 아직 오지 않은 날짜예요. 입사 전에는 근무일수가 0이라 연차도 0일이고 퇴직금 D-day도 셀 수 없어서 계산 결과는 보여드리지 않았어요."+
           "<br>입사 예정일이라면, 실제로 출근을 시작한 뒤 <b>"+fmt(addMonths(hire,1))+"</b>(1개월 개근)에 첫 연차 1일이, <b>"+fmt(severanceDate(hire))+"</b>(근속 1년)에 퇴직금 대상이 돼요. 입사 후에 다시 계산하면 추천 퇴사일까지 알려드릴게요.";
@@ -163,7 +161,6 @@
 
     $("stepResult").hidden=false;
     $("stepResult").scrollIntoView({behavior:"smooth",block:"start"});
-    if($("adwrap"))$("adwrap").hidden=false;
   });
 
   /* ---------- 퇴사 고민 체크 (클릭식 5문항) ---------- */

@@ -801,7 +801,6 @@
     reveal("stepD");
     reveal("stepDiag");
     reveal("stepList");
-    if($("adwrap"))$("adwrap").hidden=false;
     render();
     coachOnce("preset",$("preset-grid").firstElementChild,S.coachPreset);
   });
@@ -1015,7 +1014,6 @@
     updatePlanSizeTxt();
     renderPresets();
     ["stepD","stepDiag","stepList"].forEach(function(id){$(id).hidden=false});
-    if($("adwrap"))$("adwrap").hidden=false;
     syncSel(); renderDiag();
   }else if(!localStorage.getItem("rp.onboarded")){
     if($("stepA1-modal"))$("stepA1-modal").hidden=true;

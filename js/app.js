@@ -130,7 +130,7 @@
     $("wp-desc").innerHTML="지금보다 <b>"+pct(raiseReq)+"</b> "+(raiseReq>=0?"인상":"삭감")+" 요구 · "+wr.txt;
   }
   $("go2").addEventListener("click",function(){renderPos();reveal("step2r");});
-  $("go3").addEventListener("click",function(){$("adwrap").hidden=false;reveal("step3");setTimeout(function(){$("o-base").focus()},400);});
+  $("go3").addEventListener("click",function(){reveal("step3");setTimeout(function(){$("o-base").focus()},400);});
 
   /* ---------- STEP3: 제안 (기본급/성과급) 실시간 실수령 ---------- */
   function updOffNet(){
@@ -215,7 +215,6 @@
 
   $("restart").addEventListener("click",function(){
     ["step2r","step3","result"].forEach(function(id){$(id).hidden=true});
-    $("adwrap").hidden=true;
     reveal("step1");
   });
 

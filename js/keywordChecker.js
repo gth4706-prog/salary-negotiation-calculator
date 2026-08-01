@@ -63,7 +63,6 @@
         $("stepIn").hidden=true;
         $("stepResult").hidden=false;
         $("stepResult").scrollIntoView({behavior:"smooth",block:"start"});
-        if($("adwrap"))$("adwrap").hidden=false;
       })
       .catch(function(){
         $("kc-go").disabled=false; $("kc-go").textContent="키워드 진단하기 →";

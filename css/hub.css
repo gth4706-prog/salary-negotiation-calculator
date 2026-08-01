@@ -106,9 +106,6 @@ body{background:var(--hub-canvas);color:var(--hub-ink)}
   transform:translateX(2px);
 }
 
-/* ---------- 광고 슬롯 ---------- */
-.ad-slot{border:1px dashed var(--hub-line);background:var(--hub-surface);color:var(--hub-muted)}
-.ad-slot .lab{color:var(--hub-muted)}
 
 /* ---------- 하단 CTA ---------- */
 .hub-cta{

@@ -341,7 +341,6 @@
 
     setLoading(false);
     show("stepResult");
-    if($("adwrap"))$("adwrap").hidden=false;
   }
 
   function finish(){

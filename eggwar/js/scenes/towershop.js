@@ -335,7 +335,8 @@ GAME.TowerShopScene.prototype._drawCharPanel = function (x, y, w, h) {
     if (it && iconSize > 14) {
       GAME.UI.drawItem(g, s.key, it.key, bx + bw2 / 2, iconTop + iconSize / 2, iconSize);
     }
-    self._body.push(GAME.UI.label(self, bx + bw2 / 2, boxTop + boxH - 4, it ? it.name : '—',
+    self._body.push(GAME.UI.label(self, bx + bw2 / 2, boxTop + boxH - 4,
+      it ? GAME.TowerShopItems.nameFor(it, self.char.heroKey) : '—',
       nameFs, it ? C.accent : C.textFaint, 0.5)
       .setOrigin(0.5, 1).setWordWrapWidth(bw2 - 6).setAlign('center').setLineSpacing(0));
   });
@@ -583,7 +584,8 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
         .setOrigin(1, 0);
       self._body.push(priceLbl);
       // 이름은 가격이 차지하고 남은 폭만 쓴다 — 안 그러면 둘이 겹친다.
-      self._body.push(GAME.UI.label(self, tx, cy0 + 4, it.name, 13,
+      self._body.push(GAME.UI.label(self, tx, cy0 + 4,
+        GAME.TowerShopItems.nameFor(it, self.char.heroKey), 13,
         equipped ? C.accent : C.text, 0).setWordWrapWidth(Math.max(40, tw - priceLbl.width - 8)));
       // 효과 문구 — 이 줄이 사용자가 요구한 "어떤 능력치를 추가해주는지"다.
       // ⚠ **숨기지 않는다.** 예전엔 넘치면 `setVisible(false)` 로 감췄는데, 효과가
@@ -607,7 +609,8 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
 
       var flowY = iconCy + iconSz / 2 + 7;
       var nameLbl = GAME.UI.label(self, cx0 + cardW / 2, flowY,
-        it.name, 13, equipped ? C.accent : C.text, 0.5)
+        GAME.TowerShopItems.nameFor(it, self.char.heroKey), 13,
+        equipped ? C.accent : C.text, 0.5)
         .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(cardW - 8);
       self._body.push(nameLbl);
       self._body.push(GAME.UI.label(self, cx0 + cardW / 2, nameLbl.y + nameLbl.height + 3,

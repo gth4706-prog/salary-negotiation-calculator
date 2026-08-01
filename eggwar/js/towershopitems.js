@@ -88,6 +88,41 @@ GAME.TowerShopItems = (function () {
   return {
     SLOTS: SLOTS,
     CATALOG: CATALOG,
+    // ── 무기 이름은 **영웅마다 다르다** (2026-08-01 사용자 지시) ─────────────────
+    //  "각 영웅에 맞는 무기로 컨셉잡아주고."
+    //
+    //  ## 무엇이 어긋나 있었나
+    //  무기 이름이 '뼈창'·'용골 단검'·'여명의 창' 처럼 **구체적인 무기 종류**인데,
+    //  화면에 그려지는 것은 언제나 **그 영웅 고유의 무기**다(광전사 대검 · 사냥꾼 장궁 ·
+    //  파수꾼 갈고리 방패 — js/eggart.js 의 `gear` 키). 그래서 사냥꾼이 '여명의 창'을
+    //  사면 **이름은 창인데 손에는 활**을 든다. 이름과 그림이 서로 다른 말을 했다.
+    //
+    //  ## 어떻게 고치나
+    //  등급(재질)은 그대로 두고 **무기 종류만 영웅을 따라간다.** 아이템 키(w1~w8)와
+    //  값·수치는 하나도 안 건드린다 — 저장된 캐릭터가 그대로 살아 있어야 한다.
+    //  ⚠ 재질 이름은 `UI.GEAR_TIERS` 의 등급 순서(돌·청동·흑요석·뼈·강철·흑철·용골·여명)와
+    //    **같은 줄에 세운다.** 어긋나면 그림은 청동인데 이름은 강철인 상태가 된다.
+    WEAPON_NAMES: {
+      vanguard: ['돌 대검', '청동 대검', '흑요석 대검', '뼈 대검',
+                 '강철 대검', '흑철 대검', '용골 대검', '여명의 대검'],
+      ranger:   ['나무 활', '청동 활', '흑요석 활', '뼈 활',
+                 '강철 활', '흑철 활', '용골 활', '여명의 활'],
+      warden:   ['나무 방패', '청동 방패', '흑요석 방패', '뼈 방패',
+                 '강철 방패', '흑철 방패', '용골 방패', '여명의 방패']
+    },
+
+    // 이 영웅이 들었을 때 이 아이템의 이름. 무기가 아니면 원래 이름 그대로.
+    nameFor: function (it, heroKey) {
+      if (!it) return '';
+      var tbl = heroKey && this.WEAPON_NAMES[heroKey];
+      if (!tbl) return it.name;
+      var list = CATALOG.weapon || [];
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].key === it.key) return tbl[i] || it.name;
+      }
+      return it.name;                       // 무기 슬롯이 아니다
+    },
+
     find: function (slotKey, itemKey) {
       var list = CATALOG[slotKey] || [];
       for (var i = 0; i < list.length; i++) if (list[i].key === itemKey) return list[i];

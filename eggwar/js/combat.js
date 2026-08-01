@@ -814,6 +814,15 @@ GAME.Combat = {
     return this.castSkill(u, slot, u.x + Math.cos(ang) * reach, u.y + Math.sin(ang) * reach, state);
   },
 
+  // 시전이 만든 이펙트에 시전자 표시를 붙인다(색을 나누기 위한 것 — castSkill 주석 참조).
+  _tagSkillFx: function (state, from, u) {
+    if (!state || !state.effects || from < 0) return;
+    var key = (u && u.isHero) ? (u.type || (u.def && u.def.key)) : null;
+    for (var i = from; i < state.effects.length; i++) {
+      if (state.effects[i].heroKey === undefined) state.effects[i].heroKey = key;
+    }
+  },
+
   // 이번 시전의 실제 피해 — 고정값 + 공격력 × 계수.
   //  ⚠ 계수는 `damage > 0` 인 스킬에만 붙는다(유틸 스킬은 0 이라 곱해도 0).
   _skillPower: function (u, sk) {
@@ -860,6 +869,14 @@ GAME.Combat = {
     //  그 스킬만 조용히 옛 수치로 돈다 — 이 저장소가 반복해 겪은 실패 모드다).
     var skDmg = this._skillPower(u, sk);
     var skShield = this._skillShield(u, sk);
+
+    // ── 이 시전이 만든 이펙트에 **누가 썼는지** 표시한다 (2026-08-01) ───────────
+    //  스킬 이펙트가 세 영웅 모두 같은 색이라 정체성이 안 섰다. 색을 나누려면
+    //  그리는 쪽이 시전자를 알아야 하는데, 이펙트를 push 하는 자리가 타입마다
+    //  흩어져 있다(dash·aoeSelf·aoeTarget·buff·pull·trap…).
+    //  **한 곳에서 잡는다** — 시전 전 길이를 기억해 두고 끝나고 그 뒤에 붙은 것만
+    //  태그한다. 새 스킬 타입을 추가해도 자동으로 따라온다(빠뜨릴 자리가 없다).
+    var _fxMark = state && state.effects ? state.effects.length : -1;
 
     // 스킬 시전음 — 광역/폭발 계열은 묵직하게, 나머지는 솟는 톤으로
     if (GAME.Sound) {
@@ -1014,6 +1031,9 @@ GAME.Combat = {
     }
 
     u.skillCd[slot] = sk.cooldown * (u.cdrMul || 1);
+
+    // 이 시전이 만든 이펙트 전부에 시전자를 표시한다(위 `_fxMark` 주석 참조).
+    this._tagSkillFx(state, _fxMark, u);
 
     // ── 축복 훅 — 스킬 시전 (towerboon.js) ────────────────────────────────
     var bk = state && state.boons;

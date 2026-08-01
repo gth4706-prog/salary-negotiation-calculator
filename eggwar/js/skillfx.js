@@ -214,23 +214,54 @@ window.GAME = window.GAME || {};
   //  2. aoeSelf — 대검 회전 / 모래 뿌리기 / 바위 내리치기 / 방패 밀치기 / 대지 강타
   //     effect: ring (total 320).  radius 80~165 로 크게 갈린다.
   // ========================================================================
+  //  ⚠ 2026-08-01 — **영웅 색을 주인공으로 올렸다**(사용자: "각 영웅에 맞는 컨셉").
+  //    예전엔 링을 흙색(clay)으로만 그리고 `col` 은 발밑 선에만 썼다. 그 결과
+  //    세 영웅의 스킬이 화면에서 **완전히 똑같아 보였다**(나란히 찍어 확인).
+  //    무기 실루엣은 다른데 스킬이 같으면 캐릭터가 절반만 서 있는 셈이다.
+  //    흙은 '땅이 파였다'는 바닥으로 남기고, **테두리와 섬광이 영웅 색**을 맡는다.
+  //  ⚠ 그리고 임팩트를 넣었다 — 터지는 순간(수명의 앞 30%)에 밝은 속심이 확 퍼진다.
+  //    예전엔 처음부터 끝까지 같은 밝기라 "터졌다"가 아니라 "원이 있다"로 보였다.
   function aoeSelfA(e, col) {
     var a = e.t / e.total, p = 1 - a;
     var M = S.MAT, r = e.r * (1 + p * 0.10);
-    // 흙이 깔린 자리 = 범위. 면은 옅게, 경계는 확실하게.
-    gfill(e.x, e.y, r, M.clay, 0.15 * a * S.FA);
-    gink(e.x, e.y, r, 3, M.clay, a * 0.95 * S.RA);
+    // 바닥 — 흙이 파인 자리. 세계관(원시 부족)의 재질은 여기가 지킨다.
+    gfill(e.x, e.y, r, M.clay, 0.13 * a * S.FA);
+    // 터지는 순간의 섬광 — 앞 30% 동안만, 안쪽에서 바깥으로.
+    //  ⚠ 구간을 0.30 → 0.55 로 늘렸다. 320ms 짜리 이펙트에서 30% 는 **96ms** 라
+    //    프레임 두세 장이고, 실제로 찍어 보니 섬광이 이미 사라진 뒤였다.
+    //    '터졌다'가 읽히려면 사람 눈이 붙잡을 시간이 있어야 한다.
+    var burst = Math.max(0, 1 - p / 0.55);
+    if (burst > 0) {
+      var bb = burst * burst;
+      gfill(e.x, e.y, r * (0.26 + p * 1.9), col, 0.42 * bb * S.FA);
+      gink(e.x, e.y, r * (0.30 + p * 1.7), 3 + 5 * burst, col, 1.0 * burst * S.RA);
+      // 밖으로 뻗는 살 — 원만 있으면 '퍼졌다'가 아니라 '있다'로 보인다
+      var sd0 = seedOf(e.x, e.y), cy0 = syy(e.y);
+      for (var q = 0; q < 8; q++) {
+        var aq = sd0 + (Math.PI * 2 / 8) * q;
+        var r0 = r * 0.30, r1 = r * (0.55 + p * 1.5);
+        S.g.lineStyle(2.5 + 2 * burst, col, 0.85 * burst * S.RA);
+        S.g.beginPath();
+        S.g.moveTo(e.x + Math.cos(aq) * r0, cy0 + Math.sin(aq) * r0 * S.T);
+        S.g.lineTo(e.x + Math.cos(aq) * r1, cy0 + Math.sin(aq) * r1 * S.T);
+        S.g.strokePath();
+      }
+    }
+    // 경계 — 영웅 색으로, 예전보다 굵게. 안쪽에 흙 테두리를 겹쳐 두께를 만든다.
+    gink(e.x, e.y, r, 4.5, col, a * S.RA);
+    gink(e.x, e.y, r * 0.94, 2, M.clay, a * 0.7 * S.RA);
     // 경계 밖으로 튀는 흙덩이 — 개수를 반지름에 맞춘다(작은 스킬에 16개는 과하다)
     var n = Math.round(r / 11); if (n < 8) n = 8; if (n > 16) n = 16;
     var sd = seedOf(e.x, e.y), cy = syy(e.y);
     for (var k = 0; k < n; k++) {
       var ang = sd + (Math.PI * 2 / n) * k;
       var d = r * (0.97 + p * 0.20);
+      // 절반은 영웅 색으로 튄다 — 흙만이면 색이 테두리에만 갇힌다.
       shard(e.x + Math.cos(ang) * d, cy + Math.sin(ang) * d * S.T - p * 8,
-        1.6 + r * 0.028 * a, M.clay, a * 0.95);
+        1.8 + r * 0.030 * a, (k % 2) ? col : M.clay, a * 0.95);
     }
     // 시전자 발밑 — 누구의 범위인지
-    gline(e.x, e.y, r * 0.30, 2, col, a * 0.55 * S.RA);
+    gline(e.x, e.y, r * 0.30, 2.5, col, a * 0.65 * S.RA);
   }
 
   function aoeSelfB(e, col) {
@@ -510,11 +541,20 @@ window.GAME = window.GAME || {};
   //     ※ aoeSelf 와 kind 가 같다. total 로 가른다(320 = 광역 / 400 = 강화).
   //       반지름으로 가르면 방패 밀치기(80) 와 헷갈린다 — 실제로 겹치는 구간이다.
   // ========================================================================
+  //  ⚠ 2026-08-01 — 여기도 **영웅 색**을 올렸다(aoeSelfA 와 같은 이유).
+  //    조개껍질 색만 쓰면 파수꾼의 버프가 다른 영웅 것과 구분이 안 된다.
   function buffA(e, col) {
     var a = e.t / e.total, p = 1 - a;
     var M = S.MAT;
-    // 발밑 조개껍질 링 — 몸을 감쌌다는 표시
-    gink(e.x, e.y, e.r * (0.86 + p * 0.22), 2.5, M.shell, a * 0.95 * S.RA);
+    // 몸을 감싸며 올라오는 빛 — 터지는 순간에 한 번 크게
+    var burst = Math.max(0, 1 - p / 0.45);
+    if (burst > 0) {
+      gfill(e.x, e.y, e.r * (0.5 + p * 1.1), col, 0.30 * burst * burst * S.FA);
+      gink(e.x, e.y, e.r * (0.6 + p * 1.0), 3 + 4 * burst, col, 0.95 * burst * S.RA);
+    }
+    // 발밑 링 — 영웅 색을 바깥에, 조개껍질을 안쪽에 겹쳐 두께를 만든다
+    gink(e.x, e.y, e.r * (0.86 + p * 0.22), 4, col, a * S.RA);
+    gink(e.x, e.y, e.r * (0.80 + p * 0.20), 2, M.shell, a * 0.8 * S.RA);
     gfill(e.x, e.y, e.r * 0.9, M.shell, 0.10 * a * S.FA);
     // 잎사귀 세 장이 위로 떠오른다 (약초·가죽·풀숲 — 전부 '두르는' 스킬이다)
     var sd = seedOf(e.x, e.y), cy = syy(e.y);

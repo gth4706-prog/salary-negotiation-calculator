@@ -1458,7 +1458,11 @@ GAME.BattleScene.prototype.draw = function () {
 
   for (i = 0; i < s.effects.length; i++) {
     var e = s.effects[i];
-    var col = e.side === 'controller' ? C.controller : C.strategist;
+    // 영웅이 쓴 스킬이면 **그 영웅의 색**으로 그린다(불·바람·대지). 진영색 하나로는
+    // 세 영웅의 스킬이 구분이 안 됐다 — ui-theme.js 의 `FX.heroFx` 주석 참조.
+    var col = (e.heroKey && FX.heroFx && FX.heroFx[e.heroKey])
+      ? FX.heroFx[e.heroKey]
+      : (e.side === 'controller' ? C.controller : C.strategist);
     if (FXS && FXS.drawEffect(e, col)) continue;
 
     if (e.kind === 'telegraph') {

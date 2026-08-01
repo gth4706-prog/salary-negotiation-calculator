@@ -84,30 +84,6 @@ GAME.TowerLoadingScene.prototype.init = function (data) {
     ((GAME.TowerCurriculum && GAME.TowerCurriculum.debutOf(this.tower)) ? GAME.TowerLoadingScene.DEBUT_EXTRA : 0);
 };
 
-// 유닛 def → "어떤 공격을 하는가" 한 줄. `js/units.js` 의 값만 읽어 만든다
-// (설명을 손으로 또 쓰면 스탯을 바꿨을 때 조용히 거짓말이 된다).
-GAME.TowerLoadingScene.prototype._attackLineOf = function (d) {
-  if (!d) return '';
-  var W = GAME.CONFIG.WORLD_SCALE || 1;
-  var rng = Math.round((d.range || 0) / W);
-  var parts = [];
-  if (d.isMine) parts.push('밟으면 터지는 함정 — 먼저 공격하지 않는다');
-  else if (d.rangeSpan) parts.push('맵 전체에 닿는 사거리');
-  else if (d.attack === 'melee') parts.push('근접 ' + rng + ' 부채꼴 ' + (d.coneDeg || 90) + '°');
-  else if (d.attack === 'targeted') parts.push('사거리 ' + rng + ' · **자동 명중**(피할 수 없다)');
-  else if (d.attack === 'projectile') parts.push('사거리 ' + rng + ' 직선 투사체(피할 수 있다)');
-  else if (d.attack === 'lob') parts.push('사거리 ' + rng + ' 곡사 — 예고 뒤 착탄');
-  else parts.push('사거리 ' + rng);
-  if (d.damage) parts.push('피해 ' + d.damage);
-  if (d.cooldown) parts.push('간격 ' + (Math.round(d.cooldown / 100) / 10) + '초');
-  if (d.healRadius) parts.push('주변 아군 회복');
-  if (d.buffRadius) parts.push('주변 아군 강화');
-  if (d.intercept) parts.push('날아오는 공격을 대신 막는다');
-  if (d.slowMul) parts.push('맞으면 느려진다');
-  if (d.immobile) parts.push('움직이지 않는다');
-  return parts.join('  ·  ');
-};
-
 GAME.TowerLoadingScene.prototype.create = function () {
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
@@ -140,12 +116,31 @@ GAME.TowerLoadingScene.prototype.create = function () {
   //  맞는 지적이다. 예전엔 데뷔 문구가 배치 원형·층 조건·랜덤 팁과 **같은 문단에
   //  섞여** 넷 중 하나로 흘러갔고, 정작 새 유닛은 알파 0.55~0.92 로 흐리게 그려
   //  "무엇이 새로 왔는가"가 화면에서 가장 약한 신호였다. 소개하는 층이면 소개만 한다.
+  // ── 층 목표는 **언제나** 띄운다 (2026-08-01 사용자 신고) ────────────────────
+  //  "유닛을 다 잡지 않았는데 라운드 종료되는 일이 있어."
+  //  버그가 아니라 **안 보이던 규칙**이다. 목표 '우두머리 사냥'은 한 기만 잡으면,
+  //  '버티기'는 40초를 넘기면 그 자리에서 이긴다 — 적이 남아 있어도 끝난다.
+  //  그런데 이 화면은 목표를 한 번도 안 띄웠고(원형·조건·팁만 띄웠다), 전투 중
+  //  배지에 이름만 짧게 붙는 게 전부였다. `js/towerobjective.js` 가 스스로 적어 둔
+  //  원칙 셋을 그 상태로 어기고 있었던 것이다 —
+  //    "화면이 목표를 말한다. **안 보이는 목표는 목표가 아니라 함정이다.**"
+  //  ⚠ 그래서 데뷔 층에서도 이 줄만은 뺄 수 없다. "다른 설명 다 빼라"는 지시는
+  //    *설명*을 빼라는 것이지 **이기는 조건**을 숨기라는 뜻이 아니다.
+  //  ⚠ 시드를 **넘기지 않는다.** `battle.js` 도 `tower.js` 도 인자 없이 부르고,
+  //    그러면 `seedNow()`(등반 시드)가 고른다. 여기서만 `formation.seed` 를 넘기면
+  //    로딩 화면이 *다른* 목표를 예고하고 전투는 딴 목표로 도는, 안 띄우느니 못한
+  //    상태가 된다 — 부르는 방식이 곧 계약이다.
+  var objective = GAME.TowerObjective && this.tower
+    ? GAME.TowerObjective.objectiveFor(this.tower) : null;
+
   var lines = [];
+  if (objective) lines.push('🎯 ' + objective.label + ' — ' + objective.desc);
   if (debutDef) {
+    // ⚠ **한 줄만** 쓴다(2026-08-01 사용자 지시). 예전엔 세계관 설명 + 자동 생성한
+    //   공격 방식 + 대처법까지 네 줄이었는데, 로딩 몇 초에 그걸 다 읽지 않는다.
+    //   글이 줄면 남는 자리가 전부 **그림**으로 간다 — 생김새를 외우는 게 이 화면의 목적이다.
     lines.push('🆕 새로운 적  ·  ' + debutDef.name);
-    lines.push(debutDef.desc || '');
-    lines.push('▶ 공격 방식 — ' + this._attackLineOf(debutDef));
-    lines.push('▶ 대처 — ' + debut.lesson);
+    lines.push(debut.lesson);
   } else {
     if (bossDef) lines.push('☠ ' + bossDef.name + ' — ' + bossDef.desc);
     // 테마 층이면 그 사실이 가장 먼저 읽혀야 한다 — 판의 성격이 통째로 다르다.
@@ -172,7 +167,11 @@ GAME.TowerLoadingScene.prototype.create = function () {
   }
   lines = lines.filter(function (s) { return s; });
 
-  var infoLbl = GAME.UI.label(this, W / 2, subLbl.y + subLbl.height + 18, lines.join('\n\n'),
+  // 줄 사이 간격: 보통은 빈 줄로 띄운다(원형·조건·팁은 **서로 다른 사실**이라 붙이면
+  // 한 문단으로 읽힌다). 데뷔 층의 두 줄은 "누구인가 + 어떻게 상대하나"로 **한 덩어리**라
+  // 빈 줄이 필요 없고, 폰 가로(390px 높이)에서는 그 빈 줄 하나가 그림 띠의 23% 다.
+  var joiner = debutDef ? '\n' : '\n\n';
+  var infoLbl = GAME.UI.label(this, W / 2, subLbl.y + subLbl.height + 18, lines.join(joiner),
     GAME.CONFIG.SMALL ? 14 : 16, C.textDim, 0.5).setOrigin(0.5, 0).setAlign('center').setLineSpacing(8)
     .setWordWrapWidth(Math.min(W - 60, 640));
 
@@ -186,8 +185,32 @@ GAME.TowerLoadingScene.prototype.create = function () {
   var bandTop = infoLbl.y + infoLbl.height + 14;
   var bandBottom = barY - 16;
   var bandH = Math.max(20, bandBottom - bandTop);
+  // 계란 몸통은 발 기준 위로 3.2r · 아래로 1.8r(합 5r) 뻗는다(eggart 규약).
   var r = bandH / 5;
-  var silY = bandTop + r * 3.2;
+  var anchorUp = 3.2;
+  // ── 데뷔 층은 **띠에 꽉 차게** 세운다 (2026-08-01 사용자 지시: "생김새를 잘 볼 수
+  //    있게 크기 키워줘") ──────────────────────────────────────────────────────
+  //  ⚠ 두 번 틀렸고 둘 다 원인이 같다 — **안전 상한(5r)을 실제 크기로 착각**했다.
+  //    ① `min(bandH/5, W*0.16)` 로 폭 상한만 걸었더니 크기가 한 픽셀도 안 변했다
+  //       (`bandH/5` 가 언제나 더 작아 상한이 걸릴 일이 없었다).
+  //    ② 그래서 3.8 로 나눴더니 이번엔 쇠뇌 진지가 진행바를 뚫고 나갔다 —
+  //       유닛마다 앵커 위아래 비율이 딴판인데 하나의 비율로 맞춘 탓이다.
+  //  지금은 `UI.flatExtents` 의 **실측 경계 상자**로 그 유닛에 맞춰 정확히 채운다.
+  //  다른 층은 유닛을 여럿 늘어놓으므로 예전 안전 상한을 그대로 둔다.
+  if (debutDef && !bossDef) {
+    var ex = GAME.UI.flatExtents(debutDef);
+    // 세로: 띠 높이를 (위+아래) 로 나눈다. 가로: 그림 폭이 화면의 62% 를 넘지 않게.
+    //  ⚠ 세로 폰(420 폭)에서는 가로가 먼저 막힌다 — 폭을 안 보면 화면 밖으로 나간다.
+    //  ⚠ `bandH/3.0` 상한이 왜 필요한가: **납작한 유닛**은 높이를 채우려다 옆으로
+    //    터진다. 가시덫(위 0.83r·아래 0.82r)은 이 상한이 없으면 r 이 남들의 2배가 되어
+    //    폭 750px 짜리 갈색 덩어리가 됐다(실측) — 뭘 보여주는 그림인지 알 수 없다.
+    //    다른 아홉 종은 합이 2.7r 이상이라 이 상한에 안 걸린다(가시덫 전용 안전장치).
+    r = Math.min(bandH / (ex.up + ex.down), (W * 0.62) / (ex.halfW * 2), bandH / 3.0);
+    // 띠를 다 못 채우면 **남는 여백을 위아래로 나눠** 가운데 세운다.
+    // (안 하면 납작한 유닛이 위로 붙고 아래가 휑하게 빈다.)
+    anchorUp = ex.up + (bandH / r - (ex.up + ex.down)) / 2;
+  }
+  var silY = bandTop + r * anchorUp;
   if (bossDef) {
     GAME.UI.drawUnitFlat(this.add.graphics().setAlpha(0.92), bossDef,
       W / 2, silY, GAME.CONFIG.COLORS.strategist, 1, r / (bossDef.radius || 27), -Math.PI / 2);

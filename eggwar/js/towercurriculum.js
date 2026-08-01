@@ -34,17 +34,37 @@ GAME.TowerCurriculum = {
   //    되고. 한 20층 가서부터 쇠뇌 진지 나와도 돼").
   //    그래서 소개 간격을 넓혔다 — 1~10층에는 **네 종류만** 나오고, 뒤로 갈수록
   //    까다로운 것들이 천천히 들어온다. 쇠뇌 진지(맵 전체 사거리)는 20층으로 미뤘다.
+  //  ⚠ 2026-08-01 — `lesson` 은 **딱 한 줄**이다(사용자 지시: "새로운 유닛이 나올 때
+  //    설명은 1줄만 해도 돼. 전사는 근거리 유닛이고 돌진 스킬만 조심하자 / 궁수는
+  //    와리가리해서 피하자 등").
+  //    말투도 그 예시를 따랐다 — 설명문이 아니라 **옆에서 알려주는 한마디**다.
+  //    긴 설명은 읽히지 않는다: 로딩 화면은 몇 초짜리이고, 플레이어가 가져가야 할 것은
+  //    "이놈 앞에서 뭘 하면 되나" 하나뿐이다.
+  //  ── `share` 는 그 층에서 **그 유닛이 차지할 머릿수 비율**이다 (2026-08-01) ──
+  //  기본값(`DEBUT_SHARE`)이 아니라 유닛마다 다른 이유는 **실측 때문**이다.
+  //  전부 0.55 로 두니 무조작 돌파가 이렇게 나왔다(rep=48, 한계 10%):
+  //      투석꾼 4% · 투창병 17% · 방패병 21% · 약초꾼 42% · 늪지기 73% · 가시덫 65%
+  //  한 종류로 몰면 **조합이 사라진다.** 약초꾼·늪지기는 스스로 딜을 거의 안 내고,
+  //  가시덫은 애초에 승패 판정에서 빠지는 위험물이라(`Combat.isHazard`) 과반이 되면
+  //  "쓰러뜨려야 할 적"이 절반으로 줄어든다 — 소개하려다 층을 통째로 무너뜨린 것이다.
+  //  아래 값은 **무조작 돌파 ≤5% 를 지키는 최대치**로 하나씩 재서 넣었다.
+  //  ⚠ 눈으로 고치지 말 것. 바꾸면 `node tools/regress.js` 의 R-1 이 데뷔 층을
+  //    전부 검사하므로 거기서 잡힌다.
   UNLOCK: [
-    { floor: 1,  type: 'bayonet',     lesson: '뭉쳐서 벽을 만든다 — 벽을 허물 한 방이 필요하다' },
-    { floor: 3,  type: 'rifleman',    lesson: '화살은 직선으로만 온다 — 좌우로 움직이면 피한다' },
-    { floor: 6,  type: 'grenadier',   lesson: '돌은 예고 뒤에 터진다 — 그림자가 보이면 그 자리를 뜬다' },
-    { floor: 9,  type: 'shieldman',   lesson: '날아가는 공격을 대신 맞는다 — 먼저 지워야 뒤가 뚫린다' },
-    { floor: 12, type: 'medic',       lesson: '진형을 되살린다 — 먼저 끊지 않으면 끝나지 않는다' },
-    { floor: 15, type: 'sniper',      lesson: '이 창은 피할 수 없다 — 보이면 먼저 지운다' },
-    { floor: 18, type: 'chemtrooper', lesson: '맞으면 느려진다 — 거리를 두는 전략이 오히려 위험하다' },
-    { floor: 20, type: 'mgnest',      lesson: '움직이지 않지만 맵 어디든 닿는다 — 숨지 말고 붙어라' },
-    { floor: 24, type: 'sergeant',    lesson: '살아 있으면 주변이 강해진다 — 우두머리부터 노린다' },
-    { floor: 28, type: 'mine',        lesson: '보이지 않는다 — 밟으면 붉은 원이 뜨고, 이동 스킬로만 벗어난다' }
+    { floor: 1,  type: 'bayonet',     share: 0.55, lesson: '근거리 유닛이다. 돌진만 조심하자' },
+    { floor: 3,  type: 'rifleman',    share: 0.55, lesson: '직선으로만 쏜다. 좌우로 움직이며 피하자' },
+    { floor: 6,  type: 'grenadier',   share: 0.45, lesson: '떨어질 자리가 먼저 보인다. 그 자리만 비키자' },
+    { floor: 9,  type: 'shieldman',   share: 0.35, lesson: '날아가는 걸 대신 맞아준다. 먼저 지우자' },
+    { floor: 12, type: 'medic',       share: 0.25, lesson: '동료를 계속 살린다. 이놈부터 끊자' },
+    { floor: 15, type: 'sniper',      share: 0.45, lesson: '이 창은 못 피한다. 보이면 먼저 지우자' },
+    { floor: 18, type: 'chemtrooper', share: 0.25, lesson: '맞으면 느려진다. 멀리 돌지 말고 붙자' },
+    // ⚠ **보스 층(10의 배수)에는 데뷔를 두지 않는다.** 20층에 뒀더니 로딩 화면이
+    //   글로는 "새로운 적 · 쇠뇌 진지"라 해 놓고 그림은 보스를 그렸다(실측). 그 층은
+    //   이미 자기 정체성이 있어서 소개가 묻힌다 — 아래 `_bossFree` 가 이걸 지킨다.
+    //   19층이면 보스 직전에 배우게 되어 원칙 ④("보스까지는 다 가르친 상태로 도착")에도 맞다.
+    { floor: 19, type: 'mgnest',      share: 0.55, lesson: '맵 끝까지 닿는다. 숨지 말고 곧장 붙자' },
+    { floor: 24, type: 'sergeant',    share: 0.55, lesson: '살아 있으면 주변이 세진다. 이놈부터 노리자' },
+    { floor: 28, type: 'mine',        share: 0.35, lesson: '안 보인다. 붉은 원이 뜨면 이동 스킬로 튀자' }
   ],
 
   // 이 층까지 **풀린** 유닛 종류. AutoFormation 이 이 목록 밖에서는 안 뽑는다.
@@ -74,7 +94,10 @@ GAME.TowerCurriculum = {
   maxUnitsFor: function (floor) { return this.MAX_UNITS[floor] || 0; },
 
   // 이 층이 **데뷔 층**인가 → 그 항목(없으면 null). 로딩 화면이 이걸로 강조 문구를 만든다.
+  //  보스 층에서는 **언제나 null** 이다 — 보스 화면과 소개 화면이 같은 자리를 놓고 다투면
+  //  글과 그림이 어긋난다(위 UNLOCK 주석의 실측 사고). 표를 잘못 고쳐도 여기서 막힌다.
   debutOf: function (floor) {
+    if (GAME.Tower && GAME.Tower.isBossFloor && GAME.Tower.isBossFloor(floor)) return null;
     for (var i = 0; i < this.UNLOCK.length; i++) {
       if (this.UNLOCK[i].floor === floor) return this.UNLOCK[i];
     }
@@ -105,6 +128,23 @@ GAME.TowerCurriculum = {
     { type: 'sniper',      label: '투창 시합이 한창입니다',   hint: '피할 수 없는 창입니다. 빨리 붙으세요' },
     { type: 'mgnest',      label: '쇠뇌 진지를 잔뜩 지었습니다', hint: '숨을 곳이 없습니다. 곧장 파고드세요' }
   ],
+  // 데뷔 층에서 **소개하는 유닛이 차지할 최소 비율**. 과반이라야 "저놈이 새로 온 놈"이
+  // 읽힌다 — 1/15 로 섞여 있으면 소개 화면을 읽고 들어가도 찾지 못한다.
+  // 1.0(전부)은 일부러 피한다: 그건 테마 층의 그림이고, 두 장치가 같아 보이면 안 된다.
+  DEBUT_SHARE: 0.55,
+  // 데뷔 유닛에 쓸 수 있는 예산 상한. 이게 없으면 비싼 유닛(쇠뇌 진지·족장)의 데뷔 층이
+  // 예산을 다 먹어 단일 종류 판이 된다 — 그건 테마 층의 그림이다.
+  //  ⚠ 0.7 로 뒀더니 **R-1 이 깨졌다**(15층 무조작 돌파 17%, 한계 10%). 이유는
+  //    난이도 설계가 아니라 산수다 — 데뷔 유닛이 0.7 에서 막히자 남은 예산이 싼 유닛
+  //    쪽으로 갔는데 그쪽은 개수(`maxOthers`)로 묶여 있어 **예산의 13% 가 그냥 안 쓰였다.**
+  //    안 쓴 예산은 곧 얇은 진형이고, 얇으면 조작 없이도 뚫린다.
+  //    0.85 는 "데뷔 유닛이 예산을 거의 다 먹되 다른 종류가 한 줌은 남는" 선이다.
+  //  ⚠ 그리고 이 값은 **고정 상수면 안 된다.** 0.85 로 못박고 `share` 만 유닛별로
+  //    낮췄더니 15층이 다시 21% 로 뛰었다 — share 를 낮춰 머릿수를 줄여 놓고 예산 상한은
+  //    그대로라 데뷔 유닛이 여전히 예산을 다 먹었고, 그만큼 **다른 종류가 못 들어왔다.**
+  //    두 값은 같이 움직여야 한다. 아래 식(share + 0.30)이 위 표를 실제로 잰 조건이다.
+  debutBudgetCap: function (share) { return Math.min(0.85, (share || this.DEBUT_SHARE) + 0.30); },
+
   THEME_FROM_FLOOR: 6,        // 5층까지는 기본기를 배우는 자리라 변주를 안 넣는다
   THEME_CHANCE: 0.11,
 
@@ -112,6 +152,10 @@ GAME.TowerCurriculum = {
   themeFor: function (floor, seed, unlockedTypes) {
     if (floor < this.THEME_FROM_FLOOR) return null;
     if (GAME.Tower && GAME.Tower.isBossFloor && GAME.Tower.isBossFloor(floor)) return null;
+    // 데뷔 층에는 테마를 안 건다 — 테마는 판을 **한 종류로** 갈아치우므로, 소개하려던
+    // 유닛이 그 판에서 통째로 사라진다(6·9·12·15·18·19·24·28층이 겹칠 수 있다).
+    // 소개하는 층은 소개가 우선이다.
+    if (this.debutOf(floor)) return null;
     // 시드 + 층으로 결정적 난수 — 같은 등반에서 같은 층은 늘 같은 판이다.
     var h = ((seed || 1) * 2654435761 + floor * 40503) >>> 0;
     var r = (h % 1000) / 1000;

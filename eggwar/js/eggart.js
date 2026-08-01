@@ -2252,6 +2252,36 @@ GAME.UI = GAME.UI || {};
                    walk, UI.rankOf(def), idle, act, 0, gearTier);
   };
 
+  // ── **실제로 칠해지는 범위** (앵커 기준, r 단위) ───────────────────────────
+  //  왜 표가 필요한가: 이 파일이 보장하는 "위 3.2r · 아래 1.8r" 은 *안전 상한*이지
+  //  실측치가 아니다. 로딩 화면이 그 상한으로 크기를 잡았더니 띠의 30% 가 늘 비었고,
+  //  반대로 상한을 믿고 줄였더니 쇠뇌 진지가 진행바를 뚫고 나갔다(둘 다 실측).
+  //  아래 값은 유닛 10종을 한 기씩 그려 **화면 픽셀에서 경계 상자를 읽어** 얻었다
+  //  (2026-08-01, PC 1340×900 · facing 정면 · 무기 포함 · 모션 없음).
+  //  ⚠ 크기를 결정하는 **레이아웃 전용**이다 — 판정에는 절대 쓰지 말 것.
+  //    사거리·피격 판정은 `def.radius` 하나만 본다(이 폴더가 이미 겪은 함정).
+  //  ⚠ 아트를 고치면 이 숫자도 같이 낡는다. `tools/flat-extents-audit.js` 가
+  //    실측과 이 표를 대조하므로, 어긋나면 그 도구가 먼저 알려준다.
+  UI.FLAT_EXTENTS = {
+    warrior:    { up: 2.15, down: 1.08, halfW: 1.73 },
+    archer:     { up: 1.81, down: 1.08, halfW: 1.96 },
+    slinger:    { up: 1.92, down: 1.29, halfW: 1.49 },
+    spearman:   { up: 2.07, down: 1.08, halfW: 1.24 },
+    herbalist:  { up: 2.35, down: 1.33, halfW: 1.46 },
+    shieldman:  { up: 2.09, down: 1.08, halfW: 1.88 },
+    chieftain:  { up: 2.25, down: 1.18, halfW: 1.58 },
+    ballista:   { up: 1.80, down: 1.41, halfW: 1.45 },
+    bogman:     { up: 1.63, down: 1.08, halfW: 1.44 },
+    snaretrap:  { up: 0.83, down: 0.82, halfW: 1.15 }
+  };
+  // 표에 없는 아트(새로 넣은 것·보스)는 **최악값**으로 잡는다 — 모르면 크게 잡아
+  // 삐져나오지 않게 하는 쪽이 안전하다. 새 아트를 넣으면 위 표에 실측을 추가할 것.
+  UI.FLAT_EXTENT_MAX = { up: 2.35, down: 1.41, halfW: 1.96 };
+  UI.flatExtents = function (def) {
+    var art = def && (def.art || (UI.artOf(def) && UI.artOf(def).key));
+    return (art && UI.FLAT_EXTENTS[art]) || UI.FLAT_EXTENT_MAX;
+  };
+
 })(GAME.UI);
 
 

@@ -272,6 +272,71 @@ GAME.Tower = {
       }
     }
 
+    // ── 데뷔 층은 **그 유닛 중심으로** 짠다 (2026-08-01 사용자 지시) ──────────
+    //  "유닛 소개를 하면 꼭 그 유닛 중심으로 배치된 게 나와야 해."
+    //  맞는 지적이고, 안 하면 소개 화면이 거짓말이 된다 — 15기 중 약초꾼 한 기가
+    //  뒤에 섞여 있으면 "새로운 적 · 약초꾼"을 읽고 들어가서 그놈을 찾지도 못한다.
+    //  배우는 방법은 **여러 번 마주치는 것**이지 이름을 한 번 읽는 게 아니다.
+    //
+    //  ⚠ 테마 층처럼 한 종류로 다 채우지는 않는다. 그건 이미 테마의 몫이고, 데뷔 층까지
+    //    단일 종류면 두 장치가 같은 그림이 되어 둘 다 특별함을 잃는다. 과반만 채운다.
+    //  ⚠ **예산을 지킨다.** 싼 유닛을 비싼 유닛으로 바꾸면 총액이 늘어난다 —
+    //    넘긴 만큼 뒤에서 덜어내지 않으면 '소개하는 층'이 그냥 '어려운 층'이 된다.
+    //  ⚠ 첫 구현은 "비싼 것부터 데뷔 유닛으로 바꾸고, 예산 넘치면 데뷔가 아닌 것부터
+    //    덜어낸다"였는데, **여덟 층 중 다섯이 100% 단일 종류**가 됐다(실측). 싼 유닛을
+    //    비싼 데뷔 유닛으로 바꾸느라 예산이 넘쳤고, 그 뒤처리가 나머지를 전부 지웠다.
+    //    바로 위에서 "테마 층처럼 하지 않는다"고 적어 놓고 정확히 그 그림을 만든 것이다.
+    //    그래서 지금은 고쳐 쓰지 않고 **처음부터 다시 짠다** — 데뷔 유닛을 먼저 세우고,
+    //    남는 예산으로 싼 것부터 채운다. 예산을 넘길 일 자체가 없다.
+    var debutHere = GAME.TowerCurriculum && GAME.TowerCurriculum.debutOf(floor);
+    var dDef = debutHere && GAME.UNITS[debutHere.type];
+    if (dDef && dDef.cost > 0 && f.units && f.units.length) {
+      var n0 = f.units.length;
+      var capUnits = maxUnits || n0;
+      // 데뷔 유닛 수 — 과반이되 예산의 일정 비율을 넘지 않는다(나머지 종류가 설 자리).
+      // 비율은 **유닛마다 다르다** — 왜 다른지는 towercurriculum.js 의 UNLOCK 주석에 있다
+      // (약초꾼·늪지기·가시덫을 과반으로 몰면 층이 조작 없이 뚫린다).
+      var dShare = debutHere.share || GAME.TowerCurriculum.DEBUT_SHARE;
+      var k = Math.ceil(n0 * dShare);
+      k = Math.min(k, Math.floor(budget * GAME.TowerCurriculum.debutBudgetCap(dShare) / dDef.cost));
+      k = Math.max(1, Math.min(k, capUnits));
+
+      // 좌표는 원래 진형 것을 그대로 물려받는다(아래 `TowerPlan.apply` 가 다시 놓지만,
+      // 원형이 없는 경우를 대비해 흩어진 상태를 유지한다).
+      var slots = f.units.map(function (u) { return { nx: u.nx, ny: u.ny }; });
+      var out = [], spent = 0;
+      for (var k1 = 0; k1 < k; k1++) {
+        out.push({ type: debutHere.type, nx: slots[k1].nx, ny: slots[k1].ny });
+        spent += dDef.cost;
+      }
+      // 나머지는 **싼 것부터** 채운다 — 종류가 남아야 데뷔 유닛이 '다르게' 보인다.
+      //  ⚠ 개수를 반드시 묶는다. 안 묶었더니 남는 예산이 전부 10골드짜리 전사로 가서
+      //    쇠뇌 진지 4기가 14기 중 4기(29%)가 됐다 — 예산은 지켰지만 **화면에서는
+      //    소개한 유닛이 묻혔다**(실측). 비율은 결국 눈에 보이는 머릿수의 문제다.
+      var maxOthers = Math.max(1, Math.round(k * (1 - dShare) / dShare));
+      var others = f.units.filter(function (u) { return u.type !== debutHere.type; })
+        .sort(function (a, b) {
+          return ((GAME.UNITS[a.type] || {}).cost || 0) - ((GAME.UNITS[b.type] || {}).cost || 0);
+        });
+      var nOthers = 0;
+      others.forEach(function (u) {
+        var c = (GAME.UNITS[u.type] || {}).cost || 0;
+        if (nOthers >= maxOthers || out.length >= capUnits || spent + c > budget) return;
+        out.push({ type: u.type, nx: slots[out.length % slots.length].nx,
+                   ny: slots[out.length % slots.length].ny });
+        spent += c; nOthers++;
+      });
+      // 남은 예산은 데뷔 유닛으로 마저 쓴다 — 안 그러면 층이 원래보다 얇아진다
+      // (1층은 전사밖에 없어서 `others` 가 비고, 이 줄이 없으면 3기가 2기가 된다).
+      while (out.length < capUnits && spent + dDef.cost <= budget) {
+        out.push({ type: debutHere.type, nx: slots[out.length % slots.length].nx,
+                   ny: slots[out.length % slots.length].ny });
+        spent += dDef.cost;
+      }
+      f.units = out;
+      f.debutType = debutHere.type;
+    }
+
     // ── 층 배치 원형 (2026-07-30 대개편) ────────────────────────────────────
     //  구성은 위에서 `AutoFormation` 이 정했고, **공간은 여기서 다시 정한다.**
     //  이게 "매번 똑같은 진형"이라는 신고의 직접 해답이다 — 구성 다양성은 이미

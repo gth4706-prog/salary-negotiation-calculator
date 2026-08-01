@@ -2,10 +2,12 @@
    유튜브 자막 추출기 (youtube-transcript)
    - 서버(Cloudflare Worker)에서 유튜브 자막을 가져와 텍스트로 표시
    - 아무것도 저장하지 않음. 매 요청 즉시 처리.
+   KO/EN 공유: window.YT_LANG="en" 이면 동적 문구를 영어 테이블에서 고른다.
    ========================================================= */
 (function(){
   var $=function(id){return document.getElementById(id)};
   if(!$("stepIn"))return;
+  var LANG=(window.YT_LANG==="en")?"en":"ko";
 
   // 배포 후 실제 Worker URL로 교체 필요 (webtool-proxy — /seo-keywords와 공용)
   var API_BASE="https://webtool-proxy.YOUR-SUBDOMAIN.workers.dev";
@@ -13,6 +15,38 @@
   // 서버(Worker)가 아직 배포되지 않은 상태를 감지한다.
   // API_BASE를 실제 주소로 교체하면 이 가드는 자동으로 풀린다.
   var API_READY=API_BASE.indexOf("YOUR-SUBDOMAIN")===-1;
+
+  var T={
+    ko:{
+      noCues:'<div class="yt-empty">표시할 자막이 없어요.</div>',
+      autoTag:" (자동)",
+      copied:"✓ 복사됨",
+      copyPrompt:"복사하세요:",
+      fetching:"가져오는 중...",
+      goBtn:"텍스트로 변환하기 →",
+      noTitle:"제목 없음",
+      preparing:"준비 중이에요",
+      errNoCaptions:"이 영상은 자막이 없어서 지원하지 않아요.",
+      errInvalidUrl:"올바른 유튜브 링크가 아니에요.",
+      errLoadFailed:"영상을 불러오지 못했어요. 링크를 다시 확인해 주세요.",
+      errGeneric:"일시적인 오류예요. 잠시 후 다시 시도해 주세요."
+    },
+    en:{
+      noCues:'<div class="yt-empty">No transcript to show.</div>',
+      autoTag:" (auto)",
+      copied:"✓ Copied",
+      copyPrompt:"Copy this:",
+      fetching:"Fetching...",
+      goBtn:"Convert to text →",
+      noTitle:"No title",
+      preparing:"Coming soon",
+      errNoCaptions:"This video isn't supported because it has no captions.",
+      errInvalidUrl:"That doesn't look like a valid YouTube link.",
+      errLoadFailed:"Couldn't load the video. Please double-check the link.",
+      errGeneric:"Something went wrong. Please try again in a moment."
+    }
+  };
+  var S=T[LANG];
 
   var state={cues:[],player:null,pollTimer:null,activeIdx:-1};
 
@@ -85,7 +119,7 @@
   /* ---------- 자막 렌더 ---------- */
   function renderCues(cues){
     var list=$("yt-cues"); list.innerHTML="";
-    if(!cues.length){list.innerHTML='<div class="yt-empty">표시할 자막이 없어요.</div>';return;}
+    if(!cues.length){list.innerHTML=S.noCues;return;}
     cues.forEach(function(c,i){
       var row=document.createElement("div");
       row.className="yt-cue"; row.setAttribute("data-idx",i);
@@ -120,9 +154,9 @@
   $("yt-copy").addEventListener("click",function(){
     var text=state.cues.map(function(c){return "["+fmtTime(c.t)+"] "+c.text}).join("\n");
     var btn=this, old=btn.textContent;
-    function done(){btn.textContent="✓ 복사됨"; setTimeout(function(){btn.textContent=old},1600);}
-    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(done,function(){prompt("복사하세요:",text)});
-    else prompt("복사하세요:",text);
+    function done(){btn.textContent=S.copied; setTimeout(function(){btn.textContent=old},1600);}
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(done,function(){prompt(S.copyPrompt,text)});
+    else prompt(S.copyPrompt,text);
   });
 
   /* ---------- 언어 선택 ---------- */
@@ -133,7 +167,7 @@
     sel.innerHTML="";
     tracks.forEach(function(t){
       var o=document.createElement("option");
-      o.value=t.code; o.textContent=t.name+(t.kind==="asr"?" (자동)":"");
+      o.value=t.code; o.textContent=t.name+(t.kind==="asr"?S.autoTag:"");
       if(t.code===selected)o.selected=true;
       sel.appendChild(o);
     });
@@ -151,19 +185,19 @@
 
   function loadTranscript(videoId,lang){
     clearError();
-    $("yt-go").disabled=true; $("yt-go").textContent="가져오는 중...";
+    $("yt-go").disabled=true; $("yt-go").textContent=S.fetching;
     var qs="?id="+encodeURIComponent(videoId)+(lang?"&lang="+encodeURIComponent(lang):"");
     fetch(API_BASE+"/transcript"+qs)
       .then(function(r){return r.json()})
       .then(function(data){
-        $("yt-go").disabled=false; $("yt-go").textContent="텍스트로 변환하기 →";
-        if(data.error==="no_captions"){showError("이 영상은 자막이 없어서 지원하지 않아요.");return;}
-        if(data.error==="invalid_url"){showError("올바른 유튜브 링크가 아니에요.");return;}
-        if(data.error){showError("영상을 불러오지 못했어요. 링크를 다시 확인해 주세요.");return;}
+        $("yt-go").disabled=false; $("yt-go").textContent=S.goBtn;
+        if(data.error==="no_captions"){showError(S.errNoCaptions);return;}
+        if(data.error==="invalid_url"){showError(S.errInvalidUrl);return;}
+        if(data.error){showError(S.errLoadFailed);return;}
 
         lastVideoId=videoId;
         state.cues=data.cues||[];
-        $("yt-title").textContent=data.title||"제목 없음";
+        $("yt-title").textContent=data.title||S.noTitle;
         renderLangSelect(data.tracks,data.selected);
         renderCues(state.cues);
         state.activeIdx=-1;
@@ -174,8 +208,8 @@
         $("stepResult").scrollIntoView({behavior:"smooth",block:"start"});
       })
       .catch(function(){
-        $("yt-go").disabled=false; $("yt-go").textContent="텍스트로 변환하기 →";
-        showError("일시적인 오류예요. 잠시 후 다시 시도해 주세요.");
+        $("yt-go").disabled=false; $("yt-go").textContent=S.goBtn;
+        showError(S.errGeneric);
       });
   }
 
@@ -183,14 +217,14 @@
   if(!API_READY){
     $("yt-url").disabled=true;
     $("yt-go").disabled=true;
-    $("yt-go").textContent="준비 중이에요";
+    $("yt-go").textContent=S.preparing;
     if($("yt-soon"))$("yt-soon").hidden=false;
   }
 
   $("yt-go").addEventListener("click",function(){
     if(!API_READY)return;
     var v=extractVideoId($("yt-url").value);
-    if(!v){showError("올바른 유튜브 링크가 아니에요.");return;}
+    if(!v){showError(S.errInvalidUrl);return;}
     loadTranscript(v,null);
   });
   $("yt-url").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();$("yt-go").click();}});

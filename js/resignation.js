@@ -3,10 +3,12 @@
    - 서버 없음. 모든 계산은 브라우저 안에서만 동작.
    - 근속 1년 미만 연차: 매월 개근 시 1일(최대 11일)
    - 근속 1년 이상 연차: 15일 + (근속연수-1)/2(내림), 최대 25일 — 근사치
+   KO/EN 공유: window.RESIGN_LANG="en" 이면 동적 문구를 전부 영어 테이블(T.en)에서 고른다.
    ========================================================= */
 (function(){
   var $=function(id){return document.getElementById(id)};
   if(!$("hire-date"))return;
+  var LANG=(window.RESIGN_LANG==="en")?"en":"ko";
 
   var state={basis:"hire"};
 
@@ -73,6 +75,109 @@
     return annualLeaveDays(Math.max(1,yrs2));
   }
 
+  /* ---------- 문구 테이블 ---------- */
+  var T={
+    ko:{
+      futureHire:function(hireS,nextS,sevS){return "🗓️ 입력하신 <b>"+hireS+"</b>은 아직 오지 않은 날짜예요. 입사 전에는 근무일수가 0이라 연차도 0일이고 퇴직금 D-day도 셀 수 없어서 계산 결과는 보여드리지 않았어요."+
+        "<br>입사 예정일이라면, 실제로 출근을 시작한 뒤 <b>"+nextS+"</b>(1개월 개근)에 첫 연차 1일이, <b>"+sevS+"</b>(근속 1년)에 퇴직금 대상이 돼요. 입사 후에 다시 계산하면 추천 퇴사일까지 알려드릴게요."},
+      resultSub:function(hireS){return "입사일 "+hireS+" 기준"},
+      severanceTitle:"퇴직금",
+      severanceDone:function(sevS,est){return "근속 1년(" + sevS + ") 이상 — 이미 퇴직금 발생 대상이에요." + (est? " 오늘 기준 예상 퇴직금 약 <b>" + est + "만원</b>(세후 월급 기준 근사치)." : "")},
+      severancePending:function(sevS,dday,est){return "근속 1년 완성일 " + sevS + " · <b>D-" + dday + "</b> — 그 전에 퇴사하면 퇴직금이 발생하지 않아요." + (est? " 1년을 채우면 예상 퇴직금 약 <b>" + est + "만원</b>(세후 월급 기준 근사치)." : "")},
+      nextLeaveTitle:"다음 연차 발생일",
+      nextLeaveDesc:function(nextS,dday,days,loss){return nextS + " · <b>D-" + dday + "</b> — 이 날짜에 " + days + "일치 연차가 새로 생겨요." + (loss? " 지금 퇴사하면 약 <b>" + loss + "만원</b> 손해 예상(근사치)." : "")},
+      comboLine:function(comboS){return "📌 <b>" + comboS + "</b> 이후 퇴사하면 퇴직금과 다음 연차분을 모두 챙길 수 있어요."},
+      targetBeforeHire:function(targetS,hireS){return "퇴사 희망일이 입사일("+hireS+")보다 앞서 있어요. 날짜를 다시 확인해 주세요."},
+      targetBeforeHireTitle:function(targetS){return "희망일("+targetS+") 확인이 필요해요"},
+      targetSevTitle:function(targetS){return "희망일(" + targetS + ") 기준 퇴직금"},
+      targetSevOk:function(est){return "퇴직금 발생 조건을 충족해요." + (est? " 예상 퇴직금 약 <b>" + est + "만원</b>(세후 월급 기준 근사치)." : "")},
+      targetSevBad:function(short){return "퇴직금 발생 전이에요 (" + short + "일 부족)."},
+      targetLeaveTitle:"희망일 기준 다음 연차",
+      targetLeaveOk:"다음 연차분까지 받을 수 있어요.",
+      targetLeaveBad:function(short){return "다음 연차 발생 전이에요 (" + short + "일 부족)."},
+      psyQ:[
+        {id:"reason",t:"어떤 이유로 퇴사를 고민하고 계신가요?",opts:[
+          ["people","사람 관계가 힘들어서"],["growth","성장이 정체된 것 같아서"],
+          ["pay","보상(연봉)이 불만족스러워서"],["burnout","번아웃·건강 문제로"],
+          ["offer","더 나은 기회가 보여서"],["vision","회사 방향성이 안 보여서"]
+        ]},
+        {id:"since",t:"이 고민, 언제부터 하셨나요?",opts:[["recent","최근에 갑자기"],["long","꽤 오래전부터"]]},
+        {id:"ready",t:"지금 갈 곳(다음 계획)이 있으신가요?",opts:[["yes","있어요"],["no","아직 없어요"]]},
+        {id:"finance",t:"당장 퇴사해도 재정적으로 여유가 있으신가요?",opts:[["ok","어느 정도 여유 있어요"],["tight","빠듯한 편이에요"]]},
+        {id:"tried",t:"고민을 풀어보려고 시도해본 게 있으신가요? (부서이동 요청, 상담 등)",opts:[["yes","이미 해봤어요"],["no","아직 안 해봤어요"]]}
+      ],
+      reasonBase:{
+        people:"사람 때문에 힘든 거라면, 퇴사 전에 부서 이동이나 팀 변경으로 해결되는 경우도 꽤 있어요. 같은 문제가 다음 직장에서도 반복될 수 있으니, 어떤 관계가 힘든지부터 구체적으로 짚어보는 게 도움이 돼요.",
+        growth:"성장이 멈췄다고 느껴진다면, 이직 전에 사내에서 새로운 업무나 역할을 요청해본 적이 있는지 점검해보세요. 그래도 안 된다면 이직이 더 확실한 답일 수 있어요.",
+        pay:"보상 불만족이라면, 이직 전에 현재 회사에 인상을 요청해본 적이 있나요? <a href=\"../salary-calculator/\">이직 연봉 협상 계산기</a>로 내 시장가부터 확인해보는 것도 방법이에요.",
+        burnout:"번아웃이라면 무작정 퇴사보다, 남은 연차를 몰아 써서 며칠 완전히 쉬어보고 다시 판단하는 것도 방법이에요. 건강 문제라면 회복이 최우선이에요.",
+        offer:"이미 더 나은 기회가 보인다면, 감정보다 조건 비교가 중요해요. <a href=\"../salary-calculator/\">이직 연봉 협상 계산기</a>로 제안 연봉을 냉정하게 먼저 평가해보세요.",
+        vision:"회사 방향성이 안 보인다면, 그 판단이 정확한지 한 번 더 점검해볼 가치가 있어요. 리더십과 직접 대화해본 적이 있는지도 체크포인트예요."
+      },
+      sinceLong:"오래 고민해오셨다면, 이번엔 미루지 말고 구체적인 날짜를 잡아보는 것도 방법이에요.",
+      sinceRecent:"고민을 시작한 지 얼마 안 됐다면, 조금 더 지켜보면서 정보를 모아보는 것도 좋아요.",
+      readyYesCalc:"이미 갈 곳이 있으시다면, 위에서 계산한 추천 퇴사일에 맞춰 인수인계 일정만 조율하면 될 것 같아요.",
+      readyYesNoCalc:"이미 갈 곳이 있으시다면, 퇴직금·연차 발생일을 먼저 확인하고 인수인계 일정을 조율해보세요.",
+      financeTightCalc:"갈 곳이 아직 없고 재정도 빠듯하시다면, 위에서 계산한 퇴직금·연차부터 꼭 챙기고 최소 몇 개월치 생활비를 확보한 뒤 움직이는 걸 권해드려요.",
+      financeTightNoCalc:"갈 곳이 아직 없고 재정도 빠듯하시다면, 퇴직금·연차부터 꼭 챙기고 최소 몇 개월치 생활비를 확보한 뒤 움직이는 걸 권해드려요.",
+      readyNoCalc:"갈 곳이 아직 없다면, 위에서 계산한 퇴직금·연차 발생일까지는 챙기고 움직이는 게 유리해요.",
+      readyNoNoCalc:"갈 곳이 아직 없다면, 퇴직금·연차 발생일까지는 챙기고 움직이는 게 유리해요.",
+      triedNo:"아직 시도해본 게 없다면, 결정을 내리기 전에 한 번은 시도해보고 판단해도 늦지 않아요.",
+      triedYes:"이미 여러 시도를 해보셨다면, 지금의 고민은 충분히 근거가 있는 신호일 수 있어요.",
+      comboReminder:function(comboS){return "위에서 계산한 추천 퇴사일(<b>"+comboS+"</b>)도 함께 참고해보세요."}
+    },
+    en:{
+      futureHire:function(hireS,nextS,sevS){return "🗓️ The date you entered, <b>"+hireS+"</b>, hasn't arrived yet. Before your start date, you have 0 working days, so paid leave is 0 days and there's no severance D-day to count — so we haven't shown a result."+
+        "<br>If this is a planned start date, once you actually begin working you'll earn your first day of paid leave on <b>"+nextS+"</b> (one month of perfect attendance), and become eligible for severance on <b>"+sevS+"</b> (one year of service). Run the calculation again after you start and we'll recommend a resignation date."},
+      resultSub:function(hireS){return "Based on a start date of "+hireS},
+      severanceTitle:"Severance pay",
+      severanceDone:function(sevS,est){return "One year of service (" + sevS + ") reached — you're already eligible for severance." + (est? " Estimated severance as of today: about <b>$" + est + "</b> (approximate, based on take-home pay)." : "")},
+      severancePending:function(sevS,dday,est){return "You'll hit one year of service on " + sevS + " · <b>D-" + dday + "</b> — leaving before then means no severance pay." + (est? " Once you hit one year, estimated severance is about <b>$" + est + "</b> (approximate, based on take-home pay)." : "")},
+      nextLeaveTitle:"Next paid leave accrual",
+      nextLeaveDesc:function(nextS,dday,days,loss){return nextS + " · <b>D-" + dday + "</b> — you'll earn " + days + " new day(s) of paid leave on this date." + (loss? " Leaving now means an estimated loss of about <b>$" + loss + "</b> (approximate)." : "")},
+      comboLine:function(comboS){return "📌 Leave after <b>" + comboS + "</b> and you'll capture both your severance pay and your next batch of paid leave."},
+      targetBeforeHire:function(targetS,hireS){return "Your target resignation date is earlier than your start date ("+hireS+"). Please double-check the date."},
+      targetBeforeHireTitle:function(targetS){return "Target date (" + targetS + ") needs a check"},
+      targetSevTitle:function(targetS){return "Severance pay as of your target date (" + targetS + ")"},
+      targetSevOk:function(est){return "You'd meet the condition for severance pay." + (est? " Estimated severance: about <b>$" + est + "</b> (approximate, based on take-home pay)." : "")},
+      targetSevBad:function(short){return "That's before you're eligible for severance (" + short + " day(s) short)."},
+      targetLeaveTitle:"Next paid leave as of your target date",
+      targetLeaveOk:"You'd still capture the next batch of paid leave.",
+      targetLeaveBad:function(short){return "That's before your next leave accrual (" + short + " day(s) short)."},
+      psyQ:[
+        {id:"reason",t:"What's the main reason you're considering leaving?",opts:[
+          ["people","Difficult relationships with people"],["growth","Growth feels stalled"],
+          ["pay","Compensation isn't satisfying"],["burnout","Burnout or health issues"],
+          ["offer","A better opportunity has come up"],["vision","The company's direction feels unclear"]
+        ]},
+        {id:"since",t:"How long have you been thinking about this?",opts:[["recent","Just recently"],["long","For quite a while"]]},
+        {id:"ready",t:"Do you have somewhere to go next (a plan)?",opts:[["yes","Yes, I do"],["no","Not yet"]]},
+        {id:"finance",t:"Could you handle it financially if you left right now?",opts:[["ok","I have some cushion"],["tight","It would be tight"]]},
+        {id:"tried",t:"Have you tried to address this already? (asking for a transfer, talking it through, etc.)",opts:[["yes","Yes, already tried"],["no","Not yet"]]}
+      ],
+      reasonBase:{
+        people:"If it's about people, a department or team change can sometimes resolve things before you need to leave entirely. The same issue can follow you to the next job, so it helps to pin down specifically which relationship is the hard part.",
+        growth:"If growth feels stalled, check whether you've actually asked for new work or a new role internally before job-hunting. If that doesn't move the needle, changing jobs may be the clearer answer.",
+        pay:"If it's about compensation, have you asked your current company for a raise yet? Checking your market rate with the <a href=\"../salary-calculator/\">Salary Negotiation Calculator</a> is also a good first step.",
+        burnout:"If it's burnout, rather than resigning outright, using up remaining leave for a real break and then reassessing can be worth trying. If it's a health issue, recovery comes first.",
+        offer:"If you already have a better opportunity in sight, comparing the actual terms matters more than the feeling. Coolly evaluate the offer first with the <a href=\"../salary-calculator/\">Salary Negotiation Calculator</a>.",
+        vision:"If the company's direction feels unclear, it's worth double-checking whether that read is accurate. Whether you've talked to leadership directly is a good checkpoint too."
+      },
+      sinceLong:"If you've been thinking about this for a while, it might be worth setting a concrete date this time instead of putting it off again.",
+      sinceRecent:"If this is a recent concern, it's also fine to keep watching and gathering information a bit longer.",
+      readyYesCalc:"If you already have somewhere to go, it sounds like you just need to line up your handover schedule with the recommended resignation date calculated above.",
+      readyYesNoCalc:"If you already have somewhere to go, check your severance and leave accrual dates first, then line up your handover schedule.",
+      financeTightCalc:"If you don't have somewhere lined up yet and finances are tight, be sure to capture the severance and leave accrual calculated above, and line up at least a few months of living expenses before you move.",
+      financeTightNoCalc:"If you don't have somewhere lined up yet and finances are tight, be sure to capture your severance and leave accrual, and line up at least a few months of living expenses before you move.",
+      readyNoCalc:"If you don't have somewhere lined up yet, it's better to wait until the severance and leave accrual dates calculated above before moving.",
+      readyNoNoCalc:"If you don't have somewhere lined up yet, it's better to wait until your severance and leave accrual dates before moving.",
+      triedNo:"If you haven't tried anything yet, it's not too late to try something before making the final call.",
+      triedYes:"If you've already tried several things, this concern is likely a well-founded signal.",
+      comboReminder:function(comboS){return "Also worth keeping in mind: the recommended resignation date calculated above is <b>"+comboS+"</b>."}
+    }
+  };
+  var S=T[LANG];
+
   /* ---------- 기준(입사일/회계연도) 토글 ---------- */
   $("basis-hire").addEventListener("click",function(){setBasis("hire")});
   $("basis-fiscal").addEventListener("click",function(){setBasis("fiscal")});
@@ -106,8 +211,7 @@
       state.comboDate=null;
       $("stepResult").hidden=true;
       if(hint){
-        hint.innerHTML="🗓️ 입력하신 <b>"+fmt(hire)+"</b>은 아직 오지 않은 날짜예요. 입사 전에는 근무일수가 0이라 연차도 0일이고 퇴직금 D-day도 셀 수 없어서 계산 결과는 보여드리지 않았어요."+
-          "<br>입사 예정일이라면, 실제로 출근을 시작한 뒤 <b>"+fmt(addMonths(hire,1))+"</b>(1개월 개근)에 첫 연차 1일이, <b>"+fmt(severanceDate(hire))+"</b>(근속 1년)에 퇴직금 대상이 돼요. 입사 후에 다시 계산하면 추천 퇴사일까지 알려드릴게요.";
+        hint.innerHTML=S.futureHire(fmt(hire),fmt(addMonths(hire,1)),fmt(severanceDate(hire)));
         hint.hidden=false;
       }
       $("hire-date").focus();
@@ -128,34 +232,31 @@
     state.comboDate=comboDate;
     state.sevDate=sevDate; state.nextLeave=nextLeave;
 
-    $("result-sub").textContent="입사일 "+fmt(hire)+" 기준";
+    $("result-sub").textContent=S.resultSub(fmt(hire));
 
     var estToday=estimateSeverance(hire,today,pay);
     var estAt1yr=estimateSeverance(hire,sevDate,pay);
 
     var cards="";
-    cards+=rcard(sevDone?"ok":"warn", sevDone?"✅":"⏳", "퇴직금",
-      (sevDone? "근속 1년(" + fmt(sevDate) + ") 이상 — 이미 퇴직금 발생 대상이에요." + (estToday? " 오늘 기준 예상 퇴직금 약 <b>" + estToday + "만원</b>(세후 월급 기준 근사치)." : "")
-             : "근속 1년 완성일 " + fmt(sevDate) + " · <b>D-" + sevDday + "</b> — 그 전에 퇴사하면 퇴직금이 발생하지 않아요." + (estAt1yr? " 1년을 채우면 예상 퇴직금 약 <b>" + estAt1yr + "만원</b>(세후 월급 기준 근사치)." : "")));
-    cards+=rcard("info","📅","다음 연차 발생일",
-      fmt(nextLeave) + " · <b>D-" + leaveDday + "</b> — 이 날짜에 " + batchDays + "일치 연차가 새로 생겨요." +
-      (dailyWage? " 지금 퇴사하면 약 <b>" + lossAmt + "만원</b> 손해 예상(근사치)." : ""));
+    cards+=rcard(sevDone?"ok":"warn", sevDone?"✅":"⏳", S.severanceTitle,
+      sevDone?S.severanceDone(fmt(sevDate),estToday):S.severancePending(fmt(sevDate),sevDday,estAt1yr));
+    cards+=rcard("info","📅",S.nextLeaveTitle,
+      S.nextLeaveDesc(fmt(nextLeave),leaveDday,batchDays,lossAmt));
     $("result-cards").innerHTML=cards;
 
-    $("combo-line").innerHTML="📌 <b>" + fmt(comboDate) + "</b> 이후 퇴사하면 퇴직금과 다음 연차분을 모두 챙길 수 있어요.";
+    $("combo-line").innerHTML=S.comboLine(fmt(comboDate));
 
     var tcards="";
     if(target&&target<hire){
       /* 퇴사 희망일이 입사일보다 앞선 경우 — "N일 부족"으로 판정하면 입력 실수를 못 알아챈다. */
-      tcards+=rcard("warn","⚠️","희망일("+fmt(target)+") 확인이 필요해요",
-        "퇴사 희망일이 입사일("+fmt(hire)+")보다 앞서 있어요. 날짜를 다시 확인해 주세요.");
+      tcards+=rcard("warn","⚠️",S.targetBeforeHireTitle(fmt(target)),S.targetBeforeHire(fmt(target),fmt(hire)));
     }else if(target){
       var tSevOk=target>=sevDate, tLeaveOk=target>=nextLeave;
       var estAtTarget=tSevOk?estimateSeverance(hire,target,pay):0;
-      tcards+=rcard(tSevOk?"ok":"warn", tSevOk?"✅":"⛔", "희망일(" + fmt(target) + ") 기준 퇴직금",
-        tSevOk? "퇴직금 발생 조건을 충족해요." + (estAtTarget? " 예상 퇴직금 약 <b>" + estAtTarget + "만원</b>(세후 월급 기준 근사치)." : "") : "퇴직금 발생 전이에요 (" + daysBetween(target,sevDate) + "일 부족).");
-      tcards+=rcard(tLeaveOk?"ok":"warn", tLeaveOk?"✅":"⛔", "희망일 기준 다음 연차",
-        tLeaveOk? "다음 연차분까지 받을 수 있어요." : "다음 연차 발생 전이에요 (" + daysBetween(target,nextLeave) + "일 부족).");
+      tcards+=rcard(tSevOk?"ok":"warn", tSevOk?"✅":"⛔", S.targetSevTitle(fmt(target)),
+        tSevOk? S.targetSevOk(estAtTarget) : S.targetSevBad(daysBetween(target,sevDate)));
+      tcards+=rcard(tLeaveOk?"ok":"warn", tLeaveOk?"✅":"⛔", S.targetLeaveTitle,
+        tLeaveOk? S.targetLeaveOk : S.targetLeaveBad(daysBetween(target,nextLeave)));
     }
     $("target-cards").innerHTML=tcards;
 
@@ -164,25 +265,8 @@
   });
 
   /* ---------- 퇴사 고민 체크 (클릭식 5문항) ---------- */
-  var PSY_Q=[
-    {id:"reason",t:"어떤 이유로 퇴사를 고민하고 계신가요?",opts:[
-      ["people","사람 관계가 힘들어서"],["growth","성장이 정체된 것 같아서"],
-      ["pay","보상(연봉)이 불만족스러워서"],["burnout","번아웃·건강 문제로"],
-      ["offer","더 나은 기회가 보여서"],["vision","회사 방향성이 안 보여서"]
-    ]},
-    {id:"since",t:"이 고민, 언제부터 하셨나요?",opts:[["recent","최근에 갑자기"],["long","꽤 오래전부터"]]},
-    {id:"ready",t:"지금 갈 곳(다음 계획)이 있으신가요?",opts:[["yes","있어요"],["no","아직 없어요"]]},
-    {id:"finance",t:"당장 퇴사해도 재정적으로 여유가 있으신가요?",opts:[["ok","어느 정도 여유 있어요"],["tight","빠듯한 편이에요"]]},
-    {id:"tried",t:"고민을 풀어보려고 시도해본 게 있으신가요? (부서이동 요청, 상담 등)",opts:[["yes","이미 해봤어요"],["no","아직 안 해봤어요"]]}
-  ];
-  var REASON_BASE={
-    people:"사람 때문에 힘든 거라면, 퇴사 전에 부서 이동이나 팀 변경으로 해결되는 경우도 꽤 있어요. 같은 문제가 다음 직장에서도 반복될 수 있으니, 어떤 관계가 힘든지부터 구체적으로 짚어보는 게 도움이 돼요.",
-    growth:"성장이 멈췄다고 느껴진다면, 이직 전에 사내에서 새로운 업무나 역할을 요청해본 적이 있는지 점검해보세요. 그래도 안 된다면 이직이 더 확실한 답일 수 있어요.",
-    pay:"보상 불만족이라면, 이직 전에 현재 회사에 인상을 요청해본 적이 있나요? <a href=\"../salary-calculator/\">이직 연봉 협상 계산기</a>로 내 시장가부터 확인해보는 것도 방법이에요.",
-    burnout:"번아웃이라면 무작정 퇴사보다, 남은 연차를 몰아 써서 며칠 완전히 쉬어보고 다시 판단하는 것도 방법이에요. 건강 문제라면 회복이 최우선이에요.",
-    offer:"이미 더 나은 기회가 보인다면, 감정보다 조건 비교가 중요해요. <a href=\"../salary-calculator/\">이직 연봉 협상 계산기</a>로 제안 연봉을 냉정하게 먼저 평가해보세요.",
-    vision:"회사 방향성이 안 보인다면, 그 판단이 정확한지 한 번 더 점검해볼 가치가 있어요. 리더십과 직접 대화해본 적이 있는지도 체크포인트예요."
-  };
+  var PSY_Q=S.psyQ;
+  var REASON_BASE=S.reasonBase;
   var psyState={idx:0,ans:{}};
 
   function renderPsyProgress(){
@@ -217,22 +301,16 @@
     renderPsyProgress();
     var a=psyState.ans;
     var parts=[REASON_BASE[a.reason]];
-    if(a.since==="long")parts.push("오래 고민해오셨다면, 이번엔 미루지 말고 구체적인 날짜를 잡아보는 것도 방법이에요.");
-    else parts.push("고민을 시작한 지 얼마 안 됐다면, 조금 더 지켜보면서 정보를 모아보는 것도 좋아요.");
+    if(a.since==="long")parts.push(S.sinceLong);
+    else parts.push(S.sinceRecent);
     /* 위쪽 계산을 안 했거나(미래 입사일 등) 결과가 없으면 "위에서 계산한"을 쓰면 안 된다. */
     var hasCalc=!!state.comboDate;
-    if(a.ready==="yes")parts.push(hasCalc
-      ? "이미 갈 곳이 있으시다면, 위에서 계산한 추천 퇴사일에 맞춰 인수인계 일정만 조율하면 될 것 같아요."
-      : "이미 갈 곳이 있으시다면, 퇴직금·연차 발생일을 먼저 확인하고 인수인계 일정을 조율해보세요.");
-    else if(a.finance==="tight")parts.push(hasCalc
-      ? "갈 곳이 아직 없고 재정도 빠듯하시다면, 위에서 계산한 퇴직금·연차부터 꼭 챙기고 최소 몇 개월치 생활비를 확보한 뒤 움직이는 걸 권해드려요."
-      : "갈 곳이 아직 없고 재정도 빠듯하시다면, 퇴직금·연차부터 꼭 챙기고 최소 몇 개월치 생활비를 확보한 뒤 움직이는 걸 권해드려요.");
-    else parts.push(hasCalc
-      ? "갈 곳이 아직 없다면, 위에서 계산한 퇴직금·연차 발생일까지는 챙기고 움직이는 게 유리해요."
-      : "갈 곳이 아직 없다면, 퇴직금·연차 발생일까지는 챙기고 움직이는 게 유리해요.");
-    if(a.tried==="no")parts.push("아직 시도해본 게 없다면, 결정을 내리기 전에 한 번은 시도해보고 판단해도 늦지 않아요.");
-    else parts.push("이미 여러 시도를 해보셨다면, 지금의 고민은 충분히 근거가 있는 신호일 수 있어요.");
-    if(state.comboDate)parts.push("위에서 계산한 추천 퇴사일(<b>"+fmt(state.comboDate)+"</b>)도 함께 참고해보세요.");
+    if(a.ready==="yes")parts.push(hasCalc?S.readyYesCalc:S.readyYesNoCalc);
+    else if(a.finance==="tight")parts.push(hasCalc?S.financeTightCalc:S.financeTightNoCalc);
+    else parts.push(hasCalc?S.readyNoCalc:S.readyNoNoCalc);
+    if(a.tried==="no")parts.push(S.triedNo);
+    else parts.push(S.triedYes);
+    if(state.comboDate)parts.push(S.comboReminder(fmt(state.comboDate)));
 
     $("psy-result").innerHTML=parts.join(" ");
     $("psy-result").hidden=false;

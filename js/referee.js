@@ -12,14 +12,18 @@
    ⚠️ AI 경로에서는 입력 내용이 Worker를 거쳐 AI 제공자로 전송된다(저장은 안 함).
       화면 안내 문구도 이 사실에 맞춰져 있어야 한다 — 임의로 "브라우저 안에서만"
       으로 되돌리지 말 것.
+
+   KO/EN 공유: window.REFEREE_LANG="en" 이면 질문·재판관·안전 키워드·화면 문구를
+   전부 영어 테이블에서 고르고, Worker에도 lang:"en"을 실어보내 AI 응답까지 영어로 받는다.
    ========================================================= */
 (function(){
   var $=function(id){return document.getElementById(id)};
   if(!$("stepForm"))return;
+  var LANG=(window.REFEREE_LANG==="en")?"en":"ko";
 
   var API_BASE="https://bold-dream-f416.gth3941.workers.dev";
 
-  var QUESTIONS=[
+  var QUESTIONS_KO=[
     {id:"q1",t:"언성을 높이거나 화를 낸 쪽은?",opts:[["self","나"],["other","상대방"],["both","둘 다"],["none","아무도"]]},
     {id:"q2",t:"비슷한 일이 이전에도 있었나요?",opts:[["first","처음 있는 일"],["sometimes","가끔 있었음"],["often","자주 반복됨"]]},
     {id:"q3",t:"약속이나 선을 어긴 쪽은?",opts:[["self","나"],["other","상대방"],["both","둘 다"],["none","없음"]]},
@@ -27,23 +31,48 @@
     {id:"q5",t:"지금 얼마나 속상한가요?",type:"scale"},
     {id:"q6",t:"신체적 위협이나 폭력이 있었나요?",opts:[["no","없음"],["yes","있었음"]],safety:true}
   ];
+  var QUESTIONS_EN=[
+    {id:"q1",t:"Who raised their voice or got angry?",opts:[["self","Me"],["other","The other person"],["both","Both"],["none","Neither"]]},
+    {id:"q2",t:"Has something similar happened before?",opts:[["first","First time"],["sometimes","Happened occasionally"],["often","Happens often"]]},
+    {id:"q3",t:"Who broke a promise or crossed a line?",opts:[["self","Me"],["other","The other person"],["both","Both"],["none","Neither"]]},
+    {id:"q4",t:"Who tried to apologize or make up?",opts:[["self","Me"],["other","The other person"],["both","Both"],["none","Neither"]]},
+    {id:"q5",t:"How upset are you right now?",type:"scale"},
+    {id:"q6",t:"Was there any physical threat or violence?",opts:[["no","No"],["yes","Yes"]],safety:true}
+  ];
+  var QUESTIONS=LANG==="en"?QUESTIONS_EN:QUESTIONS_KO;
 
-  var JUDGES=[
+  var JUDGES_KO=[
     {id:"empathetic",name:"공감형 재판관 다정",img:"empathetic",blurb:"마음이 얼마나 아팠는지를 가장 먼저 봐요.",raiseMul:1.5,breakMul:0.8,repeatMul:1.2,trustOther:true,threshold:1.2},
     {id:"principled",name:"원칙형 재판관 소신",img:"principled",blurb:"약속과 반복되는 패턴을 중요하게 봐요.",raiseMul:0.8,breakMul:1.8,repeatMul:1.5,trustOther:true,threshold:1.2},
     {id:"balanced",name:"저울형 재판관 균형",img:"balanced",blurb:"웬만하면 둘 다에게 몫이 있다고 봐요.",raiseMul:1.0,breakMul:1.0,repeatMul:1.0,trustOther:true,threshold:1.8},
     {id:"blunt",name:"팩폭형 재판관 직진",img:"blunt",blurb:"본인이 인정한 사실만 믿고, 확실하면 확실하게 말해요.",raiseMul:1.0,breakMul:1.0,repeatMul:1.0,trustOther:false,threshold:0.9},
     {id:"reconcile",name:"화해형 재판관 온화",img:"reconcile",blurb:"누구 잘못인지보다 어떻게 풀지가 더 중요해요.",raiseMul:0.7,breakMul:0.7,repeatMul:1.0,trustOther:true,threshold:2.0}
   ];
+  var JUDGES_EN=[
+    {id:"empathetic",name:"Judge Warmth (Empathetic)",img:"empathetic",blurb:"Looks first at how much it hurt emotionally.",raiseMul:1.5,breakMul:0.8,repeatMul:1.2,trustOther:true,threshold:1.2},
+    {id:"principled",name:"Judge Conviction (Principled)",img:"principled",blurb:"Cares most about broken promises and repeat patterns.",raiseMul:0.8,breakMul:1.8,repeatMul:1.5,trustOther:true,threshold:1.2},
+    {id:"balanced",name:"Judge Scale (Balanced)",img:"balanced",blurb:"Usually sees fault on both sides.",raiseMul:1.0,breakMul:1.0,repeatMul:1.0,trustOther:true,threshold:1.8},
+    {id:"blunt",name:"Judge Straight-Shooter (Blunt)",img:"blunt",blurb:"Only trusts what you admit yourself — direct when it's clear.",raiseMul:1.0,breakMul:1.0,repeatMul:1.0,trustOther:false,threshold:0.9},
+    {id:"reconcile",name:"Judge Gentle (Reconciling)",img:"reconcile",blurb:"Cares more about fixing things than who's at fault.",raiseMul:0.7,breakMul:0.7,repeatMul:1.0,trustOther:true,threshold:2.0}
+  ];
+  var JUDGES=LANG==="en"?JUDGES_EN:JUDGES_KO;
   var JUDGE_BY_ID={};
   JUDGES.forEach(function(j){JUDGE_BY_ID[j.id]=j});
 
-  var DEGENDER_MAP=[
+  var DEGENDER_MAP_KO=[
     [/남자\s?친구/g,"애인"],[/여자\s?친구/g,"애인"],[/남친/g,"애인"],[/여친/g,"애인"],
     [/신랑|남편/g,"배우자"],[/신부|아내|와이프/g,"배우자"],
     [/그녀/g,"그 사람"],[/그(?=[\s.,!?]|$)/g,"그 사람"],
     [/오빠|누나|형|언니/g,"상대방"],[/자기야|자기(?=[\s.,!?]|$)/g,"상대방"]
   ];
+  var DEGENDER_MAP_EN=[
+    [/\bboyfriend\b/gi,"partner"],[/\bgirlfriend\b/gi,"partner"],
+    [/\bhusband\b/gi,"spouse"],[/\bwife\b/gi,"spouse"],
+    [/\bshe\b/gi,"they"],[/\bhe\b/gi,"they"],
+    [/\bhim\b/gi,"them"],[/\bher\b/gi,"them"],
+    [/\bhis\b/gi,"their"],[/\bhers\b/gi,"theirs"]
+  ];
+  var DEGENDER_MAP=LANG==="en"?DEGENDER_MAP_EN:DEGENDER_MAP_KO;
 
   /* 자유서술 키워드 신호. 반복·화해 신호는 간이 판정 채점에만 쓰고(AI 판정은 글을
      직접 읽는다), 안전 신호는 두 경로 모두에서 판정 전에 먼저 본다.
@@ -54,8 +83,10 @@
      즉 안전망이 가장 약해지는 시점이 AI가 죽었을 때라 여기가 넉넉해야 한다.
      놓치는 쪽(위험한데 재미 판정을 보여줌)이 과잉 감지보다 훨씬 나쁘므로
      의심스러우면 잡는 방향으로 둔다. 단 "졸랐"은 '떼썼다'는 뜻으로도 흔히 쓰여
-     목/멱살 같은 신체 맥락이 붙을 때만 잡는다. */
-  var SAFETY_WORDS=[
+     목/멱살 같은 신체 맥락이 붙을 때만 잡는다.
+     영문판은 workers/webtool-proxy/worker.js의 CV_SAFETY_PATTERNS_EN과 같은
+     원칙으로 맞춘 목록이다 — 클라이언트는 우회 가능하므로 서버에도 같은 안전망이 있다. */
+  var SAFETY_WORDS_KO=[
     /때렸|때리[려겠]|때릴|팼|패버/,/맞았|맞을\s?뻔/,/폭행|구타/,/밀쳤|밀쳐|밀치|밀칩|떠밀/,
     /멱살|머리채/,/협박|위협했/,/죽인다|죽여|죽일|죽는다고/,/손찌검/,/폭력/,
     /목을?\s?(졸|조르|조였|죄)/,
@@ -69,12 +100,81 @@
     /(물건|의자|핸드폰|폰|컵|그릇|리모컨)을?\s?던[지졌져]|집어\s?던/,
     /벽을?\s?(치|쳤|주먹)|주먹으로/
   ];
-  var REPEAT_WORDS=[/맨날/,/항상/,/매번/,/반복/,/또\s?이런/,/한두\s?번이/];
-  var RECONCILE_WORDS=[/미안/,/사과/,/화해/,/풀었/];
+  var SAFETY_WORDS_EN=[
+    /\bhit\b|\bhits\b|\bhitting\b|\bpunch(ed|ing)?\b|\bslap(ped|ping)?\b|\bbeat(en|ing)?\s+me\b/i,
+    /\bpush(ed|ing)?\s+me\b|\bshov(ed|ing)\s+me\b/i,
+    /\bchok(ed|ing)\b|\bstrangl(ed|ing)\b/i,
+    /\bkick(ed|ing)?\s+me\b/i,
+    /\bthrew?\s+(a|the|something)\b.*\bat\s+me\b|\bthrowing\s+things?\b/i,
+    /\bthreaten(ed|ing)?\b|\bthreat\b/i,
+    /\bkill\s+(you|me|myself|him|her)\b|\bgonna\s+kill\b/i,
+    /\bafraid\s+of\s+(him|her|them)\b|\bscared\s+of\s+(him|her|them)\b|\bi'?m\s+scared\b/i,
+    /\bdomestic\s+violence\b|\babuse(d|ive)?\b/i,
+    /\bwon'?t\s+let\s+me\s+leave\b|\block(ed)?\s+me\s+(in|out)\b|\bwon'?t\s+let\s+me\s+out\b/i,
+    /\btook\s+(my\s+)?(phone|wallet|keys|money|card)\b|\bwon'?t\s+give\s+(me\s+)?money\b/i,
+    /\btracks?\s+my\s+(phone|location)\b|\bchecks?\s+where\s+i\s+(am|go)\b|\bmonitors?\s+me\b/i,
+    /\bweapon\b|\bknife\b|\bpointed\s+a\b/i,
+    /\bbruise[sd]?\b|\bhurt\s+me\b/i,
+    /\bgrabbed\s+(my\s+)?(arm|wrist)\b|\btwisted\s+(my\s+)?arm\b/i,
+    /\bforced\s+me\b|\bwithout\s+my\s+consent\b/i,
+    /\bpunched\s+the\s+wall\b/i
+  ];
+  var SAFETY_WORDS=LANG==="en"?SAFETY_WORDS_EN:SAFETY_WORDS_KO;
+  var REPEAT_WORDS=LANG==="en"?[/always/i,/every\s?time/i,/again\s+and\s+again/i,/keeps?\s+happening/i,/not\s+the\s+first\s+time/i]:[/맨날/,/항상/,/매번/,/반복/,/또\s?이런/,/한두\s?번이/];
+  var RECONCILE_WORDS=LANG==="en"?[/sorry/i,/apolog/i,/made\s+up/i,/reconcil/i]:[/미안/,/사과/,/화해/,/풀었/];
   function textHas(list,text){ return list.some(function(re){return re.test(text||"")}); }
 
-  /* 이름 뒤에 "님"을 붙일 때 — 기본값이 "첫 번째 분"이라 그냥 붙이면 "첫 번째 분님"이 된다. */
+  /* ---------- 문구 테이블 ---------- */
+  var T={
+    ko:{
+      firstPersonName:"첫 번째 분", secondPersonName:"두 번째 분",
+      formTitleB:"두 번째 분, 상황을 알려주세요",
+      formSubB:"앞서 적은 내용은 안 보여요. 편하게 적어주세요.",
+      formNextB:"판정 받기 →",
+      answerAll:"모든 질문에 답해주세요.",
+      degenderNote:"완벽하지 않을 수 있어요 — 성별을 짐작하게 하는 표현 일부를 중립적인 말로 바꿨어요.",
+      bothLabel:"둘 다 조금씩",
+      sideLabel:function(name){return honorific(name)+" 편"},
+      bannerA:function(n,votesA,name){return "📌 "+n+"명 중 <b>"+votesA+"명</b>이 <b>"+escapeHtml(honorific(name))+"</b> 편을 들었어요."},
+      bannerB:function(n,votesB,name){return "📌 "+n+"명 중 <b>"+votesB+"명</b>이 <b>"+escapeHtml(honorific(name))+"</b> 편을 들었어요."},
+      bannerBoth:function(n,votesBoth,tally){return "📌 "+n+"명 중 <b>"+votesBoth+"명</b>이 \"둘 다 조금씩\"이라고 봤어요. "+tally},
+      bannerSplit:function(tally){return "📌 재판관들 의견이 <b>팽팽하게 갈렸어요.</b> "+tally},
+      tally:function(nameA,votesA,nameB,votesB,votesBoth){return "("+escapeHtml(nameA)+" 편:"+votesA+" · "+escapeHtml(nameB)+" 편:"+votesB+" · 둘 다:"+votesBoth+")"},
+      modeAi:"AI 판정", modeRule:"간이 판정",
+      modeAiTitle:"AI가 두 분이 적은 글을 직접 읽고 재판관별로 판정했어요.",
+      modeRuleTitle:"AI 판정을 못 불러와서 객관식 답변만으로 판정했어요. 잠시 후 다시 시도해보세요.",
+      advicePrefix:"💡 <b>이렇게 해보세요</b><br>",
+      ruleNoteRepeat:"'반복되는 일'이라는 표현이 감지돼 반영했어요.",
+      ruleNoteReconcile:"'사과·화해' 표현이 보였어요."
+    },
+    en:{
+      firstPersonName:"the first person", secondPersonName:"the second person",
+      formTitleB:"Second person, tell us what happened",
+      formSubB:"What the first person wrote is hidden from you. Write freely.",
+      formNextB:"Get the ruling →",
+      answerAll:"Please answer every question.",
+      degenderNote:"This may not be perfect — we swapped some gendered wording for neutral terms.",
+      bothLabel:"Both, a little",
+      sideLabel:function(name){return "Sides with "+name},
+      bannerA:function(n,votesA,name){return "📌 <b>"+votesA+" out of "+n+" judges</b> sided with <b>"+escapeHtml(name)+"</b>."},
+      bannerB:function(n,votesB,name){return "📌 <b>"+votesB+" out of "+n+" judges</b> sided with <b>"+escapeHtml(name)+"</b>."},
+      bannerBoth:function(n,votesBoth,tally){return "📌 <b>"+votesBoth+" out of "+n+" judges</b> said \"both share some fault.\" "+tally},
+      bannerSplit:function(tally){return "📌 The judges' opinions were <b>split right down the middle.</b> "+tally},
+      tally:function(nameA,votesA,nameB,votesB,votesBoth){return "(Sided with "+escapeHtml(nameA)+": "+votesA+" · Sided with "+escapeHtml(nameB)+": "+votesB+" · Both: "+votesBoth+")"},
+      modeAi:"AI ruling", modeRule:"Quick ruling",
+      modeAiTitle:"An AI read what you both wrote directly and ruled as each judge.",
+      modeRuleTitle:"Couldn't reach the AI, so this ruling used only your multiple-choice answers. Try again in a moment.",
+      advicePrefix:"💡 <b>Try this</b><br>",
+      ruleNoteRepeat:"We picked up on language suggesting this is a repeat pattern and factored it in.",
+      ruleNoteReconcile:"We noticed language about apologizing or making up."
+    }
+  };
+  var S=T[LANG];
+
+  /* 이름 뒤에 "님"을 붙일 때 — 기본값이 "첫 번째 분"이라 그냥 붙이면 "첫 번째 분님"이 된다.
+     영문판은 존칭 접미사가 없으므로 이름을 그대로 쓴다. */
   function honorific(name){
+    if(LANG==="en")return name;
     return /[분님]$/.test(name) ? name : name+"님";
   }
 
@@ -132,6 +232,7 @@
     var v=ta.value;
     DEGENDER_MAP.forEach(function(pair){ v=v.replace(pair[0],pair[1]); });
     ta.value=v;
+    $("degender-note").textContent=S.degenderNote;
     $("degender-note").hidden=false;
   });
 
@@ -155,7 +256,7 @@
       if(current[QUESTIONS[i].id]===undefined)return null;
     }
     return{
-      name:($("p-name").value||"").trim().slice(0,10)||(state.phase==="A"?"첫 번째 분":"두 번째 분"),
+      name:($("p-name").value||"").trim().slice(0,10)||(state.phase==="A"?S.firstPersonName:S.secondPersonName),
       text:$("p-text").value||"",
       q1:current.q1,q2:current.q2,q3:current.q3,q4:current.q4,q5:current.q5,q6:current.q6
     };
@@ -168,7 +269,7 @@
 
   $("form-next").addEventListener("click",function(){
     var ans=collectAnswers();
-    if(!ans){alert("모든 질문에 답해주세요.");return;}
+    if(!ans){alert(S.answerAll);return;}
     /* 자유서술에 폭력 정황이 있으면 상대에게 화면을 넘기기 전에 여기서 멈춘다. */
     if(ans.q6==="yes"||textHas(SAFETY_WORDS,ans.text)){ showSafety(); return; }
     if(state.phase==="A"){
@@ -183,9 +284,9 @@
   $("handoff-continue").addEventListener("click",function(){
     state.phase="B";
     resetFormFields();
-    $("form-title-text").textContent="두 번째 분, 상황을 알려주세요";
-    $("form-sub").textContent="앞서 적은 내용은 안 보여요. 편하게 적어주세요.";
-    $("form-next").textContent="판정 받기 →";
+    $("form-title-text").textContent=S.formTitleB;
+    $("form-sub").textContent=S.formSubB;
+    $("form-next").textContent=S.formNextB;
     show("stepForm");
   });
 
@@ -227,10 +328,10 @@
   }
   function ruleVerdict(A,B){
     var notes=[];
-    if(textHas(REPEAT_WORDS,A.text)||textHas(REPEAT_WORDS,B.text))notes.push("'반복되는 일'이라는 표현이 감지돼 반영했어요.");
+    if(textHas(REPEAT_WORDS,A.text)||textHas(REPEAT_WORDS,B.text))notes.push(S.ruleNoteRepeat);
     /* 화해 표현은 양쪽 점수를 똑같이 깎아서 대개 판정 방향을 바꾸지 않는다.
        "완화했다"고 단정하지 말고 감지 사실만 알린다. */
-    if(textHas(RECONCILE_WORDS,A.text)||textHas(RECONCILE_WORDS,B.text))notes.push("'사과·화해' 표현이 보였어요.");
+    if(textHas(RECONCILE_WORDS,A.text)||textHas(RECONCILE_WORDS,B.text))notes.push(S.ruleNoteReconcile);
     return {
       mode:"rule",
       summary:notes.join(" "),
@@ -255,7 +356,7 @@
     return fetch(API_BASE+"/couple-verdict",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({a:payloadOf(A),b:payloadOf(B)}),
+      body:JSON.stringify({a:payloadOf(A),b:payloadOf(B),lang:LANG}),
       signal:ctrl?ctrl.signal:undefined
     }).then(function(res){
       if(!res.ok)return null;      // 미배포(404)·AI 없음(503)·할당량 소진 → 간이 판정
@@ -287,7 +388,7 @@
       var meta=JUDGE_BY_ID[j.id];
       if(!meta)return;
       votes[j.side]++;
-      var label=j.side==="both"?"둘 다 조금씩":honorific(j.side==="A"?state.A.name:state.B.name)+" 편";
+      var label=j.side==="both"?S.bothLabel:S.sideLabel(j.side==="A"?state.A.name:state.B.name);
       html+='<div class="judge-card">'
         +'<img src="../img/judges/'+meta.img+'.svg" alt="'+escapeHtml(meta.name)+'">'
         +'<div><div class="jname">'+escapeHtml(meta.name)+'</div>'
@@ -300,30 +401,25 @@
     $("judge-cards").innerHTML=html;
 
     var n=v.judges.length;
-    var tally="("+escapeHtml(state.A.name)+" 편:"+votes.A+" · "+escapeHtml(state.B.name)+" 편:"+votes.B
-      +" · 둘 다:"+votes.both+")";
+    var tally=S.tally(state.A.name,votes.A,state.B.name,votes.B,votes.both);
     /* 단독 최다일 때만 그 결과를 헤드라인으로 쓴다. 2:2:1처럼 아무도 단독
        최다가 아닌 경우 "1명이 둘 다라고 봤어요"를 크게 쓰면 실제 결과를
        대표하지 못하므로, 갈렸다고 그대로 말한다. */
     if(votes.A>votes.B&&votes.A>votes.both){
-      $("result-banner").innerHTML="📌 "+n+"명 중 <b>"+votes.A+"명</b>이 <b>"
-        +escapeHtml(honorific(state.A.name))+"</b> 편을 들었어요.";
+      $("result-banner").innerHTML=S.bannerA(n,votes.A,honorific(state.A.name));
     }else if(votes.B>votes.A&&votes.B>votes.both){
-      $("result-banner").innerHTML="📌 "+n+"명 중 <b>"+votes.B+"명</b>이 <b>"
-        +escapeHtml(honorific(state.B.name))+"</b> 편을 들었어요.";
+      $("result-banner").innerHTML=S.bannerB(n,votes.B,honorific(state.B.name));
     }else if(votes.both>votes.A&&votes.both>votes.B){
-      $("result-banner").innerHTML="📌 "+n+"명 중 <b>"+votes.both+"명</b>이 \"둘 다 조금씩\"이라고 봤어요. "+tally;
+      $("result-banner").innerHTML=S.bannerBoth(n,votes.both,tally);
     }else{
-      $("result-banner").innerHTML="📌 재판관들 의견이 <b>팽팽하게 갈렸어요.</b> "+tally;
+      $("result-banner").innerHTML=S.bannerSplit(tally);
     }
     $("result-sub").textContent=state.A.name+" · "+state.B.name;
 
     var badge=$("result-mode");
     if(badge){
-      badge.textContent=v.mode==="ai"?"AI 판정":"간이 판정";
-      badge.title=v.mode==="ai"
-        ? "AI가 두 분이 적은 글을 직접 읽고 재판관별로 판정했어요."
-        : "AI 판정을 못 불러와서 객관식 답변만으로 판정했어요. 잠시 후 다시 시도해보세요.";
+      badge.textContent=v.mode==="ai"?S.modeAi:S.modeRule;
+      badge.title=v.mode==="ai"?S.modeAiTitle:S.modeRuleTitle;
       badge.className="mode-badge "+(v.mode==="ai"?"ai":"rule");
       badge.hidden=false;
     }
@@ -335,7 +431,7 @@
     }
     var adv=$("result-advice");
     if(adv){
-      if(v.advice){ adv.innerHTML="💡 <b>이렇게 해보세요</b><br>"+escapeHtml(v.advice); adv.hidden=false; }
+      if(v.advice){ adv.innerHTML=S.advicePrefix+escapeHtml(v.advice); adv.hidden=false; }
       else adv.hidden=true;
     }
 

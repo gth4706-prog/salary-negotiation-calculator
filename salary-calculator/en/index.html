@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="google-site-verification" content="-Vv3HKaiNfWlG3iVql38iG773LaD3LpSHJtwBU4-iU8" />
+<meta name="naver-site-verification" content="d4f9a360f5b25c71f4df188700ea809f9f69c0dd" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#A56F63">
+<title>Salary Negotiation Calculator | Target salary · average pay · take-home pay</title>
+<meta name="description" content="Check your target salary, role average, and take-home pay in one place. See whether the salary you were offered is fair for your role and experience before you negotiate.">
+<link rel="canonical" href="https://joeltool.com/salary-calculator/en/">
+<link rel="alternate" hreflang="ko" href="https://joeltool.com/salary-calculator/">
+<link rel="alternate" hreflang="en" href="https://joeltool.com/salary-calculator/en/">
+<link rel="alternate" hreflang="x-default" href="https://joeltool.com/salary-calculator/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Salary Negotiation Calculator">
+<meta property="og:description" content="Target salary, role average, take-home pay — see if an offer is fair, all in one screen.">
+<meta property="og:url" content="https://joeltool.com/salary-calculator/en/">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%AD%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="../../css/style.css?v=0.08">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Salary Negotiation Calculator","applicationCategory":"FinanceApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"A free tool that computes your target salary, role average, and take-home pay, and shows where an offer sits relative to your peers."}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"How do I know if an offer is good?","acceptedAnswer":{"@type":"Answer","text":"The first check is where it sits (top X%) versus the average for people in the same role and experience level. You also need to look at the salary composition (base vs. bonus) — with the same total, an offer with a higher base salary is genuinely better."}},
+{"@type":"Question","name":"What raise percentage is reasonable when changing jobs?","acceptedAnswer":{"@type":"Answer","text":"A base-salary raise of 2–7% or more is generally considered a good offer. Even if bonus brings the total raise above 5%, if base salary is unchanged there may be room to negotiate further."}},
+{"@type":"Question","name":"Should I put a specific number for my target salary, or say it's negotiable?","acceptedAnswer":{"@type":"Answer","text":"It depends on your situation. Citing a specific number backed by market data is often the stronger move, but if you have limited information, leaving room with a range or 'negotiable' can also be a valid strategy."}},
+{"@type":"Question","name":"Which is better — a salary with a bonus, or one that's all base?","acceptedAnswer":{"@type":"Answer","text":"With the same total, the offer with a larger base-salary share is better. Bonus can shrink or disappear based on performance and review outcomes, while base salary is fixed — and it also becomes the baseline for your next negotiation."}},
+{"@type":"Question","name":"Why does my take-home pay differ from other calculators?","acceptedAnswer":{"@type":"Answer","text":"Results vary by number of dependents, whether a tax-free meal allowance is included, and which rate table version is applied. This calculator assumes a single-person household with a KRW 200,000 tax-free meal allowance by default."}}
+]}
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<nav class="nav"><div class="in">
+  <a class="brand" href="../../en/">
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
+    <span class="n">Gakjab Salim</span>
+  </a>
+  <div class="links">
+    <a href="../../resignation-timing/en/">Resignation timing</a>
+    <a href="../../en/about.html">About</a>
+    <a class="lang-switch" href="../" title="한국어로 보기" hreflang="ko">KO</a>
+    <button class="theme-btn" id="theme-btn" type="button">◐</button>
+    <span class="ver-badge" title="Build version — for cache checks">v0.08</span>
+  </div>
+</div></nav>
+
+<main class="wrap-wide page stack">
+
+  <!-- STEP 1: role + current salary + target salary (live take-home) -->
+  <section class="card step" id="step1">
+    <h1 class="q">What's your current salary and target salary?<span class="s">Enter your role and both salaries and we'll show your estimated monthly take-home pay instantly.</span></h1>
+    <div class="field full" style="margin-top:20px">
+      <label class="lbl" for="job">Role</label>
+      <select id="job" class="big-sel"></select>
+    </div>
+    <div class="field full" style="margin-top:18px">
+      <label class="lbl">Current salary — Base / Bonus<span class="hint">(bonus is optional, leave blank if none)</span></label>
+      <div class="row" style="margin-top:8px">
+        <div class="field"><div class="money"><input class="txt" id="c-base" type="number" min="0" step="100" placeholder="e.g. 4500" inputmode="numeric"><span class="u">10k KRW</span></div><span class="hint" style="margin-top:4px">Base salary</span></div>
+        <div class="field"><div class="money"><input class="txt" id="c-bonus" type="number" min="0" step="100" placeholder="e.g. 0" inputmode="numeric"><span class="u">10k KRW</span></div><span class="hint" style="margin-top:4px">Bonus (optional)</span></div>
+      </div>
+      <div class="bar"><div class="seg base" id="c-seg-base"></div><div class="seg bonus" id="c-seg-bonus"></div></div>
+      <div class="mini-net" id="cur-net-line">Enter base and bonus to see your estimated monthly take-home pay.</div>
+    </div>
+    <div class="field full" style="margin-top:18px">
+      <label class="lbl" for="wish">Target salary</label>
+      <div class="big-money"><input class="txt" id="wish" type="number" min="0" step="100" placeholder="6000" inputmode="numeric"><span class="u">10k KRW</span></div>
+      <div class="mini-net" id="wish-net-line"></div>
+      <div class="wish-rate" id="wish-rate-line">Enter your current and target salary to see the raise percentage.</div>
+      <div class="pct-row" id="pct-row"></div>
+    </div>
+    <button class="cta" id="go1" type="button" style="margin-top:18px">Next →</button>
+  </section>
+
+  <!-- STEP 2: years of experience -->
+  <section class="card step" id="step2" hidden>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">How many years of experience do you have?<span class="s">We calculate where your salary sits based on your role and experience level.</span></h2>
+    <div class="field full" style="margin-top:18px">
+      <div class="slider-head"><label class="lbl" for="year">Experience</label><span class="slider-val" id="year-v">Year 4</span></div>
+      <input type="range" id="year" min="0" max="20" value="4">
+    </div>
+    <button class="cta" id="go2" type="button" style="margin-top:18px">See my position →</button>
+  </section>
+
+  <!-- STEP 2 result: position (top % + text, no take-home yet) -->
+  <section class="card step" id="step2r" hidden>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">Your salary position</h2>
+    <div class="est-net">
+      <div class="k">Current salary · <b id="cp-tag" style="font-weight:800">–</b></div>
+      <div class="v"><span id="cp-pos">–</span></div>
+      <div class="pct-bar"><div class="pct-marker" id="cp-bar"></div></div>
+      <div class="pct-scale"><span>Low</span><span>High</span></div>
+      <div class="pct-rank" id="cp-rank"></div>
+      <div class="tag" id="cp-desc"></div>
+    </div>
+    <div class="est-net" style="margin-top:14px">
+      <div class="k">Target salary · <b id="wp-tag" style="font-weight:800">–</b></div>
+      <div class="v"><span id="wp-pos">–</span></div>
+      <div class="pct-bar"><div class="pct-marker" id="wp-bar"></div></div>
+      <div class="pct-scale"><span>Low</span><span>High</span></div>
+      <div class="pct-rank" id="wp-rank"></div>
+      <div class="tag" id="wp-desc"></div>
+    </div>
+    <button class="cta" id="go3" type="button" style="margin-top:16px">Next: do you have an offer? →</button>
+  </section>
+
+  <!-- STEP 3: offered salary (total, live take-home) -->
+  <section class="card step" id="step3" hidden>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">Do you have an offer?<span class="s">Enter the total salary you were offered. Skip this if you don't have one yet.</span></h2>
+    <div class="field full" style="margin-top:16px">
+      <label class="lbl">Offered salary — Base / Bonus<span class="hint">(bonus is optional, leave blank if none)</span></label>
+      <div class="row" style="margin-top:8px">
+        <div class="field"><div class="money"><input class="txt" id="o-base" type="number" min="0" step="100" placeholder="e.g. 5000" inputmode="numeric"><span class="u">10k KRW</span></div><span class="hint" style="margin-top:4px">Base salary</span></div>
+        <div class="field"><div class="money"><input class="txt" id="o-bonus" type="number" min="0" step="100" placeholder="e.g. 0" inputmode="numeric"><span class="u">10k KRW</span></div><span class="hint" style="margin-top:4px">Bonus (optional)</span></div>
+      </div>
+      <div class="bar"><div class="seg base" id="o-seg-base"></div><div class="seg bonus" id="o-seg-bonus"></div></div>
+      <div class="mini-net" id="off-net-line"></div>
+    </div>
+    <div class="share-row">
+      <button class="cta ghost" id="skip3" type="button">No offer · Skip</button>
+      <button class="cta" id="go3b" type="button">See results →</button>
+    </div>
+  </section>
+
+  <!-- STEP 4: result (current vs offer) -->
+  <section class="card step" id="result" hidden>
+    <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">Current vs. offer — which is the better move?</h2>
+    <div class="verdict" id="verdict" hidden><span class="dot"></span><div><div class="vt" id="v-t">–</div><div class="vd" id="v-d"></div></div></div>
+    <div class="cmp2">
+      <div class="c3"><div class="nm">Current salary</div><div class="amt" id="r-cur-amt">–</div><div class="pos" id="r-cur-pos">–</div><div class="pct-bar mini"><div class="pct-marker" id="r-cur-bar"></div></div><div class="pct-rank" id="r-cur-rank"></div><div class="net">Monthly take-home <span id="r-cur-net">–</span></div></div>
+      <div class="c3 wish" id="r-offer-card"><div class="nm">Offered salary</div><div class="amt" id="r-off-amt">–</div><div class="pos" id="r-off-pos">–</div><div class="pct-bar mini"><div class="pct-marker" id="r-off-bar"></div></div><div class="pct-rank" id="r-off-rank"></div><div class="net">Monthly take-home <span id="r-off-net">–</span></div></div>
+    </div>
+    <div class="verdict-line" id="verdict-line">–</div>
+    <div class="share-row">
+      <button id="share-btn" type="button">🔗 Copy result link</button>
+      <button id="restart" type="button">↺ Start over</button>
+    </div>
+  </section>
+
+  <!-- FAQ (for search traffic) -->
+  <section class="card">
+    <h2>Frequently asked questions</h2>
+    <div class="faq">
+      <details>
+        <summary>How do I know if an offer is good?</summary>
+        <p>The first check is where it sits (top X%) versus the average for people in the same role and experience level. But total isn't everything — you also need to look at <strong>salary composition (base vs. bonus)</strong>. With the same total, an offer with a higher base salary is genuinely better. Enter your current and offered salary above and we'll judge which one is better, position included.</p>
+      </details>
+      <details>
+        <summary>What raise percentage is reasonable when changing jobs?</summary>
+        <p>A <strong>base-salary raise of 2–7% or more</strong> is generally considered a good offer. Even if bonus brings the total raise above 5%, if base salary is unchanged there may be room to negotiate further. See <a href="guide/salary-negotiation-guide.html">what percentage to ask for</a> for the detailed breakdown.</p>
+      </details>
+      <details>
+        <summary>Should I put a specific number for my target salary, or say it's negotiable?</summary>
+        <p>It depends on your situation. Citing a specific number backed by market data is often the stronger move, but if you have limited information, leaving room with a range or "negotiable" can also be a valid strategy. See <a href="guide/wish-salary-writing.html">how to write your target salary</a> for situation-by-situation guidance.</p>
+      </details>
+      <details>
+        <summary>Which is better — a salary with a bonus, or one that's all base?</summary>
+        <p>With the same total, <strong>the offer with a larger base-salary share</strong> is better. Bonus can shrink or disappear based on performance and review outcomes, while base salary is fixed — and it also becomes the baseline for your next negotiation. See <a href="guide/base-vs-bonus.html">bonus vs. base salary</a> for more detail.</p>
+      </details>
+      <details>
+        <summary>Why does my take-home pay differ from other calculators?</summary>
+        <p>Results vary by number of dependents, whether a tax-free meal allowance is included, and which rate table version is applied. This calculator assumes a single-person household with a KRW 200,000 tax-free meal allowance by default. See <a href="guide/why-take-home-differs.html">why calculators differ</a> for the full explanation.</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- Negotiation guides -->
+  <section class="card">
+    <h2>Salary negotiation guides</h2>
+    <p class="desc">Worth reading before you negotiate a job change.</p>
+    <ul class="guides">
+      <li><a href="guide/salary-negotiation-guide.html">What raise percentage should you ask for?<span>How to judge an offer, and the take-home pay trap</span></a></li>
+      <li><a href="guide/why-take-home-differs.html">Why does take-home pay differ between calculators?<span>Tax-free items, rates, dependents — where the assumptions diverge</span></a></li>
+      <li><a href="guide/base-vs-bonus.html">Bonus vs. base salary — which matters more?<span>The negotiation value of salary composition</span></a></li>
+      <li><a href="guide/negotiation-scripts.html">Real negotiation scripts<span>Wording you can use right away, by situation</span></a></li>
+      <li><a href="guide/find-average-salary.html">How to find the average salary for your role<span>Using public data to find where you stand</span></a></li>
+      <li><a href="guide/negotiation-timing.html">Negotiation timing — when should you bring it up?<span>The same ask lands differently depending on timing</span></a></li>
+      <li><a href="guide/wish-salary-writing.html">Target salary: a number, or "negotiable"?<span>A strategy for each situation</span></a></li>
+    </ul>
+  </section>
+
+  <!-- Related tools: only with a clear reason -->
+  <section class="card">
+    <h2>Read these before you negotiate</h2>
+    <ul class="guides">
+      <li><a href="guide/salary-negotiation-guide.html">Salary negotiation guide<span>A step-by-step checklist for what to review once you get an offer.</span></a></li>
+      <li><a href="guide/negotiation-scripts.html">Real negotiation scripts<span>Skip "please pay me more" — use wording that actually works.</span></a></li>
+      <li><a href="../../resignation-timing/en/">Resignation Timing Calculator<span>Decided to move? Start with a resignation date that captures both severance and paid leave.</span></a></li>
+    </ul>
+    <p class="more-tools"><a href="../../en/">← See the rest of the toolkit</a></p>
+  </section>
+</main>
+
+<footer class="footer"><div class="in">
+  <a href="../../en/about.html">About</a><span class="sep">·</span>
+  <a href="../../en/privacy.html">Privacy Policy</a><span class="sep">·</span>
+  <a href="../../en/contact.html">Contact</a><span class="sep">·</span>
+  <a href="guide/salary-negotiation-guide.html">Negotiation guide</a>
+  <div class="cp">Reference figures only — not legally binding. Production data will replace samples over time. © Gakjab Salim</div>
+</div></footer>
+
+<script>window.SALARY_LANG="en";</script>
+<script src="../../js/site.js?v=0.08"></script>
+<script src="../../js/app.js?v=0.08"></script>
+</body>
+</html>

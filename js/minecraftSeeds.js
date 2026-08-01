@@ -3,10 +3,16 @@
    - 서버 없음. data/minecraft-seeds.json을 같은 사이트에서 fetch.
    - 무작위 추첨이 아니라, 실제 시드 데이터(카테고리·설명문)에서 뽑아낸
      특징과 사용자 답변을 점수로 매칭해 상위 1~2개를 고른다.
+   KO/EN 공유: window.MC_LANG="en" 이면 질문·라벨·화면 문구를 영어 테이블에서 고른다.
+   ⚠️ 시드 데이터(data/minecraft-seeds.json)의 category·description은 한국어 원문이라
+   featuresOf()의 한국어 키워드 정규식은 언어와 무관하게 그대로 둔다 — 이건 UI 문구가
+   아니라 데이터 매칭 로직이다. 결과 카드에 뜨는 시드 설명 자체는 EN 화면에서도
+   한국어로 남는다(2차 취합 데이터라 영역 밖).
    ========================================================= */
 (function(){
   var $=function(id){return document.getElementById(id)};
   if(!$("mc-quiz"))return;
+  var LANG=(window.MC_LANG==="en")?"en":"ko";
 
   /* ---------- 시드 1건에서 특징 추출 ---------- */
   function featuresOf(s){
@@ -31,7 +37,7 @@
   }
 
   /* ---------- 질문지 ---------- */
-  var QUESTIONS=[
+  var QUESTIONS_KO=[
     {id:"edition",t:"어떤 에디션으로 플레이하세요?",opts:[
       ["java","☕","자바 (PC)"],
       ["bedrock","🧱","베드락 (모바일·콘솔)"],
@@ -60,6 +66,36 @@
       ["any","🤷","상관없어요"]
     ]}
   ];
+  var QUESTIONS_EN=[
+    {id:"edition",t:"Which edition do you play?",opts:[
+      ["java","☕","Java (PC)"],
+      ["bedrock","🧱","Bedrock (mobile/console)"],
+      ["any","🎮","Doesn't matter"]
+    ]},
+    {id:"style",t:"What do you want to do in this world?",opts:[
+      ["settle","🏘️","Settle down and survive"],
+      ["explore","🧭","Explore ruins and dungeons"],
+      ["build","🏗️","Build somewhere beautiful"],
+      ["speed","🏃","Speedrun through it"],
+      ["weird","💎","See unusual terrain"]
+    ]},
+    {id:"scene",t:"What scenery do you want to start in?",opts:[
+      ["forest","🌸","Forest / cherry blossoms"],
+      ["snow","❄️","Snow / ice"],
+      ["desert","🏜️","Desert"],
+      ["jungle","🌴","Jungle"],
+      ["ocean","🌊","Ocean / islands"],
+      ["mountain","⛰️","Mountains / cliffs"],
+      ["any","🎲","Doesn't matter"]
+    ]},
+    {id:"near","t":"What would you like near spawn?",opts:[
+      ["village","🏡","A village"],
+      ["ruins","🏛️","Ruins / dungeons"],
+      ["cave","⛏️","Caves / ores"],
+      ["any","🤷","Doesn't matter"]
+    ]}
+  ];
+  var QUESTIONS=LANG==="en"?QUESTIONS_EN:QUESTIONS_KO;
 
   var STYLE_CATS={
     settle:["마을근접","촌락밀집","생존초반유리"],
@@ -68,15 +104,62 @@
     speed:["스피드런"],
     weird:["희귀독특","자연경관"]
   };
-  var SCENE_LABEL={forest:"숲·벚꽃",snow:"눈·얼음",desert:"사막",jungle:"정글",ocean:"바다·섬",mountain:"산·절벽"};
-  var NEAR_LABEL={village:"마을 근처",ruins:"유적·던전",cave:"동굴·광물"};
-  var STYLE_LABEL={settle:"생존 정착",explore:"탐험",build:"건축",speed:"스피드런",weird:"특이 지형"};
+  var SCENE_LABEL_KO={forest:"숲·벚꽃",snow:"눈·얼음",desert:"사막",jungle:"정글",ocean:"바다·섬",mountain:"산·절벽"};
+  var NEAR_LABEL_KO={village:"마을 근처",ruins:"유적·던전",cave:"동굴·광물"};
+  var STYLE_LABEL_KO={settle:"생존 정착",explore:"탐험",build:"건축",speed:"스피드런",weird:"특이 지형"};
+  var SCENE_LABEL_EN={forest:"Forest/blossoms",snow:"Snow/ice",desert:"Desert",jungle:"Jungle",ocean:"Ocean/islands",mountain:"Mountains/cliffs"};
+  var NEAR_LABEL_EN={village:"Near a village",ruins:"Ruins/dungeons",cave:"Caves/ores"};
+  var STYLE_LABEL_EN={settle:"Settling in",explore:"Exploring",build:"Building",speed:"Speedrunning",weird:"Unusual terrain"};
+  var SCENE_LABEL=LANG==="en"?SCENE_LABEL_EN:SCENE_LABEL_KO;
+  var NEAR_LABEL=LANG==="en"?NEAR_LABEL_EN:NEAR_LABEL_KO;
+  var STYLE_LABEL=LANG==="en"?STYLE_LABEL_EN:STYLE_LABEL_KO;
+
+  var T={
+    ko:{
+      loadFail:'<div class="helper">시드 데이터를 불러오지 못했어요. 새로고침해 주세요.</div>',
+      copied:"✓ 복사됨",
+      copyBtn:"📋 복사",
+      copyPrompt:"복사하세요:",
+      unknownEdition:"미상", unknownVersion:"미상",
+      sourceLabel:"출처: ",
+      unknownFeature:"특징 미확인",
+      poolDesc:"아직 아무도 정리하지 않은 시드예요. 어떤 지형이 나올지는 직접 들어가서 확인해보세요.",
+      resultTitle:"이 시드를 추천해요",
+      resultSub:"답변하신 조건과 가장 잘 맞는 순서예요.",
+      moreNext:"다음 후보 보기 →",
+      moreUnexplored:"미개척 시드도 보기 🎲",
+      poolTitle:"미개척 시드",
+      poolSub:"아직 특징이 정리되지 않은 시드예요. 직접 들어가서 확인해보세요.",
+      moreOther:"다른 시드 보기 🎲"
+    },
+    en:{
+      loadFail:'<div class="helper">Couldn\'t load seed data. Please refresh the page.</div>',
+      copied:"✓ Copied",
+      copyBtn:"📋 Copy",
+      copyPrompt:"Copy this:",
+      unknownEdition:"Unknown", unknownVersion:"Unknown",
+      sourceLabel:"Source: ",
+      unknownFeature:"Features unconfirmed",
+      poolDesc:"Nobody's documented this seed's features yet. Load it up and see for yourself what terrain you get.",
+      resultTitle:"We recommend this seed",
+      resultSub:"Ordered by how well it matches what you answered.",
+      moreNext:"See next candidates →",
+      moreUnexplored:"See unexplored seeds too 🎲",
+      poolTitle:"Unexplored seeds",
+      poolSub:"These seeds don't have documented features yet. Load one up and see for yourself.",
+      moreOther:"See other seeds 🎲"
+    }
+  };
+  var S=T[LANG];
 
   var DATA=[], POOL=[], answers={}, qIdx=0, ranked=[], shownFrom=0, poolFrom=0;
+  /* KO 페이지(minecraft-seeds/)는 사이트 루트에서 한 단계 아래, EN 페이지(minecraft-seeds/en/)는
+     두 단계 아래라 data/ 로 가는 상대경로 깊이가 다르다. */
+  var DATA_PREFIX=LANG==="en"?"../../data/":"../data/";
 
   Promise.all([
-    fetch("../data/minecraft-seeds.json").then(function(r){return r.json()}),
-    fetch("../data/minecraft-seeds-random.json").then(function(r){return r.json()}).catch(function(){return{seeds:[]}})
+    fetch(DATA_PREFIX+"minecraft-seeds.json").then(function(r){return r.json()}),
+    fetch(DATA_PREFIX+"minecraft-seeds-random.json").then(function(r){return r.json()}).catch(function(){return{seeds:[]}})
   ]).then(function(res){
     DATA=(res[0]||[]).map(function(s){ s._f=featuresOf(s); return s; });
     POOL=(res[1]&&res[1].seeds)||[];
@@ -84,7 +167,7 @@
     if($("mc-total"))$("mc-total").textContent=total.toLocaleString();
     renderQuestion();
   }).catch(function(){
-    $("mc-quiz").innerHTML='<div class="helper">시드 데이터를 불러오지 못했어요. 새로고침해 주세요.</div>';
+    $("mc-quiz").innerHTML=S.loadFail;
   });
 
   /* ---------- 질문 렌더 ---------- */
@@ -169,9 +252,9 @@
     Array.prototype.forEach.call($("mc-results").querySelectorAll(".mc-copy"),function(btn){
       btn.addEventListener("click",function(){
         var seed=btn.getAttribute("data-seed");
-        var done=function(){var old=btn.textContent;btn.textContent="✓ 복사됨";setTimeout(function(){btn.textContent=old},1400);};
-        if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(seed).then(done,function(){prompt("복사하세요:",seed)});
-        else prompt("복사하세요:",seed);
+        var done=function(){var old=btn.textContent;btn.textContent=S.copied;setTimeout(function(){btn.textContent=old},1400);};
+        if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(seed).then(done,function(){prompt(S.copyPrompt,seed)});
+        else prompt(S.copyPrompt,seed);
       });
     });
   }
@@ -179,17 +262,17 @@
     var s=r.seed;
     var whyChips=r.why.map(function(w){return '<span class="mc-tag match">✓ '+escapeHtml(w)+'</span>'}).join("");
     return '<div class="mc-card">'
-      +'<div class="mc-seed-row"><span class="mc-seed">'+escapeHtml(s.seed)+'</span><button type="button" class="mc-copy" data-seed="'+escapeHtml(s.seed)+'">📋 복사</button></div>'
-      +'<div class="mc-meta">'+whyChips+'<span class="mc-tag">'+escapeHtml(s.edition||"미상")+'</span><span class="mc-tag">v'+escapeHtml(s.version||"미상")+'</span></div>'
+      +'<div class="mc-seed-row"><span class="mc-seed">'+escapeHtml(s.seed)+'</span><button type="button" class="mc-copy" data-seed="'+escapeHtml(s.seed)+'">'+S.copyBtn+'</button></div>'
+      +'<div class="mc-meta">'+whyChips+'<span class="mc-tag">'+escapeHtml(s.edition||S.unknownEdition)+'</span><span class="mc-tag">v'+escapeHtml(s.version||S.unknownVersion)+'</span></div>'
       +'<div class="mc-desc">'+escapeHtml(s.description||"")+'</div>'
-      +(s.source_url?'<div class="mc-src">출처: <a href="'+escapeHtml(s.source_url)+'" target="_blank" rel="noopener">'+escapeHtml(s.source_url)+'</a></div>':'')
+      +(s.source_url?'<div class="mc-src">'+S.sourceLabel+'<a href="'+escapeHtml(s.source_url)+'" target="_blank" rel="noopener">'+escapeHtml(s.source_url)+'</a></div>':'')
       +'</div>';
   }
   function poolCardHtml(seedNum){
     return '<div class="mc-card">'
-      +'<div class="mc-seed-row"><span class="mc-seed">'+escapeHtml(seedNum)+'</span><button type="button" class="mc-copy" data-seed="'+escapeHtml(seedNum)+'">📋 복사</button></div>'
-      +'<div class="mc-meta"><span class="mc-tag unknown">특징 미확인</span></div>'
-      +'<div class="mc-desc">아직 아무도 정리하지 않은 시드예요. 어떤 지형이 나올지는 직접 들어가서 확인해보세요.</div>'
+      +'<div class="mc-seed-row"><span class="mc-seed">'+escapeHtml(seedNum)+'</span><button type="button" class="mc-copy" data-seed="'+escapeHtml(seedNum)+'">'+S.copyBtn+'</button></div>'
+      +'<div class="mc-meta"><span class="mc-tag unknown">'+S.unknownFeature+'</span></div>'
+      +'<div class="mc-desc">'+S.poolDesc+'</div>'
       +'</div>';
   }
   function pickPool(n){
@@ -204,18 +287,18 @@
     var picks=ranked.slice(shownFrom,shownFrom+2);
 
     if(picks.length){
-      $("mc-result-title").textContent="이 시드를 추천해요";
-      $("mc-result-sub").textContent="답변하신 조건과 가장 잘 맞는 순서예요.";
+      $("mc-result-title").textContent=S.resultTitle;
+      $("mc-result-sub").textContent=S.resultSub;
       $("mc-results").innerHTML=picks.map(cardHtml).join("");
       $("mc-more").hidden=false;
-      $("mc-more").textContent=(ranked.length>shownFrom+2)?"다음 후보 보기 →":"미개척 시드도 보기 🎲";
+      $("mc-more").textContent=(ranked.length>shownFrom+2)?S.moreNext:S.moreUnexplored;
     }else{
       // 정리된 후보를 다 봤거나 조건에 맞는 게 없을 때 → 미개척 시드 풀에서 제시
-      $("mc-result-title").textContent="미개척 시드";
-      $("mc-result-sub").textContent="아직 특징이 정리되지 않은 시드예요. 직접 들어가서 확인해보세요.";
+      $("mc-result-title").textContent=S.poolTitle;
+      $("mc-result-sub").textContent=S.poolSub;
       $("mc-results").innerHTML=pickPool(2).map(poolCardHtml).join("");
       $("mc-more").hidden=false;
-      $("mc-more").textContent="다른 시드 보기 🎲";
+      $("mc-more").textContent=S.moreOther;
     }
 
     bindCopy();

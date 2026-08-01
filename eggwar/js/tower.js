@@ -68,10 +68,95 @@ GAME.Tower = {
   EARLY_FLOORS: 3,
   ENTRY_JUMP: 147,
 
-  budgetFor: function (floor) {
+  // ══ 영웅 성장에 맞춘 압박 (2026-08-02 사용자 지시) ═══════════════════════════
+  //  "30층을 넘어가니 통곡의 탑 깨기가 너무 쉬워. 전략 배치하는 쪽에서 유닛 업그레이드와
+  //   영웅의 능력치, 그리고 전투 양상을 비교해서 그에 맞게 올리도록 해줘."
+  //
+  //  **이 파일이 이미 원인을 적어 두고 있었다** (아래 `bossModsFor` 주석):
+  //  "아이템 가격·효과가 지수가 되면서 영웅 화력이 층당 지수로 자란다 … 선형 성장이
+  //   지수 성장을 못 따라간다." 그때는 **보스만** 지수로 고쳤다. 일반 층은 그대로
+  //  hp +1.2%/층 · 예산 +4/층 선형이었고, 게다가 능력치 업그레이드에서 상한이
+  //  사라졌으므로(2026-08-01) 영웅 쪽은 위로 열려 있고 진형 쪽만 닫혀 있었다.
+  //  30층대에서 쉬워지는 것은 곡선이 아니라 **구조**의 결과다.
+  //
+  //  그래서 층수가 아니라 **지금 이 캐릭터의 실제 강함**을 재서 곱한다. 두 축이다:
+  //    ① 성장 지수 — 능력치 + 장비가 만든 공격력·유효체력이 기본치의 몇 배인가
+  //    ② 압박 계수 — **전투 양상**. 여유 있게 이기면 오르고 지면 내린다(아래 TowerChar)
+  //
+  //  ⚠ 신선한 캐릭터에서는 정확히 1.0 이다 — 그래서 R-1(무조작 0%)·R-3 기준선이
+  //    한 톨도 안 움직인다. 이 성질이 없으면 회귀표를 통째로 다시 뽑아야 한다.
+  //  ⚠ `modsFor` 가 **층수만의 함수가 아니게 된다.** 도구가 곡선을 잴 때는
+  //    `modsFor(n, false, true)` 로 이 축을 빼고 재는 것이 맞다(성장은 사람마다 다르다).
+  //  ── 지수를 **실측으로** 잡았다 (`node tools/tower-power-curve.js`) ──────────
+  //  그 도구가 재는 것은 "영웅이 진형 전체를 녹이는 데 걸리는 시간"이다.
+  //  고치기 전: 5층 54.9초 → 60층 **10.0초**. 층이 오를수록 5.5배 쉬워지고 있었다
+  //  — 사용자 신고가 그대로 재현된 숫자다.
+  //  그 곡선은 대략 `녹이는시간 ∝ 성장지수^-0.48` 이었다. 그래서 되돌리는 데
+  //  필요한 총지수는 0.48 이고, 여기에 조금 더 얹어(0.67) **후반이 살짝 더**
+  //  어려워지게 한다. 유닛 0.55 + 예산 0.12 = 0.67.
+  //  ⚠ 처음엔 0.80 + 0.30 = 1.10 을 넣었다가 40층 녹이는 시간이 341초가 나왔다
+  //    (전투 제한시간의 몇 배다 — 못 이기는 층이 된다). **과보정도 버그다.**
+  POWER_POW_UNIT: 0.55,      // 유닛 체력·공격에 걸리는 지수
+  POWER_POW_BUDGET: 0.12,    // 예산에 걸리는 지수 — 낮게 잡는다
+  POWER_CAP: 24,             // 유닛 배수 상한
+  BUDGET_MUL_CAP: 1.8,       // 예산 배수 상한
+  //  ⚠ 예산을 크게 올리면 **오히려 컨트롤러가 유리해진다**(CLAUDE.md 실측:
+  //    예산이 커질수록 아이템 효율이 유닛 추가보다 좋다). 그래서 무게는 유닛 쪽에
+  //    싣고 예산은 살짝만 민다 — 진형이 두꺼워지되 뒤집히지는 않게.
+
+  //  이 캐릭터의 공격력·유효체력이 기본 영웅의 몇 배인가. 기본이면 1.0.
+  heroPowerIndex: function () {
+    var TC = GAME.TowerChar;
+    if (!TC || !TC.exists || !TC.exists()) return 1;
+    var rec = TC.get();
+    var base = rec && GAME.HEROES[rec.heroKey];
+    if (!base) return 1;
+    var b = TC.statBonus(rec), ib = TC.itemBonus(rec);
+    //  ⚠ 기준선은 `HEROES` 의 생짜 스탯이 아니라 **갓 만든 캐릭터**다.
+    //    캐릭터를 만드는 순간 영웅별 head-start(`TowerChar.HERO_BASE`)가 이미
+    //    붙어 있어서, 생짜를 기준으로 잡으면 1층부터 지수가 1.14 로 나온다 —
+    //    아무것도 안 산 사람에게 14% 더 두꺼운 진형을 붙이는 셈이고,
+    //    "1~3층은 연습 구간"이라는 이 게임의 약속과 회귀 기준선이 같이 깨진다.
+    //    (실측으로 잡았다: `tools/tower-power-curve.js` 의 '신선한 캐릭터 배수'.)
+    var hb = (TC.HERO_BASE && TC.HERO_BASE[rec.heroKey]) || {};
+    var atk0 = (base.damage || 0) + (hb.damage || 0) || 1;
+    var ehp0 = ((base.hp || 0) + (hb.hp || 0) || 1) *
+               (1 + ((base.armor || 0) + (hb.armor || 0)) / 100);
+    //  ⚠ `statBonus` 는 HERO_BASE 를 **이미 포함**한다. atk0 에 또 더하면
+    //    head-start 를 두 번 세어 신선한 캐릭터가 1.19 로 나온다(실제로 그랬다).
+    var atk = (base.damage || 0) + (b.damage || 0) + (ib.damage || 0);
+    var ehp = ((base.hp || 1) + (b.hp || 0) + (ib.hp || 0)) *
+              (1 + ((base.armor || 0) + (b.armor || 0) + (ib.armor || 0)) / 100);
+    // 기하평균 — 공격만 올린 빌드와 방어만 올린 빌드가 같은 무게를 갖는다.
+    var p = Math.sqrt((atk / atk0) * (ehp / ehp0));
+    return p > 1 ? p : 1;
+  },
+
+  pressureOf: function () {
+    var TC = GAME.TowerChar;
+    if (!TC || !TC.exists || !TC.exists()) return 1;
+    var rec = TC.get();
+    return (rec && typeof rec.pressure === 'number') ? rec.pressure : 1;
+  },
+
+  // 유닛 체력·공격에 걸리는 최종 배수(화면에도 이 값을 보여 준다).
+  challengeMul: function () {
+    var m = Math.pow(this.heroPowerIndex(), this.POWER_POW_UNIT) * this.pressureOf();
+    return Math.max(1, Math.min(this.POWER_CAP, m));
+  },
+
+  budgetMul: function () {
+    var m = Math.pow(this.heroPowerIndex(), this.POWER_POW_BUDGET) *
+            Math.sqrt(this.pressureOf());
+    return Math.max(1, Math.min(this.BUDGET_MUL_CAP, m));
+  },
+
+  budgetFor: function (floor, skipPower) {
+    var mul = skipPower ? 1 : this.budgetMul();
     var early = this.BASE_BUDGET + (Math.min(floor, this.EARLY_FLOORS) - 1) * this.BUDGET_STEP;
     if (floor <= this.EARLY_FLOORS) return early;
-    return early + this.ENTRY_JUMP + (floor - this.EARLY_FLOORS - 1) * this.BUDGET_STEP;
+    return Math.round((early + this.ENTRY_JUMP +
+                       (floor - this.EARLY_FLOORS - 1) * this.BUDGET_STEP) * mul);
   },
 
   // 영웅 예산은 **더 높게 시작해서 더 느리게** 오른다.
@@ -120,9 +205,10 @@ GAME.Tower = {
   //   서로 다른 목적**이라는 것을 잊지 말 것 — 성장은 완만하게 어렵게 만들고,
   //   조건은 난이도가 아니라 **답을 바꾼다**(그래서 체력을 깎으며 장갑을 올리기도 한다).
   //   곡선을 다시 잴 때는 `Tower.modsFor(n, true)` 로 조건을 빼고 재는 것이 맞다.
-  modsFor: function (floor, skipRule) {
+  modsFor: function (floor, skipRule, skipPower) {
     var t = Math.max(0, floor - 1);
-    var m = { hp: 1 + 0.012 * t, damage: 1 + 0.010 * t };
+    var cm = skipPower ? 1 : this.challengeMul();
+    var m = { hp: (1 + 0.012 * t) * cm, damage: (1 + 0.010 * t) * cm };
     if (skipRule || !GAME.TowerRule) return m;
     return GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor));
   },
@@ -198,16 +284,34 @@ GAME.Tower = {
   //    150~      태초의 용     — 이후 50층마다 다시 나온다
   //  ⚠ 무한의 탑이라 '최종'이 진짜 끝일 수 없다. 대신 **150층부터 50층 간격으로만**
   //    나오게 해서, 만나는 것 자체가 사건이 되게 한다.
+  // ── 보스 사다리 (2026-08-02 개편) ─────────────────────────────────────────
+  //  사용자 지시: "50 · 100 · 150 · 200 · 250 에서 각각 용의 발, 손, 날개,
+  //  반쪽 얼굴 등으로 보여주다가 결국 300에서 실제 용과 싸우길."
+  //
+  //  즉 **50의 배수는 전부 용의 것**이다. 그 사이(10의 배수)는 계란 부족의 강자와
+  //  용의 권속이 채운다. 이 구조가 하는 일은 난이도가 아니라 **예고**다 —
+  //  300층까지 250층분을 오르게 만드는 동력은 "저게 다 한 마리였다"는 사실이다.
   BOSS_SCHEDULE: {
     10: 'bossChief', 20: 'bossShell', 30: 'bossNest',
-    40: 'bossAshSentry', 50: 'bossDrakeAsh',
-    60: 'bossAshSentry', 70: 'bossDrakeFrost',
-    80: 'bossDrakeAsh',  90: 'bossDrakeStorm',
-    100: 'bossDragonClaw'
+    40: 'bossAshSentry',
+    50: 'bossDragonFoot',                                   // ← 첫 부위
+    60: 'bossDrakeAsh', 70: 'bossDrakeFrost',
+    80: 'bossAshSentry', 90: 'bossDrakeStorm',
+    100: 'bossDragonClaw',                                  // ← 손
+    110: 'bossDrakeFrost', 120: 'bossDrakeStorm',
+    130: 'bossDrakeAsh',  140: 'bossDrakeFrost',
+    150: 'bossDragonWing',                                  // ← 날개
+    160: 'bossDrakeStorm', 170: 'bossDrakeFrost',
+    180: 'bossDrakeStorm', 190: 'bossDrakeAsh',
+    200: 'bossDragonFace',                                  // ← 반쪽 얼굴
+    250: 'bossDragonWaking',                                // ← 상반신
+    300: 'bossDragonLord'                                   // ← 본체
   },
-  //  100층 위로는 이 목록이 돈다(용은 아래에서 따로 끼워 넣는다).
-  BOSS_LATE: ['bossDrakeFrost', 'bossDrakeStorm', 'bossDragonClaw', 'bossDrakeAsh'],
-  DRAGON_FROM: 150,
+  //  표에 없는 10의 배수 층은 이 목록이 돈다.
+  BOSS_LATE: ['bossDrakeFrost', 'bossDrakeStorm', 'bossDrakeAsh', 'bossAshSentry'],
+  //  300층을 넘어가면 본체가 50층마다 다시 나온다 — 꼭대기가 없는 탑이므로
+  //  '마지막 보스'는 끝이 아니라 **가장 무거운 주기**가 된다.
+  DRAGON_FROM: 300,
   DRAGON_EVERY: 50,
 
   bossKeyFor: function (floor) {

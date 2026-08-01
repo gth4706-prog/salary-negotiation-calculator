@@ -33,17 +33,32 @@ window.GAME = window.GAME || {};
   var BA = GAME.BossArt = {};
 
   // 종류별 **그리는 배율**. 히트박스와 무관하다 — 용은 크게 보여야 용이다.
-  BA.SCALE = { sentry: 1.50, drake: 1.60, claw: 2.10, dragon: 2.60 };
+  BA.SCALE = { sentry: 1.50, drake: 1.60, claw: 2.10,
+               foot: 1.55, wingpart: 1.30, halfface: 1.25, waking: 1.50,
+               dragon: 2.60 };
 
   // 결(속성)별 색. 같은 골격에 색만 갈아 끼워 권속을 여러 종으로 늘린다.
+  //  ⚠ **네 톤이 필요하다.** 처음엔 dark/scale/belly 셋이었는데, 그러면 위에서
+  //    빛을 받는 면(등·어깨·주둥이 윗면)을 표현할 색이 없어 몸이 통째로 평평해진다.
+  //    `lit`(등광)을 넣고 나서야 덩어리에 부피가 생겼다 — 레퍼런스 조각의
+  //    '깎여 있다'는 인상은 결국 윗면과 옆면의 밝기 차이다.
   BA.TONE = {
-    ash:   { scale: 0x4a4750, dark: 0x24222a, belly: 0x6f6a74, glow: 0xff7a3c, horn: 0xd9cfc0 },
-    frost: { scale: 0x4a6a7e, dark: 0x243743, belly: 0x7fa0b3, glow: 0x8fe0ff, horn: 0xdfeef5 },
-    storm: { scale: 0x574a7e, dark: 0x2a2343, belly: 0x8a7ab0, glow: 0xffe066, horn: 0xe6dcff },
-    ember: { scale: 0x6e3a2c, dark: 0x3a1c14, belly: 0xa8624a, glow: 0xffb03c, horn: 0xf0dcc0 }
+    ash:   { scale: 0x4a4750, dark: 0x24222a, lit: 0x6b6772, belly: 0x8f8a95, glow: 0xff7a3c, horn: 0xd9cfc0 },
+    frost: { scale: 0x4a6a7e, dark: 0x243743, lit: 0x6d92a8, belly: 0x9fc0d3, glow: 0x8fe0ff, horn: 0xdfeef5 },
+    storm: { scale: 0x574a7e, dark: 0x2a2343, lit: 0x7a6ba6, belly: 0xa89ad0, glow: 0xffe066, horn: 0xe6dcff },
+    ember: { scale: 0x6e3a2c, dark: 0x381911, lit: 0x9a5238, belly: 0xc07a52, glow: 0xffb03c, horn: 0xf0dcc0 }
   };
 
   // ── 기본 도형 ──────────────────────────────────────────────────────────────
+  //  ⚠ 뒤쪽 날개를 **알파로** 어둡게 했더니 잔디색이 그대로 비쳐 막이 유리처럼
+  //    보였다(실측). 뒤에 있는 것은 투명한 게 아니라 **어두운** 것이다 — 색을 섞는다.
+  function mix(a, b, t) {
+    var ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+    var br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+    return (((ar + (br - ar) * t) | 0) << 16) |
+           (((ag + (bg - ag) * t) | 0) << 8) | ((ab + (bb - ab) * t) | 0);
+  }
+
   function tri(g, x1, y1, x2, y2, x3, y3, col, a) {
     g.fillStyle(col, a === undefined ? 1 : a);
     g.fillTriangle(x1, y1, x2, y2, x3, y3);
@@ -51,6 +66,54 @@ window.GAME = window.GAME || {};
   function poly(g, pts, col, a) {
     g.fillStyle(col, a === undefined ? 1 : a);
     g.fillPoints(pts, true);
+  }
+
+  //  ══ 곡선 외곽선 — 이 파일에서 가장 중요한 함수 ══════════════════════════
+  //  사용자 신고(2026-08-02): "어디 유아용 책에 나올 법한 삼각형 사각형 모음이야."
+  //  맞는 지적이었고 **도구의 한계가 아니라 내 선택 실수**였다. 실측으로 확인:
+  //    · `fillPoints` 에 표본을 조밀하게 주면 **완전히 매끄러운 곡선**이 나온다
+  //    · `fillGradientStyle` 은 사각형·삼각형에서 진짜 그라디언트로 칠해진다
+  //    · 다만 `fillPoints` + 그라디언트는 **삼각형마다 따로 칠해져 깨진다**(쓰면 안 된다)
+  //  (`scratchpad/gradtest.js` 로 실측. 결과: WEBGL · hasGradient true · hasBezier false)
+  //
+  //  그래서 규율이 바뀐다 — **덩어리는 조종점 몇 개로 잡고 곡선으로 채운다.**
+  //  타원을 겹치거나 다각형을 늘리는 것으로는 유기적인 형태가 안 나온다.
+  function smooth(pts, per) {
+    var out = [], n = pts.length, i, j, p0, p1, p2, p3, t, t2, t3;
+    per = per || 10;
+    for (i = 0; i < n; i++) {
+      p0 = pts[(i - 1 + n) % n]; p1 = pts[i]; p2 = pts[(i + 1) % n]; p3 = pts[(i + 2) % n];
+      for (j = 0; j < per; j++) {
+        t = j / per; t2 = t * t; t3 = t2 * t;
+        out.push({
+          x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t +
+                    (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+                    (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+          y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t +
+                    (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+                    (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
+        });
+      }
+    }
+    return out;
+  }
+
+  //  같은 모양을 한 겹 안쪽으로 — 층을 쌓아 부피를 만든다.
+  //  ⚠ 중심에서 균일하게 줄이면 가늘고 긴 부분이 먼저 사라진다. 그래서
+  //    **밝은 쪽으로 치우쳐** 줄인다(빛이 위에서 온다 = 위쪽 테두리가 얇다).
+  function inset(pts, k, ox, oy) {
+    var cx = 0, cy = 0, i, out = [];
+    for (i = 0; i < pts.length; i++) { cx += pts[i].x; cy += pts[i].y; }
+    cx /= pts.length; cy /= pts.length;
+    for (i = 0; i < pts.length; i++)
+      out.push({ x: cx + (pts[i].x - cx) * k + (ox || 0), y: cy + (pts[i].y - cy) * k + (oy || 0) });
+    return out;
+  }
+
+  //  조종점 → 매끄러운 덩어리 하나.
+  function blob(g, ctrl, col, alpha, per) {
+    g.fillStyle(col, alpha === undefined ? 1 : alpha);
+    g.fillPoints(smooth(ctrl, per || 10), true);
   }
 
   //  2차 베지에 표본. 목과 꼬리가 **곡선**이라야 뱀도 막대기도 아닌 용이 된다.
@@ -85,6 +148,39 @@ window.GAME = window.GAME || {};
     }
   }
 
+  //  비늘 — 타원 안쪽에 작은 호를 줄지어 깐다.
+  //  ⚠ 넓은 단색 면이 이 아트가 '자루처럼' 보이던 가장 큰 이유였다. 실루엣이
+  //    아무리 좋아도 안쪽이 비면 종이 오리기가 된다. Phaser Graphics 에는 클립이
+  //    없으므로 타원 방정식으로 **안에 드는 것만** 그린다(마스크 없이 같은 효과).
+  function scalePatch(g, cx, cy, rx, ry, step, col, alpha, rot) {
+    g.fillStyle(col, alpha);
+    var c = Math.cos(rot || 0), sn = Math.sin(rot || 0);
+    for (var y = -ry + step * 0.5; y < ry; y += step * 0.86) {
+      var odd = Math.round((y + ry) / (step * 0.86)) % 2;
+      for (var x = -rx + step * 0.5; x < rx; x += step) {
+        var px = x + (odd ? step * 0.5 : 0);
+        if ((px * px) / (rx * rx) + (y * y) / (ry * ry) > 0.94) continue;
+        g.fillEllipse(cx + px * c - y * sn, cy + px * sn + y * c,
+                      step * 0.92, step * 0.34, 7);
+      }
+    }
+  }
+
+  //  날개막의 힘줄 — 손목에서 가장자리로 뻗는 가는 선. 막이 '펴져 있다'가 된다.
+  function veins(g, wx, wy, tips, r, col, alpha) {
+    g.lineStyle(Math.max(0.8, r * 0.030), col, alpha);
+    for (var i = 0; i < tips.length; i++) {
+      for (var k = 1; k <= 2; k++) {
+        var f = k / 3;
+        var nx = tips[i].x + (i < tips.length - 1
+          ? (tips[i + 1].x - tips[i].x) * f : (tips[i - 1].x - tips[i].x) * f);
+        var ny = tips[i].y + (i < tips.length - 1
+          ? (tips[i + 1].y - tips[i].y) * f : (tips[i - 1].y - tips[i].y) * f);
+        g.lineBetween(wx, wy, wx + (nx - wx) * 0.80, wy + (ny - wy) * 0.80);
+      }
+    }
+  }
+
   //  등줄기 가시 — 곡선의 법선 방향으로 세우고 진행 반대쪽으로 눕힌다.
   //  **머리부터 꼬리 끝까지 하나로 이어야** 한 마리로 읽힌다(부위별로 따로 붙이면 조각난다).
   function ridge(g, pts, from, to, size, col, sign) {
@@ -97,9 +193,11 @@ window.GAME = window.GAME || {};
       dx = q.x - p.x; dy = q.y - p.y; L = Math.sqrt(dx * dx + dy * dy) || 1;
       ux = dx / L; uy = dy / L; nx = -uy * sign; ny = ux * sign;
       s = size * (0.40 + 0.60 * Math.sin(((f - from) / Math.max(0.001, to - from)) * Math.PI));
-      g.fillTriangle(c.x - ux * s * 0.60, c.y - uy * s * 0.60,
-                     c.x + ux * s * 0.60, c.y + uy * s * 0.60,
-                     c.x + nx * s * 1.75 - ux * s * 0.55, c.y + ny * s * 1.75 - uy * s * 0.55);
+      //  ⚠ 밑동이 좁고 많이 튀어나오면 **몸에서 떨어진 삼각형**으로 보인다(실측).
+      //    가시는 등에서 자라난 것이라 밑동이 넓고 낮아야 붙어 보인다.
+      g.fillTriangle(c.x - ux * s * 1.05 + nx * s * 0.25, c.y - uy * s * 1.05 + ny * s * 0.25,
+                     c.x + ux * s * 1.05 + nx * s * 0.25, c.y + uy * s * 1.05 + ny * s * 0.25,
+                     c.x + nx * s * 1.35 - ux * s * 0.45, c.y + ny * s * 1.35 - uy * s * 0.45);
     }
   }
 
@@ -122,7 +220,10 @@ window.GAME = window.GAME || {};
   function leg(g, hx, hy, kx, ky, fx, fy, w, tone, dir, r, back) {
     g.fillStyle(tone.dark, 1);
     g.fillEllipse(hx, hy, w * 2.1, w * 2.4, 12);
-    if (!back) { g.fillStyle(tone.scale, 1); g.fillEllipse(hx, hy - w * 0.18, w * 1.5, w * 1.7, 12); }
+    if (!back) {
+      g.fillStyle(tone.scale, 1); g.fillEllipse(hx, hy - w * 0.18, w * 1.5, w * 1.7, 12);
+      g.fillStyle(tone.lit, 0.6); g.fillEllipse(hx - dir * w * 0.30, hy - w * 0.55, w * 0.78, w * 0.62, 10);
+    }
     ribbon(g, [{ x: hx, y: hy }, { x: kx, y: ky }], w * 1.28, w * 0.78, tone.dark);
     ribbon(g, [{ x: kx, y: ky }, { x: fx, y: fy }], w * 0.78, w * 0.48, tone.dark);
     g.fillStyle(back ? tone.dark : tone.scale, 1); g.fillCircle(kx, ky, w * 0.40);
@@ -135,63 +236,119 @@ window.GAME = window.GAME || {};
   //    ① 뒤로 부챗살처럼 뻗은 **뿔 왕관**  ② 긴 주둥이와 턱 둘레의 **볼 가시**
   //    ③ 눈두덩이 위를 덮어 만드는 **노려보는 눈**
   //  셋 다 실루엣에 남는 물건이다 — 색으로는 하나도 안 만들어진다.
-  var HORN_DIR = [[-0.52, -1.00], [-0.88, -0.66], [-1.04, -0.22], [-0.94, 0.20], [-0.70, 0.54]];
-  var HORN_LEN = [1.02, 1.26, 1.14, 0.88, 0.62];
+  //  뿔 — 곡선으로 휘어야 뿔이다. 삼각형 하나는 '가시'지 뿔이 아니다.
+  //  밑동이 굵고 끝으로 갈수록 가늘어지며 바깥으로 휜다.
+  function horn(g, bx, by, ax, ay, curve, w, tone, back) {
+    var i, pts = [], t, mx, my;
+    var dx = ax - bx, dy = ay - by;
+    var nx = -dy, ny = dx, L = Math.sqrt(nx * nx + ny * ny) || 1;
+    nx /= L; ny /= L;
+    for (i = 0; i <= 10; i++) {
+      t = i / 10;
+      mx = bx + dx * t + nx * curve * Math.sin(t * Math.PI) * L;
+      my = by + dy * t + ny * curve * Math.sin(t * Math.PI) * L;
+      pts.push({ x: mx, y: my });
+    }
+    //  `back=true` 는 '몸에 가까운 색' 이라는 뜻이다 — 뿔·볏처럼 실루엣을
+    //  만들되 주인공이 되면 안 되는 것에 쓴다.
+    ribbon(g, pts, w, w * 0.10, back ? mix(tone.horn, tone.dark, 0.62) : tone.horn, 1);
+    ribbon(g, pts, w * 0.42, w * 0.05,
+           back ? mix(tone.dark, 0x000000, 0.3) : mix(tone.horn, tone.dark, 0.45), 0.55);
+  }
+
+  //  머리 — 이 아트에서 사람이 가장 오래 보는 곳이다.
+  //  ⚠ 예전엔 타원 세 장(두개골) + 띠(주둥이) + 삼각형(뿔·이빨)이었다. 그래서
+  //    "삼각형 사각형 모음"이라는 말을 들었고, 맞는 말이었다. 지금은 **두개골과
+  //    아래턱을 각각 하나의 닫힌 곡선**으로 잡는다 — 눈두덩·볼·주둥이가 한 덩어리로
+  //    이어져야 짐승의 머리가 된다(레퍼런스의 조각들이 전부 그렇다).
+  //  ⚠ 뿔을 다섯 개 · 크림색 · 길게 했더니 **갈기**로 보였다(실측). 뿔은
+  //    머리보다 눈에 덜 띄어야 한다 — 주인공은 눈과 아가리다. 셋으로 줄이고
+  //    몸통색에 가깝게(뿔색을 어둡게 섞어) 짧고 두껍게 간다.
+  var HORN_DIR = [[-0.74, -0.82], [-1.00, -0.34], [-0.86, 0.24]];
+  var HORN_LEN = [0.86, 0.96, 0.70];
   function head(g, hx, hy, r, tone, open, d, t) {
-    var i, f, bx, by, ex, ey, px, py, nn, L, ux, uy, lx, ly;
-    // ① 뿔 왕관 — 머리보다 먼저 그려 뒤로 간다
+    var i, f, bx, by, ex, ey, L, ux, uy, lx, ly;
+    // ① 뿔 왕관 — 머리보다 먼저 그려 뒤로 간다. 곡선으로 휜다.
+    //  ⚠ 뿔 밑동을 두개골 **안쪽**에 두었더니 굵은 부분이 통째로 가려져
+    //    가느다란 끝만 삐져나왔다 — 메기수염처럼 보였다(실측). 밑동은 두개골
+    //    **바깥 테두리 위**에 놓아야 굵기가 보이고, 그래야 뿔이 된다.
     for (i = 0; i < HORN_DIR.length; i++) {
-      bx = hx - d * r * 0.24 + d * r * 0.05 * i;
-      by = hy - r * 0.20 + r * 0.11 * i;
-      L = r * HORN_LEN[i];
+      bx = hx - d * r * (0.44 - i * 0.06);
+      by = hy - r * (0.40 - i * 0.22);
+      L = r * HORN_LEN[i] * 0.82;
       ex = bx + d * HORN_DIR[i][0] * L; ey = by + HORN_DIR[i][1] * L;
-      px = -(ey - by); py = (ex - bx);
-      nn = Math.sqrt(px * px + py * py) || 1;
-      px = px / nn * r * 0.12; py = py / nn * r * 0.12;
-      tri(g, bx + px, by + py, bx - px, by - py, ex, ey, tone.horn, 1);
-      tri(g, bx + px * 0.55, by + py * 0.55, bx - px * 0.55, by - py * 0.55,
-             bx + (ex - bx) * 0.52, by + (ey - by) * 0.52, tone.dark, 0.5);
+      horn(g, bx, by, ex, ey, (i - 1) * 0.06 - 0.06, r * 0.46, tone, true);
     }
-    // ② 볼 가시 — 뒤아래로 눕는다
+    // ② 볼 판 — 예전엔 '볼 가시' 셋이었는데, 턱 아래로 휜 크림색 곡선이라
+    //    **메기수염**으로 보였다(실측). 레퍼런스의 턱 둘레는 가시가 아니라
+    //    **겹친 판**이다 — 실루엣을 늘리지 않고 두께만 준다.
     for (i = 0; i < 3; i++) {
-      bx = hx - d * r * (0.02 + i * 0.17); by = hy + r * (0.26 + i * 0.05);
-      tri(g, bx, by - r * 0.11, bx, by + r * 0.11,
-             bx - d * r * 0.46, by + r * (0.28 + i * 0.11), tone.horn, 1);
+      bx = hx - d * r * (0.10 + i * 0.16); by = hy + r * (0.14 + i * 0.07);
+      g.fillStyle(i % 2 ? tone.dark : tone.scale, 0.9);
+      g.fillEllipse(bx, by, r * (0.40 - i * 0.06), r * (0.22 - i * 0.03), 10);
     }
-    // 두개골
-    g.fillStyle(tone.dark, 1);  g.fillEllipse(hx, hy, r * 1.18, r * 0.94, 14);
-    g.fillStyle(tone.scale, 1); g.fillEllipse(hx, hy - r * 0.05, r * 1.00, r * 0.78, 14);
-    // 주둥이 — 앞으로 길게 좁아진다
-    var snout = [{ x: hx + d * r * 0.16, y: hy + r * 0.02 },
-                 { x: hx + d * r * 0.70, y: hy + r * 0.11 },
-                 { x: hx + d * r * 1.18, y: hy + r * 0.19 }];
-    ribbon(g, snout, r * 0.78, r * 0.32, tone.scale);
-    ribbon(g, snout, r * 0.32, r * 0.13, tone.dark, 0.42);
-    // 아래턱
-    var jy = r * (0.26 + open * 0.66);
-    ribbon(g, [{ x: hx + d * r * 0.12, y: hy + r * 0.20 },
-               { x: hx + d * r * 0.66, y: hy + jy * 0.80 },
-               { x: hx + d * r * 1.06, y: hy + jy }], r * 0.54, r * 0.22, tone.dark);
-    // 목구멍의 불
-    g.fillStyle(tone.glow, 0.50 + 0.35 * Math.sin(t / 240));
-    g.fillTriangle(hx + d * r * 0.20, hy + r * 0.14, hx + d * r * 0.98, hy + r * 0.19,
-                   hx + d * r * 0.60, hy + jy * 0.84);
-    // 이빨 — 위아래 엇갈리게
-    for (i = 0; i < 6; i++) {
-      f = i / 5;
-      ux = hx + d * r * (0.24 + f * 0.84); uy = hy + r * (0.14 + f * 0.05);
-      tri(g, ux - r * 0.05, uy, ux + r * 0.05, uy, ux + d * r * 0.02, uy + r * 0.19 * (1 - f * 0.4), tone.horn, 1);
-      lx = hx + d * r * (0.20 + f * 0.80); ly = hy + jy * (0.70 + f * 0.30) - r * 0.02;
-      tri(g, lx - r * 0.05, ly, lx + r * 0.05, ly, lx + d * r * 0.02, ly - r * 0.17 * (1 - f * 0.4), tone.horn, 1);
+
+    // ③ 두개골 + 주둥이 — **하나의 곡선**. 눈두덩이 튀어나오고 코끝이 뾰족하다.
+    var jy = r * (0.24 + open * 0.68);
+    var S = [
+      { x: hx - d * r * 0.62, y: hy - r * 0.22 },   // 뒤통수
+      { x: hx - d * r * 0.30, y: hy - r * 0.56 },   // 정수리
+      { x: hx + d * r * 0.10, y: hy - r * 0.52 },   // 눈두덩 앞
+      { x: hx + d * r * 0.44, y: hy - r * 0.34 },   // 콧등 시작
+      { x: hx + d * r * 0.92, y: hy - r * 0.22 },
+      { x: hx + d * r * 1.26, y: hy - r * 0.02 },   // 코끝
+      { x: hx + d * r * 1.14, y: hy + r * 0.20 },
+      { x: hx + d * r * 0.66, y: hy + r * 0.24 },   // 윗턱 아랫선
+      { x: hx + d * r * 0.16, y: hy + r * 0.30 },
+      { x: hx - d * r * 0.34, y: hy + r * 0.34 }    // 볼
+    ];
+    blob(g, S, tone.dark, 1, 12);
+    blob(g, inset(S, 0.88, d * r * 0.02, -r * 0.03), tone.scale, 1, 12);
+    blob(g, inset(S, 0.52, d * r * 0.16, -r * 0.16), tone.lit, 0.85, 12);
+
+    // ④ 아래턱 — 따로 하나의 곡선. open 만큼 벌어진다.
+    var J = [
+      { x: hx - d * r * 0.30, y: hy + r * 0.22 },
+      { x: hx + d * r * 0.20, y: hy + jy * 0.72 },
+      { x: hx + d * r * 0.74, y: hy + jy * 0.96 },
+      { x: hx + d * r * 1.06, y: hy + jy * 0.88 },
+      { x: hx + d * r * 0.92, y: hy + jy * 0.60 },
+      { x: hx + d * r * 0.30, y: hy + jy * 0.36 }
+    ];
+    blob(g, J, tone.dark, 1, 12);
+    blob(g, inset(J, 0.82, 0, -r * 0.02), tone.scale, 1, 12);
+
+    // ⑤ 목구멍의 불 — 벌어진 틈 안쪽
+    g.fillStyle(0x1a0d08, 1);
+    g.fillTriangle(hx + d * r * 0.18, hy + r * 0.20, hx + d * r * 1.02, hy + r * 0.16,
+                   hx + d * r * 0.60, hy + jy * 0.72);
+    g.fillStyle(tone.glow, 0.55 + 0.35 * Math.sin(t / 240));
+    g.fillTriangle(hx + d * r * 0.24, hy + r * 0.20, hx + d * r * 0.86, hy + r * 0.18,
+                   hx + d * r * 0.54, hy + jy * 0.62);
+
+    // ⑥ 이빨 — 곡선으로 휜 송곳니. 앞니가 가장 길다.
+    for (i = 0; i < 5; i++) {
+      f = i / 4;
+      ux = hx + d * r * (0.30 + f * 0.76); uy = hy + r * (0.20 + f * 0.02);
+      horn(g, ux, uy - r * 0.04, ux + d * r * 0.05, uy + r * (0.22 - f * 0.05), -0.10 * d, r * 0.14, tone, false);
+      lx = hx + d * r * (0.40 + f * 0.62); ly = hy + jy * (0.72 + f * 0.22);
+      horn(g, lx, ly + r * 0.04, lx + d * r * 0.04, ly - r * (0.20 - f * 0.04), 0.10 * d, r * 0.13, tone, false);
     }
-    // ③ 눈 + 눈두덩
+
+    // ⑦ 콧구멍 + 눈. 눈두덩이 위를 덮어 '노려본다'가 된다.
+    g.fillStyle(0x120c0c, 0.9);
+    g.fillEllipse(hx + d * r * 1.02, hy - r * 0.10, r * 0.13, r * 0.08, 8);
     g.fillStyle(tone.glow, 1);
-    g.fillEllipse(hx + d * r * 0.18, hy - r * 0.14, r * 0.32, r * 0.21, 10);
+    g.fillEllipse(hx + d * r * 0.20, hy - r * 0.16, r * 0.34, r * 0.22, 12);
     g.fillStyle(0x120c0c, 1);
-    g.fillEllipse(hx + d * r * 0.18, hy - r * 0.14, r * 0.075, r * 0.18, 8);
-    g.fillStyle(tone.dark, 1);
-    g.fillTriangle(hx - d * r * 0.06, hy - r * 0.36, hx + d * r * 0.48, hy - r * 0.28,
-                   hx - d * r * 0.02, hy - r * 0.08);
+    g.fillEllipse(hx + d * r * 0.20, hy - r * 0.16, r * 0.08, r * 0.19, 10);
+    blob(g, [
+      { x: hx - d * r * 0.16, y: hy - r * 0.44 },
+      { x: hx + d * r * 0.34, y: hy - r * 0.44 },
+      { x: hx + d * r * 0.50, y: hy - r * 0.22 },
+      { x: hx + d * r * 0.10, y: hy - r * 0.24 },
+      { x: hx - d * r * 0.18, y: hy - r * 0.28 }
+    ], tone.dark, 1, 10);
   }
 
   //  날개 — 막 + 손가락뼈 + 끝의 갈고리.
@@ -202,8 +359,10 @@ window.GAME = window.GAME || {};
   //         ② 손가락 사이를 손목 쪽으로 당겨 **가리비처럼 판다**(그게 용 날개 윤곽이다)
   //         ③ 뼈는 막보다 한 단계만 밝게, 크림색은 갈고리에만 남긴다.
   function wing(g, sx, sy, r, tone, spread, flap, back, d) {
-    var memA = back ? 0.66 : 1;
-    var bone = back ? tone.dark : tone.scale, boneA = back ? 0.9 : 1;
+    var memCol = back ? mix(tone.dark, 0x000000, 0.42) : tone.dark;
+    var bone = back ? mix(tone.scale, 0x000000, 0.45) : tone.scale;
+    var litCol = back ? mix(tone.lit, 0x000000, 0.45) : tone.lit;
+    var memA = 1, boneA = 1;
     var lift = r * (1.02 + 0.18 * flap) * spread;
     var ex = sx - d * r * 0.32 * spread, ey = sy - lift;            // 팔꿈치(위·살짝 뒤)
     var wx = sx - d * r * 1.22 * spread, wy = sy - lift * 1.34;     // 손목(더 위뒤)
@@ -214,10 +373,14 @@ window.GAME = window.GAME || {};
     //   교차해 **접힌 종이 같은 형상**이 나왔다(실측). 바깥(=뒤)에서 몸 쪽(=앞)으로.
     for (i = 0; i < 4; i++) {
       f = i / 3;
-      phi = -1.18 + f * 1.76;
-      len = r * (1.62 - f * 0.40) * spread;
+      phi = -1.30 + f * 1.34;
+      len = r * (1.58 - f * 0.44) * spread;
       tips.push({ x: wx + d * Math.sin(phi) * len, y: wy + Math.cos(phi) * len });
     }
+    //  ⚠ 막을 **다각형 한 장**으로 칠했더니 단색 판때기가 됐다(사용자 신고의 절반이
+    //    이것이다). `fillPoints` 는 그라디언트를 못 받지만(삼각형마다 깨진다)
+    //    **`fillTriangle` 은 받는다** — 그래서 막을 부챗살 삼각형으로 나눠 칠하면
+    //    손목은 어둡고 가장자리는 밝은 진짜 명암이 생긴다(실측으로 확인).
     var P = [{ x: sx, y: sy }, { x: ex, y: ey }, { x: wx, y: wy }];
     for (i = 0; i < 4; i++) {
       P.push(tips[i]);
@@ -227,8 +390,36 @@ window.GAME = window.GAME || {};
                  y: wy + ((a.y + b.y) * 0.5 - wy) * 0.74 });
       }
     }
-    P.push({ x: sx + d * r * 0.26, y: sy + r * 0.52 });   // 옆구리에서 닫는다
-    poly(g, P, tone.dark, memA);
+    //  ⚠ 옆구리(어깨보다 아래·앞)에서 닫았더니 막이 **등 위를 덮어 검은 구멍**처럼
+    //    보였다(실측). 날개는 어깨에서 나와 뒤로 뻗는 것이라 닫는 점도 어깨여야 한다.
+    P.push({ x: sx + d * r * 0.06, y: sy + r * 0.16 });
+    poly(g, P, memCol, memA);
+    // 진짜 명암 — 손목(어둡다) → 가장자리(밝다). 그라디언트 삼각형이라야 나온다.
+    var deep = mix(memCol, 0x000000, 0.35), edge = mix(memCol, litCol, 0.55);
+    for (i = 0; i < 3; i++) {
+      g.fillGradientStyle(deep, edge, deep, edge, 1);
+      g.fillTriangle(wx, wy,
+        wx + (tips[i].x - wx) * 0.97, wy + (tips[i].y - wy) * 0.97,
+        wx + (tips[i + 1].x - wx) * 0.97, wy + (tips[i + 1].y - wy) * 0.97);
+    }
+    g.fillGradientStyle(deep, edge, deep, edge, 1);
+    g.fillTriangle(sx, sy, wx, wy, wx + (tips[3].x - wx) * 0.97, wy + (tips[3].y - wy) * 0.97);
+    g.fillGradientStyle(deep, deep, edge, edge, 1);
+    g.fillTriangle(sx, sy, ex, ey, wx, wy);
+    g.fillStyle(0xffffff, 0);   // 그라디언트 상태를 초기화한다(다음 도형에 새면 안 된다)
+    veins(g, wx, wy, tips, r, litCol, 0.40);
+    //  어깨막 — 팔뼈 안쪽의 넓은 면. 여기가 비면 **단색 오각형**이 하나 남는다(실측).
+    g.fillStyle(litCol, 0.16);
+    g.fillTriangle(sx, sy, ex, ey, wx, wy);
+    g.lineStyle(Math.max(0.9, r * 0.035), litCol, 0.30);
+    for (i = 1; i <= 2; i++) {
+      var ff = i / 3;
+      g.lineBetween(sx + (wx - sx) * ff * 0.35, sy + (wy - sy) * ff * 0.35,
+                    ex + (wx - ex) * ff, ey + (wy - ey) * ff);
+    }
+    // 앞가장자리 빛 — 위에서 빛을 받는 뼈대 위쪽
+    ribbon(g, [{ x: sx, y: sy }, { x: ex, y: ey }, { x: wx, y: wy }], r * 0.10, r * 0.05,
+           litCol, 0.55);
     ribbon(g, [{ x: sx, y: sy }, { x: ex, y: ey }, { x: wx, y: wy }], r * 0.26, r * 0.14, bone, boneA);
     for (i = 0; i < 4; i++) {
       ribbon(g, [{ x: wx, y: wy }, tips[i]], r * 0.11, r * 0.045, bone, boneA);
@@ -237,43 +428,50 @@ window.GAME = window.GAME || {};
       tri(g, tips[i].x - uy * r * 0.07, tips[i].y + ux * r * 0.07,
              tips[i].x + uy * r * 0.07, tips[i].y - ux * r * 0.07,
              tips[i].x + ux * r * 0.15 - uy * r * 0.10,
-             tips[i].y + uy * r * 0.15 + ux * r * 0.10, tone.horn, boneA);
+             tips[i].y + uy * r * 0.15 + ux * r * 0.10,
+             back ? mix(tone.horn, 0x000000, 0.45) : tone.horn, 1);
     }
     // 손목의 엄지 갈고리 — 날개를 접어도 남는 신호
     tri(g, wx - d * r * 0.09, wy - r * 0.02, wx + d * r * 0.07, wy + r * 0.10,
-           wx + d * r * 0.20 * spread, wy - r * 0.30 * spread, tone.horn, boneA);
+           wx + d * r * 0.20 * spread, wy - r * 0.30 * spread,
+           back ? mix(tone.horn, 0x000000, 0.45) : tone.horn, 1);
   }
 
   //  몸통 — 가슴(높고 두껍다) → 허리(잘록) → 엉덩이(둥글다).
-  //  타원 하나로는 이 세 마디가 안 나오고, 안 나오면 **알로 돌아간다.**
+  //  몸통 — 가슴(높고 두껍다) → 허리(잘록) → 엉덩이(둥글다).
+  //  ⚠ 다각형으로 그리면 점을 아무리 늘려도 **각이 남는다**(16각형까지 해 봤다).
+  //    조종점 9 개 + Catmull-Rom 이면 각이 아예 없다 — 유기적인 형태의 조건이다.
   function torso(g, cx, cy, r, T, tone, d) {
-    var P = [
-      { x: cx + d * r * 1.06, y: cy - r * 0.50 },
-      { x: cx + d * r * 1.24, y: cy + r * 0.14 },
-      { x: cx + d * r * 0.88, y: cy + r * 0.64 },
-      { x: cx - d * r * 0.32, y: cy + r * 0.74 },
-      { x: cx - d * r * 1.16, y: cy + r * 0.50 },
-      { x: cx - d * r * 1.42, y: cy - r * 0.12 },
-      { x: cx - d * r * 1.00, y: cy - r * 0.60 },
-      { x: cx - d * r * 0.10, y: cy - r * 0.74 },
-      { x: cx + d * r * 0.72, y: cy - r * 0.76 }
+    var C = [
+      { x: cx + d * r * 1.14, y: cy - r * 0.46 },
+      { x: cx + d * r * 1.26, y: cy + r * 0.20 },
+      { x: cx + d * r * 0.86, y: cy + r * 0.70 },
+      { x: cx - d * r * 0.20, y: cy + r * 0.80 },
+      { x: cx - d * r * 1.02, y: cy + r * 0.62 },
+      { x: cx - d * r * 1.44, y: cy + r * 0.06 },
+      { x: cx - d * r * 1.10, y: cy - r * 0.58 },
+      { x: cx - d * r * 0.14, y: cy - r * 0.80 },
+      { x: cx + d * r * 0.72, y: cy - r * 0.74 }
     ];
-    poly(g, P, tone.dark, 1);
-    var Q = [], i;
-    for (i = 0; i < P.length; i++)
-      Q.push({ x: cx + (P[i].x - cx) * 0.86, y: cy + (P[i].y - cy) * 0.83 });
-    poly(g, Q, tone.scale, 1);
-    g.fillStyle(tone.belly, 0.9);
-    g.fillEllipse(cx + d * r * 0.18, cy + r * 0.52, r * 1.62, r * 0.44, 14);
-    g.lineStyle(Math.max(1, r * 0.05), tone.dark, 0.32);
-    for (i = -1; i <= 2; i++)
-      g.lineBetween(cx + d * r * (0.18 + i * 0.34) - r * 0.14, cy + r * 0.32,
-                    cx + d * r * (0.18 + i * 0.34) - r * 0.08, cy + r * 0.70);
-    // 옆구리 비늘 결 — 어깨에서 엉덩이로 흐르는 호 세 줄
-    g.lineStyle(Math.max(1, r * 0.045), tone.dark, 0.28);
-    for (i = 0; i < 3; i++)
-      g.lineBetween(cx + d * r * (0.62 - i * 0.30), cy - r * (0.56 - i * 0.06),
-                    cx - d * r * (0.30 + i * 0.32), cy - r * (0.30 - i * 0.10));
+    blob(g, C, tone.dark, 1, 12);                                  // 윤곽
+    blob(g, inset(C, 0.90, 0, r * 0.03), tone.scale, 1, 12);       // 옆면
+    blob(g, inset(C, 0.62, -d * r * 0.10, -r * 0.26), tone.lit, 0.9, 12);  // 등광
+    // 배 — 아래쪽만 밝게. 층을 겹치는 것으로 부피를 만든다(그라디언트는 다각형에서 깨진다).
+    var B = [
+      { x: cx + d * r * 0.96, y: cy + r * 0.22 },
+      { x: cx + d * r * 0.72, y: cy + r * 0.70 },
+      { x: cx - d * r * 0.20, y: cy + r * 0.80 },
+      { x: cx - d * r * 0.92, y: cy + r * 0.60 },
+      { x: cx - d * r * 0.60, y: cy + r * 0.34 },
+      { x: cx + d * r * 0.40, y: cy + r * 0.32 }
+    ];
+    blob(g, B, tone.belly, 0.92, 12);
+    // 배 판 — 가로줄. 곡선 덩어리 위에서만 '비늘판'으로 읽힌다.
+    g.lineStyle(Math.max(1, r * 0.055), tone.dark, 0.28);
+    for (var i = -2; i <= 2; i++)
+      g.lineBetween(cx + d * r * (0.12 + i * 0.30) - r * 0.10, cy + r * 0.34,
+                    cx + d * r * (0.12 + i * 0.30) - r * 0.02, cy + r * 0.74);
+    scalePatch(g, cx - d * r * 0.05, cy - r * 0.16, r * 1.06, r * 0.44, r * 0.115, tone.dark, 0.13, 0);
   }
 
   // ── 종류별 ────────────────────────────────────────────────────────────────
@@ -418,7 +616,7 @@ window.GAME = window.GAME || {};
     ribbon(g, tail, r * 0.64, r * 0.07, tone.dark);
     ribbon(g, tail, r * 0.44, r * 0.04, tone.scale);
     ridge(g, tail, 0.05, 0.95, r * 0.17, tone.dark, -1);
-    wing(g, sx - r * 0.22, sy - r * 0.08, r * 1.06, tone, 0.92, -flap, true, d);
+    wing(g, sx - r * 0.74, sy - r * 0.10, r * 1.06, tone, 0.94, -flap, true, d);
     leg(g, cx - r * 0.84, cy + r * 0.32, cx - r * 1.08, cy + r * 0.94 * T,
            cx - r * 0.70, cy + r * 1.34 * T, r * 0.27, tone, d, r * 0.92, true);
     leg(g, cx + r * 0.64, cy + r * 0.38, cx + r * 0.84, cy + r * 0.96 * T,
@@ -428,17 +626,185 @@ window.GAME = window.GAME || {};
            cx - r * 0.26, cy + r * 1.48 * T, r * 0.31, tone, d, r, false);
     leg(g, cx + r * 0.88, cy + r * 0.40, cx + r * 1.10, cy + r * 1.04 * T,
            cx + r * 1.36, cy + r * 1.46 * T, r * 0.24, tone, d, r * 0.86, false);
-    var neck = bez(sx - r * 0.12, sy + r * 0.12, sx + r * 0.88, sy - r * 0.44,
-                   sx + r * 0.80, sy - r * 1.22, 8)
-      .concat(bez(sx + r * 0.80, sy - r * 1.22, sx + r * 0.74, sy - r * 1.90,
-                  sx + r * 1.36, sy - r * 2.06, 8).slice(1));
+    //  ⚠ 목을 곧추세웠더니 **브론토사우루스**로 보였다(실측). 레퍼런스 넉 장은
+    //    전부 머리를 낮추고 앞으로 내밀고 있다 — 그게 '덤빈다'는 자세다.
+    //    S 자의 윗마디를 앞으로 눕히고 머리를 한 뼘 내린다.
+    var neck = bez(sx - r * 0.12, sy + r * 0.12, sx + r * 0.86, sy - r * 0.50,
+                   sx + r * 0.72, sy - r * 1.28, 8)
+      .concat(bez(sx + r * 0.72, sy - r * 1.28, sx + r * 0.86, sy - r * 1.92,
+                  sx + r * 1.70, sy - r * 1.82, 8).slice(1));
     ribbon(g, neck, r * 0.90, r * 0.40, tone.dark);
     ribbon(g, neck, r * 0.62, r * 0.26, tone.scale);
+    ribbon(g, neck, r * 0.24, r * 0.10, tone.lit, 0.75);       // 목 윗면의 빛
     ridge(g, neck, 0.08, 0.98, r * 0.15, tone.dark, -1);
-    head(g, sx + r * 1.68, sy - r * 2.14, r * 0.78, tone, 0.38 + 0.30 * Math.sin(t / 300), d, t);
-    wing(g, sx - r * 0.06, sy - r * 0.20, r * 1.22, tone, 0.98, flap, false, d);
-    g.fillStyle(tone.glow, 0.16 + 0.12 * Math.abs(br));
-    g.fillEllipse(sx + r * 0.06, sy + r * 0.34, r * 0.72, r * 0.52, 12);
+    // 목주름 — 굵기가 변하는 띠 위에 가로선을 얹으면 '마디'가 생긴다
+    g.lineStyle(Math.max(1, r * 0.045), tone.dark, 0.30);
+    for (var ni = 2; ni < neck.length - 1; ni += 2) {
+      var np = neck[ni - 1], nq = neck[ni + 1];
+      var ndx = nq.x - np.x, ndy = nq.y - np.y;
+      var nL = Math.sqrt(ndx * ndx + ndy * ndy) || 1;
+      var nw = r * (0.44 - 0.24 * (ni / neck.length));
+      g.lineBetween(neck[ni].x + ndy / nL * nw, neck[ni].y - ndx / nL * nw,
+                    neck[ni].x - ndy / nL * nw, neck[ni].y + ndx / nL * nw);
+    }
+    head(g, sx + r * 2.10, sy - r * 1.78, r * 0.84, tone, 0.38 + 0.30 * Math.sin(t / 300), d, t);
+    wing(g, sx - r * 0.52, sy - r * 0.24, r * 1.22, tone, 0.98, flap, false, d);
+    //  ⚠ 가슴에 빛 덩어리를 놓았더니 실제 크기에서 **옆구리의 얼룩**으로 보였다(실측).
+    //    이 그림에서 불은 이미 목구멍에 있다(head 의 아가리) — 그 하나로 충분하고,
+    //    두 군데면 어디가 위험한지가 흐려진다. 대신 목 아래에 아주 옅게만 남긴다.
+    var gl = 0.30 + 0.22 * Math.abs(br);
+    //  ⚠ 처음엔 중심에서 방사로 그었더니 **폭죽**이 됐다(실측). 균열은 중심이
+    //    없다 — 짧은 선분들이 서로 어긋나 있어야 갈라진 것으로 읽힌다.
+    //  ⚠ 균열을 선으로 그었더니 실제 게임 크기에서는 **낙서**로 보였다(실측).
+    //    이 아트가 화면에서 차지하는 폭은 200px 남짓이다 — 그 안에서 읽히는
+    //    빛은 '번지는 덩어리'지 '가는 선'이 아니다.
+    g.fillStyle(tone.glow, gl * 0.16);
+    g.fillEllipse(sx + r * 0.62, sy - r * 0.22, r * 0.34, r * 0.46, 10);
+  }
+
+  // ══ 용의 부위 — 50층마다 하나씩 (2026-08-02 사용자 지시) ══════════════════
+  //  "50 · 100 · 150 · 200 · 250 에서 각각 용의 발, 손, 날개, 반쪽 얼굴 등으로
+  //   보여주다가 결국 300에서 실제 용과."
+  //
+  //  넷을 관통하는 규칙 — **틀 밖으로 이어져 있어야 한다.** 부위가 화면 안에서
+  //  깔끔하게 끝나면 그건 작은 괴물이지 큰 것의 일부가 아니다. 그래서 전부
+  //  위쪽(또는 땅)으로 잘려 나가고, 잘린 자리에 파헤쳐진 땅을 깐다.
+  //  본체와 **같은 helper**(head/wing/leg/ribbon)를 쓴다 — 같은 손이 그린 것이어야
+  //  300층에서 "저게 다 한 마리였다"가 성립한다.
+
+  //  갈라진 땅 — 부위가 뚫고 나온 자리. 넷이 공유한다.
+  function crater(g, cx, gy, r, T, wide) {
+    var k, a;
+    g.fillStyle(0x241d16, 0.92); g.fillEllipse(cx, gy, r * wide, r * 0.86 * T, 18);
+    g.fillStyle(0x3a3024, 0.92); g.fillEllipse(cx, gy - r * 0.08, r * wide * 0.78, r * 0.60 * T, 16);
+    for (k = 0; k < 6; k++) {
+      a = -0.3 + k * 0.78;
+      tri(g, cx + Math.cos(a) * r * wide * 0.46, gy + Math.sin(a) * r * 0.40 * T,
+             cx + Math.cos(a) * r * wide * 0.66, gy + Math.sin(a) * r * 0.50 * T,
+             cx + Math.cos(a) * r * wide * 0.55, gy - r * 0.52, 0x4a3d2c, 0.95);
+    }
+  }
+
+  //  50층 · 용의 발 — 위에서 내려온 뒷발.
+  //  ⚠ 두 번 실패했다. ① 굵기가 안 변하는 띠 → **나무 기둥**. ② 다리를 발보다
+  //    굵게 만들고 발가락을 발등 안에 두었더니 → **쐐기에 얹힌 혹**(실측 렌더).
+  //    발로 읽히려면 규칙은 하나다: **발이 다리보다 넓어야 한다.** 사람 발도,
+  //    새 발도, 도마뱀 발도 전부 그렇다. 발가락은 그 넓이를 만드는 물건이지
+  //    발등에 붙은 장식이 아니다.
+  function foot(g, cx, cy, r, T, tone, t) {
+    var sway = Math.sin(t / 820) * r * 0.03, i, bx, by, mx, my, ex, ey, dir;
+    crater(g, cx, cy + r * 0.95 * T, r, T, 3.4);
+
+    // 정강이 — 위(틀 밖)에서 내려오며 발목으로 갈수록 **가늘어진다**
+    var shin = [{ x: cx + sway - r * 0.42, y: cy - r * 2.90 },
+                { x: cx + sway - r * 0.16, y: cy - r * 1.40 },
+                { x: cx + sway, y: cy - r * 0.34 }];
+    ribbon(g, shin, r * 1.30, r * 0.66, tone.dark);
+    ribbon(g, shin, r * 0.98, r * 0.46, tone.scale);
+    ribbon(g, shin, r * 0.30, r * 0.14, tone.lit, 0.7);
+    scalePatch(g, cx + sway - r * 0.16, cy - r * 1.40, r * 0.36, r * 1.05, r * 0.15,
+               tone.dark, 0.16, 0);
+    // 발목
+    g.fillStyle(tone.dark, 1);  g.fillCircle(cx + sway, cy - r * 0.26, r * 0.48);
+    g.fillStyle(tone.scale, 1); g.fillCircle(cx + sway, cy - r * 0.30, r * 0.35);
+
+    // 발가락 넷 — **발등보다 먼저** 그려 뿌리가 발등 밑으로 들어가게 한다.
+    //  가운데 둘은 앞으로 길게, 바깥 둘은 옆으로 벌린다. 이 벌어짐이 곧 '발'이다.
+    var SPR = [-1.15, -0.42, 0.42, 1.18], LEN = [0.86, 1.20, 1.20, 0.84];
+    for (i = 0; i < 4; i++) {
+      dir = SPR[i] >= 0 ? 1 : -1;
+      bx = cx + sway + SPR[i] * r * 0.30; by = cy + r * 0.06;
+      mx = cx + sway + SPR[i] * r * 1.20; my = cy + r * (0.42 + LEN[i] * 0.42) * T;
+      ex = cx + sway + SPR[i] * r * 1.80; ey = cy + r * (0.52 + LEN[i] * 0.58) * T;
+      ribbon(g, [{ x: bx, y: by }, { x: mx, y: my }], r * 0.66, r * 0.48, tone.dark);
+      ribbon(g, [{ x: bx, y: by }, { x: mx, y: my }], r * 0.44, r * 0.31, tone.scale);
+      ribbon(g, [{ x: mx, y: my }, { x: ex, y: ey }], r * 0.46, r * 0.32, tone.dark);
+      ribbon(g, [{ x: mx, y: my }, { x: ex, y: ey }], r * 0.30, r * 0.20, tone.scale);
+      g.fillStyle(tone.lit, 0.6); g.fillCircle(mx, my - r * 0.06, r * 0.18);
+      // 발톱 — 앞아래로 파고든다
+      tri(g, ex - r * 0.17, ey - r * 0.16, ex + r * 0.17, ey - r * 0.08,
+             ex + dir * r * 0.34 + r * 0.10, ey + r * 0.54, tone.horn, 1);
+    }
+
+    // 발등 — 발가락 뿌리를 덮는다(발가락보다 좁아야 발가락이 살아난다)
+    g.fillStyle(tone.dark, 1);  g.fillEllipse(cx + sway, cy + r * 0.06, r * 1.42, r * 0.86, 14);
+    g.fillStyle(tone.scale, 1); g.fillEllipse(cx + sway, cy - r * 0.02, r * 1.18, r * 0.68, 14);
+    g.fillStyle(tone.lit, 0.7);  g.fillEllipse(cx + sway - r * 0.06, cy - r * 0.18, r * 0.84, r * 0.26, 12);
+    // 뒤쪽 며느리발톱 — '뒷발'이라는 것을 알려 주는 물건
+    tri(g, cx + sway - r * 0.86, cy - r * 0.06, cx + sway - r * 0.74, cy + r * 0.26,
+           cx + sway - r * 1.86, cy - r * 0.34, tone.horn, 1);
+  }
+
+  //  150층 · 용의 날개 — 손목을 땅에 박은 한쪽 날개. 팔은 틀 위로 나간다.
+  function wingpart(g, cx, cy, r, T, tone, t) {
+    var flap = Math.sin(t / 900) * 0.10;
+    crater(g, cx + r * 0.20, cy + r * 1.30 * T, r, T, 2.2);
+    //  ⚠ 몸으로 이어지는 팔을 **수직 막대**로 세웠더니 날개 옆에 기둥이 하나 서
+    //    있는 그림이 됐다(실측). 팔은 날개의 앞가장자리가 **그대로 이어진 것**이라
+    //    같은 방향(위-뒤)으로 나가야 하고, 날개보다 **먼저** 그려 뒤로 가야 한다.
+    ribbon(g, [{ x: cx + r * 0.34, y: cy + r * 0.95 },
+               { x: cx - r * 0.55, y: cy - r * 1.30 },
+               { x: cx - r * 1.05, y: cy - r * 3.00 }], r * 0.98, r * 0.58, tone.dark);
+    ribbon(g, [{ x: cx + r * 0.34, y: cy + r * 0.92 },
+               { x: cx - r * 0.52, y: cy - r * 1.30 },
+               { x: cx - r * 1.02, y: cy - r * 3.00 }], r * 0.66, r * 0.38, tone.scale);
+    // 본체와 **같은 함수**로 그린다 — 같은 한 마리라는 것이 형태로 전달돼야 한다.
+    wing(g, cx + r * 0.30, cy + r * 1.05, r * 1.42, tone, 1.00 + flap, flap, false, 1);
+    tri(g, cx + r * 0.02, cy + r * 0.86, cx + r * 0.56, cy + r * 0.96,
+           cx + r * 0.32, cy + r * 1.66 * T, tone.horn, 1);
+  }
+
+  //  200층 · 용의 반쪽 얼굴 — 무너진 자리에서 얼굴 절반만 나와 있다.
+  //  ⚠ '반쪽'은 **잘라서** 만든다. 머리를 통째로 그리고 지면 판으로 아래 절반을
+  //    덮으면, 나머지가 아직 안에 있다는 것이 그림 자체로 전달된다.
+  function halfface(g, cx, cy, r, T, tone, t) {
+    var breathe = Math.sin(t / 1300) * r * 0.05, k, bw, ph, gy;
+    head(g, cx - r * 0.30, cy - r * 0.20 + breathe, r * 2.05, tone,
+         0.30 + 0.22 * Math.sin(t / 520), 1, t);
+    //  ⚠ 덮개를 크게 잡았더니 **타일을 통째로 덮는 검은 판**이 됐다(실측).
+    //    가려야 하는 것은 얼굴의 아래 절반뿐이다 — 딱 그만큼만 덮는다.
+    gy = cy + r * 0.85;
+    g.fillStyle(0x241d16, 1);
+    g.fillRect(cx - r * 2.6, gy, r * 5.2, r * 1.15);
+    g.fillStyle(0x3a3024, 1);
+    g.fillEllipse(cx, gy + r * 0.10, r * 5.0, r * 0.70 * T, 18);
+    for (k = 0; k < 7; k++) {
+      bw = r * (0.34 + (k % 3) * 0.16);
+      tri(g, cx - r * 2.3 + k * r * 0.68, gy, cx - r * 2.3 + k * r * 0.68 + bw, gy,
+             cx - r * 2.3 + k * r * 0.68 + bw * 0.5, gy - r * (0.24 + (k % 4) * 0.18),
+             0x3a3024, 1);
+    }
+    g.fillStyle(0x6b5b45, 0.35);
+    for (k = 0; k < 5; k++) {
+      ph = ((t / 1500) + k * 0.2) % 1;
+      g.fillCircle(cx - r * 2.2 + k * r * 1.1 + Math.sin(t / 700 + k) * r * 0.3,
+                   gy - ph * r * 1.4, r * 0.30 * (1 - ph));
+    }
+  }
+
+  //  250층 · 깨어나는 용 — 목·가슴·앞다리 하나가 산을 밀어내고 나왔다.
+  function waking(g, cx, cy, r, T, tone, t) {
+    var flap = Math.sin(t / 760), i, ph;
+    crater(g, cx - r * 0.20, cy + r * 1.35 * T, r, T, 3.2);
+    wing(g, cx - r * 1.05, cy - r * 0.30, r * 1.05, tone, 0.62, flap, true, 1);
+    g.fillStyle(tone.dark, 1);  g.fillEllipse(cx, cy + r * 0.34, r * 2.45, r * 1.52, 18);
+    g.fillStyle(tone.scale, 1); g.fillEllipse(cx, cy + r * 0.24, r * 2.16, r * 1.30, 18);
+    g.fillStyle(tone.lit, 0.75); g.fillEllipse(cx - r * 0.24, cy - r * 0.24, r * 1.62, r * 0.50, 14);
+    scalePatch(g, cx, cy + r * 0.28, r * 1.80, r * 1.00, r * 0.16, tone.dark, 0.14, 0);
+    leg(g, cx + r * 1.30, cy + r * 0.40, cx + r * 1.75, cy + r * 1.05 * T,
+           cx + r * 2.10, cy + r * 1.50 * T, r * 0.36, tone, 1, r, false);
+    var neck = bez(cx + r * 0.20, cy - r * 0.10, cx + r * 1.05, cy - r * 1.05,
+                   cx + r * 1.95, cy - r * 1.55, 10);
+    ribbon(g, neck, r * 1.10, r * 0.52, tone.dark);
+    ribbon(g, neck, r * 0.78, r * 0.34, tone.scale);
+    ribbon(g, neck, r * 0.30, r * 0.13, tone.lit, 0.7);
+    ridge(g, neck, 0.08, 0.96, r * 0.19, tone.dark, -1);
+    head(g, cx + r * 2.55, cy - r * 1.62, r * 1.02, tone, 0.42 + 0.30 * Math.sin(t / 330), 1, t);
+    g.fillStyle(0x6b5b45, 0.32);
+    for (i = 0; i < 6; i++) {
+      ph = ((t / 1200) + i * 0.17) % 1;
+      g.fillCircle(cx - r * 1.4 + i * r * 0.6, cy + r * (0.4 + ph * 1.2) * T, r * 0.18 * (1 - ph));
+    }
   }
 
   // ── 바깥 문 ───────────────────────────────────────────────────────────────
@@ -474,6 +840,10 @@ window.GAME = window.GAME || {};
     if (flip) { g.save(); g.translateCanvas(sx * 2, 0); g.scaleCanvas(-1, 1); }
     if (info.kind === 'sentry') sentry(g, sx, sy - r * 0.55, r, T, info.tone, tt);
     else if (info.kind === 'claw') claw(g, sx, sy - r * 0.30, r, T, info.tone, tt);
+    else if (info.kind === 'foot') foot(g, sx, sy - r * 0.45, r, T, info.tone, tt);
+    else if (info.kind === 'wingpart') wingpart(g, sx, sy - r * 0.70, r, T, info.tone, tt);
+    else if (info.kind === 'halfface') halfface(g, sx, sy - r * 0.30, r, T, info.tone, tt);
+    else if (info.kind === 'waking') waking(g, sx, sy - r * 0.60, r, T, info.tone, tt);
     else if (info.kind === 'dragon') dragon(g, sx, sy - r * 0.70, r, T, info.tone, tt);
     else drake(g, sx, sy - r * 0.55, r, T, info.tone, tt, Math.sin(tt / 520));
     if (flip) g.restore();

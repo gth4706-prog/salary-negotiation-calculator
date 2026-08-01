@@ -86,6 +86,7 @@ GAME.TowerChar = {
     if (!rec.picks) rec.picks = { Q: 0, W: 0, E: 0, R: 0 };
     if (typeof rec.gold !== 'number') rec.gold = 0;
     if (typeof rec.climbSeed !== 'number') rec.climbSeed = this._rollSeed();
+    if (typeof rec.pressure !== 'number') rec.pressure = 1;
     // statGain — 레벨업으로 실제 얻은 누적치(복권형 랜덤이라 lv × add 와 더 이상 같지 않다).
     // 이 필드가 없는 옛 캐릭터(개편 전)는 예전 확정식(d.add*lv)으로 역산해 채운다 —
     // 그래야 개편 순간 화면에 뜨는 능력치 총합이 갑자기 줄어드는 일이 없다.
@@ -395,6 +396,36 @@ GAME.TowerChar = {
     this._markNewSkill(rec, slot, idx);
     this._save(rec);
     return rec;
+  },
+
+  // ── 압박 계수 — **전투 양상**으로 오르내린다 (2026-08-02 사용자 지시) ──────
+  //  "전략 배치하는 쪽에서 … 전투 양상을 비교해서 그에 맞게 올리도록."
+  //
+  //  `Tower.heroPowerIndex` 가 **장부상의 강함**(능력치+장비)을 재는 축이라면,
+  //  이건 **실제로 얼마나 여유로웠나**를 재는 축이다. 둘 다 필요하다 — 장부가
+  //  같아도 조작이 좋으면 훨씬 쉽게 이기고, 그 사람에게는 더 눌러야 한다.
+  //  이 게임이 이미 쓰던 장치(escalation: 같은 진형을 깰 때마다 강해진다)의
+  //  1인칭 판이다.
+  //
+  //  ⚠ **판정 근거를 승패가 아니라 '남은 체력'으로 잡는다.** 승패만 보면 아슬아슬한
+  //    승리와 압도적 승리가 같은 값이 되어, 벽에 부딪힌 사람에게도 계속 올린다.
+  //  ⚠ 지면 내린다 — 무한의 탑은 막히면 끝이라, 오르기만 하는 값은 벽을 만든다.
+  //  ⚠ 한 판에 최대 ±8% 다. 한 번의 운으로 다음 층이 딴판이 되면 배울 수가 없다.
+  PRESSURE_MIN: 0.85,
+  PRESSURE_MAX: 2.40,
+  notePressure: function (won, hpFrac, secs) {
+    var rec = this.get();
+    if (!rec) return null;
+    var mul;
+    if (!won) mul = 0.93;
+    else if (hpFrac >= 0.60 && secs <= 28) mul = 1.08;   // 아주 여유로웠다
+    else if (hpFrac >= 0.35) mul = 1.04;
+    else if (hpFrac >= 0.15) mul = 1.00;
+    else mul = 0.97;                                     // 이겼지만 간신히
+    rec.pressure = Math.max(this.PRESSURE_MIN,
+                   Math.min(this.PRESSURE_MAX, (rec.pressure || 1) * mul));
+    this._save(rec);
+    return rec.pressure;
   },
 
   // ── 새로 얻은 스킬 표시 (2026-08-01 사용자 지시) ─────────────────────────────

@@ -97,7 +97,7 @@ lore: '한 번 던지면 반드시 박히는 미늘 작살. 대신 다시 던질
   medic: {
     key: 'medic', name: '약초꾼', art: 'herbalist',
 lore: '약초를 씹어 상처에 붙이는 손. 스스로는 안 싸우지만 주변의 알들이 잘 안 깨진다.',
-    desc: '약초로 주변 아군을 주기적으로 회복시킨다. 스스로는 안 싸운다.',
+    desc: '약초로 주변 아군을 회복시킨다. 같은 연기가 적에게는 상처가 되어 회복을 막는다.',
     cost: 30, hp: 130, armor: 10, speed: 105, range: 0, damage: 0, cooldown: 1000,
     attack: 'none',
     healRadius: 150, healPerTick: 14, healInterval: 1000,
@@ -106,8 +106,17 @@ lore: '약초를 씹어 상처에 붙이는 손. 스스로는 안 싸우지만 �
     // 2026-07-31 · 스킬 신설. 공격하지 않는 유닛이라 피해 스킬은 정체성을 깬다 →
     // **주변 아군을 한 번에 크게 회복**시킨다. 진형이 무너지기 직전을 되돌리는 장치라,
     // 컨트롤러에게 '약초꾼을 먼저 끊어야 한다'는 처치 순서를 강제한다.
+    // ── 2026-08-02 · **흡혈의 답** (사용자 지시) ────────────────────────────
+    //  "흡혈로 인해서 아예 데미지 못 입히는 경우도 있으니 치유 감소 스킬도 필요."
+    //  새 유닛을 만들지 않고 **이미 있는 스킬의 반대편**을 쓴다 — 약초꾼의 연기가
+    //  아군에게는 약이고 적에게는 독이다. 그래야 아트·팔레트·AI 가중치가 안 늘고,
+    //  답이 "약초꾼을 먼저 끊어라"라는 **처치 순서**로 표현된다.
+    //  55%/4.5초 — 반으로 깎되 0 으로는 안 만든다. 0 이면 답이 아니라 벽이 되고,
+    //  이 게임의 흡혈은 광역 명중 수에 비례해 증폭되므로(표기 25% → 실효 79%)
+    //  절반만 깎아도 광역 영웅에게는 체감이 크다.
     ability: { type: 'healBurst', cooldown: 14000, telegraph: 500,
-               radius: 190, heal: 130 }
+               radius: 190, heal: 130,
+               enemyHealCut: 0.55, enemyHealCutMs: 4500 }
   },
 
   shieldman: {
@@ -299,32 +308,96 @@ GAME.BOSS_UNITS = {
                damage: 88, radius: 118, repeat: 4, interval: 320, spread: 300 }
   },
 
-  bossDragonClaw: {
-    key: 'bossDragonClaw', name: '용의 발톱', art: 'beast:claw:ember', isBoss: true,
-    lore: '땅을 뚫고 올라온 것은 발톱 하나뿐이다. 나머지는 아직 아래에 있다.',
-    desc: '용의 발톱. 이것 하나가 진형을 통째로 긁어낸다.',
-    // 움직이지 않는다 — **크기로** 위협한다. 대신 닿는 범위가 압도적으로 넓다.
-    cost: 0, hp: 1800, armor: 40, speed: 0, range: 190, damage: 110, cooldown: 1500,
-    attack: 'melee', coneDeg: 150,
+  // ── 용의 몸 — 50층마다 한 부위씩 (2026-08-02 사용자 지시) ────────────────────
+  //  "50 · 100 · 150 · 200 · 250 에서 각각 용의 발, 용의 손, 용의 날개,
+  //   용의 반쪽 얼굴 등으로 보여주다가 결국 300에서 실제 용과 싸우길."
+  //
+  //  다섯 부위는 **같은 한 마리의 다른 부분**이다. 그래서 셋을 지킨다:
+  //   ① 전부 `ember` 결 — 색이 같아야 같은 것으로 읽힌다
+  //   ② **위로 갈수록 몸의 중심에 가까워진다**(발 → 손 → 날개 → 얼굴 → 상반신)
+  //   ③ 부위는 **움직이지 않는다**(날개만 예외로 조금 움직인다) — 몸의 일부가
+  //      따라다니면 그게 한 마리라는 착각이 깨진다. 크기와 사거리로 위협한다.
+  //  체력은 300층의 본체(30,000)를 향해 계단으로 오른다. 층 성장 배수가 따로
+  //  곱해지므로(`Tower.bossModsFor`) 여기 값은 **계단의 모양**만 정한다.
+  bossDragonFoot: {
+    key: 'bossDragonFoot', name: '용의 발', art: 'beast:foot:ember', isBoss: true,
+    lore: '땅이 갈라지고 발 하나가 내려왔다. 발톱 하나가 계란 부족의 키만 하다.',
+    desc: '용의 발. 밟히면 진형 한 줄이 사라진다.',
+    cost: 0, hp: 2200, armor: 38, speed: 0, range: 200, damage: 116, cooldown: 1500,
+    attack: 'melee', coneDeg: 160,
     radius: 32, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
-    ability: { type: 'barrage', cooldown: 5600, telegraph: 760,
+    ability: { type: 'barrage', cooldown: 5600, telegraph: 800,
                minRange: 0, maxRange: 4000,
-               damage: 104, radius: 150, repeat: 4, interval: 360, spread: 330 }
+               damage: 108, radius: 150, repeat: 4, interval: 360, spread: 320 }
+  },
+
+  bossDragonClaw: {
+    key: 'bossDragonClaw', name: '용의 손', art: 'beast:claw:ember', isBoss: true,
+    lore: '이번엔 손이다. 무엇을 쥐려고 올라온 것인지는 아무도 모른다.',
+    desc: '용의 손. 다섯 손가락이 전장을 통째로 움켜쥔다.',
+    cost: 0, hp: 4200, armor: 42, speed: 0, range: 210, damage: 138, cooldown: 1450,
+    attack: 'melee', coneDeg: 170,
+    radius: 34, shape: 'bunker', weapon: 'riotShield',
+    chase: 0, aggro: 0, immobile: true,
+    ability: { type: 'barrage', cooldown: 5400, telegraph: 760,
+               minRange: 0, maxRange: 4000,
+               damage: 126, radius: 160, repeat: 5, interval: 340, spread: 340 }
+  },
+
+  bossDragonWing: {
+    key: 'bossDragonWing', name: '용의 날개', art: 'beast:wingpart:ember', isBoss: true,
+    lore: '하늘이 한 번 어두워졌다. 구름이 아니라 날개였다.',
+    desc: '용의 날개. 한 번 접었다 펴면 전장이 뒤집힌다.',
+    // 부위 중 유일하게 움직인다 — 날개는 원래 움직이는 것이다. 다만 아주 느리게.
+    cost: 0, hp: 7000, armor: 46, speed: 62, range: 230, damage: 158, cooldown: 1400,
+    attack: 'melee', coneDeg: 180,
+    radius: 36, shape: 'star', weapon: 'riotShield',
+    chase: 420, aggro: 460,
+    ability: { type: 'barrage', cooldown: 5000, telegraph: 700,
+               minRange: 0, maxRange: 4000,
+               damage: 140, radius: 175, repeat: 5, interval: 320, spread: 380 }
+  },
+
+  bossDragonFace: {
+    key: 'bossDragonFace', name: '용의 반쪽 얼굴', art: 'beast:halfface:ember', isBoss: true,
+    lore: '벽이 무너진 자리에 눈 하나가 있었다. 그것이 이쪽을 보고 있었다.',
+    desc: '용의 반쪽 얼굴. 숨 한 번에 앞줄이 사라진다.',
+    cost: 0, hp: 11500, armor: 50, speed: 0, range: 250, damage: 182, cooldown: 1350,
+    attack: 'melee', coneDeg: 150,
+    radius: 38, shape: 'bunker', weapon: 'riotShield',
+    chase: 0, aggro: 0, immobile: true,
+    ability: { type: 'barrage', cooldown: 4600, telegraph: 640,
+               minRange: 0, maxRange: 4000,
+               damage: 162, radius: 190, repeat: 6, interval: 300, spread: 400 }
+  },
+
+  bossDragonWaking: {
+    key: 'bossDragonWaking', name: '깨어나는 용', art: 'beast:waking:ember', isBoss: true,
+    lore: '목과 앞다리가 산을 밀어내고 나왔다. 아직 절반도 안 나왔다.',
+    desc: '깨어나는 용. 상반신만으로도 전장을 덮는다.',
+    cost: 0, hp: 18000, armor: 54, speed: 74, range: 240, damage: 210, cooldown: 1300,
+    attack: 'melee', coneDeg: 150,
+    radius: 40, shape: 'star', weapon: 'riotShield',
+    chase: 520, aggro: 560,
+    ability: { type: 'barrage', cooldown: 4400, telegraph: 620,
+               minRange: 0, maxRange: 4000,
+               damage: 186, radius: 200, repeat: 6, interval: 290, spread: 420 }
   },
 
   bossDragonLord: {
     key: 'bossDragonLord', name: '태초의 용', art: 'beast:dragon:ember', isBoss: true,
-    lore: '계란 부족이 서로를 치는 동안, 그것은 산 아래에서 자고 있었다. 이제 깨어났다.',
+    lore: '계란 부족이 서로를 치는 동안, 그것은 산 아래에서 자고 있었다. 이제 다 나왔다.',
     desc: '태초의 용. 날개 한 번에 전장이 뒤집힌다.',
-    cost: 0, hp: 2600, armor: 44, speed: 108, range: 170, damage: 130, cooldown: 1300,
-    attack: 'melee', coneDeg: 140,
-    radius: 34, shape: 'star', weapon: 'riotShield',
-    chase: 720, aggro: 720,
+    //  300층. 앞의 다섯 부위가 전부 이 한 마리였다는 것을 여기서 확인한다.
+    cost: 0, hp: 30000, armor: 58, speed: 108, range: 260, damage: 250, cooldown: 1250,
+    attack: 'melee', coneDeg: 160,
+    radius: 42, shape: 'star', weapon: 'riotShield',
+    chase: 760, aggro: 760,
     // 둘을 다 가진 유일한 보스 — 거리도 지우고 설 자리도 지운다.
-    ability: { type: 'barrage', cooldown: 5000, telegraph: 620,
+    ability: { type: 'barrage', cooldown: 4200, telegraph: 600,
                minRange: 0, maxRange: 4000,
-               damage: 120, radius: 160, repeat: 5, interval: 300, spread: 360 }
+               damage: 214, radius: 220, repeat: 7, interval: 280, spread: 440 }
   },
 
   bossChief: {

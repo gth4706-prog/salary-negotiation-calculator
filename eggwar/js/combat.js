@@ -585,9 +585,45 @@ GAME.Combat = {
     if (state.numbers.length > 70) state.numbers.splice(0, state.numbers.length - 70);
   },
 
+  //  ── 상처(치유 감소) — 2026-08-02 사용자 지시 ─────────────────────────────
+  //  "흡혈로 인해서 아예 데미지 못 입히는 경우도 있으니 전략 배치 유닛 중
+  //   치유 감소에 대한 스킬도 추가해야 할 듯해."
+  //
+  //  **여기 한 곳에만 넣는다.** `heal` 이 이 게임의 모든 회복이 지나가는 단일
+  //  관문이다(흡혈·물약·healNow·healBurst·회복 오라가 전부 여길 통한다).
+  //  흡혈 계산 쪽에 넣었으면 물약과 오라가 새고, 물약 쪽에 넣었으면 흡혈이 샌다.
+  //  ⚠ 이 게임의 흡혈은 **맞은 대상 수에 비례해 증폭**된다(CLAUDE.md 의 실측:
+  //    표기 25% 가 실효 79%). 그래서 흡혈만 따로 깎는 방식으로는 광역 영웅에게
+  //    체감이 안 온다 — 회복의 총량을 깎아야 답이 된다.
   heal: function (u, amount) {
     if (!u.alive) return;
+    //  ⚠ `buffs` 가 **없는 유닛도 이 문을 통과한다** — 치유 구역(healzone.js)이
+    //    넘기는 대상처럼 최소 필드만 가진 객체가 있다. 가드 없이 `u.buffs.length`
+    //    를 읽었더니 그 경로가 통째로 죽었다(towerchar-audit 이 잡았다).
+    //    회복은 이 게임에서 가장 여러 곳에서 불리는 함수다 — 여기서 던지면
+    //    전투 루프가 같이 죽는다.
+    if (u.buffs) {
+      for (var i = 0; i < u.buffs.length; i++) {
+        if (u.buffs[i].healCutTag) { amount *= (1 - u.buffs[i].healCut); break; }
+      }
+    }
+    if (amount <= 0) return;
     u.hp = Math.min(u.maxHp, u.hp + amount);
+  },
+
+  // 상처는 둔화와 같은 규칙이다 — 같은 종류끼리 **중첩하지 않고 갱신만** 한다.
+  // 중첩되면 약초꾼 서넛이 깔린 진형에서 회복이 통째로 0 이 되어 답이 아니라 벽이 된다.
+  applyHealCut: function (u, frac, ms) {
+    if (!u.alive || !u.buffs || !(frac > 0)) return false;
+    for (var i = 0; i < u.buffs.length; i++) {
+      if (u.buffs[i].healCutTag) {
+        u.buffs[i].t = Math.max(u.buffs[i].t, ms);
+        u.buffs[i].healCut = Math.max(u.buffs[i].healCut, frac);
+        return true;
+      }
+    }
+    u.buffs.push({ healCut: frac, t: ms, healCutTag: true });
+    return true;
   },
 
   // 화학병 점착탄 — 같은 종류의 둔화는 갱신만 하고 중첩되지 않는다
@@ -1587,6 +1623,23 @@ GAME.Combat = {
         o = state.units[i];
         if (!o.alive || o.side !== u.side || this.isHazard(o)) continue;
         if (this.dist(u, o) <= ab.radius) this.heal(o, ab.heal || 100);
+      }
+      // ── 같은 연기가 **적에게는 상처**로 간다 (2026-08-02) ──────────────
+      //  약초꾼에게 새 유닛을 만들어 붙이는 대신 **이미 있는 스킬의 반대편**을
+      //  쓴다. CLAUDE.md 가 경고하는 "새 유닛은 아트·밸런스·팔레트·AI 가중치를
+      //  다 늘리고도 결국 체력 많은 전사가 된다"를 피하면서, 흡혈의 답을
+      //  "약초꾼을 먼저 끊어라"라는 **처치 순서**로 만든다 — 이 폴더가 정예에
+      //  쓴 것과 같은 설계다.
+      if (ab.enemyHealCut > 0) {
+        for (i = 0; i < state.units.length; i++) {
+          o = state.units[i];
+          if (!o.alive || o.side === u.side || this.isHazard(o)) continue;
+          if (this.dist(u, o) <= ab.radius) {
+            if (this.applyHealCut(o, ab.enemyHealCut, ab.enemyHealCutMs || 4000)) {
+              state.telemetry.healCuts = (state.telemetry.healCuts || 0) + 1;
+            }
+          }
+        }
       }
       state.effects.push({ kind: 'healPulse', x: u.x, y: u.y, r: ab.radius,
                            t: 420, total: 420, side: u.side });

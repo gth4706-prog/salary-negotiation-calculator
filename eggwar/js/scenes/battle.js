@@ -915,6 +915,18 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
       towerRec = won ? GAME.Tower.clear(this.tower) : GAME.Tower.fail();
       // 영구 캐릭터 — 이기면 골드를 적립한다. **지든 이기든 캐릭터는 그대로 남는다**
       // (예전 `TowerRun.end()` 처럼 지워지지 않는다 — 그게 이번 개편의 핵심이다).
+      // ── 전투 양상을 압박 계수에 기록한다 (2026-08-02) ────────────────────
+      //  승패만이 아니라 **얼마나 여유로웠나**를 남긴다 — 남은 체력과 걸린 시간.
+      //  이 값이 다음 층부터 진형 유닛의 체력·공격에 곱해진다(js/tower.js).
+      //  ⚠ 이기든 지든 부른다. 지는 판만 보면 값이 한쪽으로만 흐른다.
+      if (GAME.TowerChar && GAME.TowerChar.exists()) {
+        var heroU = null;
+        for (var hi = 0; hi < this.state.units.length; hi++) {
+          if (this.state.units[hi].isHero) { heroU = this.state.units[hi]; break; }
+        }
+        var hpFrac = heroU && heroU.maxHp ? Math.max(0, heroU.hp) / heroU.maxHp : 0;
+        GAME.TowerChar.notePressure(won, hpFrac, (this.state.elapsed || 0) / 1000);
+      }
       if (GAME.TowerChar && GAME.TowerChar.exists()) {
         if (won) {
           var rawGold = GAME.TowerRun ? GAME.TowerRun.goldGainFor(this.tower, this.state) : 0;
@@ -928,7 +940,8 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
           // ⚠ 2026-08-01 — 층 보상을 **절반으로** 줄였다(사용자: "지금 라운드 끝났을 때
           //   주는 골드가 너무 많다고 생각해 절반 정도로 줄여"). 처치 골드가 지수로
           //   커졌으므로 '깼다는 사실'에 붙는 바닥은 작아도 된다.
-          var floorBase = (12 + this.tower * 3) * 0.5;
+          // ⚠ 2026-08-02 · 골드 25% 너프 — 0.5 → 0.375 (towerrun.js GOLD_BASE 와 짝)
+          var floorBase = (12 + this.tower * 3) * 0.375;
           var floorBonus = Math.round(floorBase * (0.75 + Math.random() * 0.5));
           goldGained = Math.round((rawGold + floorBonus) * GAME.TowerChar.luckGoldMul());
           runRec = GAME.TowerChar.addGold(goldGained);

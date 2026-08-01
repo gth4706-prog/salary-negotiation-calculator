@@ -1216,9 +1216,15 @@ GAME.TowerScene.prototype._runHintText = function () {
   }).filter(Boolean);
   // 폰 가로(820×390)는 이 줄에 한 줄분 폭(514px)밖에 없다 —
   // 장비 이름 4개를 넣으면 두 줄이 되어 아래 버튼을 파고든다.
-  if (GAME.CONFIG.PHONE) return '적 유닛을 잡을 때마다 골드 — 비쌀수록 많이, 보스는 크게';
+  // ── 적이 나를 따라온다는 사실을 **화면에 적는다** (2026-08-02) ──────────────
+  //  성장에 맞춰 진형이 강해지는 기제(js/tower.js 의 challengeMul)는 숫자를 안
+  //  보여 주면 "왜 갑자기 안 뚫리지"가 된다. 이 폴더가 축복·구슬에서 두 번 겪은
+  //  실패가 정확히 그것이다 — 기제가 있는데 몸에 안 남는 것.
+  var cmul = GAME.Tower.challengeMul ? GAME.Tower.challengeMul() : 1;
+  var press = cmul >= 1.15 ? ('  ·  ⚔ 적 압박 ×' + cmul.toFixed(1) + ' (내 성장에 맞춰 따라온다)') : '';
+  if (GAME.CONFIG.PHONE) return '적 유닛을 잡을 때마다 골드 — 비쌀수록 많이' + press;
   return '장비 ' + (worn.length ? worn.join(' · ') : '없음') +
-         '  ·  적 유닛을 잡을 때마다 골드 (비쌀수록 많이, 보스는 크게)';
+         '  ·  적 유닛을 잡을 때마다 골드 (비쌀수록 많이, 보스는 크게)' + press;
 };
 
 GAME.TowerScene.prototype._refresh = function () {

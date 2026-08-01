@@ -182,9 +182,21 @@ window.GAME = window.GAME || {};
       shard(e.x2 + Math.cos(ang) * d, by + Math.sin(ang) * d * S.T - p * 7,
         1.4 + 2.2 * a, M.clay, a * 0.95);
     }
-    // 누가 지나갔는지만 진영색 실선 하나로 — 재료 안에서는 색이 조연이다
-    S.g.lineStyle(2, col, a * 0.40);
-    S.g.lineBetween(e.x1, syy(e.y1) - 12, e.x2, syy(e.y2) - 12);
+    //  ⚠ 2026-08-01 — 예전엔 여기서 **알파 0.40 짜리 실선 하나**가 전부였다.
+    //    "재료 안에서는 색이 조연"이라는 원칙은 맞지만, 조연이 아예 안 보이면
+    //    세 영웅의 돌진이 전부 같은 흙먼지로만 읽힌다(찍어서 확인).
+    //    재료(흙·먼지)는 그대로 두고 **궤적과 도착 섬광**만 영웅 색이 맡는다.
+    var gy1 = syy(e.y1) - 12, gy2 = syy(e.y2) - 12;
+    S.g.lineStyle(6, col, a * 0.30 * S.RA);
+    S.g.lineBetween(e.x1, gy1, e.x2, gy2);
+    S.g.lineStyle(2.5, col, a * 0.85 * S.RA);
+    S.g.lineBetween(e.x1, gy1, e.x2, gy2);
+    // 도착 순간의 섬광 — '여기 꽂혔다'
+    var dburst = Math.max(0, 1 - p / 0.45);
+    if (dburst > 0) {
+      gfill(e.x2, e.y2, 14 + p * 40, col, 0.34 * dburst * dburst * S.FA);
+      gink(e.x2, e.y2, 16 + p * 38, 2.5 + 3 * dburst, col, 0.95 * dburst * S.RA);
+    }
   }
 
   function dashB(e, col) {
@@ -345,13 +357,22 @@ window.GAME = window.GAME || {};
     }
   }
 
-  function blastA(e) {
+  //  ⚠ `col` 을 받게 바꿨다(2026-08-01). 예전엔 인자가 없어서 착탄 폭발이 언제나
+  //    같은 노란색이었다 — 누가 쏜 폭격인지 화면에서 알 수 없었다.
+  function blastA(e, col) {
     var b = e.t / e.total, p = 1 - b;
     var M = S.MAT, FX = S.FX;
     var r = e.r * (1 + p * 0.20);
+    var BC = col || FX.blast;
     // 파헤쳐진 흙
     gfill(e.x, e.y, r * 0.92, M.clay, (0.30 * b) * S.FA);
-    gink(e.x, e.y, r, 3.5, FX.blast, b * 1.05 * S.RA);
+    // 터지는 순간 — 안에서 밖으로 확 퍼진다
+    var bburst = Math.max(0, 1 - p / 0.50);
+    if (bburst > 0) {
+      gfill(e.x, e.y, r * (0.35 + p * 1.6), BC, 0.40 * bburst * bburst * S.FA);
+      gink(e.x, e.y, r * (0.40 + p * 1.4), 3 + 4 * bburst, BC, bburst * S.RA);
+    }
+    gink(e.x, e.y, r, 4, BC, b * 1.05 * S.RA);
     // 흙기둥 — 지면에서 위로 솟는다. 착탄이 '아래에서 위로' 읽힌다.
     var cy = syy(e.y), h = r * (0.55 + p * 0.55);
     S.g.fillStyle(M.clay, 0.55 * b);
@@ -418,8 +439,10 @@ window.GAME = window.GAME || {};
     wedge(sx + ux * rr * 0.5, sy + uy * rr * 0.5, ang, 8 + rr * 0.5, 3 + rr * 0.22, M.bone, 1);
     // 관통탄은 진영색 실선이 하나 더 붙어 '뚫고 지나간다'가 남는다
     if (p.pierce) {
-      S.g.lineStyle(1.5, pcol, 0.55);
-      S.g.lineBetween(sx - ux * (L + 16), sy - uy * (L + 16), sx - ux * L, sy - uy * L);
+      S.g.lineStyle(5, pcol, 0.28);
+      S.g.lineBetween(sx - ux * (L + 22), sy - uy * (L + 22), sx - ux * L, sy - uy * L);
+      S.g.lineStyle(2, pcol, 0.85);
+      S.g.lineBetween(sx - ux * (L + 18), sy - uy * (L + 18), sx - ux * L, sy - uy * L);
     }
   }
 
@@ -461,6 +484,11 @@ window.GAME = window.GAME || {};
       }
     }
     dust(e.x, e.y, 9 + p * 10, a * 0.95);
+    // 맞은 순간의 짧은 빛 — 누가 때렸는지가 색으로 남는다(2026-08-01)
+    if (p < 0.5) {
+      var kb = 1 - p / 0.5;
+      gfill(e.x, e.y, 7 + p * 22, col, 0.30 * kb * kb * S.FA);
+    }
   }
 
   function sparkB(e, col) {
@@ -511,6 +539,12 @@ window.GAME = window.GAME || {};
     for (var n = 0; n < 3; n++) {
       var ang = seedOf(e.x2, e.y2) + n * 2.09, dd = 6 + (1 - a) * 12;
       shard(x2 + Math.cos(ang) * dd, y2 + Math.sin(ang) * dd * S.T, 1.6 + a, M.shell, a * 0.9);
+    }
+    // 박히는 순간의 섬광 — 갈고리가 '꽂혔다'를 색으로 한 번 더 말한다(2026-08-01)
+    var sburst = Math.max(0, 1 - (1 - a) / 0.40);
+    if (sburst > 0) {
+      gfill(e.x2, e.y2, 10 + (1 - a) * 26, col, 0.34 * sburst * sburst * S.FA);
+      gink(e.x2, e.y2, 12 + (1 - a) * 24, 2 + 3 * sburst, col, 0.9 * sburst * S.RA);
     }
   }
 
@@ -613,8 +647,16 @@ window.GAME = window.GAME || {};
       S.g.lineBetween(hx, hy, hx + c * e.range * 0.18, hy + s2 * e.range * 0.18);
       shard(hx, hy, 3, M.stone, a * 0.95);
     }
+    // 부채꼴 테두리를 영웅 색으로 한 겹 더 — 흙빛만이면 누가 당겼는지 안 보인다
+    groundArc(e.x, e.y, e.range * 1.01, e.angle - e.half, e.angle + e.half, 4, col, a * 0.9);
+    var pburst = Math.max(0, 1 - p / 0.40);
+    if (pburst > 0) {
+      groundArc(e.x, e.y, e.range * (0.6 + p * 0.5), e.angle - e.half, e.angle + e.half,
+                2 + 3 * pburst, col, 0.85 * pburst);
+    }
     // 시전자 발밑 — 끌려오는 목적지
-    gink(e.x, e.y, 12, 2, M.rope, a * 0.85 * S.RA);
+    gink(e.x, e.y, 14, 3, col, a * 0.9 * S.RA);
+    gink(e.x, e.y, 11, 2, M.rope, a * 0.85 * S.RA);
   }
 
   function pullB(e, col) {
@@ -655,7 +697,9 @@ window.GAME = window.GAME || {};
       var ang = (Math.PI * 2 / n) * k;
       shard(u.x + Math.cos(ang) * r, cy + Math.sin(ang) * r * S.T, 4.4, M.stone, 0.98);
     }
-    gline(u.x, u.y, r, 1.5, col, 0.45 * S.RA);
+    // 경계를 영웅 색으로 또렷하게(예전 1.5px/0.45 는 사실상 안 보였다)
+    gink(u.x, u.y, r, 3, col, 0.85 * S.RA);
+    gline(u.x, u.y, r * 0.55, 1.5, col, 0.40 * S.RA);
     // 화톳불의 불티 — 안쪽에서 위로 떠오른다. 이 구역이 '살아 있다'는 신호.
     var t = S.t;
     for (var m = 0; m < 4; m++) {
@@ -663,7 +707,7 @@ window.GAME = window.GAME || {};
       var a2 = (m * 1.9) + t / 2600;
       var d = r * 0.30 * (0.4 + m * 0.2);
       shard(u.x + Math.cos(a2) * d, cy + Math.sin(a2) * d * S.T - ph * 30,
-        3 * (1 - ph * 0.6), FX.blast, 0.95 * (1 - ph));
+        3 * (1 - ph * 0.6), col, 0.95 * (1 - ph));
     }
   }
 
@@ -688,7 +732,7 @@ window.GAME = window.GAME || {};
     var M = S.MAT, FX = S.FX;
     var r = tr.radius;
     gfill(tr.x, tr.y, r, M.clay, 0.13 * S.FA);
-    gink(tr.x, tr.y, r, 2, FX.trap, 0.85 * S.RA);
+    gink(tr.x, tr.y, r, 3, col || FX.trap, 0.9 * S.RA);
     // **안쪽을 향한 뼈 가시.** 실루엣만으로 "여기 밟으면 물린다"가 읽힌다.
     var n = 8, cy = syy(tr.y);
     var pulse = 0.75 + 0.25 * Math.sin(S.t / 420);
@@ -776,7 +820,7 @@ window.GAME = window.GAME || {};
         return true;
       }
       if (k === 'telegraph') { S.B ? telegraphB(e) : telegraphA(e); return true; }
-      if (k === 'blast') { S.B ? blastB(e) : blastA(e); return true; }
+      if (k === 'blast') { S.B ? blastB(e) : blastA(e, col); return true; }
       if (k === 'beam') { S.B ? strikeB(e, col) : strikeA(e, col); return true; }
       if (k === 'spark') { S.B ? sparkB(e, col) : sparkA(e, col); return true; }
       if (k === 'slash' && e.total > 180) { S.B ? pullB(e, col) : pullA(e, col); return true; }

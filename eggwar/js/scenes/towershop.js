@@ -778,10 +778,22 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
     // 잠긴 칸은 **왜 못 사는지**를 그 자리에 적는다 — 안 적으면 "왜 안 눌리지"가 된다.
     self._body.push(GAME.UI.label(self, leftX + 12, ry + (P ? 22 : 32),
       // 대전은 스킬을 사지 않는다 — 가격을 적으면 있지도 않은 통화를 말하게 된다.
+      // ⚠ 2026-08-01 — **목록에 위력을 적는다**(사용자: "계수가 아직도 잘 안 들어간 것
+      //   같아"). 계수는 실제로 들어가 있었지만 **목록에는 쿨과 값만** 있어서, 고르기
+      //   전에는 스킬끼리 비교할 방법이 없었다. 상세 창을 하나씩 열어 봐야 알 수 있는
+      //   수치는 "없는 것과 같다" — 비교가 안 되면 값 차이도 못 느낀다.
+      //   `shownSkill` 이 값 배수 + 계수를 다 얹은 값을 준다(상세 창과 같은 숫자다).
       locked ? '앞 단계 스킬을 먼저 사야 열립니다'
-             : (typeLabel + '  ·  쿨 ' + (o.cooldown ? (o.cooldown / 1000) + '초' : '—') +
-                (self.mode === 'arena' ? ''
-                  : (o.cost ? ('  ·  ' + o.cost + '골드') : '  ·  기본 내장'))),
+             : (function () {
+                 var sh = self.src.shownSkill(o, self.char);
+                 var pw = sh.damage > 0 ? ('피해 ' + GAME.UI.numAbbr(sh.damage))
+                        : (sh.shield > 0 ? ('보호막 ' + GAME.UI.numAbbr(sh.shield))
+                        : (sh.dps > 0 ? ('초당 ' + GAME.UI.numAbbr(sh.dps)) : ''));
+                 return typeLabel + (pw ? ('  ·  ' + pw) : '') +
+                   '  ·  쿨 ' + (o.cooldown ? (o.cooldown / 1000) + '초' : '—') +
+                   (self.mode === 'arena' ? ''
+                     : (o.cost ? ('  ·  ' + o.cost + '골드') : '  ·  기본 내장'));
+               })(),
       P ? 10 : 12, C.textDim, 0).setWordWrapWidth(txtW));
 
     // 카드 본체 = 미리보기 (사용자 지시: "클릭하면 미리보기가 보이게")
@@ -945,6 +957,38 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
   var desc = GAME.skillDesc ? GAME.skillDesc(shown) : '';
   this._body.push(GAME.UI.label(this, rightX + 14, descTop, desc || '',
     P ? 11 : 14, C.text, 0).setWordWrapWidth(rightW - 28).setLineSpacing(4));
+
+  // ── **왜 이 숫자인지** 적는다 (2026-08-01 사용자 지시) ──────────────────────
+  //  "스킬 표시에도 어떻게 반영되는지 보여주고."
+  //  계수는 v0.96 부터 실제로 들어가 있었지만, 화면에는 **결과 숫자만** 떴다.
+  //  그러면 무기를 바꿔도 "숫자가 바뀌었네" 까지만 알지 **무엇 때문에 바뀌었는지**
+  //  모른다 — 성장과 스킬이 연결돼 있다는 것 자체가 안 읽힌다.
+  //  그래서 계산식을 그대로 보여 준다: 기본 + 공격력 × 계수.
+  (function () {
+    if (!GAME.skillAtkCoef) return;
+    var priced = GAME.skillPricedCopy ? GAME.skillPricedCopy(o) : o;
+    var ac = GAME.skillAtkCoef(priced), dc = GAME.skillDefCoef(priced);
+    if (!(ac > 0) && !(dc > 0)) return;
+    var K = GAME.SKILL_COEF;
+    var b = GAME.TowerChar.statBonus(self.char), ib = GAME.TowerChar.itemBonus(self.char);
+    var line;
+    if (ac > 0) {
+      var atk = (self.hero.damage || 0) + (b.damage || 0) + (ib.damage || 0);
+      var flat = Math.max(priced.damage * K.floorRatio, priced.damage - K.refAtk * ac);
+      line = '기본 ' + Math.round(flat) + '  +  공격력 ' + GAME.UI.numAbbr(atk) +
+             ' × ' + ac.toFixed(2) + '  =  ' + GAME.UI.numAbbr(shown.damage);
+    } else {
+      var arm = (self.hero.armor || 0) + (b.armor || 0) + (ib.armor || 0);
+      var fl2 = Math.max(priced.shield * K.floorRatio, priced.shield - K.refArm * dc);
+      line = '기본 ' + Math.round(fl2) + '  +  방어력 ' + GAME.UI.numAbbr(arm) +
+             ' × ' + dc.toFixed(2) + '  =  ' + GAME.UI.numAbbr(shown.shield);
+    }
+    self._body.push(GAME.UI.label(self, rightX + 14, descTop + (P ? 20 : 26),
+      line, P ? 10 : 12, C.accent, 0).setWordWrapWidth(rightW - 28));
+    self._body.push(GAME.UI.label(self, rightX + 14, descTop + (P ? 38 : 50),
+      '비싼 스킬일수록 내 능력치를 더 많이 탑니다', P ? 9 : 11, C.textDim, 0)
+      .setWordWrapWidth(rightW - 28));
+  })();
   var arenaMode = this.mode === 'arena';
   this._body.push(GAME.UI.label(this, rightX + 14, pTop + pH - (P ? 34 : 52),
     '쿨타임 ' + (shown.cooldown ? (Math.round(shown.cooldown / 100) / 10) + '초' : '—') +

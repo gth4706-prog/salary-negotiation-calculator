@@ -159,7 +159,7 @@
  * 붙이고 -50% 만 옮기면 이음매 없이 반복된다 — planner.js `renderExamples`).
  * `prefers-reduced-motion` 은 style.css 의 전역 규칙이 애니메이션 자체를
  * 꺼 준다(별도 처리 불필요). */
-.example-wrap{margin:4px 0 2px}
+.example-wrap{margin:20px 0 2px;padding-top:16px;border-top:1px dashed var(--line)}
 .example-lead{margin:0 0 10px;font-size:13px;font-weight:800;color:var(--muted);letter-spacing:-.01em;text-align:center}
 .example-viewport{
   overflow:hidden;

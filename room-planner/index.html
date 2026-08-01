@@ -19,8 +19,8 @@
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%8B%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
-<link rel="stylesheet" href="../css/style.css?v=0.09">
-<link rel="stylesheet" href="../css/planner.css?v=0.09">
+<link rel="stylesheet" href="../css/style.css?v=0.10">
+<link rel="stylesheet" href="../css/planner.css?v=0.10">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"방 가구 배치 시뮬레이터","applicationCategory":"DesignApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"평수 기반으로 내 방 모양을 만들고 가전·가구를 배치해 통로·앞공간을 진단하는 무료 도구."}
 </script>
@@ -46,7 +46,7 @@
     <a href="../about.html">소개</a>
     <a class="lang-switch" href="en/" title="Switch to English" hreflang="en">EN</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.09</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.10</span>
   </div>
 </div></nav>
 
@@ -96,6 +96,16 @@
       </div>
       <div class="helper" style="margin-top:16px">💡 내 방과 비슷한 형태를 하나 골라주세요. 나중에 세부 조정도 가능해요.</div>
       <div class="shape-grid" id="shape-grid" style="margin-top:10px"></div>
+
+      <!-- 예시 띠지 — 가이드(이 팝업) 밑에 바로 보여야 한다. 팝업이 항상 화면
+           전체를 덮기 때문에, 페이지 본문 쪽에 두면 영영 가려서 아무도 못 본다.
+           그래서 팝업 안, 방 형태 그리드 바로 아래에 둔다. -->
+      <div class="example-wrap" id="example-wrap" aria-hidden="true">
+        <p class="example-lead" id="example-lead">이렇게 만들어볼 수 있어요</p>
+        <div class="example-viewport">
+          <div class="example-track" id="example-track"></div>
+        </div>
+      </div>
     </div>
     <button class="cta" id="gen-room" type="button">이 형태로 방 만들기 →</button>
   </div>
@@ -109,15 +119,6 @@
   </header>
 
   <div class="note" id="privacy-note"><span>ℹ️</span><span>모든 계산은 <b>브라우저 안에서만</b> 이뤄지며 어디에도 저장·전송되지 않습니다. 실제 시공·구매 전에는 반드시 현장 실측을 권장합니다.</span></div>
-
-  <!-- 예시 띠지 — 실제 렌더링 코드로 만든 배치도 20개가 오른쪽에서 왼쪽으로 흐른다.
-       "이렇게 만들어볼 수 있다"를 말이 아니라 실물로 보여준다. -->
-  <div class="example-wrap" id="example-wrap" aria-hidden="true">
-    <p class="example-lead" id="example-lead">이렇게 만들어볼 수 있어요</p>
-    <div class="example-viewport">
-      <div class="example-track" id="example-track"></div>
-    </div>
-  </div>
 
   <!-- STEP 세부조정: 원하는 사람만 다듬기 -->
   <section class="card step" id="stepShape" hidden>
@@ -241,8 +242,8 @@
   <div class="cp">참고용 도구이며 실제 시공·구매 전 현장 실측을 권장합니다. © 각잡살림</div>
 </div></footer>
 
-<script src="../js/furniture-icons.js?v=0.09"></script>
-<script src="../js/site.js?v=0.09"></script>
-<script src="../js/planner.js?v=0.09"></script>
+<script src="../js/furniture-icons.js?v=0.10"></script>
+<script src="../js/site.js?v=0.10"></script>
+<script src="../js/planner.js?v=0.10"></script>
 </body>
 </html>

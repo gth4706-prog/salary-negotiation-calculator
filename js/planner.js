@@ -96,26 +96,26 @@
    * `picks` 는 [카테고리 인덱스, 그 안의 항목 인덱스] — PRESETS 를 그대로 가리킨다.
    * 16가지 방 형태를 고루 돌아가게 골랐다. */
   var EXAMPLES=[
-    {py:6,   shape:"square",    picks:[[0,3],[2,0],[2,2],[1,0]]},
-    {py:4.5, shape:"tall",      picks:[[0,0],[2,0],[1,3]]},
-    {py:8,   shape:"wide",      picks:[[3,1],[3,2],[3,4]]},
-    {py:5,   shape:"corner-tr", picks:[[4,0],[4,1],[4,7]]},
-    {py:6,   shape:"square",    picks:[[0,3],[2,3],[1,1]]},
-    {py:7,   shape:"verywide",  picks:[[0,4],[1,2],[3,2]]},
-    {py:4,   shape:"verytall",  picks:[[0,1],[2,1],[1,4]]},
-    {py:9,   shape:"corner-tl", picks:[[3,0],[3,2],[3,3],[4,1]]},
-    {py:6,   shape:"corner-br", picks:[[0,2],[2,0],[4,0]]},
-    {py:10,  shape:"ushape",    picks:[[3,1],[0,3],[1,0]]},
-    {py:7,   shape:"tshape",    picks:[[0,0],[4,0],[4,1],[4,3]]},
-    {py:5.5, shape:"alcove",    picks:[[0,1],[2,0],[1,5]]},
-    {py:6,   shape:"nick",      picks:[[0,3],[1,1],[2,3]]},
-    {py:8,   shape:"octagon",   picks:[[3,0],[3,3],[1,4]]},
-    {py:7,   shape:"stair",     picks:[[0,2],[2,1],[4,2]]},
-    {py:9,   shape:"hall",      picks:[[4,11],[4,3],[0,3],[1,0]]},
-    {py:11,  shape:"verywide",  picks:[[3,1],[3,2],[0,4],[4,2]]},
-    {py:10,  shape:"square",    picks:[[0,4],[2,1],[1,2],[2,3]]},
-    {py:6,   shape:"tall",      picks:[[0,3],[4,1],[4,0]]},
-    {py:7,   shape:"wide",      picks:[[0,2],[2,0],[1,3]]}
+    {py:7,    shape:"square",    picks:[[0,3],[2,0],[2,2],[1,0],[1,4],[4,3]]},
+    {py:6,    shape:"tall",      picks:[[0,0],[2,0],[1,3],[1,4],[4,3]]},
+    {py:10,   shape:"wide",      picks:[[3,1],[3,2],[3,4],[4,0],[4,1],[4,2]]},
+    {py:6.5,  shape:"corner-tr", picks:[[4,0],[4,1],[4,7],[0,0],[1,3]]},
+    {py:7,    shape:"square",    picks:[[0,3],[2,3],[1,1],[1,4],[4,3]]},
+    {py:6,    shape:"verywide",  picks:[[2,0],[2,2],[2,3],[1,4],[1,3]]},
+    {py:5,    shape:"verytall",  picks:[[0,1],[2,1],[1,4],[1,3],[4,3]]},
+    {py:11,   shape:"corner-tl", picks:[[3,1],[3,2],[3,4],[4,0],[4,1],[4,7]]},
+    {py:7,    shape:"corner-br", picks:[[0,2],[2,0],[4,0],[1,3],[4,3]]},
+    {py:12,   shape:"ushape",    picks:[[3,1],[0,3],[1,0],[4,1],[4,0],[1,5]]},
+    {py:8,    shape:"tshape",    picks:[[0,0],[4,0],[4,1],[4,3],[1,3]]},
+    {py:6.5,  shape:"alcove",    picks:[[0,1],[2,0],[1,5],[1,3],[4,6]]},
+    {py:7,    shape:"nick",      picks:[[0,3],[1,1],[2,3],[1,4],[4,3]]},
+    {py:10,   shape:"octagon",   picks:[[3,0],[3,3],[1,4],[0,3],[4,1]]},
+    {py:8,    shape:"stair",     picks:[[0,2],[2,1],[4,2],[1,3],[4,3]]},
+    {py:11,   shape:"hall",      picks:[[4,11],[4,3],[0,3],[1,0],[3,2],[4,1]]},
+    {py:13,   shape:"verywide",  picks:[[3,1],[3,2],[0,4],[4,2],[1,1],[4,0]]},
+    {py:12,   shape:"square",    picks:[[0,4],[2,1],[1,2],[2,3],[4,1],[1,5]]},
+    {py:7,    shape:"tall",      picks:[[0,3],[4,1],[4,0],[1,3],[4,3]]},
+    {py:9,    shape:"wide",      picks:[[0,2],[2,0],[1,3],[3,2],[4,1]]}
   ];
 
   /* ---------- 문구 (동적으로 만들어지는 것만 — 정적 HTML은 페이지별로 직접 번역) ---------- */
@@ -493,19 +493,25 @@
   /* ---------- 온보딩 ────────────────────────────────────────────────────
      "어려우면 안돼... 접속하자마자 가상 화면으로 어떻게 작동하는 사이트인지
      아주 짧은 가이드를 보여주고 직접해보기 버튼을 눌러서 해보게끔" —
-     첫 방문에만 한 화면짜리 안내를 STEP A 팝업보다 먼저 띄운다. */
+     첫 방문에만 한 화면짜리 안내를 STEP A1 팝업보다 먼저 띄운다. */
   var pendingRevealStepA=false;
   function showOnboarding(){ if($("onboard-modal"))$("onboard-modal").hidden=false; }
   if($("onboard-cta")){
     $("onboard-cta").addEventListener("click",function(){
       $("onboard-modal").hidden=true;
       localStorage.setItem("rp.onboarded","1");
-      if(pendingRevealStepA){$("stepA-modal").hidden=false;pendingRevealStepA=false;}
+      if(pendingRevealStepA){$("stepA1-modal").hidden=false;pendingRevealStepA=false;}
     });
   }
   if($("onb-again-btn"))$("onb-again-btn").addEventListener("click",showOnboarding);
 
-  /* ---------- STEP A: 평수 → 방 생성 ---------- */
+  /* ---------- STEP A1→A2: 평수(+ 띠지) → 방 모양 → 방 생성 ────────────────
+     사용자 피드백: "띠지가 하단에있어서 안보이니 먼저 첫 화면에선 평수만
+     고르게하고 띠지를 주로 보여주자 / 그다음 화면에서 형태고르고 원래방식
+     대로 진행되게끔." 16종 형태 그리드 밑에 띠지를 붙였더니 스크롤을 한참
+     내려야 보였다. 그래서 화면을 둘로 쪼갰다 —
+       A1: 평수 입력 + 띠지가 화면의 주인공(스크롤 없이 바로 보임)
+       A2: 방 모양 그리드 — 예전 STEP A와 완전히 같은 방식으로 진행 */
   function roomPreview(py){
     var area=py*PYEONG;
     var cols=Math.max(3,Math.round(Math.sqrt(area)/TILE));
@@ -524,12 +530,20 @@
     if(py>0)renderShapeGrid(py*PYEONG);
   });
 
+  if($("pyeong-next")){
+    $("pyeong-next").addEventListener("click",function(){
+      var py=+$("py").value||0; if(py<=0){$("py").focus();return;}
+      renderShapeGrid(py*PYEONG);
+      if($("stepA1-modal"))$("stepA1-modal").hidden=true;
+      if($("stepA2-modal"))$("stepA2-modal").hidden=false;
+    });
+  }
+
   $("gen-room").addEventListener("click",function(){
     var py=+$("py").value||0; if(py<=0){$("py").focus();return;}
-    if($("stepA-modal"))$("stepA-modal").hidden=true;
+    if($("stepA2-modal"))$("stepA2-modal").hidden=true;
     if($("hero"))$("hero").hidden=true;
     if($("privacy-note"))$("privacy-note").hidden=true;
-    if($("example-wrap"))$("example-wrap").hidden=true;
     applyShape(py*PYEONG,state.pendingShapeKind);
     reveal("stepShape");
   });
@@ -991,10 +1005,10 @@
   renderShapeGrid((+$("py").value||6)*PYEONG);
   renderExamples();
   if(decode()){
-    if($("stepA-modal"))$("stepA-modal").hidden=true;
+    if($("stepA1-modal"))$("stepA1-modal").hidden=true;
+    if($("stepA2-modal"))$("stepA2-modal").hidden=true;
     if($("hero"))$("hero").hidden=true;
     if($("privacy-note"))$("privacy-note").hidden=true;
-    if($("example-wrap"))$("example-wrap").hidden=true;
     state.phase="D";
     $("plan-sticky").hidden=false;
     $("phase-badge").textContent=S.phasePlace;
@@ -1004,7 +1018,7 @@
     if($("adwrap"))$("adwrap").hidden=false;
     syncSel(); renderDiag();
   }else if(!localStorage.getItem("rp.onboarded")){
-    if($("stepA-modal"))$("stepA-modal").hidden=true;
+    if($("stepA1-modal"))$("stepA1-modal").hidden=true;
     pendingRevealStepA=true;
     showOnboarding();
   }

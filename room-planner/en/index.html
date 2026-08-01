@@ -17,8 +17,8 @@
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%8B%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
-<link rel="stylesheet" href="../../css/style.css?v=0.10">
-<link rel="stylesheet" href="../../css/planner.css?v=0.10">
+<link rel="stylesheet" href="../../css/style.css?v=0.11">
+<link rel="stylesheet" href="../../css/planner.css?v=0.11">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"Room Furniture Layout Simulator","applicationCategory":"DesignApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"Free tool that builds a room-shaped floor plan from your room size, then lets you place appliances and furniture to check passage width and clearance."}
 </script>
@@ -44,7 +44,7 @@
     <a href="../../about.html">About</a>
     <a class="lang-switch" href="../" title="한국어로 보기" hreflang="ko">KO</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="Build version — for cache checks">v0.10</span>
+    <span class="ver-badge" title="Build version — for cache checks">v0.11</span>
   </div>
 </div></nav>
 
@@ -84,7 +84,7 @@
 </div>
 
 <!-- STEP A: size + shape (single popup, one confirm button) -->
-<div class="modal-backdrop" id="stepA-modal">
+<div class="modal-backdrop" id="stepA1-modal">
   <div class="modal-box">
     <div class="modal-scroll">
       <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">How big is your room?<span class="s">Enter the size in pyeong (1 pyeong ≈ 3.3m²) and we'll preview the shape.</span></h2>
@@ -92,17 +92,25 @@
         <div class="field"><label class="lbl" for="py">Size (pyeong)</label><div class="money"><input class="txt" id="py" type="number" min="1" max="30" step="0.5" value="6" inputmode="decimal"><span class="u">py</span></div></div>
         <div class="field"><label class="lbl">Converted size</label><div class="age-out" id="py-out">–</div></div>
       </div>
-      <div class="helper" style="margin-top:16px">💡 Pick the shape closest to your room. You can fine-tune it afterward.</div>
-      <div class="shape-grid" id="shape-grid" style="margin-top:10px"></div>
 
-      <!-- Example ticker — must show right below the guide (this popup). The popup always
-           covers the full screen, so placing it in the page body meant nobody ever saw it. -->
+      <!-- Example ticker — the main content of this first screen. It used to sit below
+           the shape grid where nobody scrolled far enough to see it. -->
       <div class="example-wrap" id="example-wrap" aria-hidden="true">
         <p class="example-lead" id="example-lead">Here's what you can build</p>
         <div class="example-viewport">
           <div class="example-track" id="example-track"></div>
         </div>
       </div>
+    </div>
+    <button class="cta" id="pyeong-next" type="button">Next: pick a shape →</button>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="stepA2-modal" hidden>
+  <div class="modal-box">
+    <div class="modal-scroll">
+      <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">Which shape is closest?<span class="s">Pick the shape closest to your room. You can fine-tune it afterward.</span></h2>
+      <div class="shape-grid" id="shape-grid" style="margin-top:14px"></div>
     </div>
     <button class="cta" id="gen-room" type="button">Build this shape →</button>
   </div>
@@ -221,9 +229,9 @@
   <div class="cp">A reference tool — always measure the real room before construction or purchase. © Gakjab Salim</div>
 </div></footer>
 
-<script src="../../js/furniture-icons.js?v=0.10"></script>
+<script src="../../js/furniture-icons.js?v=0.11"></script>
 <script>window.ROOM_LANG="en";</script>
-<script src="../../js/site.js?v=0.10"></script>
-<script src="../../js/planner.js?v=0.10"></script>
+<script src="../../js/site.js?v=0.11"></script>
+<script src="../../js/planner.js?v=0.11"></script>
 </body>
 </html>

@@ -19,8 +19,8 @@
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%8B%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
-<link rel="stylesheet" href="../css/style.css?v=0.10">
-<link rel="stylesheet" href="../css/planner.css?v=0.10">
+<link rel="stylesheet" href="../css/style.css?v=0.11">
+<link rel="stylesheet" href="../css/planner.css?v=0.11">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"방 가구 배치 시뮬레이터","applicationCategory":"DesignApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"평수 기반으로 내 방 모양을 만들고 가전·가구를 배치해 통로·앞공간을 진단하는 무료 도구."}
 </script>
@@ -46,7 +46,7 @@
     <a href="../about.html">소개</a>
     <a class="lang-switch" href="en/" title="Switch to English" hreflang="en">EN</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.10</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.11</span>
   </div>
 </div></nav>
 
@@ -86,7 +86,7 @@
 </div>
 
 <!-- STEP A: 평수 입력 + 방 형태 선택 (팝업, 확정 버튼 하나) -->
-<div class="modal-backdrop" id="stepA-modal">
+<div class="modal-backdrop" id="stepA1-modal">
   <div class="modal-box">
     <div class="modal-scroll">
       <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">몇 평의 방인가요?<span class="s">평수를 넣으면 미터법으로 환산해 형태를 미리 보여드려요.</span></h2>
@@ -94,18 +94,26 @@
         <div class="field"><label class="lbl" for="py">평수</label><div class="money"><input class="txt" id="py" type="number" min="1" max="30" step="0.5" value="6" inputmode="decimal"><span class="u">평</span></div></div>
         <div class="field"><label class="lbl">환산 크기</label><div class="age-out" id="py-out">–</div></div>
       </div>
-      <div class="helper" style="margin-top:16px">💡 내 방과 비슷한 형태를 하나 골라주세요. 나중에 세부 조정도 가능해요.</div>
-      <div class="shape-grid" id="shape-grid" style="margin-top:10px"></div>
 
-      <!-- 예시 띠지 — 가이드(이 팝업) 밑에 바로 보여야 한다. 팝업이 항상 화면
-           전체를 덮기 때문에, 페이지 본문 쪽에 두면 영영 가려서 아무도 못 본다.
-           그래서 팝업 안, 방 형태 그리드 바로 아래에 둔다. -->
+      <!-- 예시 띠지 — 첫 화면의 주인공. 형태 그리드 밑에 있었을 땐 스크롤을
+           한참 내려야 보였다("띠지가 하단에있어서 안보이니") — 그래서 평수
+           입력 바로 아래, A1 화면의 핵심 콘텐츠로 옮겼다. -->
       <div class="example-wrap" id="example-wrap" aria-hidden="true">
         <p class="example-lead" id="example-lead">이렇게 만들어볼 수 있어요</p>
         <div class="example-viewport">
           <div class="example-track" id="example-track"></div>
         </div>
       </div>
+    </div>
+    <button class="cta" id="pyeong-next" type="button">다음: 방 모양 고르기 →</button>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="stepA2-modal" hidden>
+  <div class="modal-box">
+    <div class="modal-scroll">
+      <h2 class="q" style="font-size:clamp(18px,3.6vw,22px)">어떤 형태에 가까운가요?<span class="s">내 방과 비슷한 형태를 하나 골라주세요. 나중에 세부 조정도 가능해요.</span></h2>
+      <div class="shape-grid" id="shape-grid" style="margin-top:14px"></div>
     </div>
     <button class="cta" id="gen-room" type="button">이 형태로 방 만들기 →</button>
   </div>
@@ -242,8 +250,8 @@
   <div class="cp">참고용 도구이며 실제 시공·구매 전 현장 실측을 권장합니다. © 각잡살림</div>
 </div></footer>
 
-<script src="../js/furniture-icons.js?v=0.10"></script>
-<script src="../js/site.js?v=0.10"></script>
-<script src="../js/planner.js?v=0.10"></script>
+<script src="../js/furniture-icons.js?v=0.11"></script>
+<script src="../js/site.js?v=0.11"></script>
+<script src="../js/planner.js?v=0.11"></script>
 </body>
 </html>

@@ -18,6 +18,14 @@ GAME.MenuScene.prototype.create = function () {
 
   this.cameras.main.setBackgroundColor(C.bg);
 
+  // ── 로비 배경: 계란들이 걸어다닌다 (2026-08-01) ─────────────────────────────
+  //  이 게임의 아트를 첫 화면이 하나도 안 보여 주고 있었다. 순수 렌더라 다른 데는
+  //  아무 영향이 없다(js/lobbyart.js 주석 참조).
+  //  ⚠ 씬 인스턴스는 재사용된다 — 매번 새로 만들고, 나갈 때 반드시 지운다.
+  this._parade = GAME.LobbyArt ? GAME.LobbyArt.start(this) : null;
+  this.events.off('shutdown', this._paradeStop, this);
+  this.events.once('shutdown', this._paradeStop, this);
+
   // 폰 가로(820×390)는 세로로 쌓을 높이가 없다 → 좌(간판)/우(모드 그리드)로 펼친다.
   if (GAME.CONFIG.PHONE) { this._buildPhone(); this._tail(); return; }
 
@@ -96,17 +104,16 @@ GAME.MenuScene.prototype.create = function () {
   //   '익혔으면 · 겨룬다' 는 익·혔·룬 이 밖이라 '연습이 끝나면 · 싸운다' 로 바꿨다.
   //   (씬 자체는 남아 있다. Build 는 수성의 탑·기지 만들기가 계속 쓰고,
   //    Select 는 나중에 대전이 다듬어질 때 다시 붙일 수 있다.)
+  //  ⚠ 2026-08-01 — 여기 있던 **설명 두 줄을 지웠다**(사용자: "로비화면도 좀 구려").
+  //    "🗼 통곡의 탑은 컨트롤러 연습장 — 영웅 하나로 진형을 뚫는다" 는 바로 위
+  //    버튼 밑에 이미 붙어 있는 말이다. 같은 말을 두 번 하면 화면이 설명서가 되고,
+  //    글이 늘어날수록 **정작 눌러야 할 버튼이 안 보인다.**
+  //    남긴 한 줄은 중복이 아니다 — 두 탑과 대전의 **관계**를 말하는 유일한 줄이다.
   var guideY = by + u * 0.6;
   GAME.UI.text(this, W / 2, guideY,
-    '🗼 통곡의 탑은 컨트롤러 연습장 — 영웅 하나로 진형을 뚫는다',
-    { size: P ? 'micro' : 'caption', color: C.warn, origin: 0.5, originY: 0 });
-  GAME.UI.text(this, W / 2, guideY + (P ? 20 : 24),
-    '🛡 수성의 탑은 전략가 연습장 — 진형 하나로 영웅을 막는다',
-    { size: P ? 'micro' : 'caption', color: C.accentAlt, origin: 0.5, originY: 0 });
-  GAME.UI.text(this, W / 2, guideY + (P ? 42 : 50),
     '연습이 끝나면 ⚔ 대전에서 사람과 싸운다',
-    { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 });
-  by = guideY + (P ? 68 : 80);
+    { size: P ? 'micro' : 'caption', color: C.textDim, origin: 0.5, originY: 0 });
+  by = guideY + (P ? 30 : 36);
 
   var rc = GAME.Layout.cols(GAME.isAdmin ? 3 : 2, {
     gap: 10, width: bw, left: (W - bw) / 2, pad: 0
@@ -322,16 +329,13 @@ GAME.MenuScene.prototype._buildPhone = function () {
     { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
       hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: 19 });
 
-  // 두 버튼('컨트롤러로 도전' · '전략가로 방어전')을 뺀 자리 — 위 폰 레이아웃과 같은 근거.
-  // 대전과 하는 일이 겹쳐서 첫 화면의 선택지만 늘렸다. 대신 **두 탑의 역할**을 적는다.
+  // ⚠ 여기 있던 설명 세 줄을 **지웠다** (2026-08-01, 사용자: "로비화면도 좀 구려").
+  //   "🗼 통곡의 탑은 컨트롤러 연습장 — 영웅 하나로 진형을 뚫는다" 는 바로 위
+  //   버튼 밑에 이미 붙어 있는 말이었다. 같은 말을 두 번 하면 화면이 설명서가 되고,
+  //   글자가 많아질수록 **정작 눌러야 할 버튼이 안 보인다.**
+  //   비운 자리는 걸어다니는 계란들(js/lobbyart.js)이 채운다 — 글보다 그림이 낫다.
   UI.text(this, rx + rw / 2, r3 + rowH * 0.16,
-    '🗼 통곡의 탑은 컨트롤러 연습장 — 영웅 하나로 진형을 뚫는다',
-    { size: 'body', color: C.warn, origin: 0.5, originY: 0 });
-  UI.text(this, rx + rw / 2, r3 + rowH * 0.16 + 28,
-    '🛡 수성의 탑은 전략가 연습장 — 진형 하나로 영웅을 막는다',
-    { size: 'body', color: C.accentAlt, origin: 0.5, originY: 0 });
-  UI.text(this, rx + rw / 2, r3 + rowH * 0.16 + 56,
-    '연습이 끝나면 ⚔ 대전에서 사람과 싸운다',
+    '연습이 끝나면 ⚔ 대전에서 사람과 싸웁니다',
     { size: 'caption', color: C.textDim, origin: 0.5, originY: 0 });
 
   // ── 유틸 줄 ──
@@ -391,4 +395,13 @@ GAME.MenuScene.prototype._buildPhone = function () {
       }
     })(slots[i], uc[i]);
   }
+};
+
+// 로비 행렬을 굴린다. 씬이 바뀌면 `_parade` 가 없어져 조용히 멈춘다.
+GAME.MenuScene.prototype.update = function (time, delta) {
+  if (this._parade && GAME.LobbyArt) GAME.LobbyArt.update(this._parade, delta);
+};
+GAME.MenuScene.prototype._paradeStop = function () {
+  if (this._parade && GAME.LobbyArt) GAME.LobbyArt.stop(this._parade);
+  this._parade = null;
 };

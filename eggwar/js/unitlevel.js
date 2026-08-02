@@ -62,6 +62,32 @@ GAME.UnitLevel = {
     { hp: 1.29, damage: 1.21 }
   ],
 
+  // ── 표 밖의 레벨 — **통곡의 탑 AI 전용** (2026-08-02 사용자 지시) ────────────
+  //  "단순히 유닛이 많아지는거로 대응하면안돼. 전략배치 유닛도 레벨업하는 기능을
+  //   더 활용하도록하고 필요하다면 추가 업데이트를 해줘."
+  //
+  //  실측으로 확인된 문제: `AutoFormation.tierFor` 의 상한이 5 인데 통곡의 탑
+  //  진형 예산은 **9층에서 이미 275** 라 그때부터 레벨이 5 에 붙박이가 된다.
+  //  그 뒤로 예산이 아무리 늘어도 갈 곳이 **유닛 수**밖에 없다 — 사용자가 본
+  //  "숫자만 많아진다"가 정확히 이것이다.
+  //
+  //  그래서 **AI 만** 5 를 넘겨 쓸 수 있게 한다. `MAX`(=5)는 그대로 둔다 —
+  //  그건 **사람이 돈 주고 사는 상한**이고(수성의 탑 `levelUp`, 대전 `ArenaBuild`),
+  //  거기 손대면 CLAUDE.md 가 실측으로 잡아 둔 수성의 탑 곡선이 통째로 흔들린다.
+  //  표 밖은 마지막 구간의 비율(L4→L5)을 그대로 이어 붙여 계산한다:
+  //    hp ×1.066/레벨 · damage ×1.052/레벨
+  //    L6 1.375/1.273 · L8 1.564/1.409 · L10 1.779/1.559 · L12 2.023/1.725
+  AI_MAX: 12,
+  _hiStep: { hp: 1.29 / 1.21, damage: 1.21 / 1.15 },
+
+  //  사람 구매용 상한(MAX)과 달리 AI 는 AI_MAX 까지 간다.
+  clampAI: function (lv) {
+    if (typeof lv !== 'number' || !isFinite(lv)) return 1;
+    if (lv < 1) return 1;
+    if (lv > this.AI_MAX) return this.AI_MAX;
+    return Math.floor(lv);
+  },
+
   // ── 다음 레벨 값 ──────────────────────────────────────────────────────────
   //  index = 도달할 레벨. COST[2] = L1→L2 가격.
   //  가파르게 올린다: 한 종류를 L5 까지 올리는 총액 625 골드는
@@ -95,9 +121,18 @@ GAME.UnitLevel = {
   },
 
   // Combat.createUnit 에 그대로 넘길 배수. 레벨 1 이면 {1,1} 이라 아무 것도 안 바뀐다.
+  //  ⚠ 표(MODS, L1~L5) 밖은 `_hiStep` 으로 이어서 계산한다 — AI 전용 고레벨용이다.
+  //    사람이 사는 경로(`levelUp`)는 `MAX` 에서 막히므로 여기 6 이상이 들어올 일이 없다.
   modsForLevel: function (lv) {
-    var m = this.MODS[this.clamp(lv) - 1] || this.MODS[0];
-    return { hp: m.hp, damage: m.damage };
+    var L = this.clampAI(lv);
+    if (L <= this.MODS.length) {
+      var m = this.MODS[L - 1] || this.MODS[0];
+      return { hp: m.hp, damage: m.damage };
+    }
+    var last = this.MODS[this.MODS.length - 1];
+    var n = L - this.MODS.length;
+    return { hp: last.hp * Math.pow(this._hiStep.hp, n),
+             damage: last.damage * Math.pow(this._hiStep.damage, n) };
   },
   modsFor: function (typeKey) { return this.modsForLevel(this.levelOf(typeKey)); },
 
@@ -220,6 +255,18 @@ GAME.UnitLevel = {
   // 상대(플레이어)의 성향이 정한다** — 그게 이 기능의 전부다.
   PREMIUM: [0, 0, 0.124, 0.254, 0.392, 0.561],
 
+  //  ⚠ 표는 L5 까지다. 그 위(AI 전용)는 **같은 규칙을 식으로** 이어 쓴다 —
+  //    프리미엄 = hp배수 × damage배수 − 1. 위 표와 정확히 같은 값이 나온다
+  //    (L5: 1.29×1.21−1 = 0.561 ✓). 표를 늘리지 않고 식 하나로 통일해 두면
+  //    `AI_MAX` 를 올려도 여기를 다시 안 고친다.
+  premiumFor: function (lv) {
+    var L = this.clampAI(lv);
+    if (L <= 1) return 0;
+    if (L < this.PREMIUM.length) return this.PREMIUM[L];
+    var m = this.modsForLevel(L);
+    return m.hp * m.damage - 1;
+  },
+
   // 정예 특성 — 레벨(hp/damage) 밖의 축. 가격은 이득보다 조금 비싸게 잡았다
   // (속도·사거리는 수치 이상의 값을 하므로 등가로 매기면 과해진다).
   TRAITS: {
@@ -238,7 +285,9 @@ GAME.UnitLevel = {
 
   // 파생 def 를 만들고(한 번만) 그 키를 돌려준다. lv=1 · 특성 없음이면 원본 키 그대로.
   eliteKey: function (baseKey, lv, traits) {
-    lv = this.clamp(lv);
+    // ⚠ AI 전용 상한(AI_MAX)까지 허용한다 — `clamp`(사람 구매 상한 MAX=5)를 쓰면
+    //   고레벨 정예가 조용히 L5 로 깎여, 이 기능을 넣은 의미가 사라진다.
+    lv = this.clampAI(lv);
     var tl = traits || [];
     var tk = tl.slice().sort().join(',');
     if (lv <= 1 && !tk) return baseKey;
@@ -256,7 +305,7 @@ GAME.UnitLevel = {
     d.hp = Math.round(base.hp * m.hp);
     d.damage = Math.round(base.damage * m.damage);
 
-    var prem = this.PREMIUM[lv] || 0;
+    var prem = this.premiumFor(lv);
     var labels = [];
     for (i = 0; i < tl.length; i++) {
       var t = this.TRAITS[tl[i]];

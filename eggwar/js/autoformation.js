@@ -196,11 +196,34 @@ GAME.AutoFormation = {
   // 경계 150 은 통곡의 탑 1~3층(예산 100~108)을 확실히 제외하기 위한 값이다 —
   // 연습 구간에 정예가 나오면 "1~3층은 쉽다"는 약속이 흔들린다.
   ELITE_MIN_BUDGET: 150,
+  //  ⚠ 2026-08-02 — **상한을 5 에서 풀었다**(사용자: "단순히 유닛이 많아지는거로
+  //    대응하면안돼. 전략배치 유닛 레벨업 기능을 더 활용해줘").
+  //    실측: 통곡의 탑 진형 예산은 **9층에서 275** 라 그 뒤로 이 함수가 계속 5 만
+  //    돌려줬다. 즉 10층부터 300층까지 예산이 늘어도 갈 곳이 **머릿수뿐**이었다.
+  //    이제 예산이 커지면 레벨이 계속 오른다(js/unitlevel.js `AI_MAX`).
+  //    정예는 단가에 프리미엄이 붙으므로(`premiumFor`) 레벨이 오르면 **같은 예산으로
+  //    더 적은 수**를 세우게 된다 — "많이" 대신 "강하게"가 자동으로 성립한다.
+  //  실측 대응(진형 예산 → 레벨): 9층 275→5 · 30층 359→6 · 60층 479→7 · 80층 559→8.
+  TIER_STEPS: [150, 200, 270, 340, 420, 520, 640, 800, 1000, 1250],
   tierFor: function (budget) {
     if (budget < this.ELITE_MIN_BUDGET) return 1;
-    if (budget < 200) return 3;
-    if (budget < 270) return 4;
-    return 5;
+    // 첫 구간은 예전 그대로 3 → 4 → 5 로 오른다(저층 감각을 안 바꾸려는 것).
+    var lv = 3;
+    for (var i = 1; i < this.TIER_STEPS.length; i++) {
+      if (budget < this.TIER_STEPS[i]) break;
+      lv++;
+    }
+    var cap = (GAME.UnitLevel && GAME.UnitLevel.AI_MAX) || 5;
+    return lv > cap ? cap : lv;
+  },
+
+  //  교리별 레벨 상한. 예전엔 `lvCap` 이 **절대 레벨**(선봉=3)이었는데, 상한이
+  //  풀린 지금 그대로 두면 선봉만 영원히 L3 에 묶여 후반에 종이처럼 얇아진다.
+  //  그래서 **비율**로 해석한다 — `lvCap/5` 만큼만 올라간다(선봉은 60%).
+  _lvFor: function (budget, doctrine) {
+    var tier = this.tierFor(budget);
+    if (!doctrine || !doctrine.lvCap) return tier;
+    return Math.max(1, Math.min(tier, Math.round(tier * (doctrine.lvCap / 5))));
   },
 
   // 최근에 쓴 교리는 확률을 낮춘다. **같은 전략이 연달아 나오면 '벽'으로 느껴진다** —
@@ -342,8 +365,9 @@ GAME.AutoFormation = {
   _eliteCostOf: function (t, doctrine, budget) {
     var UL = GAME.UnitLevel;
     if (!UL || !UL.eliteCost) return GAME.UNITS[t] ? GAME.UNITS[t].cost : 0;
-    var lv = Math.min(this.tierFor(budget), doctrine.lvCap || 5);
-    return UL.eliteCost(t, lv, doctrine.traits);
+    // ⚠ 아래 generate() 의 `lv` 와 **같은 식**이어야 한다 — 갈라지면 예산 회계가
+    //   실제로 세우는 유닛과 다른 단가를 쓰게 되어 진형이 예산을 넘거나 남긴다.
+    return UL.eliteCost(t, this._lvFor(budget, doctrine), doctrine.traits);
   },
 
   // budget 안에서 조합을 채운다. profile 이 없으면 균형 조합.
@@ -378,13 +402,25 @@ GAME.AutoFormation = {
     var RANGED = this.RANGED_POOL.filter(isAllowed);
     var docKey = opts.doctrine || this.chooseDoctrine(profile, budget, heroKey);
     var D = this.DOCTRINES[docKey] || this.DOCTRINES.swarm;
-    var lv = Math.min(this.tierFor(tierBudget), D.lvCap || 5);
+    var lv = this._lvFor(tierBudget, D);
     var core = (lv > 1) ? this._pickCore(w, D, budget, tierBudget, allow) : {};
 
     // 기본 종류 → 실제로 배치할 키. 정예면 파생 def 의 키가 나온다.
+    // ── 주력이 아닌 유닛도 층이 오르면 같이 큰다 (2026-08-02 사용자 지시) ──────
+    //  "단순히 유닛이 많아지는거로 대응하면안돼."
+    //  실측: 상한을 푼 뒤에도 **정예는 전체의 13~20%** 뿐이고 나머지는 영원히 L1
+    //  이라, 120층에서도 유닛 수만 12 → 23 으로 늘고 있었다(레벨은 주력 한두
+    //  종류만 올랐다). 그래서 **바닥 레벨**을 둔다 — 주력보다 3 단계 낮게 따라온다.
+    //  ⚠ 이게 난이도 인플레가 아닌 이유: `premiumFor` 가 **전투가치와 같은 값**이라
+    //    레벨을 올리면 단가가 그만큼 올라 **세울 수 있는 머릿수가 준다.** 즉 같은
+    //    예산이 '수'에서 '질'로 옮겨갈 뿐 총량은 대체로 보존된다(아래 실측으로 확인).
+    //  ⚠ 특성(traits)은 안 준다 — 그건 그 판 주력의 정체성이라 전군에 뿌리면
+    //    교리(doctrine)라는 축 자체가 흐려진다.
+    var baseLv = Math.max(1, lv - 3);
     function keyOf(t) {
-      if (!core[t] || !UL || !UL.eliteKey) return t;
-      return UL.eliteKey(t, lv, D.traits);
+      if (!UL || !UL.eliteKey) return t;
+      if (core[t]) return UL.eliteKey(t, lv, D.traits);
+      return baseLv > 1 ? UL.eliteKey(t, baseLv, []) : t;
     }
     function costOf(t) {
       var d = GAME.UNITS[keyOf(t)];

@@ -14,28 +14,36 @@ window.GAME = window.GAME || {};
 //
 //  ## 세계관 연결 (CLAUDE.md 'Egg War')
 //  계란 부족의 전쟁 위에 **더 오래된 것**이 있다는 층위를 얹는다:
-//    1~30층  계란 부족의 강자   (기존 셋 — 족장·골렘·둥지)
-//    40층    재를 뒤집어쓴 파수병 — 계란 부족의 마지막. 처음으로 '용의 재'가 나온다
-//    50층    용의 부하(잿날개)  — 용이 실재한다는 첫 증거
-//    60~90층 권속들             — 서리·폭풍으로 결이 갈린다
-//    100층   용의 발톱          — **몸의 일부**. 발톱 하나가 화면을 덮는다
-//    150층~  용 본체
-//  50·100 층의 목적은 이기는 것이 아니라 **크기를 먼저 보여주는 것**이다.
+//    1~30층   계란 부족의 강자   (기존 셋 — 족장·골렘·둥지)
+//    40층     재를 뒤집어쓴 파수병 — 계란 부족의 마지막. 처음으로 '용의 재'가 나온다
+//    60~90층  권속들 — 서리·폭풍으로 결이 갈린다(계속 벡터로 그린다, 아래 참조)
+//    50/100/150/200/250층  용의 부위(발·손·날개·반쪽 얼굴·상반신) — **몸의 일부**
+//    300층~   태초의 용 본체(50층 주기로 다시 나온다)
+//  50~250 층의 목적은 이기는 것이 아니라 **크기를 먼저 보여주는 것**이다.
+//  자세한 층 배정은 `js/tower.js` 의 `BOSS_SCHEDULE`.
 //
-//  ## 그리기 규율 (이 저장소의 아트 원칙을 그대로 따른다)
-//  · 색이 아니라 **물건**이 실루엣을 만든다 — 뿔·비늘·발톱·뼈
-//  · 판을 겹쳐 두께를 만든다(그라디언트 없음 — Phaser Graphics 로 그린다)
-//  · 히트박스는 `def.radius` 그대로 두고 **그리는 크기만** 키운다(`SCALE`)
-//    ⚠ radius 를 키우면 사거리 판정이 바뀌어 밸런스가 조용히 움직인다
-//      (CLAUDE.md 의 파수꾼 radius 18→24 실측이 그 증거다)
+//  ## 그리기 규율 — **두 갈래로 갈린다** (2026-08-02 3차)
+//  재 파수병·잿날개 등(ash/frost/storm 결)은 이 파일에서 계속 **벡터**로 그린다
+//  (Phaser Graphics, 자산 0KB 원칙). 색이 아니라 물건이 실루엣을 만든다 — 뿔·비늘·
+//  발톱·뼈. 판을 겹쳐 두께를 만든다(그라디언트는 못 쓴다).
+//
+//  반면 **용의 몸(발·손·날개·반쪽 얼굴·상반신·본체) 여섯 종류는 래스터다**
+//  (`js/dragonasset.js`). 사용자 판정: "벡터를 떠나서 너무 구리다 — 좌표를 아무리
+//  옮겨도 삽화 실력 자체는 안 생긴다." 실제로 그려진 CC0 픽셀아트(OpenGameArt
+//  "Pixel Bosses. Yes!")로 바꿨다. 이 파일 안의 `RASTER_KINDS` 표가 그 갈림길이다.
+//
+//  히트박스는 두 갈래 다 `def.radius` 그대로 두고 **그리는 크기만** 키운다.
+//  ⚠ radius 를 키우면 사거리 판정이 바뀌어 밸런스가 조용히 움직인다
+//    (CLAUDE.md 의 파수꾼 radius 18→24 실측이 그 증거다)
 // ============================================================================
 (function () {
   var BA = GAME.BossArt = {};
 
-  // 종류별 **그리는 배율**. 히트박스와 무관하다 — 용은 크게 보여야 용이다.
-  BA.SCALE = { sentry: 1.50, drake: 1.60, claw: 2.10,
-               foot: 1.55, wingpart: 1.30, halfface: 1.25, waking: 1.50,
-               dragon: 2.60 };
+  // 종류별 **그리는 배율**. 히트박스와 무관하다 — 짐승은 크게 보여야 짐승이다.
+  //  ⚠ 용 몸(claw/foot/wingpart/halfface/waking/dragon)은 2026-08-02 3차로 래스터
+  //    경로(`GAME.DragonAsset`)로 옮겨서 여기 없다 — 그쪽은 배율을 자체 계산한다
+  //    (`js/dragonasset.js` 의 `PARTS[kind].scale`).
+  BA.SCALE = { sentry: 1.50, drake: 1.60 };
 
   // 결(속성)별 색. 같은 골격에 색만 갈아 끼워 권속을 여러 종으로 늘린다.
   //  ⚠ **네 톤이 필요하다.** 처음엔 dark/scale/belly 셋이었는데, 그러면 위에서
@@ -562,250 +570,6 @@ window.GAME = window.GAME || {};
     wing(g, sx - r * 0.04, sy - r * 0.14, r * 0.94, tone, f + 0.08, flap, false, d);
   }
 
-  //  용의 발톱 — **몸의 일부만** 땅을 뚫고 나와 있다. 나머지는 화면 밖이라는 게 요점이다.
-  //  ⚠ 첫 판은 손가락을 한 점에서 부채처럼 위로 뻗었더니 **팔과 떨어진 가시 다발**로
-  //    보였다(실측 렌더로 확인). 손으로 읽히려면 ① 손등이 있어야 하고 ② 마디에서
-  //    한 번 꺾여야 하고 ③ 끝의 갈고리가 **아래를 향해야** 한다 — 움켜쥐려는 손이다.
-  function claw(g, cx, cy, r, T, tone, t) {
-    var sway = Math.sin(t / 700) * r * 0.05;
-    var gy = cy + r * 1.05 * T, i, k, a, s, bx, by, mx, my, ex, ey;
-    g.fillStyle(0x241d16, 0.92); g.fillEllipse(cx, gy, r * 3.1, r * 0.88 * T, 18);
-    g.fillStyle(0x3a3024, 0.92); g.fillEllipse(cx, gy - r * 0.08, r * 2.4, r * 0.62 * T, 16);
-    for (k = 0; k < 5; k++) {          // 솟구친 땅조각
-      a = -0.35 + k * 0.92;
-      tri(g, cx + Math.cos(a) * r * 1.45, gy + Math.sin(a) * r * 0.42 * T,
-             cx + Math.cos(a) * r * 2.05, gy + Math.sin(a) * r * 0.52 * T,
-             cx + Math.cos(a) * r * 1.72, gy - r * 0.50, 0x4a3d2c, 0.95);
-    }
-    ribbon(g, [{ x: cx + sway * 0.3, y: cy + r * 1.35 }, { x: cx + sway, y: cy - r * 0.28 }],
-           r * 1.60, r * 1.22, tone.dark);
-    ribbon(g, [{ x: cx + sway * 0.3, y: cy + r * 1.35 }, { x: cx + sway, y: cy - r * 0.28 }],
-           r * 1.24, r * 0.94, tone.scale);
-    for (k = 0; k < 4; k++) {          // 겹친 비늘판
-      g.fillStyle(tone.dark, 0.5);
-      g.fillEllipse(cx + sway * 0.5, cy + r * (0.95 - k * 0.42), r * (1.04 - k * 0.06), r * 0.20, 12);
-    }
-    for (s = -1; s <= 1; s += 2)       // 손목 가시
-      tri(g, cx + sway + s * r * 0.54, cy - r * 0.16, cx + sway + s * r * 0.64, cy + r * 0.12,
-             cx + sway + s * r * 1.30, cy - r * 0.56, tone.horn, 1);
-    g.fillStyle(tone.dark, 1);  g.fillEllipse(cx + sway, cy - r * 0.52, r * 1.48, r * 0.88, 14);
-    g.fillStyle(tone.scale, 1); g.fillEllipse(cx + sway, cy - r * 0.58, r * 1.28, r * 0.72, 14);
-    var SPR = [-1.12, -0.60, 0.0, 0.58, 1.08], LEN = [0.90, 1.18, 1.34, 1.16, 0.86];
-    for (i = 0; i < 5; i++) {
-      bx = cx + sway + SPR[i] * r * 0.56; by = cy - r * 0.64;
-      mx = cx + sway * 1.3 + SPR[i] * r * 1.18; my = by - r * LEN[i] * 0.80;
-      ex = mx + SPR[i] * r * 0.32; ey = my - r * LEN[i] * 0.28;
-      ribbon(g, [{ x: bx, y: by }, { x: mx, y: my }], r * 0.42, r * 0.31, tone.dark);
-      ribbon(g, [{ x: bx, y: by }, { x: mx, y: my }], r * 0.28, r * 0.20, tone.scale);
-      ribbon(g, [{ x: mx, y: my }, { x: ex, y: ey }], r * 0.29, r * 0.20, tone.dark);
-      g.fillStyle(tone.dark, 1); g.fillCircle(mx, my, r * 0.17);
-      tri(g, ex - r * 0.13, ey - r * 0.04, ex + r * 0.13, ey + r * 0.04,
-             ex - SPR[i] * r * 0.52, ey + r * 0.30, tone.horn, 1);
-    }
-    g.fillStyle(tone.glow, 0.18 + 0.10 * Math.sin(t / 500));
-    g.fillEllipse(cx + sway, cy - r * 0.50, r * 0.94, r * 0.34, 12);
-  }
-
-  //  태초의 용 — 같은 골격의 완성형. 목이 S자로 서고 날개를 다 편다.
-  //  등줄기 가시가 머리→목→등→꼬리 끝까지 **한 줄로** 이어지는 것이 핵심이다.
-  function dragon(g, cx, cy, r, T, tone, t) {
-    var d = 1, flap = Math.sin(t / 620), br = Math.sin(t / 1400);
-    var sx = cx + r * 0.60, sy = cy - r * 0.46;
-    var tail = bez(cx - r * 0.92, cy + r * 0.22, cx - r * 2.70, cy + r * 1.00 * T,
-                   cx - r * 2.95, cy - r * 1.05, 14);
-    ribbon(g, tail, r * 0.64, r * 0.07, tone.dark);
-    ribbon(g, tail, r * 0.44, r * 0.04, tone.scale);
-    ridge(g, tail, 0.05, 0.95, r * 0.17, tone.dark, -1);
-    wing(g, sx - r * 0.74, sy - r * 0.10, r * 1.06, tone, 0.94, -flap, true, d);
-    leg(g, cx - r * 0.84, cy + r * 0.32, cx - r * 1.08, cy + r * 0.94 * T,
-           cx - r * 0.70, cy + r * 1.34 * T, r * 0.27, tone, d, r * 0.92, true);
-    leg(g, cx + r * 0.64, cy + r * 0.38, cx + r * 0.84, cy + r * 0.96 * T,
-           cx + r * 1.06, cy + r * 1.32 * T, r * 0.22, tone, d, r * 0.80, true);
-    torso(g, cx, cy, r, T, tone, d);
-    leg(g, cx - r * 0.56, cy + r * 0.36, cx - r * 0.88, cy + r * 1.02 * T,
-           cx - r * 0.26, cy + r * 1.48 * T, r * 0.31, tone, d, r, false);
-    leg(g, cx + r * 0.88, cy + r * 0.40, cx + r * 1.10, cy + r * 1.04 * T,
-           cx + r * 1.36, cy + r * 1.46 * T, r * 0.24, tone, d, r * 0.86, false);
-    //  ⚠ 목을 곧추세웠더니 **브론토사우루스**로 보였다(실측). 레퍼런스 넉 장은
-    //    전부 머리를 낮추고 앞으로 내밀고 있다 — 그게 '덤빈다'는 자세다.
-    //    S 자의 윗마디를 앞으로 눕히고 머리를 한 뼘 내린다.
-    var neck = bez(sx - r * 0.12, sy + r * 0.12, sx + r * 0.86, sy - r * 0.50,
-                   sx + r * 0.72, sy - r * 1.28, 8)
-      .concat(bez(sx + r * 0.72, sy - r * 1.28, sx + r * 0.86, sy - r * 1.92,
-                  sx + r * 1.70, sy - r * 1.82, 8).slice(1));
-    ribbon(g, neck, r * 0.90, r * 0.40, tone.dark);
-    ribbon(g, neck, r * 0.62, r * 0.26, tone.scale);
-    ribbon(g, neck, r * 0.24, r * 0.10, tone.lit, 0.75);       // 목 윗면의 빛
-    ridge(g, neck, 0.08, 0.98, r * 0.15, tone.dark, -1);
-    // 목주름 — 굵기가 변하는 띠 위에 가로선을 얹으면 '마디'가 생긴다
-    g.lineStyle(Math.max(1, r * 0.045), tone.dark, 0.30);
-    for (var ni = 2; ni < neck.length - 1; ni += 2) {
-      var np = neck[ni - 1], nq = neck[ni + 1];
-      var ndx = nq.x - np.x, ndy = nq.y - np.y;
-      var nL = Math.sqrt(ndx * ndx + ndy * ndy) || 1;
-      var nw = r * (0.44 - 0.24 * (ni / neck.length));
-      g.lineBetween(neck[ni].x + ndy / nL * nw, neck[ni].y - ndx / nL * nw,
-                    neck[ni].x - ndy / nL * nw, neck[ni].y + ndx / nL * nw);
-    }
-    head(g, sx + r * 2.10, sy - r * 1.78, r * 0.84, tone, 0.38 + 0.30 * Math.sin(t / 300), d, t);
-    wing(g, sx - r * 0.52, sy - r * 0.24, r * 1.22, tone, 0.98, flap, false, d);
-    //  ⚠ 가슴에 빛 덩어리를 놓았더니 실제 크기에서 **옆구리의 얼룩**으로 보였다(실측).
-    //    이 그림에서 불은 이미 목구멍에 있다(head 의 아가리) — 그 하나로 충분하고,
-    //    두 군데면 어디가 위험한지가 흐려진다. 대신 목 아래에 아주 옅게만 남긴다.
-    var gl = 0.30 + 0.22 * Math.abs(br);
-    //  ⚠ 처음엔 중심에서 방사로 그었더니 **폭죽**이 됐다(실측). 균열은 중심이
-    //    없다 — 짧은 선분들이 서로 어긋나 있어야 갈라진 것으로 읽힌다.
-    //  ⚠ 균열을 선으로 그었더니 실제 게임 크기에서는 **낙서**로 보였다(실측).
-    //    이 아트가 화면에서 차지하는 폭은 200px 남짓이다 — 그 안에서 읽히는
-    //    빛은 '번지는 덩어리'지 '가는 선'이 아니다.
-    g.fillStyle(tone.glow, gl * 0.16);
-    g.fillEllipse(sx + r * 0.62, sy - r * 0.22, r * 0.34, r * 0.46, 10);
-  }
-
-  // ══ 용의 부위 — 50층마다 하나씩 (2026-08-02 사용자 지시) ══════════════════
-  //  "50 · 100 · 150 · 200 · 250 에서 각각 용의 발, 손, 날개, 반쪽 얼굴 등으로
-  //   보여주다가 결국 300에서 실제 용과."
-  //
-  //  넷을 관통하는 규칙 — **틀 밖으로 이어져 있어야 한다.** 부위가 화면 안에서
-  //  깔끔하게 끝나면 그건 작은 괴물이지 큰 것의 일부가 아니다. 그래서 전부
-  //  위쪽(또는 땅)으로 잘려 나가고, 잘린 자리에 파헤쳐진 땅을 깐다.
-  //  본체와 **같은 helper**(head/wing/leg/ribbon)를 쓴다 — 같은 손이 그린 것이어야
-  //  300층에서 "저게 다 한 마리였다"가 성립한다.
-
-  //  갈라진 땅 — 부위가 뚫고 나온 자리. 넷이 공유한다.
-  function crater(g, cx, gy, r, T, wide) {
-    var k, a;
-    g.fillStyle(0x241d16, 0.92); g.fillEllipse(cx, gy, r * wide, r * 0.86 * T, 18);
-    g.fillStyle(0x3a3024, 0.92); g.fillEllipse(cx, gy - r * 0.08, r * wide * 0.78, r * 0.60 * T, 16);
-    for (k = 0; k < 6; k++) {
-      a = -0.3 + k * 0.78;
-      tri(g, cx + Math.cos(a) * r * wide * 0.46, gy + Math.sin(a) * r * 0.40 * T,
-             cx + Math.cos(a) * r * wide * 0.66, gy + Math.sin(a) * r * 0.50 * T,
-             cx + Math.cos(a) * r * wide * 0.55, gy - r * 0.52, 0x4a3d2c, 0.95);
-    }
-  }
-
-  //  50층 · 용의 발 — 위에서 내려온 뒷발.
-  //  ⚠ 두 번 실패했다. ① 굵기가 안 변하는 띠 → **나무 기둥**. ② 다리를 발보다
-  //    굵게 만들고 발가락을 발등 안에 두었더니 → **쐐기에 얹힌 혹**(실측 렌더).
-  //    발로 읽히려면 규칙은 하나다: **발이 다리보다 넓어야 한다.** 사람 발도,
-  //    새 발도, 도마뱀 발도 전부 그렇다. 발가락은 그 넓이를 만드는 물건이지
-  //    발등에 붙은 장식이 아니다.
-  function foot(g, cx, cy, r, T, tone, t) {
-    var sway = Math.sin(t / 820) * r * 0.03, i, bx, by, mx, my, ex, ey, dir;
-    crater(g, cx, cy + r * 0.95 * T, r, T, 3.4);
-
-    // 정강이 — 위(틀 밖)에서 내려오며 발목으로 갈수록 **가늘어진다**
-    var shin = [{ x: cx + sway - r * 0.42, y: cy - r * 2.90 },
-                { x: cx + sway - r * 0.16, y: cy - r * 1.40 },
-                { x: cx + sway, y: cy - r * 0.34 }];
-    ribbon(g, shin, r * 1.30, r * 0.66, tone.dark);
-    ribbon(g, shin, r * 0.98, r * 0.46, tone.scale);
-    ribbon(g, shin, r * 0.30, r * 0.14, tone.lit, 0.7);
-    scalePatch(g, cx + sway - r * 0.16, cy - r * 1.40, r * 0.36, r * 1.05, r * 0.15,
-               tone.dark, 0.16, 0);
-    // 발목
-    g.fillStyle(tone.dark, 1);  g.fillCircle(cx + sway, cy - r * 0.26, r * 0.48);
-    g.fillStyle(tone.scale, 1); g.fillCircle(cx + sway, cy - r * 0.30, r * 0.35);
-
-    // 발가락 넷 — **발등보다 먼저** 그려 뿌리가 발등 밑으로 들어가게 한다.
-    //  가운데 둘은 앞으로 길게, 바깥 둘은 옆으로 벌린다. 이 벌어짐이 곧 '발'이다.
-    var SPR = [-1.15, -0.42, 0.42, 1.18], LEN = [0.86, 1.20, 1.20, 0.84];
-    for (i = 0; i < 4; i++) {
-      dir = SPR[i] >= 0 ? 1 : -1;
-      bx = cx + sway + SPR[i] * r * 0.30; by = cy + r * 0.06;
-      mx = cx + sway + SPR[i] * r * 1.20; my = cy + r * (0.42 + LEN[i] * 0.42) * T;
-      ex = cx + sway + SPR[i] * r * 1.80; ey = cy + r * (0.52 + LEN[i] * 0.58) * T;
-      ribbon(g, [{ x: bx, y: by }, { x: mx, y: my }], r * 0.66, r * 0.48, tone.dark);
-      ribbon(g, [{ x: bx, y: by }, { x: mx, y: my }], r * 0.44, r * 0.31, tone.scale);
-      ribbon(g, [{ x: mx, y: my }, { x: ex, y: ey }], r * 0.46, r * 0.32, tone.dark);
-      ribbon(g, [{ x: mx, y: my }, { x: ex, y: ey }], r * 0.30, r * 0.20, tone.scale);
-      g.fillStyle(tone.lit, 0.6); g.fillCircle(mx, my - r * 0.06, r * 0.18);
-      // 발톱 — 앞아래로 파고든다
-      tri(g, ex - r * 0.17, ey - r * 0.16, ex + r * 0.17, ey - r * 0.08,
-             ex + dir * r * 0.34 + r * 0.10, ey + r * 0.54, tone.horn, 1);
-    }
-
-    // 발등 — 발가락 뿌리를 덮는다(발가락보다 좁아야 발가락이 살아난다)
-    g.fillStyle(tone.dark, 1);  g.fillEllipse(cx + sway, cy + r * 0.06, r * 1.42, r * 0.86, 14);
-    g.fillStyle(tone.scale, 1); g.fillEllipse(cx + sway, cy - r * 0.02, r * 1.18, r * 0.68, 14);
-    g.fillStyle(tone.lit, 0.7);  g.fillEllipse(cx + sway - r * 0.06, cy - r * 0.18, r * 0.84, r * 0.26, 12);
-    // 뒤쪽 며느리발톱 — '뒷발'이라는 것을 알려 주는 물건
-    tri(g, cx + sway - r * 0.86, cy - r * 0.06, cx + sway - r * 0.74, cy + r * 0.26,
-           cx + sway - r * 1.86, cy - r * 0.34, tone.horn, 1);
-  }
-
-  //  150층 · 용의 날개 — 손목을 땅에 박은 한쪽 날개. 팔은 틀 위로 나간다.
-  function wingpart(g, cx, cy, r, T, tone, t) {
-    var flap = Math.sin(t / 900) * 0.10;
-    crater(g, cx + r * 0.20, cy + r * 1.30 * T, r, T, 2.2);
-    //  ⚠ 몸으로 이어지는 팔을 **수직 막대**로 세웠더니 날개 옆에 기둥이 하나 서
-    //    있는 그림이 됐다(실측). 팔은 날개의 앞가장자리가 **그대로 이어진 것**이라
-    //    같은 방향(위-뒤)으로 나가야 하고, 날개보다 **먼저** 그려 뒤로 가야 한다.
-    ribbon(g, [{ x: cx + r * 0.34, y: cy + r * 0.95 },
-               { x: cx - r * 0.55, y: cy - r * 1.30 },
-               { x: cx - r * 1.05, y: cy - r * 3.00 }], r * 0.98, r * 0.58, tone.dark);
-    ribbon(g, [{ x: cx + r * 0.34, y: cy + r * 0.92 },
-               { x: cx - r * 0.52, y: cy - r * 1.30 },
-               { x: cx - r * 1.02, y: cy - r * 3.00 }], r * 0.66, r * 0.38, tone.scale);
-    // 본체와 **같은 함수**로 그린다 — 같은 한 마리라는 것이 형태로 전달돼야 한다.
-    wing(g, cx + r * 0.30, cy + r * 1.05, r * 1.42, tone, 1.00 + flap, flap, false, 1);
-    tri(g, cx + r * 0.02, cy + r * 0.86, cx + r * 0.56, cy + r * 0.96,
-           cx + r * 0.32, cy + r * 1.66 * T, tone.horn, 1);
-  }
-
-  //  200층 · 용의 반쪽 얼굴 — 무너진 자리에서 얼굴 절반만 나와 있다.
-  //  ⚠ '반쪽'은 **잘라서** 만든다. 머리를 통째로 그리고 지면 판으로 아래 절반을
-  //    덮으면, 나머지가 아직 안에 있다는 것이 그림 자체로 전달된다.
-  function halfface(g, cx, cy, r, T, tone, t) {
-    var breathe = Math.sin(t / 1300) * r * 0.05, k, bw, ph, gy;
-    head(g, cx - r * 0.30, cy - r * 0.20 + breathe, r * 2.05, tone,
-         0.30 + 0.22 * Math.sin(t / 520), 1, t);
-    //  ⚠ 덮개를 크게 잡았더니 **타일을 통째로 덮는 검은 판**이 됐다(실측).
-    //    가려야 하는 것은 얼굴의 아래 절반뿐이다 — 딱 그만큼만 덮는다.
-    gy = cy + r * 0.85;
-    g.fillStyle(0x241d16, 1);
-    g.fillRect(cx - r * 2.6, gy, r * 5.2, r * 1.15);
-    g.fillStyle(0x3a3024, 1);
-    g.fillEllipse(cx, gy + r * 0.10, r * 5.0, r * 0.70 * T, 18);
-    for (k = 0; k < 7; k++) {
-      bw = r * (0.34 + (k % 3) * 0.16);
-      tri(g, cx - r * 2.3 + k * r * 0.68, gy, cx - r * 2.3 + k * r * 0.68 + bw, gy,
-             cx - r * 2.3 + k * r * 0.68 + bw * 0.5, gy - r * (0.24 + (k % 4) * 0.18),
-             0x3a3024, 1);
-    }
-    g.fillStyle(0x6b5b45, 0.35);
-    for (k = 0; k < 5; k++) {
-      ph = ((t / 1500) + k * 0.2) % 1;
-      g.fillCircle(cx - r * 2.2 + k * r * 1.1 + Math.sin(t / 700 + k) * r * 0.3,
-                   gy - ph * r * 1.4, r * 0.30 * (1 - ph));
-    }
-  }
-
-  //  250층 · 깨어나는 용 — 목·가슴·앞다리 하나가 산을 밀어내고 나왔다.
-  function waking(g, cx, cy, r, T, tone, t) {
-    var flap = Math.sin(t / 760), i, ph;
-    crater(g, cx - r * 0.20, cy + r * 1.35 * T, r, T, 3.2);
-    wing(g, cx - r * 1.05, cy - r * 0.30, r * 1.05, tone, 0.62, flap, true, 1);
-    g.fillStyle(tone.dark, 1);  g.fillEllipse(cx, cy + r * 0.34, r * 2.45, r * 1.52, 18);
-    g.fillStyle(tone.scale, 1); g.fillEllipse(cx, cy + r * 0.24, r * 2.16, r * 1.30, 18);
-    g.fillStyle(tone.lit, 0.75); g.fillEllipse(cx - r * 0.24, cy - r * 0.24, r * 1.62, r * 0.50, 14);
-    scalePatch(g, cx, cy + r * 0.28, r * 1.80, r * 1.00, r * 0.16, tone.dark, 0.14, 0);
-    leg(g, cx + r * 1.30, cy + r * 0.40, cx + r * 1.75, cy + r * 1.05 * T,
-           cx + r * 2.10, cy + r * 1.50 * T, r * 0.36, tone, 1, r, false);
-    var neck = bez(cx + r * 0.20, cy - r * 0.10, cx + r * 1.05, cy - r * 1.05,
-                   cx + r * 1.95, cy - r * 1.55, 10);
-    ribbon(g, neck, r * 1.10, r * 0.52, tone.dark);
-    ribbon(g, neck, r * 0.78, r * 0.34, tone.scale);
-    ribbon(g, neck, r * 0.30, r * 0.13, tone.lit, 0.7);
-    ridge(g, neck, 0.08, 0.96, r * 0.19, tone.dark, -1);
-    head(g, cx + r * 2.55, cy - r * 1.62, r * 1.02, tone, 0.42 + 0.30 * Math.sin(t / 330), 1, t);
-    g.fillStyle(0x6b5b45, 0.32);
-    for (i = 0; i < 6; i++) {
-      ph = ((t / 1200) + i * 0.17) % 1;
-      g.fillCircle(cx - r * 1.4 + i * r * 0.6, cy + r * (0.4 + ph * 1.2) * T, r * 0.18 * (1 - ph));
-    }
-  }
 
   // ── 바깥 문 ───────────────────────────────────────────────────────────────
   //  `def.art` 가 `beast:종류:결` 형태다(예: `beast:drake:frost`).
@@ -821,13 +585,36 @@ window.GAME = window.GAME || {};
   //    계란 유닛은 8방향 스냅이 있지만 이 아트는 옆모습 한 장이라, 최소한
   //    좌우는 뒤집어야 '쫓아온다'가 읽힌다. 좌표를 통째로 미러링하지 않고
   //    `d` 한 값으로만 뒤집는다 — 미러링하면 그림자와 지면까지 따라 뒤집힌다.
+  //  ⚠ 2026-08-02 3차 — **용 몸(발·손·날개·반쪽 얼굴·깨어나는 용·본체) 여섯 종류는
+  //    이제 벡터가 아니라 래스터**(`js/dragonasset.js`)로 그린다. "벡터를 떠나서
+  //    너무 구리다"(사용자) — 좌표를 아무리 옮겨도 삽화 실력 자체는 안 생긴다는
+  //    결론 끝에, 실제로 그려진 CC0 픽셀아트(OpenGameArt "Pixel Bosses. Yes!")로
+  //    바꿨다. 아래 목록에 없는 sentry/drake(재 파수병·잿날개 등, ash/frost/storm
+  //    결)는 계속 벡터로 그린다 — 그쪽은 이미 합격점을 받았다.
+  var RASTER_KINDS = { claw: 1, foot: 1, wingpart: 1, halfface: 1, waking: 1, dragon: 1 };
+
   BA.draw = function (g, def, sx, sy, r0, alpha, t, facing) {
     var info = BA.parse(def.art);
     if (!info) return false;
     var T = (GAME.Iso && GAME.Iso.TILT) || 0.72;
-    var r = r0 * (BA.SCALE[info.kind] || 1.6);
     var a = alpha === undefined ? 1 : alpha;
     var tt = t || 0;
+
+    if (RASTER_KINDS[info.kind]) {
+      // 래스터 경로 — 그림자만 Graphics 로 찍고, 몸은 GAME.DragonAsset 이
+      // **영속 Phaser.Image**(매 프레임 새로 만들지 않는다)로 따로 그린다.
+      // Graphics 는 벡터 전용이라 비트맵을 못 그리기 때문이다.
+      var sr = r0 * 2.2;
+      g.fillStyle(0x000000, 0.30 * a);
+      g.fillEllipse(sx, sy, sr * 2.0, sr * 2.0 * T, 14);
+      //  ⚠ 깊이를 안 맞췄더니 **잔디 배경 밑에 깔려 안 보였다**(실측, `g` 는 이 게임
+      //    대부분의 화면에서 depth 미지정=0 인데 Image 는 만들어지는 시점의 표시목록
+      //    순서에 기댈 수 없다). `g.depth` 바로 위에 고정한다.
+      if (GAME.DragonAsset) GAME.DragonAsset.draw(g.scene, info.kind, sx, sy, r0, a, facing, g.depth);
+      return true;
+    }
+
+    var r = r0 * (BA.SCALE[info.kind] || 1.6);
     g.fillStyle(0x000000, 0.30 * a);
     g.fillEllipse(sx, sy, r * 2.0, r * 2.0 * T, 14);
     // ⚠ Phaser Graphics 는 알파를 인자로 받는 API 가 제각각이라, 통째로 반투명하게
@@ -839,12 +626,6 @@ window.GAME = window.GAME || {};
     var flip = facing !== undefined && Math.cos(facing) < 0;
     if (flip) { g.save(); g.translateCanvas(sx * 2, 0); g.scaleCanvas(-1, 1); }
     if (info.kind === 'sentry') sentry(g, sx, sy - r * 0.55, r, T, info.tone, tt);
-    else if (info.kind === 'claw') claw(g, sx, sy - r * 0.30, r, T, info.tone, tt);
-    else if (info.kind === 'foot') foot(g, sx, sy - r * 0.45, r, T, info.tone, tt);
-    else if (info.kind === 'wingpart') wingpart(g, sx, sy - r * 0.70, r, T, info.tone, tt);
-    else if (info.kind === 'halfface') halfface(g, sx, sy - r * 0.30, r, T, info.tone, tt);
-    else if (info.kind === 'waking') waking(g, sx, sy - r * 0.60, r, T, info.tone, tt);
-    else if (info.kind === 'dragon') dragon(g, sx, sy - r * 0.70, r, T, info.tone, tt);
     else drake(g, sx, sy - r * 0.55, r, T, info.tone, tt, Math.sin(tt / 520));
     if (flip) g.restore();
     return true;

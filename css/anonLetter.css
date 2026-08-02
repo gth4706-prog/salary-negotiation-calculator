@@ -1,0 +1,15 @@
+.al-theme{ --al-accent:#6B5BB8; }
+.al-card{ max-width:560px; margin:0 auto; }
+.al-letter{ font-size:17px; line-height:1.7; white-space:pre-wrap; padding:20px; border:1px solid var(--line); border-radius:var(--r-sm); background:var(--surface-2); min-height:80px; }
+.al-textarea{ width:100%; min-height:140px; font-size:15px; line-height:1.6; padding:12px; border:1px solid var(--line); border-radius:var(--r-sm); background:var(--paper); color:var(--ink); resize:vertical; box-sizing:border-box; }
+.al-char-count{ font-size:12px; color:var(--faint); text-align:right; margin-top:4px; }
+.al-crisis{ text-align:center; padding:24px; }
+.al-crisis .hotline{ font-size:18px; font-weight:800; margin-top:12px; }
+
+.al-tree-col{ display:flex; flex-direction:column; align-items:center; gap:4px; }
+.al-tree-node{ max-width:260px; padding:10px 14px; border-radius:12px; font-size:13px; line-height:1.5; white-space:pre-wrap; text-align:center; }
+.al-tree-node.ancestor{ background:var(--surface-2); color:var(--muted); border:1px dashed var(--line); }
+.al-tree-node.self{ background:var(--al-accent); color:#fff; font-weight:700; }
+.al-tree-node.child{ background:var(--paper); border:1px solid var(--line); }
+.al-tree-line{ width:2px; height:16px; background:var(--line); }
+.al-tree-branch{ display:flex; gap:16px; justify-content:center; flex-wrap:wrap; }

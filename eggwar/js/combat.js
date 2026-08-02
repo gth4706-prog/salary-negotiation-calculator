@@ -246,6 +246,31 @@ GAME.Combat = {
     return d;
   },
 
+  // ── 보스는 밀리지 않는다 (2026-08-02 사용자 지시) ────────────────────────────
+  //  "보스몹은 이동이나 밀리지않게해줘"
+  //  밀치기·끌어당기기가 보스에게 걸리면 두 가지가 무너진다:
+  //   ① 보스가 자기 자리를 못 지켜서 예고 원(telegraph)과 실제 위치가 어긋난다 —
+  //      피할 수 있게 설계한 스킬이 안 피해지거나, 반대로 거저 피해진다.
+  //   ② 밀치기로 벽에 몰아 놓고 때리는 것이 모든 보스의 정답이 된다.
+  //  ⚠ **자리 옮김이 일어나는 곳은 전부 이 함수를 거쳐야 한다.** 직접 `o.x +=` 를
+  //    쓰면 그 경로만 조용히 예외가 된다(예전에 `abilities` 를 빠뜨려 스킬이 0번
+  //    발동한 전례가 있다 — 같은 종류의 실수다).
+  isAnchored: function (u) {
+    return !!(u && u.def && u.def.isBoss);
+  },
+  //  상대 이동. 보스면 아무 일도 안 하고 false 를 돌려준다.
+  displace: function (u, dx, dy) {
+    if (this.isAnchored(u)) return false;
+    u.x += dx; u.y += dy;
+    return true;
+  },
+  //  절대 위치 이동(끌어당기기처럼 목표 지점이 정해진 경우).
+  displaceTo: function (u, x, y) {
+    if (this.isAnchored(u)) return false;
+    u.x = x; u.y = y;
+    return true;
+  },
+
   dist: function (a, b) {
     var dx = a.x - b.x, dy = a.y - b.y;
     return Math.sqrt(dx * dx + dy * dy);
@@ -729,6 +754,17 @@ GAME.Combat = {
     this.faceAttack(u, ang);
     var dmg = this.effDamage(u, state);
 
+    //  ── 벼려진 일격(구슬) — **다음 평타 한 번만** 배수를 태우고 소모된다 ──────
+    //  (2026-08-02 사용자 지시: "다음 기본공격은 1,000%의 데미지를 입히는 구슬")
+    //  ⚠ 여기서 소모하는 이유: `effDamage` 는 표시·미리보기 등 다른 곳에서 불릴 수
+    //    있어 거기 넣으면 **때리지도 않았는데 소모될** 수 있다. `fire` 는 실제로
+    //    한 대 치는 유일한 지점이라 "한 번만"이 구조적으로 보장된다.
+    if (u._nextHitMul && u._nextHitMul > 1) {
+      dmg *= u._nextHitMul;
+      u._nextHitMul = 0;
+      u._nextHitFlash = 1;               // 연출용 — 이번 타격이 그 한 방이었다
+    }
+
     // 공격음 — 근접은 둔탁하게, 원거리는 바람 가르는 소리로.
     // **내 영웅의 공격만** 소리를 낸다: 진형 10기가 동시에 쏘면 소리가 뭉개져 시끄럽기만 하다.
     if (GAME.Sound && u.isHero) GAME.Sound.play(def.attack === 'melee' ? 'hit' : 'shoot');
@@ -758,8 +794,8 @@ GAME.Combat = {
           if (charged && o.alive) {
             var kd = this.dist(u, o);
             if (kd > 0.1) {
-              o.x += ((o.x - u.x) / kd) * def.chargeKnock;
-              o.y += ((o.y - u.y) / kd) * def.chargeKnock;
+              this.displace(o, ((o.x - u.x) / kd) * def.chargeKnock,
+                               ((o.y - u.y) / kd) * def.chargeKnock);
               this.clampToArena(o); this.clampToLeash(o, state);
             }
           }
@@ -976,7 +1012,7 @@ GAME.Combat = {
           if (sk.rootMs) o.rootedFor = Math.max(o.rootedFor, sk.rootMs);
           if (sk.knockback && d > 0.1) {
             var kx = (o.x - u.x) / d, ky = (o.y - u.y) / d;
-            o.x += kx * sk.knockback; o.y += ky * sk.knockback;
+            this.displace(o, kx * sk.knockback, ky * sk.knockback);
             this.clampToArena(o); this.clampToLeash(o, state);
           }
         }
@@ -1063,8 +1099,7 @@ GAME.Combat = {
         this.applyDamage(o, skDmg, u, state, { lsScale: this._ls(pullHit++), lsBudget: pullLs });
         // 영웅 쪽으로 끌어당긴다 (leash는 그대로 적용되어 진형이 무너지진 않는다)
         var pullTo = Math.max(0, dd - 120);
-        o.x = u.x + Math.cos(aa) * pullTo;
-        o.y = u.y + Math.sin(aa) * pullTo;
+        this.displaceTo(o, u.x + Math.cos(aa) * pullTo, u.y + Math.sin(aa) * pullTo);
         this.clampToArena(o); this.clampToLeash(o, state);
       }
       state.effects.push({
@@ -1617,7 +1652,7 @@ GAME.Combat = {
       if (kb && o2.alive) {
         var dd = self.dist(u, o2);
         if (dd > 0.1) {
-          o2.x += ((o2.x - u.x) / dd) * kb; o2.y += ((o2.y - u.y) / dd) * kb;
+          self.displace(o2, ((o2.x - u.x) / dd) * kb, ((o2.y - u.y) / dd) * kb);
           self.clampToArena(o2); self.clampToLeash(o2, state);
         }
       }
@@ -2105,8 +2140,8 @@ GAME.Combat = {
         var td = this.dist(tu2, tv);
         var contact = tu2.def.radius + tv.def.radius + 4;
         if (td > contact || td <= 0.1) continue;
-        tv.x += ((tv.x - tu2.x) / td) * tu2.def.trampleKnock;
-        tv.y += ((tv.y - tu2.y) / td) * tu2.def.trampleKnock;
+        this.displace(tv, ((tv.x - tu2.x) / td) * tu2.def.trampleKnock,
+                          ((tv.y - tu2.y) / td) * tu2.def.trampleKnock);
         this.clampToArena(tv); this.clampToLeash(tv, state);
         didTrample = true;
       }

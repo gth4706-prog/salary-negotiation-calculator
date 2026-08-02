@@ -76,6 +76,61 @@ GAME.HealZone = (function () {
     BOSS_MAX: 6,             // 한 판 상한(무한히 깔리면 회복이 공짜가 된다)
     BOSS_FIRST: 4000,        // 첫 개는 조금 일찍
 
+    //  ── 5초 뒤 사라진다 (2026-08-02 사용자 지시) ──────────────────────────────
+    //  "보스전에서 나타나는 회복의샘이나 구슬은 잠시나왔다가 5초후에 사라지게
+    //   만들어. 반짝이다가 사라지면돼"
+    //  ⚠ 이게 난이도 축을 하나 더 만든다: 회복이 **거기 계속 있는 자원**이 아니라
+    //    **지금 갈지 말지 고르는 선택**이 된다. 보스 앞에서 빠질 타이밍을 재는 게
+    //    보스전의 리듬이 되라는 뜻이다. 일반 층 드랍(maybeDrop)은 수명을 안 준다 —
+    //    거기서는 "지나가다 줍는" 물건이라 성격이 다르다.
+    BOSS_TTL: 5000,
+    BLINK_MS: 1600,          // 마지막 1.6초는 깜빡인다(사라진다는 예고)
+
+    //  ── 구슬 종류 (2026-08-02 사용자 지시) ───────────────────────────────────
+    //  "구슬중에는 10초간 공격력을 2배로 만들거나 다음 기본공격은 1,000%의
+    //   데미지를 입히는 구슬도 넣어줘"
+    //  보스전은 '오래 버티며 깎기'라 회복만 있으면 리듬이 한 가지뿐이다. 공격 구슬이
+    //  들어가면 **위험을 무릅쓰고 주우러 갈 이유**가 생기고, 5초 수명과 맞물려
+    //  "지금 저걸 먹으러 갈까"라는 판단이 매번 생긴다.
+    KINDS: [
+      { key: 'heal', w: 0.50, label: '회복의 샘',   color: 0x4fd07a },
+      { key: 'rage', w: 0.30, label: '분노의 구슬', color: 0xff7a3c },
+      { key: 'edge', w: 0.20, label: '벼려진 일격', color: 0xffd257 }
+    ],
+    RAGE_MS: 10000,          // 공격력 2배 지속
+    RAGE_MUL: 2,
+    EDGE_MUL: 10,            // 다음 평타 1,000%
+
+    _rollKind: function () {
+      var r = Math.random(), acc = 0;
+      for (var i = 0; i < this.KINDS.length; i++) {
+        acc += this.KINDS[i].w;
+        if (r < acc) return this.KINDS[i].key;
+      }
+      return 'heal';
+    },
+
+    //  종류에 맞게 효과를 준다. 토스트에 띄울 문구를 반환한다(없으면 빈 문자열).
+    applyKind: function (state, hero, kind) {
+      if (!hero || !hero.alive) return '';
+      if (kind === 'rage') {
+        hero.buffs = hero.buffs || [];
+        // 같은 것을 또 먹으면 겹쳐 쌓지 않고 시간을 새로 채운다 — 쌓기 시작하면
+        // 4배·8배가 나와서 보스가 의미를 잃는다.
+        for (var i = 0; i < hero.buffs.length; i++) {
+          if (hero.buffs[i].rageTag) { hero.buffs[i].t = this.RAGE_MS; return '분노의 구슬 — 공격력 2배 10초!'; }
+        }
+        hero.buffs.push({ damageMul: this.RAGE_MUL, t: this.RAGE_MS, rageTag: true });
+        return '분노의 구슬 — 공격력 2배 10초!';
+      }
+      if (kind === 'edge') {
+        hero._nextHitMul = this.EDGE_MUL;
+        return '벼려진 일격 — 다음 공격 1,000%!';
+      }
+      var amount = this.take(state, hero);
+      return amount > 0 ? ('회복의 샘 — 체력 ' + amount + ' 회복!') : '';
+    },
+
     //  `js/scenes/battle.js` 가 보스 층 전투에서 매 프레임 부른다.
     //  ⚠ 보스 층이 아니면 **아무 일도 하지 않는다** — 일반 층 곡선은 안 건드린다.
     tickBoss: function (state, dtMs, arena, bossUnit) {
@@ -97,7 +152,9 @@ GAME.HealZone = (function () {
         y = A.y + A.h * 0.35 + Math.random() * (A.h * 0.6 - pad);
         tries++;
       } while (tries < 12 && ((x - bx) * (x - bx) + (y - by) * (y - by)) < 220 * 220);
-      state.healZones.push({ x: x, y: y, t: 0 });
+      //  ⚠ 보스전 것만 `ttl`/`kind` 를 단다. 일반 층 드랍은 필드가 없으므로
+      //    `_updateHealZones` 의 수명 처리가 통째로 안 걸린다(기존 곡선 불변).
+      state.healZones.push({ x: x, y: y, t: 0, ttl: this.BOSS_TTL, kind: this._rollKind() });
       state.bossHealMade = (state.bossHealMade || 0) + 1;
       return true;
     }

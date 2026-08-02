@@ -46,4 +46,8 @@
   <url><loc>https://joeltool.com/en/privacy.html</loc><lastmod>2026-08-01</lastmod><changefreq>yearly</changefreq><priority>0.2</priority></url>
   <url><loc>https://joeltool.com/contact.html</loc><lastmod>2026-08-01</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
   <url><loc>https://joeltool.com/en/contact.html</loc><lastmod>2026-08-01</lastmod><changefreq>yearly</changefreq><priority>0.2</priority></url>
+  <url><loc>https://joeltool.com/anon-letter/</loc><lastmod>2026-08-02</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://joeltool.com/anon-letter/en/</loc><lastmod>2026-08-02</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://joeltool.com/anon-letter/zh/</loc><lastmod>2026-08-02</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://joeltool.com/anon-letter/ja/</loc><lastmod>2026-08-02</lastmod><changefreq>daily</changefreq><priority>0.6</priority></url>
 </urlset>

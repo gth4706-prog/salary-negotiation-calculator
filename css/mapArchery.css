@@ -1,0 +1,98 @@
+/* =========================================================
+   여행지 활쏘기 — 전용 스타일 (공유 style.css 뒤에 로드)
+   테마: 고지도 탐험 — 양피지 베이지 + 짙은 숲그린 + 활 나무색 + 화살촉 레드.
+   fishing-tide처럼 이 페이지에서만 로드되어 다른 도구엔 영향 없음.
+   ========================================================= */
+:root{
+  --ma-font:'Do Hyeon',var(--font);
+  --ma-bg:#F2E8D5;
+  --ma-panel:#FFFDF6;
+  --ma-ink:#3B2A1A;
+  --ma-line:#D8C7A6;
+  --ma-accent:#B23A2E;   /* 화살촉 레드 — 강조/CTA */
+  --ma-wood:#8A5A2B;     /* 활 나무색 */
+  --ma-green:#4C6E4F;    /* 지도 그린 */
+  --ma-muted:#7A6A52;
+}
+
+body{background:var(--ma-bg);background-image:radial-gradient(ellipse at top,rgba(76,110,79,.10),transparent 60%);color:var(--ma-ink)}
+.nav{background:var(--ma-panel);border-bottom:3px solid var(--ma-wood);backdrop-filter:none}
+.nav .brand{color:var(--ma-ink)}
+.nav .brand svg{color:var(--ma-accent)}
+.nav .links a{color:var(--ma-muted)}
+.nav .links a:hover{color:var(--ma-ink);background:var(--ma-bg)}
+.theme-btn{background:var(--ma-bg);border:1px solid var(--ma-line);color:var(--ma-ink)}
+.theme-btn:hover{border-color:var(--ma-accent);color:var(--ma-accent)}
+.ver-badge{background:var(--ma-bg);border:1px solid var(--ma-line);color:var(--ma-wood)}
+.footer{background:var(--ma-panel);border-top:1px solid var(--ma-line)}
+.footer a{color:var(--ma-muted)}
+.footer a:hover{color:var(--ma-accent)}
+.footer .sep{color:var(--ma-line)}
+.footer .cp{color:var(--ma-muted)}
+
+.card{background:var(--ma-panel);color:var(--ma-ink);border:1px solid var(--ma-line);border-radius:16px;box-shadow:0 10px 26px rgba(59,42,26,.14)}
+.card>h2{font-family:var(--ma-font);font-size:19px;color:var(--ma-ink);letter-spacing:.02em}
+.card>.desc{color:var(--ma-muted)}
+
+.hero.ma-theme h1{font-family:var(--ma-font);color:var(--ma-ink);letter-spacing:.01em}
+.hero.ma-theme p{color:var(--ma-muted)}
+
+/* ---------- 캔버스 패널 ---------- */
+.ma-stage{
+  position:relative;
+  max-width:560px;margin:0 auto;
+  background:var(--ma-panel);
+  border:1px solid var(--ma-line);
+  border-radius:20px;
+  box-shadow:0 10px 26px rgba(59,42,26,.14);
+  padding:14px;
+}
+#ma-canvas{
+  display:block;width:100%;height:auto;aspect-ratio:1/1;
+  touch-action:none;cursor:crosshair;
+  border-radius:14px;
+  background:radial-gradient(circle at 50% 46%,#EAF3EA,var(--ma-bg) 72%);
+}
+.ma-hint{margin:10px 4px 0;font-size:13px;color:var(--ma-muted);text-align:center}
+
+/* 파워 게이지 */
+#ma-power{
+  position:absolute;left:50%;bottom:18px;transform:translateX(-50%);
+  width:56%;height:10px;border-radius:999px;
+  background:rgba(59,42,26,.12);border:1px solid var(--ma-line);overflow:hidden;
+}
+#ma-power-fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--ma-green),var(--ma-accent));transition:width .04s linear}
+
+/* 로딩 / 에러 */
+.ma-overlay-msg{
+  position:absolute;inset:14px;display:flex;align-items:center;justify-content:center;
+  text-align:center;font-size:14px;color:var(--ma-muted);
+  background:var(--ma-panel);border-radius:14px;
+}
+
+/* 빗나감 토스트 */
+#ma-miss{
+  position:absolute;top:18px;left:50%;transform:translateX(-50%);
+  background:var(--ma-ink);color:#fff;font-size:13px;font-weight:700;
+  padding:8px 16px;border-radius:999px;box-shadow:0 6px 16px rgba(59,42,26,.3);
+  animation:ma-toast-in .2s ease-out;
+}
+@keyframes ma-toast-in{from{opacity:0;transform:translate(-50%,-6px)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* 결과 카드 */
+#ma-result{
+  position:absolute;inset:14px;display:flex;align-items:center;justify-content:center;
+  background:rgba(255,253,246,.94);border-radius:14px;
+  animation:ma-toast-in .25s ease-out;
+}
+.ma-result-card{text-align:center;padding:22px}
+.ma-result-card .ma-result-eyebrow{font-size:13px;color:var(--ma-muted);margin:0 0 4px}
+.ma-result-card h3{font-family:var(--ma-font);font-size:28px;margin:0 0 6px;color:var(--ma-ink)}
+.ma-result-card .ma-result-province{font-size:15px;color:var(--ma-wood);font-weight:700;margin:0 0 10px}
+.ma-result-card .ma-result-coord{font-size:12px;color:var(--ma-muted);font-family:var(--mono);margin:0 0 18px}
+.ma-result-card .cta{width:auto;padding:12px 28px;display:inline-block}
+
+@media (max-width:520px){
+  .ma-stage{padding:10px;border-radius:16px}
+  #ma-power{width:70%}
+}

@@ -713,12 +713,14 @@ GAME.BattleScene.prototype._updateHealZones = function (dt) {
   for (var i = st.healZones.length - 1; i >= 0; i--) {
     var z = st.healZones[i];
     z.t += dt;
+    //  수명이 붙은 것(보스전)은 시간이 다하면 **안 주워도** 사라진다.
+    if (z.ttl && z.t >= z.ttl) { st.healZones.splice(i, 1); continue; }
     if (z.t < 220) continue;
     var dx = h.x - z.x, dy = h.y - z.y;
     if (dx * dx + dy * dy > pickR * pickR) continue;
     st.healZones.splice(i, 1);
-    var amount = GAME.HealZone.take(st, h);
-    if (amount > 0) this._orbToast('회복의 샘 — 체력 ' + amount + ' 회복!');
+    var msg = GAME.HealZone.applyKind(st, h, z.kind || 'heal');
+    if (msg) this._orbToast(msg);
   }
 };
 
@@ -731,17 +733,49 @@ GAME.BattleScene.prototype._drawHealZones = function (g) {
     var sx = z.x, sy = Iso.toScreenY(z.y);
     var bob = Math.sin((z.t || 0) / 300) * 3;
     var r = GAME.CONFIG.SMALL ? 9 : 12;
-    g.fillStyle(0x000000, 0.20);
+
+    //  ── 사라지기 전 깜빡임 (사용자 지시: "반짝이다가 사라지면돼") ────────────
+    //  남은 시간이 짧아질수록 **더 빨리** 깜빡인다 — 남은 시간을 숫자 없이 알린다.
+    var a = 1;
+    var HZ = GAME.HealZone;
+    if (z.ttl && HZ) {
+      var left = z.ttl - z.t;
+      if (left < HZ.BLINK_MS) {
+        var urg = 1 - Math.max(0, left) / HZ.BLINK_MS;      // 0 → 1 로 급해진다
+        var hz = 6 + urg * 16;
+        a = 0.30 + 0.70 * (0.5 + 0.5 * Math.sin(z.t / 1000 * hz));
+      }
+    }
+
+    //  종류마다 **색과 속기호**를 다르게 준다(색만 다르면 색맹에서 구분이 안 된다).
+    var kind = z.kind || 'heal', body = 0x4fd07a;
+    if (HZ && HZ.KINDS) {
+      for (var k = 0; k < HZ.KINDS.length; k++) {
+        if (HZ.KINDS[k].key === kind) { body = HZ.KINDS[k].color; break; }
+      }
+    }
+
+    g.fillStyle(0x000000, 0.20 * a);
     g.fillEllipse(sx, sy, r * 2.4, r * 2.4 * Iso.TILT);
-    // 구슬과 겹치지 않는 신호 — 초록 계열 십자(회복)로 형태를 다르게 한다(색맹 대비).
     var ink = (GAME.UI.ART_INK_COLOR !== undefined) ? GAME.UI.ART_INK_COLOR : 0x2a2114;
-    g.fillStyle(ink, 0.85);
+    g.fillStyle(ink, 0.85 * a);
     g.fillCircle(sx, sy - bob, r + 3);
-    g.fillStyle(0x4fd07a, 1);
+    g.fillStyle(body, a);
     g.fillCircle(sx, sy - bob, r + 1);
-    g.fillStyle(0xffffff, 0.9);
-    g.fillRect(sx - r * 0.32, sy - bob - r * 0.7, r * 0.64, r * 1.4);
-    g.fillRect(sx - r * 0.7, sy - bob - r * 0.32, r * 1.4, r * 0.64);
+    g.fillStyle(0xffffff, 0.9 * a);
+    if (kind === 'rage') {
+      // 분노 — 위를 향한 쐐기 둘(공격력)
+      g.fillTriangle(sx, sy - bob - r * 0.75, sx - r * 0.62, sy - bob + r * 0.12, sx + r * 0.62, sy - bob + r * 0.12);
+      g.fillRect(sx - r * 0.62, sy - bob + r * 0.34, r * 1.24, r * 0.34);
+    } else if (kind === 'edge') {
+      // 벼려진 일격 — 비스듬한 날 하나
+      g.fillTriangle(sx - r * 0.62, sy - bob + r * 0.70, sx + r * 0.70, sy - bob - r * 0.70, sx + r * 0.20, sy - bob + r * 0.16);
+      g.fillRect(sx - r * 0.72, sy - bob + r * 0.48, r * 0.62, r * 0.30);
+    } else {
+      // 회복 — 십자
+      g.fillRect(sx - r * 0.32, sy - bob - r * 0.7, r * 0.64, r * 1.4);
+      g.fillRect(sx - r * 0.7, sy - bob - r * 0.32, r * 1.4, r * 0.64);
+    }
   }
 };
 

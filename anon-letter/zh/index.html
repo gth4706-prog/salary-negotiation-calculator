@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="google-site-verification" content="-Vv3HKaiNfWlG3iVql38iG773LaD3LpSHJtwBU4-iU8" />
+<meta name="naver-site-verification" content="d4f9a360f5b25c71f4df188700ea809f9f69c0dd" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#6B5BB8">
+<title>最后想说的话是？| 匿名信件接力</title>
+<meta name="description" content="给路过的陌生人留一封信，另一个人读完后再写给下一个人。完全匿名，无需账号。无论用韩语、英语、中文还是日语书写，都能彼此相连。">
+<link rel="canonical" href="https://joeltool.com/anon-letter/zh/">
+<link rel="alternate" hreflang="ko" href="https://joeltool.com/anon-letter/">
+<link rel="alternate" hreflang="en" href="https://joeltool.com/anon-letter/en/">
+<link rel="alternate" hreflang="zh" href="https://joeltool.com/anon-letter/zh/">
+<link rel="alternate" hreflang="ja" href="https://joeltool.com/anon-letter/ja/">
+<link rel="alternate" hreflang="x-default" href="https://joeltool.com/anon-letter/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="最后想说的话是？">
+<meta property="og:description" content="给陌生人留一封信，看看它会去往何方。">
+<meta property="og:url" content="https://joeltool.com/anon-letter/zh/">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%8C%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="../../css/style.css?v=0.01">
+<link rel="stylesheet" href="../../css/anonLetter.css?v=0.01">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"最后想说的话是？","applicationCategory":"LifestyleApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"给陌生人留一封信，由下一个人接着写的免费工具。支持韩语、英语、中文、日语。"}
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<nav class="nav"><div class="in">
+  <a class="brand" href="../../en/" title="Gakjab Salim">
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
+    <span class="n">Gakjab Salim</span>
+  </a>
+  <div class="links">
+    <a href="../../en/about.html">About</a>
+    <a class="lang-switch" href="../" title="한국어로 보기" hreflang="ko">🇰🇷 KO</a>
+    <a class="lang-switch" href="../en/" title="Switch to English" hreflang="en">🇺🇸 EN</a>
+    <a class="lang-switch" href="../ja/" title="日本語に切り替え" hreflang="ja">🇯🇵 JA</a>
+    <button class="theme-btn" id="theme-btn" type="button">◐</button>
+    <span class="ver-badge" title="部署版本 — 用于确认缓存是否最新">v0.01</span>
+  </div>
+</div></nav>
+
+<main class="wrap page stack al-theme">
+  <header class="hero">
+    <h1>💌 最后想说的话是？</h1>
+    <p>给路过的陌生人留一句想说的话。完全匿名，无需账号。</p>
+  </header>
+
+  <div class="note"><span>ℹ️</span><span>您写的信件会发送给 AI 进行审核，通过审核的信件会保存在服务器上供其他用户阅读。我们不会创建账号，也不会收集任何能识别您身份的信息。对于使用其他语言的读者，AI 会自动为其翻译。</span></div>
+
+  <section class="card step al-card" id="al-read">
+    <div class="al-letter" id="al-read-text">–</div>
+    <button class="cta" id="al-to-write" type="button" style="margin-top:16px" hidden>也给下一个人留句话 →</button>
+  </section>
+
+  <section class="card step al-card" id="al-write" hidden>
+    <h2 class="q" id="al-write-title" style="font-size:clamp(18px,3.6vw,22px)">–</h2>
+    <textarea class="al-textarea" id="al-text" maxlength="300" style="margin-top:14px"></textarea>
+    <div class="al-char-count" id="al-char-count">0 / 300</div>
+    <div class="helper" id="al-error" hidden style="margin-top:8px"></div>
+    <button class="cta" id="al-submit" type="button" style="margin-top:14px">寄出信件</button>
+  </section>
+
+  <section class="card step al-card" id="al-done" hidden style="text-align:center">
+    <h2 class="q">信件已经寄出</h2>
+    <p class="desc">接下来会有人读到它。</p>
+    <div class="share-row" style="margin-top:16px;justify-content:center">
+      <a class="cta ghost" href="../../my-branch/zh/">查看我的分支</a>
+      <button class="cta ghost" id="al-restart" type="button">↺ 重新开始</button>
+    </div>
+  </section>
+
+  <section class="card step al-card al-crisis" id="al-crisis" hidden>
+    <h2 class="q" style="color:var(--bad)">等一下，你并不孤单</h2>
+    <p class="desc">你现在似乎很难受，请向他人求助。</p>
+    <div class="hotline">📞 北京心理危机研究与干预中心 010-82951332</div>
+    <button class="cta ghost" id="al-crisis-restart" type="button" style="margin-top:16px">↺ 重新开始</button>
+  </section>
+
+  <section class="card tool-about">
+    <h2>这封信是如何延续的</h2>
+    <h3>它是如何运作的</h3>
+    <p>进入页面后，您会看到别人留下的一封信。读完后写下想对下一个人说的话，它就会作为那封信的<b>回信（子节点）</b>被保存。同一封信可能会在不同时间被展示给不同的人，因此一封信可能会分出多条回信。</p>
+    <h3>为什么链条不会中断</h3>
+    <p>即使有人读了信却没有回复就离开，那封信也不会消失——其他人仍然可以接着写下去。</p>
+    <h3>可以用别的语言写吗</h3>
+    <p>可以。信件会以书写时的原始语言保存，AI 会实时为阅读者翻译。用韩语写的信，说英语、中文、日语的人都能读懂并接着写。</p>
+    <h3>这个工具做不到的事</h3>
+    <p>没有账号，所以服务器也不知道是谁写了什么。您的浏览器只会记住您自己写过的信，方便您之后回来查看"我的分支"——如果清除浏览器数据，这个记录也会消失。</p>
+  </section>
+
+  <p class="more-tools"><a href="../../en/">← 查看其他工具</a></p>
+</main>
+
+<footer class="footer"><div class="in">
+  <a href="../../en/about.html">About</a><span class="sep">·</span>
+  <a href="../../en/privacy.html">Privacy Policy</a><span class="sep">·</span>
+  <a href="../../en/contact.html">Contact</a>
+  <div class="cp">仅供参考的服务 — 如遇危机，请向专业机构求助。© Gakjab Salim</div>
+</div></footer>
+
+<script>window.AL_LANG="zh";</script>
+<script src="../../js/site.js?v=0.01"></script>
+<script src="../../js/anonLetter.js?v=0.01"></script>
+</body>
+</html>

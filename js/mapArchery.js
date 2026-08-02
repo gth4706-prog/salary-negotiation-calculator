@@ -213,7 +213,6 @@
     pull=null;
     state="flying";
   }
-
   function resolveImpact(){
     var rotAtImpact=rotation;
     var rel={x:flight.end.x-CX, y:flight.end.y-CY};

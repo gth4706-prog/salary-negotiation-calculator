@@ -327,11 +327,17 @@ GAME.BOSS_UNITS = {
   //      따라다니면 그게 한 마리라는 착각이 깨진다. 크기와 사거리로 위협한다.
   //  체력은 300층의 본체(30,000)를 향해 계단으로 오른다. 층 성장 배수가 따로
   //  곱해지므로(`Tower.bossModsFor`) 여기 값은 **계단의 모양**만 정한다.
+  //  ⚠ 2026-08-02 9차 — **순서가 뒤집혔다**(사용자 지시: "알을 50,100,150에 넣고
+  //    발 손 날개를 300전에 넣자. 알이 깨지고 발이 나오는게 맞지"). 맞는 말이다 —
+  //    8차까지는 부위(발·손·날개)를 먼저 보여주고 알을 나중에 뒀는데, 그러면
+  //    **이미 다 자란 용의 부위를 본 뒤에 알로 되돌아가는** 시간 역행이 된다.
+  //    지금은 알 → 균열 → 눈 → 발 → 손 → 날개 → 본체 순이다(부화 과정 그대로).
+  //    그래서 체력 계단도 통째로 다시 매겼다 — 층이 바뀌면 계단도 따라가야 한다.
   bossDragonFoot: {
     key: 'bossDragonFoot', name: '용의 발', art: 'beast:foot:ember', isBoss: true,
-    lore: '땅이 갈라지고 발 하나가 내려왔다. 발톱 하나가 계란 부족의 키만 하다.',
+    lore: '깨진 껍질을 딛고 발 하나가 먼저 나왔다. 발톱 하나가 계란 부족의 키만 하다.',
     desc: '용의 발. 밟히면 진형 한 줄이 사라진다.',
-    cost: 0, hp: 2200, armor: 38, speed: 0, range: 200, damage: 116, cooldown: 1500,
+    cost: 0, hp: 11500, armor: 46, speed: 0, range: 200, damage: 168, cooldown: 1500,
     attack: 'melee', coneDeg: 160,
     radius: 32, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
@@ -339,34 +345,33 @@ GAME.BOSS_UNITS = {
     // 폭풍 권속과 같은 opt-in 필드).
     ability: { type: 'barrage', cooldown: 5600, telegraph: 800,
                minRange: 0, maxRange: 4000,
-               damage: 108, radius: 150, repeat: 4, interval: 360, spread: 320,
+               damage: 156, radius: 165, repeat: 4, interval: 360, spread: 340,
                knockback: 54 }
   },
 
   bossDragonClaw: {
     key: 'bossDragonClaw', name: '용의 손', art: 'beast:claw:ember', isBoss: true,
-    lore: '이번엔 손이다. 무엇을 쥐려고 올라온 것인지는 아무도 모른다.',
+    lore: '이번엔 손이다. 무엇을 쥐려고 껍질을 밀어내는지는 아무도 모른다.',
     desc: '용의 손. 다섯 손가락이 전장을 통째로 움켜쥔다.',
-    cost: 0, hp: 4200, armor: 42, speed: 0, range: 210, damage: 138, cooldown: 1450,
+    cost: 0, hp: 15500, armor: 50, speed: 0, range: 210, damage: 186, cooldown: 1450,
     attack: 'melee', coneDeg: 170,
     radius: 34, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
     // 내리찍기(2026-08-02 사용자 지시: "손이 움직이거나 주먹을 내리치는 등의
-    // 스킬이 있어야 해") — 팔이 화면 위로 이어지는 연출(js/dragonasset.js)이라
-    // 이동은 안 어울린다, 대신 제자리에서 **자기 반경 전체를 찍어 누른다.**
-    // `shockwave`는 이미 있는 능력 타입(예고 원이 시전자 위치에 뜬다)이라
-    // combat.js 를 한 줄도 안 건드리고 반경만 melee 사거리(210)보다 훨씬
-    // 크게 잡아 "다섯 손가락이 전장을 통째로 움켜쥔다"는 desc 를 실현한다.
+    // 스킬이 있어야 해") — 팔이 화면 위로 이어지는 연출이라 이동은 안 어울린다,
+    // 대신 제자리에서 **자기 반경 전체를 찍어 누른다.** `shockwave`는 이미 있는
+    // 능력 타입이라 combat.js 를 한 줄도 안 건드리고, 반경만 melee 사거리(210)보다
+    // 훨씬 크게 잡아 "다섯 손가락이 전장을 통째로 움켜쥔다"는 desc 를 실현한다.
     ability: { type: 'shockwave', cooldown: 5400, telegraph: 900,
-               damage: 172, radius: 260 }
+               damage: 210, radius: 270 }
   },
 
   bossDragonWing: {
     key: 'bossDragonWing', name: '용의 날개', art: 'beast:wingpart:ember', isBoss: true,
-    lore: '하늘이 한 번 어두워졌다. 구름이 아니라 날개였다.',
+    lore: '마지막으로 날개가 펴졌다. 하늘이 한 번 어두워졌다 — 구름이 아니었다.',
     desc: '용의 날개. 한 번 접었다 펴면 전장이 뒤집힌다.',
     // 부위 중 유일하게 움직인다 — 날개는 원래 움직이는 것이다. 다만 아주 느리게.
-    cost: 0, hp: 7000, armor: 46, speed: 62, range: 230, damage: 158, cooldown: 1400,
+    cost: 0, hp: 20000, armor: 54, speed: 62, range: 230, damage: 205, cooldown: 1400,
     attack: 'melee', coneDeg: 180,
     radius: 36, shape: 'star', weapon: 'riotShield',
     chase: 420, aggro: 460,
@@ -375,59 +380,72 @@ GAME.BOSS_UNITS = {
     // 유일하게 움직이는 존재라는 설정과도 맞는다(퍼덕임 = 자기중심). barrage 의
     // 여러 예고 대신 **한 번의 큰 파동**으로 바꿔 다른 barrage 보스와 구분한다.
     ability: { type: 'shockwave', cooldown: 5000, telegraph: 700,
-               damage: 150, radius: 210 }
+               damage: 196, radius: 225 }
   },
 
-  // ── 용의 알 → 깨어지는 알 (2026-08-02 8차 개편, 사용자 지시) ────────────────
-  //  "얼굴은 보여주지말고 손·발·날개하고 부하들만 미리 보여주자. 깨어나는용하고
-  //   너무 다르다. 그리고 에그워와 맞게 드래곤 알도 보스에 추가해주고, 알이
-  //   깨어져서 깨어지는 알(균열 안에서 반짝이는 눈만 보임)도 과정에 추가하는게
-  //   오히려 낫겠다 싶다."
+  // ── 용의 알 세 단계 (2026-08-02 8차 신설 → 9차에서 **앞으로** 옮김) ──────────
+  //  8차 사용자 지시: "에그워와 맞게 드래곤 알도 보스에 추가해주고, 알이 깨어져서
+  //   깨어지는 알(균열 안에서 반짝이는 눈만 보임)도 과정에 추가."
+  //  9차 사용자 지시: "알을 50,100,150에 넣고 발 손 날개를 300전에 넣자.
+  //   **알이 깨지고 발이 나오는게 맞지.**"
   //
-  //  **왜 이게 더 나은가** — 두 가지를 동시에 고친다:
-  //   ① 얼굴(200층)과 상반신(250층)은 **300층의 답을 미리 보여줬다.** 정체를
-  //      먼저 까 버리면 300층에서 놀랄 것이 안 남는다. 부위(발·손·날개)는
-  //      "크기"만 알려주고 정체는 안 알려주므로 예고로서 옳지만, 얼굴은 아니다.
-  //   ② **이 게임은 알에서 깨어난 자들의 전쟁이다**(CLAUDE.md 세계관). 모든
-  //      유닛이 알에서 나왔는데 정작 최종 보스만 알과 무관했다 — 용도 알에서
-  //      나온다고 하면 세계관이 한 바퀴 닫힌다. 계란 부족이 서로 싸우는 동안
-  //      산 아래에서 **가장 큰 알**이 깨어나고 있었다는 이야기가 된다.
+  //  9차 지적이 순서의 오류를 짚었다. 8차는 부위(발·손·날개)를 50~150에 두고
+  //  알을 200~250에 뒀는데, 그러면 **다 자란 용의 부위를 본 뒤에 알로 되돌아가는**
+  //  시간 역행이 된다. 지금은 부화 과정 그대로다:
+  //    50  용의 알     — 멀쩡한 알. 안에서 뭔가 두근거린다
+  //    100 금 간 알    — 균열이 갔다. 아직 안은 안 보인다
+  //    150 깨어지는 알 — 그 틈으로 **눈만** 보인다
+  //    200 용의 발 · 230 용의 손 · 260 용의 날개 — 껍질을 뚫고 하나씩 나온다
+  //    300 태초의 용   — 다 나왔다(얼굴은 여기서 처음 공개된다)
   //
-  //  그래서 200/250 을 부위가 아니라 **알의 두 단계**로 바꾼다:
-  //    200 용의 알     — 멀쩡한 알. 안에서 뭔가 두근거린다(아직 안 보인다)
-  //    250 깨어지는 알 — 균열이 갔고 그 틈으로 **눈만** 보인다
-  //    300 태초의 용   — 나왔다
-  //  얼굴을 300층까지 아껴 두는 것이 이 개편의 핵심이다.
+  //  ⚠ **이 게임은 알에서 깨어난 자들의 전쟁이다**(CLAUDE.md 세계관). 모든 유닛이
+  //    알에서 나왔는데 정작 최종 보스만 알과 무관했다 — 용도 알에서 나온다고 하면
+  //    세계관이 한 바퀴 닫힌다. 계란 부족이 서로 싸우는 동안 산 아래에서
+  //    **가장 큰 알**이 깨어나고 있었다는 이야기가 된다.
   bossDragonEgg: {
     key: 'bossDragonEgg', name: '용의 알', art: 'beast:egg:ember', isBoss: true,
     lore: '산보다 오래된 알. 겉은 돌처럼 식었는데 안에서 무언가 계속 두근거린다.',
     desc: '용의 알. 껍질이 단단해 좀처럼 깨지지 않는다.',
-    // 알은 **움직이지도 때리지도 않는다** — 두꺼운 껍질 그 자체다. 그래서 방어력을
-    // 이 게임 최고로 두고(70), 대신 공격은 '박동'으로 주변을 흔드는 것 하나뿐이다.
+    // 알은 **움직이지도 쫓아오지도 않는다** — 두꺼운 껍질 그 자체다. 그래서 방어력을
+    // 이 게임 최고로 두고(70), 공격은 '박동'으로 주변을 흔드는 것 하나뿐이다.
     // "때리는 보스"가 아니라 "부수는 데 오래 걸리는 벽"이라는 다른 종류의 층이 된다.
-    cost: 0, hp: 13000, armor: 70, speed: 0, range: 210, damage: 150, cooldown: 1500,
+    cost: 0, hp: 2600, armor: 70, speed: 0, range: 210, damage: 104, cooldown: 1500,
     attack: 'melee', coneDeg: 360,
     radius: 38, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
     // 박동 — 알이 한 번 크게 뛸 때마다 충격이 퍼진다. 자기중심이라 붙으면 위험하고
     // 떨어지면 안전하다(= 근접 영웅에게만 어려운 층). shockwave 는 넉백 내장.
     ability: { type: 'shockwave', cooldown: 5200, telegraph: 1000,
-               damage: 160, radius: 240 }
+               damage: 112, radius: 235 }
+  },
+
+  bossDragonEggCracked: {
+    key: 'bossDragonEggCracked', name: '금 간 알', art: 'beast:eggcrack:ember', isBoss: true,
+    lore: '껍질에 금이 갔다. 안쪽은 아직 어둡지만, 열기가 새어 나오기 시작했다.',
+    desc: '금 간 알. 틈에서 새는 열기가 주변을 지진다.',
+    // 방어력이 알(70)보다 낮다 — 금이 갔으니 당연하다. 대신 체력과 공격이 오른다.
+    cost: 0, hp: 4800, armor: 58, speed: 0, range: 225, damage: 132, cooldown: 1400,
+    attack: 'melee', coneDeg: 360,
+    radius: 39, shape: 'bunker', weapon: 'riotShield',
+    chase: 0, aggro: 0, immobile: true,
+    // 아직 자기중심이지만 반경이 넓어졌다 — 균열이 커지는 만큼 위험 범위도 커진다.
+    ability: { type: 'shockwave', cooldown: 4800, telegraph: 860,
+               damage: 140, radius: 258 }
   },
 
   bossDragonCrack: {
-    key: 'bossDragonCrack', name: '깨어지는 알', art: 'beast:eggcrack:ember', isBoss: true,
+    key: 'bossDragonCrack', name: '깨어지는 알', art: 'beast:eggeye:ember', isBoss: true,
     lore: '껍질이 갈라졌다. 그 틈으로 눈 하나가 이쪽을 보고 있다. 아직 눈뿐이다.',
     desc: '깨어지는 알. 균열에서 새어 나오는 열기가 전장을 태운다.',
-    cost: 0, hp: 19000, armor: 58, speed: 0, range: 240, damage: 195, cooldown: 1300,
+    cost: 0, hp: 7600, armor: 52, speed: 0, range: 240, damage: 152, cooldown: 1300,
     attack: 'melee', coneDeg: 360,
     radius: 40, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
-    // 균열에서 뿜는 열 — 이제 **멀리까지 닿는다**(알일 때는 자기중심뿐이었다).
-    // 250층이 200층보다 무서워지는 이유가 체력이 아니라 사거리라는 게 요지다.
+    // 균열에서 뿜는 열 — 이제 **멀리까지 닿는다**(앞의 두 단계는 자기중심뿐이었다).
+    // 150층이 100층보다 무서워지는 이유가 체력이 아니라 **사거리**라는 게 요지다.
     ability: { type: 'barrage', cooldown: 4400, telegraph: 700,
                minRange: 0, maxRange: 4000,
-               damage: 178, radius: 205, repeat: 5, interval: 300, spread: 360,
+               damage: 142, radius: 195, repeat: 5, interval: 300, spread: 360,
                knockback: 38 }
   },
 

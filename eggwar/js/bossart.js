@@ -48,8 +48,9 @@ window.GAME = window.GAME || {};
   //  ⚠ 부위는 "크기가 곧 정체"라 일반 짐승보다 훨씬 크게 잡는다(50~250층은 이기는
   //    게 아니라 크기를 먼저 보여주는 층이다 — 이 파일 헤더 참조). 다만 아레나
   //    밖으로 넘치면 안 되므로 전부 `tools/boss-shot.js` 로 찍어 보고 정했다.
+  //  알은 부화가 진행될수록 조금씩 커진다(껍질이 벌어지니 실루엣도 커진다).
   BA.SCALE = { sentry: 1.50, drake: 1.60, foot: 2.35, claw: 2.15,
-               wingpart: 1.85, egg: 1.30, eggcrack: 1.35 };
+               wingpart: 1.85, egg: 1.26, eggcrack: 1.32, eggeye: 1.38 };
 
   // 결(속성)별 색. 같은 골격에 색만 갈아 끼워 권속을 여러 종으로 늘린다.
   //  ⚠ **네 톤이 필요하다.** 처음엔 dark/scale/belly 셋이었는데, 그러면 위에서
@@ -751,9 +752,12 @@ window.GAME = window.GAME || {};
     rubble(g, cx, cy, r * 3.0, r * 1.5, 'egg', tone);
   }
 
-  //  깨어지는 알(250층) — 껍질이 갈라졌고 **그 틈으로 눈만** 보인다.
-  //  사용자 지시 그대로: "균열 안에서 반짝이는 눈만 보임".
-  function crackEggPart(g, cx, cy, r, T, tone, t) {
+  //  금 간 알(100층) / 깨어지는 알(150층) — 같은 그림에 **눈만 켜고 끈다**.
+  //  100층은 균열만 있고 안이 안 보이고(showEye=false), 150층에서 그 틈으로
+  //  눈이 나타난다(사용자 지시 그대로: "균열 안에서 반짝이는 눈만 보임").
+  //  한 함수로 둔 이유: 두 단계가 **같은 알**이어야 "같은 것이 계속 깨지고 있다"가
+  //  된다. 그림을 따로 그리면 100층 알과 150층 알이 다른 알로 보인다.
+  function crackEggPart(g, cx, cy, r, T, tone, t, showEye) {
     var sz = eggShell(g, cx, cy, r, tone, t, 1);
     var i, f;
     // ① 균열 — 알 배 부분에서 크게 갈라진다. 눈은 그 안쪽에 있다.
@@ -784,21 +788,25 @@ window.GAME = window.GAME || {};
                     eyeX + (f - 0.5) * halfW * 1.4 + Math.cos(a0) * sz.w * 0.30,
                     eyeY + Math.sin(a0) * L);
     }
-    // ② 균열에서 새는 빛 — 틈 둘레로 번진다.
+    // ② 균열에서 새는 빛 — 틈 둘레로 번진다. 눈이 없는 단계(100층)는 훨씬 옅게:
+    //    "아직 안은 안 보이지만 열기는 샌다"가 그 층의 전부다.
     var flare = 0.42 + 0.30 * Math.sin(t / 300);
-    g.fillStyle(tone.glow, flare * 0.30);
+    g.fillStyle(tone.glow, flare * (showEye ? 0.30 : 0.16));
     g.fillEllipse(eyeX, eyeY, sz.w * 1.70, sz.h * 0.36, 14);
-    // ③ **눈** — 이 부위의 전부다. 세로 동공이 균열 안쪽에서 이쪽을 본다.
-    var blink = Math.sin(t / 2600);
-    var eh = r * 0.30 * (blink > 0.93 ? 0.15 : 1);   // 아주 가끔 깜빡인다
-    g.fillStyle(tone.glow, 1);
-    g.fillEllipse(eyeX, eyeY, r * 0.62, eh, 14);
-    g.fillStyle(0xfff3d0, 0.75);
-    g.fillEllipse(eyeX - r * 0.06, eyeY - eh * 0.22, r * 0.30, eh * 0.42, 12);
-    g.fillStyle(0x140a04, 1);
-    g.fillEllipse(eyeX + r * 0.02, eyeY, r * 0.11, eh * 0.92, 12);
-    // ④ 떨어져 나온 껍질 조각 — 발밑에 흩어진다.
-    for (i = 0; i < 7; i++) {
+    // ③ **눈** — 150층의 전부다. 세로 동공이 균열 안쪽에서 이쪽을 본다.
+    //    100층은 여기를 통째로 건너뛴다(틈 안이 그냥 어둡다).
+    if (showEye) {
+      var blink = Math.sin(t / 2600);
+      var eh = r * 0.30 * (blink > 0.93 ? 0.15 : 1);   // 아주 가끔 깜빡인다
+      g.fillStyle(tone.glow, 1);
+      g.fillEllipse(eyeX, eyeY, r * 0.62, eh, 14);
+      g.fillStyle(0xfff3d0, 0.75);
+      g.fillEllipse(eyeX - r * 0.06, eyeY - eh * 0.22, r * 0.30, eh * 0.42, 12);
+      g.fillStyle(0x140a04, 1);
+      g.fillEllipse(eyeX + r * 0.02, eyeY, r * 0.11, eh * 0.92, 12);
+    }
+    // ④ 떨어져 나온 껍질 조각 — 발밑에 흩어진다(눈이 보이는 단계가 더 많이 깨졌다).
+    for (i = 0; i < (showEye ? 7 : 4); i++) {
       f = frameSeed('shard', i);
       var sxp = cx + (f - 0.5) * sz.w * 2.4;
       var syp = cy + f * r * 0.16;
@@ -936,7 +944,9 @@ window.GAME = window.GAME || {};
     } else if (info.kind === 'egg') {
       eggPart(g, sx, sy, r, T, info.tone, tt);
     } else if (info.kind === 'eggcrack') {
-      crackEggPart(g, sx, sy, r, T, info.tone, tt);
+      crackEggPart(g, sx, sy, r, T, info.tone, tt, false);   // 100층 — 눈 없음
+    } else if (info.kind === 'eggeye') {
+      crackEggPart(g, sx, sy, r, T, info.tone, tt, true);    // 150층 — 눈 보임
     } else if (info.kind === 'sentry') {
       sentry(g, sx, sy - r * 0.55, r, T, info.tone, tt);
     } else {

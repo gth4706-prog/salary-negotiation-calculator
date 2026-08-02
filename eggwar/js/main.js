@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v1.19';
+GAME.VERSION = 'v1.20';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -166,6 +166,16 @@ window.addEventListener('load', function () {
   function refit() {
     pinGame();
     if (GAME.game && GAME.game.scale) GAME.game.scale.refresh();
+    //  전투 배경은 성능 때문에 텍스처로 **한 번만 구워** 둔다(js/scenes/battle.js).
+    //  화면 크기가 바뀌면 아레나 좌표가 달라지므로 다시 구워야 한다 —
+    //  안 그러면 회전하거나 주소창이 접힐 때 배경만 옛 크기로 남는다.
+    try {
+      var bs = GAME.game && GAME.game.scene && GAME.game.scene.getScene('Battle');
+      if (bs && bs._arenaBaked) {
+        if (bs._arenaRT) { bs._arenaRT.destroy(); bs._arenaRT = null; }
+        bs._arenaBaked = false;
+      }
+    } catch (e) { /* 씬이 아직 없으면 아무 일도 아니다 */ }
     updateDiag();
   }
   window.addEventListener('resize', refit);

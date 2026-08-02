@@ -31,6 +31,17 @@
 
 window.GAME = window.GAME || {};
 GAME.UI = GAME.UI || {};
+//  ── 타원 분할 수 (2026-08-03 성능) ──────────────────────────────────────────
+//  ⚠ Phaser 의 `fillEllipse`/`strokeEllipse` 는 분할 수를 안 넘기면 **32분할**로
+//    그린다. 유닛 아트에는 타원이 53개나 있고 이게 **매 프레임 유닛 수만큼** 도니까
+//    26기 전투에서 타원만으로 경로 점 수만 개가 나온다(실측: 프레임당 Graphics 호출
+//    14,140회 중 lineTo 가 8,446회).
+//    이 저장소는 같은 교훈을 이미 적어 뒀다 — js/coin.js: "지름 16px 짜리 물건에
+//    32분할은 낭비다. 8~10 분할이면 화면에서 구분되지 않는다." 그런데 정작 가장
+//    많이 그려지는 유닛 아트에는 적용이 안 돼 있었다.
+//    유닛 반지름은 화면에서 10~16px 라 동전과 같은 근거가 그대로 적용된다.
+var SM = 10;
+
 
 (function (UI) {
 
@@ -133,8 +144,8 @@ GAME.UI = GAME.UI || {};
       lineStyle: function (w) { lw = (typeof w === 'number' ? w : 1) + k * 2; g.lineStyle(lw, col, a); },
       fillCircle: function (x, y, r) { set(); g.fillCircle(x, y, r + k); },
       strokeCircle: function (x, y, r) { g.strokeCircle(x, y, r); },
-      fillEllipse: function (x, y, w, h) { set(); g.fillEllipse(x, y, w + k * 2, h + k * 2); },
-      strokeEllipse: function (x, y, w, h) { g.strokeEllipse(x, y, w, h); },
+      fillEllipse: function (x, y, w, h) { set(); g.fillEllipse(x, y, w + k * 2, h + k * 2, SM); },
+      strokeEllipse: function (x, y, w, h) { g.strokeEllipse(x, y, w, h, SM); },
       fillRect: function (x, y, w, h) { set(); g.fillRect(x - k, y - k, w + k * 2, h + k * 2); },
       fillRoundedRect: function (x, y, w, h, r) {
         set(); g.fillRoundedRect(x - k, y - k, w + k * 2, h + k * 2, r);
@@ -716,7 +727,7 @@ GAME.UI = GAME.UI || {};
     // 하이라이트
     if (r >= 8) {
       g.fillStyle(UI.tint(shell, 0.45), a * (ivory ? 0.9 : 0.55));
-      g.fillEllipse(sx - r * 0.24 + lean * 0.70, by - r * 0.40, r * 0.36, r * 0.46);
+      g.fillEllipse(sx - r * 0.24 + lean * 0.70, by - r * 0.40, r * 0.36, r * 0.46, SM);
     }
 
     // 외곽선 — ivory 시안에서는 이게 진영 식별의 주역이라 두껍게 간다
@@ -828,7 +839,7 @@ GAME.UI = GAME.UI || {};
     if (D.back) {
       if (art.face === 'slit') return;                 // 통투구는 뒷면 자체가 신호
       g.fillStyle(0x000000, a * 0.12);                 // 뒤통수 그늘
-      g.fillEllipse(sx, by - r * 0.24, r * 0.96, r * 0.86);
+      g.fillEllipse(sx, by - r * 0.24, r * 0.96, r * 0.86, SM);
       if (r >= 11) {                                   // 가마
         g.lineStyle(Math.max(0.8, r * 0.055), 0x000000, a * 0.22);
         g.strokeCircle(sx + lat * r * 0.10, by - r * 0.40, r * 0.17);
@@ -900,12 +911,12 @@ GAME.UI = GAME.UI || {};
       var pw = prof ? 1.06 : 1.24;
       var pcx = sx + lat * r * 0.06;
       g.fillStyle(M.bladeDark, a);
-      g.fillEllipse(pcx, by - r * 0.70, r * pw, r * 0.86);
+      g.fillEllipse(pcx, by - r * 0.70, r * pw, r * 0.86, SM);
       g.fillStyle(UI.tint(M.bladeDark, -0.25), a);
       g.fillRect(pcx - r * pw * 0.55, by - r * 0.74, r * pw * 1.10, r * 0.20);
       if (back) {                            // 뒤 — 목가리개 + 리벳
         g.fillStyle(UI.tint(M.bladeDark, -0.14), a);
-        g.fillEllipse(sx, by - r * 0.36, r * 1.02, r * 0.44);
+        g.fillEllipse(sx, by - r * 0.36, r * 1.02, r * 0.44, SM);
         if (r >= 10) {
           g.fillStyle(UI.tint(M.bladeDark, 0.22), a);
           g.fillRect(sx - r * 0.46, by - r * 0.62, r * 0.92, Math.max(1, r * 0.08));
@@ -924,7 +935,7 @@ GAME.UI = GAME.UI || {};
 
     } else if (kind === 'band') {            // 궁수 — 머리띠 + 깃털 하나
       g.fillStyle(cloth, a);
-      g.fillEllipse(sx, by - r * 0.66, r * (prof ? 0.86 : 1.02), r * 0.30);
+      g.fillEllipse(sx, by - r * 0.66, r * (prof ? 0.86 : 1.02), r * 0.30, SM);
       g.fillStyle(M.quill, a);
       if (back) {                            // 뒤 — 깃털 정면 + 매듭 두 가닥
         g.fillTriangle(sx - r * 0.10, by - r * 0.76,
@@ -945,7 +956,7 @@ GAME.UI = GAME.UI || {};
 
     } else if (kind === 'cap') {             // 투석꾼 — 작은 가죽 모자 + 챙
       g.fillStyle(M.leatherDark, a);
-      g.fillEllipse(sx, by - r * 0.78, r * (prof ? 0.86 : 0.96), r * 0.62);
+      g.fillEllipse(sx, by - r * 0.78, r * (prof ? 0.86 : 0.96), r * 0.62, SM);
       if (back) {                            // 뒤 — 챙이 안 보이고 목덜미 천만
         g.fillStyle(UI.tint(M.leather, -0.18), a);
         g.fillRoundedRect(sx - r * 0.44, by - r * 0.64, r * 0.88, r * 0.54, r * 0.14);
@@ -956,7 +967,7 @@ GAME.UI = GAME.UI || {};
                        sx + lat * r * 0.10, by - r * 0.58);
       } else {                               // 앞 — 챙이 관객 쪽으로 넓게
         g.fillStyle(M.leather, a);
-        g.fillEllipse(sx + lat * r * 0.14, by - r * 0.62, r * 1.28, r * 0.30);
+        g.fillEllipse(sx + lat * r * 0.14, by - r * 0.62, r * 1.28, r * 0.30, SM);
       }
 
     } else if (kind === 'hood') {            // 투창병 — 뒤로 뾰족한 두건
@@ -996,22 +1007,22 @@ GAME.UI = GAME.UI || {};
 
     } else if (kind === 'leaf') {            // 약초꾼 — 잎사귀 화관
       g.fillStyle(M.leafDark, a);
-      g.fillEllipse(sx, by - r * 0.68, r * (prof ? 0.80 : 1.00), r * 0.26);
+      g.fillEllipse(sx, by - r * 0.68, r * (prof ? 0.80 : 1.00), r * 0.26, SM);
       g.fillStyle(M.leaf, a);
       if (prof) {                            // 옆 — 잎이 앞뒤로 겹친다
-        g.fillEllipse(sx - lat * r * 0.30, by - r * 0.86, r * 0.44, r * 0.20);
-        g.fillEllipse(sx + lat * r * 0.36, by - r * 0.98, r * 0.66, r * 0.26);
-        g.fillEllipse(sx + lat * r * 0.08, by - r * 1.18, r * 0.28, r * 0.44);
+        g.fillEllipse(sx - lat * r * 0.30, by - r * 0.86, r * 0.44, r * 0.20, SM);
+        g.fillEllipse(sx + lat * r * 0.36, by - r * 0.98, r * 0.66, r * 0.26, SM);
+        g.fillEllipse(sx + lat * r * 0.08, by - r * 1.18, r * 0.28, r * 0.44, SM);
       } else if (back) {                     // 뒤 — 묶음 매듭이 보인다
-        g.fillEllipse(sx - r * 0.46, by - r * 0.96, r * 0.58, r * 0.24);
-        g.fillEllipse(sx + r * 0.46, by - r * 0.96, r * 0.58, r * 0.24);
-        g.fillEllipse(sx, by - r * 1.08, r * 0.26, r * 0.36);
+        g.fillEllipse(sx - r * 0.46, by - r * 0.96, r * 0.58, r * 0.24, SM);
+        g.fillEllipse(sx + r * 0.46, by - r * 0.96, r * 0.58, r * 0.24, SM);
+        g.fillEllipse(sx, by - r * 1.08, r * 0.26, r * 0.36, SM);
         g.fillStyle(M.rope, a);
         g.fillCircle(sx, by - r * 0.70, Math.max(1, r * 0.18));
       } else {
-        g.fillEllipse(sx - r * 0.48, by - r * 1.00, r * 0.62, r * 0.26);
-        g.fillEllipse(sx + r * 0.48, by - r * 1.00, r * 0.62, r * 0.26);
-        g.fillEllipse(sx + lat * r * 0.10, by - r * 1.20, r * 0.30, r * 0.46);
+        g.fillEllipse(sx - r * 0.48, by - r * 1.00, r * 0.62, r * 0.26, SM);
+        g.fillEllipse(sx + r * 0.48, by - r * 1.00, r * 0.62, r * 0.26, SM);
+        g.fillEllipse(sx + lat * r * 0.10, by - r * 1.20, r * 0.30, r * 0.46, SM);
       }
 
     } else if (kind === 'bucket') {          // 방패병 — 통투구
@@ -1053,7 +1064,7 @@ GAME.UI = GAME.UI || {};
       };
       var dome = function () {
         g.fillStyle(M.leatherDark, a);
-        g.fillEllipse(sx, by - r * 0.74, r * (prof ? 0.92 : 1.10), r * 0.70);
+        g.fillEllipse(sx, by - r * 0.74, r * (prof ? 0.92 : 1.10), r * 0.70, SM);
       };
       if (prof) {
         horn(-lat, 0.52, UI.tint(M.bone, -0.38), 0.02);   // 먼 뿔 — 투구 뒤로 가림
@@ -1084,21 +1095,21 @@ GAME.UI = GAME.UI || {};
                      sx + r * brim, by - r * 0.52);
       if (back) {                            // 뒤 — 갓 윗면이 보이고 턱끈 매듭이 등에
         g.fillStyle(UI.tint(M.rope, 0.20), a);
-        g.fillEllipse(sx, by - r * 0.58, r * brim * 1.86, r * 0.30);
+        g.fillEllipse(sx, by - r * 0.58, r * brim * 1.86, r * 0.30, SM);
         g.fillStyle(UI.tint(M.rope, -0.34), a);
-        g.fillEllipse(sx, by - r * 0.28, r * 0.32, r * 0.24);
+        g.fillEllipse(sx, by - r * 0.28, r * 0.32, r * 0.24, SM);
       } else {                               // 앞·옆 — 챙 아랫면 그림자
         g.fillStyle(UI.tint(M.rope, -0.22), a);
         g.fillRect(sx - r * brim, by - r * 0.62, r * brim * 2, Math.max(1.4, r * 0.16));
         if (!prof) {
           g.fillStyle(0x000000, a * 0.16);
-          g.fillEllipse(sx + lat * r * 0.10, by - r * 0.46, r * 1.16, r * 0.32);
+          g.fillEllipse(sx + lat * r * 0.10, by - r * 0.46, r * 1.16, r * 0.32, SM);
         }
       }
 
     } else if (kind === 'onehorn') {         // 광전사 — 뼈 가시 볏 (앞뒤로 선 모히칸)
       g.fillStyle(M.leatherDark, a);
-      g.fillEllipse(sx, by - r * 0.78, r * (prof ? 1.00 : 1.18), r * 0.76);
+      g.fillEllipse(sx, by - r * 0.78, r * (prof ? 1.00 : 1.18), r * 0.76, SM);
       g.fillStyle(M.bone, a);
       var spikes = prof ? [[-0.46, 0.52], [-0.14, 0.86], [0.20, 0.78], [0.50, 0.48]]
                  : (back ? [[-0.12, 0.60], [0.12, 0.88]] : [[-0.12, 0.92], [0.14, 0.64]]);
@@ -1109,7 +1120,7 @@ GAME.UI = GAME.UI || {};
                        bxo + sgn * r * 0.08, by - r * 1.02 - bhh);
       }
       g.fillStyle(UI.tint(M.leather, 0.12), a);
-      g.fillEllipse(sx, by - r * 1.00, r * (prof ? 0.90 : 1.04), r * 0.26);
+      g.fillEllipse(sx, by - r * 1.00, r * (prof ? 0.90 : 1.04), r * 0.26, SM);
       if (back) {                            // 뒤 — 뒤통수를 덮는 가죽 자락
         g.fillStyle(UI.tint(M.leatherDark, -0.18), a);
         g.fillRoundedRect(sx - r * 0.46, by - r * 0.58, r * 0.92, r * 0.38, r * 0.13);
@@ -1129,11 +1140,11 @@ GAME.UI = GAME.UI || {};
       if (prof) {
         ear(-lat, 0.50);                     // 먼 귀 먼저 → 두건에 가림
         g.fillStyle(M.leatherDark, a);
-        g.fillEllipse(sx, by - r * 0.80, r * 1.00, r * 0.94);
+        g.fillEllipse(sx, by - r * 0.80, r * 1.00, r * 0.94, SM);
         ear(lat, 1.16);
       } else {
         g.fillStyle(M.leatherDark, a);
-        g.fillEllipse(sx, by - r * 0.80, r * 1.16, r * 0.94);
+        g.fillEllipse(sx, by - r * 0.80, r * 1.16, r * 0.94, SM);
         ear(-1, lat < 0 ? 1.08 : (lat > 0 ? 0.84 : 1.0));
         ear(1, lat > 0 ? 1.08 : (lat < 0 ? 0.84 : 1.0));
       }
@@ -1149,11 +1160,11 @@ GAME.UI = GAME.UI || {};
                          sx + lat * r * 1.18, by - r * 0.60,
                          sx + lat * r * 0.32, by - r * 0.38);
         } else {
-          g.fillEllipse(sx + lat * r * 0.14, by - r * 0.54, r * 0.70, r * 0.34);
+          g.fillEllipse(sx + lat * r * 0.14, by - r * 0.54, r * 0.70, r * 0.34, SM);
         }
       }
       g.fillStyle(UI.tint(M.leatherDark, -0.3), a);
-      g.fillEllipse(sx, by - r * 0.44, r * (prof ? 0.84 : 0.98), r * 0.30);
+      g.fillEllipse(sx, by - r * 0.44, r * (prof ? 0.84 : 0.98), r * 0.30, SM);
 
     } else if (kind === 'crest') {           // 파수꾼 — 통투구 + 앞뒤로 선 볏
       var cwr = prof ? 0.46 : 0.58;
@@ -1253,22 +1264,22 @@ GAME.UI = GAME.UI || {};
       // **진영색을 어둡게 한 값**이라, 만약 그 길로 갔으면 재질이 통째로 바뀌었다.
       var furC = UI.mix(M.leatherDark, color, 0.55);
       g.fillStyle(furC, a);
-      g.fillEllipse(sx - r * 0.78, by - r * 0.02, r * fw, r * 0.54);
-      g.fillEllipse(sx + r * 0.78, by - r * 0.02, r * fw, r * 0.54);
+      g.fillEllipse(sx - r * 0.78, by - r * 0.02, r * fw, r * 0.54, SM);
+      g.fillEllipse(sx + r * 0.78, by - r * 0.02, r * fw, r * 0.54, SM);
       if (back) {
         g.fillStyle(UI.tint(furC, 0.14), a);
-        g.fillEllipse(sx, by - r * 0.16, r * 1.30, r * 0.46);
+        g.fillEllipse(sx, by - r * 0.16, r * 1.30, r * 0.46, SM);
       }
 
     } else if (kind === 'pack') {            // 등짐
       g.fillStyle(M.leather, a);
       g.fillRoundedRect(sx + ox * 1.72 - r * 0.34, by + oy * 1.20 - r * 0.30, r * 0.68, r * 0.86, r * 0.14);
       g.fillStyle(M.leafDark, a);
-      g.fillEllipse(sx + ox * 1.72, by + oy * 1.20 - r * 0.40, r * 0.44, r * 0.24);
+      g.fillEllipse(sx + ox * 1.72, by + oy * 1.20 - r * 0.40, r * 0.44, r * 0.24, SM);
 
     } else if (kind === 'pouch') {           // 돌주머니
       g.fillStyle(M.leather, a);
-      g.fillEllipse(sx + ox * 1.55, by + oy * 1.10 + r * 0.30, r * 0.62, r * 0.56);
+      g.fillEllipse(sx + ox * 1.55, by + oy * 1.10 + r * 0.30, r * 0.62, r * 0.56, SM);
       g.fillStyle(M.stone, a);
       g.fillCircle(sx + ox * 1.55, by + oy * 1.10 + r * 0.12, r * 0.17);
     }
@@ -1535,7 +1546,7 @@ GAME.UI = GAME.UI || {};
       var lxp = sx + fx * r * 0.18 + px * r * sprd, lyp = by - r * 1.38 + fy * r * 0.10 + py * r * sprd;
       var ss = px < -0.01 ? -1 : 1;
       g.lineStyle(lw(0.08), M.rope, a * 0.85);
-      g.strokeEllipse(lxp, lyp, r * 1.44, r * 0.56);
+      g.strokeEllipse(lxp, lyp, r * 1.44, r * 0.56, SM);
       g.lineBetween(hx, hy, lxp + ss * r * 0.68, lyp + r * 0.06);
       g.fillStyle(M.stone, a);
       g.fillCircle(lxp + ss * r * 0.72, lyp + r * 0.04, r * 0.26);
@@ -1565,10 +1576,10 @@ GAME.UI = GAME.UI || {};
       g.lineStyle(lw(0.12), M.wood, a);
       g.lineBetween(stx, Y(0.30, 0.66, -0.55), stx, Y(0.30, 0.66, 1.55));
       g.fillStyle(M.leafDark, a);
-      g.fillEllipse(stx, Y(0.30, 0.66, 1.62), r * 0.72, r * 0.34);
+      g.fillEllipse(stx, Y(0.30, 0.66, 1.62), r * 0.72, r * 0.34, SM);
       g.fillStyle(M.leaf, a);
-      g.fillEllipse(stx - r * 0.24, Y(0.30, 0.66, 1.82), r * 0.50, r * 0.26);
-      g.fillEllipse(stx + r * 0.26, Y(0.30, 0.66, 1.74), r * 0.46, r * 0.24);
+      g.fillEllipse(stx - r * 0.24, Y(0.30, 0.66, 1.82), r * 0.50, r * 0.26, SM);
+      g.fillEllipse(stx + r * 0.26, Y(0.30, 0.66, 1.74), r * 0.46, r * 0.24, SM);
       g.fillStyle(0xd8f5c8, a * 0.55);       // 은은한 회복 기운
       g.fillCircle(stx, Y(0.30, 0.66, 1.72), r * 0.30);
 
@@ -1608,11 +1619,11 @@ GAME.UI = GAME.UI || {};
     } else if (kind === 'sapjar') {          // 늪지기 — 끈끈한 수액 단지
       var jx = X(0.86, 0.16), jy = Y(0.86, 0.16, 0.05);
       g.fillStyle(M.clay, a);
-      g.fillEllipse(jx, jy, r * 1.06, r * 0.82);
+      g.fillEllipse(jx, jy, r * 1.06, r * 0.82, SM);
       g.fillStyle(UI.tint(M.clay, -0.30), a);
       g.fillRect(jx - r * 0.28, jy - r * 0.58, r * 0.56, r * 0.24);
       g.fillStyle(M.goo, a);                 // 흘러넘치는 수액
-      g.fillEllipse(jx, jy - r * 0.52, r * 0.52, r * 0.20);
+      g.fillEllipse(jx, jy - r * 0.52, r * 0.52, r * 0.20, SM);
       g.fillCircle(jx + r * 0.30, jy + r * 0.06, r * 0.14);
       g.fillCircle(jx + r * 0.40, jy + r * 0.38, r * 0.10);
 
@@ -1803,7 +1814,7 @@ GAME.UI = GAME.UI || {};
     g.fillStyle(M.bronze, a);
     for (i = 0; i < 2; i++) {
       s = i === 0 ? -1 : 1;
-      g.fillEllipse(fex[i] + s * r * 0.02, fey[i] + r * 0.04, r * 0.40, r * 0.22);
+      g.fillEllipse(fex[i] + s * r * 0.02, fey[i] + r * 0.04, r * 0.40, r * 0.22, SM);
     }
   };
 
@@ -1812,9 +1823,9 @@ GAME.UI = GAME.UI || {};
     var Iso = GAME.Iso, T = Iso ? Iso.TILT : 1;
     if (art.ground === 'spiketrap') {        // 가시덫 — 나무 이빨 덫
       g.fillStyle(M.woodDark, a);
-      g.fillEllipse(sx, sy, r * 2.30, r * 2.30 * T);
+      g.fillEllipse(sx, sy, r * 2.30, r * 2.30 * T, SM);
       g.fillStyle(0x241d16, a);
-      g.fillEllipse(sx, sy, r * 1.40, r * 1.40 * T);
+      g.fillEllipse(sx, sy, r * 1.40, r * 1.40 * T, SM);
       g.fillStyle(M.bone, a);                // 톱니
       for (var i = 0; i < 8; i++) {
         var ang = (Math.PI * 2 / 8) * i + 0.39;
@@ -1825,8 +1836,8 @@ GAME.UI = GAME.UI || {};
                        sy + oy * 1.02 + Math.cos(ang) * r * 0.26 * T);
       }
       g.fillStyle(M.leaf, a * 0.55);         // 위장 잎사귀
-      g.fillEllipse(sx - r * 0.55, sy - r * 0.18 * T, r * 0.80, r * 0.34 * T);
-      g.fillEllipse(sx + r * 0.50, sy + r * 0.30 * T, r * 0.72, r * 0.30 * T);
+      g.fillEllipse(sx - r * 0.55, sy - r * 0.18 * T, r * 0.80, r * 0.34 * T, SM);
+      g.fillEllipse(sx + r * 0.50, sy + r * 0.30 * T, r * 0.72, r * 0.30 * T, SM);
     }
   };
 
@@ -1921,7 +1932,7 @@ GAME.UI = GAME.UI || {};
     if (lv >= 5) {                          // 뿔 관 — 머리 둘레에서 바깥·위로 뻗는 뿔 세 개
       var ring = by - r * 0.74;
       g.lineStyle(Math.max(1.4, r * 0.13), mat, a);
-      g.strokeEllipse(sx, ring, r * 1.34 * ((art.wide || 0.78) / 0.78), r * 0.40);
+      g.strokeEllipse(sx, ring, r * 1.34 * ((art.wide || 0.78) / 0.78), r * 0.40, SM);
       var off = [-1, 0, 1];
       for (var i = 0; i < 3; i++) {
         var o = off[i];
@@ -1949,7 +1960,7 @@ GAME.UI = GAME.UI || {};
     }
     if (lv >= 5) {                          // 발밑 문양 — 최고 계급만
       g.lineStyle(Math.max(1.2, r * 0.10), mat, a * 0.8);
-      g.strokeEllipse(sx, sy, r * 2.5, r * 2.5 * T);
+      g.strokeEllipse(sx, sy, r * 2.5, r * 2.5 * T, SM);
     }
   };
 
@@ -2079,7 +2090,7 @@ GAME.UI = GAME.UI || {};
     var side = opts && opts.side;
 
     g.fillStyle(0x000000, 0.32 * a);
-    g.fillEllipse(sx, sy, r * 2.1, r * 2.1 * Iso.TILT);
+    g.fillEllipse(sx, sy, r * 2.1, r * 2.1 * Iso.TILT, SM);
 
     if (art.ground) {
       UI.drawGroundArt(g, art, sx, sy, r, color, a);
@@ -2154,7 +2165,7 @@ GAME.UI = GAME.UI || {};
 
     // 실선 전체 원(배치 화면 등) — 예전과 픽셀 단위로 같은 그림이다.
     if (!front && side !== 'strategist') {
-      g.strokeEllipse(sx, sy, rx * 2, ry * 2);
+      g.strokeEllipse(sx, sy, rx * 2, ry * 2, SM);
       return;
     }
 
@@ -2238,7 +2249,7 @@ GAME.UI = GAME.UI || {};
     if (hurt > 0) {
       var k = Math.min(1, hurt / 220);
       g.fillStyle(0xffffff, 0.55 * k);
-      g.fillEllipse(sx, by, r * 1.7, r * 2.0);
+      g.fillEllipse(sx, by, r * 1.7, r * 2.0, SM);
     }
   };
 
@@ -2379,12 +2390,12 @@ GAME.UI.drawYolkBurst = function (g, e) {
   var yw = yr * 2 * (1 + p * 0.25), yh = yr * 2 * (1 - p * 0.30);
   if (ink !== null) {
     g.fillStyle(ink, 0.8);
-    g.fillEllipse(yx, yy, yw + 3, yh + 3);
+    g.fillEllipse(yx, yy, yw + 3, yh + 3, SM);
   }
   g.fillStyle(M.yolk, 0.98);
-  g.fillEllipse(yx, yy, yw, yh);
+  g.fillEllipse(yx, yy, yw, yh, SM);
   g.fillStyle(M.yolkLite, 0.9);
-  g.fillEllipse(yx - yr * 0.30, yy - yr * 0.32, yr * 0.80, yr * 0.62);
+  g.fillEllipse(yx - yr * 0.30, yy - yr * 0.32, yr * 0.80, yr * 0.62, SM);
 
   // ④ 노른자에도 눈 — 이 게임에서 죽음은 아프지 않다.
   //    ×자 눈으로 바꿨다. 점 두 개는 살아 있는 계란의 눈과 같아서

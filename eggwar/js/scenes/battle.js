@@ -449,6 +449,11 @@ GAME.BattleScene.prototype.create = function () {
     self._zoomMask = null;
     self.worldLayer = null;
     self._zoomRect = null;
+    //  구운 배경도 씬을 떠날 때 버린다. 안 버리면 다음 전투가 **이전 층의 바닥**을
+    //  깔고 시작한다(층마다 바이옴이 다르다).
+    if (self._arenaRT) { self._arenaRT.destroy(); self._arenaRT = null; }
+    self._arenaBaked = false;
+    self._arenaFallback = false;
     if (self.cameras && self.cameras.main) self.cameras.main.setZoom(1);
     // 동전 계층 — 팝업 Text 까지 전부 파괴하고 참조를 끊는다
     if (self._coins) { self._coins.destroy(); self._coins = null; }
@@ -1488,6 +1493,43 @@ GAME.BattleScene.prototype._hideSkillTip = function () {
   this.skillTipBg.setVisible(false);
 };
 
+//  ── 배경 굽기 (2026-08-03) ──────────────────────────────────────────────────
+//  전투 배경(바닥·바이옴 소품·원근 밴드·격자·테두리)은 전투 내내 불변이다.
+//  한 번 RenderTexture 에 그려 두고 그 뒤로는 텍스처 한 장만 붙인다.
+//
+//  ⚠ 깊이 순서가 생명이다. 배경은 `this.g`(전장 그림 전부)보다 **뒤**에 있어야
+//    하고, PC 휠 줌은 `worldLayer` 의 스케일로 일어나므로 배경도 **같은 레이어
+//    안에** 들어가야 한다 — 밖에 두면 줌할 때 배경만 안 따라와 어긋난다.
+//  ⚠ 창 크기가 바뀌면 아레나 좌표가 달라지므로 다시 구워야 한다.
+GAME.BattleScene.prototype._bakeArena = function () {
+  this._arenaBaked = true;
+  var Iso = GAME.Iso, R = Iso.screenRect();
+  var w = Math.max(1, Math.ceil(this.scale.width));
+  var h = Math.max(1, Math.ceil(this.scale.height));
+  try {
+    if (this._arenaRT) { this._arenaRT.destroy(); this._arenaRT = null; }
+    var rt = this.add.renderTexture(0, 0, w, h).setOrigin(0, 0);
+    var tmp = this.make.graphics({ x: 0, y: 0, add: false });
+    GAME.UI.drawArena(tmp, {
+      zones: false,
+      floor: this.tower || this.defendTower || 0,
+      tier: this.versus ? 1 : GAME.UI.tierForEscalation(this.escalation).i
+    });
+    rt.draw(tmp);
+    tmp.destroy();
+    //  `this.g` 보다 뒤. 같은 컨테이너에 넣되 **맨 앞**(=가장 아래)로 보낸다.
+    if (this.worldLayer) { this.worldLayer.add(rt); this.worldLayer.sendToBack(rt); }
+    else rt.setDepth((this.g.depth || 0) - 1);
+    this._arenaRT = rt;
+  } catch (e) {
+    //  RenderTexture 가 안 되는 환경이면 **예전처럼 매 프레임 그린다.**
+    //  최적화가 실패해도 화면이 비면 안 된다.
+    if (window.console) console.warn('[battle] 배경 굽기 실패 — 매 프레임 그리기로 되돌린다', e);
+    this._arenaRT = null;
+    this._arenaFallback = true;
+  }
+};
+
 GAME.BattleScene.prototype.draw = function () {
   var C = GAME.CONFIG.COLORS;
   var Iso = GAME.Iso;
@@ -1498,11 +1540,21 @@ GAME.BattleScene.prototype.draw = function () {
   g.clear();
   // 층 분위기 — 통곡의 탑/수성의 탑은 층수로, 층이 없는 모드는 등급으로 바닥이 갈린다.
   // 대전(비동기 PvP)만 중립(밴드 1 풀숲)이다 — 남의 기지를 치는 것이지 탑이 아니다.
-  GAME.UI.drawArena(g, {
-    zones: false,
-    floor: this.tower || this.defendTower || 0,
-    tier: this.versus ? 1 : GAME.UI.tierForEscalation(this.escalation).i
-  });
+  //
+  //  ⚠ **이 배경은 전투 내내 한 픽셀도 안 변한다.** 그런데 예전에는 매 프레임
+  //    다시 그렸다 — 바이옴 소품 수십 개(하나당 도형 2~5개) + 원근 밴드 6장 +
+  //    격자선 + 테두리. 프로파일 상위가 전부 `batchFillPath`/`batchLine` 이었던
+  //    이유가 이것이다(2026-08-03 사용자 신고: "액션이 겹치면 프레임저하").
+  //    그래서 **한 번만 구워** 텍스처로 붙인다. 매 프레임 수백 번의 경로 연산이
+  //    드로우콜 하나가 된다. `_bakeArena` 가 굽고 여기서는 아무것도 안 한다.
+  if (!this._arenaBaked) this._bakeArena();
+  if (this._arenaFallback) {
+    GAME.UI.drawArena(g, {
+      zones: false,
+      floor: this.tower || this.defendTower || 0,
+      tier: this.versus ? 1 : GAME.UI.tierForEscalation(this.escalation).i
+    });
+  }
 
   // ── 이펙트 팔레트 ────────────────────────────────────────────────────
   //  색을 여기서 직접 박지 않고 GAME.UI.FX 를 거친다. 라이트 테마(목장)에서

@@ -14,6 +14,35 @@ GAME.Api = {
   // 응답이 없거나 아직 코드가 배포되지 않았으면 조용히 로컬 기록으로 되돌아간다.
   API_BASE: 'https://arena-api.gth3941.workers.dev',
 
+  // ── 아이폰에서 랭킹이 안 붙는 문제 (2026-08-03 사용자 신고) ──────────────────
+  //  "아이폰에서 우리 서버 랭킹에 연결이 안돼"
+  //
+  //  진단: 워커는 어떤 Origin 으로 물어봐도 `Access-Control-Allow-Origin:
+  //  https://joeltool.com` **하나만** 돌려준다(실측). 즉 오리진이 조금이라도
+  //  다르면 브라우저가 막는다. 게다가 `*.workers.dev` 는 게임 도메인 입장에서
+  //  **서드파티**라, iOS 의 추적 방지·콘텐츠 차단기·사설 릴레이 계열이 통째로
+  //  끊어 버리는 일이 잦다(workers.dev 는 피싱에 자주 쓰여 차단 목록에 흔히 오른다).
+  //  아이폰에서만 안 되는 증상과 앞뒤가 맞는다.
+  //
+  //  근본 해법은 **같은 오리진으로 부르는 것**이다. joeltool.com 은 Cloudflare
+  //  프록시 뒤에 있으므로(실측: CF-RAY 응답) 워커에 `joeltool.com/api/*` 라우트를
+  //  걸면 CORS 자체가 사라지고 서드파티 차단에도 안 걸린다.
+  //
+  //  ⚠ 라우트는 **Cloudflare 대시보드에서 사람이** 걸어야 한다(계정 권한).
+  //    그래서 이 클라이언트는 **두 경로를 다 안다**: 같은 오리진을 먼저 찔러 보고
+  //    안 되면 예전 주소로 돌아간다. 라우트가 없으면 지금과 똑같이 동작하고,
+  //    라우트가 생기는 순간 아무 배포 없이 그쪽으로 옮겨 간다.
+  SAME_ORIGIN_BASE: '/api',
+  _base: null,          // 결정된 주소(한 번 정하면 기억한다)
+  _probed: false,
+
+  //  같은 오리진을 시도할 자격이 있는가 — 실제 사이트 위에서만 의미가 있다.
+  _canSameOrigin: function () {
+    if (typeof location === 'undefined') return false;
+    return /^https?:$/.test(location.protocol) &&
+           /(^|\.)joeltool\.com$/.test(location.hostname || '');
+  },
+
   // 서버가 분류별 랭킹(kind)을 지원하는지 — 한 번 확인하면 기억한다.
   //   null = 아직 모름 / true = 지원 / false = 옛 버전(로컬로 폴백)
   kindSupport: null,
@@ -64,11 +93,30 @@ GAME.Api = {
       blocked.localBlock = true;
       return Promise.reject(blocked);
     }
-    return fetch(this.API_BASE + path, opts).then(function (r) {
-      if (!r.ok) return r.json().then(function (j) { throw new Error(j.error || r.status); });
-      return r.json();
+    var self = this;
+    //  ⚠ 응답이 JSON 이 아니면 **그 경로는 없는 것**이다. `/api/*` 라우트가 없으면
+    //    GitHub Pages 가 404 HTML 을 주는데, 그걸 성공으로 읽으면 랭킹이 조용히
+    //    빈 화면이 된다. 그래서 본문까지 확인하고 아니면 폴백한다.
+    function call(base) {
+      return fetch(base + path, opts).then(function (r) {
+        var ct = (r.headers && r.headers.get && r.headers.get('content-type')) || '';
+        if (ct.indexOf('json') < 0) throw new Error('non-json:' + r.status);
+        if (!r.ok) return r.json().then(function (j) { throw new Error(j.error || r.status); });
+        return r.json();
+      });
+    }
+    if (this._base) return call(this._base);
+    if (!this._canSameOrigin()) { this._base = this.API_BASE; return call(this._base); }
+    //  같은 오리진 먼저 → 실패하면 예전 주소. 성공한 쪽을 기억해 매번 두 번 찌르지 않는다.
+    return call(this.SAME_ORIGIN_BASE).then(function (v) {
+      self._base = self.SAME_ORIGIN_BASE; return v;
+    }, function () {
+      self._base = self.API_BASE; return call(self.API_BASE);
     });
   },
+
+  //  지금 어느 경로로 붙었는지 — 화면에 진단을 띄울 때 쓴다.
+  activeBase: function () { return this._base || '(아직 결정 안 됨)'; },
 
   // 점수 전송 — 실패해도 게임 진행에는 영향이 없다(로컬에 이미 기록됨).
   // 새 필드(tower/dtower/trophy/hero/gear)는 **옛 Worker 가 그냥 무시**한다.

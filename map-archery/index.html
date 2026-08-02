@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Do+Hyeon&display=swap">
 <link rel="stylesheet" href="../css/style.css?v=0.14">
-<link rel="stylesheet" href="../css/mapArchery.css?v=0.02">
+<link rel="stylesheet" href="../css/mapArchery.css?v=0.03">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"여행지 활쏘기","applicationCategory":"UtilityApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"회전하는 한국 지도에 활을 쏴서 전국 250개 시군구 중 오늘의 여행지를 랜덤으로 뽑아주는 무료 도구."}
 </script>
@@ -39,7 +39,7 @@
     <a href="../about.html">소개</a>
     <a class="lang-switch" href="en/" title="Switch to English" hreflang="en">🇺🇸 EN</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.02</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.03</span>
   </div>
 </div></nav>
 
@@ -67,6 +67,7 @@
           <h3 id="ma-result-name">–</h3>
           <p class="ma-result-province" id="ma-result-province">–</p>
           <p class="ma-result-coord" id="ma-result-coord">–</p>
+          <p class="ma-result-blurb" id="ma-result-blurb"></p>
           <button class="cta" id="ma-replay" type="button">↺ 다시 쏘기</button>
         </div>
       </div>
@@ -81,7 +82,7 @@
     <h3>몇 번이나 쏠 수 있나요</h3>
     <p>제한 없어요. 마음에 드는 여행지가 나올 때까지 몇 번이든 다시 쏴보세요. 화살이 지도 바깥(바다)으로 나가면 그냥 다시 쏘면 됩니다.</p>
     <h3>이건 못 해요</h3>
-    <p>실제 관광 정보(맛집·숙소·명소)는 알려주지 않아요. 시군구 이름과 대략적인 위경도만 알려드리니, 여행지를 정하는 <b>출발점</b>으로만 써주세요. 읍면동 단위까지 세밀하게 짚어주진 않습니다.</p>
+    <p>결과 카드에 그 지역 대표 명소·특산물을 한 줄로 곁들이지만, 맛집·숙소 같은 상세 관광 정보까지 알려주진 않아요. 여행지를 정하는 <b>출발점</b>으로만 써주시고, 실제 일정은 따로 찾아보셔야 해요. 읍면동 단위까지 세밀하게 짚어주진 않습니다.</p>
   </section>
 
   <p class="more-tools"><a href="../index.html">← 다른 도구도 보기</a></p>
@@ -95,6 +96,6 @@
 </div></footer>
 
 <script src="../js/site.js?v=0.14"></script>
-<script src="../js/mapArchery.js?v=0.07"></script>
+<script src="../js/mapArchery.js?v=0.08"></script>
 </body>
 </html>

@@ -62,6 +62,7 @@
   }
 
   // ---- load data & build projection ----
+  var blurbs={};
   fetch(DATA_PREFIX+"travel-districts.json").then(function(r){return r.json()}).then(function(geo){
     features=geo.features;
     buildProjection();
@@ -74,6 +75,9 @@
     var loading=$("ma-loading"); if(loading) loading.hidden=true;
     var err=$("ma-error"); if(err) err.hidden=false;
   });
+  if(LANG!=="en"){
+    fetch(DATA_PREFIX+"district-blurbs.json").then(function(r){return r.json()}).then(function(b){ blurbs=b; }).catch(function(){});
+  }
 
   function eachCoord(geom,fn){
     (function walk(c){
@@ -247,6 +251,7 @@
     var elName=$("ma-result-name"); if(elName) elName.textContent=name;
     var elProv=$("ma-result-province"); if(elProv) elProv.textContent=province;
     var elCoord=$("ma-result-coord"); if(elCoord) elCoord.textContent=lat+"°N, "+lon+"°E";
+    var elBlurb=$("ma-result-blurb"); if(elBlurb) elBlurb.textContent=blurbs[p.code]||"";
     var card=$("ma-result"); if(card) card.hidden=false;
   }
   var replayBtn=$("ma-replay");

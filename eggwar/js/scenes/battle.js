@@ -865,6 +865,20 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   this._updateOrbs(dt);
   // 치유 구역 — 통곡의 탑 전투에서만 존재한다(state.towerHealOn).
   this._updateHealZones(dt);
+  //  ── 공격반사 알림 (2026-08-03 사용자 지시) ────────────────────────────────
+  //  전투 엔진은 문구를 만들지 않는다 — `state.reflectPing` 이 늘어난 것을 씬이
+  //  보고 띄운다. 매 반사마다 띄우면 글자가 도배되므로 **0.8초에 한 번만** 낸다.
+  var ping = this.state.reflectPing || 0;
+  if (ping !== (this._reflectSeen || 0)) {
+    this._reflectSeen = ping;
+    if (!this._reflectMute || this._reflectMute <= 0) {
+      this._orbToast('공격반사! — 방어 태세엔 때리지 마라');
+      if (GAME.Sound) GAME.Sound.play('hit');
+      this._reflectMute = 800;
+    }
+  }
+  if (this._reflectMute > 0) this._reflectMute -= dt;
+
   if (this.state.bossHealOn && GAME.HealZone && GAME.HealZone.tickBoss) {
     var bu = null;
     for (var bi = 0; bi < this.state.units.length; bi++) {
@@ -1905,6 +1919,34 @@ GAME.BattleScene.prototype.draw = function () {
     var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, 1, u.facing, walk,
                                undefined, { footRing: false, sizeMul: u.eliteDraw || 1,
                                             act: act, gearTier: u._gearTier });
+
+    //  ── 방어 태세 표시 (2026-08-03) ──────────────────────────────────────────
+    //  "때리면 안 되는 시간"을 **글자 없이** 알려야 한다. 두 단계로 보여준다:
+    //    예고(warn) — 노란 링이 빠르게 조여든다 → "곧 들어간다, 손 떼라"
+    //    태세(on)   — 두꺼운 링이 유닛을 감싼다 → "지금 때리면 반사다"
+    //  ⚠ 이 표시가 없으면 반사는 그냥 함정이다(용의 알 껍질 깨기에서 이미 배운 것:
+    //    큰 피해가 문제가 아니라 '못 피하는' 것이 문제다).
+    if (pos && u.def && u.def.guard && u._guardPhase && u._guardPhase !== 'idle') {
+      var gOn = (u._guardPhase === 'on');
+      var gr = (u.def.radius || 20) * 2.05;
+      var gt = (GAME.Iso && GAME.Iso.now) || 0;
+      if (gOn) {
+        // 태세 — 굵은 고리 + 은은한 맥동
+        var pulse = 1 + Math.sin(gt / 130) * 0.05;
+        g.lineStyle(5, 0xffd257, 0.95);
+        g.strokeEllipse(pos.sx, pos.sy, gr * 2 * pulse, gr * 2 * pulse * GAME.Iso.TILT);
+        g.lineStyle(2, 0x8a5a12, 0.85);
+        g.strokeEllipse(pos.sx, pos.sy, gr * 2.28 * pulse, gr * 2.28 * pulse * GAME.Iso.TILT);
+      } else {
+        // 예고 — 바깥에서 안으로 조여드는 고리(남은 시간이 그대로 보인다)
+        var gdef = u.def.guard;
+        var total = (gdef.warn === undefined ? 900 : gdef.warn);
+        var left = Math.max(0, Math.min(1, (u._guardT || 0) / total));
+        var rr = gr * (1 + left * 1.5);
+        g.lineStyle(3, 0xffd257, 0.35 + (1 - left) * 0.6);
+        g.strokeEllipse(pos.sx, pos.sy, rr * 2, rr * 2 * GAME.Iso.TILT);
+      }
+    }
 
     // 껍질 금 + 피격 번쩍 — 체력을 '읽지 않고 보게' 한다
     // ⚠ **여기 가드가 틀려 있었다** (2026-07-30 실측). 옛 코드는 `!GAME.isNonTarget(u.def)`

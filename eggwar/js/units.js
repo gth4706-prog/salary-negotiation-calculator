@@ -260,6 +260,7 @@ GAME.BOSS_UNITS = {
     lore: '탑 위에서 내려온 재를 뒤집어쓴 채 굳어 버린 파수병. 뿔이 돋기 시작했다.',
     desc: '재를 뒤집어쓴 파수병. 재가 쌓인 자리를 넓게 짓밟는다.',
     cost: 0, hp: 318, armor: 30, speed: 92, range: 104, damage: 70, cooldown: 1250,
+    guard: { every: 12500, warn: 900, ms: 3800, cut: 0.15, reflect: 0.50 },
     attack: 'melee', coneDeg: 120,
     radius: 29, shape: 'star', weapon: 'riotShield',
     chase: 460, aggro: 460,
@@ -338,6 +339,7 @@ GAME.BOSS_UNITS = {
     lore: '깨진 껍질을 딛고 발 하나가 먼저 나왔다. 발톱 하나가 계란 부족의 키만 하다.',
     desc: '용의 발. 밟히면 진형 한 줄이 사라진다.',
     cost: 0, hp: 377, armor: 46, speed: 0, range: 200, damage: 84, cooldown: 1500,
+    guard: { every: 11500, warn: 850, ms: 4400, cut: 0.12, reflect: 0.60 },
     attack: 'melee', coneDeg: 160,
     radius: 32, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
@@ -354,6 +356,7 @@ GAME.BOSS_UNITS = {
     lore: '이번엔 손이다. 무엇을 쥐려고 껍질을 밀어내는지는 아무도 모른다.',
     desc: '용의 손. 다섯 손가락이 전장을 통째로 움켜쥔다.',
     cost: 0, hp: 380, armor: 50, speed: 0, range: 210, damage: 82, cooldown: 1450,
+    guard: { every: 11000, warn: 800, ms: 4600, cut: 0.12, reflect: 0.65 },
     attack: 'melee', coneDeg: 170,
     radius: 34, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
@@ -372,6 +375,7 @@ GAME.BOSS_UNITS = {
     desc: '용의 날개. 한 번 접었다 펴면 전장이 뒤집힌다.',
     // 부위 중 유일하게 움직인다 — 날개는 원래 움직이는 것이다. 다만 아주 느리게.
     cost: 0, hp: 383, armor: 54, speed: 62, range: 230, damage: 79, cooldown: 1400,
+    guard: { every: 11000, warn: 800, ms: 4600, cut: 0.12, reflect: 0.65 },
     attack: 'melee', coneDeg: 180,
     radius: 36, shape: 'star', weapon: 'riotShield',
     chase: 420, aggro: 460,
@@ -416,6 +420,7 @@ GAME.BOSS_UNITS = {
     //   알은 **밀치고 때리는 것이 아니다**(팔이 없다). 평타를 1/4 로 줄이고
     //   사거리도 줄여 "붙지만 않으면 안 맞는다"로 바꿈.
     cost: 0, hp: 285, armor: 52, speed: 0, range: 150, damage: 84, cooldown: 1500,
+    guard: { every: 11000, warn: 900, ms: 4200, cut: 0.12, reflect: 0.55 },
     attack: 'melee', coneDeg: 360,
     radius: 38, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
@@ -452,6 +457,7 @@ GAME.BOSS_UNITS = {
     desc: '금 간 알. 틈에서 새는 열기가 주변을 지진다.',
     // 방어력이 알(70)보다 낮다 — 금이 갔으니 당연하다. 대신 체력과 공격이 오른다.
     cost: 0, hp: 323, armor: 46, speed: 0, range: 158, damage: 79, cooldown: 1400,
+    guard: { every: 11000, warn: 850, ms: 4400, cut: 0.12, reflect: 0.60 },
     attack: 'melee', coneDeg: 360,
     radius: 39, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
@@ -470,6 +476,7 @@ GAME.BOSS_UNITS = {
     lore: '껍질이 갈라졌다. 그 틈으로 눈 하나가 이쪽을 보고 있다. 아직 눈뿐이다.',
     desc: '깨어지는 알. 균열에서 새어 나오는 열기가 전장을 태운다.',
     cost: 0, hp: 360, armor: 42, speed: 0, range: 165, damage: 73, cooldown: 1300,
+    guard: { every: 10500, warn: 800, ms: 4600, cut: 0.10, reflect: 0.65 },
     attack: 'melee', coneDeg: 360,
     radius: 40, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
@@ -495,6 +502,7 @@ GAME.BOSS_UNITS = {
     desc: '태초의 용. 날개 한 번에 전장이 뒤집힌다.',
     //  300층. 앞의 다섯 부위가 전부 이 한 마리였다는 것을 여기서 확인한다.
     cost: 0, hp: 368, armor: 58, speed: 108, range: 260, damage: 70, cooldown: 1250,
+    guard: { every: 10000, warn: 750, ms: 5000, cut: 0.10, reflect: 0.75 },
     attack: 'melee', coneDeg: 160,
     radius: 42, shape: 'star', weapon: 'riotShield',
     chase: 760, aggro: 760,
@@ -535,6 +543,7 @@ lore: '버려진 알 껍질을 뒤집어쓴 커다란 것. 느리지만 한 번 
     //   위 능력으로 위협을 주고 체력을 줄여 **짧고 무서운** 쪽으로 옮긴다.
     //   실측(사냥꾼 20층): hp 1420 꼬리 22.2초 → 1050 17.5초 → 900 13.6초.
     cost: 0, hp: 312, armor: 26, speed: 78, range: 104, damage: 90, cooldown: 1600,
+    guard: { every: 12000, warn: 950, ms: 4000, cut: 0.15, reflect: 0.45 },
     attack: 'melee', coneDeg: 130,
     radius: 30, shape: 'shield', weapon: 'riotShield',
     chase: 460, aggro: 460,

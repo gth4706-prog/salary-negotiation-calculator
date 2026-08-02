@@ -246,6 +246,41 @@ GAME.Combat = {
     return d;
   },
 
+  // ── 방어 태세 주기 (2026-08-03) ──────────────────────────────────────────────
+  //  `def.guard = { every, warn, ms, cut, reflect }`
+  //    every  다음 태세까지 간격(ms)      warn  들어가기 전 예고(ms)
+  //    ms     태세 지속(ms)               cut   태세 중 받는 피해 배수
+  //    reflect 때린 피해의 이 비율만큼 **내가** 맞는다
+  //
+  //  ⚠ **예고(warn)가 없으면 이 기제는 함정이 된다.** 갑자기 반사가 켜지면
+  //    "내가 뭘 잘못했는지 모른 채 죽는" 경험이 된다. 이 저장소가 이미 같은
+  //    교훈을 적어 뒀다(용의 알 껍질 깨기: "큰 피해 자체가 문제가 아니라
+  //    '못 피하는' 것이 문제다"). 그래서 태세도 **미리 보이고** 시작한다.
+  tickGuard: function (u, dtMs) {
+    var g = u && u.alive && u.def && u.def.guard;
+    if (!g) return;
+    if (u._guardT === undefined) {
+      u._guardT = (g.first === undefined ? g.every : g.first);
+      u._guardPhase = 'idle';
+      u._guardOn = false;
+    }
+    u._guardT -= dtMs;
+    if (u._guardT > 0) return;
+    if (u._guardPhase === 'idle') {              // 예고 시작
+      u._guardPhase = 'warn';
+      u._guardT = (g.warn === undefined ? 900 : g.warn);
+      u._guardOn = false;
+    } else if (u._guardPhase === 'warn') {       // 태세 돌입
+      u._guardPhase = 'on';
+      u._guardT = (g.ms === undefined ? 5000 : g.ms);
+      u._guardOn = true;
+    } else {                                     // 태세 해제
+      u._guardPhase = 'idle';
+      u._guardT = g.every;
+      u._guardOn = false;
+    }
+  },
+
   // ── 보스는 밀리지 않는다 (2026-08-02 사용자 지시) ────────────────────────────
   //  "보스몹은 이동이나 밀리지않게해줘"
   //  밀치기·끌어당기기가 보스에게 걸리면 두 가지가 무너진다:
@@ -398,6 +433,40 @@ GAME.Combat = {
     // 방어력은 '비율' 경감이다. 정액 차감으로 하면 방어력 높은 영웅에게
     // 약한 공격 다수(=물량)가 최소피해 1로 무력화되어, 물량이라는 전략 자체가 죽는다.
     var eff = Math.max(1, dmg * (100 / (100 + this.effArmor(unit))));
+
+    // ── 방어 태세 — **때리면 안 되는 시간** (2026-08-03 사용자 지시) ────────────
+    //  "붙어서 계속때리기만하면 안돼. 방어태세일때 때리면 공격반사! 라고 뜨면서
+    //   내가 데미지를 입는다던가"
+    //
+    //  이 게임의 보스전은 지금까지 **DPS 체크**였다 — 공격 버튼을 놓지 않는 것이
+    //  언제나 정답이라 읽을 것이 없었다("1%의 긴장도 없이"). 태세는 그 전제를 깬다:
+    //  태세 중에는 때리는 것 자체가 손해라, **멈출 줄 아는 것**이 실력이 된다.
+    //
+    //  ⚠ 피해를 줄이기만 하면 안 된다. 그러면 "어차피 곧 풀리니 계속 때린다"가
+    //    여전히 최적이다. **반사**가 있어야 멈출 이유가 생긴다.
+    //  ⚠ 반사는 `noReflect` 로 재귀를 끊는다 — 안 그러면 반사가 반사를 부른다.
+    if (unit._guardOn && unit.def && unit.def.guard && !(opts && opts.noReflect)) {
+      var gd = unit.def.guard;
+      var attempted = eff;
+      eff = Math.max(1, eff * (gd.cut === undefined ? 0.15 : gd.cut));
+      if (source && source.alive && source !== unit && source.side !== unit.side &&
+          gd.reflect && state) {
+        //  ⚠ **반사는 방어력을 무시한다.** 그냥 넣으면 반사 피해가 내 방어력으로
+        //    또 깎여서, 방어를 쌓을수록 반사가 무의미해진다 — 방어형 빌드만
+        //    "계속 때려도 되는" 예외가 되어 이 기제가 통째로 무너진다.
+        //    (사용자 실측 빌드는 방어력 264 라 반사의 21% 만 받게 된다.)
+        //    그래서 미리 방어 계수를 되곱해 **실제로 들어가는 양이 의도한 값**이
+        //    되게 한다. 반사량은 내가 낸 피해에 비례하므로 화력 빌드일수록 더 아프다 —
+        //    "세게 때릴수록 크게 돌려받는다"가 이 기제의 뜻이다.
+        var srcArmor = this.effArmor(source);
+        var back = Math.max(1, Math.round(attempted * gd.reflect * (100 + srcArmor) / 100));
+        this.applyDamage(source, back, unit, state,
+                         { noReflect: true, noCrit: true, abil: true });
+        //  battle.js 가 이 숫자가 늘어난 것을 보고 "공격반사!" 를 띄운다.
+        //  (전투 엔진이 화면 문구를 직접 만들지 않는다 — 씬이 읽어 간다.)
+        state.reflectPing = (state.reflectPing || 0) + 1;
+      }
+    }
 
     if (unit.shield > 0) {
       var absorbed = Math.min(unit.shield, eff);
@@ -2003,6 +2072,7 @@ GAME.Combat = {
       u = state.units[i];
       if (!u.alive) continue;
 
+      this.tickGuard(u, dtMs);
       if (u.cd > 0) u.cd -= dtMs;
       if (u.flash > 0) u.flash -= dtMs;
       if (u.rootedFor > 0) u.rootedFor -= dtMs;

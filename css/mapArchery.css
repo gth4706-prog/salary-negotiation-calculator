@@ -97,7 +97,9 @@ body{background:var(--ma-bg);background-image:radial-gradient(ellipse at top,rgb
 .ma-result-card .ma-result-eyebrow{font-size:13px;color:var(--ma-muted);margin:0 0 4px}
 .ma-result-card h3{font-family:var(--ma-font);font-size:28px;margin:0 0 6px;color:var(--ma-ink)}
 .ma-result-card .ma-result-province{font-size:15px;color:var(--ma-wood);font-weight:700;margin:0 0 10px}
-.ma-result-card .ma-result-coord{font-size:12px;color:var(--ma-muted);font-family:var(--mono);margin:0 0 18px}
+.ma-result-card .ma-result-coord{font-size:12px;color:var(--ma-muted);font-family:var(--mono);margin:0 0 10px}
+.ma-result-card .ma-result-blurb{font-size:13.5px;color:var(--ma-ink);background:var(--ma-bg);border-radius:10px;padding:8px 14px;margin:0 0 18px}
+.ma-result-card .ma-result-blurb:empty{display:none;margin:0 0 8px}
 .ma-result-card .cta{width:auto;padding:12px 28px;display:inline-block}
 
 @media (max-width:520px){

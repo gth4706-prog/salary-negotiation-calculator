@@ -413,10 +413,27 @@ GAME.BOSS_UNITS = {
     attack: 'melee', coneDeg: 360,
     radius: 38, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
-    // 박동 — 알이 한 번 크게 뛸 때마다 충격이 퍼진다. 자기중심이라 붙으면 위험하고
-    // 떨어지면 안전하다(= 근접 영웅에게만 어려운 층). shockwave 는 넉백 내장.
-    ability: { type: 'shockwave', cooldown: 5200, telegraph: 1000,
-               damage: 112, radius: 235 }
+    // ── 스킬 둘 (2026-08-02 사용자 지시) ────────────────────────────────────
+    //  "스킬 한방에 8k가 넘는건 너무해. 2k정도만 해도 될거같고, 차라리 한방스킬도
+    //   있되 그건 노력만하면 피할수있게끔 미리 경고를 하거나 해줘."
+    //
+    //  신고가 맞았다. 예전 박동은 **예고 1초 · 반경 235 · 피해 112** 였다 —
+    //  50층 배수(×32.6)에 성장분까지 곱하면 8,000 이 넘는데, 1초 안에 반경 235 를
+    //  벗어나려면 초속 235 가 필요하다(영웅은 142~178). **구조적으로 못 피하는
+    //  큰 한 방**이었던 것이다. 큰 피해 자체가 문제가 아니라 '못 피하는' 것이 문제다.
+    //
+    //  그래서 둘로 나눈다:
+    //   ① 박동 — 자주(5.2초), 작게(112 → 28 = 예전의 1/4, 실측 ~2,000). 못 피해도 죽지 않는다.
+    //   ② 껍질 깨기 — 가끔(13초), 크게. 대신 **예고 2.4초 · 반경 165 · 추적 없음**.
+    //      2.4초면 영웅이 340~430px 를 움직인다 — 반경 165 는 걸어 나가기만 해도 벗어난다.
+    //      즉 "노력만 하면 피할 수 있는 한 방"이다(사용자 요청 그대로).
+    abilities: [
+      { type: 'shockwave', cooldown: 5200, telegraph: 1000,
+        damage: 28, radius: 235 },
+      { type: 'barrage', cooldown: 13000, telegraph: 2400,
+        minRange: 0, maxRange: 4000, aimLead: 0,
+        damage: 120, radius: 165, repeat: 1, interval: 0, spread: 0 }
+    ]
   },
 
   bossDragonEggCracked: {
@@ -428,9 +445,14 @@ GAME.BOSS_UNITS = {
     attack: 'melee', coneDeg: 360,
     radius: 39, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
-    // 아직 자기중심이지만 반경이 넓어졌다 — 균열이 커지는 만큼 위험 범위도 커진다.
-    ability: { type: 'shockwave', cooldown: 4800, telegraph: 860,
-               damage: 140, radius: 258 }
+    // 50층과 같은 구조(박동 + 피할 수 있는 한 방). 균열이 커진 만큼 둘 다 조금씩 세다.
+    abilities: [
+      { type: 'shockwave', cooldown: 4800, telegraph: 900,
+        damage: 35, radius: 258 },
+      { type: 'barrage', cooldown: 12500, telegraph: 2300,
+        minRange: 0, maxRange: 4000, aimLead: 0,
+        damage: 150, radius: 175, repeat: 1, interval: 0, spread: 0 }
+    ]
   },
 
   bossDragonCrack: {
@@ -443,10 +465,18 @@ GAME.BOSS_UNITS = {
     chase: 0, aggro: 0, immobile: true,
     // 균열에서 뿜는 열 — 이제 **멀리까지 닿는다**(앞의 두 단계는 자기중심뿐이었다).
     // 150층이 100층보다 무서워지는 이유가 체력이 아니라 **사거리**라는 게 요지다.
-    ability: { type: 'barrage', cooldown: 4400, telegraph: 700,
-               minRange: 0, maxRange: 4000,
-               damage: 142, radius: 195, repeat: 5, interval: 300, spread: 360,
-               knockback: 38 }
+    //  ⚠ 이쪽 첫 스킬은 원래부터 **5연발 산개**라 한 발이 작고(피해 142 → 40) 피할
+    //    자리가 있다 — 알 두 단계의 '박동'과 같은 자리다. 여기에 같은 규격의
+    //    "피할 수 있는 한 방"을 붙여 셋의 문법을 통일한다.
+    abilities: [
+      { type: 'barrage', cooldown: 4400, telegraph: 700,
+        minRange: 0, maxRange: 4000,
+        damage: 40, radius: 195, repeat: 5, interval: 300, spread: 360,
+        knockback: 38 },
+      { type: 'barrage', cooldown: 12000, telegraph: 2200,
+        minRange: 0, maxRange: 4000, aimLead: 0,
+        damage: 185, radius: 185, repeat: 1, interval: 0, spread: 0 }
+    ]
   },
 
   bossDragonLord: {

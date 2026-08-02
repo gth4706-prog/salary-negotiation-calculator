@@ -67,13 +67,22 @@ GAME.Combat = {
     if (typeof out.radius === 'number') out.radius = Math.max(6, out.radius * Math.sqrt(K));
     // 능력(ability)은 **중첩 객체**라 위 루프가 못 건드린다. 거리 키를 따로 환산하지 않으면
     // 폰 프로필(WORLD_SCALE 0.556)에서만 보스 돌진이 맵을 가로지른다 — 조용히 깨지는 유형.
-    if (out.ability) {
-      var ab = {}, AK = ['dist', 'radius', 'minRange', 'maxRange', 'knockback', 'spread'];
-      for (var k2 in out.ability) ab[k2] = out.ability[k2];
-      for (var a2 = 0; a2 < AK.length; a2++) {
-        if (typeof ab[AK[a2]] === 'number' && ab[AK[a2]] > 0) ab[AK[a2]] *= K;
+    var AK = ['dist', 'radius', 'minRange', 'maxRange', 'knockback', 'spread'];
+    function scaleAbil(src) {
+      var ab = {}, kk;
+      for (kk in src) ab[kk] = src[kk];
+      for (var ai = 0; ai < AK.length; ai++) {
+        if (typeof ab[AK[ai]] === 'number' && ab[AK[ai]] > 0) ab[AK[ai]] *= K;
       }
-      out.ability = ab;
+      return ab;
+    }
+    if (out.ability) out.ability = scaleAbil(out.ability);
+    // ⚠ 복수 스킬(`abilities`)도 **똑같이** 환산해야 한다. 빠뜨리면 폰 프로필
+    //   (WORLD_SCALE 0.556)에서만 알 보스의 예고 반경이 안 줄어 조용히 어긋난다.
+    if (out.abilities && out.abilities.length) {
+      var arr = [];
+      for (var bi = 0; bi < out.abilities.length; bi++) arr.push(scaleAbil(out.abilities[bi]));
+      out.abilities = arr;
     }
     return out;
   },
@@ -1497,8 +1506,24 @@ GAME.Combat = {
   //   3. 시전 중에는 다른 행동을 안 한다 — 예고와 실제가 어긋나면 피할 수가 없다.
   //
   // 반환 true = 이번 프레임은 능력이 가져갔다(이동·공격 생략).
+  // ── 스킬을 **두 개 이상** 가질 수 있다 (2026-08-02 사용자 지시) ───────────────
+  //  "차라리 한방스킬도 있되 그건 노력만하면 피할수있게끔 미리 경고를 하거나 해줘."
+  //  한 유닛이 '자주 나가는 작은 것'과 '가끔 나가는 큰 것'을 같이 가지려면 스킬이
+  //  둘이어야 한다. `def.abilities` 배열이 있으면 **번갈아** 쓴다.
+  //  ⚠ `def.ability`(단수)만 있는 기존 유닛은 이 함수가 예전과 **완전히 동일**하게
+  //    돈다 — opt-in 이라 회귀 위험이 없다(`slowMul`·`knockback` 과 같은 패턴).
+  //  ⚠ 시전 중에는 **그때 고른 스킬을 계속 붙잡는다.** 매 프레임 다시 고르면
+  //    예고와 실제 폭발이 서로 다른 스킬이 되어 "피할 수가 없다" — 이 파일이
+  //    이미 규율로 적어 둔 "예고와 실제가 어긋나면 못 피한다"의 정확한 사례다.
+  _abilityOf: function (u) {
+    var list = u.def.abilities;
+    if (!list || !list.length) return u.def.ability;
+    if (u.abilT > 0 && u._abilCur) return u._abilCur;
+    return list[(u._abilIdx || 0) % list.length];
+  },
+
   runAbility: function (u, state, dt) {
-    var ab = u.def.ability;
+    var ab = this._abilityOf(u);
     if (!ab) return false;
     var dtMs = dt * 1000;
 
@@ -1525,6 +1550,11 @@ GAME.Combat = {
 
     u.abilCd = ab.cooldown;
     u.abilT = ab.telegraph;
+    // 이번 시전이 어느 스킬이었는지 붙잡아 두고(예고↔폭발 일치), 다음은 그 다음 것.
+    if (u.def.abilities && u.def.abilities.length) {
+      u._abilCur = ab;
+      u._abilIdx = ((u._abilIdx || 0) + 1) % u.def.abilities.length;
+    }
     // ── 예측 사격 (2026-07-31, 뺑뺑이의 **진짜 원인**을 고친다) ────────────────
     //  ⚠ 여기가 "22층인데 뺑뺑이만 돌리면 깨진다"의 구조적 원인이었다.
     //    예고를 **대상의 현재 위치**에 박으면, 대상이 예고 시간 동안 이동한 거리가
@@ -1688,7 +1718,11 @@ GAME.Combat = {
   runAI: function (u, state, dt) {
     var def = u.def;
     // 능력이 이번 프레임을 가져갔으면 이동·공격은 건너뛴다(예고와 실제가 어긋나면 못 피한다)
-    if (def.ability && this.runAbility(u, state, dt)) return;
+    // ⚠ `abilities`(복수)만 가진 유닛도 여기를 통과해야 한다 — 이 가드가
+    //   `def.ability` 만 보고 있어서 알 보스가 **스킬을 한 번도 안 썼다**(실측:
+    //   50층 6판에 시전 0회). 복수형을 추가하는 변경에서 가장 놓치기 쉬운 자리다.
+    if ((def.ability || (def.abilities && def.abilities.length)) &&
+        this.runAbility(u, state, dt)) return;
     var moveTo = null;
     var engage = true;
     var tgt = null;

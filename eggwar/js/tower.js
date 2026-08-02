@@ -260,6 +260,80 @@ GAME.Tower = {
     return GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor));
   },
 
+  // ── 유닛별 편차 (2026-08-02 사용자 지시) ─────────────────────────────────────
+  //  "밸런스패치에서 두 축을 분리하여 따라가는게 전부다 그렇지않게해줘 … 결국
+  //   사용자입장에서 변칙적이어야해 언제는 방패병이 너무 딴딴하고 언제는 쇠뇌진지
+  //   공격이 너무 아프고 그런거지." 위 `hpMul`/`dmgMul`(atkIndex·ehpIndex 추종)을
+  //  진형의 **모든 유닛에 똑같이** 곱하던 것이 문제였다 — 매판 전부가 같이 세지니
+  //  체감이 늘 똑같다. 그래서 **유닛마다** 두 축을 얼마나 따라갈지 가중치를 다르게 준다.
+  //
+  //  4개 성향, 유닛 10기 기준 대략(사용자 지시 "100%일때 비율" — 정확히 안 지켜도
+  //  된다고 명시함, 그래서 확률로만 근사한다):
+  //    공격력 > 체력  30% — hp 는 조금만, damage 는 두 배로 따라간다(쇠뇌 진지 등이
+  //                          이 성향이면 "너무 아프다"가 나온다)
+  //    체력 > 공격력  30% — 반대(방패병이 이 성향이면 "너무 딴딴하다"가 나온다)
+  //    전부 따라감    20% — 두 축 다 기준보다도 더 세게(진짜 위협)
+  //    원래 약한 상태 20% — 거의 안 따라간다(원래 체급 그대로, 쉬는 유닛)
+  //
+  //  ⚠ 가중치의 **기대값을 정확히 1.0** 으로 맞췄다(계산: 0.3×0.4+0.3×2.0+0.2×1.2+0.2×0.2=1.0,
+  //    양 축 대칭이라 hp·damage 둘 다 같다). 그래야 `tools/*.js` 가 재는 **평균 난이도
+  //    곡선**(균일 `modsFor` 기준, 지수 0.75 실측치)이 그대로 유효하다 — 여기서 편차만
+  //    키우고 평균을 슬쩍 올리면, 방금 실측으로 잡은 지수가 조용히 다시 어긋난다.
+  //    개별 유닛만 그 평균 주변에서 크게 흔들리게 하는 것이 이번 요청의 전부다.
+  UNIT_PROFILES: [
+    { key: 'atk',  p: 0.30, hpW: 0.4, dmgW: 2.0 },
+    { key: 'hp',   p: 0.30, hpW: 2.0, dmgW: 0.4 },
+    { key: 'full', p: 0.20, hpW: 1.2, dmgW: 1.2 },
+    { key: 'weak', p: 0.20, hpW: 0.2, dmgW: 0.2 }
+  ],
+
+  // 결정적 난수(xorshift, `js/towerplan.js` 의 `rng(seed)`와 같은 식) — 같은 등반
+  // 시도(같은 climbSeed) 안에서는 같은 유닛 자리가 같은 성향을 갖는다(재현 가능).
+  // 등반을 다시 시작하면(climbSeed 재롤 — `js/towerplan.js` seedNow() 주석 참조)
+  // 성향도 통째로 다시 섞인다 — 그게 "변칙적"의 실체다.
+  _urng: function (seed) {
+    var s = seed | 0; if (!s) s = 1;
+    return function () {
+      s ^= s << 13; s ^= s >>> 17; s ^= s << 5; s |= 0;
+      return ((s >>> 0) % 100000) / 100000;
+    };
+  },
+
+  _unitSeed: function (floor, index) {
+    var base = 0x5eed;
+    var TC = GAME.TowerChar;
+    if (TC && TC.exists && TC.exists()) {
+      var rec = TC.get();
+      if (rec && rec.climbSeed) base = rec.climbSeed | 0;
+    }
+    return ((base ^ (floor * 2654435761)) ^ (index * 40503)) | 0;
+  },
+
+  unitProfile: function (floor, index) {
+    var r = this._urng(this._unitSeed(floor, index))();
+    var list = this.UNIT_PROFILES, acc = 0;
+    for (var i = 0; i < list.length; i++) {
+      acc += list[i].p;
+      if (r < acc) return list[i];
+    }
+    return list[list.length - 1];
+  },
+
+  // `modsFor` 의 유닛별 편차판. 보스가 아닌 일반 유닛에만 쓴다(보스는 여전히
+  // `bossModsFor` 의 독자 곡선). skipPower 를 주면(도구용) 편차가 걸릴 축 자체가
+  // 없어져(follow=1) 가중치와 무관하게 균일 `modsFor(skipPower=true)`와 같아진다.
+  unitModsFor: function (floor, index, skipRule, skipPower) {
+    var t = Math.max(0, floor - 1);
+    var prof = this.unitProfile(floor, index);
+    var hpFollow = skipPower ? 1 : this.hpMul();
+    var dmgFollow = skipPower ? 1 : this.dmgMul();
+    var hpM = 1 + (hpFollow - 1) * prof.hpW;
+    var dmgM = 1 + (dmgFollow - 1) * prof.dmgW;
+    var m = { hp: (1 + 0.012 * t) * hpM, damage: (1 + 0.010 * t) * dmgM };
+    if (skipRule || !GAME.TowerRule) return m;
+    return GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor));
+  },
+
   // ── 보스 전용 성장 (2026-08-01 사용자 지시: "보스가 너무 약해") ────────────────
   //  ⚠ 이 파일이 **이미 원인과 해법을 적어 두고 있었다**(아래 BOSS_ESCORT 주석):
   //    "보스 기여가 자기가 밀어낸 예산보다 얇아진다 … 근본 해법은 보스 성장률을

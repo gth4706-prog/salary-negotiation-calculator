@@ -118,6 +118,12 @@ GAME.BattleScene.prototype.create = function () {
     var uMods = mods;
     if (this.tower && GAME.UNITS[e.type] && GAME.UNITS[e.type].isBoss && GAME.Tower.bossModsFor) {
       uMods = GAME.Tower.bossModsFor(this.tower);
+    } else if (this.tower && GAME.Tower.unitModsFor) {
+      // 진형 전체가 똑같이 세지지 않도록 **유닛 자리마다** 성향을 다르게 뽑는다
+      // (js/tower.js `UNIT_PROFILES` 참조 — 사용자 지시: "두 축을 분리하여 따라가는게
+      // 전부다 그렇지않게해줘 … 결국 사용자입장에서 변칙적이어야해"). 평균은
+      // `mods`(균일 modsFor)와 같아서 예산·곡선 실측은 그대로 유효하다.
+      uMods = GAME.Tower.unitModsFor(this.tower, i);
     }
     this.state.units.push(GAME.Combat.createUnit(e.type, wx, w.y, 'strategist', uMods));
   }

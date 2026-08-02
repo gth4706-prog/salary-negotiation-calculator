@@ -40,13 +40,22 @@ window.GAME = window.GAME || {};
 
   //  원본 이미지 안에서 부위별 사각형 [x, y, w, h](px) — `tools/dragon-parts-grid.js`
   //  로 실측. `scale` 은 그리는 배율의 배수(아래 `draw()` 의 `HEIGHT_BASE` 에 곱한다).
+  //  `frame` 은 아래 "찢긴 테두리" 연출에 쓰는 종류(ground/wall)와 어느 변에
+  //  테두리를 그릴지(top/left/right/bottom) — 사용자 지시(2026-08-02 4차):
+  //  "그대로 크롭해서 오는 게 아니라 참고해서 몬스터 형태로 만들어 보여주길
+  //  원해." 직사각형을 그냥 잘라 붙이면 팔·머리가 사고로 잘린 스크린샷처럼
+  //  보인다 — 잘린 자리를 흙/돌무더기로 덮어 "땅·벽을 뚫고 나왔다"로 읽히게 한다.
   DA.PARTS = {
-    foot:     { rect: [365, 395, 130, 135], scale: 1.35 },
-    claw:     { rect: [655, 375, 145, 155], scale: 1.30 },
-    wingpart: { rect: [115,  20, 530, 330], scale: 0.85 },
-    halfface: { rect: [735, 220, 245, 190], scale: 1.15 },
-    waking:   { rect: [330, 145, 420, 300], scale: 0.78 },
-    dragon:   { rect: [  0,   0,1000, 605], scale: 0.62 }
+    //  ⚠ 첫 크롭은 앞다리 하나 + 뒷다리 일부가 같이 걸려 **다리 두 짝이 따로
+    //    노는 것**처럼 보였다(사용자 신고: "팔이 이상하게 짤린것같다"). 발끝
+    //    부분만 바짝 자르고 다리 전체를 안 담아 이 문제를 피한다 — "손" 이라는
+    //    부위 자체가 발 전체가 아니라 움켜쥔 발끝이면 충분하다.
+    foot:     { rect: [365, 395, 130, 135], scale: 1.35, frame: 'ground', edges: ['top'] },
+    claw:     { rect: [665, 450, 115,  85], scale: 1.55, frame: 'ground', edges: ['top', 'left'] },
+    wingpart: { rect: [115,  20, 530, 330], scale: 0.85, frame: 'ground', edges: ['right'] },
+    halfface: { rect: [735, 220, 245, 190], scale: 1.15, frame: 'wall',   edges: ['left', 'bottom'] },
+    waking:   { rect: [330, 145, 420, 300], scale: 0.78, frame: 'ground', edges: ['top', 'right'] },
+    dragon:   { rect: [  0,   0,1000, 605], scale: 0.62, frame: null,     edges: [] }
   };
 
   //  ⚠ 이 값을 실측 없이 크게 잡았다가 40층 녹이는 시간이 341초가 나온 적이 있다

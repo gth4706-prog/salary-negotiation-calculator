@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="google-site-verification" content="-Vv3HKaiNfWlG3iVql38iG773LaD3LpSHJtwBU4-iU8" />
+<meta name="naver-site-verification" content="d4f9a360f5b25c71f4df188700ea809f9f69c0dd" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#B23A2E">
+<title>Map Archery — Spin the Map, Shoot an Arrow, Pick Your Next Trip</title>
+<meta name="description" content="Can't decide where to travel? Shoot for it. The map of South Korea keeps spinning — pull back the bowstring, aim, and let go. Wherever the arrow lands is your destination, picked from 250 real districts across the country.">
+<link rel="canonical" href="https://joeltool.com/map-archery/en/">
+<link rel="alternate" hreflang="ko" href="https://joeltool.com/map-archery/">
+<link rel="alternate" hreflang="en" href="https://joeltool.com/map-archery/en/">
+<link rel="alternate" hreflang="x-default" href="https://joeltool.com/map-archery/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Map Archery — Shoot an Arrow to Pick Your Next Trip">
+<meta property="og:description" content="The map keeps spinning — shoot an arrow, and wherever it lands becomes your travel destination. 250 districts across South Korea.">
+<meta property="og:url" content="https://joeltool.com/map-archery/en/">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%B9%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Do+Hyeon&display=swap">
+<link rel="stylesheet" href="../../css/style.css?v=0.14">
+<link rel="stylesheet" href="../../css/mapArchery.css?v=0.01">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Map Archery","applicationCategory":"UtilityApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"A free tool that picks your next South Korea travel destination — shoot an arrow at a continuously spinning map and get a random district out of 250."}
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<nav class="nav"><div class="in">
+  <a class="brand" href="../../en/" title="Gakjab Salim — a collection of genuinely useful free web tools">
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
+    <span class="n">Gakjab Salim</span>
+  </a>
+  <div class="links">
+    <a href="../../en/about.html">About</a>
+    <a class="lang-switch" href="../" title="한국어로 보기" hreflang="ko">🇰🇷 KO</a>
+    <button class="theme-btn" id="theme-btn" type="button">◐</button>
+    <span class="ver-badge" title="Build version — for cache checks">v0.01</span>
+  </div>
+</div></nav>
+
+<main class="wrap page stack">
+  <header class="hero ma-theme">
+    <h1>🏹 Can't pick a destination? Shoot for it</h1>
+    <p>The map keeps <b>spinning</b>. Pull back the bowstring to aim, then let go — the arrow flies. Wherever it lands the instant it hits, that district becomes your trip. Since the map never stops turning, the same aim never gives the same result twice.</p>
+  </header>
+
+  <details class="ma-src-note">
+    <summary>ℹ️ Where does this map data come from?</summary>
+    <div>District boundaries from Statistics Korea's SGIS service, released under Korea Open Government License Type 1, via an open-source processed dataset — simplified further for this tool. All 250 districts nationwide are included; the coordinates shown are each district's approximate center point.</div>
+  </details>
+
+  <section class="card">
+    <div class="ma-stage" id="ma-stage">
+      <canvas id="ma-canvas" width="700" height="700"></canvas>
+      <div class="ma-overlay-msg" id="ma-loading">Loading the map...</div>
+      <div class="ma-overlay-msg" id="ma-error" hidden>Couldn't load the map. Please refresh.</div>
+      <div id="ma-power" hidden><div id="ma-power-fill"></div></div>
+      <div id="ma-miss" hidden>🌊 Splash! Try again</div>
+      <div id="ma-result" hidden>
+        <div class="ma-result-card">
+          <p class="ma-result-eyebrow">Your arrow landed in</p>
+          <h3 id="ma-result-name">–</h3>
+          <p class="ma-result-province" id="ma-result-province">–</p>
+          <p class="ma-result-coord" id="ma-result-coord">–</p>
+          <button class="cta" id="ma-replay" type="button">↺ Shoot again</button>
+        </div>
+      </div>
+    </div>
+    <p class="ma-hint">Press on the map and pull back, then let go to fire.</p>
+  </section>
+
+  <section class="card tool-about">
+    <h2>How this tool works</h2>
+    <h3>Controls</h3>
+    <p>Press anywhere on the canvas and drag <b>away from</b> your target — like drawing a bow — and hold. The angle you pull sets the <b>direction</b>, the distance sets the <b>power</b>. Release, and the arrow flies. Where it lands depends on both your aim and exactly where the map happened to be spinning at that instant.</p>
+    <h3>How many times can I shoot?</h3>
+    <p>Unlimited. Keep shooting until you get a destination you like. If the arrow flies past the map into open water, just shoot again.</p>
+    <h3>What this doesn't do</h3>
+    <p>It won't tell you where to eat, stay, or what to see — just the district name and its rough coordinates. Use it as a <b>starting point</b> for picking a trip, not a full guide. It doesn't go down to the neighborhood (eup/myeon/dong) level.</p>
+  </section>
+
+  <p class="more-tools"><a href="../../en/">← See other tools</a></p>
+</main>
+
+<footer class="footer"><div class="in">
+  <a href="../../en/about.html">About</a><span class="sep">·</span>
+  <a href="../../en/privacy.html">Privacy Policy</a><span class="sep">·</span>
+  <a href="../../en/contact.html">Contact</a>
+  <div class="cp">A random starting point for trip planning — please verify actual travel details separately. © Gakjab Salim</div>
+</div></footer>
+
+<script>window.MA_LANG="en";</script>
+<script src="../../js/site.js?v=0.14"></script>
+<script src="../../js/mapArchery.js?v=0.01"></script>
+</body>
+</html>

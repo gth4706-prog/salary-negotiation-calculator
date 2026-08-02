@@ -172,7 +172,7 @@
   }
   canvas.addEventListener("pointerdown",function(e){
     if(state!=="idle") return;
-    if(canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+    if(canvas.setPointerCapture){ try{ canvas.setPointerCapture(e.pointerId); }catch(err){} }
     pull=toCanvasPt(e);
     state="aiming";
     updatePowerUI();
@@ -273,6 +273,12 @@
     var pullVec=sub(pull,ANCHOR);
     var dist=Math.min(len(pullVec),MAX_PULL);
     var dir=norm(scl(pullVec,-1));
+    drawBowAndArrow(dir,dist,true);
+  }
+  function drawIdleBow(){
+    drawBowAndArrow({x:0,y:-1},0,false);
+  }
+  function drawBowAndArrow(dir,dist,showAimLine){
     var nock=add(ANCHOR, scl(dir,-dist));
     var pxy=perp(dir);
     var half=34, depth=14;
@@ -297,14 +303,16 @@
 
     drawArrowShape(nock, add(ANCHOR, scl(dir,18)), dir);
 
-    ctx.setLineDash([4,6]);
-    ctx.strokeStyle="rgba(120,120,120,.55)";
-    ctx.lineWidth=1;
-    ctx.beginPath();
-    ctx.moveTo(ANCHOR.x,ANCHOR.y);
-    ctx.lineTo(ANCHOR.x+dir.x*170, ANCHOR.y+dir.y*170);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    if(showAimLine){
+      ctx.setLineDash([4,6]);
+      ctx.strokeStyle="rgba(120,120,120,.55)";
+      ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.moveTo(ANCHOR.x,ANCHOR.y);
+      ctx.lineTo(ANCHOR.x+dir.x*170, ANCHOR.y+dir.y*170);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     ctx.restore();
   }
 
@@ -339,31 +347,36 @@
   }
 
   function tick(now){
-    if(lastT===null) lastT=now;
-    var dt=(now-lastT)/1000; lastT=now;
+    try{
+      if(lastT===null) lastT=now;
+      var dt=(now-lastT)/1000; lastT=now;
 
-    if(state==="idle"||state==="aiming"||state==="flying"){
-      rotation += ROT_SPEED*dt;
+      if(state==="idle"||state==="aiming"||state==="flying"){
+        rotation += ROT_SPEED*dt;
+      }
+
+      ctx.clearRect(0,0,W,H);
+
+      if(state==="zooming"||state==="result"){
+        var t = state==="zooming" ? Math.min(1,(now-zoomStart)/ZOOM_MS) : 1;
+        var e=easeOutCubic(t);
+        renderFrame(zoomRotFrozen, 1+e*(TARGET_ZOOM-1), lerpPt({x:0,y:0},impactLocal,e), true);
+        if(state==="zooming" && t>=1){ state="result"; showResultCard(); }
+      } else {
+        renderFrame(rotation,1,{x:0,y:0},false);
+        if(state==="idle") drawIdleBow();
+        if(state==="aiming") drawBow();
+        if(state==="flying") drawFlyingArrow(now);
+      }
+
+      if(state==="flying"){
+        var ft=(now-flight.t0)/1000/flight.dur;
+        if(ft>=1) resolveImpact();
+      }
+    }catch(err){
+      state="idle"; flight=null; pull=null;
+      hidePowerUI();
     }
-
-    ctx.clearRect(0,0,W,H);
-
-    if(state==="zooming"||state==="result"){
-      var t = state==="zooming" ? Math.min(1,(now-zoomStart)/ZOOM_MS) : 1;
-      var e=easeOutCubic(t);
-      renderFrame(zoomRotFrozen, 1+e*(TARGET_ZOOM-1), lerpPt({x:0,y:0},impactLocal,e), true);
-      if(state==="zooming" && t>=1){ state="result"; showResultCard(); }
-    } else {
-      renderFrame(rotation,1,{x:0,y:0},false);
-      if(state==="aiming") drawBow();
-      if(state==="flying") drawFlyingArrow(now);
-    }
-
-    if(state==="flying"){
-      var ft=(now-flight.t0)/1000/flight.dur;
-      if(ft>=1) resolveImpact();
-    }
-
     requestAnimationFrame(tick);
   }
 })();

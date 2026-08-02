@@ -37,6 +37,14 @@ body{background:var(--ma-bg);background-image:radial-gradient(ellipse at top,rgb
 .hero.ma-theme h1{font-family:var(--ma-font);color:var(--ma-ink);letter-spacing:.01em}
 .hero.ma-theme p{color:var(--ma-muted)}
 
+.ma-src-note{background:var(--ma-panel);border:1px solid var(--ma-line);border-left:4px solid var(--ma-green);border-radius:10px;padding:10px 14px;margin:12px 0}
+.ma-src-note>summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--ma-green);list-style:none}
+.ma-src-note>summary::-webkit-details-marker{display:none}
+.ma-src-note>summary::after{content:" ▾"}
+.ma-src-note[open]>summary::after{content:" ▴"}
+.ma-src-note>div{margin-top:9px;font-size:12.5px;line-height:1.7;color:var(--ma-muted)}
+.ma-src-note b{color:var(--ma-ink)}
+
 /* ---------- 캔버스 패널 ---------- */
 .ma-stage{
   position:relative;
@@ -96,3 +104,8 @@ body{background:var(--ma-bg);background-image:radial-gradient(ellipse at top,rgb
   .ma-stage{padding:10px;border-radius:16px}
   #ma-power{width:70%}
 }
+
+/* display:flex 등을 selector에 직접 건 위 규칙들이 브라우저 기본
+   [hidden]{display:none}보다 우선순위가 높아 hidden 속성이 무력화된다.
+   !important로 hidden이 항상 이기게 강제한다. */
+.ma-stage [hidden]{display:none !important}

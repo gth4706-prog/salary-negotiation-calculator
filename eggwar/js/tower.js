@@ -96,39 +96,75 @@ GAME.Tower = {
   //  어려워지게 한다. 유닛 0.55 + 예산 0.12 = 0.67.
   //  ⚠ 처음엔 0.80 + 0.30 = 1.10 을 넣었다가 40층 녹이는 시간이 341초가 나왔다
   //    (전투 제한시간의 몇 배다 — 못 이기는 층이 된다). **과보정도 버그다.**
-  POWER_POW_UNIT: 0.55,      // 유닛 체력·공격에 걸리는 지수
+  //  ⚠ 2026-08-02 4차 재설계 — **기하평균이 화력 몰빵 빌드를 숨겼다.**
+  //    사용자 신고: "42층을 3초 만에 피가 하나도 안 달고 깼어." 원인은 하나였다 —
+  //    `heroPowerIndex` 가 `sqrt(공격배수 × 유효체력배수)` 였는데, 공격에만 몰아주고
+  //    방어를 안 산 빌드는 유효체력배수가 1에 가까워 **기하평균이 공격 성장을
+  //    희석시킨다**(공격 300배 + 체력 1배 → 지수 √300 ≈ 17배로 과소평가됨).
+  //    그 결과 "죽기 전에 다 죽인다"는 순수 화력 빌드에게 진형이 안 따라왔다.
+  //
+  //    고침: **두 축을 분리한다.** 적 체력은 내 공격력(=킬 속도)을 따라가고,
+  //    적 공격력은 내 유효체력(=버티는 힘)을 따라간다. 한쪽에만 몰아줘도
+  //    그 축의 적이 정확히 그만큼 따라온다 — 희석될 자리가 없다.
+  //    (`tools/tower-power-curve.js profile=glass` 로 화력 몰빵 빌드를 직접
+  //     흉내내 실측했다 — 균형 잡힌 빌드만 재던 예전 도구는 이 사고를 못 잡았다.)
+  //
+  //    캡도 24 → **1200** 으로 올렸다. "무한의 탑"인데 고정 상한을 두면 지수
+  //    성장 경제(골드가 매층 ×1.12)가 언젠가 그 상한을 반드시 넘는다 — 이번 사고가
+  //    바로 그거였다(상한이 낮아서가 아니라, 상한이 **존재하는 것 자체**가 문제).
+  //    지금 캡은 디자인 상한이 아니라 오버플로 방지용 안전장치다.
+  //
+  //    지수는 0.55 → **0.75** 로 다시 올렸다(실측: `tools/tower-power-curve.js`).
+  //    0.55 에서는 화력 몰빵 프로필의 30→60층 녹이는 시간 비율이 0.81배로,
+  //    여전히 후반이 쉬워지고 있었다 — 지수가 1보다 작으면 **무한히 자라는
+  //    지수 경제(골드)를 유한한 지수만으로는 언젠가 반드시 못 따라간다.**
+  //    1.00 은 과했다(균형 빌드조차 20층부터 90초 제한시간을 넘겼다 — 341초
+  //    전례와 같은 과보정). 0.75 에서 세 프로필(glass/tank/balanced) 전부
+  //    30→60층 비율이 1.0 이상으로 나온다 — 갈수록 쉬워지지 않는다.
+  POWER_POW_UNIT: 0.75,      // 유닛 체력·공격에 걸리는 지수
   POWER_POW_BUDGET: 0.12,    // 예산에 걸리는 지수 — 낮게 잡는다
-  POWER_CAP: 24,             // 유닛 배수 상한
+  POWER_CAP: 1200,           // 유닛 배수 상한 — 안전장치일 뿐, 실제로는 거의 안 닿는다
   BUDGET_MUL_CAP: 1.8,       // 예산 배수 상한
   //  ⚠ 예산을 크게 올리면 **오히려 컨트롤러가 유리해진다**(CLAUDE.md 실측:
   //    예산이 커질수록 아이템 효율이 유닛 추가보다 좋다). 그래서 무게는 유닛 쪽에
   //    싣고 예산은 살짝만 민다 — 진형이 두꺼워지되 뒤집히지는 않게.
 
-  //  이 캐릭터의 공격력·유효체력이 기본 영웅의 몇 배인가. 기본이면 1.0.
-  heroPowerIndex: function () {
+  //  ⚠ 기준선은 `HEROES` 의 생짜 스탯이 아니라 **갓 만든 캐릭터**다(head-start 포함).
+  //    `statBonus`/`itemBonus` 는 head-start 를 이미 포함하므로 `atk0`/`ehp0` 에
+  //    또 더하면 두 번 세어 신선한 캐릭터가 1.0 이 아니게 된다(실제로 그랬다).
+  _hb: function (rec) { return (GAME.TowerChar.HERO_BASE && GAME.TowerChar.HERO_BASE[rec.heroKey]) || {}; },
+
+  //  내 공격력이 기본 영웅의 몇 배인가(쿨감 포함 — 실제 dps 다). 기본이면 1.0.
+  atkIndex: function () {
     var TC = GAME.TowerChar;
     if (!TC || !TC.exists || !TC.exists()) return 1;
     var rec = TC.get();
     var base = rec && GAME.HEROES[rec.heroKey];
     if (!base) return 1;
-    var b = TC.statBonus(rec), ib = TC.itemBonus(rec);
-    //  ⚠ 기준선은 `HEROES` 의 생짜 스탯이 아니라 **갓 만든 캐릭터**다.
-    //    캐릭터를 만드는 순간 영웅별 head-start(`TowerChar.HERO_BASE`)가 이미
-    //    붙어 있어서, 생짜를 기준으로 잡으면 1층부터 지수가 1.14 로 나온다 —
-    //    아무것도 안 산 사람에게 14% 더 두꺼운 진형을 붙이는 셈이고,
-    //    "1~3층은 연습 구간"이라는 이 게임의 약속과 회귀 기준선이 같이 깨진다.
-    //    (실측으로 잡았다: `tools/tower-power-curve.js` 의 '신선한 캐릭터 배수'.)
-    var hb = (TC.HERO_BASE && TC.HERO_BASE[rec.heroKey]) || {};
+    var b = TC.statBonus(rec), ib = TC.itemBonus(rec), hb = this._hb(rec);
     var atk0 = (base.damage || 0) + (hb.damage || 0) || 1;
+    var atk = (base.damage || 0) + (b.damage || 0) + (ib.damage || 0);
+    // 쿨감(cdrMul, 1보다 작을수록 빠르다)도 실제 dps 다 — 안 넣으면 쿨감 아이템으로
+    // 찍은 빌드의 진짜 화력이 과소평가된다.
+    var p = (atk / (ib.cdrMul || 1)) / atk0;
+    return p > 1 ? p : 1;
+  },
+
+  //  내 유효체력이 기본 영웅의 몇 배인가(흡혈 포함 — 맞으면서 채우는 것도 버티는
+  //  힘이다). 기본이면 1.0.
+  ehpIndex: function () {
+    var TC = GAME.TowerChar;
+    if (!TC || !TC.exists || !TC.exists()) return 1;
+    var rec = TC.get();
+    var base = rec && GAME.HEROES[rec.heroKey];
+    if (!base) return 1;
+    var b = TC.statBonus(rec), ib = TC.itemBonus(rec), hb = this._hb(rec);
     var ehp0 = ((base.hp || 0) + (hb.hp || 0) || 1) *
                (1 + ((base.armor || 0) + (hb.armor || 0)) / 100);
-    //  ⚠ `statBonus` 는 HERO_BASE 를 **이미 포함**한다. atk0 에 또 더하면
-    //    head-start 를 두 번 세어 신선한 캐릭터가 1.19 로 나온다(실제로 그랬다).
-    var atk = (base.damage || 0) + (b.damage || 0) + (ib.damage || 0);
     var ehp = ((base.hp || 1) + (b.hp || 0) + (ib.hp || 0)) *
               (1 + ((base.armor || 0) + (b.armor || 0) + (ib.armor || 0)) / 100);
-    // 기하평균 — 공격만 올린 빌드와 방어만 올린 빌드가 같은 무게를 갖는다.
-    var p = Math.sqrt((atk / atk0) * (ehp / ehp0));
+    var lsMul = 1 + (ib.lifesteal || 0) * 1.5;   // 대략치 — 정밀 계측 대상 아님
+    var p = (ehp * lsMul) / ehp0;
     return p > 1 ? p : 1;
   },
 
@@ -139,15 +175,25 @@ GAME.Tower = {
     return (rec && typeof rec.pressure === 'number') ? rec.pressure : 1;
   },
 
-  // 유닛 체력·공격에 걸리는 최종 배수(화면에도 이 값을 보여 준다).
-  challengeMul: function () {
-    var m = Math.pow(this.heroPowerIndex(), this.POWER_POW_UNIT) * this.pressureOf();
+  // 적 체력 배수 — **내 공격력**(킬 속도)을 따라간다. 순수 화력 빌드가 이 축을
+  // 못 벗어나는 것이 이번 수정의 핵심이다.
+  hpMul: function () {
+    var m = Math.pow(this.atkIndex(), this.POWER_POW_UNIT) * this.pressureOf();
+    return Math.max(1, Math.min(this.POWER_CAP, m));
+  },
+
+  // 적 공격력 배수 — **내 유효체력**(버티는 힘)을 따라간다. 순수 방어 빌드가
+  // 무피해로 버티지 못하게 한다.
+  dmgMul: function () {
+    var m = Math.pow(this.ehpIndex(), this.POWER_POW_UNIT) * this.pressureOf();
     return Math.max(1, Math.min(this.POWER_CAP, m));
   },
 
   budgetMul: function () {
-    var m = Math.pow(this.heroPowerIndex(), this.POWER_POW_BUDGET) *
-            Math.sqrt(this.pressureOf());
+    // 예산(적 숫자)은 두 축 중 **더 크게 자란 쪽**을 따라간다 — 어느 쪽으로
+    // 몰아줘도 진형이 그만큼 두꺼워진다.
+    var idx = Math.max(this.atkIndex(), this.ehpIndex());
+    var m = Math.pow(idx, this.POWER_POW_BUDGET) * Math.sqrt(this.pressureOf());
     return Math.max(1, Math.min(this.BUDGET_MUL_CAP, m));
   },
 
@@ -207,8 +253,9 @@ GAME.Tower = {
   //   곡선을 다시 잴 때는 `Tower.modsFor(n, true)` 로 조건을 빼고 재는 것이 맞다.
   modsFor: function (floor, skipRule, skipPower) {
     var t = Math.max(0, floor - 1);
-    var cm = skipPower ? 1 : this.challengeMul();
-    var m = { hp: (1 + 0.012 * t) * cm, damage: (1 + 0.010 * t) * cm };
+    var hpM = skipPower ? 1 : this.hpMul();
+    var dmgM = skipPower ? 1 : this.dmgMul();
+    var m = { hp: (1 + 0.012 * t) * hpM, damage: (1 + 0.010 * t) * dmgM };
     if (skipRule || !GAME.TowerRule) return m;
     return GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor));
   },

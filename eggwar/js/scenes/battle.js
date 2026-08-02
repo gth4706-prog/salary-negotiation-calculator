@@ -940,8 +940,9 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
           // ⚠ 2026-08-01 — 층 보상을 **절반으로** 줄였다(사용자: "지금 라운드 끝났을 때
           //   주는 골드가 너무 많다고 생각해 절반 정도로 줄여"). 처치 골드가 지수로
           //   커졌으므로 '깼다는 사실'에 붙는 바닥은 작아도 된다.
-          // ⚠ 2026-08-02 · 골드 25% 너프 — 0.5 → 0.375 (towerrun.js GOLD_BASE 와 짝)
-          var floorBase = (12 + this.tower * 3) * 0.375;
+          // ⚠ 2026-08-02 · 골드 25% 너프(0.5→0.375)에 이어 추가 20% 너프
+          //   (0.375×0.8=0.3) — towerrun.js GOLD_BASE 와 같은 비율로 짝을 맞춘다.
+          var floorBase = (12 + this.tower * 3) * 0.3;
           var floorBonus = Math.round(floorBase * (0.75 + Math.random() * 0.5));
           goldGained = Math.round((rawGold + floorBonus) * GAME.TowerChar.luckGoldMul());
           runRec = GAME.TowerChar.addGold(goldGained);

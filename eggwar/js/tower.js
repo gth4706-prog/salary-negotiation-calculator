@@ -372,13 +372,53 @@ GAME.Tower = {
   //  (사용자 지시 5: "깨더라도 다음 51탄 밸런스가 무너져").
   //  ⚠ 이 값을 바꾸면 `js/units.js` 의 보스 기본 체력표도 같이 봐야 한다 —
   //    둘은 곱해져서 화면 숫자가 된다. 반드시 `node tools/boss-stat-audit.js` 로 확인.
+  //  ══ 보스는 **지수 1.0** 으로 따라간다 (2026-08-03 사용자 지시) ══════════════
+  //  "어떤 유저가 오더라도 그리고 내가 앞으로 100층에 가더라도 적용가능한 밸런스"
+  //
+  //  일반 유닛은 `POWER_POW_UNIT = 0.75` 를 쓴다. 그런데 **내 dps 는 atkIndex 에
+  //  정비례**(지수 1.0)한다. 따라서
+  //        격파시간 = 보스유효체력 / 내dps  ∝  atkIndex^0.75 / atkIndex^1.0
+  //                                        =  atkIndex^(-0.25)
+  //  즉 **강해질수록 보스는 반드시 쉬워진다.** 지수가 1보다 작은 한 이건 조정으로
+  //  못 막는다 — 수학이다. 지금까지 "고층이 쉬워진다"가 반복해서 돌아온 이유가
+  //  이것이고, 50층 알이 12초에 죽은 것도 같은 뿌리다.
+  //
+  //  그래서 **보스에만** 지수 1.0 을 쓴다. 그러면
+  //        격파시간 ∝ atkIndex^0 = 상수
+  //  가 되어 **캐릭터가 얼마나 세든 보스전 길이가 같다.** 마찬가지로 보스 피해는
+  //  `ehpIndex^1.0` 을 따라가므로 **보스 한 대가 내 체력의 몇 %인지가 영원히 같다**
+  //  (지금 신고 "평타가 내 체력의 3.3%라 아무 긴장이 없다"가 이 축의 문제였다).
+  //
+  //  ⚠ 일반 유닛에 1.0 을 쓰면 안 된다 — 이미 시도했다가 "20층부터 90초 제한을
+  //    넘겨 못 이기는 층"이 됐다(위 POWER_POW_UNIT 주석). 진형은 **머릿수**라
+  //    체력 총합이 그대로 벽이 되지만, 보스는 하나뿐이라 길이만 늘어난다.
+  //    두 축을 갈라 두는 것이 핵심이다.
+  POWER_POW_BOSS: 1.0,
+
+  //  보스 축만 다시 계산한다(일반 유닛 곡선은 손대지 않는다).
+  _bossFollow: function (idx) {
+    var m = Math.pow(Math.max(1, idx), this.POWER_POW_BOSS) * this.pressureOf();
+    return Math.max(1, Math.min(this.POWER_CAP, m));
+  },
+
   BOSS_HP_PREMIUM: 2.4,
   BOSS_DMG_PREMIUM: 1.65,
   bossModsFor: function (floor) {
-    var base = this.modsFor(floor);          // 층 조건(towerrule)도 그대로 태운다
+    //  ⚠ `modsFor` 를 그대로 쓰면 안 된다 — 거기엔 유닛용 지수 0.75 가 이미 들어 있다.
+    //    층 조건(towerrule)은 그대로 타되 **추종 배수만** 갈아 끼운다.
+    //
+    //  ⚠ **층당 선형 성장(1+0.012t)도 뺐다.** 보스는 하나뿐이라 그 항이 그대로
+    //    싸움 길이가 되는데, 그러면 300층 보스는 10층 보스보다 4.6배 오래 걸린다.
+    //    그걸 상쇄하려고 기본 체력을 낮추면(300층 300→54) **기본값이 거꾸로 뒤집혀**
+    //    표를 읽을 수 없게 된다(교정 도구가 실제로 그런 표를 뱉었다).
+    //    지금은 `def.hp` 하나가 곧 **그 보스와 몇 초 싸우는가**를 뜻한다 — 층별
+    //    난이도 상승은 진형·호위가 맡는다(보스는 '위협', 진형은 '난이도').
+    var m = { hp: this._bossFollow(this.atkIndex()),
+              damage: this._bossFollow(this.ehpIndex()) };
+    if (GAME.TowerRule) m = GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor));
     return {
-      hp: base.hp * this.BOSS_HP_PREMIUM,
-      damage: base.damage * this.BOSS_DMG_PREMIUM
+      hp: m.hp * this.BOSS_HP_PREMIUM,
+      damage: m.damage * this.BOSS_DMG_PREMIUM
     };
   },
 

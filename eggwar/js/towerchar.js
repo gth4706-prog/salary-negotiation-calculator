@@ -87,6 +87,15 @@ GAME.TowerChar = {
     if (typeof rec.gold !== 'number') rec.gold = 0;
     if (typeof rec.climbSeed !== 'number') rec.climbSeed = this._rollSeed();
     if (typeof rec.pressure !== 'number') rec.pressure = 1;
+    //  ── 옛 압박 흉터 치유 (2026-08-03) ──────────────────────────────────────
+    //  압박 폭을 1.00~1.60 으로 좁히기 전(0.85~2.40)에 저장된 값이 새 범위 밖에
+    //  있을 수 있다. 특히 **하한에 박힌 캐릭터**가 문제다 — 1.4M 짜리 못 깨는
+    //  보스에 계속 져서 바닥을 친 저장 데이터가 실제로 있다(사용자 캐릭터).
+    //  그대로 두면 고쳐도 한동안 계속 쉬운 보스를 보게 되므로 한 번 되돌린다.
+    //  ⚠ 조용히 지우지 않고 범위 안으로 **끌어오기만** 한다 — 잘 하던 사람의
+    //    높은 압박까지 1.0 으로 리셋하면 그쪽이 갑자기 쉬워진다.
+    if (rec.pressure < this.PRESSURE_MIN) rec.pressure = this.PRESSURE_MIN;
+    if (rec.pressure > this.PRESSURE_MAX) rec.pressure = this.PRESSURE_MAX;
     // statGain — 레벨업으로 실제 얻은 누적치(복권형 랜덤이라 lv × add 와 더 이상 같지 않다).
     // 이 필드가 없는 옛 캐릭터(개편 전)는 예전 확정식(d.add*lv)으로 역산해 채운다 —
     // 그래야 개편 순간 화면에 뜨는 능력치 총합이 갑자기 줄어드는 일이 없다.
@@ -411,17 +420,28 @@ GAME.TowerChar = {
   //    승리와 압도적 승리가 같은 값이 되어, 벽에 부딪힌 사람에게도 계속 올린다.
   //  ⚠ 지면 내린다 — 무한의 탑은 막히면 끝이라, 오르기만 하는 값은 벽을 만든다.
   //  ⚠ 한 판에 최대 ±8% 다. 한 번의 운으로 다음 층이 딴판이 되면 배울 수가 없다.
-  PRESSURE_MIN: 0.85,
-  PRESSURE_MAX: 2.40,
+  //  ── 압박 폭을 좁혔다 (2026-08-03) ────────────────────────────────────────
+  //  0.85~2.40 은 **2.8배 스윙**이다. 같은 층이 12초도 되고 34초도 되면 그건
+  //  적응이 아니라 복불복이다. 실제로 사고가 났다 — 사용자가 1.4M 짜리 못 깨는
+  //  보스에 계속 지면서 압박이 하한에 박혔고(지면 ×0.93, 14번이면 바닥),
+  //  그 상태에서 보스를 정상으로 되돌리자 **2.8배 약한 보스**가 나왔다.
+  //  "10초만에 1%의 긴장도 없이 끝났다"가 그 결과다.
+  //  ⚠ 교훈: 난이도 되먹임은 **왜 졌는지를 모른다.** 버그로 못 깨던 구간이
+  //    있으면 그 흉터가 오래 남는다. 그래서 ① 폭을 좁히고 ② 회복을 빠르게 한다.
+  PRESSURE_MIN: 1.00,
+  PRESSURE_MAX: 1.60,
   notePressure: function (won, hpFrac, secs) {
     var rec = this.get();
     if (!rec) return null;
     var mul;
-    if (!won) mul = 0.93;
-    else if (hpFrac >= 0.60 && secs <= 28) mul = 1.08;   // 아주 여유로웠다
-    else if (hpFrac >= 0.35) mul = 1.04;
+    //  ⚠ **내려가는 것보다 올라가는 것을 빠르게** 둔다. 연패로 바닥에 박히면
+    //    회복이 느릴 때 "쉬운 게임"이 한참 이어진다(위 사고). 반대로 너무 쉬우면
+    //    바로 조여야 체감이 유지된다.
+    if (!won) mul = 0.96;                                // 완만하게 내린다
+    else if (hpFrac >= 0.60 && secs <= 28) mul = 1.14;   // 아주 여유로웠다 → 빨리 조인다
+    else if (hpFrac >= 0.35) mul = 1.06;
     else if (hpFrac >= 0.15) mul = 1.00;
-    else mul = 0.97;                                     // 이겼지만 간신히
+    else mul = 0.98;                                     // 이겼지만 간신히
     rec.pressure = Math.max(this.PRESSURE_MIN,
                    Math.min(this.PRESSURE_MAX, (rec.pressure || 1) * mul));
     this._save(rec);

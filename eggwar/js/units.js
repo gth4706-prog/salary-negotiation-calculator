@@ -378,37 +378,57 @@ GAME.BOSS_UNITS = {
                damage: 150, radius: 210 }
   },
 
-  bossDragonFace: {
-    key: 'bossDragonFace', name: '용의 반쪽 얼굴', art: 'beast:halfface:ember', isBoss: true,
-    lore: '벽이 무너진 자리에 눈 하나가 있었다. 그것이 이쪽을 보고 있었다.',
-    desc: '용의 반쪽 얼굴. 숨 한 번에 앞줄이 사라진다.',
-    cost: 0, hp: 11500, armor: 50, speed: 0, range: 250, damage: 182, cooldown: 1350,
-    attack: 'melee', coneDeg: 150,
+  // ── 용의 알 → 깨어지는 알 (2026-08-02 8차 개편, 사용자 지시) ────────────────
+  //  "얼굴은 보여주지말고 손·발·날개하고 부하들만 미리 보여주자. 깨어나는용하고
+  //   너무 다르다. 그리고 에그워와 맞게 드래곤 알도 보스에 추가해주고, 알이
+  //   깨어져서 깨어지는 알(균열 안에서 반짝이는 눈만 보임)도 과정에 추가하는게
+  //   오히려 낫겠다 싶다."
+  //
+  //  **왜 이게 더 나은가** — 두 가지를 동시에 고친다:
+  //   ① 얼굴(200층)과 상반신(250층)은 **300층의 답을 미리 보여줬다.** 정체를
+  //      먼저 까 버리면 300층에서 놀랄 것이 안 남는다. 부위(발·손·날개)는
+  //      "크기"만 알려주고 정체는 안 알려주므로 예고로서 옳지만, 얼굴은 아니다.
+  //   ② **이 게임은 알에서 깨어난 자들의 전쟁이다**(CLAUDE.md 세계관). 모든
+  //      유닛이 알에서 나왔는데 정작 최종 보스만 알과 무관했다 — 용도 알에서
+  //      나온다고 하면 세계관이 한 바퀴 닫힌다. 계란 부족이 서로 싸우는 동안
+  //      산 아래에서 **가장 큰 알**이 깨어나고 있었다는 이야기가 된다.
+  //
+  //  그래서 200/250 을 부위가 아니라 **알의 두 단계**로 바꾼다:
+  //    200 용의 알     — 멀쩡한 알. 안에서 뭔가 두근거린다(아직 안 보인다)
+  //    250 깨어지는 알 — 균열이 갔고 그 틈으로 **눈만** 보인다
+  //    300 태초의 용   — 나왔다
+  //  얼굴을 300층까지 아껴 두는 것이 이 개편의 핵심이다.
+  bossDragonEgg: {
+    key: 'bossDragonEgg', name: '용의 알', art: 'beast:egg:ember', isBoss: true,
+    lore: '산보다 오래된 알. 겉은 돌처럼 식었는데 안에서 무언가 계속 두근거린다.',
+    desc: '용의 알. 껍질이 단단해 좀처럼 깨지지 않는다.',
+    // 알은 **움직이지도 때리지도 않는다** — 두꺼운 껍질 그 자체다. 그래서 방어력을
+    // 이 게임 최고로 두고(70), 대신 공격은 '박동'으로 주변을 흔드는 것 하나뿐이다.
+    // "때리는 보스"가 아니라 "부수는 데 오래 걸리는 벽"이라는 다른 종류의 층이 된다.
+    cost: 0, hp: 13000, armor: 70, speed: 0, range: 210, damage: 150, cooldown: 1500,
+    attack: 'melee', coneDeg: 360,
     radius: 38, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
-    // 숨(브레스 근사, 2026-08-02) — 진짜 방향성 콘은 combat.js 에 새 기하 판정이
-    // 필요해 보류한다(이 저장소 규율: "새 타입을 넣으면 combat.js 전체가 회귀
-    // 위험에 들어간다" — units.js 상단 주석). 대신 예고 수를 줄이고 반경을 키워
-    // "여러 발 흩뿌리기"가 아니라 "한 번의 큰 숨"으로 다르게 읽히게 한다.
-    ability: { type: 'barrage', cooldown: 4600, telegraph: 640,
-               minRange: 0, maxRange: 4000,
-               damage: 168, radius: 250, repeat: 3, interval: 260, spread: 180 }
+    // 박동 — 알이 한 번 크게 뛸 때마다 충격이 퍼진다. 자기중심이라 붙으면 위험하고
+    // 떨어지면 안전하다(= 근접 영웅에게만 어려운 층). shockwave 는 넉백 내장.
+    ability: { type: 'shockwave', cooldown: 5200, telegraph: 1000,
+               damage: 160, radius: 240 }
   },
 
-  bossDragonWaking: {
-    key: 'bossDragonWaking', name: '깨어나는 용', art: 'beast:waking:ember', isBoss: true,
-    lore: '목과 앞다리가 산을 밀어내고 나왔다. 아직 절반도 안 나왔다.',
-    desc: '깨어나는 용. 상반신만으로도 전장을 덮는다.',
-    cost: 0, hp: 18000, armor: 54, speed: 74, range: 240, damage: 210, cooldown: 1300,
-    attack: 'melee', coneDeg: 150,
-    radius: 40, shape: 'star', weapon: 'riotShield',
-    chase: 520, aggro: 560,
-    // 지금까지 전부의 합(2026-08-02) — 다섯 부위 중 이동+공격이 둘 다 되는
-    // 유일한 부위라는 설정에 맞춰 밀어냄까지 얹는다.
-    ability: { type: 'barrage', cooldown: 4400, telegraph: 620,
+  bossDragonCrack: {
+    key: 'bossDragonCrack', name: '깨어지는 알', art: 'beast:eggcrack:ember', isBoss: true,
+    lore: '껍질이 갈라졌다. 그 틈으로 눈 하나가 이쪽을 보고 있다. 아직 눈뿐이다.',
+    desc: '깨어지는 알. 균열에서 새어 나오는 열기가 전장을 태운다.',
+    cost: 0, hp: 19000, armor: 58, speed: 0, range: 240, damage: 195, cooldown: 1300,
+    attack: 'melee', coneDeg: 360,
+    radius: 40, shape: 'bunker', weapon: 'riotShield',
+    chase: 0, aggro: 0, immobile: true,
+    // 균열에서 뿜는 열 — 이제 **멀리까지 닿는다**(알일 때는 자기중심뿐이었다).
+    // 250층이 200층보다 무서워지는 이유가 체력이 아니라 사거리라는 게 요지다.
+    ability: { type: 'barrage', cooldown: 4400, telegraph: 700,
                minRange: 0, maxRange: 4000,
-               damage: 186, radius: 200, repeat: 6, interval: 290, spread: 420,
-               knockback: 40 }
+               damage: 178, radius: 205, repeat: 5, interval: 300, spread: 360,
+               knockback: 38 }
   },
 
   bossDragonLord: {

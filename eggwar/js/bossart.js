@@ -40,7 +40,7 @@ window.GAME = window.GAME || {};
   var BA = GAME.BossArt = {};
 
   // 종류별 **그리는 배율**. 히트박스와 무관하다 — 짐승은 크게 보여야 짐승이다.
-  //  ⚠ 용 몸(wingpart/halfface/waking/dragon)은 2026-08-02 3차로 래스터 경로
+  //  ⚠ 용 **본체**(dragon)만 래스터 경로
   //    (`GAME.DragonAsset`)로 옮겨서 여기 없다 — 그쪽은 배율을 자체 계산한다
   //    (`js/dragonasset.js` 의 `PARTS[kind].scale`). foot/claw 는 6차에서 다시
   //    벡터로 돌아왔다(작은 크롭이 배율을 키우면 픽셀이 깨져서 — 아래 `footPart`/
@@ -49,7 +49,7 @@ window.GAME = window.GAME || {};
   //    게 아니라 크기를 먼저 보여주는 층이다 — 이 파일 헤더 참조). 다만 아레나
   //    밖으로 넘치면 안 되므로 전부 `tools/boss-shot.js` 로 찍어 보고 정했다.
   BA.SCALE = { sentry: 1.50, drake: 1.60, foot: 2.35, claw: 2.15,
-               wingpart: 1.85, halfface: 1.65, waking: 1.55 };
+               wingpart: 1.85, egg: 1.30, eggcrack: 1.35 };
 
   // 결(속성)별 색. 같은 골격에 색만 갈아 끼워 권속을 여러 종으로 늘린다.
   //  ⚠ **네 톤이 필요하다.** 처음엔 dark/scale/belly 셋이었는데, 그러면 위에서
@@ -682,55 +682,130 @@ window.GAME = window.GAME || {};
     g.fillStyle(tone.lit, 0.6); g.fillEllipse(sx0 - r * 0.16, sy0 - r * 0.18, r * 0.48, r * 0.32, 10);
     // ④ 날개 — `wing()` 의 막은 손목이 어깨보다 `lift`(= r*1.02*spread) 위로 올라가고
     //    손가락이 거기서 또 1.58r 뻗는다. spread 가 1.0 근처면 위로만 2.6r 을 먹어
-    //    화면 밖으로 나간다(waking 과 같은 함정) — 0.78 로 묶었다.
+    //    화면 밖으로 나간다(세로 예산 함정) — 0.78 로 묶었다.
     wing(g, sx0, sy0, r * 1.68, tone, 0.78 + 0.04 * flap, flap, false, 1);
   }
 
-  //  반쪽 얼굴(200층) — 무너진 벽 틈으로 **머리 절반만** 보인다. 기존 `head()` 를
-  //  아주 크게 그리고, 화면 아래쪽(턱 밑)을 돌무더기로 덮어 "나머지는 벽 뒤에
-  //  있다"를 만든다. 목은 옆으로 이어져 화면 밖으로 나간다.
-  function halfFacePart(g, cx, cy, r, T, tone, t) {
-    var breathe = Math.sin(t / 1100) * r * 0.05;
-    var hx = cx + r * 0.10, hy = cy - r * 1.05 + breathe;
-    // 목 — 오른쪽 뒤로 이어져 화면 밖으로. 머리보다 먼저 그려 뒤로 간다.
-    var neck = bez(hx + r * 0.30, hy + r * 0.40, hx + r * 1.70, hy + r * 0.95,
-                   hx + r * 2.90, hy + r * 0.55, 10);
-    ribbon(g, neck, r * 1.25, r * 0.95, tone.dark, 1);
-    ribbon(g, neck, r * 0.88, r * 0.62, tone.scale, 1);
-    ridge(g, neck, 0.05, 0.95, r * 0.22, tone.dark, -1);
-    // 머리 — 이 부위의 주인공이라 크게. 숨 쉬듯 아가리가 열린다.
-    head(g, hx, hy, r * 1.30, tone, 0.30 + 0.24 * Math.sin(t / 620), 1, t);
-    // 무너진 벽 — 턱 아래를 덮어 반쪽만 보이게 한다.
-    rubble(g, cx, cy + r * 0.05, r * 2.6, r * 1.5, 'face', tone);
+  // ── 용의 알 두 단계 (2026-08-02 8차, 사용자 지시) ────────────────────────────
+  //  "에그워와 맞게 드래곤 알도 보스에 추가하고, 알이 깨어져서 깨어지는 알(균열
+  //   안에서 반짝이는 눈만 보임)도 과정에 추가하는게 오히려 낫겠다 싶다."
+  //  이 게임의 모든 유닛은 **아이보리 계란**이다(js/eggart.js). 용의 알은 그
+  //  문법을 따르되 **정반대로** 칠한다 — 아이보리가 아니라 돌처럼 식은 검은
+  //  껍질에 잉걸불 결이 흐른다. 나란히 놓으면 "같은 알인데 다른 층위"가 된다.
+
+  //  알 껍질 — 두 단계가 공유하는 실루엣. 계란이므로 위가 좁고 아래가 넓다.
+  //  `crack`(0~1)이 0이면 멀쩡한 알, 1이면 다 갈라진 알.
+  //  ⚠ 첫 판은 조종점을 대충 잡았다가 **알이 아니라 항아리**로 보였다(실측 —
+  //    위가 넓고 평평했다). 계란은 "가장 넓은 곳이 아래쪽 40% 지점, 위로 갈수록
+  //    빠르게 좁아진다"가 전부다. 아래 좌표는 그 비례를 그대로 옮긴 것이다.
+  //    `h` 는 **알 전체 높이**다(예전엔 반높이여서 세로가 두 배로 튀었다).
+  function eggShell(g, cx, cy, r, tone, t, crack) {
+    var pulse = 1 + Math.sin(t / (crack > 0 ? 380 : 900)) * (0.012 + crack * 0.02);
+    var w = r * 1.02 * pulse, h = r * 2.30 * pulse;
+    var i, f;
+    // 바닥 그림자 — 알이 놓여 있다는 접지 신호.
+    g.fillStyle(0x000000, 0.28);
+    g.fillEllipse(cx, cy, w * 2.30, w * 0.60, 14);
+    // 껍질 — 계란 실루엣. 위가 좁고 아래 40% 지점이 가장 넓다.
+    var S = [
+      { x: cx,             y: cy - h * 1.00 },   // 꼭대기(뾰족한 쪽)
+      { x: cx + w * 0.34,  y: cy - h * 0.90 },
+      { x: cx + w * 0.72,  y: cy - h * 0.70 },
+      { x: cx + w * 0.96,  y: cy - h * 0.42 },   // 가장 넓은 곳
+      { x: cx + w * 0.90,  y: cy - h * 0.15 },
+      { x: cx + w * 0.52,  y: cy - h * 0.01 },
+      { x: cx,             y: cy + h * 0.02 },   // 바닥(둥근 쪽)
+      { x: cx - w * 0.52,  y: cy - h * 0.01 },
+      { x: cx - w * 0.90,  y: cy - h * 0.15 },
+      { x: cx - w * 0.96,  y: cy - h * 0.42 },
+      { x: cx - w * 0.72,  y: cy - h * 0.70 },
+      { x: cx - w * 0.34,  y: cy - h * 0.90 }
+    ];
+    blob(g, S, tone.dark, 1, 14);
+    blob(g, inset(S, 0.90, 0, -h * 0.01), mix(tone.scale, 0x000000, 0.30), 1, 14);
+    // 위에서 받는 빛 — 이게 없으면 알이 납작한 원판으로 보인다.
+    blob(g, inset(S, 0.54, -w * 0.20, -h * 0.10), mix(tone.lit, 0x000000, 0.30), 0.8, 14);
+    // 껍질 결 — 계란 유닛의 '금'과 같은 문법이되 훨씬 굵고 오래돼 보이게.
+    g.lineStyle(Math.max(1.2, r * 0.030), mix(tone.dark, 0x000000, 0.45), 0.5);
+    for (i = 0; i < 5; i++) {
+      f = frameSeed('shell', i);
+      var yy = cy - h * (0.14 + f * 0.70);
+      var ww = w * (0.42 + Math.sin(f * 3.1) * 0.28);
+      g.lineBetween(cx - ww, yy, cx + ww, yy - h * 0.03);
+    }
+    scalePatch(g, cx, cy - h * 0.44, w * 0.82, h * 0.40, r * 0.13, tone.dark, 0.13, 0);
+    return { w: w, h: h };
   }
 
-  //  깨어나는 용(250층) — 상반신. 머리 + 목 + 가슴 + 앞다리 둘이 땅을 밀고
-  //  올라오고, 허리부터는 돌무더기에 묻혀 있다. **다섯 부위 중 가장 많이 보이는
-  //  단계**라 앞의 것들보다 확실히 더 많은 몸이 나와야 한다.
-  //  ⚠ 세로 예산을 반드시 지킬 것 — 보스는 **진형 맨 위**에 서므로 `cy` 가 이미
-  //    화면 상단 가까이다. 첫 판은 머리를 `cy - 2.9r` 에 뒀다가 화면 밖으로 나가
-  //    **목 없는 몸통**만 보였다(실측). 위로 뻗는 총량을 `cy - 2.6r` 안에 묶고,
-  //    대신 **옆으로** 넓혀 규모를 만든다(앞다리를 벌리고 가슴을 두껍게).
-  function wakingPart(g, cx, cy, r, T, tone, t) {
-    var rise = Math.sin(t / 1300) * r * 0.05;
-    var chestX = cx - r * 0.30, chestY = cy - r * 0.72 + rise;
-    // 앞다리 둘 — 땅을 짚고 몸을 밀어 올린다(뒤쪽 것 먼저). 넓게 벌려 규모를 만든다.
-    leg(g, chestX - r * 1.00, chestY + r * 0.22, chestX - r * 1.72, chestY + r * 0.72,
-           chestX - r * 1.95, cy + r * 0.08, r * 0.40, tone, -1, r * 1.10, true);
-    leg(g, chestX + r * 1.00, chestY + r * 0.24, chestX + r * 1.72, chestY + r * 0.70,
-           chestX + r * 1.98, cy + r * 0.06, r * 0.44, tone, 1, r * 1.18, false);
-    // 가슴 — torso 를 상반신만 쓴다(아래는 어차피 돌무더기가 덮는다).
-    torso(g, chestX, chestY, r * 1.02, T, tone, 1);
-    // 목 + 머리 — 치켜들되 화면 안에 묶는다("아직 절반도 안 나왔다").
-    var neck = bez(chestX + r * 0.42, chestY - r * 0.45, chestX + r * 1.05, chestY - r * 1.05,
-                   chestX + r * 1.62, chestY - r * 1.18, 10);
-    ribbon(g, neck, r * 0.92, r * 0.58, tone.dark, 1);
-    ribbon(g, neck, r * 0.64, r * 0.36, tone.scale, 1);
-    ridge(g, neck, 0.08, 0.96, r * 0.18, tone.dark, -1);
-    head(g, chestX + r * 2.02, chestY - r * 1.24, r * 0.76, tone,
-         0.34 + 0.26 * Math.sin(t / 520), 1, t);
-    // 허리를 묻은 돌무더기 — 아래쪽 절반을 덮는다.
-    rubble(g, cx, cy, r * 3.6, r * 1.8, 'wake', tone);
+  //  용의 알(200층) — **아직 안 깨졌다.** 안에서 두근거리는 것만 보인다.
+  //  얼굴은 절대 안 보여준다(300층까지 아껴 둔다 — js/tower.js BOSS_SCHEDULE 주석).
+  function eggPart(g, cx, cy, r, T, tone, t) {
+    var sz = eggShell(g, cx, cy, r, tone, t, 0);
+    // 안에서 새어 나오는 빛 — 껍질 **아래쪽 배**에서만 은은하게. 심장처럼 뛴다.
+    var beat = 0.16 + 0.20 * Math.pow(Math.max(0, Math.sin(t / 900)), 3);
+    g.fillStyle(tone.glow, beat);
+    g.fillEllipse(cx, cy - sz.h * 0.34, sz.w * 0.90, sz.h * 0.34, 14);
+    g.fillStyle(tone.glow, beat * 0.5);
+    g.fillEllipse(cx, cy - sz.h * 0.34, sz.w * 1.35, sz.h * 0.52, 14);
+    // 둥지 잔해 — 알이 놓인 자리.
+    rubble(g, cx, cy, r * 3.0, r * 1.5, 'egg', tone);
+  }
+
+  //  깨어지는 알(250층) — 껍질이 갈라졌고 **그 틈으로 눈만** 보인다.
+  //  사용자 지시 그대로: "균열 안에서 반짝이는 눈만 보임".
+  function crackEggPart(g, cx, cy, r, T, tone, t) {
+    var sz = eggShell(g, cx, cy, r, tone, t, 1);
+    var i, f;
+    // ① 균열 — 알 배 부분에서 크게 갈라진다. 눈은 그 안쪽에 있다.
+    var eyeX = cx + r * 0.04, eyeY = cy - sz.h * 0.50;
+    // 갈라진 틈(어두운 안쪽) — 위아래로 벌어진 렌즈 모양. 톱니로 꺾어야 '깨졌다'가 된다.
+    var C = [], seg = 10, halfW = sz.w * 0.86;
+    for (i = 0; i <= seg; i++) {                       // 윗변
+      f = frameSeed('crk', i);
+      var u = i / seg;
+      C.push({ x: eyeX - halfW + halfW * 2 * u + (f - 0.5) * sz.w * 0.10,
+               y: eyeY - Math.sin(u * Math.PI) * sz.h * 0.17 + (f - 0.5) * sz.h * 0.03 });
+    }
+    for (i = seg; i >= 0; i--) {                       // 아랫변
+      f = frameSeed('crk2', i);
+      var v = i / seg;
+      C.push({ x: eyeX - halfW + halfW * 2 * v + (f - 0.5) * sz.w * 0.10,
+               y: eyeY + Math.sin(v * Math.PI) * sz.h * 0.16 + (f - 0.5) * sz.h * 0.03 });
+    }
+    g.fillStyle(0x0a0603, 1);
+    g.fillPoints(C, true);
+    // 균열에서 뻗어 나간 실금 — 틈에서 껍질 전체로 번진다.
+    g.lineStyle(Math.max(1.4, r * 0.035), 0x0a0603, 0.85);
+    for (i = 0; i < 6; i++) {
+      f = frameSeed('crkline', i);
+      var a0 = -Math.PI * 0.5 + (i - 2.5) * 0.42;
+      var L = sz.h * (0.20 + f * 0.26) * (i % 2 ? -1 : 1);
+      g.lineBetween(eyeX + (f - 0.5) * halfW * 1.4, eyeY,
+                    eyeX + (f - 0.5) * halfW * 1.4 + Math.cos(a0) * sz.w * 0.30,
+                    eyeY + Math.sin(a0) * L);
+    }
+    // ② 균열에서 새는 빛 — 틈 둘레로 번진다.
+    var flare = 0.42 + 0.30 * Math.sin(t / 300);
+    g.fillStyle(tone.glow, flare * 0.30);
+    g.fillEllipse(eyeX, eyeY, sz.w * 1.70, sz.h * 0.36, 14);
+    // ③ **눈** — 이 부위의 전부다. 세로 동공이 균열 안쪽에서 이쪽을 본다.
+    var blink = Math.sin(t / 2600);
+    var eh = r * 0.30 * (blink > 0.93 ? 0.15 : 1);   // 아주 가끔 깜빡인다
+    g.fillStyle(tone.glow, 1);
+    g.fillEllipse(eyeX, eyeY, r * 0.62, eh, 14);
+    g.fillStyle(0xfff3d0, 0.75);
+    g.fillEllipse(eyeX - r * 0.06, eyeY - eh * 0.22, r * 0.30, eh * 0.42, 12);
+    g.fillStyle(0x140a04, 1);
+    g.fillEllipse(eyeX + r * 0.02, eyeY, r * 0.11, eh * 0.92, 12);
+    // ④ 떨어져 나온 껍질 조각 — 발밑에 흩어진다.
+    for (i = 0; i < 7; i++) {
+      f = frameSeed('shard', i);
+      var sxp = cx + (f - 0.5) * sz.w * 2.4;
+      var syp = cy + f * r * 0.16;
+      tri(g, sxp - r * 0.16, syp, sxp + r * 0.14, syp - r * 0.10,
+             sxp + r * 0.04, syp + r * 0.12, mix(tone.dark, 0x000000, 0.2), 1);
+    }
+    rubble(g, cx, cy, r * 3.2, r * 1.6, 'crack', tone);
   }
 
   // ── 바깥 문 ───────────────────────────────────────────────────────────────
@@ -858,10 +933,10 @@ window.GAME = window.GAME || {};
       clawPart(g, sx, sy, r, T, info.tone, tt);
     } else if (info.kind === 'wingpart') {
       wingPart(g, sx, sy, r, T, info.tone, tt);
-    } else if (info.kind === 'halfface') {
-      halfFacePart(g, sx, sy, r, T, info.tone, tt);
-    } else if (info.kind === 'waking') {
-      wakingPart(g, sx, sy, r, T, info.tone, tt);
+    } else if (info.kind === 'egg') {
+      eggPart(g, sx, sy, r, T, info.tone, tt);
+    } else if (info.kind === 'eggcrack') {
+      crackEggPart(g, sx, sy, r, T, info.tone, tt);
     } else if (info.kind === 'sentry') {
       sentry(g, sx, sy - r * 0.55, r, T, info.tone, tt);
     } else {

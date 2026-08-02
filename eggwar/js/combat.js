@@ -1566,7 +1566,11 @@ GAME.Combat = {
     state.effects.push({
       kind: 'telegraph', x: ab.type === 'shockwave' ? u.x : u.abilX,
       y: ab.type === 'shockwave' ? u.y : u.abilY,
-      r: ab.radius || 60, t: ab.telegraph, total: ab.telegraph, side: u.side
+      r: ab.radius || 60, t: ab.telegraph, total: ab.telegraph, side: u.side,
+      // 용 보스 원소색 구분(js/scenes/battle.js `bossGlowOf`)이 시전자를 찾을 수
+      // 있도록 싣는다 — barrage 가 실제로 터질 때 만드는 예고(_execAbility)는
+      // 이미 owner 를 싣고 있었는데, 이 '예고 중' 미리보기 예고에는 없었다.
+      owner: u
     });
     return true;
   },
@@ -1674,7 +1678,9 @@ GAME.Combat = {
                              t: delay, total: delay,
                              damage: ab.damage, side: u.side, owner: u, abil: true,
                              // 늪지기처럼 둔화를 얹는 스킬이면 예고에 실어 보낸다.
-                             slowMul: ab.slowMul, slowMs: ab.slowMs });
+                             slowMul: ab.slowMul, slowMs: ab.slowMs,
+                             // 용 보스 — "밀어낸다"는 이름값이 필요한 종류만(opt-in).
+                             knockback: ab.knockback });
       }
     }
   },
@@ -2256,6 +2262,16 @@ GAME.Combat = {
             // 늪지기 스킬 — 예고 폭발이 둔화도 건다. `slowMul` 이 실린 예고만 해당된다
             // (없으면 아무 일도 안 하므로 기존 예고는 그대로다).
             if (e.slowMul) this.applySlow(w, { slowMul: e.slowMul, slowMs: e.slowMs || 2000 });
+            // 용 보스 — 폭풍/손/발 처럼 "밀어낸다"는 이름값이 필요한 barrage 에만
+            // 얹는다(2026-08-02, `slowMul` 과 같은 opt-in 패턴 — 없으면 기존 barrage는
+            // 한 줄도 안 바뀐다). charge/shockwave 의 `bite()` 넉백과 같은 식이다.
+            if (e.knockback) {
+              var kd = Math.sqrt(ex * ex + ey * ey);
+              if (kd > 0.1) {
+                w.x += (ex / kd) * e.knockback; w.y += (ey / kd) * e.knockback;
+                this.clampToArena(w); this.clampToLeash(w, state);
+              }
+            }
           }
         }
         state.effects[i] = {

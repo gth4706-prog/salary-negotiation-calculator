@@ -2065,7 +2065,15 @@ GAME.UI = GAME.UI || {};
     // ── 계란이 아닌 것들(용 권속)은 별도 파일이 그린다 (2026-08-02) ─────────────
     //  eggart 는 `eggBody` 를 뿌리로 지어져 있어서 용을 여기 끼우면 계란 유닛 60여 종이
     //  같이 위험해진다. 갈래를 하나만 내고 나머지는 손대지 않는다.
-    if (GAME.BossArt && GAME.BossArt.draw(g, def, sx, sy, r, a, idle || (GAME.Iso && GAME.Iso.now) || 0, facing)) return;
+    //  ⚠ 2026-08-02 재발견 — 이 분기가 `return;`(반환값 없음)이었다. 호출부
+    //    (`js/scenes/battle.js`의 `pos = GAME.UI.drawUnit(...)`)는 보스가 아닌
+    //    유닛만 검증하며 짜여서 `pos.sx`를 바로 읽는 줄이 있었다 — 보스 유닛마다
+    //    `pos`가 `undefined`라 그 줄에서 매 프레임 예외가 났다. 지면 고정물(`art.ground`)과
+    //    같은 계약으로 맞춘다: 배틀 화면이 실제로 이 값을 쓰는 스크린샷 검증
+    //    (`scratchpad/boss-shot.js`)에서 처음 잡혔다.
+    if (GAME.BossArt && GAME.BossArt.draw(g, def, sx, sy, r, a, idle || (GAME.Iso && GAME.Iso.now) || 0, facing)) {
+      return { sx: sx, sy: sy, by: sy };
+    }
     var art = UI.artOf(def);
     var f = facing === undefined ? Math.PI / 2 : facing;
     var side = opts && opts.side;

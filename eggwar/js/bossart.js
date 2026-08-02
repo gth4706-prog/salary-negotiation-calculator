@@ -593,6 +593,54 @@ window.GAME = window.GAME || {};
   //    결)는 계속 벡터로 그린다 — 그쪽은 이미 합격점을 받았다.
   var RASTER_KINDS = { claw: 1, foot: 1, wingpart: 1, halfface: 1, waking: 1, dragon: 1 };
 
+  // 문자열+색인을 결정적 0~1 값으로 접는다(Math.random 은 매 프레임 다시 굴러
+  // 돌무더기가 깜빡인다 — 같은 부위는 항상 같은 자리에 돌이 있어야 한다).
+  function frameSeed(kind, i) {
+    var s = 0, str = kind + '#' + i;
+    for (var k = 0; k < str.length; k++) s = (s * 31 + str.charCodeAt(k)) | 0;
+    return ((s >>> 0) % 1000) / 1000;
+  }
+
+  // ── 경계 마감 — "잘린 크롭"이 아니라 "땅을 뚫고 나왔다"로 읽히게 ────────────
+  //  2026-08-02 5차: `DA.PARTS` 의 `frame`/`edges` 는 4차부터 있었는데 이걸
+  //  그리는 코드가 없었다(세계관 검토서 지적 — "데이터만 있고 그리는 코드가
+  //  없다"). 여기서 배선한다. 원본 픽셀은 안 건드리고(3차례 벡터 리디자인
+  //  실패 전례) **덧대는 흙더미만 벡터로** 그린다 — 이 파일의 다른 짐승들과
+  //  같은 재료(fillEllipse/fillTriangle/lineBetween)라 화풍이 섞이지 않는다.
+  //  히트박스(`def.radius`)는 안 건드린다 — 순수 렌더 장식이다.
+  function groundFrame(g, kind, sx, sy, w, h, edges) {
+    var i, f;
+    g.fillStyle(0x241708, 0.55);
+    g.fillEllipse(sx, sy + h * 0.02, w * 0.72, h * 0.16, 14);
+    g.fillStyle(0x3a2a18, 0.65);
+    g.fillEllipse(sx, sy - h * 0.01, w * 0.60, h * 0.12, 14);
+    g.lineStyle(Math.max(1.5, w * 0.014), 0x160d06, 0.55);
+    for (i = 0; i < 7; i++) {
+      f = frameSeed(kind, i);
+      var ang = -Math.PI * 0.5 + (f - 0.5) * Math.PI * 0.9;
+      var len = w * (0.18 + f * 0.26);
+      g.lineBetween(sx, sy, sx + Math.sin(ang) * len, sy + h * 0.06 - Math.cos(ang) * len * 0.30);
+    }
+    // 위쪽 절단면 옆으로 튀어나온 돌 — 완전히 못 가려도 "흙더미에서 자란다"는
+    // 맥락을 준다(요청한 변에만 그린다).
+    if (edges.indexOf('top') >= 0 || edges.indexOf('left') >= 0) {
+      for (i = 0; i < 4; i++) {
+        f = frameSeed(kind, 10 + i);
+        var rx = sx - w * (0.28 + f * 0.20), ry = sy - h * (0.06 + f * 0.30);
+        g.fillStyle(i % 2 ? 0x5c4128 : 0x2e2010, 0.8);
+        g.fillEllipse(rx, ry, w * (0.09 + f * 0.07), h * (0.045 + f * 0.03), 8);
+      }
+    }
+    if (edges.indexOf('top') >= 0 || edges.indexOf('right') >= 0) {
+      for (i = 0; i < 4; i++) {
+        f = frameSeed(kind, 20 + i);
+        var rx2 = sx + w * (0.28 + f * 0.20), ry2 = sy - h * (0.06 + f * 0.30);
+        g.fillStyle(i % 2 ? 0x5c4128 : 0x2e2010, 0.8);
+        g.fillEllipse(rx2, ry2, w * (0.09 + f * 0.07), h * (0.045 + f * 0.03), 8);
+      }
+    }
+  }
+
   BA.draw = function (g, def, sx, sy, r0, alpha, t, facing) {
     var info = BA.parse(def.art);
     if (!info) return false;
@@ -607,9 +655,15 @@ window.GAME = window.GAME || {};
       var sr = r0 * 2.2;
       g.fillStyle(0x000000, 0.30 * a);
       g.fillEllipse(sx, sy, sr * 2.0, sr * 2.0 * T, 14);
-      //  ⚠ 깊이를 안 맞췄더니 **잔디 배경 밑에 깔려 안 보였다**(실측, `g` 는 이 게임
-      //    대부분의 화면에서 depth 미지정=0 인데 Image 는 만들어지는 시점의 표시목록
-      //    순서에 기댈 수 없다). `g.depth` 바로 위에 고정한다.
+      // 경계 마감 — 이미지보다 먼저(=아래) 그린다. Image 는 항상 `g.depth+0.5`
+      // 라 그 위에 앉으므로, 여기 그리는 흙더미는 크롭 실루엣 **주위 여백**
+      // (알파 투명 구간)에서만 보인다 — 그래도 "허공에 뜬 크롭"보다는
+      // 훨씬 자연스럽다.
+      var part = GAME.DragonAsset && GAME.DragonAsset.PARTS[info.kind];
+      if (part && part.frame === 'ground') {
+        var sz = GAME.DragonAsset.targetSize(info.kind, r0);
+        if (sz) groundFrame(g, info.kind, sx, sy, sz.w, sz.h, part.edges || []);
+      }
       if (GAME.DragonAsset) GAME.DragonAsset.draw(g.scene, info.kind, sx, sy, r0, a, facing, g.depth);
       return true;
     }

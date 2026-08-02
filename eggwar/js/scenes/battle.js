@@ -1462,6 +1462,16 @@ GAME.BattleScene.prototype.draw = function () {
     GAME.UI.groundCircle(g, x, y, rad);
   }
 
+  // 용 보스 텔레그래프 원소색 — `owner.def.art` 가 `beast:종류:결` 이면 그
+  // 결의 발광색(`BA.TONE[결].glow`)을 돌려준다. 계란 유닛·영웅 스킬 등
+  // `art` 가 없거나 형식이 다르면 null(호출부가 기존 진영색으로 대체한다).
+  function bossGlowOf(e) {
+    var u = e.owner;
+    if (!u || !u.def || typeof u.def.art !== 'string') return null;
+    var info = GAME.BossArt && GAME.BossArt.parse && GAME.BossArt.parse(u.def.art);
+    return (info && info.tone && info.tone.glow) || null;
+  }
+
   // ── 스킬 이펙트 A/B 시안 (js/skillfx.js) ─────────────────────────────
   //  파일이 없거나 꺼져 있으면 FXS 가 null 이 되고, 아래 네 루프는 **예전 그림 그대로**
   //  돈다. 위임 규칙은 전부 "true 를 돌려준 것만 건너뛴다" 하나뿐이라,
@@ -1488,9 +1498,14 @@ GAME.BattleScene.prototype.draw = function () {
     var e = s.effects[i];
     // 영웅이 쓴 스킬이면 **그 영웅의 색**으로 그린다(불·바람·대지). 진영색 하나로는
     // 세 영웅의 스킬이 구분이 안 됐다 — ui-theme.js 의 `FX.heroFx` 주석 참조.
+    // 용 보스도 같은 문제를 겪는다(2026-08-02 세계관 검토서 제안) — 지금은 전부
+    // 진영색 하나뿐이라 서리·폭풍·불(ash/ember) 보스가 텔레그래프로는 안 갈린다.
+    // 새 색 표를 또 만들지 않는다 — `js/bossart.js` 의 `BA.TONE[결].glow` 를
+    // 그대로 재사용한다(결마다 이미 정해진 색이 있다: ash 주황·frost 하늘색·
+    // storm 노랑·ember 주황). 표가 두 벌이 되면 조용히 갈라진다.
     var col = (e.heroKey && FX.heroFx && FX.heroFx[e.heroKey])
       ? FX.heroFx[e.heroKey]
-      : (e.side === 'controller' ? C.controller : C.strategist);
+      : (bossGlowOf(e) || (e.side === 'controller' ? C.controller : C.strategist));
     if (FXS && FXS.drawEffect(e, col)) continue;
 
     if (e.kind === 'telegraph') {

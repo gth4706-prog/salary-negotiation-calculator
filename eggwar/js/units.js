@@ -290,9 +290,13 @@ GAME.BOSS_UNITS = {
     attack: 'melee', coneDeg: 120,
     radius: 30, shape: 'star', weapon: 'riotShield',
     chase: 560, aggro: 560,
+    // 얼림(2026-08-02 사용자 지시: "불 뿜거나 얼음 뿜거나 등 보스몹다운 스킬") —
+    // `slowMul`/`slowMs`는 늪지기 스킬이 이미 쓰는 필드라 combat.js 는 한 글자도
+    // 안 바뀐다. "얼어붙은 것은 다시 움직이지 못한다"는 lore 그대로 실현된다.
     ability: { type: 'barrage', cooldown: 6200, telegraph: 700,
                minRange: 0, maxRange: 4000,
-               damage: 78, radius: 130, repeat: 3, interval: 400, spread: 250 }
+               damage: 78, radius: 130, repeat: 3, interval: 400, spread: 250,
+               slowMul: 0.45, slowMs: 2200 }
   },
 
   bossDrakeStorm: {
@@ -303,9 +307,13 @@ GAME.BOSS_UNITS = {
     attack: 'melee', coneDeg: 115,
     radius: 31, shape: 'star', weapon: 'rifle',
     chase: 620, aggro: 620,
+    // 밀어냄(2026-08-02) — `knockback` 은 `js/combat.js`에 새로 추가한 opt-in
+    // 필드(barrage 예고가 터질 때 슬로우처럼 얹는다). "폭풍"이라는 이름값을
+    // 실제 물리적 결과로 준다 — 다른 barrage 보스는 이 필드가 없어 그대로다.
     ability: { type: 'barrage', cooldown: 5400, telegraph: 560,
                minRange: 0, maxRange: 4000,
-               damage: 88, radius: 118, repeat: 4, interval: 320, spread: 300 }
+               damage: 88, radius: 118, repeat: 4, interval: 320, spread: 300,
+               knockback: 46 }
   },
 
   // ── 용의 몸 — 50층마다 한 부위씩 (2026-08-02 사용자 지시) ────────────────────
@@ -327,9 +335,12 @@ GAME.BOSS_UNITS = {
     attack: 'melee', coneDeg: 160,
     radius: 32, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
+    // 밀어냄 — "밟히면 진형 한 줄이 사라진다"를 실제로 날아가게 만든다(knockback,
+    // 폭풍 권속과 같은 opt-in 필드).
     ability: { type: 'barrage', cooldown: 5600, telegraph: 800,
                minRange: 0, maxRange: 4000,
-               damage: 108, radius: 150, repeat: 4, interval: 360, spread: 320 }
+               damage: 108, radius: 150, repeat: 4, interval: 360, spread: 320,
+               knockback: 54 }
   },
 
   bossDragonClaw: {
@@ -340,9 +351,14 @@ GAME.BOSS_UNITS = {
     attack: 'melee', coneDeg: 170,
     radius: 34, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
-    ability: { type: 'barrage', cooldown: 5400, telegraph: 760,
-               minRange: 0, maxRange: 4000,
-               damage: 126, radius: 160, repeat: 5, interval: 340, spread: 340 }
+    // 내리찍기(2026-08-02 사용자 지시: "손이 움직이거나 주먹을 내리치는 등의
+    // 스킬이 있어야 해") — 팔이 화면 위로 이어지는 연출(js/dragonasset.js)이라
+    // 이동은 안 어울린다, 대신 제자리에서 **자기 반경 전체를 찍어 누른다.**
+    // `shockwave`는 이미 있는 능력 타입(예고 원이 시전자 위치에 뜬다)이라
+    // combat.js 를 한 줄도 안 건드리고 반경만 melee 사거리(210)보다 훨씬
+    // 크게 잡아 "다섯 손가락이 전장을 통째로 움켜쥔다"는 desc 를 실현한다.
+    ability: { type: 'shockwave', cooldown: 5400, telegraph: 900,
+               damage: 172, radius: 260 }
   },
 
   bossDragonWing: {
@@ -354,9 +370,12 @@ GAME.BOSS_UNITS = {
     attack: 'melee', coneDeg: 180,
     radius: 36, shape: 'star', weapon: 'riotShield',
     chase: 420, aggro: 460,
-    ability: { type: 'barrage', cooldown: 5000, telegraph: 700,
-               minRange: 0, maxRange: 4000,
-               damage: 140, radius: 175, repeat: 5, interval: 320, spread: 380 }
+    // 접었다 펴기(2026-08-02) — "한 번 접었다 펴면 전장이 뒤집힌다"는 자기중심
+    // 파동(`shockwave`, 넉백 내장)과 정확히 같은 그림이다. 날개는 부위 중
+    // 유일하게 움직이는 존재라는 설정과도 맞는다(퍼덕임 = 자기중심). barrage 의
+    // 여러 예고 대신 **한 번의 큰 파동**으로 바꿔 다른 barrage 보스와 구분한다.
+    ability: { type: 'shockwave', cooldown: 5000, telegraph: 700,
+               damage: 150, radius: 210 }
   },
 
   bossDragonFace: {
@@ -367,9 +386,13 @@ GAME.BOSS_UNITS = {
     attack: 'melee', coneDeg: 150,
     radius: 38, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
+    // 숨(브레스 근사, 2026-08-02) — 진짜 방향성 콘은 combat.js 에 새 기하 판정이
+    // 필요해 보류한다(이 저장소 규율: "새 타입을 넣으면 combat.js 전체가 회귀
+    // 위험에 들어간다" — units.js 상단 주석). 대신 예고 수를 줄이고 반경을 키워
+    // "여러 발 흩뿌리기"가 아니라 "한 번의 큰 숨"으로 다르게 읽히게 한다.
     ability: { type: 'barrage', cooldown: 4600, telegraph: 640,
                minRange: 0, maxRange: 4000,
-               damage: 162, radius: 190, repeat: 6, interval: 300, spread: 400 }
+               damage: 168, radius: 250, repeat: 3, interval: 260, spread: 180 }
   },
 
   bossDragonWaking: {
@@ -380,9 +403,12 @@ GAME.BOSS_UNITS = {
     attack: 'melee', coneDeg: 150,
     radius: 40, shape: 'star', weapon: 'riotShield',
     chase: 520, aggro: 560,
+    // 지금까지 전부의 합(2026-08-02) — 다섯 부위 중 이동+공격이 둘 다 되는
+    // 유일한 부위라는 설정에 맞춰 밀어냄까지 얹는다.
     ability: { type: 'barrage', cooldown: 4400, telegraph: 620,
                minRange: 0, maxRange: 4000,
-               damage: 186, radius: 200, repeat: 6, interval: 290, spread: 420 }
+               damage: 186, radius: 200, repeat: 6, interval: 290, spread: 420,
+               knockback: 40 }
   },
 
   bossDragonLord: {

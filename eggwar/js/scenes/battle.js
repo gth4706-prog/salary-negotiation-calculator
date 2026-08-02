@@ -85,6 +85,10 @@ GAME.BattleScene.prototype.create = function () {
   this.state.towerRule = this.towerRule;
   // 치유 구역 — 통곡의 탑 전투에서만 켠다(물약을 대신하는 자리라 탑 전용이다).
   this.state.towerHealOn = !!this.tower;
+  // 보스 층은 회복을 **시간으로** 뿌린다(js/healzone.js `tickBoss`).
+  // 처치 기반 드랍은 보스 층에서 사실상 0개라 근접 영웅이 버틸 방법이 없었다.
+  this.state.bossHealOn = !!(this.tower && GAME.Tower.isBossFloor &&
+                             GAME.Tower.isBossFloor(this.tower));
   this.towerRuleInfo = this.tower && GAME.TowerRule
     ? GAME.TowerRule.ruleFor(this.tower) : null;
   // 층 목표는 **유닛이 다 만들어진 뒤** 붙여야 한다(우두머리를 고르려면 적이 있어야 한다).
@@ -827,6 +831,16 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   this._updateOrbs(dt);
   // 치유 구역 — 통곡의 탑 전투에서만 존재한다(state.towerHealOn).
   this._updateHealZones(dt);
+  if (this.state.bossHealOn && GAME.HealZone && GAME.HealZone.tickBoss) {
+    var bu = null;
+    for (var bi = 0; bi < this.state.units.length; bi++) {
+      if (this.state.units[bi].alive && this.state.units[bi].def &&
+          this.state.units[bi].def.isBoss) { bu = this.state.units[bi]; break; }
+    }
+    if (GAME.HealZone.tickBoss(this.state, dt, GAME.CONFIG.ARENA, bu)) {
+      this._orbToast('회복의 샘이 나타났다!');
+    }
+  }
 
   for (var i = this.markers.length - 1; i >= 0; i--) {
     this.markers[i].t -= dt;

@@ -61,6 +61,45 @@ GAME.HealZone = (function () {
       var amount = Math.round((hero.maxHp || 0) * HEAL_FRAC);
       if (amount > 0 && GAME.Combat && GAME.Combat.heal) GAME.Combat.heal(hero, amount);
       return amount;
+    },
+
+    // ── 보스 층: **시간으로** 뿌린다 (2026-08-02 사용자 지시) ────────────────
+    //  "차라리 보스전은 주기적으로 회복물약이나 구슬이 주변에 생성되었으면 좋겠어."
+    //
+    //  기존 드랍은 **처치 기반**이라 보스 층에서 거의 안 나온다 — 호위가 적고
+    //  보스 하나를 오래 때리는 구조라, 판당 기대 0.5개가 사실상 0개가 된다.
+    //  그래서 보스 층에서만 **주기적으로** 하나씩 놓는다. 근접 영웅이 붙어서
+    //  싸우다 체력이 마르는 문제(사용자 신고: "가까이 가면 3방만에 죽음")의
+    //  직접적인 답이기도 하다 — 회복이 **바닥에 놓이므로** 잠깐 떨어졌다
+    //  돌아오는 리듬이 생긴다(그냥 자동 회복을 주면 그 리듬이 안 생긴다).
+    BOSS_INTERVAL: 9000,     // 9초마다 하나
+    BOSS_MAX: 6,             // 한 판 상한(무한히 깔리면 회복이 공짜가 된다)
+    BOSS_FIRST: 4000,        // 첫 개는 조금 일찍
+
+    //  `js/scenes/battle.js` 가 보스 층 전투에서 매 프레임 부른다.
+    //  ⚠ 보스 층이 아니면 **아무 일도 하지 않는다** — 일반 층 곡선은 안 건드린다.
+    tickBoss: function (state, dtMs, arena, bossUnit) {
+      if (!state || !state.healZones || !state.bossHealOn) return false;
+      if ((state.bossHealMade || 0) >= this.BOSS_MAX) return false;
+      state.bossHealT = (state.bossHealT === undefined)
+        ? this.BOSS_FIRST : state.bossHealT - dtMs;
+      if (state.bossHealT > 0) return false;
+      state.bossHealT = this.BOSS_INTERVAL;
+      var A = arena || (GAME.CONFIG && GAME.CONFIG.ARENA);
+      if (!A) return false;
+      // 보스에게서 **떨어진 곳**에 놓는다 — 붙어 있는 채로 공짜 회복이 되면
+      // "잠깐 빠졌다 돌아온다"는 리듬이 사라진다.
+      var bx = bossUnit ? bossUnit.x : A.x + A.w / 2;
+      var by = bossUnit ? bossUnit.y : A.y + A.h * 0.3;
+      var pad = 60, x, y, tries = 0;
+      do {
+        x = A.x + pad + Math.random() * (A.w - pad * 2);
+        y = A.y + A.h * 0.35 + Math.random() * (A.h * 0.6 - pad);
+        tries++;
+      } while (tries < 12 && ((x - bx) * (x - bx) + (y - by) * (y - by)) < 220 * 220);
+      state.healZones.push({ x: x, y: y, t: 0 });
+      state.bossHealMade = (state.bossHealMade || 0) + 1;
+      return true;
     }
   };
 })();

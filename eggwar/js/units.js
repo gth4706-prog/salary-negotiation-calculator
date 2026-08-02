@@ -409,7 +409,13 @@ GAME.BOSS_UNITS = {
     // 알은 **움직이지도 쫓아오지도 않는다** — 두꺼운 껍질 그 자체다. 그래서 방어력을
     // 이 게임 최고로 두고(70), 공격은 '박동'으로 주변을 흔드는 것 하나뿐이다.
     // "때리는 보스"가 아니라 "부수는 데 오래 걸리는 벽"이라는 다른 종류의 층이 된다.
-    cost: 0, hp: 2600, armor: 70, speed: 0, range: 210, damage: 104, cooldown: 1500,
+    // ⚠ 2026-08-02 사용자 재신고: "피할수없는 스킬이 10k데미지가 떠서 한번에죽었어."
+    //   범인은 스킬이 아니라 **평타**였다 — 104 × 50층 배수 32.6 × 성장 2.9 = **9,834**.
+    //   거기에 사거리 210 · 부채꼴 360도 · 1.5초마다라 **예고도 없이 무조건** 맞는다.
+    //   지난번엔 abilities 만 고치고 평타를 안 봤다 — 같은 실수를 반복하지 말 것.
+    //   알은 **밀치고 때리는 것이 아니다**(팔이 없다). 평타를 1/4 로 줄이고
+    //   사거리도 줄여 "붙지만 않으면 안 맞는다"로 바꿈.
+    cost: 0, hp: 2600, armor: 70, speed: 0, range: 150, damage: 26, cooldown: 1500,
     attack: 'melee', coneDeg: 360,
     radius: 38, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
@@ -430,9 +436,9 @@ GAME.BOSS_UNITS = {
     abilities: [
       { type: 'shockwave', cooldown: 5200, telegraph: 1000,
         damage: 28, radius: 235 },
-      { type: 'barrage', cooldown: 13000, telegraph: 2400,
+      { type: 'barrage', cooldown: 13000, telegraph: 2700,
         minRange: 0, maxRange: 4000, aimLead: 0,
-        damage: 120, radius: 165, repeat: 1, interval: 0, spread: 0 }
+        damage: 92, radius: 160, repeat: 1, interval: 0, spread: 0 }
     ]
   },
 
@@ -441,7 +447,7 @@ GAME.BOSS_UNITS = {
     lore: '껍질에 금이 갔다. 안쪽은 아직 어둡지만, 열기가 새어 나오기 시작했다.',
     desc: '금 간 알. 틈에서 새는 열기가 주변을 지진다.',
     // 방어력이 알(70)보다 낮다 — 금이 갔으니 당연하다. 대신 체력과 공격이 오른다.
-    cost: 0, hp: 4800, armor: 58, speed: 0, range: 225, damage: 132, cooldown: 1400,
+    cost: 0, hp: 4800, armor: 58, speed: 0, range: 158, damage: 32, cooldown: 1400,
     attack: 'melee', coneDeg: 360,
     radius: 39, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
@@ -449,9 +455,9 @@ GAME.BOSS_UNITS = {
     abilities: [
       { type: 'shockwave', cooldown: 4800, telegraph: 900,
         damage: 35, radius: 258 },
-      { type: 'barrage', cooldown: 12500, telegraph: 2300,
+      { type: 'barrage', cooldown: 12500, telegraph: 2600,
         minRange: 0, maxRange: 4000, aimLead: 0,
-        damage: 150, radius: 175, repeat: 1, interval: 0, spread: 0 }
+        damage: 112, radius: 170, repeat: 1, interval: 0, spread: 0 }
     ]
   },
 
@@ -459,7 +465,7 @@ GAME.BOSS_UNITS = {
     key: 'bossDragonCrack', name: '깨어지는 알', art: 'beast:eggeye:ember', isBoss: true,
     lore: '껍질이 갈라졌다. 그 틈으로 눈 하나가 이쪽을 보고 있다. 아직 눈뿐이다.',
     desc: '깨어지는 알. 균열에서 새어 나오는 열기가 전장을 태운다.',
-    cost: 0, hp: 7600, armor: 52, speed: 0, range: 240, damage: 152, cooldown: 1300,
+    cost: 0, hp: 7600, armor: 52, speed: 0, range: 165, damage: 38, cooldown: 1300,
     attack: 'melee', coneDeg: 360,
     radius: 40, shape: 'bunker', weapon: 'riotShield',
     chase: 0, aggro: 0, immobile: true,
@@ -473,9 +479,9 @@ GAME.BOSS_UNITS = {
         minRange: 0, maxRange: 4000,
         damage: 40, radius: 195, repeat: 5, interval: 300, spread: 360,
         knockback: 38 },
-      { type: 'barrage', cooldown: 12000, telegraph: 2200,
+      { type: 'barrage', cooldown: 12000, telegraph: 2500,
         minRange: 0, maxRange: 4000, aimLead: 0,
-        damage: 185, radius: 185, repeat: 1, interval: 0, spread: 0 }
+        damage: 138, radius: 180, repeat: 1, interval: 0, spread: 0 }
     ]
   },
 

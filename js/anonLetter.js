@@ -17,6 +17,7 @@
   var T={
     ko:{
       loading:"편지를 불러오는 중...",
+      notReady:"서버 연결을 준비하고 있어요. 조금만 기다려주세요.",
       empty:"아직 아무도 편지를 남기지 않았어요. 첫 편지를 남겨보세요.",
       writePrompt:"이제 당신이 다음 사람에게 남길 말은?",
       placeholder:"낯선 누군가에게 하고 싶은 말을 적어보세요",
@@ -36,6 +37,7 @@
     },
     en:{
       loading:"Loading a letter...",
+      notReady:"We're still setting up the server. Please check back soon.",
       empty:"No one has left a letter yet. Be the first.",
       writePrompt:"What would you like to say to the next person?",
       placeholder:"Write something for a stranger",
@@ -55,6 +57,7 @@
     },
     zh:{
       loading:"正在加载信件...",
+      notReady:"服务器正在准备中，请稍后再来看看。",
       empty:"还没有人留下信件，来当第一个吧。",
       writePrompt:"你想对下一个人说什么？",
       placeholder:"写点什么给陌生人吧",
@@ -74,6 +77,7 @@
     },
     ja:{
       loading:"手紙を読み込み中...",
+      notReady:"サーバーを準備中です。もう少しお待ちください。",
       empty:"まだ誰も手紙を残していません。最初の一通を。",
       writePrompt:"次の人に伝えたいことは？",
       placeholder:"見知らぬ誰かへ、伝えたいことを書いてみましょう",
@@ -120,6 +124,10 @@
       fetch(API_BASE+"/letter?lang="+LANG)
         .then(function(r){return r.json()})
         .then(function(data){
+          if(data.error){
+            $("al-read-text").textContent=S.notReady;
+            return;
+          }
           if(data.empty){
             state.currentId=null; state.hasParent=false;
             startWriting();
@@ -130,8 +138,7 @@
           $("al-to-write").hidden=false;
         })
         .catch(function(){
-          state.currentId=null; state.hasParent=false;
-          startWriting();
+          $("al-read-text").textContent=S.notReady;
         });
     }
 

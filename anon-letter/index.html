@@ -18,7 +18,7 @@
 <meta property="og:title" content="마지막으로 남길 말은?">
 <meta property="og:description" content="익명의 누군가에게 편지를 남기고, 이어지는 걸 지켜보세요.">
 <meta property="og:url" content="https://joeltool.com/anon-letter/">
-<meta name="robots" content="index,follow">
+<meta name="robots" content="noindex,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%8C%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
 <link rel="stylesheet" href="../css/style.css?v=0.01">
@@ -41,7 +41,7 @@
     <a class="lang-switch" href="zh/" title="切换到中文" hreflang="zh">🇨🇳 ZH</a>
     <a class="lang-switch" href="ja/" title="日本語に切り替え" hreflang="ja">🇯🇵 JA</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.01</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.02</span>
   </div>
 </div></nav>
 
@@ -51,10 +51,11 @@
     <p>스쳐 지나가는 누군가에게 남기고 싶은 한마디. 완전 익명이고, 계정도 없어요.</p>
   </header>
 
+  <div class="note"><span>🚧</span><span>서버 연결 준비 중이에요. 화면은 미리 볼 수 있지만 아직 편지를 읽고 쓰는 기능은 켜져 있지 않아요. 곧 켤게요.</span></div>
   <div class="note"><span>ℹ️</span><span>작성한 편지는 검열을 위해 AI로 전달되고, 통과한 편지는 다른 이용자에게 보여지기 위해 서버에 저장됩니다. 계정을 만들지 않으며 작성자를 특정할 수 있는 정보는 수집하지 않습니다. 다른 언어를 쓰는 분에게는 AI가 번역해서 보여드려요.</span></div>
 
   <section class="card step al-card" id="al-read">
-    <div class="al-letter" id="al-read-text">–</div>
+    <div class="al-letter" id="al-read-text">준비 중이에요</div>
     <button class="cta" id="al-to-write" type="button" style="margin-top:16px" hidden>나도 다음 사람에게 한마디 →</button>
   </section>
 
@@ -105,6 +106,6 @@
 </div></footer>
 
 <script src="../js/site.js?v=0.01"></script>
-<script src="../js/anonLetter.js?v=0.01"></script>
+<script src="../js/anonLetter.js?v=0.02"></script>
 </body>
 </html>

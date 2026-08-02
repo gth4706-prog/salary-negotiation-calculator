@@ -40,10 +40,12 @@ window.GAME = window.GAME || {};
   var BA = GAME.BossArt = {};
 
   // 종류별 **그리는 배율**. 히트박스와 무관하다 — 짐승은 크게 보여야 짐승이다.
-  //  ⚠ 용 몸(claw/foot/wingpart/halfface/waking/dragon)은 2026-08-02 3차로 래스터
-  //    경로(`GAME.DragonAsset`)로 옮겨서 여기 없다 — 그쪽은 배율을 자체 계산한다
-  //    (`js/dragonasset.js` 의 `PARTS[kind].scale`).
-  BA.SCALE = { sentry: 1.50, drake: 1.60 };
+  //  ⚠ 용 몸(wingpart/halfface/waking/dragon)은 2026-08-02 3차로 래스터 경로
+  //    (`GAME.DragonAsset`)로 옮겨서 여기 없다 — 그쪽은 배율을 자체 계산한다
+  //    (`js/dragonasset.js` 의 `PARTS[kind].scale`). foot/claw 는 6차에서 다시
+  //    벡터로 돌아왔다(작은 크롭이 배율을 키우면 픽셀이 깨져서 — 아래 `footPart`/
+  //    `clawPart` 주석 참조) — 그래서 여기 배율표에 다시 있다.
+  BA.SCALE = { sentry: 1.50, drake: 1.60, foot: 2.35, claw: 2.15 };
 
   // 결(속성)별 색. 같은 골격에 색만 갈아 끼워 권속을 여러 종으로 늘린다.
   //  ⚠ **네 톤이 필요하다.** 처음엔 dark/scale/belly 셋이었는데, 그러면 위에서
@@ -571,6 +573,50 @@ window.GAME = window.GAME || {};
   }
 
 
+  //  용의 발/손 — **크롭이 아니라 이 파일의 나머지 짐승과 같은 재료로 그린 부위
+  //  단독 렌더** (2026-08-02 6차, 사용자 재지시: "너가봤을때도 괜찮은지 보고 게임과
+  //  어울리게해줘"). 래스터 크롭(5차)을 실제로 띄워 보니 작은 부위일수록 배율을
+  //  키우다 픽셀이 굵어져 "잘 그린 부위"가 아니라 "깨진 텍스처"로 보였다(직접
+  //  스크린샷으로 확인) — 반면 이 파일의 벡터 짐승(재 파수병·잿날개 등)은 같은
+  //  화면에서 멀쩡했다. 그래서 **작은 부위 둘만** 벡터로 되돌린다. 300층 본체와
+  //  150/200/250층(날개/얼굴/상반신)은 크롭이 커서 배율이 작아도 되므로 래스터로
+  //  그대로 둔다(300층은 사용자가 "변함없이 진행"이라고 명시했다).
+  //  `leg()` 하나로 몸 전체를 표현한다 — 넓적다리·정강이·발톱 세 마디가 이미 있어
+  //  "짐승의 팔다리"로 충분히 읽힌다(이 파일 `leg()` 주석 참조).
+
+  //  발(50층) — 하늘에서 짓밟듯 내려온다. 갈래 발톱 3개, 정강이에 불(ember) 균열.
+  function footPart(g, cx, cy, r, T, tone, t) {
+    var sway = Math.sin(t / 900) * r * 0.05;
+    var hip = { x: cx + sway * 0.4, y: cy - r * 2.7 };
+    var knee = { x: cx + r * 0.30 + sway, y: cy - r * 1.30 };
+    var foot = { x: cx, y: cy };
+    // 정강이 위쪽을 옅게 지워 "위가 안 보인다"(화면 밖에서 내려온다)를 만든다 —
+    // 완전히 지우면 다리가 끊겨 보이므로 알파만 낮춘다.
+    ribbon(g, [hip, knee], r * 1.55, r * 1.05, mix(tone.dark, 0x000000, 0.25), 0.55);
+    leg(g, hip.x, hip.y, knee.x, knee.y, foot.x, foot.y, r * 1.02, tone, 1, r * 1.15, false);
+    // 정강이의 불 균열 — 재 계열 보스들과 같은 신호(사용자 세계관: '용의 재').
+    g.fillStyle(tone.glow, 0.5 + 0.3 * Math.sin(t / 260));
+    g.fillTriangle(knee.x - r * 0.10, knee.y + r * 0.05,
+                   knee.x + r * 0.06, knee.y + r * 0.15,
+                   foot.x - r * 0.04, foot.y - r * 0.30);
+  }
+
+  //  손(100층) — 옆에서 뻗어와 움켜쥔다. 갈래 발톱 5개(손가락), 갈고리 큼직하게.
+  function clawPart(g, cx, cy, r, T, tone, t) {
+    var reach = 0.92 + 0.06 * Math.sin(t / 700);   // 아주 느리게 쥐었다 폈다
+    var shoulder = { x: cx - r * 1.86, y: cy - r * 2.35 };
+    var elbow = { x: cx - r * 0.62 * reach, y: cy - r * 1.10 };
+    var hand = { x: cx, y: cy };
+    ribbon(g, [shoulder, elbow], r * 1.30, r * 1.02, mix(tone.dark, 0x000000, 0.30), 0.5);
+    ribbon(g, [shoulder, elbow], r * 0.98, r * 0.74, tone.dark, 1);
+    ribbon(g, [elbow, hand], r * 0.74, r * 0.50, tone.dark, 1);
+    g.fillStyle(tone.scale, 1); g.fillCircle(elbow.x, elbow.y, r * 0.34);
+    g.fillStyle(tone.dark, 1);
+    g.fillEllipse(hand.x + r * 0.10, hand.y, r * 0.62, r * 0.30, 10);
+    // 손가락 다섯 — "다섯 손가락이 전장을 통째로 움켜쥔다"(units.js desc)를 그대로 그린다.
+    talons(g, hand.x, hand.y, r * 0.98 * reach, 1, tone, 5, 0.46);
+  }
+
   // ── 바깥 문 ───────────────────────────────────────────────────────────────
   //  `def.art` 가 `beast:종류:결` 형태다(예: `beast:drake:frost`).
   //  eggart 의 ART 표를 안 건드리려고 문자열에 실어 보낸다 — 그 표는 계란 전용이다.
@@ -591,7 +637,8 @@ window.GAME = window.GAME || {};
   //    결론 끝에, 실제로 그려진 CC0 픽셀아트(OpenGameArt "Pixel Bosses. Yes!")로
   //    바꿨다. 아래 목록에 없는 sentry/drake(재 파수병·잿날개 등, ash/frost/storm
   //    결)는 계속 벡터로 그린다 — 그쪽은 이미 합격점을 받았다.
-  var RASTER_KINDS = { claw: 1, foot: 1, wingpart: 1, halfface: 1, waking: 1, dragon: 1 };
+  // 2026-08-02 6차 — claw/foot 은 벡터로 되돌아왔다(위 `footPart`/`clawPart` 주석).
+  var RASTER_KINDS = { wingpart: 1, halfface: 1, waking: 1, dragon: 1 };
 
   // 문자열+색인을 결정적 0~1 값으로 접는다(Math.random 은 매 프레임 다시 굴러
   // 돌무더기가 깜빡인다 — 같은 부위는 항상 같은 자리에 돌이 있어야 한다).
@@ -679,8 +726,20 @@ window.GAME = window.GAME || {};
     //  붙는 식으로). 그림자는 변환 밖에서 이미 찍었으므로 지면은 그대로다.
     var flip = facing !== undefined && Math.cos(facing) < 0;
     if (flip) { g.save(); g.translateCanvas(sx * 2, 0); g.scaleCanvas(-1, 1); }
-    if (info.kind === 'sentry') sentry(g, sx, sy - r * 0.55, r, T, info.tone, tt);
-    else drake(g, sx, sy - r * 0.55, r, T, info.tone, tt, Math.sin(tt / 520));
+    if (info.kind === 'foot') {
+      // 접지점 그대로 쓴다(허리를 들어 올리는 sentry/drake 와 달리, 발 자체가
+      // 발끝=접지점이라 들어 올리면 허공에 뜬다). 땅에서 솟은 맥락은 groundFrame
+      // 그대로 재사용 — 크롭이 벡터로 바뀌었을 뿐 "잘린 경계를 흙으로 가린다"는
+      // 목적은 같다.
+      groundFrame(g, 'foot', sx, sy, r * 1.6, r * 2.2, ['top', 'left', 'right']);
+      footPart(g, sx, sy, r, T, info.tone, tt);
+    } else if (info.kind === 'claw') {
+      clawPart(g, sx, sy, r, T, info.tone, tt);
+    } else if (info.kind === 'sentry') {
+      sentry(g, sx, sy - r * 0.55, r, T, info.tone, tt);
+    } else {
+      drake(g, sx, sy - r * 0.55, r, T, info.tone, tt, Math.sin(tt / 520));
+    }
     if (flip) g.restore();
     return true;
   };

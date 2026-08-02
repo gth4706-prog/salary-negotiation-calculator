@@ -45,7 +45,11 @@ window.GAME = window.GAME || {};
   //    (`js/dragonasset.js` 의 `PARTS[kind].scale`). foot/claw 는 6차에서 다시
   //    벡터로 돌아왔다(작은 크롭이 배율을 키우면 픽셀이 깨져서 — 아래 `footPart`/
   //    `clawPart` 주석 참조) — 그래서 여기 배율표에 다시 있다.
-  BA.SCALE = { sentry: 1.50, drake: 1.60, foot: 2.35, claw: 2.15 };
+  //  ⚠ 부위는 "크기가 곧 정체"라 일반 짐승보다 훨씬 크게 잡는다(50~250층은 이기는
+  //    게 아니라 크기를 먼저 보여주는 층이다 — 이 파일 헤더 참조). 다만 아레나
+  //    밖으로 넘치면 안 되므로 전부 `tools/boss-shot.js` 로 찍어 보고 정했다.
+  BA.SCALE = { sentry: 1.50, drake: 1.60, foot: 2.35, claw: 2.15,
+               wingpart: 1.85, halfface: 1.65, waking: 1.55 };
 
   // 결(속성)별 색. 같은 골격에 색만 갈아 끼워 권속을 여러 종으로 늘린다.
   //  ⚠ **네 톤이 필요하다.** 처음엔 dark/scale/belly 셋이었는데, 그러면 위에서
@@ -617,6 +621,118 @@ window.GAME = window.GAME || {};
     talons(g, hand.x, hand.y, r * 0.98 * reach, 1, tone, 5, 0.46);
   }
 
+  //  잔해 — 부위가 **어디를 뚫고 나왔는지**를 만드는 공통 재료(2026-08-02 7차).
+  //  발/손의 `groundFrame` 과 같은 목적이지만, 얼굴·상반신처럼 큰 부위는 덩어리진
+  //  바위가 있어야 규모가 산다(작은 자갈만 깔면 오히려 부위가 떠 보인다).
+  function rubble(g, cx, cy, w, h, seed, tone) {
+    var i, f, rx, ry, rw;
+    // 뒤쪽(어두운) 층 — 부위 뒤로 물러나 깊이를 만든다
+    for (i = 0; i < 7; i++) {
+      f = frameSeed('rub' + seed, i);
+      rx = cx + (f - 0.5) * w * 1.5;
+      ry = cy - h * 0.02 - f * h * 0.06;
+      rw = w * (0.10 + f * 0.14);
+      g.fillStyle(0x1d1409, 0.9);
+      g.fillEllipse(rx, ry, rw, rw * 0.52, 8);
+    }
+    // 앞쪽(밝은) 층 — 부위의 아랫변을 실제로 덮어 경계선을 지운다
+    for (i = 0; i < 9; i++) {
+      f = frameSeed('rub2' + seed, i);
+      rx = cx + (f - 0.5) * w * 1.7;
+      ry = cy + h * 0.012 + f * h * 0.04;
+      rw = w * (0.09 + f * 0.16);
+      g.fillStyle(i % 3 ? 0x584028 : 0x33240f, 1);
+      g.fillEllipse(rx, ry, rw, rw * 0.46, 8);
+      g.fillStyle(0x6d5133, 0.55);
+      g.fillEllipse(rx - rw * 0.12, ry - rw * 0.10, rw * 0.55, rw * 0.20, 8);
+    }
+    // 잉걸불 — 방금 뚫고 나왔다는 신호. 용 계열 공통(tone.glow).
+    for (i = 0; i < 5; i++) {
+      f = frameSeed('emb' + seed, i);
+      g.fillStyle(tone.glow, 0.30 + f * 0.35);
+      g.fillCircle(cx + (f - 0.5) * w * 1.3, cy - f * h * 0.05, w * (0.008 + f * 0.014));
+    }
+  }
+
+  //  날개(150층) — **한 짝만** 화면을 가로지른다. 어깨는 화면 밖(왼쪽)에 있고
+  //  막이 오른쪽 위로 크게 펼쳐진다. 기존 `wing()` 을 그대로 쓰되 배율을 크게
+  //  잡고, 어깨 쪽에 근육 덩어리를 붙여 "몸에서 뻗어 나온 것"으로 읽히게 한다.
+  //  ⚠ 5차 래스터판은 원본에서 날개 사각형을 그대로 오려 붙여서 **잘린 사진**처럼
+  //    보였다(사용자 지적). 벡터로 그리면 실루엣이 화면 밖으로 자연스럽게 이어진다.
+  //  ⚠ 첫 판은 `wing()` 만 크게 그렸다가 **갈색 부채**처럼 보였다(실측). 원래
+  //    `wing()` 은 드레이크 몸에 붙어 있을 때를 전제로 만든 부품이라, 혼자 크게
+  //    띄우면 붙어 있을 몸이 없어 막만 남는다. 그래서 **등·어깨를 먼저 그리고
+  //    그 위에 날개를 얹는다** — 등줄기 가시(ridge)가 "화면 밖으로 이어지는 거대한
+  //    몸"을 만들어 주는 것이 이 부위의 핵심이다.
+  function wingPart(g, cx, cy, r, T, tone, t) {
+    var flap = Math.sin(t / 900);
+    var sx0 = cx - r * 0.55, sy0 = cy - r * 0.35;
+    // ① 등 — 화면 왼쪽 밖에서 어깨까지 이어지는 굵은 띠. 이게 있어야 날개가
+    //    "몸에서 자란 것"이 된다.
+    var back = bez(sx0 - r * 3.4, cy + r * 0.75, sx0 - r * 1.5, cy + r * 0.10,
+                   sx0 + r * 0.25, sy0 + r * 0.30, 12);
+    ribbon(g, back, r * 1.85, r * 1.30, tone.dark, 1);
+    ribbon(g, back, r * 1.30, r * 0.88, tone.scale, 1);
+    scalePatch(g, sx0 - r * 1.1, cy + r * 0.30, r * 1.5, r * 0.52, r * 0.17, tone.dark, 0.15, -0.22);
+    // ② 등줄기 가시 — 머리 쪽(화면 밖)으로 이어진다는 신호.
+    ridge(g, back, 0.06, 0.96, r * 0.30, tone.dark, -1);
+    // ③ 어깨 관절 — 날개가 박혀 있는 자리.
+    g.fillStyle(tone.dark, 1); g.fillEllipse(sx0, sy0 + r * 0.10, r * 1.15, r * 0.95, 12);
+    g.fillStyle(tone.scale, 1); g.fillEllipse(sx0, sy0 + r * 0.04, r * 0.86, r * 0.70, 12);
+    g.fillStyle(tone.lit, 0.6); g.fillEllipse(sx0 - r * 0.16, sy0 - r * 0.18, r * 0.48, r * 0.32, 10);
+    // ④ 날개 — `wing()` 의 막은 손목이 어깨보다 `lift`(= r*1.02*spread) 위로 올라가고
+    //    손가락이 거기서 또 1.58r 뻗는다. spread 가 1.0 근처면 위로만 2.6r 을 먹어
+    //    화면 밖으로 나간다(waking 과 같은 함정) — 0.78 로 묶었다.
+    wing(g, sx0, sy0, r * 1.68, tone, 0.78 + 0.04 * flap, flap, false, 1);
+  }
+
+  //  반쪽 얼굴(200층) — 무너진 벽 틈으로 **머리 절반만** 보인다. 기존 `head()` 를
+  //  아주 크게 그리고, 화면 아래쪽(턱 밑)을 돌무더기로 덮어 "나머지는 벽 뒤에
+  //  있다"를 만든다. 목은 옆으로 이어져 화면 밖으로 나간다.
+  function halfFacePart(g, cx, cy, r, T, tone, t) {
+    var breathe = Math.sin(t / 1100) * r * 0.05;
+    var hx = cx + r * 0.10, hy = cy - r * 1.05 + breathe;
+    // 목 — 오른쪽 뒤로 이어져 화면 밖으로. 머리보다 먼저 그려 뒤로 간다.
+    var neck = bez(hx + r * 0.30, hy + r * 0.40, hx + r * 1.70, hy + r * 0.95,
+                   hx + r * 2.90, hy + r * 0.55, 10);
+    ribbon(g, neck, r * 1.25, r * 0.95, tone.dark, 1);
+    ribbon(g, neck, r * 0.88, r * 0.62, tone.scale, 1);
+    ridge(g, neck, 0.05, 0.95, r * 0.22, tone.dark, -1);
+    // 머리 — 이 부위의 주인공이라 크게. 숨 쉬듯 아가리가 열린다.
+    head(g, hx, hy, r * 1.30, tone, 0.30 + 0.24 * Math.sin(t / 620), 1, t);
+    // 무너진 벽 — 턱 아래를 덮어 반쪽만 보이게 한다.
+    rubble(g, cx, cy + r * 0.05, r * 2.6, r * 1.5, 'face', tone);
+  }
+
+  //  깨어나는 용(250층) — 상반신. 머리 + 목 + 가슴 + 앞다리 둘이 땅을 밀고
+  //  올라오고, 허리부터는 돌무더기에 묻혀 있다. **다섯 부위 중 가장 많이 보이는
+  //  단계**라 앞의 것들보다 확실히 더 많은 몸이 나와야 한다.
+  //  ⚠ 세로 예산을 반드시 지킬 것 — 보스는 **진형 맨 위**에 서므로 `cy` 가 이미
+  //    화면 상단 가까이다. 첫 판은 머리를 `cy - 2.9r` 에 뒀다가 화면 밖으로 나가
+  //    **목 없는 몸통**만 보였다(실측). 위로 뻗는 총량을 `cy - 2.6r` 안에 묶고,
+  //    대신 **옆으로** 넓혀 규모를 만든다(앞다리를 벌리고 가슴을 두껍게).
+  function wakingPart(g, cx, cy, r, T, tone, t) {
+    var rise = Math.sin(t / 1300) * r * 0.05;
+    var chestX = cx - r * 0.30, chestY = cy - r * 0.72 + rise;
+    // 앞다리 둘 — 땅을 짚고 몸을 밀어 올린다(뒤쪽 것 먼저). 넓게 벌려 규모를 만든다.
+    leg(g, chestX - r * 1.00, chestY + r * 0.22, chestX - r * 1.72, chestY + r * 0.72,
+           chestX - r * 1.95, cy + r * 0.08, r * 0.40, tone, -1, r * 1.10, true);
+    leg(g, chestX + r * 1.00, chestY + r * 0.24, chestX + r * 1.72, chestY + r * 0.70,
+           chestX + r * 1.98, cy + r * 0.06, r * 0.44, tone, 1, r * 1.18, false);
+    // 가슴 — torso 를 상반신만 쓴다(아래는 어차피 돌무더기가 덮는다).
+    torso(g, chestX, chestY, r * 1.02, T, tone, 1);
+    // 목 + 머리 — 치켜들되 화면 안에 묶는다("아직 절반도 안 나왔다").
+    var neck = bez(chestX + r * 0.42, chestY - r * 0.45, chestX + r * 1.05, chestY - r * 1.05,
+                   chestX + r * 1.62, chestY - r * 1.18, 10);
+    ribbon(g, neck, r * 0.92, r * 0.58, tone.dark, 1);
+    ribbon(g, neck, r * 0.64, r * 0.36, tone.scale, 1);
+    ridge(g, neck, 0.08, 0.96, r * 0.18, tone.dark, -1);
+    head(g, chestX + r * 2.02, chestY - r * 1.24, r * 0.76, tone,
+         0.34 + 0.26 * Math.sin(t / 520), 1, t);
+    // 허리를 묻은 돌무더기 — 아래쪽 절반을 덮는다.
+    rubble(g, cx, cy, r * 3.6, r * 1.8, 'wake', tone);
+  }
+
   // ── 바깥 문 ───────────────────────────────────────────────────────────────
   //  `def.art` 가 `beast:종류:결` 형태다(예: `beast:drake:frost`).
   //  eggart 의 ART 표를 안 건드리려고 문자열에 실어 보낸다 — 그 표는 계란 전용이다.
@@ -637,8 +753,13 @@ window.GAME = window.GAME || {};
   //    결론 끝에, 실제로 그려진 CC0 픽셀아트(OpenGameArt "Pixel Bosses. Yes!")로
   //    바꿨다. 아래 목록에 없는 sentry/drake(재 파수병·잿날개 등, ash/frost/storm
   //    결)는 계속 벡터로 그린다 — 그쪽은 이미 합격점을 받았다.
-  // 2026-08-02 6차 — claw/foot 은 벡터로 되돌아왔다(위 `footPart`/`clawPart` 주석).
-  var RASTER_KINDS = { wingpart: 1, halfface: 1, waking: 1, dragon: 1 };
+  // 2026-08-02 7차 — **부위는 전부 벡터로 돌아왔다.** 6차에서 foot/claw 를 옮겼고,
+  // 7차에서 wingpart/halfface/waking 까지 옮겼다(사용자 지적: "그냥 짤라서 붙여넣은
+  // 것 같다" — 맞는 말이었다. 원본 사각형을 그대로 오려 쓰니 어느 배율에서도
+  // '잘린 사진'이었다). 래스터로 남는 것은 **300층 본체 하나뿐**이고, 그건 원본
+  // 그림 전체를 통째로 쓰기 때문에 잘린 곳이 없어서 원래부터 멀쩡했다
+  // (사용자 지시: "태초의 용 전체 모습은 변함없이 진행").
+  var RASTER_KINDS = { dragon: 1 };
 
   // 문자열+색인을 결정적 0~1 값으로 접는다(Math.random 은 매 프레임 다시 굴러
   // 돌무더기가 깜빡인다 — 같은 부위는 항상 같은 자리에 돌이 있어야 한다).
@@ -735,6 +856,12 @@ window.GAME = window.GAME || {};
       footPart(g, sx, sy, r, T, info.tone, tt);
     } else if (info.kind === 'claw') {
       clawPart(g, sx, sy, r, T, info.tone, tt);
+    } else if (info.kind === 'wingpart') {
+      wingPart(g, sx, sy, r, T, info.tone, tt);
+    } else if (info.kind === 'halfface') {
+      halfFacePart(g, sx, sy, r, T, info.tone, tt);
+    } else if (info.kind === 'waking') {
+      wakingPart(g, sx, sy, r, T, info.tone, tt);
     } else if (info.kind === 'sentry') {
       sentry(g, sx, sy - r * 0.55, r, T, info.tone, tt);
     } else {

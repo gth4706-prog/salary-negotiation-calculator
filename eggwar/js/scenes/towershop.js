@@ -789,8 +789,12 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
                  var pw = sh.damage > 0 ? ('피해 ' + GAME.UI.numAbbr(sh.damage))
                         : (sh.shield > 0 ? ('보호막 ' + GAME.UI.numAbbr(sh.shield))
                         : (sh.dps > 0 ? ('초당 ' + GAME.UI.numAbbr(sh.dps)) : ''));
+                 //  ⚠ 쿨타임은 **가격 배수가 반영된 값**(sh)을 보여야 한다.
+                 //    원본 o.cooldown 을 쓰면 상세 화면과 최대 2배 어긋난다
+                 //    (대지 붕괴 목록 34초 vs 상세 17.7초). 비쌀수록 쿨이 짧아지는
+                 //    것이 이 상점의 판매 논리인데, 목록이 그 이득을 숨기고 있었다.
                  return typeLabel + (pw ? ('  ·  ' + pw) : '') +
-                   '  ·  쿨 ' + (o.cooldown ? (o.cooldown / 1000) + '초' : '—') +
+                   '  ·  쿨 ' + (sh.cooldown ? (Math.round(sh.cooldown / 100) / 10) + '초' : '—') +
                    (self.mode === 'arena' ? ''
                      : (o.cost ? ('  ·  ' + o.cost + '골드') : '  ·  기본 내장'));
                })(),

@@ -891,7 +891,16 @@ GAME.BattleScene.prototype.update = function (time, delta) {
           this.state.units[bi].def.isBoss) { bu = this.state.units[bi]; break; }
     }
     if (GAME.HealZone.tickBoss(this.state, dt, GAME.CONFIG.ARENA, bu)) {
-      this._orbToast('회복의 샘이 나타났다!');
+      //  ⚠ **방금 놓인 것의 이름을 말해야 한다.** 예전에는 종류와 무관하게
+      //    "회복의 샘"이라고 알렸다 — 절반(분노 30% + 일격 20%)이 거짓 안내였다.
+      //    5초 안에 "위험을 무릅쓰고 주우러 갈까"를 판단하라는 설계인데, 그
+      //    판단의 근거가 틀려 있으면 기제 자체가 무의미해진다.
+      var z = this.state.healZones[this.state.healZones.length - 1];
+      var kn = (z && z.kind) || 'heal';
+      var lbl = '회복의 샘';
+      var KS = GAME.HealZone.KINDS || [];
+      for (var ki = 0; ki < KS.length; ki++) if (KS[ki].key === kn) lbl = KS[ki].label;
+      this._orbToast(lbl + '이(가) 나타났다!');
     }
   }
 

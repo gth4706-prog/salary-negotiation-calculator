@@ -274,6 +274,7 @@ GAME.BOSS_UNITS = {
     lore: '용이 거느린 것 중 가장 작은 것. 그런데도 부족 하나를 하룻밤에 지웠다.',
     desc: '용의 부하. 낮게 날아와 덮치고, 재를 흩뿌린다.',
     cost: 0, hp: 318, armor: 30, speed: 118, range: 112, damage: 65, cooldown: 1150,
+    guard: { every: 12000, warn:  900, ms: 4000, cut: 0.15, reflect: 0.50 },
     attack: 'melee', coneDeg: 110,
     radius: 30, shape: 'star', weapon: 'rifle',
     chase: 560, aggro: 560,
@@ -288,6 +289,7 @@ GAME.BOSS_UNITS = {
     lore: '숨을 뱉으면 골짜기가 하얗게 언다. 얼어붙은 것은 다시 움직이지 못한다.',
     desc: '서리를 뿌리는 권속. 넓은 자리를 얼려 발을 묶는다.',
     cost: 0, hp: 308, armor: 34, speed: 104, range: 120, damage: 70, cooldown: 1250,
+    guard: { every: 11800, warn:  900, ms: 4100, cut: 0.15, reflect: 0.52 },
     attack: 'melee', coneDeg: 120,
     radius: 30, shape: 'star', weapon: 'riotShield',
     chase: 560, aggro: 560,
@@ -305,6 +307,7 @@ GAME.BOSS_UNITS = {
     lore: '날개 한 번에 하늘이 갈린다. 용이 오기 전에 길을 여는 것이 이것의 일이다.',
     desc: '폭풍을 몰고 오는 권속. 하늘에서 연달아 내리꽂는다.',
     cost: 0, hp: 323, armor: 34, speed: 126, range: 116, damage: 62, cooldown: 1100,
+    guard: { every: 11500, warn:  850, ms: 4200, cut: 0.14, reflect: 0.55 },
     attack: 'melee', coneDeg: 115,
     radius: 31, shape: 'star', weapon: 'rifle',
     chase: 620, aggro: 620,
@@ -522,6 +525,7 @@ lore: '오래 살아남아 둥지만큼 커진 우두머리. 그가 포효하면
     //   위 능력으로 위협을 주고 체력을 줄여 **짧고 무서운** 쪽으로 옮긴다.
     //   실측(사냥꾼 20층): hp 1420 꼬리 22.2초 → 1050 17.5초 → 900 13.6초.
     cost: 0, hp: 312, armor: 26, speed: 96, range: 96, damage: 73, cooldown: 1300,
+    guard: { every: 13000, warn: 1100, ms: 3400, cut: 0.20, reflect: 0.35 },
     attack: 'melee', coneDeg: 110,
     buffRadius: 250, buffDamageMul: 1.45,
     radius: 27, shape: 'star', weapon: 'pistol',
@@ -573,6 +577,7 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
     //   이 보스만 쿨다운 520ms 로 매우 빠르므로 **한 방 피해는 낮게** 유지한다
     //   (다른 보스 기준으로 30 을 주면 초당 피해가 2.5배가 된다).
     cost: 0, hp: 322, armor: 22, speed: 0, range: 0, rangeSpan: true,
+    guard: { every: 12500, warn: 1000, ms: 3600, cut: 0.18, reflect: 0.40 },
     damage: 29, cooldown: 520,
     attack: 'projectile', projectileSpeed: 300, projectileRadius: 8,
     radius: 26, shape: 'bunker', weapon: 'mg',

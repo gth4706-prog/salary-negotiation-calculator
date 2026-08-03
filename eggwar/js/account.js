@@ -48,7 +48,11 @@ GAME.Account = {
     if (id.length < this.MIN_LEN) return { ok: false, reason: '2자 이상 입력해 주세요.' };
     if (id.length > this.MAX_LEN) return { ok: false, reason: '12자 이하로 입력해 주세요.' };
     // 한글(자모 포함)·영문·숫자만 — 'ㅋㅋ' 같은 닉네임은 흔하므로 자모도 허용한다
-    if (!/^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9 ]+$/.test(id)) {
+    //  ⚠ **홑자모(ㄱ~ㅎ, ㅏ~ㅣ)는 안 받는다** (2026-08-03 사용자 지시).
+    //    예전에는 'ㅋㅋ' 를 쓰게 하려고 자모를 허용했는데, 그 구멍으로
+    //    'ㅅㅂ' 같은 **초성 욕설이 금칙어 검사를 통째로 우회**했다(QA 실측).
+    //    금칙어 목록을 자모까지 늘리는 것은 끝이 없다 — 입구를 좁히는 쪽이 맞다.
+    if (!/^[가-힣a-zA-Z0-9 ]+$/.test(id)) {
       return { ok: false, reason: '한글·영문·숫자만 쓸 수 있습니다.' };
     }
     var vars = this._variants(id);

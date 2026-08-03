@@ -206,7 +206,7 @@ GAME.MenuScene.prototype.create = function () {
 
   var hint = GAME.isTouch
     ? '조작  ─  한 번 탭: 이동하며 교전   |   두 번 탭: 이동만   |   스킬 버튼: 바라보는 방향 시전'
-    : '조작  ─  우클릭: 이동 / 적 클릭 공격   |   방향키: 직접 이동   |   Q W E R: 바라보는 방향 시전   |   F: 물약';
+    : '조작  ─  우클릭: 이동 / 적 클릭 공격   |   방향키: 직접 이동   |   Q W E R: 바라보는 방향 시전';
   // 버튼 흐름 바닥 아래에 붙인다(고정 u*86 이면 모드 버튼이 늘어날 때 겹친다)
   var hy = Math.max((this._menuBottom || u * 80) + u * 3, u * 82);
   var hintLbl = GAME.UI.label(this, W / 2, hy, hint, P ? 13 : 13, C.textDim, 0.5)
@@ -294,7 +294,7 @@ GAME.MenuScene.prototype._buildPhone = function () {
   // originY=1 이라 tagline.y 는 **아래쪽 끝**이다 — 위로 쌓으려면 높이를 빼야 한다.
   UI.text(this, lcx, tagline.y - tagline.height - 6,
     GAME.isTouch ? '한 번 탭 이동+교전 · 두 번 탭 이동만 · 스킬 버튼 시전'
-                 : '우클릭 이동 · 방향키 · QWER 스킬 · F 물약',
+                 : '우클릭 이동 · 방향키 · QWER 스킬',
     { size: 15, color: C.textDim, origin: 0.5, originY: 1, align: 'center', wrap: LW });
 
   // ── 오른쪽 모드 그리드 ──

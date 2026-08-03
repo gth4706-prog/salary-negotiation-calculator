@@ -138,6 +138,9 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 .article .callout{background:color-mix(in srgb,var(--accent) 6%,var(--surface-2));border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r-sm);padding:13px 15px;margin:18px 0;font-size:14px;color:var(--muted)}
 .article .callout a{font-weight:700}
 .article table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px}
+/* 좁은 화면에서 표가 페이지 전체를 옆으로 밀지 않도록, 표 안에서만 가로 스크롤시킨다.
+   (모바일 친화성은 애드센스·검색 양쪽에서 보는 항목) */
+@media (max-width:520px){ .article table{display:block;overflow-x:auto} }
 .article th,.article td{border:1px solid var(--line);padding:10px 12px;text-align:left}
 .article th{background:var(--surface-2);font-weight:800}
 

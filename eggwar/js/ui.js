@@ -56,7 +56,11 @@ GAME.UI = {
     rect.on('pointerdown', function () {
       press(true);
       if (GAME.Sound) GAME.Sound.play(opts.big ? 'tapBig' : 'tap');
-      GAME.UI.haptic(opts.big ? 16 : 10);
+      //  ⚠ **진동은 아무 버튼에서나 울리면 안 된다**(2026-08-03 사용자 지시:
+      //    "진동은 너무 자주 일어나지 않게끔 중요할때만"). 메뉴를 오갈 때마다
+      //    손이 울리면 신호가 아니라 소음이 된다 — 신호는 드물어야 신호다.
+      //    그래서 **큰 버튼(opts.big)에만** 준다: 도전 시작·구매 확정 같은 것.
+      if (opts.big) GAME.UI.haptic(14);
       //  눌린 모양을 **눈에 보이게** 잠깐 유지한다. 씬이 바로 바뀌는 버튼이 많아
       //  pointerup 을 못 받는 경우가 흔하기 때문이다.
       if (pressT) clearTimeout(pressT);

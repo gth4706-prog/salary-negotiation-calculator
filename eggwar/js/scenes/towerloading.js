@@ -133,9 +133,34 @@ GAME.TowerLoadingScene.prototype.create = function () {
   var objective = GAME.TowerObjective && this.tower
     ? GAME.TowerObjective.objectiveFor(this.tower) : null;
 
+  //  ── 온보딩 (2026-08-03 사용자 지시) ────────────────────────────────────────
+  //  "로딩화면에서 새로운 거 나와서 알릴 게 있다면 **그 내용만** 나오게 해줘.
+  //   새로운 온보딩을 알려줄 땐 매번 나오는 AI 학습 내용이나 배치 설명은 생략해도 돼."
+  //  새 적 소개(debut)와 **같은 문법**이다 — 가르칠 게 있으면 그것만 띄운다.
+  //  ⚠ 층 목표만은 남긴다. 이 파일이 스스로 적어 둔 원칙이다("안 보이는 목표는
+  //    목표가 아니라 함정이다"). "설명을 빼라"는 지시는 *이기는 조건*을 숨기라는
+  //    뜻이 아니다.
+  //  ⚠ 데뷔 층이면 데뷔가 우선이다 — 그 층의 '새로운 것'은 그 적이다.
+  var lesson = null;
+  if (!debutDef && GAME.Onboard) {
+    lesson = GAME.Onboard.pick({
+      floor: this.tower || 0,
+      isBoss: !!(GAME.Tower && GAME.Tower.isBossFloor && this.tower &&
+                 GAME.Tower.isBossFloor(this.tower)),
+      formation: formation,
+      char: (GAME.TowerChar && GAME.TowerChar.exists && GAME.TowerChar.exists())
+              ? GAME.TowerChar.get() : null
+    });
+  }
+
   var lines = [];
   if (objective) lines.push('🎯 ' + objective.label + ' — ' + objective.desc);
-  if (debutDef) {
+  if (lesson) {
+    //  가르칠 게 있으면 **이것만.** 배치 원형·층 조건·AI 가 읽은 내용·랜덤 팁은 뺀다.
+    lines.push(lesson.title);
+    lines.push(lesson.body);
+    GAME.Onboard.markSeen(lesson.id);
+  } else if (debutDef) {
     // ⚠ **한 줄만** 쓴다(2026-08-01 사용자 지시). 예전엔 세계관 설명 + 자동 생성한
     //   공격 방식 + 대처법까지 네 줄이었는데, 로딩 몇 초에 그걸 다 읽지 않는다.
     //   글이 줄면 남는 자리가 전부 **그림**으로 간다 — 생김새를 외우는 게 이 화면의 목적이다.

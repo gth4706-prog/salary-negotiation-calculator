@@ -809,7 +809,48 @@ window.GAME = window.GAME || {};
     },
 
     // s.effects 한 개. 처리했으면 true.
+    // ── 재료(motif) 팔레트 (2026-08-03) ──────────────────────────────────
+    //  스킬 이름 60개가 시각 타입 9종을 나눠 쓰다 보니 **모래 뿌리기와 바위 내리치기와
+    //  방패 밀치기가 똑같이 그려졌다.** 이름이 약속한 것을 그림이 안 지킨 것이다.
+    //
+    //  ⚠ **범위와 타이밍은 손대지 않는다.** 그건 타입이 정하고, 이 게임의 계약
+    //    ("논타겟은 보고 피할 수 있다")이 거기 걸려 있다. 재료는 **색만** 바꾼다.
+    //  ⚠ 여기 없는 키는 원래 MAT 을 그대로 쓴다 — 부분 덮어쓰기다.
+    //  ⚠ 값은 전부 이 게임 세계의 물건 색이다. 마법 광선·네온은 이 세계에 없다
+    //    (원시 부족 전쟁 · 12세 이용가 — 파일 상단 규율).
+    MOTIF_MAT: {
+      sand:    { clay: 0xd8c48f, stone: 0xe0d3a8, wood: 0xc7ac72 },
+      rock:    { clay: 0x8f8d88, stone: 0x9aa3ad, wood: 0x6f6b64 },
+      earth:   { clay: 0x8a5a33, stone: 0x7a6a52, wood: 0x5a452c },
+      shield:  { clay: 0x8d6b4b, stone: 0x4b5260, wood: 0x8a6a45 },
+      bone:    { clay: 0xd8d2bb, stone: 0xeae3cd, wood: 0xbdb69c },
+      rope:    { clay: 0xc2ad82, stone: 0xd9c9a2, wood: 0x8a6a45 },
+      feather: { clay: 0xd9a05b, stone: 0xe0705a, wood: 0x8a6a45 },
+      ember:   { clay: 0xc2542a, stone: 0xe8853a, wood: 0x7a3a1c },
+      frost:   { clay: 0x8fb8cc, stone: 0xc6e2ee, wood: 0x5f7f93 }
+      // blade — 기본 MAT 그대로(금속). 표에 없으므로 자동으로 원래 색이다.
+    },
+
+    //  이 이펙트가 그려지는 동안만 팔레트를 갈아끼운다.
+    _withMotif: function (motif, draw) {
+      var over = motif && this.MOTIF_MAT[motif];
+      if (!over) { draw(); return; }
+      var keep = S.MAT, mixed = {};
+      for (var k in keep) mixed[k] = keep[k];
+      for (var k2 in over) mixed[k2] = over[k2];
+      S.MAT = mixed;
+      try { draw(); } finally { S.MAT = keep; }
+    },
+
     drawEffect: function (e, col) {
+      //  ⚠ 재료는 **여기 한 곳**에서만 갈아끼운다. 그리기 함수 9개는 손대지 않는다 —
+      //    거기에 각각 넣으면 새 이펙트가 추가될 때 그것만 무채색으로 빠진다.
+      var self = this, out = false;
+      this._withMotif(e && e.motif, function () { out = self._drawEffectInner(e, col); });
+      return out;
+    },
+
+    _drawEffectInner: function (e, col) {
       if (!S.g) return false;
       var k = e.kind;
       if (k === 'dashTrail') { S.B ? dashB(e, col) : dashA(e, col); return true; }

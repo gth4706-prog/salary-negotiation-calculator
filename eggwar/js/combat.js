@@ -1013,6 +1013,34 @@ GAME.Combat = {
   },
 
   castSkill: function (u, slot, tx, ty, state) {
+    //  ── 스킬 재료(motif) — 2026-08-03 ────────────────────────────────────
+    //  ⚠ 이펙트마다 손으로 `motif:` 를 달지 않는다. 이 함수가 만드는 이펙트가
+    //    12곳이 넘어서 하나라도 빠지면 그 스킬만 조용히 무채색이 된다
+    //    (이 저장소가 `abilities` 복수형을 빠뜨려 겪은 사고와 같은 종류다).
+    //    그래서 **push 를 감싸** 이 시전 동안 만들어지는 것 전부에 자동으로 붙인다.
+    var _push0 = state.effects.push, _mo = null;
+    //  ⚠ `u.skills` 는 **배열**이고 슬롯은 항목의 `.slot` 필드다(Q/W/E/R).
+    //    `u.skills[slot]` 로 읽으면 언제나 undefined 라 재료가 영영 안 붙는다 —
+    //    아래 `_castSkillInner` 가 쓰는 것과 **같은 방식**으로 찾아야 한다.
+    try {
+      for (var _i = 0; u.skills && _i < u.skills.length; _i++) {
+        if (u.skills[_i] && u.skills[_i].slot === slot) { _mo = u.skills[_i].motif; break; }
+      }
+    } catch (e) { _mo = null; }
+    if (_mo) {
+      state.effects.push = function (o) {
+        if (o && o.motif === undefined) o.motif = _mo;
+        return _push0.apply(this, arguments);
+      };
+    }
+    try {
+      return this._castSkillInner(u, slot, tx, ty, state);
+    } finally {
+      state.effects.push = _push0;
+    }
+  },
+
+  _castSkillInner: function (u, slot, tx, ty, state) {
     if (!this.skillReady(u, slot)) return false;
     var sk = null;
     for (var i = 0; i < u.skills.length; i++) {

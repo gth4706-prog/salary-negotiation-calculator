@@ -2,6 +2,19 @@ window.GAME = window.GAME || {};
 
 GAME.UI = {
 
+  // ── 햅틱 (2026-08-03) ─────────────────────────────────────────────────────
+  //  모바일 게임 UX 조사의 공통 결론: **입력에 즉각 반응이 없으면 사용자는 눌렸는지
+  //  모른다.** 데스크톱은 hover 로 알지만 **터치에는 hover 가 없다** — 그래서
+  //  이 게임은 폰에서 버튼을 눌러도 아무 신호가 없었다(시각·소리·진동 전부 0).
+  //  진동은 그 셋 중 화면을 안 가리고 가장 확실한 신호다.
+  //  ⚠ iOS 사파리는 `navigator.vibrate` 를 지원하지 않는다 — 없으면 조용히 넘어간다.
+  //  ⚠ 값이 크면 '싸구려 진동'이 된다. 10ms 는 '톡' 하는 정도다.
+  haptic: function (ms) {
+    try {
+      if (navigator && typeof navigator.vibrate === 'function') navigator.vibrate(ms || 10);
+    } catch (e) { /* 지원 안 하면 그만이다 */ }
+  },
+
   button: function (scene, x, y, w, h, label, onClick, opts) {
     opts = opts || {};
     var C = GAME.CONFIG.COLORS;
@@ -18,9 +31,38 @@ GAME.UI = {
     }).setOrigin(0.5);
 
     rect.setInteractive({ useHandCursor: true });
-    rect.on('pointerover', function () { rect.setFillStyle(opts.hover !== undefined ? opts.hover : 0x33334a); });
-    rect.on('pointerout', function () { rect.setFillStyle(fill); });
-    rect.on('pointerdown', function () { onClick(); });
+
+    //  ── 누름 피드백 (2026-08-03) ────────────────────────────────────────────
+    //  예전에는 `pointerdown` 에서 곧장 onClick 만 불렀다. hover 색 변화가 있었지만
+    //  **터치에는 hover 가 없다** — 폰에서는 버튼을 눌러도 시각·소리·진동이 하나도
+    //  없었다(모바일 게임 후기에서 가장 많이 나오는 불만이 정확히 이것이다:
+    //  "눌렀는데 반응이 없어 두 번 누르게 된다").
+    //  세 가지를 같이 준다 — 눈(살짝 눌림) · 귀(짧은 톡) · 손(10ms 진동).
+    //  ⚠ 실행은 **여전히 pointerdown** 에서 한다. 게임 화면은 반응이 빨라야 하고,
+    //    pointerup 으로 옮기면 기존 화면들의 동작 순서가 조용히 바뀐다.
+    var pressT = null;
+    function press(on) {
+      if (!rect.scene) return;                       // 이미 파괴된 버튼
+      rect.setFillStyle(on ? (opts.press !== undefined ? opts.press : line)
+                           : fill);
+      var k = on ? 0.96 : 1;
+      rect.setScale(k); txt.setScale(k);
+    }
+    rect.on('pointerover', function () {
+      rect.setFillStyle(opts.hover !== undefined ? opts.hover : 0x33334a);
+    });
+    rect.on('pointerout', function () { press(false); });
+    rect.on('pointerup', function () { press(false); });
+    rect.on('pointerdown', function () {
+      press(true);
+      if (GAME.Sound) GAME.Sound.play(opts.big ? 'tapBig' : 'tap');
+      GAME.UI.haptic(opts.big ? 16 : 10);
+      //  눌린 모양을 **눈에 보이게** 잠깐 유지한다. 씬이 바로 바뀌는 버튼이 많아
+      //  pointerup 을 못 받는 경우가 흔하기 때문이다.
+      if (pressT) clearTimeout(pressT);
+      pressT = setTimeout(function () { press(false); }, 110);
+      onClick();
+    });
 
     // 겹침 감사용 표시 — 버튼과 그 버튼의 라벨은 겹쳐도 정상이다.
     // 이 표시가 없으면 감사에서 버튼-라벨 쌍을 손으로 걸러내다 진짜 겹침을 놓친다(실제로 겪음).

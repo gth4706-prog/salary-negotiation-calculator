@@ -131,6 +131,16 @@ GAME.Sound = {
     if (!this._ready || !this.enabled) return;
     try {
       switch (name) {
+        case 'tap':          // 버튼 누름 — 아주 짧은 '톡'
+          //  ⚠ 버튼 소리는 **짧고 작아야** 한다. 길거나 크면 메뉴를 오갈 때마다
+          //    귀에 걸려 금방 거슬린다. 40ms · 볼륨 0.10 은 "눌렸다"만 전하는 크기다.
+          if (!this._gate('tap', 40)) return;
+          this._tone({ type: 'square', f0: 620, f1: 480, dur: 0.04, vol: 0.10 });
+          break;
+        case 'tapBig':       // 확정·시작 같은 큰 버튼
+          if (!this._gate('tapBig', 60)) return;
+          this._tone({ type: 'triangle', f0: 420, f1: 700, dur: 0.09, vol: 0.16 });
+          break;
         case 'hit':          // 근접 타격 — 짧고 둔탁하게
           if (!this._gate('hit', 45)) return;
           this._burst({ dur: 0.09, freq: 420, q: 0.9, vol: 0.30 });

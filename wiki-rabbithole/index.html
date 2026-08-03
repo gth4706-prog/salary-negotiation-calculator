@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="google-site-verification" content="-Vv3HKaiNfWlG3iVql38iG773LaD3LpSHJtwBU4-iU8" />
+<meta name="naver-site-verification" content="d4f9a360f5b25c71f4df188700ea809f9f69c0dd" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#2F6F4E">
+<title>위키 토끼굴 — 비행기에서도 계속 파고드는 오프라인 위키</title>
+<meta name="description" content="관심사 하나를 고르면 관련 위키 문서 150편을 미리 받아둡니다. 비행기 모드에서도 다음 챕터를 골라가며 계속 읽을 수 있어요. 심리학에서 시작해 철학으로 갈지 우주로 갈지는 그때그때 정하세요.">
+<link rel="canonical" href="https://joeltool.com/wiki-rabbithole/">
+<meta name="robots" content="index,follow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="위키 토끼굴 — 오프라인에서도 계속 파고들기">
+<meta property="og:description" content="관심사 문서 150편을 미리 받아, 비행기 모드에서도 다음 챕터를 골라가며 읽는 도구.">
+<meta property="og:url" content="https://joeltool.com/wiki-rabbithole/">
+<link rel="manifest" href="manifest.json?v=0.01">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%95%B3%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="../css/style.css?v=0.14">
+<link rel="stylesheet" href="../css/wikiRabbithole.css?v=0.01">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"위키 토끼굴","applicationCategory":"UtilityApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"관심사 문서를 미리 받아 오프라인에서 이어 읽는 무료 도구."}
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<nav class="nav"><div class="in">
+  <a class="brand" href="../index.html" title="각잡살림 — 각 잡고 만든 살림(생활 도구). 쓸모있는 무료 웹 도구 모음">
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
+    <span class="n">각잡살림</span>
+  </a>
+  <div class="links">
+    <a href="../guides.html">가이드</a>
+    <a href="../about.html">소개</a>
+    <button class="theme-btn" id="theme-btn" type="button">◐</button>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.01</span>
+  </div>
+</div></nav>
+
+<main class="wrap page stack">
+  <header class="hero wr-theme">
+    <h1>🕳 위키 토끼굴</h1>
+    <p>관심사 하나를 고르면 관련 문서 <b>150편</b>을 미리 받아둡니다. 비행기 모드에서도 <b>다음 챕터</b>를 골라가며 계속 파고들 수 있어요. 심리학에서 시작해 철학으로 갈지 우주로 갈지는 그때그때 정하세요.</p>
+  </header>
+
+  <div class="note" id="wr-offline" hidden role="status"><span>✈️</span><span><b>오프라인 상태예요.</b> 받아둔 문서는 그대로 읽을 수 있습니다.</span></div>
+
+  <!-- 1) 씨앗 선택 -->
+  <section class="card wr-card" id="wr-seed">
+    <h2>어떤 주제로 파고들까요?</h2>
+    <p class="desc">받는 데 <b>약 4~5분</b> 걸립니다. 비행기 타기 전 와이파이가 있을 때 미리 받아두세요.</p>
+    <div class="wr-row">
+      <input class="wr-input" id="wr-q" type="text" placeholder="예: 심리학, 우주론, 고대 로마" autocomplete="off">
+      <button class="cta" id="wr-search" type="button">찾기</button>
+    </div>
+    <div class="helper" id="wr-seed-error" hidden style="border-color:var(--bad);color:var(--bad)"></div>
+    <div id="wr-results"></div>
+    <div id="wr-bundles" class="wr-bundles"></div>
+  </section>
+
+  <!-- 2) 수집 -->
+  <section class="card wr-card" id="wr-progress" hidden>
+    <h2 id="wr-prog-title">받는 중…</h2>
+    <div class="wr-bar"><div class="wr-bar-fill" id="wr-bar"></div></div>
+    <p class="wr-prog-text" id="wr-prog-text" role="status">준비 중</p>
+    <p class="desc">위키에 부담을 주지 않으려고 천천히 받습니다. <b>약 4~5분</b> 걸려요. 이 화면을 열어두세요.</p>
+    <button class="cta ghost" id="wr-stop" type="button">여기까지만 받기</button>
+  </section>
+
+  <!-- 3) 읽기 -->
+  <section class="card wr-card" id="wr-read" hidden>
+    <h2 id="wr-title">–</h2>
+    <div class="wr-body" id="wr-body"></div>
+    <p class="wr-source" id="wr-source"></p>
+    <h3 class="wr-next-h">다음 챕터</h3>
+    <div id="wr-next"></div>
+    <div class="share-row" style="margin-top:16px">
+      <button class="cta ghost" id="wr-show-trail" type="button">🧭 지나온 길</button>
+      <button class="cta ghost" id="wr-back-home" type="button">↺ 다른 주제</button>
+    </div>
+  </section>
+
+  <!-- 4) 궤적 -->
+  <section class="card wr-card" id="wr-trail" hidden>
+    <h2>지나온 길</h2>
+    <ol class="wr-trail-list" id="wr-trail-list"></ol>
+    <h3 class="wr-next-h" id="wr-later-h" hidden>나중에 읽기</h3>
+    <div id="wr-later"></div>
+    <button class="cta ghost" id="wr-trail-back" type="button" style="margin-top:16px">← 읽던 곳으로</button>
+  </section>
+
+  <section class="card tool-about">
+    <h2>어떻게 쓰는 도구인가요</h2>
+    <h3>언제 쓰나요</h3>
+    <p>비행기·지하철·산속처럼 인터넷이 없는 곳에서 읽을 거리를 미리 챙겨두는 도구입니다. 출발 전 <b>와이파이가 있을 때</b> 주제를 고르고 받아두면 됩니다. 홈 화면에 추가해두면 비행기 모드에서도 앱처럼 열립니다.</p>
+    <h3>왜 목록이 아니라 토끼굴인가요</h3>
+    <p>미리 정한 목록을 순서대로 읽는 건 금방 질립니다. 이 도구는 문서 끝마다 <b>다음 챕터 후보</b>를 놓아둬서, 어디로 갈지 그때그때 고르게 합니다. 심리학에서 시작해도 철학으로 갈 수도, 범죄사건으로 갈 수도 있어요. 지나온 경로는 <b>지나온 길</b>에서 한눈에 볼 수 있습니다.</p>
+    <h3>안 받은 문서를 누르면요</h3>
+    <p>제목과 한 줄 요약은 보여드리고 <b>나중에 읽기</b>에 담아둡니다. 착륙해서 인터넷이 되면 그 목록이 다음 여행의 씨앗이 됩니다.</p>
+    <h3>왜 이렇게 오래 걸리나요</h3>
+    <p>위키백과에 부담을 주지 않으려고 <b>초당 한 건씩</b> 천천히 받기 때문입니다. 150편이면 약 271번을 요청해야 해서 4~5분이 걸립니다. 급하면 "여기까지만 받기"를 눌러 받은 만큼만 쓰셔도 됩니다.</p>
+    <h3>이건 못 해요</h3>
+    <p>이미지·수식·표는 받지 않고 <b>글만</b> 저장합니다(용량과 속도 때문입니다). 한국어 위키만 지원하며, 문서가 짧은 주제는 갈래가 적을 수 있어요. 받아둔 내용은 받은 시점 기준이라 이후 수정은 반영되지 않습니다.</p>
+    <h3>내 데이터는 어디에 저장되나요</h3>
+    <p>받아온 문서는 <b>이 기기의 브라우저 안에만</b> 저장됩니다. 저희 서버로 전송되지 않고, 계정도 만들지 않습니다. 브라우저 데이터를 지우면 받아둔 굴도 함께 사라집니다.</p>
+    <h3>저작권</h3>
+    <p>본문은 <b>위키백과</b>에서 가져오며 <b>CC BY-SA 3.0</b>을 따릅니다. 문서마다 원문 링크를 함께 표시합니다.</p>
+  </section>
+
+  <p class="more-tools"><a href="../index.html">← 다른 도구도 보기</a></p>
+</main>
+
+<footer class="footer"><div class="in">
+  <a href="../about.html">소개</a><span class="sep">·</span>
+  <a href="../privacy.html">개인정보처리방침</a><span class="sep">·</span><a href="../disclaimer.html">면책조항</a><span class="sep">·</span>
+  <a href="../contact.html">문의</a>
+  <div class="cp">본문 출처: 위키백과 (CC BY-SA 3.0). © 각잡살림</div>
+</div></footer>
+
+<script src="../js/site.js?v=0.14"></script>
+<script src="../js/wikiApi.js?v=0.01"></script>
+<script src="../js/wikiStore.js?v=0.01"></script>
+<script src="../js/wikiCrawl.js?v=0.01"></script>
+<script src="../js/wikiRabbithole.js?v=0.01"></script>
+</body>
+</html>

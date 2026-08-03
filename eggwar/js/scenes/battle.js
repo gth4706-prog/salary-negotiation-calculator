@@ -697,48 +697,110 @@ GAME.BattleScene.prototype._ultBanner = function (name) {
   var self = this;
   function keep(o) { self._ultObjs.push(o); return o; }
 
-  //  뒤에 깔리는 띠 — 글자가 전장 위에서도 읽히게.
-  //  ⚠ 검은 띠를 통으로 깔았더니 **글자가 오히려 안 보였다**(사용자 신고).
-  //    어두운 바탕 + 어두운 외곽선이 겹쳐 글자가 배경에 잠긴다.
-  //    그래서 띠를 **가운데만 밝고 양끝으로 사라지는 리본**으로 바꾼다 —
-  //    글자가 앉는 자리만 밝고, 화면 가장자리는 전장이 그대로 보인다.
+  //  ── 뼈 명패 (2026-08-03 사용자 지시: "세계관에 맞는 글자 디자인") ─────────
+  //  앞선 두 판은 **글자 문제**로 접근했다 — 색을 바꾸고(v1.36 검은 띠),
+  //  폰트를 바꾸고(v1.37 검은고딕), 판을 밝게 했다(v1.38 리본). 전부 UI 였지
+  //  **이 세계의 물건이 아니었다.** 여기는 원시 부족 전쟁이다 — 종이도 잉크도
+  //  네온도 없다. 있는 것은 뼈·나무·돌·밧줄·청동뿐이다(js/eggart.js 의 MAT).
+  //  그래서 배너를 "화면 위젯"이 아니라 **뼈를 깎아 밧줄로 묶어 내건 명패**로 만든다.
+  //
+  //  ⚠ 색은 전부 MAT 토큰이다. 하드코딩하면 테마를 바꿀 때 여기만 안 따라온다.
+  //  ⚠ 전장은 여전히 한 픽셀도 안 가린다 — 명패는 최상단 띠 안에서만 산다.
+  var M = UI.MAT;
   var g = keep(this.add.graphics().setDepth(9500).setScrollFactor(0));
-  var h = SM ? 40 : 52;
-  var midW = W * 0.62, x0 = (W - midW) / 2;
-  //  중앙 밝은 판(글자가 앉는 자리)
-  g.fillStyle(UI.COL.focus, 0.92);
-  g.fillRect(x0, y - h / 2, midW, h);
-  //  양끝으로 뾰족하게 빠지는 꼬리 — 리본처럼 읽힌다
-  g.fillTriangle(x0, y - h / 2, x0, y + h / 2, x0 - h * 0.9, y);
-  g.fillTriangle(x0 + midW, y - h / 2, x0 + midW, y + h / 2, x0 + midW + h * 0.9, y);
-  //  위아래 잉크선 — 밝은 판이 전장 위에서 뜨지 않게 눌러 준다
-  g.fillStyle(0x120b06, 0.95);
-  g.fillRect(x0 - h * 0.9, y - h / 2 - 3, midW + h * 1.8, 3);
-  g.fillRect(x0 - h * 0.9, y + h / 2, midW + h * 1.8, 3);
+  var h = SM ? 42 : 56;
+  var midW = Math.min(W * 0.66, SM ? 460 : 720), x0 = (W - midW) / 2;
+  var top = y - h / 2, bot = y + h / 2;
+
+  //  ① 매달린 밧줄 두 가닥 — 명패가 "걸려 있다"는 것을 먼저 읽힌다.
+  g.lineStyle(3, M.rope, 0.9);
+  g.lineBetween(x0 + midW * 0.22, 0, x0 + midW * 0.26, top + 2);
+  g.lineBetween(x0 + midW * 0.78, 0, x0 + midW * 0.74, top + 2);
+
+  //  ② 뼈판 — 위아래가 **손으로 깎은 듯 불규칙**하다. 직선이면 종이가 된다.
+  //     양끝은 뼈 마디처럼 둥글게 부풀린다.
+  var pts = [];
+  var STEP = 8;
+  for (var px = 0; px <= midW; px += STEP) {
+    var t = px / midW;
+    //  가장자리로 갈수록 살짝 좁아지고, 결 때문에 미세하게 물결친다.
+    var taper = 1 - Math.pow(Math.abs(t - 0.5) * 2, 3) * 0.18;
+    var wob = Math.sin(px * 0.11 + 1.3) * 1.6;
+    pts.push({ x: x0 + px, y: top + (h * (1 - taper)) / 2 + wob });
+  }
+  for (var qx = midW; qx >= 0; qx -= STEP) {
+    var t2 = qx / midW;
+    var taper2 = 1 - Math.pow(Math.abs(t2 - 0.5) * 2, 3) * 0.18;
+    var wob2 = Math.sin(qx * 0.13 + 4.1) * 1.6;
+    pts.push({ x: x0 + qx, y: bot - (h * (1 - taper2)) / 2 + wob2 });
+  }
+  //  그늘 → 뼈 → 위쪽 광
+  g.fillStyle(M.shellRim, 1);
+  g.fillPoints(pts.map(function (p) { return { x: p.x, y: p.y + 3 }; }), true);
+  g.fillStyle(M.bone, 1);
+  g.fillPoints(pts, true);
+  g.fillStyle(M.shell, 0.55);
+  g.fillPoints(pts.filter(function (p) { return p.y < y; })
+                  .map(function (p) { return { x: p.x, y: p.y + 4 }; }), true);
+
+  //  ③ 뼈 마디 — 양끝을 둥근 혹 두 개로 마감한다(뼈처럼 보이게 하는 핵심).
+  [x0, x0 + midW].forEach(function (ex) {
+    var d = (ex === x0) ? -1 : 1;
+    g.fillStyle(M.shellRim, 1);
+    g.fillEllipse(ex + d * h * 0.16, y - h * 0.22, h * 0.52, h * 0.50, 10);
+    g.fillEllipse(ex + d * h * 0.16, y + h * 0.22, h * 0.52, h * 0.50, 10);
+    g.fillStyle(M.bone, 1);
+    g.fillEllipse(ex + d * h * 0.14, y - h * 0.24, h * 0.44, h * 0.42, 10);
+    g.fillEllipse(ex + d * h * 0.14, y + h * 0.24, h * 0.44, h * 0.42, 10);
+  });
+
+  //  ④ 밧줄 감기 — 마디 안쪽을 두 번 동여맨다.
+  [x0 + h * 0.46, x0 + midW - h * 0.46].forEach(function (rx) {
+    g.fillStyle(M.rope, 1);
+    g.fillRect(rx - 4, top + 2, 8, h - 4);
+    g.fillStyle(M.woodDark, 0.5);
+    g.fillRect(rx - 4, top + 2, 2, h - 4);
+  });
+
+  //  ⑤ 부족 문양 — ★ 대신 새김. 좌우 대칭 쐐기 셋(청동으로 박아 넣은 못처럼).
+  [-1, 1].forEach(function (d) {
+    var bx = W / 2 + d * (midW * 0.5 - h * 0.95);
+    for (var k = 0; k < 3; k++) {
+      var oy = (k - 1) * (h * 0.22);
+      g.fillStyle(M.bronze, 0.95);
+      g.fillTriangle(bx - d * 5, y + oy - 4, bx - d * 5, y + oy + 4, bx + d * 5, y + oy);
+    }
+  });
 
   //  이름 — 왼쪽 밖에서 들어와 가운데 멈췄다 오른쪽으로 빠진다.
   //  ⚠ 배너만 **디스플레이 폰트**(검은고딕)를 쓴다. 본문 폰트(Jua)는 둥글고 귀여워서
   //    "사건"이라는 인상이 안 선다. 없으면 기본 폰트로 조용히 떨어진다.
   var FD = (GAME.CONFIG.FONT_DISPLAY || GAME.CONFIG.FONT) + ', ' + GAME.CONFIG.FONT;
-  var txt = keep(this.add.text(-W * 0.4, y, '★  ' + name + '  ★', {
-    fontFamily: FD,
-    fontSize: (SM ? 24 : 34) + 'px',
-    //  판이 밝아졌으므로 글자는 **어둡게** 뒤집는다 — 밝은 판 위의 밝은 글자가
-    //  안 보이던 것이 신고의 원인이었다.
-    color: '#1b1208',
-    stroke: '#fff3d6', strokeThickness: SM ? 4 : 5
-  }).setOrigin(0.5).setDepth(9501).setScrollFactor(0));
+  //  ⚠ 장식 기호(★)를 뺐다. 별은 이 세계의 물건이 아니고, 위에서 청동 쐐기로
+  //    같은 역할을 이미 한다. 글자만 남겨야 이름이 주인공이 된다.
+  //  ── 새김 글자 ──────────────────────────────────────────────────────────
+  //  뼈에 파낸 글자는 **아래로 파여** 위쪽 모서리에 그늘이, 아래쪽에 빛이 앉는다.
+  //  그래서 같은 글자를 두 겹으로 놓는다: 뒤에 밝은 결(1px 아래), 앞에 어두운 본체.
+  var mk = function (dy, col, alpha) {
+    return keep(self.add.text(-W * 0.4, y + dy, name, {
+      fontFamily: FD,
+      fontSize: (SM ? 24 : 34) + 'px',
+      color: col
+    }).setOrigin(0.5).setAlpha(alpha).setDepth(9501).setScrollFactor(0));
+  };
+  var lite = mk(2, '#ffffff', 0.55);      // 파인 자국 아래에 앉는 빛
+  var txt = mk(0, '#3a2a14', 1);          // 본체 — 뼈보다 어두운 흙빛
 
-  this.tweens.add({ targets: txt, x: W / 2, duration: 260, ease: 'Back.easeOut' });
-  this.tweens.add({ targets: txt, scaleX: 1.06, scaleY: 1.06, duration: 180,
+  this.tweens.add({ targets: [txt, lite], x: W / 2, duration: 260, ease: 'Back.easeOut' });
+  this.tweens.add({ targets: [txt, lite], scaleX: 1.06, scaleY: 1.06, duration: 180,
                     yoyo: true, repeat: 2, delay: 260 });
-  this.tweens.add({ targets: [txt, g], alpha: 0, duration: 260, delay: 1100,
+  this.tweens.add({ targets: [txt, lite, g], alpha: 0, duration: 260, delay: 1100,
     onComplete: function () {
       if (!self._ultObjs) return;
       self._ultObjs.forEach(function (o) { try { o.destroy(); } catch (e) {} });
       self._ultObjs = null;
     } });
-  this.tweens.add({ targets: txt, x: W * 1.4, duration: 300, delay: 1100, ease: 'Back.easeIn' });
+  this.tweens.add({ targets: [txt, lite], x: W * 1.4, duration: 300, delay: 1100, ease: 'Back.easeIn' });
 
   //  화면·소리·손 — 셋이 같이 와야 '사건'이 된다.
   if (this.cameras && this.cameras.main) this.cameras.main.shake(220, 0.006);

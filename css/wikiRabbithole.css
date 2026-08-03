@@ -1,0 +1,47 @@
+/* =========================================================
+   위키 토끼굴 — 전용 스타일 (공유 style.css 뒤에 로드)
+   테마: 굴속 — 깊은 초록 + 종이 베이지.
+   ⚠️ 오버레이(position:absolute + display:flex)를 쓰지 않는다.
+      map-archery 에서 그 패턴이 브라우저 기본 [hidden]{display:none} 을
+      덮어써 요소가 겹쳐 보인 사고가 있었다. 여기서는 섹션 전환만 쓴다.
+   ========================================================= */
+:root{
+  --wr-ink:#20301F; --wr-accent:#2F6F4E; --wr-line:#D7DFD3; --wr-muted:#6A7A68;
+}
+.hero.wr-theme h1{color:var(--wr-ink)}
+.wr-card{border:1px solid var(--wr-line)}
+
+.wr-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.wr-input{flex:1;min-width:200px;font:inherit;padding:13px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink)}
+.wr-input:focus{outline:2px solid var(--wr-accent);outline-offset:1px}
+.wr-row .cta{width:auto;padding:13px 22px;margin-top:0}
+
+.wr-hit{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-top:9px;cursor:pointer;font:inherit;color:var(--ink)}
+.wr-hit:hover{border-color:var(--wr-accent)}
+.wr-hit b{display:block;margin-bottom:3px}
+.wr-hit span{font-size:13px;color:var(--muted);line-height:1.6}
+
+.wr-bar{height:10px;background:var(--surface-2);border-radius:999px;overflow:hidden;margin:14px 0 8px}
+.wr-bar-fill{height:100%;width:0;background:var(--wr-accent);border-radius:999px;transition:width .25s}
+.wr-prog-text{font-size:13.5px;color:var(--muted);margin:0 0 10px}
+
+.wr-body{white-space:pre-wrap;line-height:1.85;font-size:15.5px;margin:14px 0;color:var(--ink)}
+.wr-source{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:16px}
+.wr-next-h{font-size:15px;margin:18px 0 4px}
+
+.wr-next-btn{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-top:9px;cursor:pointer;font:inherit;color:var(--ink)}
+.wr-next-btn:hover{border-color:var(--wr-accent)}
+.wr-next-btn b{display:block}
+.wr-next-btn .wr-tag{font-size:11.5px;color:var(--wr-muted);display:block;margin-top:4px;line-height:1.55}
+/* 안 받은 갈래 — 점선으로 "여기가 경계"임을 시각적으로 알린다 */
+.wr-next-btn.missing{opacity:.62;border-style:dashed;cursor:default}
+.wr-next-btn.missing:hover{border-color:var(--line)}
+
+.wr-trail-list{padding-left:20px;line-height:2}
+.wr-trail-list li{color:var(--ink)}
+
+.wr-bundles{margin-top:18px}
+.wr-bundle{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:9px}
+.wr-bundle-open{flex:1;text-align:left;border:none;background:none;cursor:pointer;font:inherit;color:var(--ink);padding:0}
+.wr-bundle-del{font:inherit;font-size:13px;background:none;border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--muted)}
+.wr-bundle-del:hover{border-color:var(--bad);color:var(--bad)}

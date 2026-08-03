@@ -1,0 +1,15 @@
+{
+  "name": "위키 토끼굴 — 오프라인 위키 탐험",
+  "short_name": "위키 토끼굴",
+  "description": "관심사 문서를 미리 받아 비행기에서도 이어 읽는 도구.",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "any",
+  "background_color": "#F8F6F3",
+  "theme_color": "#2F6F4E",
+  "categories": ["education", "books"]
+}

@@ -149,7 +149,13 @@ GAME.DefendTowerScene.prototype.create = function () {
   if (floor > 1) {
     GAME.UI.button(this, W / 2, H - u * 2 - u * 2.5, Math.min(W - 60, 240), u * 5, '1회차부터 다시', function () {
       DT.fail();
-      self.scene.restart();
+      //  ⚠ **`scene.restart()` 를 부르지 않는다** (2026-08-03 사용자 신고: "화면 반짝임").
+      //    씬을 통째로 다시 만들면 한 프레임 동안 화면이 비었다가 다시 그려져
+      //    **깜빡임**으로 보인다. 시트를 열어 두고 버튼을 여러 번 누르는 화면이라
+      //    누를 때마다 화면이 번쩍이면 조작감이 무너진다.
+      //    바뀌는 것은 **골드·레벨·값 숫자뿐**이므로 그 자리들만 다시 쓴다.
+      self._refreshGrowth();
+
     }, { fontSize: P ? 13 : 13 });
   }
   GAME.UI.button(this, W / 2, byBottom - bh * 0.5, bw, bh, '← 메뉴', function () {
@@ -434,14 +440,33 @@ GAME.DefendTowerScene.prototype._openGrowth = function () {
       var def = GAME.UNITS[key];
       var lv = UL.levelOf(key);
       var cost = UL.costToNext(key);
+      //  ── 무엇이 좋아지는가를 **버튼에 적는다** (2026-08-03 사용자 신고) ────
+      //  "유닛 강화는 어떻게 강해지는지 사용자가 알 수가 없어."
+      //  맞는 지적이다 — 예전에는 `전사 Lv.2 → 3 · ◈120` 이 전부라 **무엇이 얼마나
+      //  오르는지** 화면 어디에도 없었다. 값을 치르는 화면에서 대가만 보이고 얻는
+      //  것이 안 보이면 고를 근거가 없다. 지금 배수와 다음 배수를 나란히 보여 준다.
+      var mNow = UL.modsForLevel ? UL.modsForLevel(lv) : null;
+      var mNext = (cost !== null && UL.modsForLevel) ? UL.modsForLevel(lv + 1) : null;
+      var pctOf = function (m) {
+        if (!m) return '';
+        return '체력 +' + Math.round((m.hp - 1) * 100) + '%  공격 +' + Math.round((m.damage - 1) * 100) + '%';
+      };
+      var gain = mNext ? (pctOf(mNow) + '  →  ' + pctOf(mNext)) : pctOf(mNow);
       var label = def.name + '  Lv.' + lv +
-        (cost === null ? '\n최대' : ('  →  ' + (lv + 1) + '\n◈ ' + cost));
+        (cost === null ? '   최대' : ('  →  ' + (lv + 1) + '   ◈ ' + cost)) +
+        (gain ? '\n' + gain : '');
       var cx = col[slot % 3], cy = slot < 3 ? row1 : row2;
       var b = mk(cx, cy, label, function () {
         if (UL.levelUp(key)) {
           if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('click');
           self._closeGrowth();
-          self.scene.restart();          // 골드·레벨 표시가 화면 곳곳에 있어 통째로 다시 그린다
+      //  ⚠ **`scene.restart()` 를 부르지 않는다** (2026-08-03 사용자 신고: "화면 반짝임").
+      //    씬을 통째로 다시 만들면 한 프레임 동안 화면이 비었다가 다시 그려져
+      //    **깜빡임**으로 보인다. 시트를 열어 두고 버튼을 여러 번 누르는 화면이라
+      //    누를 때마다 화면이 번쩍이면 조작감이 무너진다.
+      //    바뀌는 것은 **골드·레벨·값 숫자뿐**이므로 그 자리들만 다시 쓴다.
+      self._refreshGrowth();
+
         }
       }, { fontSize: 'micro' });
       if (cost === null || DT.goldOf() < cost) b.setDisabled(true);
@@ -459,7 +484,12 @@ GAME.DefendTowerScene.prototype._openGrowth = function () {
   // 증원 — 배치 예산 +STEP
   var price = DT.extraBudgetPrice();
   var bcx = col[slot % 3], bcy = slot < 3 ? row1 : row2;
-  var eb = mk(bcx, bcy, '증원  +' + DT.EXTRA_BUDGET_STEP + ' 인구\n◈ ' + price, function () {
+  //  ⚠ `EXTRA_BUDGET_STEP` 은 **옛 예산 단위**(10)다. 화면은 인구로 바뀌었으므로
+  //    10 으로 나눠 보여줘야 한다 — 그대로 두면 "증원 +10 인구"가 되어
+  //    실제로 늘어나는 1명과 어긋난다(사용자 신고).
+  var POPD = (GAME.BuildScene && GAME.BuildScene.POP_DIV) || 10;
+  var stepPop = Math.max(1, Math.round(DT.EXTRA_BUDGET_STEP / POPD));
+  var eb = mk(bcx, bcy, '증원  +' + stepPop + ' 인구\n◈ ' + price, function () {
     if (DT.buyBudget()) {
       if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('click');
       self._closeGrowth();
@@ -480,6 +510,19 @@ GAME.DefendTowerScene.prototype._openGrowth = function () {
 // ═══════════════════════════════════════════════════════════════════════════
 GAME.DefendTowerScene.prototype._toggleSheet = function () {
   if (this.sheet) this._closeSheet(); else this._openSheet();
+};
+
+//  성장 화면의 숫자만 새로 그린다 — 씬을 다시 만들지 않는다(반짝임 방지).
+//  ⚠ 시트를 닫았다 여는 방식이라 **한 프레임 안에** 끝난다. 화면 전체를 버리는
+//    `scene.restart()` 와 달리 배경·전장 그림이 그대로 남아 깜빡임이 없다.
+GAME.DefendTowerScene.prototype._refreshGrowth = function () {
+  try {
+    var open = !!this.sheet;
+    if (open) { this._closeSheet(); this._openGrowth(); }
+    if (this._goldLbl && this._goldLbl.setText) {
+      this._goldLbl.setText('◈ ' + GAME.DefendTower.get().gold);
+    }
+  } catch (e) { /* 화면이 이미 바뀌었으면 아무 일도 아니다 */ }
 };
 
 GAME.DefendTowerScene.prototype._closeSheet = function () {

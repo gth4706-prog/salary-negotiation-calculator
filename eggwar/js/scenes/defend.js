@@ -163,11 +163,17 @@ GAME.DefendScene.prototype.create = function () {
     //    이렇게 두면 통곡의 탑 쪽 기본값을 나중에 다시 잡아도 여기가 안 흔들린다.
     var rh = GAME.HEROES[heroKey];
     if (rh) {
-      var refEhp = (rh.hp || 1) * (1 + (rh.armor || 0) / 100);
+      //  ⚠ **층 강화를 기준값에도 태워야 한다.** 보스에는 `heroModsFor` 를 이미
+      //    곱해 놓고 기준을 영웅의 *기본* 스탯으로 잡으면 그 배수가 그대로 상쇄되어
+      //    보스 체력이 층과 무관하게 고정된다(실측: 10~50층 내내 2,100~3,500).
+      //    그 사이 내 진형은 예산 196→366, 8기→17기로 자라므로 **뒤로 갈수록 쉬워진다**
+      //    (방어 성공률 10층 75% → 50층 100%). 기준에도 같은 강화를 태워 상쇄를 없앤다.
+      var hm = heroMods || { hp: 1, damage: 1 };
+      var refEhp = (rh.hp || 1) * (hm.hp || 1) * (1 + (rh.armor || 0) / 100);
       var bEhp = (bd.hp || 1) * (1 + (bd.armor || 0) / 100);
       var hpMul = (refEhp * this.DEFEND_BOSS_EHP) / Math.max(1, bEhp);
       bd.hp = Math.max(1, Math.round(bd.hp * hpMul));
-      var refDps = (rh.damage || 1) / ((rh.cooldown || 1000) / 1000);
+      var refDps = ((rh.damage || 1) * (hm.damage || 1)) / ((rh.cooldown || 1000) / 1000);
       var bDps = (bd.damage || 1) / ((bd.cooldown || 1000) / 1000);
       var dmgMul = (refDps * this.DEFEND_BOSS_DMG) / Math.max(0.01, bDps);
       bd.damage = Math.max(1, Math.round(bd.damage * dmgMul));
@@ -591,10 +597,11 @@ GAME.DefendScene.prototype._openSheet = function () {
 };
 
 //  보스는 혼자 온다 — 영웅 대비 유효체력 배수와 초당 피해 배수.
-//  두껍게(3.2배) 두되 화력은 조금만 위(1.15배)로 둔다. 한 마리가 너무 아프면
+//  실측으로 잡았다(tools/defend-boss-sim.js) — 1.4배/0.9배에서 방어 성공률이
+//  50~83% 구간에 들어온다. 3.2배는 전층 0%, 1.8배도 대부분 0% 였다. 한 마리가 너무 아프면
 //  진형이 손쓸 새 없이 녹고, 그러면 '배치로 막는다'는 이 모드의 축이 무너진다.
-GAME.DefendScene.prototype.DEFEND_BOSS_EHP = 3.2;
-GAME.DefendScene.prototype.DEFEND_BOSS_DMG = 1.15;
+GAME.DefendScene.prototype.DEFEND_BOSS_EHP = 1.4;
+GAME.DefendScene.prototype.DEFEND_BOSS_DMG = 0.9;
 
 //  공격자 이름 — 영웅이면 영웅 이름, 보스면 유닛 이름.
 //  ⚠ `createHero` 는 `unit.hero` 를 붙이지만 `createUnit` 은 안 붙인다.

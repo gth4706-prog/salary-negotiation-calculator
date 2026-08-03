@@ -173,6 +173,40 @@ GAME.DefendScene.prototype.create = function () {
     //    그래서 **이 층에 원래 올 영웅을 기준으로 정규화**한다. 보스는 혼자
     //    오므로 영웅보다 확실히 두꺼워야 하고, 대신 수가 없으니 화력은 조금만 위다.
     //    이렇게 두면 통곡의 탑 쪽 기본값을 나중에 다시 잡아도 여기가 안 흔들린다.
+    //  ── 진형을 재서 맞춘다 (2026-08-03) ────────────────────────────────
+    //  ⚠ 예전에는 `GAME.HEROES[heroKey]`(= 그 회차에 원래 올 영웅)를 기준으로 삼았다.
+    //    그런데 보스가 싸우는 상대는 **내가 세운 진형**이다. 유닛 능력치를 올리면
+    //    진형만 세지고 보스는 그대로라, v1.43 재조정 뒤 20층이 11초에 끝났다(실측).
+    //    이제 **눈앞의 진형**을 세서 그 비율로 만든다 — 유닛 표를 앞으로 어떻게
+    //    다시 잡아도 보스가 자동으로 따라온다.
+    var fEhp = 0, fDps = 0;
+    for (var fi = 0; fi < this.state.units.length; fi++) {
+      var fu = this.state.units[fi];
+      if (!fu || fu.side !== 'strategist' || !fu.def) continue;
+      fEhp += (fu.maxHp || fu.def.hp || 0) * (1 + (fu.def.armor || 0) / 100);
+      fDps += (fu.def.damage || 0) / Math.max(0.2, (fu.def.cooldown || 1000) / 1000);
+    }
+    if (fEhp > 0 && fDps > 0) {
+      var wantEhp = fEhp * this.DEFEND_BOSS_VS_EHP;
+      var wantDps = fDps * this.DEFEND_BOSS_VS_DPS;
+      var curEhp = (bd.hp || 1) * (1 + (bd.armor || 0) / 100);
+      var curDps = (bd.damage || 1) / Math.max(0.2, (bd.cooldown || 1000) / 1000);
+      var hm2 = wantEhp / Math.max(1, curEhp);
+      var dm2 = wantDps / Math.max(0.01, curDps);
+      bd.hp = Math.max(1, Math.round(bd.hp * hm2));
+      bd.damage = Math.max(1, Math.round(bd.damage * dm2));
+      var sc2 = function (a) {
+        if (!a) return;
+        if (a.damage) a.damage = Math.max(1, Math.round(a.damage * dm2));
+        if (a.dps) a.dps = Math.max(1, Math.round(a.dps * dm2));
+      };
+      sc2(bd.ability);
+      (bd.abilities || []).forEach(sc2);
+      this.hero.maxHp = bd.hp; this.hero.hp = bd.hp;
+      this.hero.isBoss = true;
+      this.bossKey = bossKey;
+      return;
+    }
     var rh = GAME.HEROES[heroKey];
     if (rh) {
       //  ⚠ **층 강화를 기준값에도 태워야 한다.** 보스에는 `heroModsFor` 를 이미
@@ -612,6 +646,14 @@ GAME.DefendScene.prototype._openSheet = function () {
 //  실측으로 잡았다(tools/defend-boss-sim.js) — 1.4배/0.9배에서 방어 성공률이
 //  50~83% 구간에 들어온다. 3.2배는 전층 0%, 1.8배도 대부분 0% 였다. 한 마리가 너무 아프면
 //  진형이 손쓸 새 없이 녹고, 그러면 '배치로 막는다'는 이 모드의 축이 무너진다.
+//  ── 진형 대비 보스 비율 (2026-08-03) ────────────────────────────────────────
+//  보스는 혼자 오지만 진형은 여럿이다. 유효체력은 진형 전체와 비슷해야 버티고,
+//  화력은 진형 합보다 **한참 낮아야** 한다 — 한 마리가 진형 화력만큼 때리면
+//  손쓸 새 없이 녹아 '배치로 막는다'는 이 모드의 축이 무너진다.
+GAME.DefendScene.prototype.DEFEND_BOSS_VS_EHP = 0.85;
+GAME.DefendScene.prototype.DEFEND_BOSS_VS_DPS = 0.28;
+
+//  (아래 둘은 진형을 못 잰 예외 상황의 폴백이다.)
 GAME.DefendScene.prototype.DEFEND_BOSS_EHP = 1.4;
 GAME.DefendScene.prototype.DEFEND_BOSS_DMG = 0.9;
 

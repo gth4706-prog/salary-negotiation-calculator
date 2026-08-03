@@ -1034,7 +1034,20 @@ GAME.Combat = {
       };
     }
     try {
-      return this._castSkillInner(u, slot, tx, ty, state);
+      var _ok = this._castSkillInner(u, slot, tx, ty, state);
+      //  ── 궁극기 신호 (2026-08-03) ────────────────────────────────────────
+      //  ⚠ 전투 엔진은 **화면 문구를 만들지 않는다**(공격반사 때와 같은 규약).
+      //    "궁극기가 나갔다"는 사실만 남기고, 배너는 씬이 읽어서 띄운다.
+      //  ⚠ 영웅만이다. 진형 유닛이 R 을 쓰는 일은 없지만 조건을 명시해 둔다.
+      if (_ok && slot === 'R' && u && u.isHero && state) {
+        for (var _j = 0; u.skills && _j < u.skills.length; _j++) {
+          if (u.skills[_j] && u.skills[_j].slot === 'R') {
+            state.ultCast = { name: u.skills[_j].name, n: (state.ultCast ? state.ultCast.n : 0) + 1 };
+            break;
+          }
+        }
+      }
+      return _ok;
     } finally {
       state.effects.push = _push0;
     }

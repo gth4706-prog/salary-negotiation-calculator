@@ -676,6 +676,61 @@ GAME.BattleScene.prototype._updateOrbs = function (dt) {
 //    읽기 힘들어"). 예전엔 HUD 바닥 바로 아래였는데 그 자리는 전장 **밖**의 배경색
 //    구간이라 글자가 배경에 묻혔다. 전장 안이면 목초지 위라 잉크 테두리가 살아난다.
 //    가운데가 아니라 아래쪽인 이유는 그대로다 — 가운데면 회피해야 할 투사체를 가린다.
+//  ── 궁극기 연출 (2026-08-03 사용자 지시) ────────────────────────────────────
+//  "궁극기는 정말 화려했으면 좋겠고 … 텍스트 이쁘게 꾸민 것도 위에 강조하면서
+//   애니메이션으로 지나가고 진동 울리면서"
+//
+//  궁극기는 30초에 한 번뿐이다 — **그 한 번이 사건처럼 보여야** 30초를 기다린 값을 한다.
+//  ⚠ 그래서 이건 `_orbToast`(작은 안내)와 **다른 물건**이다. 토스트는 정보를 전하고,
+//    이건 순간을 기념한다. 같은 자리에 겹치지 않게 위쪽 띠를 쓴다.
+//  ⚠ 이 게임은 논타겟 회피 게임이다 — 연출이 **전장을 가리면 안 된다.**
+//    그래서 배너는 화면 최상단 띠에만 살고, 아래 전장은 한 픽셀도 안 덮는다.
+GAME.BattleScene.prototype._ultBanner = function (name) {
+  if (!name) return;
+  var W = GAME.CONFIG.WIDTH, C = GAME.CONFIG.COLORS, UI = GAME.UI;
+  var SM = GAME.CONFIG.SMALL;
+  var y = SM ? 26 : 34;
+
+  //  이전 것이 남아 있으면 지운다 — 겹치면 읽히지 않는다.
+  if (this._ultObjs) { this._ultObjs.forEach(function (o) { try { o.destroy(); } catch (e) {} }); }
+  this._ultObjs = [];
+  var self = this;
+  function keep(o) { self._ultObjs.push(o); return o; }
+
+  //  뒤에 깔리는 띠 — 글자가 전장 위에서도 읽히게.
+  var g = keep(this.add.graphics().setDepth(9500).setScrollFactor(0));
+  var h = SM ? 34 : 44;
+  g.fillStyle(0x120b06, 0.72); g.fillRect(0, y - h / 2, W, h);
+  g.fillStyle(UI.COL.focus, 0.9); g.fillRect(0, y - h / 2, W, 2);
+  g.fillStyle(UI.COL.focus, 0.9); g.fillRect(0, y + h / 2 - 2, W, 2);
+
+  //  이름 — 왼쪽 밖에서 들어와 가운데 멈췄다 오른쪽으로 빠진다.
+  var txt = keep(this.add.text(-W * 0.4, y, '★  ' + name + '  ★', {
+    fontFamily: GAME.CONFIG.FONT,
+    fontSize: (SM ? 22 : 30) + 'px',
+    color: GAME.UI.TXT.crit,
+    stroke: '#120b06', strokeThickness: SM ? 5 : 7
+  }).setOrigin(0.5).setDepth(9501).setScrollFactor(0));
+
+  this.tweens.add({ targets: txt, x: W / 2, duration: 260, ease: 'Back.easeOut' });
+  this.tweens.add({ targets: txt, scaleX: 1.06, scaleY: 1.06, duration: 180,
+                    yoyo: true, repeat: 2, delay: 260 });
+  this.tweens.add({ targets: [txt, g], alpha: 0, duration: 260, delay: 1100,
+    onComplete: function () {
+      if (!self._ultObjs) return;
+      self._ultObjs.forEach(function (o) { try { o.destroy(); } catch (e) {} });
+      self._ultObjs = null;
+    } });
+  this.tweens.add({ targets: txt, x: W * 1.4, duration: 300, delay: 1100, ease: 'Back.easeIn' });
+
+  //  화면·소리·손 — 셋이 같이 와야 '사건'이 된다.
+  if (this.cameras && this.cameras.main) this.cameras.main.shake(220, 0.006);
+  if (GAME.Sound) GAME.Sound.play('boom');
+  //  ⚠ 진동은 **중요할 때만**이라는 규칙이 있다(v1.31). 30초에 한 번인 궁극기는
+  //    그 기준에 맞는다. 두 번 끊어 평소 피격(한 번)과 구분한다.
+  try { navigator.vibrate && navigator.vibrate([22, 50, 30]); } catch (e) {}
+};
+
 GAME.BattleScene.prototype._orbToast = function (text) {
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH;
@@ -884,6 +939,13 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   this._updateOrbs(dt);
   // 치유 구역 — 통곡의 탑 전투에서만 존재한다(state.towerHealOn).
   this._updateHealZones(dt);
+  //  ── 궁극기 배너 — 엔진이 남긴 신호를 씬이 읽어 띄운다 ────────────────────
+  var uc = this.state.ultCast;
+  if (uc && uc.n !== (this._ultSeen || 0)) {
+    this._ultSeen = uc.n;
+    this._ultBanner(uc.name);
+  }
+
   //  ── 공격반사 알림 (2026-08-03 사용자 지시) ────────────────────────────────
   //  전투 엔진은 문구를 만들지 않는다 — `state.reflectPing` 이 늘어난 것을 씬이
   //  보고 띄운다. 매 반사마다 띄우면 글자가 도배되므로 **0.8초에 한 번만** 낸다.

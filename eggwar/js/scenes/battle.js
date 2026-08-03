@@ -165,6 +165,13 @@ GAME.BattleScene.prototype.create = function () {
     // 재질·광휘만 등급을 따른다 — 이유는 js/eggart.js 의 `UI.GEAR_TIERS` 주석 참조.
     // 렌더 전용 값이라 `_hurt` 처럼 유닛에 얹어 둔다(combat 은 이 키를 모른다).
     this.hero._gearTier = GAME.UI.gearTierOf(tc.items && tc.items.weapon);
+    //  방어구·신발·장신구도 그림에 반영한다(2026-08-03). 무기와 **같은 등급 함수**를
+    //  쓴다 — 아이템 키에서 단계를 읽는 규칙이 하나여야 표가 갈라지지 않는다.
+    this.hero._kit = {
+      armor: GAME.UI.gearTierOf(tc.items && tc.items.armor),
+      boots: GAME.UI.gearTierOf(tc.items && tc.items.boots),
+      acc:   GAME.UI.gearTierOf(tc.items && tc.items.accessory)
+    };
     // 비싼 스킬이 실제로 더 세다 — **탑에서만**(대전은 이 줄을 안 지난다).
     // 근거와 배수는 js/heroes.js 의 `GAME.SKILL_PRICE_SCALE` 주석 참조.
     GAME.scaleSkillsByPrice(this.hero.skills);
@@ -197,6 +204,11 @@ GAME.BattleScene.prototype.create = function () {
     }
     // 장착 무기가 전장에서도 보인다(탑과 같은 등급 아트).
     this.hero._gearTier = GAME.UI.gearTierOf(ab.items && ab.items.weapon);
+    this.hero._kit = {
+      armor: GAME.UI.gearTierOf(ab.items && ab.items.armor),
+      boots: GAME.UI.gearTierOf(ab.items && ab.items.boots),
+      acc:   GAME.UI.gearTierOf(ab.items && ab.items.accessory)
+    };
     // ⚠ `GAME.scaleSkillsByPrice` 는 **부르지 않는다** — 대전은 모든 스킬이
     //   표에 적힌 값 그대로다(사용자 지시: "모든 스킬은 유사한 밸런스를 가진다").
   }
@@ -1995,7 +2007,7 @@ GAME.BattleScene.prototype.draw = function () {
     // (어깨띠는 양 진영 같은 모양이므로 side 를 필요로 하지 않는다.)
     var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, 1, u.facing, walk,
                                undefined, { footRing: false, sizeMul: u.eliteDraw || 1,
-                                            act: act, gearTier: u._gearTier });
+                                            act: act, gearTier: u._gearTier, kit: u._kit });
 
     //  ── 방어 태세 표시 (2026-08-03) ──────────────────────────────────────────
     //  "때리면 안 되는 시간"을 **글자 없이** 알려야 한다. 두 단계로 보여준다:

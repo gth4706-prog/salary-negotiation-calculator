@@ -1968,6 +1968,83 @@ var SM = 10;
   //  walk : number | {phase, amp} | null   ← v2 추가 (생략하면 v1 과 동일)
   //  lv   : 1~5 계급 (생략하면 1 = 장식 없음, v2 와 픽셀 단위로 동일)
   //  gearTier : 1~8 이면 무기 재질·광휘가 등급을 따른다(UI.GEAR_TIERS). 생략하면 무변경.
+  // ── 장비 덧그리기 (2026-08-03) ────────────────────────────────────────────
+  //  사용자 지시: "방어구하고 신발, 장신구는 어떻게 표현하고 내 캐릭터 꾸미는 재미를 줄지"
+  //
+  //  문제(실측): 장비 4칸 중 **무기만** 그림에 반영됐다. 돈은 4칸에 쓰는데 보이는 건
+  //  1칸이라 꾸미는 재미가 안 생긴다.
+  //
+  //  ⚠ 기존 부위 함수(eggBody/eggLegs/eggBack)를 고치지 않고 **그 위에 덧그린다.**
+  //    깊은 함수를 고치면 적 진형 유닛까지 실루엣이 같이 흔들린다.
+  //    `kit` 이 없거나 전부 0 이면 **한 획도 안 그린다** → 지금 모습 그대로다.
+  //  ⚠ 색은 재질 토큰(M)만 쓴다. 이 세계에 네온은 없다(원시 부족 전쟁).
+  //
+  //  kit = { armor: 0~8, boots: 0~8, acc: 0~8 }
+  UI.KIT_ARMOR = [
+    null,                                                   // 0 없음
+    { col: 'leather', dark: 'leatherDark', w: 0.30, sh: 0 }, // 1 천
+    { col: 'leather', dark: 'leatherDark', w: 0.38, sh: 1 }, // 2 가죽
+    { col: 'bone',    dark: 'stone',       w: 0.46, sh: 1 }, // 3 뼈판
+    { col: 'stone',   dark: 'iron',        w: 0.52, sh: 2 }, // 4 돌비늘
+    { col: 'bronze',  dark: 'leatherDark', w: 0.58, sh: 2 }, // 5 청동
+    { col: 'iron',    dark: 'bladeDark',   w: 0.64, sh: 3 }, // 6 철판
+    { col: 'blade',   dark: 'iron',        w: 0.70, sh: 3 }, // 7 강철
+    { col: 'blade',   dark: 'bronze',      w: 0.76, sh: 4 }  // 8 명품
+  ];
+
+  UI.eggKit = function (g, sx, by, r, a, D, kit) {
+    if (!kit) return;
+    var A = UI.KIT_ARMOR[Math.max(0, Math.min(8, kit.armor | 0))];
+    var b = Math.max(0, Math.min(8, kit.boots | 0));
+    var c = Math.max(0, Math.min(8, kit.acc | 0));
+
+    //  ① 방어구 — 가슴 띠 + 어깨. 등급이 오르면 **띠가 두꺼워지고 어깨가 넓어진다**
+    //     (실루엣이 바뀌어야 멀리서도 "세졌다"가 읽힌다. 색만 바꾸면 안 보인다.)
+    if (A) {
+      var bw = r * (0.62 + A.w * 0.30), bh = r * (0.16 + A.w * 0.16);
+      var cy = by - r * 0.62;
+      g.fillStyle(M[A.dark] || M.iron, a * 0.9);
+      g.fillEllipse(sx, cy + bh * 0.22, bw * 2, bh * 2, 10);
+      g.fillStyle(M[A.col] || M.leather, a);
+      g.fillEllipse(sx, cy, bw * 2, bh * 2, 10);
+      for (var i = 0; i < A.sh; i++) {          // 어깨 판 — 등급만큼 늘어난다
+        var ox = (i % 2 ? 1 : -1) * bw * (0.86 + Math.floor(i / 2) * 0.16);
+        g.fillStyle(M[A.dark] || M.iron, a * 0.85);
+        g.fillEllipse(sx + ox, cy - bh * 0.5, bh * 1.5, bh * 1.2, 8);
+      }
+    }
+
+    //  ② 신발 — 발목 띠. 이 아트는 다리가 짧아 **굵기·높이 변화가 잘 보인다.**
+    if (b > 0) {
+      var bootCol = b >= 6 ? M.iron : (b >= 4 ? M.stone : (b >= 2 ? M.leather : M.rope));
+      var bwid = r * (0.20 + b * 0.020), bhi = r * (0.10 + b * 0.016);
+      for (var k = 0; k < 2; k++) {
+        var fx = sx + (k ? 1 : -1) * r * 0.26;
+        g.fillStyle(UI.tint(bootCol, -0.25), a);
+        g.fillEllipse(fx, by - bhi * 0.2, bwid * 2, bhi * 2, 8);
+        g.fillStyle(bootCol, a);
+        g.fillEllipse(fx, by - bhi * 0.7, bwid * 1.7, bhi * 1.5, 8);
+      }
+    }
+
+    //  ③ 장신구 — 목에 건 것. **유일하게 '기능이 아닌 멋'인 슬롯**이라 여기에
+    //     개성을 몰아준다. 고등급은 알 하나가 더 달린다.
+    if (c > 0) {
+      var accCol = c >= 7 ? M.coinGold : (c >= 5 ? M.coinSilver : (c >= 3 ? M.bone : M.rope));
+      var ny = by - r * 0.42, nr = r * (0.055 + c * 0.008);
+      g.fillStyle(M.rope, a * 0.8);
+      g.fillEllipse(sx, ny - nr * 1.6, r * 0.46, r * 0.14, 10);
+      g.fillStyle(UI.tint(accCol, -0.3), a);
+      g.fillEllipse(sx, ny + nr * 0.25, nr * 2.1, nr * 2.1, 8);
+      g.fillStyle(accCol, a);
+      g.fillEllipse(sx, ny, nr * 2, nr * 2, 8);
+      if (c >= 6) {
+        g.fillStyle(accCol, a * 0.9);
+        g.fillEllipse(sx - nr * 2.2, ny + nr * 0.5, nr * 1.2, nr * 1.2, 6);
+      }
+    }
+  };
+
   UI.drawEggChar = function (g, art, sx, by, r, color, a, facing, grounded, reach, walk, lv, idle, act, tipCap, gearTier) {
     var Iso = GAME.Iso, T = (grounded && Iso) ? Iso.TILT : 1;
     var D = UI.dir8(facing === undefined ? Math.PI / 2 : facing, T);
@@ -2106,6 +2183,10 @@ var SM = 10;
     var AP = UI.actPose(act);
     UI.eggLegs(g, art, sx, by, sy, r, color, a, D, G,
                AP ? { f: AP.legF, spread: AP.legSpread } : null);
+    //  장비 덧그리기 — 다리·몸통이 다 그려진 뒤라야 위에 얹힌다.
+    //  ⚠ 여기는 `drawUnit` 이라 `kit` 이라는 지역 변수가 없다. `opts.kit` 을 봐야 한다
+    //    (그냥 `kit` 으로 뒀다가 매 프레임 ReferenceError 가 났다 — boss-shot 이 잡았다).
+    if (opts && opts.kit) UI.eggKit(g, sx, by, r, a, D, opts.kit);
 
     // ivory 시안 — 발밑 진영 링으로 아군/적군을 한 번 더 못박는다.
     // ⚠ 전투 화면은 `opts.footRing: false` 로 이걸 끄고 루프 뒤 2패스로 다시 그린다.

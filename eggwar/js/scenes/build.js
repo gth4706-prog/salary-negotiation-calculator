@@ -240,6 +240,16 @@ GAME.BuildScene.prototype._applyBoardProjection = function () {
   GAME.Iso.SCREEN_TOP = B.bottom - (Z.y + Z.h - A.y) * tilt;
 };
 
+//  배치 자원의 이름. 수성의 탑에서는 **인구**다(골드와 헷갈리지 않게).
+//  ⚠ 대전은 예전 그대로 '예산' 이다 — 거기엔 골드가 같이 안 나와 혼동이 없다.
+GAME.BuildScene.prototype._resName = function () {
+  return this.defendTower ? '인구' : '예산';
+};
+//  유닛 한 기가 먹는 값의 단위. 예전에는 '원' 이라 전투 보상 골드와 같은 말이었다.
+GAME.BuildScene.prototype._resUnit = function () {
+  return this.defendTower ? '명' : '원';
+};
+
 GAME.BuildScene.prototype.create = function () {
   // 배치 화면은 두 갈래다 — 수성의 탑이면 출정 행진, 대전이면 대기실.
   if (GAME.Music) GAME.Music.play(this.defendTower ? 'defend' : 'versus');
@@ -436,7 +446,7 @@ GAME.BuildScene.prototype.create = function () {
       ch.tile = { x: ch.x + 6, y: ch.cy - 28, w: 58, h: 56 };
       ch.nameTxt = UI.text(this, ch.x + 68, ch.cy - 13, def.name,
         { size: 'subhead', color: C.text });
-      ch.costTxt = UI.text(this, ch.x + 68, ch.cy + 9, String(def.cost) + ' 원',
+      ch.costTxt = UI.text(this, ch.x + 68, ch.cy + 9, String(def.cost) + ' ' + this._resUnit(),
         { size: 'caption', color: C.accent });
       ch.countTxt = UI.text(this, ch.x + ch.w - 8, ch.cy, '', {
         size: 'caption', color: C.crit, origin: 1, originY: 0.5
@@ -498,7 +508,7 @@ GAME.BuildScene.prototype.create = function () {
         { size: 'caption', color: C.accentAlt, origin: 0, originY: 0.5 });
     } else if (this.defendTower) {
       UI.text(this, tierLeft, rows.tier.cy,
-        '수성의 탑 ' + this.defendTower + '층  ·  고정 예산 ' + this.budget,
+        '수성의 탑 ' + this.defendTower + '회차  ·  인구 ' + this.budget + '명',
         { size: 'caption', color: C.accentAlt, origin: 0, originY: 0.5 });
     } else {
       var tcols2 = L.cols(3, { gap: 8, width: tierW, left: tierLeft });
@@ -718,7 +728,8 @@ GAME.BuildScene.prototype._blockedReason = function (key) {
     return def.name + '은(는) 배치도당 ' + def.maxPerFormation + '개까지만 놓을 수 있습니다.';
   }
   if (this.spent() + def.cost > this.budget) {
-    return '예산이 부족합니다. (' + def.name + ' ' + def.cost + ' · 남은 ' + (this.budget - this.spent()) + ')';
+    return this._resName() + '이(가) 부족합니다. (' + def.name + ' ' + def.cost +
+           this._resUnit() + ' · 남은 ' + (this.budget - this.spent()) + ')';
   }
   return null;
 };
@@ -1628,8 +1639,8 @@ GAME.BuildScene.prototype.redraw = function () {
   this.budgetMeter.setColor(left <= 0 ? C.crit : this.myColor);
   this.budgetMeter.set(this.budget ? spent / this.budget : 0);
   this.budgetMeter.setText(PH
-    ? ('예산 ' + spent + '/' + this.budget + ' · 남은 ' + left + ' · 유닛 ' + this.placed.length + '기')
-    : ('예산 ' + spent + ' / ' + this.budget + '   ·   남은 ' + left
+    ? (this._resName() + ' ' + spent + '/' + this.budget + ' · 남은 ' + left + ' · 유닛 ' + this.placed.length + '기')
+    : (this._resName() + ' ' + spent + ' / ' + this.budget + '   ·   남은 ' + left
        + '   ·   유닛 ' + this.placed.length + '기'));
 
   if (this.powerText) this._fitLine(this.powerText, this._powerLine(P));

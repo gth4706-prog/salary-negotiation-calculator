@@ -120,7 +120,7 @@ GAME.DefendTowerScene.prototype.create = function () {
     P ? 14 : 17, C.text, 0.5).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 30), u * 0.9);
 
   stack(GAME.UI.label(this, W / 2, y,
-    '내 배치 예산 ' + DT.placeBudgetFor(floor) +
+    '내 인구 ' + DT.placeBudgetFor(floor) +
     (DT.bonusBudget() ? (' (기본 ' + budget + ' + 증원 ' + DT.bonusBudget() + ')') : '') +
     '   ·   최고 ' + (rec.best || 0) + '회차   ·   격파 ' + (rec.kills || 0) + '회',
     P ? 14 : 17, C.accent, 0.5).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 30), u * 0.8);
@@ -337,7 +337,7 @@ GAME.DefendTowerScene.prototype._createPhone = function () {
     '%   ·   숙련 ' + Math.round(skill * 100) + '%',
     { size: 'caption', color: C.text, origin: 0, originY: 0.5 });
   UI.text(this, W - K.VER_W - 16, footCy,
-    '내 배치 예산 ' + DT.placeBudgetFor(floor) +
+    '내 인구 ' + DT.placeBudgetFor(floor) +
     (DT.bonusBudget() ? (' (+' + DT.bonusBudget() + ')') : ''),
     { size: 'caption', color: C.accent, origin: 1, originY: 0.5 });
 
@@ -459,7 +459,7 @@ GAME.DefendTowerScene.prototype._openGrowth = function () {
   // 증원 — 배치 예산 +STEP
   var price = DT.extraBudgetPrice();
   var bcx = col[slot % 3], bcy = slot < 3 ? row1 : row2;
-  var eb = mk(bcx, bcy, '증원  +' + DT.EXTRA_BUDGET_STEP + ' 예산\n◈ ' + price, function () {
+  var eb = mk(bcx, bcy, '증원  +' + DT.EXTRA_BUDGET_STEP + ' 인구\n◈ ' + price, function () {
     if (DT.buyBudget()) {
       if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('click');
       self._closeGrowth();

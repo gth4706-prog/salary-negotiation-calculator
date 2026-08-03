@@ -38,12 +38,29 @@ GAME.TowerShopItems = (function () {
   //    1~3단계 = 10~100 시세(초반), 4단계부터 자릿수가 바뀐다.
   //  ⚠ 이 값을 바꾸면 **골드 수입 곡선(js/towerrun.js 의 goldFor)도 같이** 봐야 한다.
   //    둘이 갈라지면 최상급이 영원히 안 잡히거나(너무 비쌈) 3층에 다 사진다(너무 쌈).
+  //
+  //  ── 8단 → 10단 (2026-08-03 사용자 지시: "아이템을 더 추가하는 방식으로") ─────
+  //  골드 곡선을 피벗한 뒤(towerrun.js 5차) 누적 구매력이 이렇게 된다:
+  //    10층 296 · 20층 938 · 30층 2,324
+  //  옛 8단 사다리로 사는 시점을 계산하면 3단(세트 410)이 **14층**, 4단(세트 1,520)이
+  //  **26층** 이라 그 사이 열두 층 동안 상점에 살 것이 하나도 없었다. 돈만 늘리고
+  //  쓸 곳을 안 늘리면 "가난하다"가 "심심하다"로 바뀔 뿐이다.
+  //  → **가장 넓은 두 공백**(100→380 은 3.8배, 380→1400 은 3.7배)에 한 단씩 끼웠다.
+  //    이제 배율이 약 2배로 고르고, 구매 시점이 4·9·14·18·26·33·40층으로 흩어진다.
+  //
+  //  ⚠ **키를 다시 매기지 않았다.** 새 단계는 배열 중간에 들어가지만 키는 w9/w10 이다.
+  //    순번대로 w4 를 새 것에 주면 이미 '뼈창(w4)'을 낀 채 저장된 캐릭터가 말없이
+  //    다른 아이템을 낀 것이 된다. 이 파일의 어떤 코드도 키 숫자를 등급으로 쓰지 않고
+  //    (`dropCandidates` 는 `tier = j + 1`, 즉 **배열 순번**을 쓴다) 아트 쪽도 같은 날
+  //    순번을 읽도록 고쳤다(js/eggart.js `gearTierOf`). 순서를 정하는 것은 **배열 위치**다.
   var CATALOG = {
     weapon: [
       { key: 'w1', name: '돌칼',        cost: 15,    vsCost: 15,  damageAdd: 8,    note: '공격력 +8' },
       { key: 'w2', name: '청동 도끼',   cost: 40,    vsCost: 30,  damageAdd: 18,   note: '공격력 +18' },
       { key: 'w3', name: '흑요석 검',   cost: 100,   vsCost: 50,  damageAdd: 24, lifestealAdd: 0.06, note: '공격력 +24, 흡혈 +6%' },
+      { key: 'w9', name: '이빨 박은 몽둥이', cost: 190, vsCost: 62, damageAdd: 38, note: '공격력 +38' },
       { key: 'w4', name: '뼈창',        cost: 380,   vsCost: 80,  damageAdd: 60,   note: '공격력 +60' },
+      { key: 'w10', name: '들소뿔 갈래창',   cost: 700, vsCost: 100, damageAdd: 88, lifestealAdd: 0.04, note: '공격력 +88, 흡혈 +4%' },
       { key: 'w5', name: '강철 손도끼', cost: 1400,  vsCost: 120, damageAdd: 130, lifestealAdd: 0.10, note: '공격력 +130, 흡혈 +10%' },
       { key: 'w6', name: '흑철 대검',   cost: 4800,  vsCost: 170, damageAdd: 290,  note: '공격력 +290' },
       { key: 'w7', name: '용골 단검',   cost: 15000, vsCost: 230, damageAdd: 620, lifestealAdd: 0.18, cdrMul: 0.90, note: '공격력 +620, 흡혈 +18%, 스킬 쿨 -10%' },
@@ -53,7 +70,9 @@ GAME.TowerShopItems = (function () {
       { key: 'a1', name: '가죽 갑옷',     cost: 15,    vsCost: 15,  hpAdd: 140,   note: '체력 +140' },
       { key: 'a2', name: '뼈 갑옷',       cost: 40,    vsCost: 30,  hpAdd: 260,  armorAdd: 12, note: '체력 +260, 방어력 +12' },
       { key: 'a3', name: '거북등 갑옷',   cost: 100,   vsCost: 50,  hpAdd: 360,  armorAdd: 18, note: '체력 +360, 방어력 +18' },
+      { key: 'a9', name: '늑대가죽 흉갑', cost: 190,   vsCost: 62,  hpAdd: 560,  armorAdd: 25, note: '체력 +560, 방어력 +25' },
       { key: 'a4', name: '강철 흉갑',     cost: 380,   vsCost: 80,  hpAdd: 900,  armorAdd: 34, note: '체력 +900, 방어력 +34' },
+      { key: 'a10', name: '매머드 뼈 갑주', cost: 700, vsCost: 100, hpAdd: 1400, armorAdd: 45, note: '체력 +1400, 방어력 +45' },
       { key: 'a5', name: '흑요석 판금',   cost: 1400,  vsCost: 120, hpAdd: 2100, armorAdd: 58, note: '체력 +2100, 방어력 +58' },
       { key: 'a6', name: '용비늘 갑옷',   cost: 4800,  vsCost: 170, hpAdd: 4800, armorAdd: 95, note: '체력 +4800, 방어력 +95' },
       { key: 'a7', name: '대지의 갑주',   cost: 15000, vsCost: 230, hpAdd: 11000, armorAdd: 155, note: '체력 +11000, 방어력 +155' },
@@ -66,7 +85,9 @@ GAME.TowerShopItems = (function () {
       { key: 'b1', name: '짚신',            cost: 12,    vsCost: 12,  speedAdd: 25,  note: '이동속도 +25' },
       { key: 'b2', name: '가죽 장화',       cost: 35,    vsCost: 25,  speedAdd: 48,  note: '이동속도 +48' },
       { key: 'b3', name: '깃털 장화',       cost: 90,    vsCost: 40,  speedAdd: 72,  cdrMul: 0.88, note: '이동속도 +72, 스킬 쿨 -12%' },
+      { key: 'b9', name: '이끼 감은 신',    cost: 175,   vsCost: 52,  speedAdd: 86,  cdrMul: 0.86, note: '이동속도 +86, 스킬 쿨 -14%' },
       { key: 'b4', name: '여우가죽 장화',   cost: 340,   vsCost: 65,  speedAdd: 100, cdrMul: 0.84, note: '이동속도 +100, 스킬 쿨 -16%' },
+      { key: 'b10', name: '사슴 힘줄 신',   cost: 650,   vsCost: 82,  speedAdd: 115, cdrMul: 0.81, note: '이동속도 +115, 스킬 쿨 -19%' },
       { key: 'b5', name: '바람 신발',       cost: 1250,  vsCost: 100, speedAdd: 130, cdrMul: 0.78, note: '이동속도 +130, 스킬 쿨 -22%' },
       { key: 'b6', name: '유령 걸음',       cost: 4300,  vsCost: 150, speedAdd: 160, cdrMul: 0.70, note: '이동속도 +160, 스킬 쿨 -30%' },
       { key: 'b7', name: '폭풍 딛기',       cost: 13500, vsCost: 210, speedAdd: 195, cdrMul: 0.60, note: '이동속도 +195, 스킬 쿨 -40%' },
@@ -77,7 +98,9 @@ GAME.TowerShopItems = (function () {
       { key: 'c1', name: '부적 목걸이',       cost: 20,    vsCost: 20,  luckAdd: 1, note: '행운 +1' },
       { key: 'c2', name: '늑대 이빨 목걸이',  cost: 50,    vsCost: 45,  lifestealAdd: 0.05, note: '흡혈 +5%' },
       { key: 'c3', name: '매의 깃털 장식',    cost: 120,   vsCost: 70,  cdrMul: 0.92, luckAdd: 1, note: '스킬 쿨 -8%, 행운 +1' },
+      { key: 'c9', name: '멧돼지 송곳니 팔찌', cost: 230,  vsCost: 88,  lifestealAdd: 0.10, luckAdd: 2, note: '흡혈 +10%, 행운 +2' },
       { key: 'c4', name: '곰 발톱 부적',      cost: 450,   vsCost: 110, armorAdd: 30, damageAdd: 28, note: '방어력 +30, 공격력 +28' },
+      { key: 'c10', name: '조상의 뼈 고리',   cost: 850,   vsCost: 135, armorAdd: 50, damageAdd: 55, luckAdd: 2, note: '방어력 +50, 공격력 +55, 행운 +2' },
       { key: 'c5', name: '심장 조각',         cost: 1600,  vsCost: 160, hpAdd: 1400, luckAdd: 3, note: '체력 +1400, 행운 +3' },
       { key: 'c6', name: '그림자 반지',       cost: 5500,  vsCost: 220, cdrMul: 0.80, speedAdd: 70, damageAdd: 120, note: '스킬 쿨 -20%, 이동속도 +70, 공격력 +120' },
       { key: 'c7', name: '늪지 정수병',       cost: 17000, vsCost: 280, lifestealAdd: 0.22, damageAdd: 320, luckAdd: 6, note: '흡혈 +22%, 공격력 +320, 행운 +6' },

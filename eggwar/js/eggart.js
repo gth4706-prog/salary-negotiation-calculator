@@ -1347,20 +1347,43 @@ var SM = 10;
       len: 0.94, wide: 1.04, grd: 0.92, orn: 0 },
     { mat: { blade: 0x585070, bladeDark: 0x2e2942, bronze: 0x8b7ab0, iron: 0x3a3352 },    // 3 흑요석
       len: 1.00, wide: 0.90, grd: 0.96, orn: 1 },
-    { mat: { blade: 0xeae3cd, bladeDark: 0xb3a888, bronze: 0xc0aa72, iron: 0xa89c7e },    // 4 뼈
-      len: 1.05, wide: 1.00, grd: 1.00, orn: 1 },
-    { mat: {}, len: 1.08, wide: 1.02, grd: 1.06, orn: 1 },                    // 5 강철 = 기본 색
-    { mat: { blade: 0x79828f, bladeDark: 0x3a414d, bronze: 0xb3bcc9, iron: 0x2f3640 },    // 6 흑철
-      glow: 0xcfe0f5, spark: 2, len: 1.13, wide: 1.10, grd: 1.20, orn: 2 },
-    { mat: { blade: 0xf6ecd2, bladeDark: 0xc3a973, bronze: 0xe0b243, iron: 0x9a7f45 },    // 7 용골
-      glow: 0xffd98a, spark: 3, len: 1.19, wide: 1.06, grd: 1.30, orn: 2 },
-    { mat: { blade: 0xffe6a8, bladeDark: 0xe3a733, bronze: 0xfff3cd, iron: 0xc08c22 },    // 8 여명
+    //  ⚠ 4·6 은 2026-08-03 에 **사다리 중간에 끼운** 단계다(js/towershopitems.js 참조).
+    //    카탈로그 배열 순번이 곧 이 배열의 자리다 — 한쪽만 늘리면 등급이 통째로 밀린다.
+    { mat: { blade: 0xcfc0a4, bladeDark: 0x5f4a33, bronze: 0x8a6b45, iron: 0x6b533a },    // 4 이빨 박은 나무
+      len: 1.03, wide: 1.14, grd: 0.86, orn: 1 },
+    { mat: { blade: 0xeae3cd, bladeDark: 0xb3a888, bronze: 0xc0aa72, iron: 0xa89c7e },    // 5 뼈
+      len: 1.06, wide: 1.00, grd: 1.00, orn: 1 },
+    { mat: { blade: 0xb89a6a, bladeDark: 0x6e5730, bronze: 0xa8863f, iron: 0x7a6134 },    // 6 들소뿔
+      len: 1.10, wide: 1.08, grd: 1.04, orn: 1 },
+    { mat: {}, len: 1.13, wide: 1.02, grd: 1.10, orn: 1 },                    // 7 강철 = 기본 색
+    { mat: { blade: 0x79828f, bladeDark: 0x3a414d, bronze: 0xb3bcc9, iron: 0x2f3640 },    // 8 흑철
+      glow: 0xcfe0f5, spark: 2, len: 1.17, wide: 1.10, grd: 1.22, orn: 2 },
+    { mat: { blade: 0xf6ecd2, bladeDark: 0xc3a973, bronze: 0xe0b243, iron: 0x9a7f45 },    // 9 용골
+      glow: 0xffd98a, spark: 3, len: 1.21, wide: 1.06, grd: 1.32, orn: 2 },
+    { mat: { blade: 0xffe6a8, bladeDark: 0xe3a733, bronze: 0xfff3cd, iron: 0xc08c22 },    // 10 여명
       glow: 0xffc94d, spark: 5, len: 1.26, wide: 1.16, grd: 1.45, orn: 3 }
   ];
 
-  // 상점 아이템 키('w1'…'w8') → 등급 숫자. 카탈로그를 아트가 직접 읽지 않게 하는 얇은 변환.
+  // 상점 아이템 키 → 등급 숫자. 무기·방어구·신발·장신구 **네 슬롯 전부**가 이 한 곳을
+  // 지나므로, 여기만 맞으면 아트 전체가 사다리를 따라온다(js/scenes/battle.js 참조).
+  //
+  // ⚠ 예전에는 키의 숫자를 그대로 등급으로 썼다('w4' → 4). 그러면 **사다리 중간에
+  //   단계를 끼울 수 없다** — 키를 다시 매겨야 하는데, 그 순간 이미 'w4'(뼈창)를 낀 채
+  //   저장된 캐릭터가 말없이 다른 아이템을 낀 것이 된다. 2026-08-03 에 100~380원 공백을
+  //   메우려고 두 단계를 끼우면서 **카탈로그의 배열 순번**을 읽도록 바꿨다.
+  //   순서를 정하는 것은 키가 아니라 위치다 — 카탈로그(js/towershopitems.js)가 유일한 출처.
   UI.gearTierOf = function (itemKey) {
     if (!itemKey) return 0;
+    var CAT = GAME.TowerShopItems;
+    if (CAT && CAT.CATALOG) {
+      for (var s in CAT.CATALOG) {
+        var list = CAT.CATALOG[s];
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].key === itemKey) return Math.min(UI.GEAR_TIERS.length - 1, i + 1);
+        }
+      }
+    }
+    //  카탈로그가 아직 안 실렸을 때만 쓰는 폴백(스크립트 순서 사고 대비).
     var m = /^[a-z](\d+)$/.exec(String(itemKey));
     return m ? Math.max(0, Math.min(UI.GEAR_TIERS.length - 1, parseInt(m[1], 10))) : 0;
   };
@@ -1979,24 +2002,30 @@ var SM = 10;
   //    `kit` 이 없거나 전부 0 이면 **한 획도 안 그린다** → 지금 모습 그대로다.
   //  ⚠ 색은 재질 토큰(M)만 쓴다. 이 세계에 네온은 없다(원시 부족 전쟁).
   //
-  //  kit = { armor: 0~8, boots: 0~8, acc: 0~8 }
+  //  kit = { armor: 0~10, boots: 0~10, acc: 0~10 }
+  //  ⚠ 자리는 카탈로그(js/towershopitems.js) 배열 순번과 **1:1** 이다. 재질도 그 자리의
+  //    아이템 이름과 맞춰 둔다 — '늑대가죽 흉갑'이 철판으로 보이면 이름이 거짓말이 된다.
   UI.KIT_ARMOR = [
-    null,                                                   // 0 없음
-    { col: 'leather', dark: 'leatherDark', w: 0.30, sh: 0 }, // 1 천
-    { col: 'leather', dark: 'leatherDark', w: 0.38, sh: 1 }, // 2 가죽
-    { col: 'bone',    dark: 'stone',       w: 0.46, sh: 1 }, // 3 뼈판
-    { col: 'stone',   dark: 'iron',        w: 0.52, sh: 2 }, // 4 돌비늘
-    { col: 'bronze',  dark: 'leatherDark', w: 0.58, sh: 2 }, // 5 청동
-    { col: 'iron',    dark: 'bladeDark',   w: 0.64, sh: 3 }, // 6 철판
-    { col: 'blade',   dark: 'iron',        w: 0.70, sh: 3 }, // 7 강철
-    { col: 'blade',   dark: 'bronze',      w: 0.76, sh: 4 }  // 8 명품
+    null,                                                    // 0 없음
+    { col: 'leather', dark: 'leatherDark', w: 0.30, sh: 0 }, // 1 가죽 갑옷
+    { col: 'bone',    dark: 'leatherDark', w: 0.36, sh: 1 }, // 2 뼈 갑옷
+    { col: 'stone',   dark: 'leatherDark', w: 0.42, sh: 1 }, // 3 거북등 갑옷
+    { col: 'leather', dark: 'stone',       w: 0.48, sh: 2 }, // 4 늑대가죽 흉갑
+    { col: 'iron',    dark: 'bladeDark',   w: 0.54, sh: 2 }, // 5 강철 흉갑
+    { col: 'bone',    dark: 'stone',       w: 0.59, sh: 2 }, // 6 매머드 뼈 갑주
+    { col: 'stone',   dark: 'iron',        w: 0.64, sh: 3 }, // 7 흑요석 판금
+    { col: 'bronze',  dark: 'leatherDark', w: 0.69, sh: 3 }, // 8 용비늘 갑옷
+    { col: 'blade',   dark: 'iron',        w: 0.74, sh: 4 }, // 9 대지의 갑주
+    { col: 'blade',   dark: 'bronze',      w: 0.80, sh: 4 }  // 10 불멸의 등딱지
   ];
 
   UI.eggKit = function (g, sx, by, r, a, D, kit) {
     if (!kit) return;
-    var A = UI.KIT_ARMOR[Math.max(0, Math.min(8, kit.armor | 0))];
-    var b = Math.max(0, Math.min(8, kit.boots | 0));
-    var c = Math.max(0, Math.min(8, kit.acc | 0));
+    //  ⚠ 상한은 카탈로그 단계 수(10)와 같아야 한다. 8 로 두면 9·10 단계가 8 로 접혀
+    //    **최상급 셋이 전부 같은 모습**이 된다 — 비싼 것을 샀는데 안 바뀌는 것이 보인다.
+    var A = UI.KIT_ARMOR[Math.max(0, Math.min(10, kit.armor | 0))];
+    var b = Math.max(0, Math.min(10, kit.boots | 0));
+    var c = Math.max(0, Math.min(10, kit.acc | 0));
 
     //  ① 방어구 — 가슴 띠 + 어깨. 등급이 오르면 **띠가 두꺼워지고 어깨가 넓어진다**
     //     (실루엣이 바뀌어야 멀리서도 "세졌다"가 읽힌다. 색만 바꾸면 안 보인다.)
@@ -2016,8 +2045,9 @@ var SM = 10;
 
     //  ② 신발 — 발목 띠. 이 아트는 다리가 짧아 **굵기·높이 변화가 잘 보인다.**
     if (b > 0) {
-      var bootCol = b >= 6 ? M.iron : (b >= 4 ? M.stone : (b >= 2 ? M.leather : M.rope));
-      var bwid = r * (0.20 + b * 0.020), bhi = r * (0.10 + b * 0.016);
+      //  ⚠ 문턱은 10 단 기준이다(예전 8 단 값 6/4/2 를 그대로 두면 상위 셋이 뭉친다).
+      var bootCol = b >= 8 ? M.iron : (b >= 5 ? M.stone : (b >= 3 ? M.leather : M.rope));
+      var bwid = r * (0.20 + b * 0.016), bhi = r * (0.10 + b * 0.013);
       for (var k = 0; k < 2; k++) {
         var fx = sx + (k ? 1 : -1) * r * 0.26;
         g.fillStyle(UI.tint(bootCol, -0.25), a);
@@ -2030,15 +2060,15 @@ var SM = 10;
     //  ③ 장신구 — 목에 건 것. **유일하게 '기능이 아닌 멋'인 슬롯**이라 여기에
     //     개성을 몰아준다. 고등급은 알 하나가 더 달린다.
     if (c > 0) {
-      var accCol = c >= 7 ? M.coinGold : (c >= 5 ? M.coinSilver : (c >= 3 ? M.bone : M.rope));
-      var ny = by - r * 0.42, nr = r * (0.055 + c * 0.008);
+      var accCol = c >= 9 ? M.coinGold : (c >= 6 ? M.coinSilver : (c >= 4 ? M.bone : M.rope));
+      var ny = by - r * 0.42, nr = r * (0.055 + c * 0.0065);
       g.fillStyle(M.rope, a * 0.8);
       g.fillEllipse(sx, ny - nr * 1.6, r * 0.46, r * 0.14, 10);
       g.fillStyle(UI.tint(accCol, -0.3), a);
       g.fillEllipse(sx, ny + nr * 0.25, nr * 2.1, nr * 2.1, 8);
       g.fillStyle(accCol, a);
       g.fillEllipse(sx, ny, nr * 2, nr * 2, 8);
-      if (c >= 6) {
+      if (c >= 8) {
         g.fillStyle(accCol, a * 0.9);
         g.fillEllipse(sx - nr * 2.2, ny + nr * 0.5, nr * 1.2, nr * 1.2, 6);
       }

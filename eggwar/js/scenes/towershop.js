@@ -525,7 +525,9 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
     self._body.push(b);
   });
 
-  // ── 그 슬롯의 8종을 격자로 전부 펼친다 ──
+  // ── 그 슬롯의 전 단계를 격자로 펼친다(2026-08-03 기준 10종) ──
+  //  ⚠ 행 수는 `list.length` 에서 계산한다 — 단계를 늘리면 폰이 4행에서 5행이 되고
+  //    카드 높이가 그만큼 줄어든다. 단계를 더 늘릴 때는 반드시 overlap-audit 을 돌릴 것.
   var list = GAME.TowerShopItems.CATALOG[this.itemSlot] || [];
   var curKey = this.char.items[this.itemSlot];
   var cur = curKey ? GAME.TowerShopItems.find(this.itemSlot, curKey) : null;
@@ -580,11 +582,19 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
 
       var tx = pIx + pIcon + 8;
       var tw = cx0 + cardW - 6 - tx;
-      var priceLbl = GAME.UI.label(self, cx0 + cardW - 6, cy0 + 4, priceTxt, 13, priceCol, 0)
+      //  ⚠ 두 줄의 y 를 **카드 높이에서 역산한다**(2026-08-03). 예전에는 `cy0+4` /
+      //    `cy0+22` 로 박혀 있었는데, 단계를 8 → 10 으로 늘리자 폰이 4행에서 5행이 되어
+      //    카드가 28px 로 줄었고 아래 줄이 카드를 넘쳐 **다음 칸 이름과 겹쳤다**
+      //    (overlap-audit 이 대전 아이템 탭에서 8건 잡았다). 고정 오프셋은 행 수가
+      //    바뀌는 격자에서 반드시 이렇게 터진다 — 앞으로 단계를 더 늘려도 안전하다.
+      var lineH = 16;                                    // 13px 글자 + 최소 여백
+      var padY = Math.max(1, (cardH - lineH * 2 + 3) / 2);
+      var nameY = cy0 + padY, noteY = nameY + lineH;
+      var priceLbl = GAME.UI.label(self, cx0 + cardW - 6, nameY, priceTxt, 13, priceCol, 0)
         .setOrigin(1, 0);
       self._body.push(priceLbl);
       // 이름은 가격이 차지하고 남은 폭만 쓴다 — 안 그러면 둘이 겹친다.
-      self._body.push(GAME.UI.label(self, tx, cy0 + 4,
+      self._body.push(GAME.UI.label(self, tx, nameY,
         GAME.TowerShopItems.nameFor(it, self.char.heroKey), 13,
         equipped ? C.accent : C.text, 0).setWordWrapWidth(Math.max(40, tw - priceLbl.width - 8)));
       // 효과 문구 — 이 줄이 사용자가 요구한 "어떤 능력치를 추가해주는지"다.
@@ -593,7 +603,7 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
       //   (사용자 신고). 지금은 값에서 **짧게 다시 만들어**(라벨 축약 + 큰 수 k 표기)
       //   폭 안에 들어가게 한다 — 감추는 대신 줄이는 것이 맞다.
       var noteTxt = GAME.TowerShopItems.noteOf(it, true);
-      self._body.push(GAME.UI.label(self, tx, cy0 + 22, noteTxt, 13, C.textDim, 0)
+      self._body.push(GAME.UI.label(self, tx, noteY, noteTxt, 13, C.textDim, 0)
         .setWordWrapWidth(tw).setLineSpacing(0));
 
     } else {

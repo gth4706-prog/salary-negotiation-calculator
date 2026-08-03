@@ -253,9 +253,20 @@ GAME.BuildScene.prototype._applyBoardProjection = function () {
 //  ⚠ 예산도 **같은 비율로** 나눠야 살 수 있는 양이 유지된다. 한쪽만 나누면
 //    인구가 10배 부족해져 배치를 아예 못 하게 된다.
 GAME.BuildScene.POP_DIV = 10;
+//  ⚠ **반올림하지 않는다** (2026-08-03 사용자 지시: "소수점 들어가도되니까 기존
+//    밸런스에 따라가줘"). 정수로 맞추면 궁수(1.5 → 2)처럼 값이 올라가 배치 총량이
+//    달라진다 — 실제로 궁수 도배가 10기에서 8기로 줄었다. 소수를 허용하면
+//    원가 비율이 **그대로** 보존되어 기존 밸런스와 완전히 같아진다.
 GAME.BuildScene.popOf = function (def) {
   if (!def || !def.cost) return 0;
-  return Math.max(1, Math.round(def.cost / GAME.BuildScene.POP_DIV));
+  return def.cost / GAME.BuildScene.POP_DIV;
+};
+
+//  화면 표기 — 정수는 그대로, 소수는 한 자리까지(1 · 1.5 · 4.5).
+//  ⚠ toFixed(1) 을 그냥 쓰면 전사가 "1.0명" 이 되어 지저분하다.
+GAME.BuildScene.popText = function (v) {
+  var n = Math.round(v * 10) / 10;
+  return (n % 1 === 0) ? String(n) : n.toFixed(1);
 };
 
 //  이 화면에서 유닛 하나가 먹는 값(모드에 따라 인구 또는 원본 비용).
@@ -264,9 +275,7 @@ GAME.BuildScene.prototype._costOf = function (def) {
 };
 //  이 화면의 총량.
 GAME.BuildScene.prototype._budgetOf = function () {
-  return this.defendTower
-    ? Math.max(1, Math.round(this.budget / GAME.BuildScene.POP_DIV))
-    : this.budget;
+  return this.defendTower ? (this.budget / GAME.BuildScene.POP_DIV) : this.budget;
 };
 
 //  이 화면 기준으로 지금까지 쓴 양.
@@ -471,7 +480,7 @@ GAME.BuildScene.prototype.create = function () {
       ch.bar = { x: ch.x + 3, y: ch.y + chipH - 21, w: ch.w - 6, h: 19 };
       ch.nameTxt = UI.text(this, ch.cx, ch.y + chipH - 20, def.name,
         { size: 'micro', color: C.text, origin: 0.5, originY: 0 });
-      ch.costTxt = UI.text(this, ch.x + ch.w - 5, ch.y + 2, String(this._costOf(def)),
+      ch.costTxt = UI.text(this, ch.x + ch.w - 5, ch.y + 2, GAME.BuildScene.popText(this._costOf(def)),
         { size: 'micro', color: C.accent, origin: 1, originY: 0 });
       ch.countTxt = UI.text(this, ch.x + 5, ch.y + 2, '', {
         size: 'micro', color: C.crit, origin: 0, originY: 0
@@ -484,7 +493,7 @@ GAME.BuildScene.prototype.create = function () {
       ch.tile = { x: ch.x + 6, y: ch.cy - 28, w: 58, h: 56 };
       ch.nameTxt = UI.text(this, ch.x + 68, ch.cy - 13, def.name,
         { size: 'subhead', color: C.text });
-      ch.costTxt = UI.text(this, ch.x + 68, ch.cy + 9, String(this._costOf(def)) + ' ' + this._resUnit(),
+      ch.costTxt = UI.text(this, ch.x + 68, ch.cy + 9, GAME.BuildScene.popText(this._costOf(def)) + ' ' + this._resUnit(),
         { size: 'caption', color: C.accent });
       ch.countTxt = UI.text(this, ch.x + ch.w - 8, ch.cy, '', {
         size: 'caption', color: C.crit, origin: 1, originY: 0.5
@@ -546,7 +555,7 @@ GAME.BuildScene.prototype.create = function () {
         { size: 'caption', color: C.accentAlt, origin: 0, originY: 0.5 });
     } else if (this.defendTower) {
       UI.text(this, tierLeft, rows.tier.cy,
-        '수성의 탑 ' + this.defendTower + '회차  ·  인구 ' + this._budgetOf() + '명',
+        '수성의 탑 ' + this.defendTower + '회차  ·  인구 ' + GAME.BuildScene.popText(this._budgetOf()) + '명',
         { size: 'caption', color: C.accentAlt, origin: 0, originY: 0.5 });
     } else {
       var tcols2 = L.cols(3, { gap: 8, width: tierW, left: tierLeft });
@@ -706,7 +715,7 @@ GAME.BuildScene.prototype._status = function () {
   if (GAME.CONFIG.PHONE) { this.statusText.setVisible(false); return; }
   var def = GAME.UNITS[this.picked];
   var msg = this.placed.length
-    ? (def.name + ' (' + this._costOf(def) + ') — ' + def.desc)
+    ? (def.name + ' (' + GAME.BuildScene.popText(this._costOf(def)) + ') — ' + def.desc)
     : '아래 파란 칸을 탭하면 배치, 놓인 유닛을 탭하면 ✕ 로 삭제';
   this.statusText.setColor(C.textDim);
   this._fitLine(this.statusText, msg);
@@ -769,9 +778,9 @@ GAME.BuildScene.prototype._blockedReason = function (key) {
   //    "인구 20/16" 처럼 앞뒤가 안 맞는 화면이 나온다(궁수 원가 15 → 인구 2).
   //    그 대가로 수성의 탑 배치 총량이 반올림만큼 달라진다 — 인구 척도를
   //    쓰기로 한 이상 피할 수 없는 결과이고, 대전·통곡의 탑은 원본 단위 그대로다.
-  if (this._spentOf() + this._costOf(def) > this._budgetOf()) {
-    return this._resName() + '이(가) 부족합니다. (' + def.name + ' ' + this._costOf(def) +
-           this._resUnit() + ' · 남은 ' + (this._budgetOf() - this._spentOf()) + ')';
+  if (this._spentOf() + this._costOf(def) > this._budgetOf() + 1e-6) {
+    return this._resName() + '이(가) 부족합니다. (' + def.name + ' ' + GAME.BuildScene.popText(this._costOf(def)) +
+           this._resUnit() + ' · 남은 ' + GAME.BuildScene.popText(this._budgetOf() - this._spentOf()) + ')';
   }
   return null;
 };
@@ -1681,8 +1690,9 @@ GAME.BuildScene.prototype.redraw = function () {
   this.budgetMeter.setColor(left <= 0 ? C.crit : this.myColor);
   this.budgetMeter.set(this.budget ? spent / this.budget : 0);
   this.budgetMeter.setText(PH
-    ? (this._resName() + ' ' + this._spentOf() + '/' + this._budgetOf() + ' · 남은 ' +
-       (this._budgetOf() - this._spentOf()) + ' · 유닛 ' + this.placed.length + '기')
+    ? (this._resName() + ' ' + GAME.BuildScene.popText(this._spentOf()) + '/' +
+       GAME.BuildScene.popText(this._budgetOf()) + ' · 남은 ' +
+       GAME.BuildScene.popText(this._budgetOf() - this._spentOf()) + ' · 유닛 ' + this.placed.length + '기')
     : (this._resName() + ' ' + spent + ' / ' + this.budget + '   ·   남은 ' + left
        + '   ·   유닛 ' + this.placed.length + '기'));
 

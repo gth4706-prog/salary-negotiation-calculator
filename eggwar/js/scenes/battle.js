@@ -726,6 +726,8 @@ GAME.BattleScene.prototype._updateHealZones = function (dt) {
     st.healZones.splice(i, 1);
     var msg = GAME.HealZone.applyKind(st, h, z.kind || 'heal');
     if (msg) this._orbToast(msg);
+    //  주운 순간은 **드물고 중요하다** — 5초 안에 갈지 말지 판단해서 얻어낸 결과다.
+    if (GAME.UI && GAME.UI.haptic) GAME.UI.haptic(18);
   }
 };
 
@@ -879,6 +881,11 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     if (!this._reflectMute || this._reflectMute <= 0) {
       this._orbToast('공격반사! — 방어 태세엔 때리지 마라');
       if (GAME.Sound) GAME.Sound.play('hit');
+      //  "때리면 안 되는 때 때렸다"는 **배워야 하는 실수**다. 손으로도 알려 준다 —
+      //  두 번 짧게 끊어 평소 피격(한 번)과 구분되게 한다.
+      if (GAME.UI && GAME.UI.haptic) {
+        try { navigator.vibrate && navigator.vibrate([14, 40, 14]); } catch (e) {}
+      }
       this._reflectMute = 800;
     }
   }
@@ -1189,6 +1196,15 @@ GAME.BattleScene.prototype._juice = function (dt) {
     this._stopAt = this.state.elapsed;
     var stop = Math.min(HITSTOP_MAX, 14 + biggest * 300);
     if (stop > this._hitStop) this._hitStop = stop;
+    //  ── 손 감각 (2026-08-03) ─────────────────────────────────────────────
+    //  ⚠ **새 트리거를 만들지 않는다.** 히트스톱이 이미 "멈출 만큼 큰 타격"을
+    //    문턱·간격까지 실측으로 걸러 두었으므로, 그 판단을 그대로 빌려 쓴다.
+    //    여기서 따로 조건을 만들면 두 기준이 갈라져 언젠가 어긋난다.
+    //  ⚠ **내가 맞았을 때만.** 내가 때리는 건 이미 소리·숫자·정지로 알려준다 —
+    //    손까지 울리면 난전 내내 진동이 이어져 '중요할 때만'이 무너진다.
+    if (heroHit && biggest >= 0.10 && GAME.UI && GAME.UI.haptic) {
+      GAME.UI.haptic(Math.min(40, Math.round(12 + biggest * 90)));
+    }
   }
 
   // ② 화면 흔들림 — **아껴 쓴다.**

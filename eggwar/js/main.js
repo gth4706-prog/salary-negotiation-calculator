@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v1.24';
+GAME.VERSION = 'v1.25';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -177,7 +177,72 @@ window.addEventListener('load', function () {
       }
     } catch (e) { /* 씬이 아직 없으면 아무 일도 아니다 */ }
     updateDiag();
+    try { checkSmallWindow(); } catch (e) {}
   }
+  // ── 좁은 데스크톱 창 안내 (2026-08-03 QA 지적) ────────────────────────────
+  //  PC 설계 크기가 1340×900 고정이고 Phaser 는 FIT 이라, 창이 작으면 **화면 전체가
+  //  같은 비율로 줄어든다.** 1366×768 노트북(주소창 빼면 세로 ~650)에서 배율이
+  //  0.72 까지 떨어져 가장 작은 글자가 11px 가 된다(QA 실측). 폰에는 "가로로
+  //  돌려주세요" 안내가 있는데 데스크톱에는 아무 안내가 없었다.
+  //
+  //  ⚠ **브라우저 확대/축소는 해결책이 아니다.** FIT 캔버스는 CSS 픽셀이 줄면
+  //    그만큼 배율이 올라가 물리적 글자 크기가 그대로다 — "축소해서 보세요"는
+  //    틀린 안내다. 실제로 효과가 있는 것은 **전체화면**이다(브라우저 크롬이
+  //    사라져 세로가 650 → 768 로 늘고 배율이 0.72 → 0.85 로 오른다).
+  //
+  //  설계 크기를 줄이는 방법도 있지만 그쪽은 **전장 크기가 바뀌어 회피 거리에
+  //  영향**을 준다(이 저장소는 WORLD_SCALE 을 건드렸다 겪은 전례가 있다).
+  //  그래서 게임 값은 손대지 않고 안내만 띄운다.
+  var SMALL_KEY = 'asymgame.smallwin.dismissed';
+  var smallBar = null;
+  function fitScale() {
+    var vv = window.visualViewport;
+    var w = vv ? vv.width : window.innerWidth;
+    var h = vv ? vv.height : window.innerHeight;
+    return Math.min(w / GAME.CONFIG.WIDTH, h / GAME.CONFIG.HEIGHT);
+  }
+  function checkSmallWindow() {
+    // 터치 기기는 이미 방향 안내가 담당한다 — 여기는 데스크톱만.
+    if (GAME.isTouch) return;
+    var dismissed = false;
+    try { dismissed = !!GAME.Store.get(SMALL_KEY, false); } catch (e) {}
+    //  가장 작은 글자(micro 15px)가 12.5px 밑으로 내려가면 알린다.
+    var tooSmall = fitScale() * 15 < 12.5;
+    if (!tooSmall || dismissed) {
+      if (smallBar) { smallBar.remove(); smallBar = null; }
+      return;
+    }
+    if (smallBar) return;
+    smallBar = document.createElement('div');
+    smallBar.style.cssText =
+      'position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:9998;' +
+      'display:flex;gap:10px;align-items:center;padding:9px 14px;border-radius:10px;' +
+      'font:13px/1.4 system-ui,-apple-system,"Malgun Gothic",sans-serif;' +
+      'color:#f4ead6;background:rgba(18,12,8,0.92);border:1px solid #6b5535;' +
+      'box-shadow:0 3px 14px rgba(0,0,0,0.4);max-width:92vw;';
+    var msg = document.createElement('span');
+    msg.textContent = '창이 작아 글자가 작게 보입니다. 전체화면으로 보면 커집니다.';
+    var go = document.createElement('button');
+    go.textContent = '전체화면';
+    go.style.cssText = 'cursor:pointer;border:0;border-radius:7px;padding:6px 12px;' +
+      'font:inherit;font-weight:700;color:#1b1208;background:#ffbf5a;';
+    go.onclick = function () {
+      var el = document.documentElement;
+      var fn = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (fn) { try { fn.call(el); } catch (e) {} }
+    };
+    var no = document.createElement('button');
+    no.textContent = '괜찮아요';
+    no.style.cssText = 'cursor:pointer;border:0;border-radius:7px;padding:6px 10px;' +
+      'font:inherit;color:#d8c9ac;background:transparent;text-decoration:underline;';
+    no.onclick = function () {
+      try { GAME.Store.set(SMALL_KEY, true); } catch (e) {}
+      if (smallBar) { smallBar.remove(); smallBar = null; }
+    };
+    smallBar.appendChild(msg); smallBar.appendChild(go); smallBar.appendChild(no);
+    document.body.appendChild(smallBar);
+  }
+
   window.addEventListener('resize', refit);
   window.addEventListener('orientationchange', function () { refit(); setTimeout(refit, 300); });
   window.addEventListener('pageshow', refit);

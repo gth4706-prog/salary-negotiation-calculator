@@ -199,7 +199,11 @@ GAME.BuildScene.prototype.init = function (data) {
   this._tipDef = null;
   // 들어온 순간의 배치 지문 — 나갈 때 이것과 다르면 '저장 안 함' 경고를 한 번 낸다.
   // ⚠ 불러오기 블록보다 **뒤에서** 재야 한다(위에서 placed 를 채운 뒤의 상태가 기준이다).
-  this._entrySig = this.arena ? this._arenaSig() : undefined;
+  //  ⚠ 대전뿐 아니라 **수성의 탑 배치**에서도 잡는다. 예전에는 여기가 대전 전용이라
+  //    탑 경로에서 나갈 때 비교할 기준이 없었고, 그래서 짜 놓은 배치가 경고 한 줄
+  //    없이 사라졌다(QA 실측: 10기 → 3기). `_arenaSig` 은 배치 유닛을 해싱하므로
+  //    모드와 무관하게 그대로 쓸 수 있다.
+  this._entrySig = (this.arena || this.defendTower) ? this._arenaSig() : undefined;
   this._exitArmed = false;
 };
 
@@ -529,10 +533,16 @@ GAME.BuildScene.prototype.create = function () {
         self._defend();
       }, { fill: UI.COL.panelTeal, line: C.controller, hover: UI.COL.panelTealHi,
            color: C.accent, fontSize: 'button' });
-      UI.button(this, acols[1].cx, rows.act.cy, acols[1].w, rows.act.h, '배치도 저장', function () {
-        self._save();
-      }, { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
-           color: C.accentAlt, fontSize: 'button' });
+      //  ⚠ **수성의 탑에서는 이 버튼을 안 만든다.** `_save()` 는 대전용 배치도 목록에
+      //    저장하는 기능이고 끝나면 메인 메뉴로 나간다 — 탑에서 누르면 탑 진행과
+      //    무관한 저장을 한 뒤 메뉴로 튕겨 나간다(QA 실측). 탑 배치는 층을 막아내면
+      //    자동으로 남으므로 사용자가 따로 저장할 것이 없다.
+      if (!this.defendTower) {
+        UI.button(this, acols[1].cx, rows.act.cy, acols[1].w, rows.act.h, '배치도 저장', function () {
+          self._save();
+        }, { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
+             color: C.accentAlt, fontSize: 'button' });
+      }
     }
     // 3번째 칸 = **나가는 길**. 대전에서는 예전에 이 자리가 '⚒ 유닛 등급' 이어서
     // 배치 화면을 나갈 방법이 아예 없었다(사용자가 ☰ 를 열어 길을 찾다 신고했다).
@@ -540,7 +550,7 @@ GAME.BuildScene.prototype.create = function () {
     UI.button(this, acols[2].cx, rows.act.cy, acols[2].w, rows.act.h,
       this.arena ? '← 대전' : (this.defendTower ? '← 탑' : '메뉴'), function () {
         if (self.arena) { self._arenaExit(); return; }
-        self.scene.start(self.defendTower ? 'DefendTower' : 'Menu');
+        self._exitGuard(self.defendTower ? 'DefendTower' : 'Menu');
       }, { fontSize: 'button' });
   }
 
@@ -1280,13 +1290,16 @@ GAME.BuildScene.prototype._openSheet = function () {
   }
 
   // 3행 — 저장 · 나가기 · 닫기
-  mk(bx[0], cyC, '배치도 저장', function () { self._closeSheet(); self._save(); },
-    { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
-      color: C.accentAlt, fontSize: 'buttonSm' });
+  //  수성의 탑에서는 저장 버튼을 안 만든다(PC 쪽과 같은 이유 — 위 주석 참조).
+  if (!this.defendTower) {
+    mk(bx[0], cyC, '배치도 저장', function () { self._closeSheet(); self._save(); },
+      { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
+        color: C.accentAlt, fontSize: 'buttonSm' });
+  }
   // 대전은 위에서 이미 돌아갔다 — 여기는 방어전·수성의 탑 경로뿐이다.
   mk(bx[1], cyC, this.defendTower ? '← 탑' : '메뉴로', function () {
       self._closeSheet();
-      self.scene.start(self.defendTower ? 'DefendTower' : 'Menu');
+      self._exitGuard(self.defendTower ? 'DefendTower' : 'Menu');
     }, { fontSize: 'buttonSm' });
   mk(bx[2], cyC, '닫기', function () { self._closeSheet(); }, { fontSize: 'buttonSm' });
 
@@ -1366,13 +1379,20 @@ GAME.BuildScene.prototype._arenaSig = function () {
   return units + '#' + Object.keys(lv).sort().map(function (k) { return k + lv[k]; }).join(',');
 };
 
-GAME.BuildScene.prototype._arenaExit = function () {
+//  나갈 때 미저장 변경이 있으면 **한 번 막고 알린다.** 두 번째 누르면 나간다.
+//  ⚠ 확인 팝업(window.confirm)을 쓰지 않는 이유는 이 파일 위쪽 주석에 적힌 그대로다 —
+//    브라우저 모달이 Phaser 입력 루프를 멈춘다. 그래서 '두 번 누르기'로 푼다.
+GAME.BuildScene.prototype._exitGuard = function (target) {
   if (this._entrySig !== undefined && this._arenaSig() !== this._entrySig && !this._exitArmed) {
     this._exitArmed = true;
     this._warn('저장하지 않은 변경이 있습니다 — 다시 누르면 저장하지 않고 나갑니다.');
     return;
   }
-  this.scene.start('Versus');
+  this.scene.start(target);
+};
+
+GAME.BuildScene.prototype._arenaExit = function () {
+  this._exitGuard('Versus');
 };
 
 GAME.BuildScene.prototype._save = function () {

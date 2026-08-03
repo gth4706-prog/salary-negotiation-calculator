@@ -267,9 +267,28 @@
     renderQForm();
   }
 
+  /* 예전엔 alert() 를 썼는데, 네이티브 모달은 화면을 가리고 모바일에서 특히 거칠다.
+     (또 자동화·크롤러 환경에서는 페이지를 멈추게 만든다.) 폼 안에서 조용히 알려주고
+     답 안 한 첫 문항으로 스크롤해 준다. */
+  function showFormError(){
+    var el=$("form-error");
+    if(el){ el.textContent=S.answerAll; el.hidden=false; }
+    /* 객관식(.opt-row)이 있는데 고른 버튼(.on)이 없는 첫 문항으로 데려간다.
+       슬라이더 문항은 기본값이 있어 항상 응답 상태다. */
+    var blocks=document.querySelectorAll("#qform .qblock"), un=null;
+    for(var i=0;i<blocks.length;i++){
+      var row=blocks[i].querySelector(".opt-row");
+      if(row&&!row.querySelector(".on")){ un=blocks[i]; break; }
+    }
+    var target=un||el;
+    if(target&&target.scrollIntoView) target.scrollIntoView({behavior:"smooth",block:"center"});
+  }
+  function hideFormError(){ var el=$("form-error"); if(el) el.hidden=true; }
+
   $("form-next").addEventListener("click",function(){
     var ans=collectAnswers();
-    if(!ans){alert(S.answerAll);return;}
+    if(!ans){ showFormError(); return; }
+    hideFormError();
     /* 자유서술에 폭력 정황이 있으면 상대에게 화면을 넘기기 전에 여기서 멈춘다. */
     if(ans.q6==="yes"||textHas(SAFETY_WORDS,ans.text)){ showSafety(); return; }
     if(state.phase==="A"){

@@ -791,8 +791,28 @@
 
   /* 예전엔 여기서 STEP C(필수 가전 드래그 배치)로 넘어갔다. 이제 가전도
      프리셋 목록에 합쳐졌으므로 바로 가구·가전 배치 단계(D)로 간다. */
+  /* 안내 토스트(2026-08-03). 예전엔 alert() 였는데 네이티브 모달은 화면을 가리고
+     모바일에서 특히 거칠다. 화면을 막지 않고 잠깐 떴다 사라지는 방식으로 바꿨다.
+     엘리먼트는 처음 쓸 때 한 번만 만든다(HTML 수정 불필요). */
+  var _toastEl=null,_toastTimer=null;
+  function toast(msg){
+    if(!_toastEl){
+      _toastEl=document.createElement("div");
+      _toastEl.setAttribute("role","status");
+      _toastEl.style.cssText="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);"
+        +"background:var(--ink,#0F3040);color:#fff;font-size:14px;font-weight:700;"
+        +"padding:12px 20px;border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.28);"
+        +"z-index:9999;max-width:88vw;text-align:center;opacity:0;transition:opacity .18s";
+      document.body.appendChild(_toastEl);
+    }
+    _toastEl.textContent=msg;
+    _toastEl.style.opacity="1";
+    clearTimeout(_toastTimer);
+    _toastTimer=setTimeout(function(){ if(_toastEl) _toastEl.style.opacity="0"; },2600);
+  }
+
   $("shape-done").addEventListener("click",function(){
-    if(state.tileSet.size<4){alert(S.genFail);return;}
+    if(state.tileSet.size<4){toast(S.genFail);return;}
     state.phase="D";
     $("phase-badge").textContent=S.phasePlace;
     updatePlanSizeTxt();
@@ -974,7 +994,7 @@
     return location.origin+location.pathname+"?g="+g+"&t="+encodeURIComponent(t)+"&i="+encodeURIComponent(i);
   }
   $("share").addEventListener("click",function(){
-    if(state.phase==="A"||state.phase==="B"){alert(S.shareFirst);return;}
+    if(state.phase==="A"||state.phase==="B"){toast(S.shareFirst);return;}
     var url=encode(),btn=$("share"),old=btn.textContent;
     function done(){btn.textContent=S.shareCopied;setTimeout(function(){btn.textContent=old},1600);}
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,function(){prompt(S.copyPrompt,url)});

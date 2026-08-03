@@ -975,29 +975,309 @@ GAME.UI = GAME.UI || {};
   // ============================================================================
   //  진입점
   // ============================================================================
+  // ══ 2026-08-03 사용자 지시로 늘린 것들 ═══════════════════════════════════════
+  // > "추가된 아이템도 아이콘이랑 장착했을때 모델링 추가해줘 /
+  // >  광전사,사냥꾼,파수꾼 아이템이 다 달라야해"
+
+  //  ── 사다리 중간에 끼운 4단·6단 (js/towershopitems.js) ────────────────────────
+  //  ⚠ 이 여섯이 없으면 `DRAW[key] || box` 가 **갈색 네모**로 떨어진다. v1.46 배포본이
+  //    실제로 그랬다(상점 스크린샷에서 +38 · +88 짜리가 상자로 떴다). 아이콘 표는
+  //    카탈로그와 짝이니 단계를 늘릴 때 반드시 같이 늘릴 것.
+
+  // a9 늑대가죽 흉갑 : 거북등(a3)과 강철 흉갑(a4) 사이 — 털을 덧댄 가죽.
+  function a9(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var le = mat('leather', 0x8d6b4b), leD = mat('leatherDark', 0x5f4630);
+    var fur = C.fur, furD = C.furDark;
+
+    c.fill(le); c.fillP(VEST);
+    c.fill(fur); c.ell(0, -0.24, 0.44, 0.13);                     // 어깨를 덮은 털깃
+    c.fill(furD, 0.55); c.ell(-0.13, -0.26, 0.16, 0.07); c.ell(0.12, -0.23, 0.14, 0.06);
+    c.fill(tint(le, -0.18));                                       // 앞섶 두 장
+    c.fillP([[-0.23, -0.14], [-0.03, -0.09], [-0.03, 0.24], [-0.23, 0.18]]);
+    c.fillP([[0.23, -0.14], [0.03, -0.09], [0.03, 0.24], [0.23, 0.18]]);
+    if (c.fine) {                                                  // 엮은 끈
+      c.line(0.020, mat('rope', 0xd9c9a2));
+      c.seg(-0.03, -0.04, 0.03, 0.02); c.seg(0.03, -0.04, -0.03, 0.02);
+      c.seg(-0.03, 0.08, 0.03, 0.14); c.seg(0.03, 0.08, -0.03, 0.14);
+    }
+    c.fill(mat('bone', 0xeae3cd));                                 // 이빨 장식
+    c.fillP([[-0.14, 0.24], [-0.11, 0.34], [-0.08, 0.24]]);
+    c.fillP([[0.10, 0.24], [0.13, 0.34], [0.16, 0.24]]);
+    c.line(0.030, leD); c.strokeP(VEST);
+  }
+
+  // a10 매머드 뼈 갑주 : 강철 흉갑(a4) 위 단계 — 굵은 뼈판을 갈비처럼 덧댄다.
+  function a10(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var leD = mat('leatherDark', 0x5f4630);
+    var bone = mat('bone', 0xeae3cd), st = mat('stone', 0x8b8578);
+
+    c.fill(tint(leD, 0.10)); c.fillP(VEST);
+    c.fill(st);                                                    // 그늘진 뒷판
+    c.fillP([[-0.26, -0.22], [0.26, -0.22], [0.24, 0.26], [-0.24, 0.26]]);
+    c.fill(bone);                                                  // 갈비뼈 판 4단
+    var i, yy;
+    for (i = 0; i < 4; i++) {
+      yy = -0.17 + i * 0.115;
+      c.fillP([[-0.245, yy], [0.245, yy], [0.225, yy + 0.075], [-0.225, yy + 0.075]]);
+    }
+    c.fill(tint(st, -0.25), 0.55);                                 // 판 사이 그늘
+    for (i = 0; i < 3; i++) { yy = -0.086 + i * 0.115; c.rect(-0.235, yy, 0.47, 0.014); }
+    c.fill(tint(bone, 0.30)); c.circ(0, -0.02, 0.055);             // 가운데 이음쇠
+    c.fill(st); c.circ(0, -0.02, 0.026);
+    c.line(0.030, leD); c.strokeP(VEST);
+  }
+
+  // b9 이끼 감은 신 : 깃털 장화(b3)와 여우가죽(b4) 사이 — 덩굴·이끼로 감았다.
+  function b9(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var le = mat('leather', 0x8d6b4b), leD = mat('leatherDark', 0x5f4630);
+    var moss = mat('moss', 0x6f7f4a);
+
+    c.fill(le); c.fillP(BOOT2);
+    c.fill(tint(le, 0.16));
+    c.fillP([[-0.02, -0.28], [0.12, -0.28], [0.13, 0.02], [0.32, 0.07], [0.33, 0.16], [-0.02, 0.16]]);
+    c.line(0.036, moss);                                           // 감아 올린 덩굴
+    c.seg(-0.16, -0.20, 0.10, -0.13); c.seg(-0.17, -0.07, 0.11, 0.00);
+    c.seg(-0.18, 0.06, 0.24, 0.11);
+    if (c.fine) {                                                  // 삐져나온 이끼
+      c.fill(tint(moss, 0.28));
+      c.circ(-0.10, -0.17, 0.030); c.circ(0.04, -0.10, 0.026); c.circ(-0.12, 0.03, 0.028);
+      c.circ(0.16, 0.09, 0.024);
+    }
+    c.fill(leD);                                                   // 밑창
+    c.fillP([[-0.19, 0.145], [0.39, 0.185], [0.41, 0.28], [-0.21, 0.28]]);
+    c.line(0.026, leD); c.strokeP(BOOT2);
+  }
+
+  // b10 사슴 힘줄 신 : 여우가죽(b4) 위 — 힘줄을 X 로 동여매 가볍고 빠르다.
+  function b10(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var le = mat('leather', 0x8d6b4b), leD = mat('leatherDark', 0x5f4630);
+    var sin = mat('rope', 0xd9c9a2), bone = mat('bone', 0xeae3cd);
+
+    c.fill(tint(le, -0.10)); c.fillP(BOOT2);
+    c.fill(tint(le, 0.20));
+    c.fillP([[-0.02, -0.28], [0.12, -0.28], [0.13, 0.02], [0.32, 0.07], [0.33, 0.16], [-0.02, 0.16]]);
+    c.line(0.024, sin);                                            // X 결속 세 단
+    var i, yy;
+    for (i = 0; i < 3; i++) {
+      yy = -0.20 + i * 0.115;
+      c.seg(-0.16, yy, 0.10, yy + 0.055); c.seg(0.10, yy, -0.16, yy + 0.055);
+    }
+    c.fill(bone);                                                  // 발목 뼈 고리
+    c.circ(-0.02, -0.30, 0.040);
+    c.fill(tint(bone, -0.30)); c.circ(-0.02, -0.30, 0.018);
+    c.fill(leD);
+    c.fillP([[-0.19, 0.145], [0.40, 0.185], [0.42, 0.28], [-0.21, 0.28]]);
+    c.line(0.026, leD); c.strokeP(BOOT2);
+  }
+
+  // c9 멧돼지 송곳니 팔찌 : 매의 깃털(c3)과 곰 발톱(c4) 사이 — 굽은 엄니 한 쌍.
+  function c9(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var rope = mat('rope', 0xd9c9a2), bone = mat('bone', 0xeae3cd);
+    cordAt(c, rope);
+    var d, i;
+    for (i = 0; i < 2; i++) {
+      d = i ? 1 : -1;
+      c.fill(tint(bone, -0.04));                                   // 바깥으로 휜 엄니
+      c.fillP([[d * 0.03, 0.03], [d * 0.20, 0.14], [d * 0.28, 0.33],
+               [d * 0.19, 0.30], [d * 0.10, 0.15]]);
+      c.line(0.014, tint(bone, -0.34), 0.85);
+      c.segP([d * 0.07, 0.08], [d * 0.26, 0.31]);
+    }
+    c.fill(tint(rope, -0.22)); c.circ(0, 0.05, 0.048);             // 가운데 매듭
+    c.fill(tint(bone, 0.30)); c.circ(0, 0.04, 0.022);
+  }
+
+  // c10 조상의 뼈 고리 : 곰 발톱(c4) 위 — 작은 뼈마디를 둥글게 꿰었다.
+  function c10(g, cx, cy, U) {
+    var c = ctx(g, cx, cy, U);
+    var rope = mat('rope', 0xd9c9a2), bone = mat('bone', 0xeae3cd);
+    var br = mat('bronze', 0xc9993f);
+    cordAt(c, rope);
+    var n = 7, i, th, bx, by;
+    c.line(0.016, tint(rope, -0.18)); c.scirc(0, 0.16, 0.20);      // 꿴 줄
+    for (i = 0; i < n; i++) {                                       // 뼈마디
+      th = Math.PI * (0.15 + 1.70 * (i / (n - 1)));
+      bx = Math.cos(th) * 0.20; by = 0.16 + Math.sin(th) * 0.20;
+      c.fill(tint(bone, -0.16)); c.circ(bx, by + 0.012, 0.045);
+      c.fill(bone); c.circ(bx, by, 0.040);
+      if (c.fine) { c.fill(tint(bone, 0.34)); c.circ(bx - 0.011, by - 0.011, 0.016); }
+    }
+    c.fill(br); c.circ(0, -0.04, 0.042);                            // 이마 쪽 청동 인장
+    c.fill(tint(br, 0.40)); c.circ(-0.011, -0.052, 0.017);
+  }
+
+  //  ── 영웅별 무기 — **형태는 영웅이, 재질은 등급이 정한다** ────────────────────
+  //  예전에는 무기 아이콘이 키 하나에 그림 하나였다. 그런데 이름은 **이미 영웅마다
+  //  달랐다**(`TowerShopItems.WEAPON_NAMES`: 돌 대검 / 나무 활 / 나무 방패) — 그래서
+  //  사냥꾼이 '나무 활'을 사는데 화면에는 도끼가 떴다. 이름과 그림이 어긋나 있었다.
+  //
+  //  ⚠ 색·길이·장식은 `UI.GEAR_TIERS`(js/eggart.js)를 **그대로 읽는다.** 전장에서
+  //    실제로 든 무기(`UI.eggGear`)가 쓰는 바로 그 표다 — 여기에 표를 복제하면
+  //    상점에서 본 것과 손에 든 것이 조용히 갈라진다(이 폴더가 반복해서 겪은 사고).
+  //    덤으로 단계를 더 늘려도 아이콘이 저절로 따라온다.
+  function tierPal(tier) {
+    var T = (UI.GEAR_TIERS && UI.GEAR_TIERS[tier]) || null;
+    var m = (T && T.mat) || {};
+    return {
+      blade: m.blade || C.steel, dark: m.bladeDark || C.steelDark,
+      bronze: m.bronze || mat('bronze', 0xc9993f),
+      iron: m.iron || mat('iron', 0x6e7681),
+      glow: (T && T.glow) || 0, len: (T && T.len) || 1,
+      wide: (T && T.wide) || 1, grd: (T && T.grd) || 1, orn: (T && T.orn) || 0
+    };
+  }
+  function pline(c, pts) { for (var i = 1; i < pts.length; i++) c.segP(pts[i - 1], pts[i]); }
+  //  광휘는 8단 이상만 갖는다(GEAR_TIERS 의 glow).
+  //  ⚠ **큰 원반으로 그리지 말 것.** 처음엔 반투명 원을 뒤에 깔았는데, 라이트 테마의
+  //    `UI.inkLayer` 가 같은 그림을 잉크색으로 한 번 더 부풀려 찍는 탓에 그 원이
+  //    **검은 원반**이 되어 무기를 통째로 덮었다(상위 3단이 전부 까맣게 나왔다 — 실측).
+  //    잉크가 덧씌워도 해롭지 않게 **작은 점 몇 개**로만 낸다.
+  function auraOf(c, P) {
+    if (!P.glow) return;
+    var pts = [[-0.34, -0.30], [0.33, -0.34], [0.36, 0.29], [-0.30, 0.33]];
+    for (var i = 0; i < pts.length; i++) {
+      c.fill(P.glow, 0.85); c.circ(pts[i][0], pts[i][1], 0.026);
+      c.fill(tint(P.glow, 0.45), 0.9); c.circ(pts[i][0] - 0.007, pts[i][1] - 0.007, 0.011);
+    }
+  }
+
+  function wpSword(c, P) {                       // 광전사 — 대검
+    auraOf(c, P);
+    var A = ax(-0.33, 0.35, 0.36 * P.len, -0.40 * P.len);
+    var w = 0.100 * P.wide, leD = mat('leatherDark', 0x5f4630);
+    c.line(0.064, leD); c.segP(A(-0.34, 0), A(0.02, 0));                    // 감은 자루
+    if (c.fine) {
+      c.line(0.016, tint(leD, 0.30));
+      c.segP(A(-0.28, -0.05), A(-0.24, 0.05));
+      c.segP(A(-0.20, -0.05), A(-0.16, 0.05));
+      c.segP(A(-0.12, -0.05), A(-0.08, 0.05));
+    }
+    c.fill(P.bronze);
+    c.circ(A(-0.38, 0)[0], A(-0.38, 0)[1], 0.052 * P.grd);                  // 자루 끝 구슬
+    c.line(0.052 * P.grd, P.bronze);                                         // 날밑
+    c.segP(A(0.05, -0.19 * P.grd), A(0.05, 0.19 * P.grd));
+    c.fill(P.dark);
+    c.fillP([A(0.09, -w), A(0.86, -w * 0.44), A(1.0, 0), A(0.86, w * 0.44), A(0.09, w)]);
+    c.fill(P.blade);
+    c.fillP([A(0.13, -w * 0.60), A(0.83, -w * 0.27), A(0.95, 0), A(0.83, w * 0.27), A(0.13, w * 0.60)]);
+    c.line(0.013, tint(P.blade, 0.45), 0.9); c.segP(A(0.17, 0), A(0.88, 0)); // 피홈
+    if (P.orn >= 1) { c.fill(tint(P.bronze, 0.36)); c.circ(A(0.05, 0)[0], A(0.05, 0)[1], 0.036); }
+    if (P.orn >= 2) {                                                        // 날밑 날개
+      c.fill(P.bronze);
+      c.fillP([A(0.05, -0.19), A(-0.07, -0.31), A(0.00, -0.15)]);
+      c.fillP([A(0.05, 0.19), A(-0.07, 0.31), A(0.00, 0.15)]);
+    }
+    if (P.orn >= 3) {                                                        // 등날 톱니
+      c.fill(tint(P.blade, 0.50));
+      c.fillP([A(0.40, -w * 0.55), A(0.47, -w * 1.10), A(0.54, -w * 0.55)]);
+      c.fillP([A(0.58, -w * 0.50), A(0.65, -w * 1.02), A(0.72, -w * 0.50)]);
+    }
+  }
+
+  function wpBow(c, P) {                         // 사냥꾼 — 활
+    auraOf(c, P);
+    var L = 0.43 * P.len, th = 0.048 * P.wide;
+    var belly = [[0.12, -L], [-0.09, -L * 0.70], [-0.23, -L * 0.33], [-0.26, 0],
+                 [-0.23, L * 0.33], [-0.09, L * 0.70], [0.12, L]];
+    c.line(th * 1.8, P.dark); pline(c, belly);                               // 활대 겉
+    c.line(th * 0.85, P.blade); pline(c, belly);                             // 안쪽 심
+    c.line(0.015, P.bronze, 0.95);                                           // 고자 결속
+    c.seg(0.12, -L, 0.03, -L * 0.88); c.seg(0.12, L, 0.03, L * 0.88);
+    c.line(0.012, mat('rope', 0xd9c9a2)); c.seg(0.12, -L, 0.12, L);          // 시위
+    c.line(0.066, mat('leatherDark', 0x5f4630)); c.seg(-0.26, -0.11, -0.26, 0.11);
+    if (P.orn >= 1) { c.fill(tint(P.bronze, 0.36)); c.circ(-0.26, 0, 0.038 * P.grd); }
+    c.line(0.022, mat('wood', 0x8a6a45)); c.seg(0.10, 0, 0.42, 0);           // 메긴 화살
+    c.fill(P.blade); c.fillP([[0.42, -0.052], [0.54, 0], [0.42, 0.052]]);
+    if (c.fine) {
+      c.fill(C.fur);
+      c.fillP([[0.10, -0.048], [0.20, -0.016], [0.10, 0.016]]);
+    }
+    if (P.orn >= 2) {                                                        // 고자 깃 장식
+      c.fill(P.bronze);
+      c.fillP([[0.12, -L], [0.26, -L - 0.05], [0.17, -L + 0.06]]);
+      c.fillP([[0.12, L], [0.26, L + 0.05], [0.17, L - 0.06]]);
+    }
+    if (P.orn >= 3) {
+      c.fill(tint(P.blade, 0.48)); c.circ(-0.24, -0.20, 0.026); c.circ(-0.24, 0.20, 0.026);
+    }
+  }
+
+  function wpShield(c, P) {                      // 파수꾼 — 방패
+    auraOf(c, P);
+    var w = 0.33 * P.wide, h = 0.42 * P.len;
+    var out = [[0, -h], [w, -h * 0.58], [w, h * 0.28], [0, h], [-w, h * 0.28], [-w, -h * 0.58]];
+    c.fill(P.dark); c.fillP(out);                                            // 테
+    var iw = w * 0.80, ih = h * 0.82;
+    var inn = [[0, -ih], [iw, -ih * 0.58], [iw, ih * 0.28], [0, ih], [-iw, ih * 0.28], [-iw, -ih * 0.58]];
+    c.fill(P.blade); c.fillP(inn);                                           // 판
+    c.line(0.018, tint(P.blade, -0.28), 0.8); c.seg(0, -ih, 0, ih);          // 이음매
+    if (c.fine) {                                                            // 리벳
+      c.fill(P.iron);
+      c.circ(-iw * 0.62, -ih * 0.34, 0.020); c.circ(iw * 0.62, -ih * 0.34, 0.020);
+      c.circ(-iw * 0.52, ih * 0.30, 0.020); c.circ(iw * 0.52, ih * 0.30, 0.020);
+    }
+    c.fill(P.bronze); c.circ(0, -0.02, 0.090 * P.grd);                       // 방패심
+    c.fill(tint(P.bronze, 0.42)); c.circ(-0.022, -0.046, 0.034);
+    c.line(0.020, P.iron, 0.9); c.strokeP(out);
+    if (P.orn >= 1) { c.fill(tint(P.bronze, 0.32)); c.circ(0, -h * 0.70, 0.028); }
+    if (P.orn >= 2) {                                                        // 어깨 뿔
+      c.fill(P.bronze);
+      c.fillP([[-w, -h * 0.58], [-w - 0.10, -h * 0.84], [-w * 0.70, -h * 0.70]]);
+      c.fillP([[w, -h * 0.58], [w + 0.10, -h * 0.84], [w * 0.70, -h * 0.70]]);
+    }
+    if (P.orn >= 3) {                                                        // 아래 가시
+      c.fill(tint(P.blade, 0.50));
+      c.fillP([[0, h], [-0.065, h + 0.09], [0.065, h + 0.09]]);
+    }
+  }
+
+  var HERO_FORM = { vanguard: wpSword, ranger: wpBow, warden: wpShield };
+
   var DRAW = {
     w1: w1, w2: w2, w3: w3, w4: w4, w5: w5, w6: w6, w7: w7, w8: w8,
     a1: a1, a2: a2, a3: a3, a4: a4, a5: a5, a6: a6, a7: a7, a8: a8,
+    a9: a9, a10: a10,
     b1: b1, b2: b2, b3: b3, b4: b4, b5: b5, b6: b6, b7: b7, b8: b8,
+    b9: b9, b10: b10,
     p1: p1, p2: p2, p3: p3,
-    c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, c6: c6, c7: c7, c8: c8
+    c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, c6: c6, c7: c7, c8: c8,
+    c9: c9, c10: c10
   };
 
   UI.ITEM_ART_KEYS = [
-    'w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8',
-    'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8',
-    'b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7', 'b8',
+    'w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9', 'w10',
+    'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9', 'a10',
+    'b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7', 'b8', 'b9', 'b10',
     'p1', 'p2', 'p3',
-    'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8'
+    'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9', 'c10'
   ];
 
   //  g 에만 그린다. 반환값 없음 · 상태 없음.
-  UI.drawItem = function (g, slotKey, itemKey, cx, cy, size) {
+  //  `heroKey` 는 **선택 인자**다 — 안 넘기면 예전과 픽셀 단위로 같은 그림이 나온다.
+  UI.drawItem = function (g, slotKey, itemKey, cx, cy, size, heroKey) {
     if (!g) return;
     var U = (typeof size === 'number' && isFinite(size) && size > 4) ? size : 48;
     if (typeof cx !== 'number' || !isFinite(cx)) cx = 0;
     if (typeof cy !== 'number' || !isFinite(cy)) cy = 0;
     var fn = DRAW[itemKey] || box;
+
+    //  ── 무기는 영웅 형태로 그린다 ──────────────────────────────────────────
+    //  ⚠ 두 갈래가 있는 이유: 영웅을 아는 자리(상점·준비 화면)는 이름과 맞는 그림을
+    //    보여 주고, 영웅이 없는 자리는 예전 손그림을 그대로 쓴다.
+    //    그리고 사다리 중간에 끼운 무기(w9·w10)는 손그림이 없으므로, 영웅을 몰라도
+    //    **상자로 떨어지지 않게** 기본 형태로 보낸다.
+    if (slotKey === 'weapon') {
+      var form = HERO_FORM[heroKey] || (DRAW[itemKey] ? null : wpSword);
+      if (form) {
+        var P = tierPal(UI.gearTierOf ? UI.gearTierOf(itemKey) : 0);
+        fn = function (gg, x, y, u) { form(ctx(gg, x, y, u), P); };
+      }
+    }
 
     // 라이트 테마에서는 eggart 의 inkLayer 가 같은 그림을 잉크색으로 한 번 더,
     // 조금 부풀려 뒤에 찍는다(스티커 테두리). 어두운 테마에서는 그냥 지나간다.

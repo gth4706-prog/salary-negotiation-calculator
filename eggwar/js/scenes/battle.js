@@ -1168,6 +1168,9 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         }
         var hpFrac = heroU && heroU.maxHp ? Math.max(0, heroU.hp) / heroU.maxHp : 0;
         GAME.TowerChar.notePressure(won, hpFrac, (this.state.elapsed || 0) / 1000);
+        //  막힌 층은 그 층만 조금씩 약해진다(2026-08-03 사용자 지시). 깨면 지워진다.
+        if (won) GAME.TowerChar.clearFloorFail(this.tower);
+        else GAME.TowerChar.noteFloorFail(this.tower);
       }
       if (GAME.TowerChar && GAME.TowerChar.exists()) {
         if (won) {

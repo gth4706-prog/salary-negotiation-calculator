@@ -195,6 +195,44 @@ GAME.TowerChar = {
     return { rec: rec, gain: gain };
   },
 
+  // ── 이동속도만 되팔 수 있다 (2026-08-03 사용자 지시) ─────────────────────────
+  //  > "이동속도는 유일하게 능력치를 클릭해서 되파는 기능을 넣어줘 되파는건 70%금액으로
+  //  >  왜냐면 너무빠르면 컨트롤이 어렵네"
+  //
+  //  다른 능력치는 올려서 손해 볼 일이 없지만 **이동속도는 다르다** — 너무 빠르면
+  //  적 사이를 지나쳐 버려 조준·회피가 오히려 어려워진다. 즉 이 축만 유일하게
+  //  "되돌리고 싶다"가 성립한다. 그래서 되팔기는 이 한 축에만 연다.
+  //  ⚠ 환급률은 아이템과 같은 `SELL_RATE`(70%)를 쓴다 — 두 벌로 두면 조용히 갈라진다.
+  SELLABLE_STATS: { speed: true },
+  canSellStat: function (key) {
+    var rec = this.get();
+    return !!(this.SELLABLE_STATS[key] && rec && (rec.stats[key] || 0) > 0);
+  },
+  //  되팔면 얼마 돌아오는가 — **마지막에 치른 값**의 70%(계단이라 레벨마다 다르다).
+  sellStatBack: function (key) {
+    var rec = this.get();
+    var lv = (rec && rec.stats[key]) || 0;
+    if (lv <= 0) return 0;
+    return Math.floor(this.costOf(key, lv - 1) * this.SELL_RATE);
+  },
+  levelDown: function (key) {
+    var rec = this.get();
+    var d = this.statDef(key);
+    if (!rec || !d || !this.SELLABLE_STATS[key]) return null;
+    var lv = rec.stats[key] || 0;
+    if (lv <= 0) return null;
+    //  ⚠ 빼는 양은 **그동안 받은 것의 평균**이다. `rollGain` 이 무작위라 마지막
+    //    한 번이 얼마였는지는 어디에도 안 남아 있다. 평균을 빼야 남은 레벨 수와
+    //    누적 보정이 계속 맞아떨어진다(고정값을 빼면 몇 번 사고팔 때마다 어긋난다).
+    var per = (rec.statGain[key] || 0) / lv;
+    var back = this.sellStatBack(key);
+    rec.stats[key] = lv - 1;
+    rec.statGain[key] = Math.max(0, Math.round((rec.statGain[key] || 0) - per));
+    rec.gold += back;
+    this._save(rec);
+    return { rec: rec, back: back, lost: Math.round(per) };
+  },
+
   // 전투 시작 때 영웅에게 더할 보정. luck 은 hero.def 에 얹는 스탯이 아니라
   // 골드·치유구역 확률의 배수로 쓰이므로 여기 반환값에는 안 담는다(아래 luckLevel 참조).
   // 영웅별 기본 head-start(HERO_BASE, 요청 7번)도 여기서 합산한다 — 상점 레벨업과
@@ -458,6 +496,50 @@ GAME.TowerChar = {
                    Math.min(this.PRESSURE_MAX, (rec.pressure || 1) * mul));
     this._save(rec);
     return rec.pressure;
+  },
+
+  // ── 막힌 층은 **그 층만** 조금씩 약해진다 (2026-08-03 사용자 지시) ────────────
+  //  > "해당 탑을 못깨면 못깰수록 아주 조금씩 약해지게만들어줘야해"
+  //
+  //  ⚠ 바로 위 `pressure` 로는 이 요구를 못 채운다 — **하한이 1.00** 이라 고전하는
+  //    사람은 거기 붙어 있고 아무리 져도 완화가 **정확히 0** 이다. 잘 이기는 사람만
+  //    오르내리는 장치라, 정작 도움이 필요한 쪽에 닿지 않았다. 하한을 1 아래로
+  //    내리는 방법도 있지만 그건 **전역**이라 한 층에서 막힌 대가로 그 뒤 층이
+  //    통째로 시시해진다. 그래서 층에만 걸리는 별도 축을 둔다.
+  //
+  //  ⚠ 신선한 캐릭터는 기록이 없으므로 완화가 정확히 1.000 이다 —
+  //    `tools/regress.js` 의 R-1(4층 이상 무조작 0%) 기준선이 한 톨도 안 움직인다.
+  RELIEF_STEP: 0.04,      // 재도전 1회당 4%
+  RELIEF_MAX: 0.28,       // 7회에서 바닥 — "아주 조금씩"이라 벽이 사라지진 않는다
+  noteFloorFail: function (floor) {
+    var rec = this.get();
+    if (!rec) return;
+    var f = rec.floorFail;
+    //  층이 바뀌면 처음부터 — 완화는 **지금 막힌 벽**에만 쌓인다.
+    if (!f || f.f !== floor) f = { f: floor, n: 0 };
+    f.n++;
+    rec.floorFail = f;
+    this._save(rec);
+  },
+  clearFloorFail: function (floor) {
+    var rec = this.get();
+    if (!rec || !rec.floorFail || rec.floorFail.f !== floor) return;
+    delete rec.floorFail;               // 깼으면 사라진다(다음 층은 온전한 난이도로)
+    this._save(rec);
+  },
+  //  적 체력·공격에 곱할 값(1 이하). 층이 다르거나 기록이 없으면 1.
+  reliefFor: function (floor) {
+    var rec = this.get();
+    var f = rec && rec.floorFail;
+    if (!f || f.f !== floor || !(f.n > 0)) return 1;
+    return 1 - Math.min(this.RELIEF_MAX, f.n * this.RELIEF_STEP);
+  },
+  //  화면에 보여 줄 값 — 몇 번 막혔고 몇 % 약해졌는가.
+  reliefInfo: function (floor) {
+    var rec = this.get();
+    var f = rec && rec.floorFail;
+    if (!f || f.f !== floor || !(f.n > 0)) return null;
+    return { tries: f.n, cut: Math.round((1 - this.reliefFor(floor)) * 100) };
   },
 
   // ── 새로 얻은 스킬 표시 (2026-08-01 사용자 지시) ─────────────────────────────

@@ -1230,6 +1230,15 @@ GAME.TowerScene.prototype._runHintText = function () {
     press = '  ·  ⚔ 적 체력 ×' + hpM.toFixed(1) + ' · 적 공격 ×' + dmgM.toFixed(1) +
             ' (내 성장에 맞춰 따라온다)';
   }
+  //  ── 막힌 층 완화를 **보이게** 한다 (2026-08-03) ─────────────────────────────
+  //  ⚠ 이 저장소가 축복·구슬에서 두 번 겪은 실패가 "기제는 도는데 몸에 안 남는다"였다.
+  //    조용히 4%씩 깎으면 사용자는 그냥 운이 좋았다고 여기고, 우리는 완화가 듣는지
+  //    영영 모른다. 몇 번 막혔고 몇 % 내려갔는지 숫자로 말한다.
+  var rel = (GAME.TowerChar && GAME.TowerChar.reliefInfo)
+            ? GAME.TowerChar.reliefInfo(GAME.Tower.get().floor) : null;
+  if (rel) {
+    press += '  ·  🕯 재도전 ' + rel.tries + '회 — 이 층의 적이 ' + rel.cut + '% 약해졌다';
+  }
   if (GAME.CONFIG.PHONE) return '적 유닛을 잡을 때마다 골드 — 비쌀수록 많이' + press;
   return '장비 ' + (worn.length ? worn.join(' · ') : '없음') +
          '  ·  적 유닛을 잡을 때마다 골드 (비쌀수록 많이, 보스는 크게)' + press;

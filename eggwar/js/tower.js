@@ -190,18 +190,28 @@ GAME.Tower = {
     return (rec && typeof rec.pressure === 'number') ? rec.pressure : 1;
   },
 
+  // 지금 막혀 있는 층에 걸리는 완화(1 이하). 근거·수치는 js/towerchar.js 참조.
+  //  ⚠ **`Math.max(1, …)` 클램프 뒤에 곱한다.** 안에서 곱하면 클램프가 1 로 되돌려
+  //    완화가 통째로 사라진다 — 이 함수들의 하한은 "성장 전에는 기본 난이도"라는
+  //    뜻이지 "절대 기본보다 쉬워지지 않는다"는 뜻이 아니다.
+  reliefOf: function () {
+    var TC = GAME.TowerChar;
+    if (!TC || !TC.reliefFor || !TC.exists || !TC.exists()) return 1;
+    return TC.reliefFor(this.get().floor);
+  },
+
   // 적 체력 배수 — **내 공격력**(킬 속도)을 따라간다. 순수 화력 빌드가 이 축을
   // 못 벗어나는 것이 이번 수정의 핵심이다.
   hpMul: function () {
     var m = Math.pow(this.atkIndex(), this.POWER_POW_UNIT) * this.pressureOf();
-    return Math.max(1, Math.min(this.POWER_CAP, m));
+    return Math.max(1, Math.min(this.POWER_CAP, m)) * this.reliefOf();
   },
 
   // 적 공격력 배수 — **내 유효체력**(버티는 힘)을 따라간다. 순수 방어 빌드가
   // 무피해로 버티지 못하게 한다.
   dmgMul: function () {
     var m = Math.pow(this.ehpIndex(), this.POWER_POW_UNIT) * this.pressureOf();
-    return Math.max(1, Math.min(this.POWER_CAP, m));
+    return Math.max(1, Math.min(this.POWER_CAP, m)) * this.reliefOf();
   },
 
   budgetMul: function () {
@@ -431,9 +441,12 @@ GAME.Tower = {
     var m = { hp: this._bossFollow(this.atkIndex()),
               damage: this._bossFollow(this.ehpIndex()) };
     if (GAME.TowerRule) m = GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor));
+    //  막힌 층 완화는 **보스에게도** 걸린다. 사람이 벽으로 느끼는 층은 대개 보스 층인데
+    //  거기만 빼면 정작 필요한 자리에서 안 듣는다(js/towerchar.js `noteFloorFail` 참조).
+    var rf = (GAME.TowerChar && GAME.TowerChar.reliefFor) ? GAME.TowerChar.reliefFor(floor) : 1;
     return {
-      hp: m.hp * this.BOSS_HP_PREMIUM,
-      damage: m.damage * this.BOSS_DMG_PREMIUM
+      hp: m.hp * this.BOSS_HP_PREMIUM * rf,
+      damage: m.damage * this.BOSS_DMG_PREMIUM * rf
     };
   },
 

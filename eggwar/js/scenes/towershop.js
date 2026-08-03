@@ -333,7 +333,7 @@ GAME.TowerShopScene.prototype._drawCharPanel = function (x, y, w, h) {
     var nameH = (GAME.CONFIG.PHONE ? 12 : 15) * 2 + 4;
     var iconSize = Math.min(bw2 - 10, boxH - slotFs - 12 - nameH);
     if (it && iconSize > 14) {
-      GAME.UI.drawItem(g, s.key, it.key, bx + bw2 / 2, iconTop + iconSize / 2, iconSize);
+      GAME.UI.drawItem(g, s.key, it.key, bx + bw2 / 2, iconTop + iconSize / 2, iconSize, self.char.heroKey);
     }
     self._body.push(GAME.UI.label(self, bx + bw2 / 2, boxTop + boxH - 4,
       it ? GAME.TowerShopItems.nameFor(it, self.char.heroKey) : '—',
@@ -519,19 +519,46 @@ GAME.TowerShopScene.prototype._scroller = function (x, y, w, h, stateKey) {
   var api = { layer: layer, max: 0 };
   api.add = function (o) { layer.add(o); self._body.push(o); return o; };
 
-  //  카드 선택 — **끌어서 스크롤한 손짓과 구분한다.** `pointerdown` 에 바로 반응하면
-  //  목록을 끌어 내리려던 것이 그대로 선택이 되어 폰에서 목록을 못 쓴다.
-  api.tap = function (obj, fn) {
-    var from = null;
-    obj.on('pointerdown', function (p) { from = inside(p) ? { x: p.x, y: p.y } : null; });
-    obj.on('pointerup', function (p) {
-      if (!from) return;
-      var moved = Math.abs(p.x - from.x) + Math.abs(p.y - from.y);
-      from = null;
-      if (moved <= 10 && inside(p)) fn();
-    });
-    return obj;
+  //  ── 눌리는 자리는 **표시객체가 아니라 좌표로** 잡는다 (2026-08-03 사용자 신고) ──
+  //  > "방어구,신발 탭 버튼이 안눌려"
+  //
+  //  처음엔 카드마다 투명한 히트 사각형을 컨테이너에 넣었다. 그런데 **마스크는 그리는
+  //  것만 자르고 입력은 안 자른다** — 스크롤해서 창 위로 밀려난 카드는 눈에서만
+  //  사라지고 히트 영역은 그 자리(=슬롯 버튼 줄)에 그대로 남는다. 컨테이너가 버튼보다
+  //  나중에 만들어져 표시목록 위에 있으니 Phaser 는 맨 위의 그것을 집고, 좌표 밖이라
+  //  아무 일도 안 한다 — **버튼은 이벤트를 아예 못 받는다.** "안 눌린다"가 아니라
+  //  가려져 있었던 것이고, 스크롤한 뒤에만 생겨서 더 헷갈렸다.
+  //
+  //  ⚠ `input.enabled = false` 로 꺼 보는 것도 시도했는데 **안 통했다**(실측).
+  //    그래서 아예 **컨테이너 안에 상호작용 객체를 하나도 두지 않는다.** 누를 자리는
+  //    사각형 목록으로만 갖고 있다가 스크롤 영역이 직접 판정한다 — 표시목록에 없으니
+  //    무엇도 가릴 수가 없고, 앞으로 이 계열의 사고가 구조적으로 불가능해진다.
+  var zones = [];
+  api.tap = function (rect, fn) { zones.push({ r: rect, fn: fn }); };
+
+  //  누르고 뗀 자리가 거의 같을 때만 고른다 — 끌어서 스크롤하려던 손짓이 그대로
+  //  선택이 되면 폰에서 목록을 못 쓴다.
+  var press = null;
+  var onDown0 = function (p) { press = inside(p) ? { x: p.x, y: p.y } : null; };
+  var onUp0 = function (p) {
+    if (!press) return;
+    var moved = Math.abs(p.x - press.x) + Math.abs(p.y - press.y);
+    press = null;
+    if (moved > 10 || !inside(p)) return;
+    var sy = self[stateKey] || 0;                  // 화면 좌표 → 내용 좌표
+    for (var i = 0; i < zones.length; i++) {
+      var r = zones[i].r;
+      if (p.x >= r.x && p.x <= r.x + r.w && p.y + sy >= r.y && p.y + sy <= r.y + r.h) {
+        zones[i].fn(); return;
+      }
+    }
   };
+  this.input.on('pointerdown', onDown0);
+  this.input.on('pointerup', onUp0);
+  this._body.push({ destroy: function () {
+    self.input.off('pointerdown', onDown0);
+    self.input.off('pointerup', onUp0);
+  } });
 
   api.finish = function (contentH) {
     api.max = Math.max(0, contentH - h);
@@ -693,7 +720,7 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
       var pIx = cx0 + 5;
       g.fillStyle(GAME.UI.COL.bg, equipped ? 0.5 : 1);
       g.fillRoundedRect(pIx, cy0 + (cardH - pIcon) / 2, pIcon, pIcon, 6);
-      GAME.UI.drawItem(g, self.itemSlot, it.key, pIx + pIcon / 2, cy0 + cardH / 2, pIcon - 4);
+      GAME.UI.drawItem(g, self.itemSlot, it.key, pIx + pIcon / 2, cy0 + cardH / 2, pIcon - 4, self.char.heroKey);
 
       var tx = pIx + pIcon + 8;
       var tw = cx0 + cardW - 6 - tx;
@@ -729,7 +756,7 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
       var iconCy = cy0 + 8 + iconSz / 2;
       g.fillStyle(GAME.UI.COL.bg, equipped ? 0.5 : 1);
       g.fillRoundedRect(cx0 + (cardW - iconSz) / 2 - 3, iconCy - iconSz / 2 - 3, iconSz + 6, iconSz + 6, 7);
-      GAME.UI.drawItem(g, self.itemSlot, it.key, cx0 + cardW / 2, iconCy, iconSz);
+      GAME.UI.drawItem(g, self.itemSlot, it.key, cx0 + cardW / 2, iconCy, iconSz, self.char.heroKey);
 
       var flowY = iconCy + iconSz / 2 + 7;
       var nameLbl = sc.add(GAME.UI.label(self, cx0 + cardW / 2, flowY,
@@ -745,12 +772,10 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
 
     // 카드를 누르면 **고르기만 한다.** 사는 것은 아래 확정 막대의 버튼이 한다.
     // (예전엔 카드가 곧 구매였는데, 구경하려고 누른 것이 그대로 결제됐다 — 사용자 신고.)
-    //  ⚠ `pointerdown` 이 아니라 **누르고 뗀 자리가 거의 같을 때만** 고른다
-    //    (`sc.tap`). 끌어서 스크롤하려던 손짓이 그대로 선택이 되면 폰에서 목록을
-    //    못 쓴다. 화면 밖으로 밀려난 카드가 눌리는 것도 거기서 같이 막는다.
-    var hit = sc.add(self.add.rectangle(cx0 + cardW / 2, cy0 + cardH / 2, cardW, cardH, 0xffffff, 0.001)
-      .setInteractive({ useHandCursor: true }));
-    sc.tap(hit, function () {
+    //  ⚠ **투명 사각형을 만들지 않는다.** 눌릴 자리를 좌표로만 등록하면 표시목록에
+    //    아무것도 안 올라가므로, 스크롤로 밀려난 카드가 슬롯 버튼을 가리는 사고가
+    //    구조적으로 불가능해진다(위 `_scroller` 주석 참조).
+    sc.tap({ x: cx0, y: cy0, w: cardW, h: cardH }, function () {
       self.itemPick = { slot: self.itemSlot, key: it.key };
       self._buildBody();
     });
@@ -1195,8 +1220,16 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
     self._body.push(GAME.UI.label(self, leftX + 14, nmLbl.y + nmLbl.height + (P ? 0 : 2),
       String(total), P ? 18 : 26, C.text, 0));
 
+    //  ── 이동속도만 되팔 수 있다 (2026-08-03 사용자 지시) ──────────────────────
+    //  > "너무빠르면 컨트롤이 어렵네"
+    //  올려서 손해 보는 축은 이것뿐이라(빠르면 적을 지나쳐 조준·회피가 흔들린다)
+    //  되돌리기도 이 한 행에만 연다. ⚠ 자리는 **이 행의 막대를 줄여서** 낸다 —
+    //  오른쪽 여백은 레벨업 버튼이 이미 거의 다 쓰고 있어(6px) 그냥 놓으면 겹친다.
+    var canSell = GAME.TowerChar.canSellStat && GAME.TowerChar.canSellStat(d.key);
+    var sellW = canSell ? (P ? 82 : 104) : 0;
     // 상한 대비 막대 — 하단 스탯바와 **같은 분모**(statCeil)를 써야 두 화면이 같은 말을 한다.
-    var barX = leftX + (P ? 78 : 96), barW = colW - (P ? 78 : 96) - (P ? 116 : 150) - 14;
+    var barX = leftX + (P ? 78 : 96);
+    var barW = colW - (P ? 78 : 96) - (P ? 116 : 150) - 14 - (sellW ? sellW + 8 : 0);
     var ceil = GAME.TowerChar.statCeil(d.key, total);   // 분모가 총합을 따라 자란다
     var m = GAME.UI.meter(self, barX, ry + rowH / 2 - (P ? 6 : 7), barW, P ? 12 : 14, {
       color: C.controller, frac: Math.max(0, Math.min(1, total / ceil))
@@ -1220,6 +1253,21 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
     b.text.setColor(can ? C.accent : C.textDim);
     b.rect.setStrokeStyle(can ? 2 : 1, can ? C.controller : GAME.UI.COL.borderUi);
     self._body.push(b);
+
+    //  되팔기 — 한 번 누르면 한 단계 내려가고 치른 값의 70% 가 돌아온다.
+    //  ⚠ 아이템 판매와 달리 **묻지 않는다.** 이건 "빠르면 조준이 흔들린다"를 그 자리에서
+    //    미세 조정하는 손잡이라, 한 칸 내릴 때마다 창이 뜨면 쓸 수가 없다.
+    if (canSell) {
+      var back = GAME.TowerChar.sellStatBack(d.key);
+      var sb = GAME.UI.button(self, leftX + colW - 14 - bw - 8 - sellW / 2, ry + rowH / 2,
+        sellW, rowH - (P ? 12 : 16), '↩ ' + back + '골드', function () {
+          if (!GAME.TowerChar.levelDown(d.key)) return;
+          self._buildBody(true);
+        }, { fontSize: P ? 12 : 14 });
+      sb.text.setColor(C.textDim);
+      sb.rect.setStrokeStyle(1, GAME.UI.COL.borderUi);
+      self._body.push(sb);
+    }
 
     // ② 방금 이 스탯을 굴렸으면 결과 배지를 띄운다(3초). "얼마 올랐나"와 "그게 잘 나온
     //    건가"를 한 덩어리로 — 수치만 있으면 12 가 큰지 작은지 알 수 없다.

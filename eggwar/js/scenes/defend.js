@@ -97,6 +97,18 @@ GAME.DefendScene.prototype.create = function () {
     var mine = GAME.UnitLevel
       ? GAME.UnitLevel.createUnit(p.type, p.x, p.y, 'strategist')
       : GAME.Combat.createUnit(p.type, p.x, p.y, 'strategist');
+    //  ── 정련 (2026-08-03) ──────────────────────────────────────────────
+    //  레벨(1~5) 위에 얹히는 확률 강화. 레벨과 **따로** 곱한다 —
+    //  레벨은 확정 성장이라 배치 계획의 근거이고, 정련은 그 위의 도박이다.
+    //  ⚠ 정련이 0 이면  가 null 이라 한 톨도 안 바뀐다(기존 동작 불변).
+    if (this.defendTower && GAME.DefendTower && GAME.DefendTower.refineMods) {
+      var rm = GAME.DefendTower.refineMods(p.type);
+      if (rm) {
+        mine.def.hp = Math.round(mine.def.hp * rm.hp);
+        mine.def.damage = Math.round(mine.def.damage * rm.damage);
+        mine.maxHp = mine.def.hp; mine.hp = mine.def.hp;
+      }
+    }
     // 아래에 섰으니 위를 본다. `_baseUnit` 은 side 로만 시선을 정하므로 여기서 바로잡는다 —
     // 안 고치면 전 유닛이 등을 보이고 서 있다(무기도 몸통에 가려진다).
     mine.facing = -Math.PI / 2;

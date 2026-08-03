@@ -212,6 +212,7 @@ GAME.DefendTower = {
   setUnitLevel: function (typeKey, lv) {
     var rec = this.get();
     if (!rec.unitLv) rec.unitLv = {};
+    if (!rec.refine) rec.refine = {};
     rec.unitLv[typeKey] = lv;
     this._save(rec);
     return rec;
@@ -224,8 +225,18 @@ GAME.DefendTower = {
   //  두 종류를 구분해야 하고, 그 경계에서 예산 검사가 갈라진다(옛 AI 시드 예산 초과 사고 계열).
   //  예산에 더하면 배치 화면은 아무것도 안 바꿔도 되고, 숫자도 정직하다.
   EXTRA_BUDGET_STEP: 10,     // 한 번에 사는 정원
+  //  구매 1회마다 값이 이만큼 오른다(사용자 제안 5). 기본값 50 에 +5 씩이면
+  //  10번째 구매가 95 다 — 계속 살 수는 있되 '무한정'은 아니게 된다.
+  EXTRA_BUDGET_RISE: 5,
   extraBudgetPrice: function () {
-    return this.EXTRA_BUDGET_STEP * (GAME.UnitLevel ? GAME.UnitLevel.BUDGET_RATE : 5);
+    //  ── 살수록 비싸진다 (2026-08-03 사용자 지시: "증원도 갈수록 골드가 올라가야해") ──
+    //  예전에는 몇 번을 사든 같은 값이라, 골드가 쌓이면 정원을 무한정 밀어 올릴 수
+    //  있었다 — 그러면 '배치를 잘 짜는 것'보다 '많이 사는 것'이 언제나 정답이 된다.
+    //  ⚠ 계단은 **산 횟수**에 걸린다(정원 총량이 아니라). 한 번에 10 씩 늘므로
+    //    총량으로 계산하면 계단이 10배 성기게 걸려 체감이 안 난다.
+    var bought = Math.floor((this.bonusBudget() || 0) / this.EXTRA_BUDGET_STEP);
+    var base = this.EXTRA_BUDGET_STEP * (GAME.UnitLevel ? GAME.UnitLevel.BUDGET_RATE : 5);
+    return base + bought * this.EXTRA_BUDGET_RISE;
   },
   bonusBudget: function () { return (this.get().bonusBudget || 0); },
   buyBudget: function () {
@@ -250,12 +261,13 @@ GAME.DefendTower = {
     var rec = this._all()[this._key()];
     if (!rec) {
       return { floor: 1, best: 0, runs: 0, kills: 0, placed: null, tier: null,
-               gold: 0, unitLv: {}, bonusBudget: 0 };
+               gold: 0, unitLv: {}, refine: {}, bonusBudget: 0 };
     }
     if (!rec.floor) rec.floor = 1;
     // 옛 저장본에는 없는 칸 — 읽을 때 채운다(마이그레이션 코드를 따로 두지 않는다)
     if (typeof rec.gold !== 'number') rec.gold = 0;
     if (!rec.unitLv) rec.unitLv = {};
+    if (!rec.refine) rec.refine = {};
     if (typeof rec.bonusBudget !== 'number') rec.bonusBudget = 0;
     return rec;
   },
@@ -323,6 +335,60 @@ GAME.DefendTower = {
   skillFor: function (floor) {
     var learned = (GAME.Learn.getCtrl().skill) || 0;
     return Math.max(this.skillFloorFor(floor), learned);
+  },
+
+  // ── 정련 — 5단계 이후의 강화 (2026-08-03 사용자 지시) ─────────────────────
+  //  "유닛 업그레이드는 5단계만 있는 건 너무 적어. 5단계까지 간 다음 확률적으로
+  //   강화할 수 있게 해주거나 하는 등 이후 시스템도 만들어줘"
+  //
+  //  레벨(1~5)은 **확정 성장**이라 계획을 세울 수 있어야 한다 — 거기 확률을 섞으면
+  //  배치 설계가 도박이 된다. 그래서 확률은 **그 위**에 얹는다:
+  //    · 5단계에 도달한 유닛만 정련할 수 있다
+  //    · 성공하면 정련 단계 +1(공격·체력 +6%씩 누적), 실패하면 골드만 잃는다
+  //    · **떨어지지는 않는다.** 내려가는 강화는 재미가 아니라 손실 회피 스트레스다
+  //      (이 게임은 12세 이용가 캐주얼이다)
+  //  ⚠ 성공률이 단계마다 낮아지고 값은 오른다 — 그래서 스스로 멈출 자리가 생긴다.
+  REFINE_MAX: 10,
+  REFINE_GAIN: 0.06,          // 단계당 공격·체력 배수
+  refineChance: function (step) {
+    //  1단계 90% → 10단계 25%. 완만하게 떨어져 "다음 한 번"이 늘 해볼 만하게 둔다.
+    return Math.max(0.25, 0.90 - 0.072 * (step || 0));
+  },
+  refineCost: function (step) {
+    return 120 + 90 * (step || 0);
+  },
+  refineOf: function (typeKey) {
+    var rec = this.get();
+    return (rec.refine && rec.refine[typeKey]) || 0;
+  },
+  //  정련 배수 — 진형을 만들 때 이 유닛에 곱한다.
+  refineMods: function (typeKey) {
+    var st = this.refineOf(typeKey);
+    if (!st) return null;
+    var m = 1 + this.REFINE_GAIN * st;
+    return { hp: m, damage: m };
+  },
+  canRefine: function (typeKey) {
+    var rec = this.get();
+    var lv = (rec.unitLv && rec.unitLv[typeKey]) || 0;
+    var maxLv = (GAME.UnitLevel && GAME.UnitLevel.MAX) || 5;
+    return lv >= maxLv && this.refineOf(typeKey) < this.REFINE_MAX;
+  },
+  //  시도한다. { ok, step, cost } 를 돌려준다. 골드가 모자라면 null.
+  tryRefine: function (typeKey) {
+    var rec = this.get();
+    if (!this.canRefine(typeKey)) return null;
+    var step = this.refineOf(typeKey);
+    var cost = this.refineCost(step);
+    if ((rec.gold || 0) < cost) return null;
+    rec.gold -= cost;
+    var ok = Math.random() < this.refineChance(step);
+    if (ok) {
+      if (!rec.refine) rec.refine = {};
+      rec.refine[typeKey] = step + 1;
+    }
+    this._save(rec);
+    return { ok: ok, step: rec.refine ? (rec.refine[typeKey] || 0) : 0, cost: cost };
   },
 
   isBossFloor: function (floor) {
@@ -394,6 +460,7 @@ GAME.DefendTower = {
     rec.tier = null;      // placed 를 지웠으면 그 등급표도 같이 지운다(짝이 안 맞으면 거짓말이 된다)
     rec.gold = 0;
     rec.unitLv = {};
+    rec.refine = {};
     rec.bonusBudget = 0;
     this._save(rec);
     return rec;

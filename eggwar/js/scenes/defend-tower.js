@@ -12,7 +12,7 @@ GAME.DefendTowerScene.prototype = Object.create(Phaser.Scene.prototype);
 GAME.DefendTowerScene.prototype.constructor = GAME.DefendTowerScene;
 
 // ── 폰 가로(820×390) 전용 좌표 — 배치 화면(build.js)과 같은 3단 구성 ───────────
-//  0..56    상단 바 : 탑 이름 · 층/최고/격파 · [N층 배치하기](주 행동) · [☰]
+//  0..56    상단 바 : 탑 이름 · 층/최고/격파 · [N회차 배치하기](주 행동) · [☰]
 //  62..320  본문    : **이번 층에 쳐들어오는 영웅**이 화면에서 가장 크다.
 //                     왼쪽 = 층 현판 + 보스까지, 가운데 = 이름/특성/설명, 오른쪽 = 대형 아트
 //  326..382 하단 줄 : 영웅 능력치·보정 + 내 배치 예산 한 줄
@@ -98,13 +98,13 @@ GAME.DefendTowerScene.prototype.create = function () {
   y = band.bounds().bottom + u * 1.4;
 
   if (boss) {
-    stack(GAME.UI.label(this, W / 2, y, '☠  보스 층 — 더 강한 영웅이 옵니다',
+    stack(GAME.UI.label(this, W / 2, y, '☠  보스 회차 — 더 강한 영웅이 옵니다',
       P ? 19 : 22, GAME.UI.TXT.danger, 0.5).setOrigin(0.5, 0), u * 1.0);
   }
 
   // 이번 층에 오는 공격 영웅 — 이걸 보고 배치를 짠다
   stack(GAME.UI.label(this, W / 2, y,
-    '이번 층 공격 영웅 —  ' + hero.name + '  (' + hero.trait + ')',
+    '이번 회차 공격 영웅 —  ' + hero.name + '  (' + hero.trait + ')',
     P ? 17 : 21, GAME.UI.TXT.crit, 0.5).setOrigin(0.5, 0)
     .setAlign('center').setWordWrapWidth(W - 30), u * 0.8);
 
@@ -122,7 +122,7 @@ GAME.DefendTowerScene.prototype.create = function () {
   stack(GAME.UI.label(this, W / 2, y,
     '내 배치 예산 ' + DT.placeBudgetFor(floor) +
     (DT.bonusBudget() ? (' (기본 ' + budget + ' + 증원 ' + DT.bonusBudget() + ')') : '') +
-    '   ·   최고 ' + (rec.best || 0) + '층   ·   격파 ' + (rec.kills || 0) + '회',
+    '   ·   최고 ' + (rec.best || 0) + '회차   ·   격파 ' + (rec.kills || 0) + '회',
     P ? 14 : 17, C.accent, 0.5).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 30), u * 0.8);
 
   // ── 골드 (v0.36) ─────────────────────────────────────────────────────────
@@ -134,7 +134,7 @@ GAME.DefendTowerScene.prototype.create = function () {
   var E = DT.EARLY_FLOORS;
   if (floor <= E) {
     stack(GAME.UI.label(this, W / 2, y,
-      '1~' + E + '층은 연습 구간. ' + (E + 1) + '층부터는 제대로 배치하지 않으면 뚫립니다.',
+      '1~' + E + '회차는 연습 구간. ' + (E + 1) + '회차부터는 제대로 배치하지 않으면 뚫립니다.',
       P ? 13 : 14, C.textDim, 0.5)
       .setOrigin(0.5, 0).setAlign('center').setLineSpacing(4).setWordWrapWidth(W - 40));
   }
@@ -147,7 +147,7 @@ GAME.DefendTowerScene.prototype.create = function () {
   var byBottom = H - u * 2 - restH;
 
   if (floor > 1) {
-    GAME.UI.button(this, W / 2, H - u * 2 - u * 2.5, Math.min(W - 60, 240), u * 5, '1층부터 다시', function () {
+    GAME.UI.button(this, W / 2, H - u * 2 - u * 2.5, Math.min(W - 60, 240), u * 5, '1회차부터 다시', function () {
       DT.fail();
       self.scene.restart();
     }, { fontSize: P ? 13 : 13 });
@@ -165,7 +165,7 @@ GAME.DefendTowerScene.prototype.create = function () {
     self.scene.start('Rank', { scope: 'live' });
   }, { fontSize: P ? 16 : 16 });
   GAME.UI.button(this, W / 2, byBottom - bh * 2.5 - gap * 2, bw, bh + u * 0.8,
-    floor + '층 방어 — 배치하기', function () {
+    floor + '회차 방어 — 배치하기', function () {
       self.scene.start('Build', { defendTower: floor });
     }, { fill: GAME.UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
          hover: GAME.UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: P ? 20 : 22 });
@@ -208,7 +208,7 @@ GAME.DefendTowerScene.prototype._levelSummaryText = function () {
 //
 //  이 화면의 존재 이유는 하나다 — **"이번 층에 어떤 영웅이 쳐들어오는가."**
 //  그래서 그 영웅을 실제 게임 아트로 크게 세우고(전투에서 보게 될 바로 그 모습),
-//  부차 메뉴(랭킹·메뉴·1층부터 다시)는 전부 ☰ 시트로 접었다.
+//  부차 메뉴(랭킹·메뉴·1회차부터 다시)는 전부 ☰ 시트로 접었다.
 //
 //  캐릭터 크기는 실측 비율에서 역산한다 — 기준점에서 위 3.2r · 아래 1.8r(총 5r),
 //  가로 반폭 약 2.1r. 본문 띠 높이를 5로 나눈 값이 r 이다(비율로 잡으면 발밑이 잘린다).
@@ -266,10 +266,10 @@ GAME.DefendTowerScene.prototype._createPhone = function () {
 
   // ── 상단 바 ─────────────────────────────────────────────────────────────
   UI.text(this, K.PAD, 5, '수성의 탑', { size: 'heading', color: C.text });
-  UI.text(this, K.PAD, 35, floor + '층  ·  최고 ' + (rec.best || 0) + '층  ·  격파 ' +
+  UI.text(this, K.PAD, 35, floor + '회차  ·  최고 ' + (rec.best || 0) + '회차  ·  격파 ' +
     (rec.kills || 0) + '회', { size: 'micro', color: C.textDim });
 
-  UI.button(this, K.START_CX, K.BTN_CY, K.START_W, K.BTN_H, floor + '층 배치하기',
+  UI.button(this, K.START_CX, K.BTN_CY, K.START_W, K.BTN_H, floor + '회차 배치하기',
     function () { self.scene.start('Build', { defendTower: floor }); },
     { fill: UI.COL.panelPurple, line: C.strategist, hover: UI.COL.panelPurpleHi,
       color: C.accentAlt, fontSize: 'buttonSm', hitPad: 6 });
@@ -289,7 +289,7 @@ GAME.DefendTowerScene.prototype._createPhone = function () {
     floor, DT.BOSS_EVERY);
   var ly = band.bounds().bottom + 8;
   if (boss) {
-    UI.text(this, K.LEFT_X + K.LEFT_W / 2, ly, '☠ 보스 층 — 더 강한 영웅', {
+    UI.text(this, K.LEFT_X + K.LEFT_W / 2, ly, '☠ 보스 회차 — 더 강한 영웅', {
       size: 'micro', color: UI.TXT.danger, origin: 0.5, originY: 0,
       wrap: K.LEFT_W, align: 'center'
     });
@@ -297,7 +297,7 @@ GAME.DefendTowerScene.prototype._createPhone = function () {
 
   // ── 본문 가운데: 누가 오는가 ────────────────────────────────────────────
   var mx = K.MID_X, mw = K.MID_W;
-  UI.text(this, mx, K.BODY_TOP + 8, '이번 층 침입 영웅', { size: 'micro', color: C.textDim });
+  UI.text(this, mx, K.BODY_TOP + 8, '이번 회차 침입 영웅', { size: 'micro', color: C.textDim });
   var nameT = UI.text(this, mx, K.BODY_TOP + 30, hero.name, {
     size: 'title', color: UI.TXT.crit
   });
@@ -313,7 +313,7 @@ GAME.DefendTowerScene.prototype._createPhone = function () {
   var E = DT.EARLY_FLOORS;
   if (floor <= E) {
     var early = UI.text(this, mx, midY,
-      '1~' + E + '층은 연습 구간. ' + (E + 1) + '층부터는 배치 없이는 뚫립니다.',
+      '1~' + E + '회차는 연습 구간. ' + (E + 1) + '회차부터는 배치 없이는 뚫립니다.',
       { size: 'micro', color: C.textFaint, wrap: mw });
     midY = early.y + early.height + 8;
   }
@@ -475,7 +475,7 @@ GAME.DefendTowerScene.prototype._openGrowth = function () {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  ☰ 시트 (폰 가로 전용) — 랭킹 · 1층부터 다시 · 메뉴
+//  ☰ 시트 (폰 가로 전용) — 랭킹 · 1회차부터 다시 · 메뉴
 //  build.js 와 같은 방식이다. GAME.Modal 은 항목 높이가 화면(390)을 넘어 못 쓴다.
 // ═══════════════════════════════════════════════════════════════════════════
 GAME.DefendTowerScene.prototype._toggleSheet = function () {
@@ -512,10 +512,10 @@ GAME.DefendTowerScene.prototype._openSheet = function () {
   objs.push(UI.text(this, W / 2, py0 + 10, '탑 메뉴',
     { size: 'subhead', color: C.text, origin: 0.5, originY: 0 }).setDepth(902));
   objs.push(UI.text(this, W / 2, py0 + 44,
-    '한 층 = 쳐들어오는 영웅 하나를 막아내는 것. 지면 1층부터 다시.',
+    '한 회차 = 쳐들어오는 영웅 하나를 막아내는 것. 지면 1회차부터 다시.',
     { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 }).setDepth(902));
   objs.push(UI.text(this, W / 2, py0 + 70,
-    '다음 보스 층까지 ' + (DT.BOSS_EVERY - ((floor - 1) % DT.BOSS_EVERY)) + '층',
+    '다음 보스까지 ' + (DT.BOSS_EVERY - ((floor - 1) % DT.BOSS_EVERY)) + '회차',
     { size: 'micro', color: UI.TXT.crit, origin: 0.5, originY: 0 }).setDepth(902));
 
   function mk(cx, cy, label, fn, opts) {
@@ -532,7 +532,7 @@ GAME.DefendTowerScene.prototype._openSheet = function () {
   mk(bx[1], cyA, '← 메뉴', function () {
     self._closeSheet(); self.scene.start('Menu');
   }, { fontSize: 'buttonSm' });
-  var restart = mk(bx[2], cyA, '1층부터 다시', function () {
+  var restart = mk(bx[2], cyA, '1회차부터 다시', function () {
     self._closeSheet(); DT.fail(); self.scene.restart();
   }, { fontSize: 'buttonSm' });
   if (floor <= 1) restart.setDisabled(true);

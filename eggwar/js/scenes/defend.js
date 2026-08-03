@@ -129,10 +129,67 @@ GAME.DefendScene.prototype.create = function () {
 
   // 침입 영웅은 **위에서** 내려온다(내 영역이 아래이므로).
   var Z = GAME.CONFIG.ZONE_STRATEGIST;
-  this.hero = GAME.Combat.createHero(heroKey, Z.x + Z.w / 2, Z.y + Z.h * 0.45, 'controller', items, picks);
+  //  ── 10층마다 보스 (2026-08-03 사용자 지시) ────────────────────────────────
+  //  "수성의탑 10층마다 보스는 통곡의탑하고 동일한 보스가 나오게 해줘.
+  //   당연히 주변유닛은 없겠지. 용의알 같은 경우 통곡의탑에선 움직이지 않는건
+  //   수성의탑에선 움직이게해줘"
+  //
+  //  통곡의 탑과 **같은 표**(GAME.Tower.BOSS_SCHEDULE)를 쓴다 — 두 탑에서 같은
+  //  층에 같은 얼굴이 나와야 "10층엔 거대 족장" 같은 기억이 생긴다.
+  //  ⚠ 호위는 없다. 여기서 진형은 **내 것**이고 쳐들어오는 쪽이 보스 하나다.
+  //  ⚠ 보스는 혼자 오므로 **반드시 움직여야 한다.** 통곡의 탑에서는 내가 다가가지만
+  //    여기서는 보스가 내 진형까지 와야 싸움이 시작된다 — 용의 알처럼
+  //    `immobile: true, speed: 0` 인 보스를 그대로 두면 90초 내내 아무 일도 안 일어난다.
+  var bossKey = (this.defendTower && GAME.DefendTower.isBossFloor(this.defendTower) &&
+                 GAME.Tower.BOSS_SCHEDULE) ? GAME.Tower.BOSS_SCHEDULE[this.defendTower] : null;
+  if (bossKey && GAME.UNITS[bossKey]) {
+    //  진형 강화 배수를 그대로 태운다(층이 오를수록 세진다). createUnit 이 def 를
+    //  복제하므로 아래 덮어쓰기가 통곡의 탑 쪽으로 새지 않는다.
+    this.hero = GAME.Combat.createUnit(bossKey, Z.x + Z.w / 2, Z.y + Z.h * 0.45,
+                                       'controller', heroMods || null);
+    var bd = this.hero.def;
+    //  걸어오게 만든다. 원래 값이 0 이면 이 게임의 근접 유닛 정도 속도를 준다.
+    if (!(bd.speed > 0)) bd.speed = 96;
+    bd.immobile = false;
+    bd.chase = 4000;        // 맵 어디든 쫓아온다 — 자기 자리를 지킬 이유가 없다
+    bd.aggro = 4000;
+    //  ⚠ **보스 기본 스탯을 그대로 쓰면 안 된다.** 그 값들은 통곡의 탑의
+    //    거대한 추종 배수(hpMul, 수십~수백 배)에 곱해질 것을 전제로 잡은
+    //    작은 숫자다(기본 체력 150~300). 수성의 탑에는 그 배수가 없어서
+    //    그대로 두면 10층 보스가 전사 6기에게 죽는다(실측: 체력 499, 40초에 사망).
+    //
+    //    그래서 **이 층에 원래 올 영웅을 기준으로 정규화**한다. 보스는 혼자
+    //    오므로 영웅보다 확실히 두꺼워야 하고, 대신 수가 없으니 화력은 조금만 위다.
+    //    이렇게 두면 통곡의 탑 쪽 기본값을 나중에 다시 잡아도 여기가 안 흔들린다.
+    var rh = GAME.HEROES[heroKey];
+    if (rh) {
+      var refEhp = (rh.hp || 1) * (1 + (rh.armor || 0) / 100);
+      var bEhp = (bd.hp || 1) * (1 + (bd.armor || 0) / 100);
+      var hpMul = (refEhp * this.DEFEND_BOSS_EHP) / Math.max(1, bEhp);
+      bd.hp = Math.max(1, Math.round(bd.hp * hpMul));
+      var refDps = (rh.damage || 1) / ((rh.cooldown || 1000) / 1000);
+      var bDps = (bd.damage || 1) / ((bd.cooldown || 1000) / 1000);
+      var dmgMul = (refDps * this.DEFEND_BOSS_DMG) / Math.max(0.01, bDps);
+      bd.damage = Math.max(1, Math.round(bd.damage * dmgMul));
+      //  스킬도 같은 배수로 옮겨 설계된 비율(평타 1 : 스킬 2 : 궁극기 5)을 지킨다.
+      var scaleAb = function (a) {
+        if (!a) return;
+        if (a.damage) a.damage = Math.max(1, Math.round(a.damage * dmgMul));
+        if (a.dps) a.dps = Math.max(1, Math.round(a.dps * dmgMul));
+      };
+      scaleAb(bd.ability);
+      (bd.abilities || []).forEach(scaleAb);
+    }
+    this.hero.maxHp = bd.hp; this.hero.hp = bd.hp;
+    this.hero.isBoss = true;
+    this.bossKey = bossKey;
+  } else {
+    this.hero = GAME.Combat.createHero(heroKey, Z.x + Z.w / 2, Z.y + Z.h * 0.45, 'controller', items, picks);
+  }
   this.hero.facing = Math.PI / 2;
   // 층 강화 — 통곡의 탑이 진형을 강화하듯, 수성의 탑은 공격 영웅을 강화한다.
-  if (heroMods) {
+  //  ⚠ 보스는 `createUnit(…, heroMods)` 로 이미 강화를 받았다 — 여기서 또 곱하면 두 번 센다.
+  if (heroMods && !this.bossKey) {
     this.hero.def.hp = Math.round(this.hero.def.hp * (heroMods.hp || 1));
     this.hero.def.damage = Math.round(this.hero.def.damage * (heroMods.damage || 1));
     this.hero.maxHp = this.hero.def.hp;
@@ -155,7 +212,10 @@ GAME.DefendScene.prototype.create = function () {
       this._segShown = 0;
     }
   }
-  this.ai = new GAME.AIHero(this.state, this.hero, this.aiSkill);
+  //  ⚠ 보스는 영웅이 아니라 유닛이라 `skills`/`skillCd` 가 없다 — AIHero 를 붙이면
+  //    없는 것을 만지다 죽는다. 보스는 `Combat.update` 의 일반 유닛 AI(chase/aggro)가
+  //    몰고 오고, 자기 `ability`/`abilities` 도 그쪽에서 그대로 돈다.
+  this.ai = this.bossKey ? null : new GAME.AIHero(this.state, this.hero, this.aiSkill);
 
   // 전략가는 조작하지 않지만, 특정 유닛을 눌러 추적할 수는 있어야 한다.
   // 누르면 그 유닛 머리 위에 **흰 채움 + 잉크 테두리** 마커가 뜨고 발밑에 이중 링이 생긴다.
@@ -219,7 +279,7 @@ GAME.DefendScene.prototype.create = function () {
     UI.panel(this, rx, K.SIDE_Y, K.SIDE_W, K.SIDE_H,
       { level: 1, radius: UI.R.md, alpha: 0.9, shadow: false });
     UI.text(this, rx + 10, K.SIDE_Y + 4,
-      '침입 ' + this.hero.hero.name + '  ·  숙련 ' + Math.round(this.aiSkill * 100) + '%',
+      '침입 ' + this._attackerName() + '  ·  숙련 ' + Math.round(this.aiSkill * 100) + '%',
       { size: 'caption', color: UI.TXT.danger });
     this.phHeroBar = UI.meter(this, rx + 10, K.SIDE_Y + 28, K.SIDE_W - 20, 20, {
       color: UI.COL.hpBad, danger: -1, label: { size: 'caption', align: 'center' }
@@ -328,7 +388,7 @@ GAME.DefendScene.prototype.update = function (time, delta) {
   if (!this.state.over) {
     for (var s = 0; s < this.speed; s++) {
       if (this.state.over) break;
-      this.ai.update(dt);
+      if (this.ai) this.ai.update(dt);
       GAME.Combat.update(this.state, dt);
     }
   }
@@ -435,9 +495,9 @@ GAME.DefendScene.prototype.updateHud = function () {
   var hp = (this.hero.alive ? Math.ceil(this.hero.hp) : 0) + '/' + this.hero.maxHp;
   this.hudTop.setText(SM
     ? ('내 진형 ' + GAME.Combat.aliveCount(this.state, 'strategist') + '기  ·  ' +
-       this.hero.hero.name + '  HP ' + hp)
+       this._attackerName() + '  HP ' + hp)
     : ('내 진형 ' + GAME.Combat.aliveCount(this.state, 'strategist') + '기  vs  AI ' +
-       this.hero.hero.name + ' (숙련도 ' + Math.round(this.aiSkill * 100) + '%)  HP ' + hp));
+       this._attackerName() + ' (숙련도 ' + Math.round(this.aiSkill * 100) + '%)  HP ' + hp));
   // 그래도 넘치면 잘라낸다 — 문구·폰트가 바뀌어도 겹치지 않는다는 보장은 여기서 나온다.
   // (보통 한 번도 안 돈다)
   var guard = 0;
@@ -528,6 +588,22 @@ GAME.DefendScene.prototype._openSheet = function () {
   mk(2, '닫기', function () { self._closeSheet(); }, { fontSize: 'buttonSm' });
 
   this.sheet = objs;
+};
+
+//  보스는 혼자 온다 — 영웅 대비 유효체력 배수와 초당 피해 배수.
+//  두껍게(3.2배) 두되 화력은 조금만 위(1.15배)로 둔다. 한 마리가 너무 아프면
+//  진형이 손쓸 새 없이 녹고, 그러면 '배치로 막는다'는 이 모드의 축이 무너진다.
+GAME.DefendScene.prototype.DEFEND_BOSS_EHP = 3.2;
+GAME.DefendScene.prototype.DEFEND_BOSS_DMG = 1.15;
+
+//  공격자 이름 — 영웅이면 영웅 이름, 보스면 유닛 이름.
+//  ⚠ `createHero` 는 `unit.hero` 를 붙이지만 `createUnit` 은 안 붙인다.
+//    보스 층에서 `this._attackerName()` 을 그냥 읽으면 매 프레임 TypeError 가 난다
+//    (v1.23 에서 고친 '빌려 쓴 것이 없어서 죽는' 사고와 같은 종류다).
+GAME.DefendScene.prototype._attackerName = function () {
+  var h = this.hero;
+  if (!h) return '';
+  return (h.hero && h.hero.name) || (h.def && h.def.name) || '침입자';
 };
 
 GAME.DefendScene.prototype.showMarker = function () { };

@@ -819,15 +819,19 @@ window.GAME = window.GAME || {};
     //  ⚠ 값은 전부 이 게임 세계의 물건 색이다. 마법 광선·네온은 이 세계에 없다
     //    (원시 부족 전쟁 · 12세 이용가 — 파일 상단 규율).
     MOTIF_MAT: {
-      sand:    { clay: 0xd8c48f, stone: 0xe0d3a8, wood: 0xc7ac72 },
-      rock:    { clay: 0x8f8d88, stone: 0x9aa3ad, wood: 0x6f6b64 },
-      earth:   { clay: 0x8a5a33, stone: 0x7a6a52, wood: 0x5a452c },
-      shield:  { clay: 0x8d6b4b, stone: 0x4b5260, wood: 0x8a6a45 },
-      bone:    { clay: 0xd8d2bb, stone: 0xeae3cd, wood: 0xbdb69c },
-      rope:    { clay: 0xc2ad82, stone: 0xd9c9a2, wood: 0x8a6a45 },
-      feather: { clay: 0xd9a05b, stone: 0xe0705a, wood: 0x8a6a45 },
-      ember:   { clay: 0xc2542a, stone: 0xe8853a, wood: 0x7a3a1c },
-      frost:   { clay: 0x8fb8cc, stone: 0xc6e2ee, wood: 0x5f7f93 }
+      //  ⚠ **밝기까지 벌린다.** 처음엔 색상만 바꿨더니 부스러기가 알파 0.34~0.42 로
+      //    깔려서 어두운 바닥 위에서 여덟 재료가 거의 같아 보였다(실측: 나란히 찍어 확인).
+      //    낮은 알파에서는 색상(hue)보다 **명도 차이**가 먼저 읽힌다 — 그래서
+      //    모래·뼈는 밝게, 대지·잉걸불은 어둡고 진하게 갈라 놓는다.
+      sand:    { clay: 0xefe0b0, stone: 0xf5ecd2, wood: 0xd8bd7e },   // 아주 밝은 모래
+      rock:    { clay: 0x8b9099, stone: 0xb9c2cc, wood: 0x5f646c },   // 차가운 회색
+      earth:   { clay: 0x6b3f1e, stone: 0x8a6a3f, wood: 0x402a12 },   // 짙은 흙
+      shield:  { clay: 0x9c7a52, stone: 0x39414f, wood: 0x6d5233 },   // 가죽+철
+      bone:    { clay: 0xf2eddc, stone: 0xffffff, wood: 0xcfc7ae },   // 흰 뼈
+      rope:    { clay: 0xd8c08c, stone: 0xe8d9ae, wood: 0x9a7440 },   // 마른 밧줄
+      feather: { clay: 0xe8804f, stone: 0xf0a860, wood: 0x9a6030 },   // 따뜻한 깃
+      ember:   { clay: 0xd8451a, stone: 0xff8c2e, wood: 0x5e2409 },   // 잉걸불
+      frost:   { clay: 0x9fd4ea, stone: 0xe4f6ff, wood: 0x4a7b91 }    // 서리
       // blade — 기본 MAT 그대로(금속). 표에 없으므로 자동으로 원래 색이다.
     },
 

@@ -480,6 +480,112 @@ GAME.TowerShopScene.prototype._buildHeroTab = function () {
 //  4개만 보이던 셈이다.
 //  지금 구조: 슬롯 하위탭(무기/방어구/신발/장신구) + 그 슬롯 8종을 **격자로 전부**
 //  펼친다. 아이콘·이름·가격이 한 화면에 있고, 카드를 누르면 곧바로 구매/교체한다.
+//  ── 세로 스크롤 영역 (2026-08-03 사용자 지시) ────────────────────────────────
+//  > "아이템 단수가 너무 많으면 스크롤 기능을 추가해 … 아이템은 상위 아이템도 계속
+//  >  늘려야하거든"
+//
+//  예전 격자는 행이 늘면 **카드 높이를 나눠 가졌다.** 그래서 단계를 8 → 10 으로
+//  늘리자마자 폰 카드가 28px 로 줄어 글자가 카드를 넘쳐 다음 칸과 겹쳤다(v1.46 실측).
+//  상위 아이템이 앞으로도 계속 늘어난다면 그 구조는 반드시 다시 터진다 —
+//  **카드 크기를 고정하고 넘치는 만큼 스크롤한다.**
+//
+//  ⚠ `layer` 는 컨테이너지만 **좌표계를 안 바꾼다** — (0,0)에서 시작하므로 안에 넣는
+//    표시객체는 절대좌표 그대로 두면 되고, 스크롤은 컨테이너 y 만 움직인다.
+//  ⚠ **마스크는 입력을 안 막는다.** 화면 밖으로 밀려난 카드도 Phaser 는 계속 눌리는
+//    것으로 친다 — 그래서 `tap()` 이 좌표를 직접 검사한다. 이걸 빠뜨리면 목록 위쪽
+//    바깥의 보이지도 않는 카드가 눌린다.
+GAME.TowerShopScene.prototype._scroller = function (x, y, w, h, stateKey) {
+  var self = this;
+  var C = GAME.CONFIG.COLORS;
+  var layer = this.add.container(0, 0);
+  this._body.push(layer);
+
+  var mg = this.make.graphics({ x: 0, y: 0, add: false });
+  mg.fillStyle(0xffffff, 1);
+  mg.fillRect(x, y, w, h);
+  layer.setMask(mg.createGeometryMask());
+  //  ⚠ 겹침 감사(tools/overlap-audit.js)가 읽는다. 마스크는 Phaser 내부 객체라 밖에서
+  //    사각형을 되꺼낼 수가 없어서, **보이는 창을 여기 적어 둔다.** 이게 없으면 감사가
+  //    스크롤로 밀려난(=안 보이는) 카드까지 겹침으로 세어 거짓 실패를 낸다.
+  layer.__clipRect = { x: x, y: y, w: w, h: h };
+  this._body.push({ destroy: function () { mg.destroy(); } });
+
+  //  스크롤 위치는 **씬에 남긴다.** 카드를 고를 때마다 `_buildBody` 가 전부 다시
+  //  그리는데, 위치를 지역변수로 두면 고를 때마다 맨 위로 튕겨 올라가 아래쪽 아이템은
+  //  아예 고를 수가 없게 된다.
+  if (self[stateKey] === undefined) self[stateKey] = 0;
+
+  var inside = function (p) { return p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h; };
+  var api = { layer: layer, max: 0 };
+  api.add = function (o) { layer.add(o); self._body.push(o); return o; };
+
+  //  카드 선택 — **끌어서 스크롤한 손짓과 구분한다.** `pointerdown` 에 바로 반응하면
+  //  목록을 끌어 내리려던 것이 그대로 선택이 되어 폰에서 목록을 못 쓴다.
+  api.tap = function (obj, fn) {
+    var from = null;
+    obj.on('pointerdown', function (p) { from = inside(p) ? { x: p.x, y: p.y } : null; });
+    obj.on('pointerup', function (p) {
+      if (!from) return;
+      var moved = Math.abs(p.x - from.x) + Math.abs(p.y - from.y);
+      from = null;
+      if (moved <= 10 && inside(p)) fn();
+    });
+    return obj;
+  };
+
+  api.finish = function (contentH) {
+    api.max = Math.max(0, contentH - h);
+    self[stateKey] = Math.max(0, Math.min(api.max, self[stateKey]));
+    layer.y = -self[stateKey];
+    if (api.max <= 0) return;          // 다 들어가면 스크롤 장치를 안 만든다
+
+    //  손잡이 — "아래에 더 있다"가 보여야 한다. 없으면 스크롤되는 줄 모른다.
+    var bar = self.add.graphics();
+    self._body.push(bar);
+    var drawBar = function () {
+      var th = Math.max(24, h * (h / contentH));
+      var t = api.max ? (self[stateKey] / api.max) : 0;
+      bar.clear();
+      bar.fillStyle(GAME.UI.COL.border, 0.35);
+      bar.fillRoundedRect(x + w - 5, y, 4, h, 2);
+      bar.fillStyle(C.accent, 0.85);
+      bar.fillRoundedRect(x + w - 5, y + (h - th) * t, 4, th, 2);
+    };
+    drawBar();
+
+    var moveTo = function (v) {
+      self[stateKey] = Math.max(0, Math.min(api.max, v));
+      layer.y = -self[stateKey];
+      drawBar();
+    };
+
+    var onWheel = function (p, over, dx, dy) { if (inside(p)) moveTo(self[stateKey] + dy * 0.5); };
+    self.input.on('wheel', onWheel);
+
+    var drag = null;
+    var onDown = function (p) { if (inside(p)) drag = { y: p.y, at: self[stateKey] }; };
+    var onMove = function (p) {
+      if (!drag) return;
+      if (!p.isDown) { drag = null; return; }
+      moveTo(drag.at - (p.y - drag.y));
+    };
+    var onUp = function () { drag = null; };
+    self.input.on('pointerdown', onDown);
+    self.input.on('pointermove', onMove);
+    self.input.on('pointerup', onUp);
+
+    //  ⚠ 씬 입력 핸들러는 `_body` 파괴로 안 없어진다 — 직접 떼지 않으면 탭을 옮길
+    //    때마다 쌓여서 한 번 굴릴 때 여러 칸씩 튄다.
+    self._body.push({ destroy: function () {
+      self.input.off('wheel', onWheel);
+      self.input.off('pointerdown', onDown);
+      self.input.off('pointermove', onMove);
+      self.input.off('pointerup', onUp);
+    } });
+  };
+  return api;
+};
+
 GAME.TowerShopScene.prototype._buildItemTab = function () {
   var C = GAME.CONFIG.COLORS;
   var self = this;
@@ -517,6 +623,9 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
     var b = GAME.UI.button(self, stc[i].cx, top + stH / 2, stc[i].w, stH,
       s.name + (equipped ? ' ●' : ''), function () {
         self.itemSlot = s.key;
+        //  슬롯이 바뀌면 목록이 통째로 다른 것이므로 **맨 위에서 시작한다.**
+        //  안 되돌리면 무기 목록 밑에서 신발 탭으로 갔을 때 중간부터 보인다.
+        self._itemScrollY = 0;
         self._buildBody();
       }, { fontSize: P ? 12 : 14 });
     b.rect.setStrokeStyle(on ? 2 : 1, on ? C.controller : GAME.UI.COL.borderUi);
@@ -546,8 +655,15 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
   // PC 는 카드가 커서 세로형(아이콘 위 · 글 아래)이 더 읽기 좋다.
   var ncol = P ? 2 : 4, nrow = Math.ceil(list.length / ncol);
   var cgap = P ? 5 : 10;
-  var cardW = (leftW - cgap * (ncol - 1)) / ncol;
-  var cardH = Math.min((gridBottom - gridTop - cgap * (nrow - 1)) / nrow, P ? 58 : 150);
+  //  ⚠ 손잡이가 설 자리(6px)를 빼고 카드 폭을 잡는다 — 안 빼면 오른쪽 카드가 손잡이에
+  //    깔린다. 스크롤이 없는 경우에도 폭을 같게 둔다(슬롯을 옮길 때 카드가 안 들썩인다).
+  var gridW = leftW - 6;
+  var cardW = (gridW - cgap * (ncol - 1)) / ncol;
+  //  ⚠ **높이는 고정이다.** 예전에는 남는 자리를 행 수로 나눴는데, 그러면 단계를
+  //    늘릴 때마다 카드가 얇아져 결국 글자가 넘친다(v1.46 에서 겪었다).
+  var cardH = P ? 58 : 150;
+  var gridH = Math.max(cardH + 4, gridBottom - gridTop);
+  var sc = this._scroller(leftX, gridTop, leftW, gridH, '_itemScrollY');
 
   list.forEach(function (it, i) {
     var cx0 = leftX + (i % ncol) * (cardW + cgap);
@@ -557,8 +673,7 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
     var price = self.src.priceOf(self.char, self.itemSlot, it);
     var afford = self.src.afford(self.char, price, self.itemSlot);
 
-    var g = self.add.graphics();
-    self._body.push(g);
+    var g = sc.add(self.add.graphics());
     g.fillStyle(equipped ? GAME.UI.COL.panelTeal : GAME.UI.COL.surfaceAlt, 1);
     g.fillRoundedRect(cx0, cy0, cardW, cardH, 10);
     // 테두리 세 상태: 고른 것(강조) > 장착 중(진영색) > 평소.
@@ -590,11 +705,10 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
       var lineH = 16;                                    // 13px 글자 + 최소 여백
       var padY = Math.max(1, (cardH - lineH * 2 + 3) / 2);
       var nameY = cy0 + padY, noteY = nameY + lineH;
-      var priceLbl = GAME.UI.label(self, cx0 + cardW - 6, nameY, priceTxt, 13, priceCol, 0)
-        .setOrigin(1, 0);
-      self._body.push(priceLbl);
+      var priceLbl = sc.add(GAME.UI.label(self, cx0 + cardW - 6, nameY, priceTxt, 13, priceCol, 0)
+        .setOrigin(1, 0));
       // 이름은 가격이 차지하고 남은 폭만 쓴다 — 안 그러면 둘이 겹친다.
-      self._body.push(GAME.UI.label(self, tx, nameY,
+      sc.add(GAME.UI.label(self, tx, nameY,
         GAME.TowerShopItems.nameFor(it, self.char.heroKey), 13,
         equipped ? C.accent : C.text, 0).setWordWrapWidth(Math.max(40, tw - priceLbl.width - 8)));
       // 효과 문구 — 이 줄이 사용자가 요구한 "어떤 능력치를 추가해주는지"다.
@@ -603,7 +717,7 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
       //   (사용자 신고). 지금은 값에서 **짧게 다시 만들어**(라벨 축약 + 큰 수 k 표기)
       //   폭 안에 들어가게 한다 — 감추는 대신 줄이는 것이 맞다.
       var noteTxt = GAME.TowerShopItems.noteOf(it, true);
-      self._body.push(GAME.UI.label(self, tx, noteY, noteTxt, 13, C.textDim, 0)
+      sc.add(GAME.UI.label(self, tx, noteY, noteTxt, 13, C.textDim, 0)
         .setWordWrapWidth(tw).setLineSpacing(0));
 
     } else {
@@ -618,28 +732,30 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
       GAME.UI.drawItem(g, self.itemSlot, it.key, cx0 + cardW / 2, iconCy, iconSz);
 
       var flowY = iconCy + iconSz / 2 + 7;
-      var nameLbl = GAME.UI.label(self, cx0 + cardW / 2, flowY,
+      var nameLbl = sc.add(GAME.UI.label(self, cx0 + cardW / 2, flowY,
         GAME.TowerShopItems.nameFor(it, self.char.heroKey), 13,
         equipped ? C.accent : C.text, 0.5)
-        .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(cardW - 8);
-      self._body.push(nameLbl);
-      self._body.push(GAME.UI.label(self, cx0 + cardW / 2, nameLbl.y + nameLbl.height + 3,
+        .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(cardW - 8));
+      sc.add(GAME.UI.label(self, cx0 + cardW / 2, nameLbl.y + nameLbl.height + 3,
         GAME.TowerShopItems.noteOf(it, false), 13, C.textDim, 0.5).setOrigin(0.5, 0).setAlign('center')
         .setWordWrapWidth(cardW - 12));
-      self._body.push(GAME.UI.label(self, cx0 + cardW / 2, cy0 + cardH - 6,
+      sc.add(GAME.UI.label(self, cx0 + cardW / 2, cy0 + cardH - 6,
         priceTxt, 13, priceCol, 0.5).setOrigin(0.5, 1));
     }
 
     // 카드를 누르면 **고르기만 한다.** 사는 것은 아래 확정 막대의 버튼이 한다.
     // (예전엔 카드가 곧 구매였는데, 구경하려고 누른 것이 그대로 결제됐다 — 사용자 신고.)
-    var hit = self.add.rectangle(cx0 + cardW / 2, cy0 + cardH / 2, cardW, cardH, 0xffffff, 0.001)
-      .setInteractive({ useHandCursor: true });
-    hit.on('pointerdown', function () {
+    //  ⚠ `pointerdown` 이 아니라 **누르고 뗀 자리가 거의 같을 때만** 고른다
+    //    (`sc.tap`). 끌어서 스크롤하려던 손짓이 그대로 선택이 되면 폰에서 목록을
+    //    못 쓴다. 화면 밖으로 밀려난 카드가 눌리는 것도 거기서 같이 막는다.
+    var hit = sc.add(self.add.rectangle(cx0 + cardW / 2, cy0 + cardH / 2, cardW, cardH, 0xffffff, 0.001)
+      .setInteractive({ useHandCursor: true }));
+    sc.tap(hit, function () {
       self.itemPick = { slot: self.itemSlot, key: it.key };
       self._buildBody();
     });
-    self._body.push(hit);
   });
+  sc.finish(nrow * cardH + (nrow - 1) * cgap);
 
   // ── 확정 막대 — 고른 것을 실제로 사고 파는 유일한 자리 ──
   var barY = gridBottom + (P ? 4 : 8);

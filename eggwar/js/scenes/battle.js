@@ -705,11 +705,14 @@ GAME.BattleScene.prototype._ultBanner = function (name) {
   g.fillStyle(UI.COL.focus, 0.9); g.fillRect(0, y + h / 2 - 2, W, 2);
 
   //  이름 — 왼쪽 밖에서 들어와 가운데 멈췄다 오른쪽으로 빠진다.
+  //  ⚠ 배너만 **디스플레이 폰트**(검은고딕)를 쓴다. 본문 폰트(Jua)는 둥글고 귀여워서
+  //    "사건"이라는 인상이 안 선다. 없으면 기본 폰트로 조용히 떨어진다.
+  var FD = (GAME.CONFIG.FONT_DISPLAY || GAME.CONFIG.FONT) + ', ' + GAME.CONFIG.FONT;
   var txt = keep(this.add.text(-W * 0.4, y, '★  ' + name + '  ★', {
-    fontFamily: GAME.CONFIG.FONT,
-    fontSize: (SM ? 22 : 30) + 'px',
+    fontFamily: FD,
+    fontSize: (SM ? 24 : 34) + 'px',
     color: GAME.UI.TXT.crit,
-    stroke: '#120b06', strokeThickness: SM ? 5 : 7
+    stroke: '#120b06', strokeThickness: SM ? 6 : 8
   }).setOrigin(0.5).setDepth(9501).setScrollFactor(0));
 
   this.tweens.add({ targets: txt, x: W / 2, duration: 260, ease: 'Back.easeOut' });

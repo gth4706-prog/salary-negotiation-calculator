@@ -306,6 +306,24 @@ GAME.Font = (function () {
   // 같은 도메인에서 주므로 preconnect 가 필요 없다(DNS·TLS 왕복이 아예 없다).
   // `?v=` 는 index.html 이 다른 자산에 붙이는 것과 같은 규칙으로 손으로 올린다 —
   // 여기만 캐시가 남으면 새 글자를 넣어도 옛 폰트가 계속 쓰인다.
+  //  ── 궁극기 배너 전용 디스플레이 폰트 (2026-08-03) ─────────────────────────
+  //  사용자 지시: "타이포그라피처럼 무료생성가능한곳을 찾아서 생성해와"
+  //  Black Han Sans(검은고딕, Zess Type) — **SIL Open Font License 1.1** 이라
+  //  상업적 이용이 된다(이 사이트는 애드센스가 붙는다). 구글 폰트의 `text=` 로
+  //  **실제로 쓰는 112자만** 잘라 받았다 → 14KB.
+  //  ⚠ 본문 폰트(Jua)를 갈아치우지 않는다. 이 폰트는 **궁극기 배너 한 곳**에만 쓴다 —
+  //    무거운 디스플레이 폰트를 전면에 쓰면 작은 글자에서 가독성이 무너진다.
+  //  ⚠ 라이선스 문서(`fonts/OFL.txt`)를 **함께 배포해야 한다**(OFL 요건).
+  //  ⚠ 글자를 더 넣으려면 `?text=` 로 다시 받아야 한다. 없는 글자는 폴백으로 떨어져
+  //    배너만 다른 글씨체가 되어 어색해진다.
+  GAME.CONFIG.FONT_DISPLAY = 'Black Han Sans';
+  var style2 = d.createElement('style');
+  style2.textContent =
+    '@font-face{font-family:"Black Han Sans";' +
+    'src:url("fonts/blackhansans-subset.woff2?v=1.37") format("woff2");' +
+    'font-weight:400;font-style:normal;font-display:swap}';
+  head.appendChild(style2);
+
   var URL = 'fonts/jua-subset.woff2?v=0.65';
   var style = d.createElement('style');
   style.textContent =

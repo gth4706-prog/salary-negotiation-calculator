@@ -1,6 +1,10 @@
 # 폰트 (자체 호스팅)
 
 - `jua-subset.woff2` — 게임이 쓰는 폰트. **Jua 를 서브셋한 것**이고 런타임이 이 파일만 받는다.
+- `blackhansans-subset.woff2` — **궁극기 배너 전용** 디스플레이 폰트.
+  Black Han Sans(검은고딕, Zess Type) 를 구글 폰트 `text=` 로 **실제 쓰는 112자만**
+  잘라 받은 것(14KB). SIL Open Font License 1.1 — 상업적 이용 가능.
+  ⚠ 스킬 이름이 늘면 글자가 모자라 그 글자만 폴백으로 떨어진다. 그때는 다시 받을 것.
 - `OFL.txt` — SIL Open Font License 1.1. **함께 배포해야 한다**(라이선스 요건).
 
 ## 왜 자체 호스팅인가

@@ -698,11 +698,23 @@ GAME.BattleScene.prototype._ultBanner = function (name) {
   function keep(o) { self._ultObjs.push(o); return o; }
 
   //  뒤에 깔리는 띠 — 글자가 전장 위에서도 읽히게.
+  //  ⚠ 검은 띠를 통으로 깔았더니 **글자가 오히려 안 보였다**(사용자 신고).
+  //    어두운 바탕 + 어두운 외곽선이 겹쳐 글자가 배경에 잠긴다.
+  //    그래서 띠를 **가운데만 밝고 양끝으로 사라지는 리본**으로 바꾼다 —
+  //    글자가 앉는 자리만 밝고, 화면 가장자리는 전장이 그대로 보인다.
   var g = keep(this.add.graphics().setDepth(9500).setScrollFactor(0));
-  var h = SM ? 34 : 44;
-  g.fillStyle(0x120b06, 0.72); g.fillRect(0, y - h / 2, W, h);
-  g.fillStyle(UI.COL.focus, 0.9); g.fillRect(0, y - h / 2, W, 2);
-  g.fillStyle(UI.COL.focus, 0.9); g.fillRect(0, y + h / 2 - 2, W, 2);
+  var h = SM ? 40 : 52;
+  var midW = W * 0.62, x0 = (W - midW) / 2;
+  //  중앙 밝은 판(글자가 앉는 자리)
+  g.fillStyle(UI.COL.focus, 0.92);
+  g.fillRect(x0, y - h / 2, midW, h);
+  //  양끝으로 뾰족하게 빠지는 꼬리 — 리본처럼 읽힌다
+  g.fillTriangle(x0, y - h / 2, x0, y + h / 2, x0 - h * 0.9, y);
+  g.fillTriangle(x0 + midW, y - h / 2, x0 + midW, y + h / 2, x0 + midW + h * 0.9, y);
+  //  위아래 잉크선 — 밝은 판이 전장 위에서 뜨지 않게 눌러 준다
+  g.fillStyle(0x120b06, 0.95);
+  g.fillRect(x0 - h * 0.9, y - h / 2 - 3, midW + h * 1.8, 3);
+  g.fillRect(x0 - h * 0.9, y + h / 2, midW + h * 1.8, 3);
 
   //  이름 — 왼쪽 밖에서 들어와 가운데 멈췄다 오른쪽으로 빠진다.
   //  ⚠ 배너만 **디스플레이 폰트**(검은고딕)를 쓴다. 본문 폰트(Jua)는 둥글고 귀여워서
@@ -711,8 +723,10 @@ GAME.BattleScene.prototype._ultBanner = function (name) {
   var txt = keep(this.add.text(-W * 0.4, y, '★  ' + name + '  ★', {
     fontFamily: FD,
     fontSize: (SM ? 24 : 34) + 'px',
-    color: GAME.UI.TXT.crit,
-    stroke: '#120b06', strokeThickness: SM ? 6 : 8
+    //  판이 밝아졌으므로 글자는 **어둡게** 뒤집는다 — 밝은 판 위의 밝은 글자가
+    //  안 보이던 것이 신고의 원인이었다.
+    color: '#1b1208',
+    stroke: '#fff3d6', strokeThickness: SM ? 4 : 5
   }).setOrigin(0.5).setDepth(9501).setScrollFactor(0));
 
   this.tweens.add({ targets: txt, x: W / 2, duration: 260, ease: 'Back.easeOut' });

@@ -202,11 +202,11 @@ GAME.HEROES = {
         { name: '불굴', type: 'buff', motif: 'shield', healNow: 400, shield: 220, duration: 3200, cooldown: 16000, cost: 9000 }
       ],
       R: [
-        { name: '바위 내리치기', type: 'aoeSelf', motif: 'rock', radius: 172, damage: 118, knockback: 110, cooldown: 30000, cost: 0 },
-        { name: '가시 함정', type: 'trap', motif: 'blade', damage: 200, radius: 104, rootMs: 1700, life: 20000, cooldown: 28000, cost: 900 },
-        { name: '낙석 유도', type: 'aoeTarget', motif: 'blade', radius: 140, damage: 48, repeat: 3, interval: 650, telegraph: 700, cooldown: 29000, cost: 250 },
-        { name: '유성 낙하', type: 'aoeTarget', motif: 'blade', radius: 160, damage: 65, repeat: 4, interval: 600, telegraph: 750, cooldown: 31000, cost: 3000 },
-        { name: '대지 붕괴', type: 'aoeSelf', motif: 'earth', radius: 200, damage: 150, knockback: 130, cooldown: 32000, cost: 9000 }
+        { name: '바위 내리치기', type: 'aoeSelf', motif: 'rock', radius: 172, damage: 118, knockback: 110, cooldown: 37500, cost: 0 },
+        { name: '가시 함정', type: 'trap', motif: 'blade', damage: 200, radius: 104, rootMs: 1700, life: 20000, cooldown: 35000, cost: 900 },
+        { name: '낙석 유도', type: 'aoeTarget', motif: 'blade', radius: 140, damage: 48, repeat: 3, interval: 650, telegraph: 700, cooldown: 36250, cost: 250 },
+        { name: '유성 낙하', type: 'aoeTarget', motif: 'blade', radius: 160, damage: 65, repeat: 4, interval: 600, telegraph: 750, cooldown: 38750, cost: 3000 },
+        { name: '대지 붕괴', type: 'aoeSelf', motif: 'earth', radius: 200, damage: 150, knockback: 130, cooldown: 40000, cost: 9000 }
       ]
     }
   },
@@ -263,11 +263,11 @@ GAME.HEROES = {
         { name: '가시 올가미', type: 'trap', motif: 'rope', damage: 65, radius: 70, rootMs: 1800, life: 13000, cooldown: 15000, cost: 9000 }
       ],
       R: [
-        { name: '화살비', type: 'aoeTarget', motif: 'feather', radius: 115, damage: 27, repeat: 3, interval: 700, telegraph: 600, cooldown: 30000, cost: 0 },
-        { name: '폭풍 화살', type: 'aoeTarget', motif: 'feather', radius: 180, damage: 21, repeat: 5, interval: 500, telegraph: 800, cooldown: 32000, cost: 250 },
-        { name: '일격 화살', type: 'projectile', motif: 'feather', damage: 132, speed: 800, pierce: true, radius: 11, cooldown: 28000, cost: 900 },
-        { name: '유성비', type: 'aoeTarget', motif: 'blade', radius: 140, damage: 30, repeat: 4, interval: 550, telegraph: 650, cooldown: 31000, cost: 3000 },
-        { name: '관통 저격', type: 'projectile', motif: 'feather', damage: 170, speed: 850, pierce: true, radius: 12, cooldown: 29000, cost: 9000 }
+        { name: '화살비', type: 'aoeTarget', motif: 'feather', radius: 115, damage: 27, repeat: 3, interval: 700, telegraph: 600, cooldown: 37500, cost: 0 },
+        { name: '폭풍 화살', type: 'aoeTarget', motif: 'feather', radius: 180, damage: 21, repeat: 5, interval: 500, telegraph: 800, cooldown: 40000, cost: 250 },
+        { name: '일격 화살', type: 'projectile', motif: 'feather', damage: 132, speed: 800, pierce: true, radius: 11, cooldown: 35000, cost: 900 },
+        { name: '유성비', type: 'aoeTarget', motif: 'blade', radius: 140, damage: 30, repeat: 4, interval: 550, telegraph: 650, cooldown: 38750, cost: 3000 },
+        { name: '관통 저격', type: 'projectile', motif: 'feather', damage: 170, speed: 850, pierce: true, radius: 12, cooldown: 36250, cost: 9000 }
       ]
     }
   },
@@ -377,11 +377,11 @@ GAME.HEROES = {
         { name: '강철 사슬', type: 'pull', motif: 'rope', coneDeg: 140, dist: 280, damage: 38, cooldown: 15000, cost: 9000 }
       ],
       R: [
-        { name: '파수 구역', type: 'aura', motif: 'shield', radius: 152, dps: 32, duration: 9000, cooldown: 30000, cost: 0 },
-        { name: '경계 화톳불', type: 'aura', motif: 'ember', radius: 210, dps: 22, duration: 12000, cooldown: 32000, cost: 250 },
-        { name: '대지 강타', type: 'aoeSelf', motif: 'earth', radius: 182, damage: 130, knockback: 88, cooldown: 28000, cost: 900 },
-        { name: '지진 강타', type: 'aoeSelf', motif: 'earth', radius: 210, damage: 160, knockback: 100, cooldown: 29000, cost: 3000 },
-        { name: '불굴의 구역', type: 'aura', motif: 'shield', radius: 170, dps: 40, duration: 10000, cooldown: 31000, cost: 9000 }
+        { name: '파수 구역', type: 'aura', motif: 'shield', radius: 152, dps: 32, duration: 9000, cooldown: 37500, cost: 0 },
+        { name: '경계 화톳불', type: 'aura', motif: 'ember', radius: 210, dps: 22, duration: 12000, cooldown: 40000, cost: 250 },
+        { name: '대지 강타', type: 'aoeSelf', motif: 'earth', radius: 182, damage: 130, knockback: 88, cooldown: 35000, cost: 900 },
+        { name: '지진 강타', type: 'aoeSelf', motif: 'earth', radius: 210, damage: 160, knockback: 100, cooldown: 36250, cost: 3000 },
+        { name: '불굴의 구역', type: 'aura', motif: 'shield', radius: 170, dps: 40, duration: 10000, cooldown: 38750, cost: 9000 }
       ]
     }
   }

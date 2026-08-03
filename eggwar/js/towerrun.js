@@ -64,9 +64,23 @@ GAME.TowerRun = {
   //    40층 한 판 538 → **695**.
   GOLD_BASE: 3.1,
   GOLD_RATE: 1.12,
+  //  무릎 층 — 여기까지는 지수로 자라고, 그 뒤로는 GOLD_TAIL 로 거의 눕는다.
+  GOLD_KNEE: 48,
+  GOLD_TAIL: 1.006,
   GOLD_BOSS_MUL: 2.5,
   goldFor: function (floor) {
-    var g = this.GOLD_BASE * Math.pow(this.GOLD_RATE, Math.max(0, floor - 1));
+    //  ── 무릎 (2026-08-03 사용자 신고: "54층에서 1800원을 벌었다") ──────────
+    //  ⚠ 순수 지수는 **후반에 반드시 폭주한다.** 1.12 로 40층 644 · 60층 6,211 —
+    //    20층 만에 10배다. 그 돈이 곧 전투력이라 보스가 따라올 수가 없다
+    //    (이 저장소가 이미 겪은 "고층이 쉬워진다"의 경제 쪽 뿌리다).
+    //  그래서 **무릎 층까지만 지수로 키우고 그 뒤는 거의 눕힌다.**
+    //  성장 자금이 필요한 구간(초·중반)은 그대로 두고, 이미 다 갖춘 뒤로는
+    //  숫자만 커지는 것을 막는다. 사용자 요구: "이 정도 라운드면 600~700원".
+    var kneeF = Math.min(floor, this.GOLD_KNEE);
+    var g = this.GOLD_BASE * Math.pow(this.GOLD_RATE, Math.max(0, kneeF - 1));
+    if (floor > this.GOLD_KNEE) {
+      g *= Math.pow(this.GOLD_TAIL, floor - this.GOLD_KNEE);
+    }
     if (GAME.Tower.isBossFloor && GAME.Tower.isBossFloor(floor)) g *= this.GOLD_BOSS_MUL;
     return Math.round(g);
   },

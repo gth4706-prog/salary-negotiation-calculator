@@ -21,6 +21,10 @@ window.GAME = window.GAME || {};
 //    `GAME.TowerShopItems`(신규, 물약 없음)를 따로 쓴다.
 // ============================================================================
 GAME.TowerChar = {
+  //  쿨감 합계 하한 — 이보다 더 줄지 않는다(0.70 = 최대 30% 감소).
+  //  궁극기 기본 36초 기준 최소 25.2초가 남는다(사용자 요구: "25초는 넘었어야").
+  CDR_FLOOR: 0.70,
+
   KEY: 'asymgame.towerchar.v1',
 
   // ── 스탯 가격표 — TowerRun.STATS 와 **완전히 독립**이다(공유하지 않는다). ──
@@ -346,9 +350,17 @@ GAME.TowerChar = {
       if (it.damageAdd) out.damage += it.damageAdd;
       if (it.speedAdd) out.speed += it.speedAdd;
       if (it.lifestealAdd) out.lifesteal += it.lifestealAdd;
-      if (it.cdrMul) out.cdrMul *= it.cdrMul;
+      if (it.cdrMul) out.cdrMul *= it.cdrMul;   // 곱연산 — 아래에서 상한을 건다
       if (it.luckAdd) out.luck += it.luckAdd;
     }
+    //  ── 쿨감 상한 (2026-08-03 사용자 신고) ────────────────────────────────
+    //  "궁극기 쿨은 10초정도였고 … 25초정도는 넘었어야해"
+    //  ⚠ 쿨감이 **곱연산**이라 겹치면 폭주한다: 장화 0.48 × 무기 0.90 × 장신구 0.80
+    //    = 0.346 → 30초짜리 궁극기가 **10.4초**가 된다(실측, 신고 값과 일치).
+    //    개별 아이템은 "-12%" 처럼 온건해 보이는데 곱하면 -65% 가 되는 것이 함정이다.
+    //  ⚠ 상한을 여기 한 곳에 둔다. 아이템마다 값을 낮추면 새 아이템이 추가될 때마다
+    //    같은 사고가 다시 난다 — 합계에 뚜껑을 씌우는 쪽이 구조적으로 안전하다.
+    out.cdrMul = Math.max(GAME.TowerChar.CDR_FLOOR, out.cdrMul);
     return out;
   },
 

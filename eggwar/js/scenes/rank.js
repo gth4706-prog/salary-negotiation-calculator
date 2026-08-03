@@ -88,7 +88,13 @@ GAME.RankScene.prototype._load = function () {
   }).catch(function (e) {
     // 서버가 죽었거나 아직 분류를 모르는 옛 버전 → 로컬 기록을 그대로 둔다
     if (!self.scene.isActive()) return;
-    self._setNote(GAME.Score.scopeNote(e && e.legacy ? 'legacy' : false));
+    //  ⚠ **왜 안 붙었는지를 화면에 남긴다** (2026-08-03 아이폰 신고).
+    //    예전에는 조용히 로컬로 되돌아가서, 사용자에게는 "그냥 연결이 안 된다"로만
+    //    보이고 원인을 물어볼 수가 없었다. 기기에서 재현되는 실패는 그 기기 화면에
+    //    이유가 떠 있어야 잡을 수 있다 — 나는 그 아이폰에 못 들어간다.
+    var note = GAME.Score.scopeNote(e && e.legacy ? 'legacy' : false);
+    var why = (GAME.Api && GAME.Api.lastError) || (e && e.message);
+    self._setNote(why ? (note + '  ·  서버 연결 실패: ' + why) : note);
   });
 };
 

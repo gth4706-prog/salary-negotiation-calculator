@@ -36,6 +36,16 @@ GAME.Api = {
   _base: null,          // 결정된 주소(한 번 정하면 기억한다)
   _probed: false,
 
+  //  기기에 한 번 기록해 두면 다음 방문부터는 같은 오리진을 안 찔러도 된다.
+  //  (라우트가 생기면 그때 한 번 성공하고 그 뒤로 계속 그쪽을 쓴다.)
+  _loadBase: function () {
+    if (this._base) return;
+    try {
+      var v = GAME.Store.get(this.BASE_KEY, null);
+      if (v === this.SAME_ORIGIN_BASE && this._canSameOrigin()) this._base = v;
+    } catch (e) { /* 저장소가 막혀 있으면 매번 탐색한다 */ }
+  },
+
   //  같은 오리진을 시도할 자격이 있는가 — 실제 사이트 위에서만 의미가 있다.
   _canSameOrigin: function () {
     if (typeof location === 'undefined') return false;
@@ -94,26 +104,61 @@ GAME.Api = {
       return Promise.reject(blocked);
     }
     var self = this;
-    //  ⚠ 응답이 JSON 이 아니면 **그 경로는 없는 것**이다. `/api/*` 라우트가 없으면
-    //    GitHub Pages 가 404 HTML 을 주는데, 그걸 성공으로 읽으면 랭킹이 조용히
-    //    빈 화면이 된다. 그래서 본문까지 확인하고 아니면 폴백한다.
-    function call(base) {
-      return fetch(base + path, opts).then(function (r) {
+    this._loadBase();
+
+    //  ── 타임아웃 (2026-08-03) ────────────────────────────────────────────────
+    //  ⚠ **`fetch` 는 스스로 포기하지 않는다.** 연결이 막히거나 아주 느린 망에서는
+    //    promise 가 영영 안 끝나고, 화면은 '불러오는 중'에서 멈춘 채로 남는다 —
+    //    사용자에게는 그게 곧 "서버에 연결이 안 된다"로 보인다(아이폰 신고).
+    //    실패는 **빨리** 해야 로컬 기록으로라도 되돌아갈 수 있다.
+    //  ⚠ `AbortSignal.timeout()` 은 iOS 16+ 에서만 된다. 고치려는 대상이 구형
+    //    아이폰일 수 있으므로 AbortController + setTimeout 으로 쓴다(iOS 12+).
+    function withTimeout(base, ms) {
+      var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+      var o = {};
+      if (opts) for (var k in opts) if (Object.prototype.hasOwnProperty.call(opts, k)) o[k] = opts[k];
+      if (ctl) o.signal = ctl.signal;
+      var timer = setTimeout(function () { if (ctl) ctl.abort(); }, ms);
+      return fetch(base + path, o).then(function (r) {
+        clearTimeout(timer);
+        //  응답이 JSON 이 아니면 **그 경로는 없는 것**이다. `/api/*` 라우트가 없으면
+        //  GitHub Pages 가 404 HTML 을 주는데, 그걸 성공으로 읽으면 랭킹이 조용히
+        //  빈 화면이 된다. 그래서 본문 형식까지 확인한다.
         var ct = (r.headers && r.headers.get && r.headers.get('content-type')) || '';
-        if (ct.indexOf('json') < 0) throw new Error('non-json:' + r.status);
+        if (ct.indexOf('json') < 0) throw new Error('경로 없음(' + r.status + ')');
         if (!r.ok) return r.json().then(function (j) { throw new Error(j.error || r.status); });
         return r.json();
+      }, function (e) {
+        clearTimeout(timer);
+        throw new Error(e && e.name === 'AbortError' ? '응답 없음(' + ms + 'ms 초과)'
+                                                     : (e && e.message) || '연결 실패');
       });
     }
-    if (this._base) return call(this._base);
-    if (!this._canSameOrigin()) { this._base = this.API_BASE; return call(this._base); }
-    //  같은 오리진 먼저 → 실패하면 예전 주소. 성공한 쪽을 기억해 매번 두 번 찌르지 않는다.
-    return call(this.SAME_ORIGIN_BASE).then(function (v) {
-      self._base = self.SAME_ORIGIN_BASE; return v;
+    function remember(err) { self.lastError = err && err.message ? err.message : String(err); throw err; }
+
+    if (this._base) return withTimeout(this._base, this.TIMEOUT_MS).catch(remember);
+    if (!this._canSameOrigin()) {
+      this._base = this.API_BASE;
+      return withTimeout(this._base, this.TIMEOUT_MS).catch(remember);
+    }
+    //  같은 오리진을 **짧게** 한 번만 찔러 본다. 여기서 오래 기다리면 라우트가 없는
+    //  지금 상태에서 모든 첫 호출이 그만큼 늦어진다(실측: 404 응답까지 0.57초).
+    return withTimeout(this.SAME_ORIGIN_BASE, this.PROBE_MS).then(function (v) {
+      self._base = self.SAME_ORIGIN_BASE;
+      GAME.Store.set(self.BASE_KEY, self.SAME_ORIGIN_BASE);
+      return v;
     }, function () {
-      self._base = self.API_BASE; return call(self.API_BASE);
+      self._base = self.API_BASE;
+      return withTimeout(self.API_BASE, self.TIMEOUT_MS).catch(remember);
     });
   },
+
+  //  ⚠ 값을 크게 잡으면 '멈춘 화면'이 길어지고, 작게 잡으면 느린 망에서 헛되이
+  //    포기한다. 8초는 모바일 3G 왕복(실측 0.7초)의 10배가 넘는 여유다.
+  TIMEOUT_MS: 8000,
+  PROBE_MS: 2500,
+  BASE_KEY: 'asymgame.apibase.v1',
+  lastError: null,
 
   //  지금 어느 경로로 붙었는지 — 화면에 진단을 띄울 때 쓴다.
   activeBase: function () { return this._base || '(아직 결정 안 됨)'; },

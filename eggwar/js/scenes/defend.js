@@ -6,7 +6,27 @@ window.GAME = window.GAME || {};
 GAME.DefendScene = function () {
   Phaser.Scene.call(this, { key: 'Defend' });
 };
-GAME.DefendScene.prototype = Object.create(Phaser.Scene.prototype);
+// ── ⚠ BattleScene 을 **상속한다** (2026-08-03, 치명 결함 수정) ────────────────
+//  사용자 신고: "수성의탑에서 배치도만들고 방어전시작눌러도 시작이 안 된다."
+//
+//  원인: 이 씬은 `Phaser.Scene` 만 상속하면서 전투 렌더는 아래처럼 **한 개씩 손으로**
+//  빌려 쓰고 있었다 — `BattleScene.prototype.draw.call(this)`.
+//  그런데 그 `draw` 는 **BattleScene 에만 있는 보조 메서드**를 부른다:
+//    `_bakeArena` · `_frameDt` · `_drawOrbs` · `_drawHealZones`
+//  DefendScene 에는 그 넷이 없으니 첫 프레임에서 TypeError 가 나고, 그 예외가
+//  Phaser 의 rAF 콜백을 뚫고 나가 **다음 프레임이 예약되지 않는다** → 게임 루프가
+//  통째로 죽는다. 입력도 게임 스텝 안에서 돌기 때문에 같이 멈춘다(새로고침 외 복구 불가).
+//
+//  ⚠ 이건 **다섯 번째로 재발할 구조**였다. `BattleScene.draw` 에 `this._xxx()` 가
+//    하나 추가될 때마다 이 씬이 조용히 죽는다 — 실제로 v0.80 `_drawOrbs`,
+//    v0.81 `_frameDt`, v1.20 `_bakeArena` 로 세 겹이 쌓였다(QA 이분 탐색으로 확인).
+//    그래서 메서드를 네 개 채우는 땜질이 아니라 **프로토타입 체인을 잇는다.**
+//    앞으로 BattleScene 에 무엇이 추가되어도 자동으로 따라온다.
+//
+//  안전한 이유: 이 파일이 `create`·`update`·`init`·`draw`·`drawNumbers`·`showMarker`
+//  를 전부 **직접 정의**하므로 생명주기는 그대로 자기 것이 쓰인다(체인은 정의가
+//  없는 보조 메서드에만 걸린다). index.html 에서 battle.js 가 먼저 로드된다.
+GAME.DefendScene.prototype = Object.create(GAME.BattleScene.prototype);
 GAME.DefendScene.prototype.constructor = GAME.DefendScene;
 
 // ── 폰 가로(820×390) 전용 좌표 — 전투 화면 문법(battle.js 와 같다) ────────────

@@ -57,6 +57,13 @@ GAME.ResultScene.prototype._skipToNextFloor = function () {
   return true;
 };
 
+//  이 결과가 어느 보드의 것인가 — 랭킹 버튼이 맞는 탭을 열게 한다.
+GAME.ResultScene.prototype._rankKind = function () {
+  if (this.defendTower) return 'dtower';
+  if (this.versus) return 'arena';   // ⚠ 대전 보드의 키는 'versus' 가 아니라 'arena' 다(js/score.js KINDS)
+  return 'tower';
+};
+
 GAME.ResultScene.prototype.create = function () {
   // 층 클리어는 화면을 만들지 않고 바로 다음 층 도전 화면으로 넘어간다.
   if (this._skipToNextFloor()) return;
@@ -238,16 +245,24 @@ GAME.ResultScene.prototype.create = function () {
     }, { fontSize: P ? 13 : 14 });
   } else {
     GAME.UI.button(this, W / 2, btnTop + u * 9, bw, u * 6,
-      this.defendTower ? '메뉴로'
-        : (this.versus ? '메뉴로' : (this.defendMode ? '컨트롤러로 도전' : '다른 진형 고르기')),
+      //  ⚠ 아래에 이미 '메뉴' 버튼이 있다. 여기까지 '메뉴로'로 두면 같은 곳으로 가는
+      //    버튼이 두 개가 된다(QA 실측: 대전·수성의 탑 결과 화면). 각 모드에서
+      //    **다음에 할 만한 것**으로 바꾼다.
+      this.defendTower ? '🛡 수성의 탑'
+        : (this.versus ? '⚔ 다시 대전' : (this.defendMode ? '컨트롤러로 도전' : '다른 진형 고르기')),
       function () {
-        self.scene.start((self.defendTower || self.versus) ? 'Menu' : 'Select');
+        if (self.defendTower) { self.scene.start('DefendTower'); return; }
+        if (self.versus) { self.scene.start('Versus'); return; }
+        self.scene.start('Select');
       }, { fontSize: P ? 15 : 16 });
   }
 
   var rc = GAME.Layout.cols(2, { gap: 10, width: bw, left: (W - bw) / 2, pad: 0 });
+  //  ⚠ **방금 한 것의 보드**로 가야 한다. 예전에는 분류를 안 넘겨서 `kindDef(undefined)`
+  //    가 첫 항목(통곡의 탑)으로 떨어졌다 — 대전에서 이겨도 탑 보드가 열렸다.
+  //    `scope:'live'` 도 이제 없는 기간이라 죽은 인자였다(rank.js:26 주석 참조).
   GAME.UI.button(this, rc[0].cx, btnTop + u * 18, rc[0].w, u * 6, '🏆 랭킹', function () {
-    self.scene.start('Rank', { scope: 'live' });
+    self.scene.start('Rank', { kind: self._rankKind(), scope: 'all' });
   }, { fontSize: P ? 15 : 15 });
   GAME.UI.button(this, rc[1].cx, btnTop + u * 18, rc[1].w, u * 6, '메뉴', function () {
     self.scene.start('Menu');
@@ -381,7 +396,7 @@ GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
     : [[(this.defendTower ? '메뉴로' : (this.versus ? '메뉴로'
           : (this.defendMode ? '컨트롤러로 도전' : '다른 진형'))),
         function () { self.scene.start((self.defendTower || self.versus) ? 'Menu' : 'Select'); }],
-       ['🏆 랭킹', function () { self.scene.start('Rank', { scope: 'live' }); }],
+       ['🏆 랭킹', function () { self.scene.start('Rank', { kind: self._rankKind(), scope: 'all' }); }],
        ['메뉴', function () { self.scene.start('Menu'); }]];
   row.forEach(function (o, i) {
     UI.button(self, bc[i].cx, secTop + secH / 2, bc[i].w, secH, o[0], o[1], { fontSize: 15 });

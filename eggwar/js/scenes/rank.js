@@ -84,7 +84,13 @@ GAME.RankScene.prototype._load = function () {
   GAME.Api.board(this.kind, this.scope).then(function (res) {
     if (!self.scene.isActive()) return;
     self._setNote(GAME.Score.scopeNote(true));
-    self._renderRows((res && res.rows) || []);
+    var rows = (res && res.rows) || [];
+    self._renderRows(rows);
+    //  ⚠ **'내 기록' 줄도 같이 갱신해야 한다.** 예전에는 create 때 한 번만 계산해서
+    //    목록은 서버(전체 플레이어)인데 순위는 로컬(이 브라우저) 기준으로 남았다 —
+    //    나보다 높은 사람이 다섯 명 떠 있는데 "1위"라고 적히는 상태였다(QA 실측).
+    //    랭킹 화면에서 '내 순위'가 거짓이면 이 화면의 존재 이유가 무너진다.
+    self._setMy(self._myTextFrom(rows));
   }).catch(function (e) {
     // 서버가 죽었거나 아직 분류를 모르는 옛 버전 → 로컬 기록을 그대로 둔다
     if (!self.scene.isActive()) return;
@@ -92,10 +98,35 @@ GAME.RankScene.prototype._load = function () {
     //    예전에는 조용히 로컬로 되돌아가서, 사용자에게는 "그냥 연결이 안 된다"로만
     //    보이고 원인을 물어볼 수가 없었다. 기기에서 재현되는 실패는 그 기기 화면에
     //    이유가 떠 있어야 잡을 수 있다 — 나는 그 아이폰에 못 들어간다.
+    //  ⚠ 사유를 **덧붙이지 않고 갈아끼운다.** v1.21 에서 뒤에 이어 붙였더니 문구가
+    //    두 줄이 되어 세로 레이아웃에서 제목·탭을 덮었다(QA 실측, 3분류 전부).
+    //    안내줄은 한 줄이라는 전제로 배치돼 있으므로 길이를 늘리면 안 된다.
     var note = GAME.Score.scopeNote(e && e.legacy ? 'legacy' : false);
     var why = (GAME.Api && GAME.Api.lastError) || (e && e.message);
-    self._setNote(why ? (note + '  ·  서버 연결 실패: ' + why) : note);
+    self._setNote(why ? ('서버 연결 실패 — ' + why) : note);
   });
+};
+
+//  서버가 준 순위표에서 내 줄을 찾아 문구를 만든다. 못 찾으면(= 순위권 밖)
+//  값은 로컬 최고 기록으로 보여 주되 **순위는 붙이지 않는다** — 모르는 것을
+//  아는 척하면 안 된다(예전 버그가 정확히 그것이었다).
+GAME.RankScene.prototype._myTextFrom = function (rows) {
+  var me = GAME.Account.current();
+  if (!me) return '로그인하지 않았습니다';
+  var d = GAME.Score.kindDef(this.kind);
+  for (var i = 0; i < (rows || []).length; i++) {
+    if (rows[i] && rows[i].id === me) {
+      return me + ' · ' + d.n + ' ' + Number(rows[i].value).toLocaleString('ko-KR') + d.unit +
+             ' · ' + (i + 1) + '위';
+    }
+  }
+  var mine = GAME.Score.myBest(me, this.kind, this.scope);
+  if (!mine) return me + ' · ' + d.n + ' 기록 없음';
+  return me + ' · ' + d.n + ' ' + mine.value.toLocaleString('ko-KR') + d.unit + ' · 순위권 밖';
+};
+
+GAME.RankScene.prototype._setMy = function (s) {
+  if (this.myLabel && this.myLabel.setText) this.myLabel.setText(s);
 };
 
 GAME.RankScene.prototype._setNote = function (s) {

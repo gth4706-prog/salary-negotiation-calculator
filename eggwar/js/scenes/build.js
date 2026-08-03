@@ -257,17 +257,19 @@ GAME.BuildScene.POP_DIV = 10;
 //    밸런스에 따라가줘"). 정수로 맞추면 궁수(1.5 → 2)처럼 값이 올라가 배치 총량이
 //    달라진다 — 실제로 궁수 도배가 10기에서 8기로 줄었다. 소수를 허용하면
 //    원가 비율이 **그대로** 보존되어 기존 밸런스와 완전히 같아진다.
+//  ⚠ 이제 **표에서 읽는다**(`js/units.js` 의 `pop`). 계산으로 뽑던 시절에는
+//    원가가 10 의 배수가 아니라 소수가 나왔고(궁수 1.5), 사용자가 "구분이 어렵다"고
+//    신고했다. 그래서 유닛 표를 정수 인구에 맞춰 **전면 재조정**하고, 화면은
+//    계산 대신 읽기만 한다 — 두 곳이 갈라질 자리가 없어진다.
 GAME.BuildScene.popOf = function (def) {
-  if (!def || !def.cost) return 0;
-  return def.cost / GAME.BuildScene.POP_DIV;
+  if (!def) return 0;
+  if (typeof def.pop === 'number') return def.pop;
+  return Math.max(1, Math.round((def.cost || 0) / GAME.BuildScene.POP_DIV));
 };
 
 //  화면 표기 — 정수는 그대로, 소수는 한 자리까지(1 · 1.5 · 4.5).
 //  ⚠ toFixed(1) 을 그냥 쓰면 전사가 "1.0명" 이 되어 지저분하다.
-GAME.BuildScene.popText = function (v) {
-  var n = Math.round(v * 10) / 10;
-  return (n % 1 === 0) ? String(n) : n.toFixed(1);
-};
+GAME.BuildScene.popText = function (v) { return String(Math.round(v)); };
 
 //  이 화면에서 유닛 하나가 먹는 값(모드에 따라 인구 또는 원본 비용).
 GAME.BuildScene.prototype._costOf = function (def) {
@@ -275,7 +277,10 @@ GAME.BuildScene.prototype._costOf = function (def) {
 };
 //  이 화면의 총량.
 GAME.BuildScene.prototype._budgetOf = function () {
-  return this.defendTower ? (this.budget / GAME.BuildScene.POP_DIV) : this.budget;
+  //  예산도 같은 척도로. 유닛이 전부 10 의 배수가 되었으므로 나누어떨어진다.
+  return this.defendTower
+    ? Math.round(this.budget / GAME.BuildScene.POP_DIV)
+    : this.budget;
 };
 
 //  이 화면 기준으로 지금까지 쓴 양.
@@ -1654,7 +1659,9 @@ GAME.BuildScene.prototype.redraw = function () {
     // 예전에는 눌러야 경고가 떴다 — 그 왕복이 이 화면에서 가장 흔한 헛수고였다.
     chip.nameTxt.setColor(blocked ? C.textFaint : C.text).setAlpha(blocked ? 0.6 : 1);
     chip.costTxt.setColor(blocked ? C.danger : C.accent).setAlpha(blocked ? 0.85 : 1);
-    chip.countTxt.setVisible(n > 0).setText(n > 0 ? '×' + n : '');
+    //  ⚠ `×2` 배지는 뺐다(2026-08-03 사용자 지시: "괜히 더 헷갈려").
+    //    같은 화면에 인구 숫자가 이미 있어서 두 숫자가 서로 다른 뜻으로 읽혔다.
+    chip.countTxt.setVisible(false).setText('');
 
     // 아이콘 받침 — **몸통이 아이보리 달걀이라 크림색 칩 위에서는 안 보인다.**
     // 전장 바닥색(arenaFill)을 깔아준다. 계란 아트는 원래 그 색 위에서 읽히도록 그려졌다.

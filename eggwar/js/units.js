@@ -24,7 +24,7 @@ lore: '부족의 앞줄에 서기로 한 알. 뒤에 선 동료가 활을 당길
     //   전사는 가장 싸고 가장 많이 깔리는 유닛이라 **진형 전체의 화력 밀도를 사실상 이 값이**
     //   정한다. 컨트롤러가 너무 쉽게 뚫는다는 신고에 대한 가장 직접적인 손잡이다.
     //   체력·방어는 안 올린다 — 더 단단해지면 '오래 걸리는 판'이 되지 '위험한 판'이 안 된다.
-    cost: 10, hp: 240, armor: 30, speed: 135, range: 52, damage: 35, cooldown: 800,
+    cost: 10, pop: 1, hp: 240, armor: 30, speed: 135, range: 52, damage: 35, cooldown: 800,
     attack: 'melee', coneDeg: 90, radius: 13, shape: 'square', weapon: 'bayonet',
     chase: 270, aggro: 210,
     // 달려들기 — 가장 흔한 유닛이라 **압박의 밀도를 정하는 건 사실상 이 값이다.**
@@ -41,7 +41,7 @@ lore: '부족의 앞줄에 서기로 한 알. 뒤에 선 동료가 활을 당길
     key: 'rifleman', name: '궁수', art: 'archer',
 lore: '숲에서 새알을 노리던 사냥꾼. 화살은 곧게 날아가니 길목을 미리 잡아야 맞는다.',
     desc: '단궁. 논타겟 직선 사격이라 보고 피할 수 있다.',
-    cost: 15, hp: 140, armor: 10, speed: 115, range: 330, damage: 38, cooldown: 1300,
+    cost: 20, pop: 2, hp: 187, armor: 10, speed: 115, range: 330, damage: 51, cooldown: 1300,
     attack: 'projectile', projectileSpeed: 240, projectileRadius: 6,
     radius: 11, shape: 'triangle', weapon: 'rifle',
     chase: 150, aggro: 360, spacing: 38,
@@ -62,7 +62,7 @@ lore: '숲에서 새알을 노리던 사냥꾼. 화살은 곧게 날아가니 �
     key: 'grenadier', name: '투석꾼', art: 'slinger',
 lore: '강가의 둥근 돌만 골라 담는 무릿매꾼. 겨눈 자리에 그림자가 지고, 못 피한 것만 부순다.',
     desc: '무릿매로 돌을 날린다. 예고 후 터지는 광역 — 구역을 봉쇄한다.',
-    cost: 25, hp: 120, armor: 5, speed: 95, range: 300, damage: 64, cooldown: 2500,
+    cost: 20, pop: 2, hp: 96, armor: 5, speed: 95, range: 300, damage: 51, cooldown: 2500,
     attack: 'aoe', aoeRadius: 62, telegraph: 900,
     radius: 12, shape: 'diamond', weapon: 'launcher',
     chase: 130, aggro: 330, spacing: 41,
@@ -80,7 +80,7 @@ lore: '강가의 둥근 돌만 골라 담는 무릿매꾼. 겨눈 자리에 그�
     key: 'sniper', name: '투창병', art: 'spearman',
 lore: '한 번 던지면 반드시 박히는 미늘 작살. 대신 다시 던질 때까지 오래 숨을 고른다.',
     desc: '미늘 작살. 던지면 반드시 맞는다. 비싼 대신 회피 불가.',
-    cost: 40, hp: 100, armor: 5, speed: 90, range: 420, damage: 75, cooldown: 3000,
+    cost: 40, pop: 4, hp: 100, armor: 5, speed: 90, range: 420, damage: 75, cooldown: 3000,
     attack: 'targeted', bulletSpeed: 760,
     radius: 11, shape: 'hex', weapon: 'sniperRifle',
     chase: 110, aggro: 440, spacing: 38,
@@ -98,7 +98,7 @@ lore: '한 번 던지면 반드시 박히는 미늘 작살. 대신 다시 던질
     key: 'medic', name: '약초꾼', art: 'herbalist',
 lore: '약초를 씹어 상처에 붙이는 손. 스스로는 안 싸우지만 주변의 알들이 잘 안 깨진다.',
     desc: '약초로 주변 아군을 회복시킨다. 같은 연기가 적에게는 상처가 되어 회복을 막는다.',
-    cost: 30, hp: 130, armor: 10, speed: 105, range: 0, damage: 0, cooldown: 1000,
+    cost: 30, pop: 3, hp: 130, armor: 10, speed: 105, range: 0, damage: 0, cooldown: 1000,
     attack: 'none',
     healRadius: 150, healPerTick: 14, healInterval: 1000,
     radius: 11, shape: 'cross', weapon: 'aidkit',
@@ -123,7 +123,7 @@ lore: '약초를 씹어 상처에 붙이는 손. 스스로는 안 싸우지만 �
     key: 'shieldman', name: '방패병', art: 'shieldman',
 lore: '통나무를 깎아 만든 대방패. 날아오는 것을 대신 받아 뒷줄의 약한 알들을 살린다.',
     desc: '나무 대방패로 아군에게 갈 투사체를 대신 맞는다. 공격력은 낮다.',
-    cost: 25, hp: 420, armor: 45, speed: 100, range: 50, damage: 11, cooldown: 1100,
+    cost: 30, pop: 3, hp: 504, armor: 45, speed: 100, range: 50, damage: 13, cooldown: 1100,
     attack: 'melee', coneDeg: 80,
     intercept: 46,          // 이 반경 안을 지나는 적 투사체를 대신 맞는다
     radius: 15, shape: 'shield', weapon: 'riotShield',
@@ -142,7 +142,7 @@ lore: '통나무를 깎아 만든 대방패. 날아오는 것을 대신 받아 �
     key: 'sergeant', name: '족장', art: 'chieftain',
 lore: '소뿔 투구를 쓰고 앞장서는 우두머리. 그가 보고 있는 동안 부족이 더 세게 친다.',
     desc: '소뿔 투구를 쓴 우두머리. 주변 아군의 공격력을 올린다. 진형의 심장.',
-    cost: 35, hp: 170, armor: 20, speed: 110, range: 240, damage: 21, cooldown: 1500,
+    cost: 30, pop: 3, hp: 146, armor: 20, speed: 110, range: 240, damage: 18, cooldown: 1500,
     attack: 'projectile', projectileSpeed: 260, projectileRadius: 5,
     buffRadius: 190, buffDamageMul: 1.30,
     radius: 12, shape: 'star', weapon: 'pistol',
@@ -161,7 +161,7 @@ lore: '소뿔 투구를 쓰고 앞장서는 우두머리. 그가 보고 있는 �
     key: 'mgnest', name: '쇠뇌 진지', art: 'ballista',
 lore: '통나무로 짜 세운 거치 쇠뇌. 한 발도 못 움직이는 대신 골짜기 끝까지 닿는다.',
     desc: '거치식 연발 쇠뇌. 절대 움직이지 않지만 맵 어디든 닿는다.',
-    cost: 45, hp: 300, armor: 25, speed: 0, range: 0, rangeSpan: true, damage: 28, cooldown: 420,
+    cost: 50, pop: 5, hp: 333, armor: 25, speed: 0, range: 0, rangeSpan: true, damage: 31, cooldown: 420,
     attack: 'projectile', projectileSpeed: 340, projectileRadius: 5,
     radius: 14, shape: 'bunker', weapon: 'mg',
     chase: 0, aggro: 0,       // 고정
@@ -188,7 +188,7 @@ lore: '끈끈한 늪 수액을 단지에 담아 던진다. 맞은 자는 발이 
     //   이제 늪지기는 '거리를 유지하는 것' 자체를 벌준다 — 늪에 걸리면 느려져
     //   전사(135)·방패병 돌진에게 따라잡힌다. 화력(21)은 그대로 — 죽이는 유닛이 아니다.
     //   대신 비용 30→38: 뺑뺑이의 유일한 해답이 싸면 진형이 늪지기만 깔게 된다.
-    cost: 38, hp: 130, armor: 10, speed: 100, range: 390, damage: 19, cooldown: 2200,
+    cost: 40, pop: 4, hp: 137, armor: 10, speed: 100, range: 390, damage: 20, cooldown: 2200,
     attack: 'projectile', projectileSpeed: 210, projectileRadius: 9,
     slowMul: 0.45, slowMs: 3000,
     radius: 12, shape: 'diamond', weapon: 'launcher',
@@ -206,7 +206,7 @@ lore: '끈끈한 늪 수액을 단지에 담아 던진다. 맞은 자는 발이 
     key: 'mine', name: '가시덫', art: 'snaretrap',
 lore: '마른 풀로 덮어둔 뼈 가시 함정. 밟기 전까지는 거기 있는 줄 아무도 모른다.',
     desc: '보이지 않는다. 밟으면 잠깐 뒤 크게 터진다 — 걸어서는 못 벗어난다.',
-    cost: 35, hp: 40, armor: 0, speed: 0, range: 0, damage: 0, cooldown: 999999,
+    cost: 30, pop: 3, hp: 34, armor: 0, speed: 0, range: 0, damage: 0, cooldown: 999999,
     attack: 'none',
     // ── 2026-08-01 · **보이지 않고, 밟으면 예고 뒤에 터진다** (사용자 지시) ───────
     //  "지뢰는 상대방 눈에 안 보이게 하고, 대신 밟으면 피할 수 있는 범위와 시간을

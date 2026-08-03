@@ -7,11 +7,9 @@ GAME.SEED_FORMATIONS = [
   {
     id: 'seed-wall', name: '통나무 방벽', author: 'AI', isAI: true,
     tier: '중예산', budget: 160, v: 2,
-    units: [
-      { type: 'rifleman', nx: 0.24, ny: 0.31 }, { type: 'rifleman', nx: 0.38, ny: 0.33 },
+    units: [ { type: 'rifleman', nx: 0.38, ny: 0.33 },
       { type: 'rifleman', nx: 0.50, ny: 0.33 }, { type: 'rifleman', nx: 0.62, ny: 0.33 },
-      { type: 'rifleman', nx: 0.76, ny: 0.31 },
-      { type: 'bayonet', nx: 0.34, ny: 0.21 }, { type: 'bayonet', nx: 0.50, ny: 0.22 },
+      { type: 'rifleman', nx: 0.76, ny: 0.31 }, { type: 'bayonet', nx: 0.50, ny: 0.22 },
       { type: 'bayonet', nx: 0.66, ny: 0.21 },
       { type: 'shieldman', nx: 0.50, ny: 0.11 },
       { type: 'medic', nx: 0.38, ny: 0.07 }
@@ -24,7 +22,6 @@ GAME.SEED_FORMATIONS = [
       { type: 'rifleman', nx: 0.08, ny: 0.19 }, { type: 'rifleman', nx: 0.15, ny: 0.11 },
       { type: 'rifleman', nx: 0.26, ny: 0.07 }, { type: 'rifleman', nx: 0.74, ny: 0.07 },
       { type: 'rifleman', nx: 0.85, ny: 0.11 }, { type: 'rifleman', nx: 0.92, ny: 0.19 },
-      { type: 'bayonet', nx: 0.50, ny: 0.34 },
       { type: 'grenadier', nx: 0.38, ny: 0.15 }, { type: 'grenadier', nx: 0.62, ny: 0.15 },
       { type: 'sergeant', nx: 0.50, ny: 0.23 },
       { type: 'mine', nx: 0.50, ny: 0.44 }
@@ -34,8 +31,7 @@ GAME.SEED_FORMATIONS = [
     id: 'seed-sniper-nest', name: '투창 언덕', author: 'AI', isAI: true,
     tier: '고예산', budget: 220, v: 2,
     units: [
-      { type: 'sniper', nx: 0.42, ny: 0.07 }, { type: 'sniper', nx: 0.58, ny: 0.07 },
-      { type: 'bayonet', nx: 0.26, ny: 0.32 }, { type: 'bayonet', nx: 0.38, ny: 0.34 },
+      { type: 'sniper', nx: 0.42, ny: 0.07 }, { type: 'sniper', nx: 0.58, ny: 0.07 }, { type: 'bayonet', nx: 0.38, ny: 0.34 },
       { type: 'bayonet', nx: 0.50, ny: 0.35 }, { type: 'bayonet', nx: 0.62, ny: 0.34 },
       { type: 'bayonet', nx: 0.74, ny: 0.32 },
       { type: 'rifleman', nx: 0.32, ny: 0.22 }, { type: 'rifleman', nx: 0.68, ny: 0.22 },
@@ -66,7 +62,6 @@ GAME.SEED_FORMATIONS = [
       { type: 'mgnest', nx: 0.32, ny: 0.17 }, { type: 'mgnest', nx: 0.68, ny: 0.17 },
       { type: 'shieldman', nx: 0.42, ny: 0.30 }, { type: 'shieldman', nx: 0.58, ny: 0.30 },
       { type: 'medic', nx: 0.50, ny: 0.09 },
-      { type: 'bayonet', nx: 0.26, ny: 0.33 },
       { type: 'sergeant', nx: 0.50, ny: 0.22 }
     ]
   }

@@ -64,7 +64,38 @@ var wikiUrl = {
   }
 };
 
-/* 저작권 표기용 원문 링크 — CC BY-SA 는 출처 표시가 조건이다 */
+/* 위키 extracts(explaintext)는 문단 제목을 "== 정의 ==", "=== 어원 ===" 처럼
+   원문 마크업 그대로 준다. 그대로 뿌리면 미완성 화면처럼 보인다.
+   여기서 블록 목록으로 바꿔주고, DOM 생성은 화면 쪽에서 한다(textContent 로만 —
+   위키 본문을 innerHTML 에 넣지 않는다). */
+function wikiRenderBlocks(text) {
+  var out = [];
+  (text || "").split(/\r?\n/).forEach(function (raw) {
+    var line = raw.trim();
+    if (!line) return;
+    /* 여는 등호와 닫는 등호를 따로 잡아 개수가 같을 때만 제목으로 본다.
+       역참조(\1)만 쓰면 "== 이상한 ===" 이 제목 "이상한 =" 으로 잘못 잡힌다. */
+    var m = line.match(/^(=+)\s*(.+?)\s*(=+)$/);
+    if (m && m[1].length === m[3].length && m[1].length >= 2 && m[1].length <= 6) {
+      var title = m[2].trim();
+      if (!title) return;
+      /* 본문 가치가 없는 꼬리 절은 버린다 */
+      if (/^(같이 보기|각주|참고 문헌|참고문헌|외부 링크|외부링크|출처)$/.test(title)) {
+        out.push({ type: "cut" });
+        return;
+      }
+      out.push({ type: "h", level: Math.min(m[1].length, 4), text: title });
+      return;
+    }
+    out.push({ type: "p", text: line });
+  });
+  /* 첫 "cut" 이후는 통째로 잘라낸다 */
+  var stop = -1;
+  for (var i = 0; i < out.length; i++) { if (out[i].type === "cut") { stop = i; break; } }
+  if (stop >= 0) out = out.slice(0, stop);
+  return out;
+}
+
 function wikiSourceUrl(title) {
   return "https://ko.wikipedia.org/wiki/" + encodeURIComponent(title);
 }

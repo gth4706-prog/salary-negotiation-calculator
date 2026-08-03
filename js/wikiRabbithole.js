@@ -19,6 +19,14 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function err(msg) { var e = $("wr-seed-error"); e.textContent = msg; e.hidden = false; }
+  /* 저장소(IndexedDB)는 시크릿 모드·용량 부족·다른 탭 점유 등으로 실패할 수 있다.
+     "왜 안 되는지"를 알려줘야 사용자가 다음 행동을 정할 수 있다. */
+  function storeErrMsg(e, fallback) {
+    var m = (e && e.message) || "";
+    if (m.indexOf("다른 탭") !== -1) return "다른 탭에서 이 도구를 열어두고 있어요. 그 탭을 닫고 새로고침해 주세요.";
+    if (m.indexOf("오래") !== -1) return "브라우저 저장소가 응답하지 않아요. 새로고침하거나 시크릿 모드가 아닌 창에서 열어보세요.";
+    return fallback + " 브라우저 저장 공간이 부족하거나 차단됐을 수 있어요.";
+  }
   function clearErr() { $("wr-seed-error").hidden = true; }
 
   /* 위키는 브라우저 User-Agent 를 쓰므로 Api-User-Agent 로 우리 신원을 밝힌다.
@@ -96,19 +104,34 @@
         return;
       }
       return openArticle(seed);
-    })["catch"](function () {
+    })["catch"](function (e) {
       show("wr-seed");
-      err("받는 중에 문제가 생겼어요. 인터넷 상태를 확인하고 다시 시도해 주세요.");
+      /* 네트워크 실패와 저장소 실패는 사용자가 할 일이 다르다 — 뭉뚱그리지 않는다 */
+      err(navigator.onLine
+        ? storeErrMsg(e, "받는 중에 문제가 생겼어요.")
+        : "받는 도중 인터넷이 끊겼어요. 연결을 확인하고 다시 시도해 주세요.");
     });
   }
 
   /* ---------- 읽기 ---------- */
+  /* 위키 본문은 남이 쓴 텍스트다 — innerHTML 로 넣지 않고 textContent 로만 그린다. */
+  function renderBody(text) {
+    var box = $("wr-body");
+    box.innerHTML = "";
+    wikiRenderBlocks(text).forEach(function (b) {
+      var el = document.createElement(b.type === "h" ? ("h" + (b.level + 1)) : "p");
+      if (b.type === "h") el.className = "wr-h";
+      el.textContent = b.text;
+      box.appendChild(el);
+    });
+  }
+
   function openArticle(title) {
     return wikiStore.getArticle(state.bundleId, title).then(function (a) {
       if (!a) return;
       state.current = title;
       $("wr-title").textContent = a.title;
-      $("wr-body").textContent = a.text;
+      renderBody(a.text);
 
       /* CC BY-SA 는 출처 표시가 조건이다 — 문서마다 원문 링크를 건다 */
       var src = $("wr-source"); src.innerHTML = "";
@@ -123,7 +146,13 @@
       return wikiStore.pushTrail(state.bundleId, a.title).then(function () {
         return renderNext(a.nextTitles || []);
       });
-    }).then(function () { show("wr-read"); });
+    }).then(function () { show("wr-read"); })
+      /* ⚠️ 여기에 catch 가 없으면 저장소가 실패했을 때 화면이 그냥 안 넘어간다 —
+         사용자에겐 "눌렀는데 아무 일도 안 일어남"으로 보인다(2026-08-03 개발 중 실제로 겪음). */
+      ["catch"](function (e) {
+        show("wr-seed");
+        err(storeErrMsg(e, "문서를 여는 데 실패했어요."));
+      });
   }
 
   function renderNext(titles) {
@@ -172,7 +201,7 @@
 
   /* ---------- 궤적 ---------- */
   $("wr-show-trail").addEventListener("click", function () {
-    wikiStore.getTrail(state.bundleId).then(function (rows) {
+    wikiStore.getTrail(state.bundleId)["catch"](function () { return []; }).then(function (rows) {
       var ol = $("wr-trail-list"); ol.innerHTML = "";
       rows.forEach(function (r) {
         var li = document.createElement("li");
@@ -226,7 +255,9 @@
         var del = document.createElement("button");
         del.type = "button"; del.className = "wr-bundle-del"; del.textContent = "삭제";
         del.addEventListener("click", function () {
-          wikiStore.deleteBundle(b0.id).then(listBundles);
+          wikiStore.deleteBundle(b0.id).then(listBundles)["catch"](function (e) {
+            err(storeErrMsg(e, "삭제하지 못했어요."));
+          });
         });
         row.appendChild(open); row.appendChild(del);
         box.appendChild(row);
@@ -242,5 +273,7 @@
     });
   }
 
-  listBundles();
+  listBundles()["catch"](function (e) {
+    err(storeErrMsg(e, "받아둔 굴 목록을 불러오지 못했어요."));
+  });
 })();

@@ -25,7 +25,13 @@
 .wr-bar-fill{height:100%;width:0;background:var(--wr-accent);border-radius:999px;transition:width .25s}
 .wr-prog-text{font-size:13.5px;color:var(--muted);margin:0 0 10px}
 
-.wr-body{white-space:pre-wrap;line-height:1.85;font-size:15.5px;margin:14px 0;color:var(--ink)}
+/* 본문은 이제 문단·제목 엘리먼트로 그려진다(pre-wrap 아님 — wikiRenderBlocks 참고) */
+.wr-body{line-height:1.85;font-size:15.5px;margin:14px 0;color:var(--ink)}
+.wr-body p{margin:0 0 13px}
+.wr-body .wr-h{margin:26px 0 10px;line-height:1.4;color:var(--wr-ink);border-bottom:1px solid var(--wr-line);padding-bottom:6px}
+.wr-body h3.wr-h{font-size:18px}
+.wr-body h4.wr-h{font-size:15.5px;border-bottom:none;padding-bottom:0;color:var(--wr-muted)}
+.wr-body h5.wr-h{font-size:14.5px;border-bottom:none;padding-bottom:0;color:var(--wr-muted)}
 .wr-source{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:16px}
 .wr-next-h{font-size:15px;margin:18px 0 4px}
 

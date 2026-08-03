@@ -2,17 +2,20 @@
    본문은 IndexedDB 에 있으므로 여기서는 HTML/CSS/JS 만 캐시한다.
    ⚠️ 위키 API 응답은 캐시하지 않는다(용량 폭증 + 최신성 혼란).
       오프라인에서 위키 호출이 실패하는 건 정상이고, 화면이 그걸 안내한다. */
-var CACHE = "wr-shell-v0.01";
+/* ⚠️ 배포할 때마다 이 이름과 아래 SHELL 의 ?v= 를 **반드시 함께** 올린다.
+   안 올리면 SW 가 옛 JS 를 계속 서빙해서 고친 게 반영되지 않는다.
+   (2026-08-03 개발 중 실제로 이것 때문에 수정 전 코드가 돌아 오진단할 뻔했다.) */
+var CACHE = "wr-shell-v0.05";
 var SHELL = [
   "./",
   "./index.html",
   "../css/style.css?v=0.14",
-  "../css/wikiRabbithole.css?v=0.01",
+  "../css/wikiRabbithole.css?v=0.05",
   "../js/site.js?v=0.14",
-  "../js/wikiApi.js?v=0.01",
-  "../js/wikiStore.js?v=0.01",
-  "../js/wikiCrawl.js?v=0.01",
-  "../js/wikiRabbithole.js?v=0.01"
+  "../js/wikiApi.js?v=0.05",
+  "../js/wikiStore.js?v=0.05",
+  "../js/wikiCrawl.js?v=0.05",
+  "../js/wikiRabbithole.js?v=0.05"
 ];
 
 self.addEventListener("install", function (e) {

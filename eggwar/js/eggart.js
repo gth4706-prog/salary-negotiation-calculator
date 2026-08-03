@@ -142,8 +142,8 @@ var SM = 10;
     return {
       fillStyle: function () { set(); },
       lineStyle: function (w) { lw = (typeof w === 'number' ? w : 1) + k * 2; g.lineStyle(lw, col, a); },
-      fillCircle: function (x, y, r) { set(); g.fillCircle(x, y, r + k); },
-      strokeCircle: function (x, y, r) { g.strokeCircle(x, y, r); },
+      fillCircle: function (x, y, r) { set(); g.fillEllipse(x, y, (r + k) * 2, (r + k) * 2, SM); },
+      strokeCircle: function (x, y, r) { g.strokeEllipse(x, y, (r) * 2, (r) * 2, SM); },
       fillEllipse: function (x, y, w, h) { set(); g.fillEllipse(x, y, w + k * 2, h + k * 2, SM); },
       strokeEllipse: function (x, y, w, h) { g.strokeEllipse(x, y, w, h, SM); },
       fillRect: function (x, y, w, h) { set(); g.fillRect(x - k, y - k, w + k * 2, h + k * 2); },
@@ -842,7 +842,7 @@ var SM = 10;
       g.fillEllipse(sx, by - r * 0.24, r * 0.96, r * 0.86, SM);
       if (r >= 11) {                                   // 가마
         g.lineStyle(Math.max(0.8, r * 0.055), 0x000000, a * 0.22);
-        g.strokeCircle(sx + lat * r * 0.10, by - r * 0.40, r * 0.17);
+        g.strokeEllipse(sx + lat * r * 0.10, by - r * 0.40, (r * 0.17) * 2, (r * 0.17) * 2, SM);
       }
       return;
     }
@@ -854,10 +854,10 @@ var SM = 10;
       var sox = lat * r * 0.10;
       g.fillStyle(0xfff0b0, a * 0.9);
       if (prof) {
-        g.fillCircle(sx + sox + lat * r * 0.13, sy, Math.max(0.9, r * 0.08));
+        g.fillEllipse(sx + sox + lat * r * 0.13, sy, (Math.max(0.9, r * 0.08)) * 2, (Math.max(0.9, r * 0.08)) * 2, SM);
       } else {
-        g.fillCircle(sx - r * 0.17 + sox, sy, Math.max(0.9, r * 0.075));
-        g.fillCircle(sx + r * 0.17 + sox, sy, Math.max(0.9, r * 0.075));
+        g.fillEllipse(sx - r * 0.17 + sox, sy, (Math.max(0.9, r * 0.075)) * 2, (Math.max(0.9, r * 0.075)) * 2, SM);
+        g.fillEllipse(sx + r * 0.17 + sox, sy, (Math.max(0.9, r * 0.075)) * 2, (Math.max(0.9, r * 0.075)) * 2, SM);
       }
       return;
     }
@@ -865,7 +865,7 @@ var SM = 10;
     if (prof) {                              // ── 옆모습: 눈 하나 + 부리 융기
       var px2 = sx + lat * r * 0.28;
       g.fillStyle(M.eye, a * 0.92);
-      g.fillCircle(px2, ey, Math.max(1, r * 0.105));
+      g.fillEllipse(px2, ey, (Math.max(1, r * 0.105)) * 2, (Math.max(1, r * 0.105)) * 2, SM);
       if (r >= 10) {                         // 실루엣을 뚫고 나오는 작은 코
         g.fillStyle(UI.tint(UI.EGG_STYLE === 'ivory' ? M.shell : M.shellRim, -0.10), a);
         g.fillTriangle(sx + lat * r * 0.52, ey - r * 0.06,
@@ -874,7 +874,7 @@ var SM = 10;
       }
       if (r >= 13) {
         g.fillStyle(0xff9a8a, a * 0.30);
-        g.fillCircle(sx + lat * r * 0.46, ey + r * 0.20, r * 0.13);
+        g.fillEllipse(sx + lat * r * 0.46, ey + r * 0.20, (r * 0.13) * 2, (r * 0.13) * 2, SM);
       }
       return;
     }
@@ -887,12 +887,12 @@ var SM = 10;
     var xL = sx - r * 0.21 + ox + (lat < 0 ? 0 : lat * r * 0.05);
     var xR = sx + r * 0.21 + ox + (lat > 0 ? 0 : lat * r * 0.05);
     g.fillStyle(M.eye, a * 0.92);
-    g.fillCircle(xL, ey, nearIsRight ? rF : rN);
-    g.fillCircle(xR, ey, nearIsRight ? rN : rF);
+    g.fillEllipse(xL, ey, (nearIsRight ? rF : rN) * 2, (nearIsRight ? rF : rN) * 2, SM);
+    g.fillEllipse(xR, ey, (nearIsRight ? rN : rF) * 2, (nearIsRight ? rN : rF) * 2, SM);
     if (r >= 13) {                          // 볼 홍조 — 12세 톤
       g.fillStyle(0xff9a8a, a * 0.30);
-      g.fillCircle(sx - r * 0.40 + ox, ey + r * 0.20, r * 0.13);
-      g.fillCircle(sx + r * 0.40 + ox, ey + r * 0.20, r * 0.13);
+      g.fillEllipse(sx - r * 0.40 + ox, ey + r * 0.20, (r * 0.13) * 2, (r * 0.13) * 2, SM);
+      g.fillEllipse(sx + r * 0.40 + ox, ey + r * 0.20, (r * 0.13) * 2, (r * 0.13) * 2, SM);
     }
   };
 
@@ -920,7 +920,7 @@ var SM = 10;
         if (r >= 10) {
           g.fillStyle(UI.tint(M.bladeDark, 0.22), a);
           g.fillRect(sx - r * 0.46, by - r * 0.62, r * 0.92, Math.max(1, r * 0.08));
-          g.fillCircle(sx, by - r * 0.86, Math.max(1, r * 0.09));
+          g.fillEllipse(sx, by - r * 0.86, (Math.max(1, r * 0.09)) * 2, (Math.max(1, r * 0.09)) * 2, SM);
         }
       } else if (r >= 10) {                  // 코가리개
         g.fillStyle(UI.tint(M.bladeDark, -0.15), a);
@@ -1018,7 +1018,7 @@ var SM = 10;
         g.fillEllipse(sx + r * 0.46, by - r * 0.96, r * 0.58, r * 0.24, SM);
         g.fillEllipse(sx, by - r * 1.08, r * 0.26, r * 0.36, SM);
         g.fillStyle(M.rope, a);
-        g.fillCircle(sx, by - r * 0.70, Math.max(1, r * 0.18));
+        g.fillEllipse(sx, by - r * 0.70, (Math.max(1, r * 0.18)) * 2, (Math.max(1, r * 0.18)) * 2, SM);
       } else {
         g.fillEllipse(sx - r * 0.48, by - r * 1.00, r * 0.62, r * 0.26, SM);
         g.fillEllipse(sx + r * 0.48, by - r * 1.00, r * 0.62, r * 0.26, SM);
@@ -1035,7 +1035,7 @@ var SM = 10;
         if (r >= 10) {
           g.fillStyle(UI.tint(M.iron, 0.20), a);
           g.fillRect(sx - r * 0.40, by - r * 1.02, r * 0.80, Math.max(1, r * 0.09));
-          g.fillCircle(sx, by - r * 0.76, Math.max(1, r * 0.10));
+          g.fillEllipse(sx, by - r * 0.76, (Math.max(1, r * 0.10)) * 2, (Math.max(1, r * 0.10)) * 2, SM);
         }
       } else {
         g.fillStyle(0x14161c, a);
@@ -1078,7 +1078,7 @@ var SM = 10;
         horn(1, 0.84, UI.tint(M.bone, -0.14), 0.22);
         g.fillStyle(M.bronze, a);                         // 뒤통수 잠금쇠
         g.fillRect(sx - r * 0.28, by - r * 0.92, r * 0.56, Math.max(1.2, r * 0.18));
-        g.fillCircle(sx, by - r * 0.56, Math.max(1, r * 0.12));
+        g.fillEllipse(sx, by - r * 0.56, (Math.max(1, r * 0.12)) * 2, (Math.max(1, r * 0.12)) * 2, SM);
       } else {
         dome();
         horn(-1, lat < 0 ? 1.08 : 0.92, M.bone, 0);
@@ -1152,7 +1152,7 @@ var SM = 10;
         g.fillStyle(UI.tint(M.leatherDark, -0.14), a);
         g.fillRoundedRect(sx - r * 0.19, by - r * 0.56, r * 0.38, r * 0.94, r * 0.18);
         g.fillStyle(UI.tint(M.leather, 0.18), a);
-        g.fillCircle(sx, by + r * 0.34, Math.max(1, r * 0.17));
+        g.fillEllipse(sx, by + r * 0.34, (Math.max(1, r * 0.17)) * 2, (Math.max(1, r * 0.17)) * 2, SM);
       } else {                               // 앞·옆 — 짐승 주둥이
         g.fillStyle(UI.tint(M.leatherDark, -0.12), a);
         if (prof) {
@@ -1248,8 +1248,8 @@ var SM = 10;
         g.lineStyle(Math.max(0.9, r * 0.07), UI.tint(color, -0.45), a * 0.8);
         g.lineBetween(sx, by + cTop + r * 0.10, sx, by + r * 0.82);
         g.fillStyle(M.bronze, a);
-        g.fillCircle(sx - r * 0.60, by + r * 0.16, Math.max(1, r * 0.13));
-        g.fillCircle(sx + r * 0.60, by + r * 0.16, Math.max(1, r * 0.13));
+        g.fillEllipse(sx - r * 0.60, by + r * 0.16, (Math.max(1, r * 0.13)) * 2, (Math.max(1, r * 0.13)) * 2, SM);
+        g.fillEllipse(sx + r * 0.60, by + r * 0.16, (Math.max(1, r * 0.13)) * 2, (Math.max(1, r * 0.13)) * 2, SM);
       }
 
     } else if (kind === 'fur') {             // 어깨 털가죽
@@ -1281,7 +1281,7 @@ var SM = 10;
       g.fillStyle(M.leather, a);
       g.fillEllipse(sx + ox * 1.55, by + oy * 1.10 + r * 0.30, r * 0.62, r * 0.56, SM);
       g.fillStyle(M.stone, a);
-      g.fillCircle(sx + ox * 1.55, by + oy * 1.10 + r * 0.12, r * 0.17);
+      g.fillEllipse(sx + ox * 1.55, by + oy * 1.10 + r * 0.12, (r * 0.17) * 2, (r * 0.17) * 2, SM);
     }
   };
 
@@ -1421,8 +1421,7 @@ var SM = 10;
         var sa = sd * 0.05 + si * (Math.PI * 2 / TI.spark);
         var srr = r * (0.42 + 0.20 * ((si % 2) ? 1 : 0.35));
         g.fillStyle(TI.glow, (0.78 + 0.18 * (si % 2)) * a);
-        g.fillCircle(gcx + Math.cos(sa) * srr, gcy + Math.sin(sa) * srr * 0.8,
-                     Math.max(0.8, r * 0.062));
+        g.fillEllipse(gcx + Math.cos(sa) * srr, gcy + Math.sin(sa) * srr * 0.8, (Math.max(0.8, r * 0.062)) * 2, (Math.max(0.8, r * 0.062)) * 2, SM);
       }
     }
 
@@ -1470,9 +1469,9 @@ var SM = 10;
 
     if (kind === 'sword') {                  // 전사 — 짧은 청동검 + 나무 버클러
       var bx = X(0.52, -0.62), byy = Y(0.52, -0.62, 0.02);
-      g.fillStyle(M.wood, a); g.fillCircle(bx, byy, r * 0.50);
-      g.lineStyle(lw(0.09), M.woodDark, a); g.strokeCircle(bx, byy, r * 0.50);
-      g.fillStyle(M.bronze, a); g.fillCircle(bx, byy, r * 0.17);
+      g.fillStyle(M.wood, a); g.fillEllipse(bx, byy, (r * 0.50) * 2, (r * 0.50) * 2, SM);
+      g.lineStyle(lw(0.09), M.woodDark, a); g.strokeEllipse(bx, byy, (r * 0.50) * 2, (r * 0.50) * 2, SM);
+      g.fillStyle(M.bronze, a); g.fillEllipse(bx, byy, (r * 0.17) * 2, (r * 0.17) * 2, SM);
 
       // 자루 — 손 아래로 짧게
       //  atk 가 각도를 바꾼다: -1 머리 위로 치켜듦 → +1 옆으로 후려침
@@ -1486,7 +1485,7 @@ var SM = 10;
       g.lineBetween(hx + swDir.y * r * 0.34, hy - swDir.x * r * 0.34,
                     hx - swDir.y * r * 0.34, hy + swDir.x * r * 0.34);
       g.fillStyle(M.bronze, a);              // 자루 끝 구슬
-      g.fillCircle(hx - swDir.x * r * 0.38, hy - swDir.y * r * 0.38, Math.max(1, r * 0.11));
+      g.fillEllipse(hx - swDir.x * r * 0.38, hy - swDir.y * r * 0.38, (Math.max(1, r * 0.11)) * 2, (Math.max(1, r * 0.11)) * 2, SM);
 
     } else if (kind === 'bow' || kind === 'longbow') {   // 궁수/사냥꾼 — 세로 C
       var big = kind === 'longbow' ? 1.30 : 1.0;
@@ -1506,8 +1505,8 @@ var SM = 10;
       }
       if (tOrn >= 2) {                          // 양 끝 고자 장식
         g.fillStyle(M.bronze, a);
-        g.fillCircle(arc[0].x, arc[0].y, Math.max(0.9, r * 0.10 * tGrd));
-        g.fillCircle(arc[6].x, arc[6].y, Math.max(0.9, r * 0.10 * tGrd));
+        g.fillEllipse(arc[0].x, arc[0].y, (Math.max(0.9, r * 0.10 * tGrd)) * 2, (Math.max(0.9, r * 0.10 * tGrd)) * 2, SM);
+        g.fillEllipse(arc[6].x, arc[6].y, (Math.max(0.9, r * 0.10 * tGrd)) * 2, (Math.max(0.9, r * 0.10 * tGrd)) * 2, SM);
       }
       if (tOrn >= 3) {                          // 활채 바깥으로 뻗은 깃 장식(위·아래)
         g.fillStyle(M.blade, a);
@@ -1549,9 +1548,9 @@ var SM = 10;
       g.strokeEllipse(lxp, lyp, r * 1.44, r * 0.56, SM);
       g.lineBetween(hx, hy, lxp + ss * r * 0.68, lyp + r * 0.06);
       g.fillStyle(M.stone, a);
-      g.fillCircle(lxp + ss * r * 0.72, lyp + r * 0.04, r * 0.26);
+      g.fillEllipse(lxp + ss * r * 0.72, lyp + r * 0.04, (r * 0.26) * 2, (r * 0.26) * 2, SM);
       g.fillStyle(UI.tint(M.stone, 0.35), a);
-      g.fillCircle(lxp + ss * r * 0.66, lyp - r * 0.04, r * 0.09);
+      g.fillEllipse(lxp + ss * r * 0.66, lyp - r * 0.04, (r * 0.09) * 2, (r * 0.09) * 2, SM);
 
     } else if (kind === 'javelin') {         // 투창병 — 몸의 두 배짜리 긴 작살
       var t0x = X(-1.00, 0.34), t0y = Y(-1.00, 0.34, 0.58);
@@ -1581,7 +1580,7 @@ var SM = 10;
       g.fillEllipse(stx - r * 0.24, Y(0.30, 0.66, 1.82), r * 0.50, r * 0.26, SM);
       g.fillEllipse(stx + r * 0.26, Y(0.30, 0.66, 1.74), r * 0.46, r * 0.24, SM);
       g.fillStyle(0xd8f5c8, a * 0.55);       // 은은한 회복 기운
-      g.fillCircle(stx, Y(0.30, 0.66, 1.72), r * 0.30);
+      g.fillEllipse(stx, Y(0.30, 0.66, 1.72), (r * 0.30) * 2, (r * 0.30) * 2, SM);
 
     } else if (kind === 'towerShield') {     // 방패병 — 몸을 가리는 나무 대방패
       // 몸 앞으로 충분히 내밀어야 투구가 방패 위로 보인다(가려버리면 종류를 못 읽는다)
@@ -1594,9 +1593,9 @@ var SM = 10;
       g.lineBetween(cx2 - r * 0.19, cy2 - r * 0.95, cx2 - r * 0.19, cy2 + r * 1.02);
       g.lineBetween(cx2 + r * 0.19, cy2 - r * 0.95, cx2 + r * 0.19, cy2 + r * 1.02);
       g.fillStyle(M.bronze, a);              // 방패 배꼽
-      g.fillCircle(cx2, cy2, r * 0.28);
+      g.fillEllipse(cx2, cy2, (r * 0.28) * 2, (r * 0.28) * 2, SM);
       g.fillStyle(UI.tint(M.bronze, 0.4), a);
-      g.fillCircle(cx2 - r * 0.08, cy2 - r * 0.08, r * 0.10);
+      g.fillEllipse(cx2 - r * 0.08, cy2 - r * 0.08, (r * 0.10) * 2, (r * 0.10) * 2, SM);
 
     } else if (kind === 'handaxe') {         // 족장 — 던지는 손도끼 + 깃대
       var pxp = X(0.05, -0.85);
@@ -1624,8 +1623,8 @@ var SM = 10;
       g.fillRect(jx - r * 0.28, jy - r * 0.58, r * 0.56, r * 0.24);
       g.fillStyle(M.goo, a);                 // 흘러넘치는 수액
       g.fillEllipse(jx, jy - r * 0.52, r * 0.52, r * 0.20, SM);
-      g.fillCircle(jx + r * 0.30, jy + r * 0.06, r * 0.14);
-      g.fillCircle(jx + r * 0.40, jy + r * 0.38, r * 0.10);
+      g.fillEllipse(jx + r * 0.30, jy + r * 0.06, (r * 0.14) * 2, (r * 0.14) * 2, SM);
+      g.fillEllipse(jx + r * 0.40, jy + r * 0.38, (r * 0.10) * 2, (r * 0.10) * 2, SM);
 
     } else if (kind === 'crossbowNest') {    // 쇠뇌 진지 — 통나무 방벽 + 거치 쇠뇌
       g.lineStyle(lw(0.17), M.woodDark, a);
@@ -1636,7 +1635,7 @@ var SM = 10;
       g.lineBetween(X(1.05, -1.10), Y(1.05, -1.10, 0.55), X(0.55, 0), Y(0.55, 0, 0.55));
       g.lineBetween(X(0.55, 0), Y(0.55, 0, 0.55), X(1.05, 1.10), Y(1.05, 1.10, 0.55));
       g.fillStyle(M.bone, a);
-      g.fillCircle(X(1.35, 0), Y(1.35, 0, 0.55), r * 0.16);
+      g.fillEllipse(X(1.35, 0), Y(1.35, 0, 0.55), (r * 0.16) * 2, (r * 0.16) * 2, SM);
 
       // 방벽 — 몸통 아래쪽을 가려 "반쯤 숨은 계란" 실루엣을 만든다
       g.fillStyle(M.wood, a);
@@ -1662,7 +1661,7 @@ var SM = 10;
       g.lineBetween(gsGripX - gsDir.x * r * 0.55, gsGripY - gsDir.y * r * 0.55, gsGripX, gsGripY);
       g.fillStyle(M.bronze, a);              // 자루 끝 구슬
       var gsPomX = gsGripX - gsDir.x * r * 0.62, gsPomY = gsGripY - gsDir.y * r * 0.62;
-      g.fillCircle(gsPomX, gsPomY, Math.max(1.2, r * 0.15 * tGrd));
+      g.fillEllipse(gsPomX, gsPomY, (Math.max(1.2, r * 0.15 * tGrd)) * 2, (Math.max(1.2, r * 0.15 * tGrd)) * 2, SM);
       // 날 — 몸 높이의 2배 남짓. 등급이 오르면 길고 두꺼워진다.
       var gsLen = r * 2.15 * tLen, gsW0 = r * 0.34 * tWide, gsW1 = r * 0.17 * tWide;
       taperBlade(gsGripX + gsDir.x * r * 0.34, gsGripY + gsDir.y * r * 0.34,
@@ -1676,7 +1675,7 @@ var SM = 10;
                     gsGripY - gsPy * gsG + gsDir.y * r * 0.30);
       if (tOrn >= 1) {                       // 자루 끝 보석
         g.fillStyle(M.blade, a);
-        g.fillCircle(gsPomX, gsPomY, Math.max(0.8, r * 0.075 * tGrd));
+        g.fillEllipse(gsPomX, gsPomY, (Math.max(0.8, r * 0.075 * tGrd)) * 2, (Math.max(0.8, r * 0.075 * tGrd)) * 2, SM);
       }
       if (tOrn >= 2) {                       // 날밑 날개 — 위로 젖혀진 두 갈래
         var gsWx = gsGripX + gsDir.x * r * 0.30, gsWy = gsGripY + gsDir.y * r * 0.30;
@@ -1761,10 +1760,10 @@ var SM = 10;
         ], true, true);
       }
       g.fillStyle(M.bronze, a);
-      g.fillCircle(kx, ky - r * 0.10, r * 0.24 * tGrd);
+      g.fillEllipse(kx, ky - r * 0.10, (r * 0.24 * tGrd) * 2, (r * 0.24 * tGrd) * 2, SM);
       if (tOrn >= 1) {                       // 방패 심 보석
         g.fillStyle(M.blade, a);
-        g.fillCircle(kx, ky - r * 0.10, r * 0.11 * tGrd);
+        g.fillEllipse(kx, ky - r * 0.10, (r * 0.11 * tGrd) * 2, (r * 0.11 * tGrd) * 2, SM);
       }
       if (tOrn >= 2) {                       // 위 모서리 두 뿔
         g.fillStyle(M.bronze, a);
@@ -1956,7 +1955,7 @@ var SM = 10;
       // **발 앞쪽**(+PI/2)에 찍는다. 뒤(-PI/2)에 두면 캐릭터 몸통에 가려 하나도 안 보인다(실측).
       var ang = Math.PI / 2 + (i - (lv - 1) / 2) * 0.42;
       g.fillStyle(mat, a * 0.95);
-      g.fillCircle(sx + Math.cos(ang) * rx, sy + Math.sin(ang) * ry, Math.max(1, r * 0.13));
+      g.fillEllipse(sx + Math.cos(ang) * rx, sy + Math.sin(ang) * ry, (Math.max(1, r * 0.13)) * 2, (Math.max(1, r * 0.13)) * 2, SM);
     }
     if (lv >= 5) {                          // 발밑 문양 — 최고 계급만
       g.lineStyle(Math.max(1.2, r * 0.10), mat, a * 0.8);
@@ -2377,10 +2376,10 @@ GAME.UI.drawYolkBurst = function (g, e) {
     var sr = Math.max(1, r * 0.19 * (1 - p * 0.4));
     if (ink !== null) {
       g.fillStyle(ink, 0.7 * (1 - p * p));
-      g.fillCircle(ex, ey, sr + 1.2);
+      g.fillEllipse(ex, ey, (sr + 1.2) * 2, (sr + 1.2) * 2, SM);
     }
     g.fillStyle(M.shell, 0.95 * (1 - p * p));
-    g.fillCircle(ex, ey, sr);
+    g.fillEllipse(ex, ey, (sr) * 2, (sr) * 2, SM);
   }
 
   // ③ 노른자 — 통 튀어올랐다가 지면에 내려앉는다

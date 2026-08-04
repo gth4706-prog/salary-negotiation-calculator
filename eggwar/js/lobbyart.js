@@ -41,6 +41,133 @@ GAME.LobbyArt = {
   // 이 폭보다 좁으면 그리지 않는다(양옆 여백이 안 나온다).
   MIN_W: 1100,
 
+  // ── 표식 (2026-08-04) — 이모지를 대신한다 ────────────────────────────────────
+  //  로비 버튼에 이모지가 박혀 있었다. 그중 `🗼` 의 유니코드 공식 이름은 문자 그대로
+  //  **TOKYO TOWER** 다 — 원시 부족이 뼈와 돌로 싸우는 세계의 탑 이름표에 20세기
+  //  일본의 강철 전파탑이 붙어 있었다. `🏅`(올림픽 메달) · `🔊`(현대 스피커) ·
+  //  `🎵`(서양 음표) · `🏆`(트로피)도 전부 이 세계에 없는 물건이다.
+  //
+  //  이모지는 **어느 게임에나 붙일 수 있는 기성품**이라, 화면에 있으면 "직접 만든 것"이
+  //  아니라 "가져다 붙인 것"으로 읽힌다. 배경을 목책과 능선으로 채운 뒤에는 그 대비가
+  //  더 커졌다 — 세계는 원시 부족인데 버튼만 이모티콘 키보드였다.
+  //
+  //  ⚠ 색은 전부 `UI.MAT` 토큰이다. 테마 4종이 자동으로 따라온다.
+  //  ⚠ 크기 `s` 는 **글자 높이 기준**으로 받는다. 버튼마다 폰트가 달라서 고정 px 로
+  //    두면 어떤 버튼에서는 크고 어떤 버튼에서는 점이 된다.
+  //  ⚠ 분할 수를 반드시 넘긴다(이 저장소 규율 — 안 넘기면 Phaser 기본 32분할이다).
+  mark: function (g, kind, cx, cy, s) {
+    var M = GAME.UI.MAT, L = GAME.UI.LIGHT;
+    var lit = function (c) { return GAME.UI.mix(c, (L && L.key) || 0xfff3d6, 0.35); };
+    var dark = function (c) { return GAME.UI.mix(c, 0x000000, 0.32); };
+
+    if (kind === 'tower') {
+      //  돌을 쌓아 올린 탑 — 위로 갈수록 좁아진다. 통곡의 탑.
+      var rows = 4, i, rw, ry;
+      for (i = 0; i < rows; i++) {
+        rw = s * (0.92 - i * 0.17);
+        ry = cy + s * 0.46 - i * s * 0.27;
+        g.fillStyle(dark(M.stone), 1);
+        g.fillRect(cx - rw / 2, ry - s * 0.13, rw, s * 0.26);
+        g.fillStyle(i % 2 ? M.stone : lit(M.stone), 1);
+        g.fillRect(cx - rw / 2, ry - s * 0.13, rw, s * 0.17);
+      }
+      g.fillStyle(M.bone, 1);                       // 꼭대기 뼈 깃대
+      g.fillRect(cx - s * 0.05, cy - s * 0.72, s * 0.10, s * 0.30);
+      g.fillStyle(M.feather, 1);
+      g.fillTriangle(cx + s * 0.04, cy - s * 0.70, cx + s * 0.40, cy - s * 0.58,
+                     cx + s * 0.04, cy - s * 0.44);
+      return;
+    }
+    if (kind === 'shield') {
+      //  뼈 테를 두른 방패 — 수성의 탑. 조작 버튼의 뼈 테와 같은 문법.
+      var w = s * 0.78, h = s * 0.94;
+      var pts = [
+        { x: cx, y: cy - h * 0.54 }, { x: cx + w * 0.52, y: cy - h * 0.30 },
+        { x: cx + w * 0.52, y: cy + h * 0.16 }, { x: cx, y: cy + h * 0.56 },
+        { x: cx - w * 0.52, y: cy + h * 0.16 }, { x: cx - w * 0.52, y: cy - h * 0.30 }
+      ];
+      g.fillStyle(M.woodDark, 1); g.fillPoints(pts, true);
+      var inn = pts.map(function (p) {
+        return { x: cx + (p.x - cx) * 0.78, y: cy + (p.y - cy) * 0.78 };
+      });
+      g.fillStyle(M.bone, 1); g.fillPoints(inn, true);
+      g.fillStyle(M.bronze, 1); g.fillEllipse(cx, cy - s * 0.02, s * 0.24, s * 0.24, 10);
+      g.fillStyle(lit(M.bronze), 1); g.fillEllipse(cx - s * 0.04, cy - s * 0.06, s * 0.10, s * 0.10, 8);
+      return;
+    }
+    if (kind === 'spears') {
+      //  교차한 뼈창 — 대전. 두 부족이 맞붙는다.
+      var d, k2;
+      for (k2 = 0; k2 < 2; k2++) {
+        d = k2 ? 1 : -1;
+        g.lineStyle(Math.max(1.6, s * 0.11), M.woodDark, 1);
+        g.lineBetween(cx - d * s * 0.46, cy + s * 0.46, cx + d * s * 0.40, cy - s * 0.34);
+        g.fillStyle(M.bone, 1);                     // 뼈 촉
+        g.fillTriangle(cx + d * s * 0.52, cy - s * 0.52,
+                       cx + d * s * 0.22, cy - s * 0.28,
+                       cx + d * s * 0.46, cy - s * 0.14);
+      }
+      g.fillStyle(M.rope, 1);                       // 묶은 자리
+      g.fillEllipse(cx, cy + s * 0.06, s * 0.20, s * 0.14, 8);
+      return;
+    }
+    if (kind === 'banner') {
+      //  깃발 꽂힌 뼈 기둥 — 랭킹. 이긴 자가 꽂는 것이다.
+      g.fillStyle(M.bone, 1);
+      g.fillRect(cx - s * 0.07, cy - s * 0.56, s * 0.14, s * 1.06);
+      g.fillStyle(dark(M.bone), 1);
+      g.fillRect(cx - s * 0.07, cy - s * 0.56, s * 0.05, s * 1.06);
+      g.fillStyle(M.feather, 1);                    // 천
+      g.fillTriangle(cx + s * 0.05, cy - s * 0.52, cx + s * 0.56, cy - s * 0.30,
+                     cx + s * 0.05, cy - s * 0.06);
+      g.fillStyle(M.stone, 1);                      // 발밑 돌무더기
+      g.fillEllipse(cx, cy + s * 0.52, s * 0.62, s * 0.20, 10);
+      return;
+    }
+    if (kind === 'horn') {
+      //  뿔피리 — 소리. `js/music.js` 가 실제로 뿔피리를 연주한다.
+      g.lineStyle(Math.max(2, s * 0.15), M.bone, 1);
+      g.beginPath();
+      g.arc(cx - s * 0.06, cy + s * 0.04, s * 0.40, -0.5, 2.1, false);
+      g.strokePath();
+      g.fillStyle(lit(M.bone), 1);
+      g.fillEllipse(cx + s * 0.30, cy - s * 0.24, s * 0.34, s * 0.28, 10);
+      g.fillStyle(M.rope, 1);
+      g.fillRect(cx - s * 0.34, cy + s * 0.16, s * 0.22, s * 0.09);
+      return;
+    }
+    if (kind === 'drum') {
+      //  북 — 음악. 이 게임의 음악은 북에서 시작한다.
+      g.fillStyle(M.woodDark, 1);
+      g.fillEllipse(cx, cy + s * 0.10, s * 0.86, s * 0.62, 12);
+      g.fillStyle(M.shell, 1);
+      g.fillEllipse(cx, cy - s * 0.06, s * 0.82, s * 0.52, 12);
+      g.lineStyle(Math.max(1.4, s * 0.08), M.rope, 1);
+      g.strokeEllipse(cx, cy - s * 0.06, s * 0.82, s * 0.52, 12);
+      g.fillStyle(M.bone, 1);                       // 북채
+      g.fillRect(cx + s * 0.16, cy - s * 0.56, s * 0.08, s * 0.42);
+      return;
+    }
+    //  egg — 타이틀 옆. 이 게임의 주인공은 계란이다.
+    g.fillStyle(M.shellRim, 1);
+    g.fillEllipse(cx, cy + s * 0.06, s * 0.72, s * 0.92, 14);
+    g.fillStyle(M.shell, 1);
+    g.fillEllipse(cx - s * 0.03, cy + s * 0.02, s * 0.62, s * 0.80, 14);
+    g.fillStyle(lit(M.shell), 1);
+    g.fillEllipse(cx - s * 0.14, cy - s * 0.20, s * 0.20, s * 0.26, 10);
+  },
+
+  //  버튼 라벨 **왼쪽**에 표식을 놓는다. 라벨이 가운데 정렬이라 그 폭에서 역산한다.
+  //  ⚠ 버튼을 만든 **뒤**에 불러야 한다(그때라야 text.width 가 정해진다).
+  markFor: function (scene, btn, kind, depthAbove) {
+    if (!btn || !btn.text) return null;
+    var t = btn.text;
+    var s = (parseInt(t.style && t.style.fontSize, 10) || 18) * 1.15;
+    var g = scene.add.graphics().setDepth((t.depth || 0) + (depthAbove || 0));
+    this.mark(g, kind, t.x - t.width / 2 - s * 0.72, t.y, s);
+    return g;
+  },
+
   // ── 로비 배경 (2026-08-04 사용자: "이 로비배경부터 진행해") ──────────────────
   //  로비는 크림색 단색이었다. 오늘 전장에 넣은 세계의 물건(원경 안개·능선·부족
   //  목책)이 정작 **처음 보는 화면**에는 하나도 없었다 — 게임이 무슨 세계인지

@@ -34,7 +34,13 @@ GAME.MenuScene.prototype.create = function () {
 
   var u = H / 100;
 
-  GAME.UI.label(this, W / 2, u * 12, '🥚 EGG WAR', P ? 28 : 50, C.text, 0.5);
+  var titleTx = GAME.UI.label(this, W / 2, u * 12, 'EGG WAR', P ? 28 : 50, C.text, 0.5);
+  //  타이틀 옆 계란 — 이모지(🥚) 대신 이 게임의 재료로 그린다.
+  if (GAME.LobbyArt) {
+    var tg = this.add.graphics().setDepth((titleTx.depth || 0) + 1);
+    var ts = (P ? 28 : 50) * 1.15;
+    GAME.LobbyArt.mark(tg, 'egg', titleTx.x - titleTx.width / 2 - ts * 0.62, titleTx.y, ts);
+  }
   GAME.UI.label(this, W / 2, u * 18, '계란 부족 비대칭 실시간 대전', P ? 15 : 18, C.textDim, 0.5);
   // 제목 밑 작은 장식 — 간판처럼 보이게. Graphics 라 글자 겹침에 영향이 없다.
   GAME.UI.titleRule(this, W / 2, u * 21, P ? 170 : 240);
@@ -58,8 +64,11 @@ GAME.MenuScene.prototype.create = function () {
   var BH = GAME.UI.BTN_H || 58;            // 설계 px
   var SUB = u * 4.6;                       // 버튼 아래 설명 한 줄이 차지하는 여백
   var by = u * 31 + BH / 2;
-  function modeButton(label, desc, opts, onTap) {
-    GAME.UI.button(self, W / 2, by, bw, BH, label, onTap, opts);
+  //  ⚠ 만든 버튼을 **돌려준다**. 표식(js/lobbyart.js `markFor`)이 라벨 폭을 읽어
+  //    왼쪽에 붙는데, 그러려면 버튼을 만든 뒤의 `text` 를 잡을 수 있어야 한다.
+  function modeButton(label, desc, opts, onTap, mark) {
+    var btn = GAME.UI.button(self, W / 2, by, bw, BH, label, onTap, opts);
+    if (mark && GAME.LobbyArt) GAME.LobbyArt.markFor(self, btn, mark, 1);
     // 설명문은 **위 기준(origin y=0)**으로 버튼 바로 아래에 붙이고, **반드시 한 줄**로 둔다.
     // 두 줄이 되면 아래 버튼을 덮었다(세로에서 3건 실측). 행 간격(SUB)은 한 줄 기준이라
     // 줄이 늘어나는 순간 그만큼 그대로 겹친다 → 넘치면 줄을 늘리지 말고 잘라 넣는다.
@@ -73,31 +82,31 @@ GAME.MenuScene.prototype.create = function () {
     by += BH + SUB;
   }
 
-  modeButton('🗼 통곡의 탑  ' + tower.floor + '층',
+  modeButton('통곡의 탑  ' + tower.floor + '층',
     'AI가 당신을 분석해 배치를 짠다 — ' + (GAME.Tower.EARLY_FLOORS + 1) + '층부터는 조작 없이 못 이긴다' +
     (tower.best ? '   (최고 ' + tower.best + '층)' : ''),
     // line 을 0xf0a86a 로 박아뒀더니 크림 배경에서 1.08:1 로 사라졌다 → focus 토큰(테마별 값)
     { fill: GAME.UI.COL.panelAmber, line: GAME.UI.COL.focus, hover: GAME.UI.COL.panelAmberHi,
       color: C.warn, fontSize: P ? 17 : 21 },
-    function () { self.scene.start('Tower'); });
+    function () { self.scene.start('Tower'); }, 'tower');
 
   // 통곡의 탑 바로 아래 — 전략가판 거울 모드
-  modeButton('🛡 수성의 탑  ' + dtower.floor + '층',
+  modeButton('수성의 탑  ' + dtower.floor + '층',
     '진형으로 영웅을 막아라 — 층이 오를수록 더 센 영웅이 온다' +
     (dtower.best ? '   (최고 ' + dtower.best + '층)' : ''),
     { fill: GAME.UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
       hover: GAME.UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: P ? 17 : 21 },
-    function () { self.scene.start('DefendTower'); });
+    function () { self.scene.start('DefendTower'); }, 'shield');
 
   // 대전 — 이 게임의 본체. 솔로(탑)는 연습장이고 여기가 목적지다.
   // 근거: 페르소나 리포트에서 "겨룰 상대가 없음"이 최대 이탈 사유(11/50)였다.
   var arena = GAME.Arena ? GAME.Arena.get() : null;
   var unseen = GAME.Arena ? GAME.Arena.unseenCount() : 0;
-  modeButton('⚔ 대전' + (arena ? ('   🏅 ' + arena.trophy) : '') + (unseen ? ('   ● ' + unseen) : ''),
+  modeButton('대전' + (arena ? ('   ' + arena.trophy) : '') + (unseen ? ('   ● ' + unseen) : ''),
     '내 진형을 기지로 두고 서로 공격 — 자리를 비운 사이에도 싸운다',
     { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
       hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 17 : 21 },
-    function () { self.scene.start('Versus'); });
+    function () { self.scene.start('Versus'); }, 'spears');
 
   // ── '컨트롤러로 도전' · '전략가로 방어전' 을 뺐다 (2026-07-29, 사용자 지시) ──
   // 다섯 개 모드가 나란히 서 있으니 **무엇부터 눌러야 하는지**가 안 보였다.
@@ -114,7 +123,7 @@ GAME.MenuScene.prototype.create = function () {
   //    남긴 한 줄은 중복이 아니다 — 두 탑과 대전의 **관계**를 말하는 유일한 줄이다.
   var guideY = by + u * 0.6;
   GAME.UI.text(this, W / 2, guideY,
-    '연습이 끝나면 ⚔ 대전에서 사람과 싸운다',
+    '연습이 끝나면 대전에서 사람과 싸운다',
     { size: P ? 'micro' : 'caption', color: C.textDim, origin: 0.5, originY: 0 });
   by = guideY + (P ? 30 : 36);
 
@@ -125,7 +134,7 @@ GAME.MenuScene.prototype.create = function () {
   var ry = by + smallH / 2 - u * 1.4;
   // 랭킹은 3분류(통곡의 탑 / 수성의 탑 / 대전) × 2기간이다.
   // 첫 화면은 **통곡의 탑 · 전체** — 이 게임에서 가장 많이 쌓이는 기록이다.
-  GAME.UI.button(this, rc[0].cx, ry, rc[0].w, smallH, '🏆 랭킹', function () {
+  GAME.UI.button(this, rc[0].cx, ry, rc[0].w, smallH, '랭킹', function () {
     self.scene.start('Rank', { kind: 'tower', scope: 'all' });
   }, { fontSize: P ? 15 : 15 });
   GAME.UI.button(this, rc[1].cx, ry, rc[1].w, smallH, '닉네임 변경', function () {
@@ -162,7 +171,7 @@ GAME.MenuScene.prototype.create = function () {
   if (GAME.Sound) {
     var scol = uAt('sound');
     // 라벨이 짧아졌다 — 세 칸이 되면 '소리 켜짐'은 폭을 넘긴다(세로 420px 기준).
-    var sndLbl = function () { return GAME.Sound.enabled ? '🔊 효과음' : '🔈 효과음'; };
+    var sndLbl = function () { return GAME.Sound.enabled ? '효과음 켜짐' : '효과음 꺼짐'; };
     var sb = GAME.UI.button(this, scol.cx, utilY, scol.w, utilH, sndLbl(), function () {
       GAME.Sound.toggle();
       sb.text.setText(sndLbl());
@@ -172,7 +181,7 @@ GAME.MenuScene.prototype.create = function () {
 
   if (GAME.Music) {
     var mcol = uAt('music');
-    var musLbl = function () { return GAME.Music.enabled ? '🎵 음악' : '🔕 음악'; };
+    var musLbl = function () { return GAME.Music.enabled ? '음악 켜짐' : '음악 꺼짐'; };
     var mb = GAME.UI.button(this, mcol.cx, utilY, mcol.w, utilH, musLbl(), function () {
       GAME.Music.toggle();
       mb.text.setText(musLbl());
@@ -270,7 +279,7 @@ GAME.MenuScene.prototype._buildPhone = function () {
 
   // ── 왼쪽 간판 ──
   var y = 24;
-  var title = UI.text(this, lcx, y, '🥚 EGG WAR',
+  var title = UI.text(this, lcx, y, 'EGG WAR',
     { size: 34, color: C.text, origin: 0.5, originY: 0 });
   y = title.y + title.height + 1;
   var sub = UI.text(this, lcx, y, '계란 부족 비대칭 실시간 대전',
@@ -314,23 +323,26 @@ GAME.MenuScene.prototype._buildPhone = function () {
   var unseen = GAME.Arena ? GAME.Arena.unseenCount() : 0;
 
   // 대전이 이 게임의 목적지다 — 한 줄을 통째로 준다.
-  UI.button(this, rx + rw / 2, r1 + rowH / 2, rw, rowH,
-    '⚔ 대전' + (arena ? ('   🏅 ' + arena.trophy) : '') + (unseen ? ('   ● ' + unseen) : ''),
+  var pbA = UI.button(this, rx + rw / 2, r1 + rowH / 2, rw, rowH,
+    '대전' + (arena ? ('   ' + arena.trophy) : '') + (unseen ? ('   ● ' + unseen) : ''),
     function () { self.scene.start('Versus'); },
     { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
       hover: UI.COL.panelTealHi, color: C.accent, fontSize: 24 });
+  if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, pbA, 'spears', 1);
 
-  UI.button(this, c2[0].cx, r2 + rowH / 2, c2[0].w, rowH,
-    '🗼 통곡의 탑\n' + tower.floor + '층' + (tower.best ? ('  ·  최고 ' + tower.best) : ''),
+  var pbB = UI.button(this, c2[0].cx, r2 + rowH / 2, c2[0].w, rowH,
+    '통곡의 탑\n' + tower.floor + '층' + (tower.best ? ('  ·  최고 ' + tower.best) : ''),
     function () { self.scene.start('Tower'); },
     { fill: UI.COL.panelAmber, line: UI.COL.focus, hover: UI.COL.panelAmberHi,
       color: C.warn, fontSize: 19 });
+  if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, pbB, 'tower', 1);
 
-  UI.button(this, c2[1].cx, r2 + rowH / 2, c2[1].w, rowH,
-    '🛡 수성의 탑\n' + dtower.floor + '층' + (dtower.best ? ('  ·  최고 ' + dtower.best) : ''),
+  var pbC = UI.button(this, c2[1].cx, r2 + rowH / 2, c2[1].w, rowH,
+    '수성의 탑\n' + dtower.floor + '층' + (dtower.best ? ('  ·  최고 ' + dtower.best) : ''),
     function () { self.scene.start('DefendTower'); },
     { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
       hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: 19 });
+  if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, pbC, 'shield', 1);
 
   // ⚠ 여기 있던 설명 세 줄을 **지웠다** (2026-08-01, 사용자: "로비화면도 좀 구려").
   //   "🗼 통곡의 탑은 컨트롤러 연습장 — 영웅 하나로 진형을 뚫는다" 는 바로 위
@@ -338,7 +350,7 @@ GAME.MenuScene.prototype._buildPhone = function () {
   //   글자가 많아질수록 **정작 눌러야 할 버튼이 안 보인다.**
   //   비운 자리는 걸어다니는 계란들(js/lobbyart.js)이 채운다 — 글보다 그림이 낫다.
   UI.text(this, rx + rw / 2, r3 + rowH * 0.16,
-    '연습이 끝나면 ⚔ 대전에서 사람과 싸웁니다',
+    '연습이 끝나면 대전에서 사람과 싸웁니다',
     { size: 'caption', color: C.textDim, origin: 0.5, originY: 0 });
 
   // ── 유틸 줄 ──
@@ -358,7 +370,7 @@ GAME.MenuScene.prototype._buildPhone = function () {
   for (var i = 0; i < slots.length; i++) {
     (function (kind, col) {
       if (kind === 'rank') {
-        UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, '🏆 랭킹', function () {
+        UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, '랭킹', function () {
           self.scene.start('Rank', { kind: 'tower', scope: 'all' });
         }, { fontSize: 17 });
       } else if (kind === 'nick') {
@@ -367,13 +379,13 @@ GAME.MenuScene.prototype._buildPhone = function () {
           self.scene.start('Login');
         }, { fontSize: 16 });
       } else if (kind === 'music') {
-        var musLbl = function () { return GAME.Music.enabled ? '🎵 음악' : '🔕 음악'; };
+        var musLbl = function () { return GAME.Music.enabled ? '음악 켜짐' : '음악 꺼짐'; };
         var mb = UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, musLbl(), function () {
           GAME.Music.toggle();
           mb.text.setText(musLbl());
         }, { fontSize: 16 });
       } else if (kind === 'sound') {
-        var sndLbl = function () { return GAME.Sound.enabled ? '🔊 켜짐' : '🔈 꺼짐'; };
+        var sndLbl = function () { return GAME.Sound.enabled ? '소리 켜짐' : '소리 꺼짐'; };
         var sb = UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, sndLbl(), function () {
           GAME.Sound.toggle();
           sb.text.setText(sndLbl());

@@ -539,23 +539,24 @@ GAME.BattleScene.prototype.create = function () {
 //
 //  자리 잡기가 이 화면의 함정이다. 프로필마다 HUD 가 있는 곳이 다르다:
 //   · PC(1340×900)·세로 비터치 — HUD 는 **아레나 아래**에 있고 화면 맨 위(0~66)가 비어 있다.
-//   · 폰 가로(820×390)·세로 터치 — HUD 가 **화면 맨 위**를 띠로 덮고 '남은 적 N기'와
-//     보스 바가 이미 우상단에 있다. → 그 실측 바닥(hud.bottom) **아래**로 내려간다.
+//     → 그 빈 띠 안에 그대로 둔다. 여기는 전장을 안 가린다.
+//   · 폰 가로(820×390)·세로 터치 — HUD 가 **화면 맨 위**를 띠로 덮고 전장은 그
+//     **바로 아래**에서 시작한다.
 //  두 경우를 한 식으로 쓰면 반드시 한쪽이 겹친다(이 저장소가 반복해서 겪은 사고다).
+//
+//  ── 2026-08-04 · 전장을 가리던 배지를 띠 안으로 올렸다 ──────────────────────
+//  사용자: "전장위에 떠있는 골드와 버튼이 전장을 가려서 불편해 / 골드는 남은적 옆,
+//  상단으로 올려주고". 예전 값은 `hud.bottom + 3` — **전장이 시작되는 바로 그 줄**이라
+//  배지가 전장 오른쪽 위를 통째로 덮고 있었다. 이제 HUD 가 돌려주는 자리
+//  (`hud.goldSlot()` = '남은 적' 글자 왼쪽)에 붙인다.
+//  ⚠ 그 자리는 **글자 폭에 따라 움직인다**(적이 줄면 '남은 적 3기'로 짧아진다).
+//    그래서 배지는 매 프레임 자리를 다시 읽고, 실제로 달라졌을 때만 다시 그린다.
 GAME.BattleScene.prototype._buildGoldHud = function () {
-  var W = GAME.CONFIG.WIDTH;
   var SM = GAME.CONFIG.SMALL;
-  var topHud = GAME.isTouch && (GAME.CONFIG.PORTRAIT || GAME.CONFIG.PHONE);
-  var h = SM ? 28 : 32;
-  var y = topHud
-    ? (this.hud.bottom + 3)                                        // HUD 띠 바로 아래
-    : Math.max(4, Math.round((GAME.Iso.screenRect().y - h) / 2));   // 아레나 위 빈 띠 안
-  this._goldRight = W - (SM ? 12 : 24);
-  this._goldY = y;
-  this._goldH = h;
+  this._goldH = SM ? 28 : 32;
   this._goldG = this.add.graphics().setDepth(8000);
   if (this._goldG.setScrollFactor) this._goldG.setScrollFactor(0);
-  this._goldTxt = GAME.UI.text(this, this._goldRight - 10, y + h / 2, '0', {
+  this._goldTxt = GAME.UI.text(this, 0, 0, '0', {
     size: SM ? 'subhead' : 'num', color: GAME.UI.TXT.crit,
     origin: 1, originY: 0.5, outline: true, lineSpacing: 0
   }).setDepth(8001);
@@ -564,10 +565,31 @@ GAME.BattleScene.prototype._buildGoldHud = function () {
   this._drawGoldBadge();
 };
 
-// 배지 판은 **글자 폭이 바뀔 때만** 다시 그린다(매 프레임 clear+fill 은 낭비다)
+// 배지의 **오른쪽 끝**을 어디에 둘지. 폰/세로 터치는 HUD 띠 안('남은 적' 왼쪽),
+// 그 밖에는 예전처럼 아레나 위 빈 띠.
+GAME.BattleScene.prototype._goldAnchor = function () {
+  var W = GAME.CONFIG.WIDTH, SM = GAME.CONFIG.SMALL, h = this._goldH;
+  var topHud = GAME.isTouch && (GAME.CONFIG.PORTRAIT || GAME.CONFIG.PHONE);
+  if (topHud && this.hud && this.hud.goldSlot) {
+    var s = this.hud.goldSlot();
+    // 글자가 아직 비어 있으면(첫 프레임) 자리가 화면 오른쪽 끝에 붙는다 — 그래도
+    // 띠 **안**이라 전장을 안 가린다. 다음 프레임에 제자리를 찾는다.
+    if (s) return { right: s.right, y: Math.round(s.cy - h / 2) };
+  }
+  return {
+    right: W - (SM ? 12 : 24),
+    y: Math.max(4, Math.round((GAME.Iso.screenRect().y - h) / 2))
+  };
+};
+
+// 배지 판은 **글자 폭이나 자리가 바뀔 때만** 다시 그린다(매 프레임 clear+fill 은 낭비다)
 GAME.BattleScene.prototype._drawGoldBadge = function () {
   var g = this._goldG;
   if (!g || !g.scene) return;
+  var a = this._goldAnchor();
+  this._goldRight = a.right;
+  this._goldY = a.y;
+  this._goldTxt.setPosition(a.right - 10, a.y + this._goldH / 2);
   var tw = Math.ceil(this._goldTxt.width);
   var h = this._goldH, r = h / 2;
   var w = tw + h + 26;                               // 글자 + 동전 아이콘 + 여백
@@ -1746,7 +1768,12 @@ GAME.BattleScene.prototype._updateGoldHud = function (dt) {
     shown = (shown < target) ? Math.min(target, shown + step) : target;
     this._goldShown = shown;
     this._goldTxt.setText(String(shown));
-    if (Math.ceil(this._goldTxt.width) !== this._goldW) this._drawGoldBadge();
+  }
+  // 배지 자리는 '남은 적' 글자 폭을 따라 움직인다(적이 줄면 글자가 짧아진다).
+  // **달라졌을 때만** 다시 그린다 — 매 프레임 clear+fill 은 그 자체가 프레임이다.
+  var a = this._goldAnchor();
+  if (Math.ceil(this._goldTxt.width) !== this._goldW || a.right !== this._goldRight) {
+    this._drawGoldBadge();
   }
 
   if (this._goldPop > 0) {

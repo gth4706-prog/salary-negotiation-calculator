@@ -459,6 +459,20 @@ window.GAME = window.GAME || {};
         }
         return api;
       },
+      // ── 골드 배지가 붙을 자리 ────────────────────────────────────────────
+      //  사용자 요청(2026-08-04): "골드는 남은 적 옆, 상단으로 올려주고".
+      //  예전엔 배지를 HUD 띠 **아래**(= 전장 위)에 뒀는데, 폰 가로는 전장이 이 띠
+      //  바로 아래에서 시작한다 → 배지가 전장 오른쪽 위를 통째로 가렸다.
+      //  ⚠ 폭을 **실측해서** 돌려준다. '남은 적 3기'와 '남은 적 15기'는 폭이 다르고
+      //    적이 줄어들면 매 층 달라진다 — 고정값을 박으면 한쪽이 조용히 겹친다.
+      //  ⚠ 부르는 쪽(battle.js)이 **매 프레임 값을 다시 읽어** 배지를 따라 옮긴다.
+      goldSlot: function () {
+        if (!enemyTxt || !enemyTxt.scene) return null;
+        return {
+          right: Math.round(enemyTxt.x - Math.ceil(enemyTxt.width) - 10),
+          cy: Math.round(enemyTxt.y + Math.max(18, Math.ceil(enemyTxt.height)) / 2)
+        };
+      },
       destroy: function () {
         for (var i = 0; i < objs.length; i++) if (objs[i] && objs[i].destroy) objs[i].destroy();
         objs = [];

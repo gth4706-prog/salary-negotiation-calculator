@@ -120,6 +120,7 @@ GAME.TouchPad.prototype._build = function () {
     });
   })();
   this.objects.push(stickDeco);
+  this.stickDeco = stickDeco;   // 영웅이 다가오면 링·노브와 **같이** 흐려져야 한다
 
   this.stickRing = scene.add.circle(sx, baseY, S.stickR, PAD.ring, fillA)
     .setStrokeStyle(PHONE ? 3 : 2, PAD.ink, lineA).setDepth(900).setScrollFactor(0);
@@ -301,7 +302,8 @@ GAME.TouchPad.prototype._addButton = function (key, x, y, r, label, color, onTap
   text.__padOwner = key;
   cool.__padOwner = key;
 
-  var b = { key: key, circle: circle, text: text, cool: cool, r: r, color: color, label: label };
+  var b = { key: key, circle: circle, text: text, cool: cool, deco: deco,
+            r: r, color: color, label: label };
   this.buttons.push(b);
   this.objects.push(circle, text, cool);
   return b;
@@ -394,8 +396,10 @@ GAME.TouchPad.prototype.hits = function (x, y) {
   return false;
 };
 
-// 쿨다운·조준 상태를 버튼에 반영
-GAME.TouchPad.prototype.refresh = function () {
+// 쿨다운·조준 상태를 버튼에 반영.
+// dtMs 를 받으면 '영웅이 가까이 오면 흐려지는' 알파를 그 시간만큼만 움직인다
+// (프레임 밖에서 부르는 경우 — 버튼 탭 직후 등 — 은 안 받는다 = 즉시 반영).
+GAME.TouchPad.prototype.refresh = function (dtMs) {
   var h = this.hero;
   var PAD = GAME.TouchPad.palette();
   for (var i = 0; i < this.buttons.length; i++) {
@@ -421,20 +425,90 @@ GAME.TouchPad.prototype.refresh = function () {
       // 0.1초 단위 숫자를 **라벨 대신** 띄운다. 66px 원에 이름과 숫자를 같이 넣으면
       // 둘 다 못 읽는다 — 쿨 중에는 남은 시간이 유일하게 필요한 정보다.
       b.text.setText((left / 1000).toFixed(1));
-      b.text.setAlpha(0.95);
+      b._ta = 0.95;
       b.text.setColor(GAME.CONFIG.COLORS.text);
       b.circle.setFillStyle(PAD.face, 0.55);
     } else {
       // 다 돌면 **흰 원**. 색으로 "지금 쓸 수 있다"를 말한다.
       if (b.text.text !== b.label) b.text.setText(b.label);
-      b.text.setAlpha(1);
+      b._ta = 1;
       // 흰 원 위에서는 밝은 글자가 사라진다 — 잉크색으로 뒤집는다.
       b.text.setColor('#2b2418');
       b.circle.setFillStyle(PAD.readyFace, 0.92);
     }
   }
   var pot = this._find('POTION');
-  if (pot) pot.text.setAlpha(h.potionCharges > 0 ? 1 : 0.3);
+  if (pot) pot._ta = (h.potionCharges > 0 ? 1 : 0.3);
+  this._applyFade(dtMs);
+};
+
+// ── 영웅이 다가오면 조작부가 비켜 준다 ────────────────────────────────────────
+//  사용자(2026-08-04): "버튼이 전장을 가려서 불편해 / 캐릭터가 가까이오면
+//  불투명도를 크게주는 방식으로".
+//
+//  버튼은 화면 아래 두 모서리에 **고정**인데 전장은 그 아래까지 이어진다. 영웅이
+//  그리로 걸어 들어가면 자기 몸이 버튼 뒤에 숨는다 — 회피 게임에서 가장 나쁜 순간이
+//  하필 조작부 뒤에서 벌어진다.
+//
+//  ⚠ **판정은 안 건드린다.** 흐려질 뿐 누르면 그대로 눌린다. 안 보인다고 못 누르게
+//    만들면 "가까이 갔더니 스킬이 안 나간다"가 된다 — 가리는 것보다 나쁜 버그다.
+//  ⚠ **손이 쓰고 있는 것은 안 흐린다**: 스틱을 잡고 있는 동안, 그리고 조준 대기
+//    중인 버튼(armedSkill)은 지금 눈으로 보고 있는 물건이다.
+//  ⚠ 알파는 프레임마다 **한 걸음씩** 따라간다. 즉시 바꾸면 영웅이 경계 위에서
+//    흔들릴 때 버튼이 깜빡인다(같은 종류의 사고를 쿨다운 표시에서 이미 겪었다).
+GAME.TouchPad.FADE = {
+  near: 1.7,    // 버튼 반지름 배수 — 이 안이면 가장 흐리다
+  far: 3.6,     // 이 밖이면 원래대로
+  min: 0.20,    // 완전히 지우지는 않는다 — 어디에 있는지는 계속 보여야 한다
+  rate: 0.006   // ms 당 알파 변화 한계(≈170ms 에 0→1)
+};
+
+GAME.TouchPad.prototype._applyFade = function (dtMs) {
+  var F = GAME.TouchPad.FADE;
+  var h = this.hero, i, b;
+  // 영웅 화면 좌표 — x 는 그대로, y 만 기울여 투영한다(js/iso.js)
+  var hx = 0, hy = 0, live = !!(h && h.alive);
+  if (live) { hx = h.x; hy = GAME.Iso.toScreenY(h.y); }
+  var step = (dtMs === undefined) ? 1 : Math.min(1, dtMs * F.rate);
+
+  function toward(cur, want) {
+    if (cur === undefined) return want;
+    var d = want - cur;
+    if (d > step) return cur + step;
+    if (d < -step) return cur - step;
+    return want;
+  }
+  function wantFor(cx, cy, r, exempt) {
+    if (!live || exempt) return 1;
+    var dx = hx - cx, dy = hy - cy;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    var n = r * F.near, f = r * F.far;
+    if (d <= n) return F.min;
+    if (d >= f) return 1;
+    return F.min + (1 - F.min) * ((d - n) / (f - n));
+  }
+
+  for (i = 0; i < this.buttons.length; i++) {
+    b = this.buttons[i];
+    var armed = this.ctrl && this.ctrl.armedSkill === b.key;
+    b._fade = toward(b._fade, wantFor(b.circle.x, b.circle.y, b.r, armed));
+    var fa = b._fade;
+    b.circle.setAlpha(fa);
+    b.text.setAlpha((b._ta === undefined ? 1 : b._ta) * fa);
+    b.cool.setAlpha(fa);
+    if (b.deco) b.deco.setAlpha(fa);
+  }
+
+  // 스틱 — 화면에서 가장 넓은 자리를 차지한다. 잡고 있는 동안은 그대로 둔다.
+  if (this.stickRing) {
+    var held = !!this.stick.active;
+    this._stickFade = toward(this._stickFade,
+      wantFor(this.stick.homeX, this.stick.homeY, this.stickRing.radius, held));
+    var sa = this._stickFade;
+    this.stickRing.setAlpha(sa);
+    this.stickKnob.setAlpha(sa);
+    if (this.stickDeco) this.stickDeco.setAlpha(sa);
+  }
 };
 
 // 이 슬롯 스킬의 전체 쿨다운(ms). skillCd 에 들어가는 값과 같은 기준이어야
@@ -455,7 +529,7 @@ GAME.TouchPad.prototype._find = function (key) {
 
 // 매 프레임 — 스틱 입력을 영웅 이동으로 바꾼다
 GAME.TouchPad.prototype.update = function (dtMs) {
-  this.refresh();
+  this.refresh(dtMs);
   var h = this.hero;
   if (!h.alive || h.rootedFor > 0) return false;
   var dx = this.stick.dx, dy = this.stick.dy;

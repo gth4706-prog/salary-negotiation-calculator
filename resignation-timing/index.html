@@ -130,5 +130,10 @@
 
 <script src="../js/site.js?v=0.05"></script>
 <script src="../js/resignation.js?v=0.08"></script>
+<!-- Cloudflare Web Analytics — 쿠키를 쓰지 않고 개인을 식별하지 않는다.
+     이 토큰은 공개 페이지에 심으라고 만들어진 클라이언트 식별자다(비밀값 아님).
+     ⚠️ 자동 설치(auto_install)가 켜져 있었지만 실제로는 비콘이 주입되지 않아
+        수집이 0이었다(2026-08-05 확인). 그래서 직접 심는다. -->
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "07ab6490a09d417bbe1bf83ef9780218"}'></script>
 </body>
 </html>

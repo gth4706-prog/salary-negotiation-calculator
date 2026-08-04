@@ -55,7 +55,7 @@
     </ul>
 
     <h2>4. 분석 도구</h2>
-    <p>서비스는 방문 통계 분석을 위해 Google Analytics 등 분석 도구를 사용할 수 있으며, 이 경우 쿠키를 통해 비식별 이용 통계가 수집됩니다.</p>
+    <p>서비스는 방문 통계 분석을 위해 <strong>Cloudflare Web Analytics</strong>를 사용합니다. 이 도구는 <strong>쿠키를 사용하지 않고</strong> 이용자를 개인적으로 식별하지 않으며, 방문한 페이지·유입 경로·브라우저 종류 같은 <strong>비식별 통계</strong>만 집계합니다. 이용자를 여러 사이트에 걸쳐 추적하지 않습니다. 자세한 내용은 Cloudflare의 개인정보 정책을 따릅니다.</p>
 
     <h2>5. 개인정보의 제3자 제공</h2>
     <p>서비스는 이용자가 입력한 연봉 정보를 제3자에게 제공하지 않습니다. 앞서 안내한 광고·분석 사업자의 쿠키 기반 정보는 각 사업자의 정책에 따라 처리됩니다.</p>
@@ -73,5 +73,10 @@
   <div class="cp">참고용 지표이며 법적 효력이 없습니다. © 각잡살림</div>
 </div></footer>
 <script src="js/site.js"></script>
+<!-- Cloudflare Web Analytics — 쿠키를 쓰지 않고 개인을 식별하지 않는다.
+     이 토큰은 공개 페이지에 심으라고 만들어진 클라이언트 식별자다(비밀값 아님).
+     ⚠️ 자동 설치(auto_install)가 켜져 있었지만 실제로는 비콘이 주입되지 않아
+        수집이 0이었다(2026-08-05 확인). 그래서 직접 심는다. -->
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "07ab6490a09d417bbe1bf83ef9780218"}'></script>
 </body>
 </html>

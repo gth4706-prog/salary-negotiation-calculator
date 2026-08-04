@@ -6,7 +6,7 @@
    ========================================================= */
 window.CARD_TOOLS = [
   {
-    id:"salary-calculator", emoji:"🧭", color:"#0E7C5A", ink:"#0B2239", paper:"#F4F7FA",
+    id:"salary-calculator", no:"01", emoji:"🧭", color:"#0E7C5A", ink:"#0B2239", paper:"#F4F7FA",
     name:"이직 연봉 협상 계산기",
     hook:"제안받은 연봉,\n올린 게 맞나?",
     sub:"인상률만 보면 손해볼 수 있어요",
@@ -18,7 +18,7 @@ window.CARD_TOOLS = [
     ]
   },
   {
-    id:"room-planner", emoji:"📦", color:"#2E6F9E", ink:"#16302B", paper:"#F2F5F3",
+    id:"room-planner", no:"04", emoji:"📦", color:"#2E6F9E", ink:"#16302B", paper:"#F2F5F3",
     name:"방 가구 배치 시뮬레이터",
     hook:"이 침대,\n내 방에 들어갈까?",
     sub:"사기 전에 놓아보세요",
@@ -30,7 +30,7 @@ window.CARD_TOOLS = [
     ]
   },
   {
-    id:"resignation-timing", emoji:"📅", color:"#D23B30", ink:"#23304F", paper:"#F7F6F2",
+    id:"resignation-timing", no:"02", emoji:"📅", color:"#D23B30", ink:"#23304F", paper:"#F7F6F2",
     name:"퇴사 타이밍 계산기",
     hook:"퇴사, 언제 해야\n다 챙길까?",
     sub:"퇴직금과 연차수당 둘 다",
@@ -42,7 +42,7 @@ window.CARD_TOOLS = [
     ]
   },
   {
-    id:"couple-referee", emoji:"⚖️", color:"#7B2B33", ink:"#2A1A12", paper:"#F7F2E8",
+    id:"couple-referee", no:"05", emoji:"⚖️", color:"#7B2B33", ink:"#2A1A12", paper:"#F7F2E8",
     name:"커플 재판",
     hook:"누가 잘못했는지\n재판관 5명이 판정",
     sub:"성향이 다 다릅니다",
@@ -54,7 +54,7 @@ window.CARD_TOOLS = [
     ]
   },
   {
-    id:"minecraft-seeds", emoji:"⛏️", color:"#5FA441", ink:"#EFECE0", paper:"#2B2B26",
+    id:"minecraft-seeds", no:"08", emoji:"⛏️", color:"#5FA441", ink:"#EFECE0", paper:"#2B2B26",
     name:"마인크래프트 시드 추천기",
     hook:"어떤 시드로\n시작할까?",
     sub:"질문 네 개면 끝",
@@ -66,7 +66,7 @@ window.CARD_TOOLS = [
     ]
   },
   {
-    id:"fishing-tide", emoji:"🎣", color:"#FF4B3E", ink:"#F4F7FA", paper:"#071E33",
+    id:"fishing-tide", no:"06", emoji:"🎣", color:"#FF4B3E", ink:"#F4F7FA", paper:"#071E33",
     name:"낚시 물때 가이드",
     hook:"어디로, 몇 시에\n가야 할까?",
     sub:"물때를 모르면 시간만 버려요",
@@ -78,7 +78,7 @@ window.CARD_TOOLS = [
     ]
   },
   {
-    id:"map-archery", emoji:"🏹", color:"#B23A2E", ink:"#2E2418", paper:"#F0E9DA",
+    id:"map-archery", no:"07", emoji:"🏹", color:"#B23A2E", ink:"#2E2418", paper:"#F0E9DA",
     name:"여행지 활쏘기",
     hook:"어디 갈지 못 정했으면\n활로 정해요",
     sub:"도는 지도에 화살을 쏩니다",
@@ -90,7 +90,7 @@ window.CARD_TOOLS = [
     ]
   },
   {
-    id:"wiki-rabbithole", emoji:"🕳", color:"#2F6F4E", ink:"#241F17", paper:"#F4F0E6",
+    id:"wiki-rabbithole", no:"09", emoji:"🕳", color:"#2F6F4E", ink:"#241F17", paper:"#F4F0E6",
     name:"위키 토끼굴",
     hook:"비행기에서\n읽을 게 떨어졌다면",
     sub:"미리 받아두세요",
@@ -102,7 +102,7 @@ window.CARD_TOOLS = [
     ]
   },
   {
-    id:"keyword-checker", emoji:"🔎", color:"#1F9E63", ink:"#E9EEF5", paper:"#0F1319",
+    id:"keyword-checker", no:"03", emoji:"🔎", color:"#1F9E63", ink:"#E9EEF5", paper:"#0F1319",
     name:"키워드 진단기",
     hook:"내 글, 무슨 키워드로\n잡혀 있을까?",
     sub:"링크만 넣으면 됩니다",

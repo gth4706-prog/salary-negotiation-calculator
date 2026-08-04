@@ -78,6 +78,15 @@
   }
   a.item:active{transform:scale(.983);background:var(--card2)}
   a.item:hover{border-color:color-mix(in srgb,var(--c) 60%,transparent)}
+  /* 공개 도구 번호 — 카드뉴스에서 "N번"으로 안내하므로 여기서 바로 찾을 수 있어야 한다.
+     ⚠️ 한 번 부여한 번호는 절대 바꾸지 않는다. 이미 올린 인스타 게시물이 그 번호를
+        가리키고 있기 때문이다. 새 도구는 다음 번호를 받고, 도구를 내려도
+        그 번호를 다른 도구에 재사용하지 않는다. */
+  .no{
+    flex:none;width:32px;text-align:center;
+    font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;
+    color:var(--c);letter-spacing:-.02em;
+  }
   .ico{
     flex:none;width:46px;height:46px;border-radius:13px;
     display:flex;align-items:center;justify-content:center;font-size:23px;
@@ -111,62 +120,63 @@
     </div>
     <h1>각잡살림</h1>
     <p class="tag">설치도 회원가입도 없이 바로 쓰는 무료 도구</p>
+    <p class="tag" style="font-size:12.5px;margin-top:5px;opacity:.72">카드뉴스에서 본 <b>번호</b>로 바로 찾으세요</p>
   </header>
 
   <!-- 이번에 소개 중인 도구. 새 도구를 낼 때마다 여기만 바꾸면 된다. -->
   <a class="featured" style="--c:#2F6F4E" href="../wiki-rabbithole/">
-    <span class="new">NEW</span>
+    <span class="new">NEW · 09번</span>
     <div class="ft"><span>🕳</span><span>위키 토끼굴</span></div>
     <div class="fd">관심사 문서 150편을 미리 받아두고, 비행기 모드에서도 다음 챕터를 골라가며 계속 읽어요</div>
   </a>
 
   <div class="sect">일 · 커리어</div>
   <a class="item" style="--c:#0E7C5A" href="../salary-calculator/">
-    <span class="ico">🧭</span>
+    <span class="no">01</span><span class="ico">🧭</span>
     <span class="tx"><span class="tt">이직 연봉 협상 계산기</span><span class="td">제안받은 연봉이 적정한지 · 실수령액까지</span></span>
     <span class="go">→</span>
   </a>
   <a class="item" style="--c:#D23B30" href="../resignation-timing/">
-    <span class="ico">📅</span>
+    <span class="no">02</span><span class="ico">📅</span>
     <span class="tx"><span class="tt">퇴사 타이밍 계산기</span><span class="td">퇴직금·연차수당 다 챙기는 퇴사일</span></span>
     <span class="go">→</span>
   </a>
   <a class="item" style="--c:#1F9E63" href="../keyword-checker/">
-    <span class="ico">🔎</span>
+    <span class="no">03</span><span class="ico">🔎</span>
     <span class="tx"><span class="tt">키워드 진단기</span><span class="td">내 글이 무슨 키워드로 잡혀 있는지</span></span>
     <span class="go">→</span>
   </a>
 
   <div class="sect">집 · 생활</div>
   <a class="item" style="--c:#2E6F9E" href="../room-planner/">
-    <span class="ico">📦</span>
+    <span class="no">04</span><span class="ico">📦</span>
     <span class="tx"><span class="tt">방 가구 배치 시뮬레이터</span><span class="td">이 침대, 내 방에 들어갈까</span></span>
     <span class="go">→</span>
   </a>
   <a class="item" style="--c:#7B2B33" href="../couple-referee/">
-    <span class="ico">⚖️</span>
+    <span class="no">05</span><span class="ico">⚖️</span>
     <span class="tx"><span class="tt">커플 재판</span><span class="td">재판관 5명이 각자 판정해드려요</span></span>
     <span class="go">→</span>
   </a>
 
   <div class="sect">취미 · 여가</div>
   <a class="item" style="--c:#FF4B3E" href="../fishing-tide/">
-    <span class="ico">🎣</span>
+    <span class="no">06</span><span class="ico">🎣</span>
     <span class="tx"><span class="tt">낚시 물때 가이드</span><span class="td">어디로 몇 시에 가야 할지</span></span>
     <span class="go">→</span>
   </a>
   <a class="item" style="--c:#B23A2E" href="../map-archery/">
-    <span class="ico">🏹</span>
+    <span class="no">07</span><span class="ico">🏹</span>
     <span class="tx"><span class="tt">여행지 활쏘기</span><span class="td">도는 지도에 활을 쏴서 여행지 정하기</span></span>
     <span class="go">→</span>
   </a>
   <a class="item" style="--c:#5FA441" href="../minecraft-seeds/">
-    <span class="ico">⛏️</span>
+    <span class="no">08</span><span class="ico">⛏️</span>
     <span class="tx"><span class="tt">마인크래프트 시드 추천기</span><span class="td">질문 네 개로 딱 맞는 시드 찾기</span></span>
     <span class="go">→</span>
   </a>
   <a class="item" style="--c:#2F6F4E" href="../wiki-rabbithole/">
-    <span class="ico">🕳</span>
+    <span class="no">09</span><span class="ico">🕳</span>
     <span class="tx"><span class="tt">위키 토끼굴</span><span class="td">비행기에서 읽을 거리 미리 챙기기</span></span>
     <span class="go">→</span>
   </a>
@@ -179,5 +189,10 @@
   </footer>
 
 </div>
+<!-- Cloudflare Web Analytics — 쿠키를 쓰지 않고 개인을 식별하지 않는다.
+     이 토큰은 공개 페이지에 심으라고 만들어진 클라이언트 식별자다(비밀값 아님).
+     ⚠️ 자동 설치(auto_install)가 켜져 있었지만 실제로는 비콘이 주입되지 않아
+        수집이 0이었다(2026-08-05 확인). 그래서 직접 심는다. -->
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "07ab6490a09d417bbe1bf83ef9780218"}'></script>
 </body>
 </html>

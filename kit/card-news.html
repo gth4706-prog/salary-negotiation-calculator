@@ -100,11 +100,13 @@ function drawCard(cv, tool, idx){
 
   var ink = isCover ? "#FFFFFF" : tool.ink;
 
-  /* 상단 브랜드 바 */
+  /* 상단 브랜드 바 —
+     ⚠️ 도메인(joeltool.com)을 넣지 않는다. 태현님 요청: 이름은 쓰되 노출은 원치 않음.
+        대신 공개 번호를 붙여 "프로필 링크 → N번"으로 찾게 만든다. */
   ctx.fillStyle = isCover ? "rgba(255,255,255,.85)" : tool.color;
   ctx.font = "800 30px 'Pretendard Variable',sans-serif";
   ctx.textBaseline = "top";
-  ctx.fillText("각잡살림 · joeltool.com", PAD, PAD - 24);
+  ctx.fillText("각잡살림  ·  " + tool.no + "번 도구", PAD, PAD - 24);
 
   if (isCover){
     /* 표지 = 후킹 문장 */
@@ -164,12 +166,12 @@ function drawCard(cv, tool, idx){
     ctx.textAlign = "center";
     /* ⚠️ 도메인만 크게 적으면 보는 사람이 주소창에 직접 쳐야 한다 — 대부분 그러지 않는다.
        인스타에서 실제로 눌리는 유일한 경로인 "프로필 링크"로 안내한다
-       (프로필 웹사이트 칸 = joeltool.com/go/ 링크인바이오 페이지). */
+       (프로필 웹사이트 칸에 넣어둔 링크인바이오 페이지 /go/). */
     ctx.font = "800 40px 'Pretendard Variable',sans-serif";
-    ctx.fillText("프로필 링크 → 바로 열기", S/2, S - PAD - 100);
+    ctx.fillText("프로필 링크 → " + tool.no + "번", S/2, S - PAD - 100);
     ctx.font = "600 26px 'Pretendard Variable',sans-serif";
     ctx.fillStyle = "rgba(255,255,255,.85)";
-    ctx.fillText("프로필 상단 링크를 눌러주세요", S/2, S - PAD - 54);
+    ctx.fillText("프로필 상단 링크에서 " + tool.no + "번을 눌러주세요", S/2, S - PAD - 54);
     ctx.textAlign = "left";
   } else {
     ctx.fillStyle = tool.color;
@@ -196,7 +198,7 @@ function caption(tool){
     + "\n\n설치도 회원가입도 없이 브라우저에서 바로 쓸 수 있어요.\n"
     /* ⚠️ 인스타 캡션의 URL 은 클릭이 안 된다. 주소를 적어두면 "받아적어서 치라"는 뜻이
        되어 대부분 이탈한다. 실제로 눌리는 프로필 링크로만 유도한다. */
-    + "👉 프로필 링크(@) 누르면 도구 목록이 나와요. 거기서 «" + tool.name + "» 탭!\n"
+    + "👉 프로필 링크(@) 누르고 «" + tool.no + "번 " + tool.name + "» 탭!\n"
     + "   저장해두면 필요할 때 바로 찾을 수 있어요 🔖\n\n"
     + (TAGS[tool.id] || "") + " #무료도구 #웹툴 #각잡살림";
 }
@@ -205,11 +207,14 @@ var sheet = document.getElementById("sheet");
 var sel   = document.getElementById("tool");
 var cur;
 
-CARD_TOOLS.forEach(function(t,i){
-  var o = document.createElement("option");
-  o.value = i; o.textContent = t.emoji + " " + t.name;
-  sel.appendChild(o);
-});
+/* 공개 번호 순으로 정렬해 보여준다 — 목록에서 번호를 바로 확인할 수 있게. */
+CARD_TOOLS.map(function(t,i){ return {t:t,i:i}; })
+  .sort(function(a,b){ return a.t.no.localeCompare(b.t.no); })
+  .forEach(function(x){
+    var o = document.createElement("option");
+    o.value = x.i; o.textContent = x.t.no + "번 · " + x.t.emoji + " " + x.t.name;
+    sel.appendChild(o);
+  });
 
 function render(){
   cur = CARD_TOOLS[sel.value|0];

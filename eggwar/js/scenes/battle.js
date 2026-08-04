@@ -422,12 +422,6 @@ GAME.BattleScene.prototype.create = function () {
   //  ⚠ 그라디언트는 Text **자기 캔버스 컨텍스트**에서 만들어야 한다. 그리고
   //    `setFill` 은 캔버스를 다시 굽는 비싼 호출이라, 아래 `drawNumbers` 에서
   //    **키(종류:크기)가 바뀔 때만** 부른다(기존 setFontSize/setColor 캐시와 같은 규율).
-  this.NUM_GRAD = {
-    mine:  ['#fff8d2', '#ffd24a', '#d9700f'],   // 내가 준 피해 — 햇빛에서 불로
-    crit:  ['#ffffff', '#ffcf8a', '#d8341a'],   // 치명타 — 백열 코어에서 불꽃으로
-    taken: ['#cfc2ad', '#8a7a63'],              // 내가 맞은 것 — 흙색, 일부러 덜 튄다
-    heal:  ['#eaffee', '#7ef0a0', '#2c9a5e']
-  };
 
   //  ── COMBO 표시 (2026-08-04) ─────────────────────────────────────────────
   //  레퍼런스 ③④가 연타의 쾌감을 만드는 장치다. 두 겹(숫자 + 'COMBO')으로 두는 이유:
@@ -975,6 +969,25 @@ GAME.BattleScene.prototype._drawHealZones = function (g) {
       g.fillRect(sx - r * 0.7, sy - bob - r * 0.32, r * 1.4, r * 0.64);
     }
   }
+};
+
+//  ── 피해 숫자 그라디언트 (2026-08-04) ────────────────────────────────────────
+//  ⚠⚠ **인스턴스가 아니라 프로토타입에 둔다.** 처음엔 `create()` 안에서
+//    `this.NUM_GRAD = {...}` 로 만들었는데, **수성의 탑(`GAME.DefendScene`)은
+//    `BattleScene.create` 를 부르지 않고 자기 `create` 를 따로 갖는다.** 그래서
+//    거기서는 이 값이 `undefined` 였고, 아래 `drawNumbers` 가 첫 피해 숫자를 그리는
+//    순간 TypeError 를 던져 **Phaser 업데이트 루프가 죽었다** — 타이머가 멈추고
+//    전투가 정지한다(사용자 리포트: "수성의탑에서 이 상태에서 게임이 멈췄다").
+//    이 저장소가 CLAUDE.md "반복해서 터졌던 함정" 에 적어 둔 바로 그 사고다:
+//    "'씬이 뜬다' 와 '게임이 돌아간다' 는 다르다 … updateHud 예외 → 루프 사망".
+//  ⚠ **남의 draw 를 빌려 쓰는 씬이 있는 한, 그 draw 가 읽는 값은 프로토타입에 둔다.**
+//    인스턴스에 두면 빌려 쓰는 쪽에서 조용히 비어 있고, 그 빈 값은 첫 프레임이
+//    아니라 **조건이 맞는 순간**(여기서는 첫 피해)에 터져서 더 늦게 발견된다.
+GAME.BattleScene.prototype.NUM_GRAD = {
+  mine:  ['#fff8d2', '#ffd24a', '#d9700f'],   // 내가 준 피해 — 햇빛에서 불로
+  crit:  ['#ffffff', '#ffcf8a', '#d8341a'],   // 치명타 — 백열 코어에서 불꽃으로
+  taken: ['#cfc2ad', '#8a7a63'],              // 내가 맞은 것 — 흙색, 일부러 덜 튄다
+  heal:  ['#eaffee', '#7ef0a0', '#2c9a5e']
 };
 
 GAME.BattleScene.prototype.drawNumbers = function () {

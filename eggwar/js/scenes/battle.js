@@ -7,6 +7,20 @@ GAME.BattleScene.prototype = Object.create(Phaser.Scene.prototype);
 GAME.BattleScene.prototype.constructor = GAME.BattleScene;
 
 GAME.BattleScene.prototype.init = function (data) {
+  //  ⚠⚠ **씬 인스턴스는 재사용된다** — 여기서 안 지우면 지난 판의 값이 그대로 남는다.
+  //    콤보가 정확히 그 사고였다(2026-08-04 사용자 신고: "다른 디바이스에서 진행
+  //    시작할때 콤보글자가 화면 크게떠서 화면을 가리는 버그"):
+  //    `state.elapsed` 는 새 판에서 0 부터 시작하는데 `_comboAt` 은 지난 판의 큰 값이
+  //    남아 `since = elapsed - _comboAt` 이 **음수**가 되고, 등장 팝 계산
+  //    `1 + (1 - since/140) * 0.42` 가 폭주해 글자가 화면만 하게 떴다.
+  //  ⚠ 아래 `drawNumbers` 의 팝에도 하한을 뒀지만, **근본은 여기서 지우는 것**이다.
+  //    이 저장소의 '지연생성 가드' 함정과 같은 계열 — 상태를 씬에 두면 init 에서 되돌린다.
+  this._combo = 0;
+  this._comboAt = -9999;
+  this._swings = null;
+  this._prevCd = undefined;
+  this._prevHp = null;
+
   this.formation = GAME.Formations.getById(data.formationId);
   this.heroKey = data.heroKey;
   this.items = data.items || {};
@@ -1080,7 +1094,11 @@ GAME.BattleScene.prototype.drawNumbers = function () {
     } else {
       var fade = since > 900 ? Math.max(0, 1 - (since - 900) / 300) : 1;
       //  방금 맞은 순간(140ms)에 튀어오른다 — '한 대 더 들어갔다'가 몸에 남는다.
-      var punch = since < 140 ? 1 + (1 - since / 140) * 0.42 : 1;
+      //  ⚠ **위아래로 막는다.** `since` 가 음수면(씬 재사용으로 옛 값이 남는 경우)
+      //    이 식이 폭주해 글자가 화면만 해진다 — 실제로 그 사고가 있었다.
+      //    `init` 에서 상태를 지우는 것이 근본 수정이고, 이건 두 번째 방어선이다.
+      var punch = (since >= 0 && since < 140) ? 1 + (1 - since / 140) * 0.42 : 1;
+      punch = Math.max(1, Math.min(1.42, punch));
       if (this.comboNum.text !== String(this._combo)) this.comboNum.setText(String(this._combo));
       this.comboNum.setVisible(true).setAlpha(fade).setScale(punch);
       this.comboLbl.setVisible(true).setAlpha(fade * 0.9);

@@ -56,7 +56,7 @@ window.SOZAE_POOL = [
     ending: "회사가 비상경영에 들어가며 취소 통보. 다니던 회사는 이미 정리한 뒤였다.",
     lesson: "최종 합격 통보는 법적으로 근로계약 성립으로 본다. 그 취소는 '해고'다. "
           + "문자로 통보한 건이 서면통지의무 위반으로 무효 판결까지 났다. 노동위 구제신청이 가능하다.",
-    score: 92, status: "후보", usedAs: null,
+    score: 92, status: "채택", usedAs: "story-offer-withdrawn",
     note: "실용 정보(대응법)가 붙어 저장률이 높을 소재. 1순위 추천."
   },
   {

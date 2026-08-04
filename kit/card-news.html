@@ -94,8 +94,8 @@
 </main>
 
 <script src="card-data.js?v=5"></script>
-<script src="story-data.js?v=5"></script>
-<script src="sozae-pool.js?v=2"></script>
+<script src="story-data.js?v=6"></script>
+<script src="sozae-pool.js?v=3"></script>
 <script>
 /* =========================================================
    카드 렌더링 — 캔버스에 직접 그린다.
@@ -151,7 +151,10 @@ function roundRect(ctx,x,y,w,h,r){
    ⚠️ 소재의 마지막 카드(결)는 "우리의 해석 + 댓글 유도"를 함께 담는다. */
 function sequence(t){
   if (t.kind !== "story") return t.cards;
-  return t.body.concat([t.ending, t.take]);
+  /* 전(결말)은 여러 장이 될 수 있다 — 장수를 고정하지 않는다(태현님 지시).
+     구버전 데이터의 ending(단수)도 계속 읽히게 둔다. */
+  var turn = t.turn || (t.ending ? [t.ending] : []);
+  return t.body.concat(turn).concat([t.take]);
 }
 /* ⚠️ 카드에는 "승/전/결" 같은 구조 용어를 절대 쓰지 않는다(태현님 지시).
    기승전결은 흐름으로만 존재하고 화면에는 드러나지 않는다.
@@ -292,7 +295,8 @@ function caption(tool){
        출처 표기는 넣지 않는다(태현님 요청) — 논문이 아니라 썰이라서. */
     return tool.hook.replace(/\n/g," ") + "\n\n"
       + tool.body.map(function(c){ return "· " + c.t; }).join("\n")
-      + "\n· " + tool.ending.t
+      + "\n" + (tool.turn || (tool.ending ? [tool.ending] : []))
+                 .map(function(c){ return "· " + c.t; }).join("\n")
       + "\n\n" + tool.take.b.replace(/\n/g," ")
       + "\n\n" + tool.ask.replace(/\n/g," ")
       + "\n\n" + tool.tags + " #각잡살림";

@@ -659,6 +659,39 @@ window.GAME = window.GAME || {};
       gfill(e.x, e.y, e.r * (0.5 + p * 1.1), col, 0.30 * burst * burst * S.FA);
       gink(e.x, e.y, e.r * (0.6 + p * 1.0), 3 + 4 * burst, col, 0.95 * burst * S.RA);
     }
+    //  ── 큰 방패 (2026-08-04 사용자 요청: "파수꾼은 방패모양이 크게 나타났으면") ──
+    //  파수꾼의 정체성은 '버틴다'인데 버프 이펙트가 잎사귀·링이라 **무엇으로 버티는지**
+    //  가 안 보였다. 시전 순간 몸 앞에 **큰 방패 실루엣**을 세운다.
+    //  ⚠ `heroKey` 가 파수꾼일 때만. 다른 영웅의 버프에 방패가 뜨면 거짓 신호다.
+    //  ⚠ 전장을 가리지 않게 **터지는 앞 45% 구간에만** 뜨고 바로 사라진다.
+    //    이 게임의 제1규율(바닥이 시끄러우면 예고 원이 안 보인다)을 지킨다.
+    if (e.heroKey === 'warden' && burst > 0) {
+      var shX = e.x, shY = syy(e.y) - e.r * 0.30;
+      var sw = e.r * (0.78 + p * 0.30), sh = e.r * (1.02 + p * 0.34);
+      var out = [
+        { x: shX, y: shY - sh * 0.52 },
+        { x: shX + sw * 0.52, y: shY - sh * 0.28 },
+        { x: shX + sw * 0.52, y: shY + sh * 0.16 },
+        { x: shX, y: shY + sh * 0.52 },
+        { x: shX - sw * 0.52, y: shY + sh * 0.16 },
+        { x: shX - sw * 0.52, y: shY - sh * 0.28 }
+      ];
+      var ba = burst * 0.85 * S.FA;
+      S.g.fillStyle(M.woodDark, ba * 0.9);                 // 테 — 두께
+      S.g.fillPoints(out, true);
+      var inn = out.map(function (q) {
+        return { x: shX + (q.x - shX) * 0.82, y: shY + (q.y - shY) * 0.82 };
+      });
+      S.g.fillStyle(M.bone, ba);                            // 뼈판
+      S.g.fillPoints(inn, true);
+      S.g.lineStyle(Math.max(1.5, e.r * 0.035), M.bronze, burst * 0.95);
+      S.g.strokePoints(out, true, true);
+      S.g.fillStyle(M.bronze, burst * 0.95);                // 방패심
+      S.g.fillEllipse(shX, shY, e.r * 0.24, e.r * 0.24, 10);
+      S.g.fillStyle(S.FX.sparkCore, burst * 0.7);
+      S.g.fillEllipse(shX - e.r * 0.05, shY - e.r * 0.05, e.r * 0.10, e.r * 0.10, 8);
+    }
+
     // 발밑 링 — 영웅 색을 바깥에, 조개껍질을 안쪽에 겹쳐 두께를 만든다
     gink(e.x, e.y, e.r * (0.86 + p * 0.22), 4, col, a * S.RA);
     gink(e.x, e.y, e.r * (0.80 + p * 0.20), 2, M.shell, a * 0.8 * S.RA);

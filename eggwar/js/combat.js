@@ -836,7 +836,14 @@ GAME.Combat = {
 
     // 공격음 — 근접은 둔탁하게, 원거리는 바람 가르는 소리로.
     // **내 영웅의 공격만** 소리를 낸다: 진형 10기가 동시에 쏘면 소리가 뭉개져 시끄럽기만 하다.
-    if (GAME.Sound && u.isHero) GAME.Sound.play(def.attack === 'melee' ? 'hit' : 'shoot');
+    //  ⚠ 사냥꾼(`art: 'hunter'`)은 **활**이다 — 돌·창과 같은 '쉭' 소리를 쓰면 무엇을
+    //    들고 있는지가 소리로 안 전해진다. 시위 튕김 + 깃 소리 두 겹으로 따로 낸다
+    //    (2026-08-04 사용자 요청: "화살은 효과음이라던가 ... 좀 더 멋있으면").
+    //  ⚠ 여기는 소리만 고른다 — 판정·피해에는 한 줄도 안 닿는다.
+    if (GAME.Sound && u.isHero) {
+      GAME.Sound.play(def.attack === 'melee' ? 'hit'
+                      : (def.art === 'hunter' ? 'bow' : 'shoot'));
+    }
 
     if (def.attack === 'melee') {
       var half = ((def.coneDeg || 90) * Math.PI / 180) / 2;

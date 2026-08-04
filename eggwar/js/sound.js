@@ -150,6 +150,24 @@ GAME.Sound = {
           if (!this._gate('shoot', 60)) return;
           this._burst({ dur: 0.07, freq: 1700, q: 2.0, vol: 0.14, filter: 'highpass' });
           break;
+        //  ── 활 (2026-08-04 사용자 요청: "화살 효과음") ────────────────────────
+        //  예전에는 모든 투사체가 `shoot` 하나였다 — 돌·창·화살이 같은 소리였다.
+        //  활은 **두 겹**이다: ① 시위가 튕기는 낮은 '텅' ② 깃이 공기를 가르는 '쉭'.
+        //  ⚠ 이 세계에 금속 활시위는 없다. 힘줄과 나무라 **낮고 둔한** 튕김이다 —
+        //    높은 '핑' 소리를 넣으면 그 순간 SF 가 된다.
+        //  ⚠ `_gate` 는 필수다. 사냥꾼 연사는 초당 여러 발이라 안 막으면 소리가
+        //    뭉개져 오히려 안 들린다(이 파일이 hit·yolk 에서 이미 배운 것).
+        case 'bow':
+          if (!this._gate('bow', 55)) return;
+          this._tone({ type: 'triangle', f0: 230, f1: 96, dur: 0.10, vol: 0.17 });
+          this._burst({ dur: 0.055, freq: 2300, q: 2.6, vol: 0.10, filter: 'highpass' });
+          break;
+        //  화살이 박히는 소리 — 짧고 마른 '탁'. 살에 박히는 것이지 금속끼리가 아니다.
+        case 'arrowHit':
+          if (!this._gate('arrowHit', 60)) return;
+          this._burst({ dur: 0.06, freq: 780, q: 1.4, vol: 0.18 });
+          this._tone({ type: 'triangle', f0: 300, f1: 140, dur: 0.07, vol: 0.11 });
+          break;
         case 'skill':        // 스킬 시전 — 위로 솟는 톤
           this._tone({ type: 'sawtooth', f0: 300, f1: 760, dur: 0.20, vol: 0.20 });
           break;

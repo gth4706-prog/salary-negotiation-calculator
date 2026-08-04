@@ -1869,6 +1869,8 @@ GAME.BattleScene.prototype._bakeArena = function () {
     GAME.UI.drawArena(tmp, {
       zones: false,
       floor: this.tower || this.defendTower || 0,
+      //  수성전인지 알려 준다 — 배경이 '지키는 싸움'의 물건(방어벽·침입구)을 그린다.
+      defend: !!this.defendTower,
       tier: this.versus ? 1 : GAME.UI.tierForEscalation(this.escalation).i
     });
     rt.draw(tmp);
@@ -1908,6 +1910,8 @@ GAME.BattleScene.prototype.draw = function () {
     GAME.UI.drawArena(g, {
       zones: false,
       floor: this.tower || this.defendTower || 0,
+      //  수성전인지 알려 준다 — 배경이 '지키는 싸움'의 물건(방어벽·침입구)을 그린다.
+      defend: !!this.defendTower,
       tier: this.versus ? 1 : GAME.UI.tierForEscalation(this.escalation).i
     });
   }

@@ -234,6 +234,57 @@ GAME.UI = {
      [R.x + postW / 2, R.bottom - railH], [R.right - postW / 2, R.bottom - railH]]
       .forEach(function (p) { g.fillEllipse(p[0], p[1], bn * 1.6, bn * 1.2, 8); });
 
+    // ── 수성전 전용 (2026-08-04 사용자: "이 화면도 좀 매력있게 꾸며줘") ────────
+    //  수성의 탑은 **지키는 싸움**인데 화면에 그 정체성이 하나도 없었다. 통곡의 탑과
+    //  달리 조이스틱·스킬 버튼이 없어 아래 2/3 가 통째로 비어 더 단조로워 보인다.
+    //  → 아래에는 **방어벽**, 위에는 적이 밀고 들어오는 **침입구**를 세운다.
+    //
+    //  ⚠ **유닛이 안 서는 가장자리에만** 그린다. 내 진형은 아래 15~30% 에 서고
+    //    침입 영웅은 위에서 내려온다 — 그 사이(전장 본체)는 한 획도 안 건드린다.
+    //    "바닥이 시끄러우면 예고 원과 투사체가 안 보인다" 는 이 게임의 제1규율이다.
+    //  ⚠ 색은 전부 MAT 토큰이다. 이 세계의 성벽은 돌과 통나무지 벽돌이 아니다.
+    if (opts.defend) {
+      //  ① 방어벽 — 바닥 가로대 위에 얹힌 돌 흉벽. 톱니(총안)로 '벽'이 읽힌다.
+      var wallH = Math.max(10, R.h * 0.055);
+      var wy0 = R.bottom - railH - wallH;
+      g.fillStyle(UI.mix(M.stone, 0x000000, 0.30), 1);
+      g.fillRect(R.x + postW, wy0 + wallH * 0.42, R.w - postW * 2, wallH * 0.58);
+      g.fillStyle(M.stone, 1);
+      g.fillRect(R.x + postW, wy0 + wallH * 0.30, R.w - postW * 2, wallH * 0.34);
+      g.fillStyle(M.stoneLite || UI.mix(M.stone, 0xffffff, 0.25), 1);   // 광원은 좌상단
+      g.fillRect(R.x + postW, wy0 + wallH * 0.30, R.w - postW * 2, Math.max(1, wallH * 0.10));
+      //  총안(crenellation) — 이가 빠진 자리가 있어야 성벽이지 담이 아니다.
+      var merW = Math.max(16, R.w / 26), mx;
+      for (mx = R.x + postW; mx < R.right - postW; mx += merW * 2) {
+        var mw = Math.min(merW, R.right - postW - mx);
+        g.fillStyle(UI.mix(M.stone, 0x000000, 0.18), 1);
+        g.fillRect(mx, wy0, mw, wallH * 0.34);
+        g.fillStyle(M.stoneLite || UI.mix(M.stone, 0xffffff, 0.25), 1);
+        g.fillRect(mx, wy0, mw, Math.max(1, wallH * 0.09));
+      }
+      //  벽에 기대 세운 통나무 말뚝 — 원시 부족의 방어선은 돌만으로 안 선다.
+      g.fillStyle(M.woodDark, 0.9);
+      for (mx = R.x + postW + merW; mx < R.right - postW; mx += merW * 3) {
+        g.fillRect(mx, wy0 + wallH * 0.20, Math.max(2, merW * 0.13), wallH * 0.95);
+      }
+
+      //  ② 침입구 — 위 가로대가 **부서져 벌어진 자리**. 적이 여기로 들어온다.
+      //     가운데에 두는 이유: 침입 영웅이 화면 위 가운데에서 내려온다(defend.js).
+      var gw = Math.max(46, R.w * 0.11), gx = R.x + R.w / 2 - gw / 2;
+      g.fillStyle(baseFill, 1);                       // 가로대를 도려낸다
+      g.fillRect(gx, R.y, gw, railH);
+      g.fillStyle(UI.mix(M.woodDark, 0x000000, 0.25), 1);   // 부러진 단면 두 개
+      g.fillTriangle(gx, R.y, gx - railH * 0.9, R.y + railH, gx, R.y + railH);
+      g.fillTriangle(gx + gw, R.y, gx + gw + railH * 0.9, R.y + railH, gx + gw, R.y + railH);
+      //  발밑에 흩어진 돌조각 — '뚫렸다'가 바닥에도 남는다.
+      g.fillStyle(UI.mix(M.stone, 0x000000, 0.12), 0.75);
+      for (var ri2 = 0; ri2 < 5; ri2++) {
+        var rr2 = Math.max(2, railH * 0.22);
+        g.fillEllipse(gx + gw * (0.12 + ri2 * 0.19), R.y + railH * (1.6 + (ri2 % 2) * 0.9),
+                      rr2 * 2, rr2 * 1.3, 8);
+      }
+    }
+
     // 보스 층 테두리 — 전장 안이 아니라 **가장자리**에만 칠한다.
     // 논타겟 회피 게임이라 바닥 한가운데를 물들이면 예고 원이 죽는다.
     if (B && B.boss) {

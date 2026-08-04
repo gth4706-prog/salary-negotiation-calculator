@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- ⚠️ 내부 제작 도구다. 검색에 잡히면 안 된다(sitemap 에도 넣지 않음). -->
+<meta name="robots" content="noindex,nofollow">
+<title>인스타 카드뉴스 생성기 — 각잡살림 내부용</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<style>
+  :root{ --font:"Pretendard Variable","Pretendard",system-ui,sans-serif }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--font);background:#14161A;color:#E9EEF5;line-height:1.6}
+  header{padding:20px 24px;border-bottom:1px solid #2A3341;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  h1{font-size:17px;margin:0;font-weight:800}
+  .muted{color:#93A1B4;font-size:13px}
+  select,button{font:inherit;font-size:14px;border-radius:8px;border:1px solid #3A4757;background:#1E2733;color:#E9EEF5;padding:9px 13px;cursor:pointer}
+  button.primary{background:#3DD68C;border-color:#3DD68C;color:#08130D;font-weight:800}
+  button:hover{border-color:#3DD68C}
+  main{padding:24px}
+  .sheet{display:flex;gap:16px;flex-wrap:wrap}
+  figure{margin:0}
+  figcaption{font-size:12px;color:#93A1B4;padding:6px 2px}
+  canvas{width:270px;height:270px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.5);display:block}
+  .caption-box{margin-top:26px;background:#1A222C;border:1px solid #2A3341;border-radius:10px;padding:16px 18px}
+  .caption-box h2{font-size:14px;margin:0 0 10px}
+  textarea{width:100%;min-height:210px;font:inherit;font-size:13.5px;line-height:1.75;background:#0F1319;color:#E9EEF5;border:1px solid #2A3341;border-radius:8px;padding:13px;resize:vertical}
+  .note{font-size:12.5px;color:#93A1B4;margin-top:10px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📱 인스타 카드뉴스 생성기</h1>
+  <select id="tool"></select>
+  <button class="primary" id="dl">전체 PNG 저장</button>
+  <span class="muted" id="status">1080×1080 · 도구 테마색 자동 적용</span>
+</header>
+
+<main>
+  <div class="sheet" id="sheet"></div>
+
+  <div class="caption-box">
+    <h2>인스타 캡션 (복사해서 쓰세요)</h2>
+    <textarea id="cap" spellcheck="false"></textarea>
+    <p class="note">해시태그는 도구별로 자동 구성됩니다. 링크는 프로필 링크로 유도하는 게 인스타에서 유일하게 작동하는 방식이라, 캡션에는 "프로필 링크" 문구를 넣었습니다.</p>
+  </div>
+</main>
+
+<script src="card-data.js"></script>
+<script>
+/* =========================================================
+   카드 렌더링 — 캔버스에 직접 그린다.
+   외부 라이브러리(html2canvas 등)를 쓰지 않는 이유: 이 사이트는 외부 스크립트를
+   최소로 유지하고, 캔버스로 그리면 PNG 저장이 toBlob 한 줄로 끝나기 때문.
+   ⚠️ 웹폰트가 로드되기 전에 그리면 기본 폰트로 찍힌다 —
+      반드시 document.fonts.ready 를 기다린 뒤 그릴 것.
+   ========================================================= */
+var S = 1080;                 // 인스타 정사각 권장 해상도
+var PAD = 96;
+
+function wrap(ctx, text, maxW){
+  /* 한글은 어절 단위로 끊어야 읽기 좋다(글자 단위 금지). */
+  var out = [];
+  text.split("\n").forEach(function(para){
+    var words = para.split(" "), line = "";
+    words.forEach(function(w){
+      var test = line ? line + " " + w : w;
+      if (ctx.measureText(test).width > maxW && line) { out.push(line); line = w; }
+      else line = test;
+    });
+    out.push(line);
+  });
+  return out;
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+
+function drawCard(cv, tool, idx){
+  var ctx = cv.getContext("2d");
+  cv.width = S; cv.height = S;
+  var isCover = idx === 0;
+  var isLast  = idx === tool.cards.length;   // 마지막 = CTA 카드
+
+  /* 배경 */
+  ctx.fillStyle = isCover ? tool.color : tool.paper;
+  ctx.fillRect(0,0,S,S);
+
+  /* 표지: 대각선 결 — 단조로운 단색을 피한다 */
+  if (isCover){
+    ctx.save(); ctx.globalAlpha = .07; ctx.strokeStyle = "#fff"; ctx.lineWidth = 26;
+    for (var i=-S; i<S*2; i+=90){ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i-S,S); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  var ink = isCover ? "#FFFFFF" : tool.ink;
+
+  /* 상단 브랜드 바 */
+  ctx.fillStyle = isCover ? "rgba(255,255,255,.85)" : tool.color;
+  ctx.font = "800 30px 'Pretendard Variable',sans-serif";
+  ctx.textBaseline = "top";
+  ctx.fillText("각잡살림 · joeltool.com", PAD, PAD - 24);
+
+  if (isCover){
+    /* 표지 = 후킹 문장 */
+    ctx.font = "700 120px 'Pretendard Variable',sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,.28)";
+    ctx.fillText(tool.emoji, PAD, PAD + 40);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "800 88px 'Pretendard Variable',sans-serif";
+    var lines = wrap(ctx, tool.hook, S - PAD*2);
+    var y = S/2 - (lines.length*112)/2 + 20;
+    lines.forEach(function(l){ ctx.fillText(l, PAD, y); y += 112; });
+
+    ctx.font = "500 40px 'Pretendard Variable',sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,.9)";
+    ctx.fillText(tool.sub, PAD, y + 18);
+
+    ctx.font = "800 34px 'Pretendard Variable',sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,.95)";
+    ctx.fillText(tool.name, PAD, S - PAD - 26);
+    return;
+  }
+
+  var card = tool.cards[idx-1];
+
+  /* 번호 뱃지 */
+  ctx.fillStyle = tool.color;
+  roundRect(ctx, PAD, PAD + 66, 96, 56, 28); ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.font = "800 30px 'Pretendard Variable',sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(idx + " / " + tool.cards.length, PAD + 48, PAD + 80);
+  ctx.textAlign = "left";
+
+  /* 소제목 */
+  ctx.fillStyle = ink;
+  ctx.font = "800 62px 'Pretendard Variable',sans-serif";
+  var th = wrap(ctx, card.t, S - PAD*2);
+  var ty = PAD + 168;
+  th.forEach(function(l){ ctx.fillText(l, PAD, ty); ty += 78; });
+
+  /* 강조선 */
+  ctx.fillStyle = tool.color;
+  ctx.fillRect(PAD, ty + 14, 108, 8);
+
+  /* 본문 */
+  ctx.font = "500 46px 'Pretendard Variable',sans-serif";
+  ctx.fillStyle = ink;
+  var by = ty + 74;
+  wrap(ctx, card.b, S - PAD*2).forEach(function(l){ ctx.fillText(l, PAD, by); by += 70; });
+
+  /* 마지막 카드에는 주소를 크게 */
+  if (isLast){
+    ctx.fillStyle = tool.color;
+    roundRect(ctx, PAD, S - PAD - 116, S - PAD*2, 96, 22); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.font = "800 44px 'Pretendard Variable',sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("joeltool.com", S/2, S - PAD - 88);
+    ctx.textAlign = "left";
+  } else {
+    ctx.fillStyle = tool.color;
+    ctx.font = "700 30px 'Pretendard Variable',sans-serif";
+    ctx.fillText(tool.name, PAD, S - PAD - 8);
+  }
+}
+
+var TAGS = {
+  "salary-calculator":"#연봉협상 #이직 #연봉계산기 #실수령액 #직장인",
+  "room-planner":"#원룸인테리어 #자취방 #가구배치 #방꾸미기 #이사준비 #침대사이즈",
+  "resignation-timing":"#퇴사 #퇴직금 #연차수당 #직장인 #퇴사준비",
+  "couple-referee":"#커플 #연애 #커플싸움 #연애고민",
+  "minecraft-seeds":"#마인크래프트 #마크시드 #마인크래프트시드 #게임",
+  "fishing-tide":"#낚시 #물때 #바다낚시 #낚시포인트 #초보낚시",
+  "map-archery":"#여행 #국내여행 #여행지추천 #주말여행",
+  "wiki-rabbithole":"#비행기 #오프라인 #장거리비행 #읽을거리 #여행준비",
+  "keyword-checker":"#블로그 #SEO #키워드 #블로그운영"
+};
+
+function caption(tool){
+  return tool.hook.replace(/\n/g," ") + "\n\n"
+    + tool.cards.map(function(c){ return "· " + c.t + " — " + c.b.split("\n")[0]; }).join("\n")
+    + "\n\n설치도 회원가입도 없이 브라우저에서 바로 쓸 수 있어요.\n"
+    + "👉 프로필 링크에서 " + tool.name + " 확인 (joeltool.com)\n\n"
+    + (TAGS[tool.id] || "") + " #무료도구 #웹툴 #각잡살림";
+}
+
+var sheet = document.getElementById("sheet");
+var sel   = document.getElementById("tool");
+var cur;
+
+CARD_TOOLS.forEach(function(t,i){
+  var o = document.createElement("option");
+  o.value = i; o.textContent = t.emoji + " " + t.name;
+  sel.appendChild(o);
+});
+
+function render(){
+  cur = CARD_TOOLS[sel.value|0];
+  sheet.innerHTML = "";
+  for (var i=0; i<=cur.cards.length; i++){
+    (function(i){
+      var fig = document.createElement("figure");
+      var cv  = document.createElement("canvas");
+      var cap = document.createElement("figcaption");
+      cap.textContent = i===0 ? "표지" : (i + "번째");
+      fig.appendChild(cv); fig.appendChild(cap); sheet.appendChild(fig);
+      drawCard(cv, cur, i);
+    })(i);
+  }
+  document.getElementById("cap").value = caption(cur);
+}
+
+document.getElementById("dl").addEventListener("click", function(){
+  var cvs = sheet.querySelectorAll("canvas");
+  var st = document.getElementById("status");
+  st.textContent = "저장 중…";
+  cvs.forEach(function(cv, i){
+    cv.toBlob(function(blob){
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = cur.id + "-" + String(i+1).padStart(2,"0") + ".png";
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+      if (i === cvs.length-1) st.textContent = cvs.length + "장 저장 완료";
+    }, "image/png");
+  });
+});
+
+sel.addEventListener("change", render);
+
+/* ⚠️ 폰트가 준비된 뒤에 그려야 Pretendard 로 찍힌다 */
+document.fonts.ready.then(render);
+</script>
+</body>
+</html>

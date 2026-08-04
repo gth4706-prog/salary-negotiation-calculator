@@ -175,6 +175,7 @@ GAME.LobbyArt = {
       act: null,             // 지금 재생 중인 공격/스킬 포즈
       actAt: -9999,
       skillFx: null,         // 스킬 파문(반경만 가진 단순 연출)
+      slash: null,           // 칼이 지나간 자리(초승달 호)
       W: W, H: H
     };
   },
@@ -221,6 +222,15 @@ GAME.LobbyArt = {
         d.act = { art: (hero.def.art || 'berserker'), t: 0, wind: 0,
                   kind: skill ? 'skill' : 'atk', type: skill ? 'aoeSelf' : undefined };
         if (skill) d.skillFx = { t: 0, total: 460, x: hero.x, y: hero.y };
+        //  ── 참격 + 소리 (2026-08-04 사용자: "칼 휘두르는 모션 + 이펙트 + 효과음") ──
+        //  칼이 지나간 자리를 초승달로 남긴다. 포즈만으로는 "휘둘렀다"가 한 프레임에
+        //  안 읽힌다 — 전장에서 배운 것과 같다(v1.51 초승달 참격).
+        d.slash = { t: 0, total: skill ? 300 : 220, x: hero.x, y: hero.y, big: skill };
+        //  ⚠ 소리는 **로비에서도 조용해야 할 이유가 없다** — 이미 로비 음악이 돈다.
+        //    다만 `Sound` 가 없거나 꺼져 있으면 조용히 지나간다(sound.js 계약).
+        //  ⚠ 스킬은 `boom`, 평타는 `hit` — 전투에서 쓰는 그 소리 그대로다. 로비에만
+        //    다른 소리를 만들면 "이 게임의 소리"가 두 벌이 된다.
+        if (GAME.Sound) { try { GAME.Sound.play(skill ? 'boom' : 'hit'); } catch (e) {} }
         //  맞은 놈은 날아가고, 스킬이면 **앞의 것들이 다 같이** 날아간다.
         var j, ff;
         for (j = 0; j < d.foes.length; j++) {
@@ -244,6 +254,10 @@ GAME.LobbyArt = {
       d.skillFx.t += dt;
       if (d.skillFx.t > d.skillFx.total) d.skillFx = null;
     }
+    if (d.slash) {
+      d.slash.t += dt;
+      if (d.slash.t > d.slash.total) d.slash = null;
+    }
   },
 
   //  데모를 그린다. 목책은 **이 레이어가** 그려서 흐르게 한다(배경은 정지화면이다).
@@ -254,10 +268,34 @@ GAME.LobbyArt = {
     var W = d.W, H = d.H;
     var line = hero.y - (hero.def.radius || 16) * hero.scale * 1.5;
 
-    //  ① 흐르는 목책 — "걷고 있다"를 만드는 유일한 신호다.
+    //  ① 흐르는 **원경 능선** (2026-08-04 사용자: "배경이 전체 오른쪽에서 왼쪽으로")
+    //  ⚠ 하늘·들판은 가로로 균일해서 밀어도 안 보인다 — 그건 `backdrop` 이 한 번 굽고
+    //    끝낸다. **움직임을 만드는 것은 능선과 목책뿐**이므로 그 둘만 여기서 흐른다.
+    //  ⚠ 이어 붙이려면 **한 주기를 두 번** 그려야 한다. 한 번만 그리면 왼쪽 끝에서
+    //    끊겨 화면이 비는 순간이 생긴다.
+    var span = W * 0.62;                            // 능선 한 주기
+    var rOff = d.scroll * 0.42;                     // 원경은 느리게 — 시차(parallax)
+    var rp, seg, sx0;
+    for (seg = 0; seg < 2; seg++) {
+      sx0 = -(rOff % span) + seg * span;
+      var poly = [], n = 9, q;
+      for (q = 0; q <= n; q++) {
+        //  ⚠ 좌표를 난수로 매 프레임 뽑지 않는다 — 언덕이 춤춘다. 주기 안에서
+        //    결정적인 사인 합성으로 만든다(같은 x 면 언제나 같은 높이).
+        var u2 = q / n, ax = sx0 + span * u2;
+        var hh = H * (0.055 + 0.030 * Math.sin(u2 * 6.283 + seg * 1.7)
+                             + 0.018 * Math.sin(u2 * 15.7 + 2.1));
+        poly.push({ x: ax, y: line - hh });
+      }
+      poly.push({ x: sx0 + span, y: line }); poly.push({ x: sx0, y: line });
+      g.fillStyle(mix(bg, (GAME.CONFIG.COLORS.arenaFill || 0x6f7f4a), 0.22), 1);
+      g.fillPoints(poly, true);
+    }
+
+    //  ② 흐르는 목책 — "걷고 있다"를 만드는 가장 강한 신호다(근경이라 빠르다).
     var gap = Math.max(46, W / 13), pw = Math.max(4, W * 0.005), ph = H * 0.085;
     var off = d.scroll % gap;
-    for (var x = -off; x < W * 0.56; x += gap) {
+    for (var x = -off; x < W; x += gap) {
       if (x < -pw) continue;
       g.fillStyle(mix(bg, M.woodDark, 0.34), 1);
       g.fillRect(x, line - ph, pw, ph);
@@ -265,7 +303,7 @@ GAME.LobbyArt = {
       g.fillEllipse(x + pw / 2, line - ph, pw * 1.7, pw * 1.1, 8);
     }
     g.fillStyle(mix(bg, M.rope, 0.30), 1);
-    g.fillRect(0, line - ph * 0.66, W * 0.56, Math.max(1.4, ph * 0.04));
+    g.fillRect(0, line - ph * 0.66, W, Math.max(1.4, ph * 0.04));
 
     //  ② 스킬 파문 — 땅에 퍼지는 고리 하나. 화려함보다 **읽히는 것**이 먼저다.
     if (d.skillFx) {
@@ -277,7 +315,29 @@ GAME.LobbyArt = {
       g.fillEllipse(d.skillFx.x, d.skillFx.y, rr * 1.1, rr * 1.1 * 0.42, 14);
     }
 
-    //  ③ 적 — 나가떨어지는 놈은 기울고 옅어진다.
+    //  ③ 참격 — 칼이 지나간 자리. 두 호의 차집합으로 만든 초승달이다.
+    //     ⚠ 앞으로 **휘두른 방향**(오른쪽)을 향한다. 영웅이 오른쪽을 보고 걷는다.
+    if (d.slash) {
+      var sp2 = d.slash.t / d.slash.total, sa = 1 - sp2;
+      var rO = (hero.def.radius || 16) * hero.scale * (d.slash.big ? 3.0 : 2.2);
+      var rI = rO * 0.60;
+      var half = 0.62, spin = sp2 * 0.5 - 0.25;     // 위에서 아래로 훑는다
+      var pts2 = [], nn = 10, ii, tt;
+      for (ii = 0; ii <= nn; ii++) {
+        tt = -0.05 + spin - half + (2 * half) * (ii / nn);
+        pts2.push({ x: d.slash.x + Math.cos(tt) * rO, y: d.slash.y + Math.sin(tt) * rO * 0.62 });
+      }
+      for (ii = nn; ii >= 0; ii--) {
+        tt = -0.05 + spin - half + (2 * half) * (ii / nn);
+        pts2.push({ x: d.slash.x + Math.cos(tt) * rI, y: d.slash.y + Math.sin(tt) * rI * 0.62 });
+      }
+      g.fillStyle((GAME.UI.FX && GAME.UI.FX.blast) || 0xffb347, 0.55 * sa);
+      g.fillPoints(pts2, true);
+      g.lineStyle(Math.max(1.6, rO * 0.035), (GAME.UI.FX && GAME.UI.FX.sparkCore) || 0xfff3cd, 0.9 * sa);
+      g.strokePoints(pts2.slice(nn + 1), false, false);
+    }
+
+    //  ④ 적 — 나가떨어지는 놈은 기울고 옅어진다.
     for (var i = 0; i < d.foes.length; i++) {
       var f = d.foes[i];
       var a = f.gone > 0 ? Math.max(0, 1 - f.gone / 900) : 1;
@@ -350,7 +410,11 @@ GAME.LobbyArt = {
       for (x = -step; x <= W + step; x += step) pts.push({ x: x, y: rnd() });
       this._ridge = pts; this._ridgeKey = key;
     }
+    //  ⚠ 폰에서는 **데모 레이어가 흐르는 능선·목책을 그린다.** 여기서 또 그리면
+    //    정지한 것과 흐르는 것이 겹쳐 두 겹으로 보인다.
+    var anim = !!GAME.CONFIG.PHONE;
     var rid = this._ridge, poly = [], k;
+    if (anim) rid = [];
     var rh = H * 0.13;
     for (k = 0; k < rid.length; k++) {
       poly.push({ x: rid[k].x, y: horizon - rh * (0.35 + rid[k].y * 0.65) });
@@ -367,7 +431,7 @@ GAME.LobbyArt = {
 
     //  ④ 부족 목책 — 지평선 위에 늘어선 기둥. 이 세계가 어디인지 한 줄로 말한다.
     //     ⚠ 실루엣만 낸다(면 없이). 진하게 칠하면 그 위 버튼 글자와 싸운다.
-    var postW = Math.max(5, W * 0.006), gap = Math.max(34, W / 22);
+    var postW = Math.max(5, W * 0.006), gap = anim ? W * 9 : Math.max(34, W / 22);
     var ph = H * 0.075;
     for (x = gap * 0.5; x < W; x += gap) {
       g.fillStyle(UI.mix(bg, M.woodDark, 0.42), 1);
@@ -403,6 +467,11 @@ GAME.LobbyArt = {
     if (GAME.CONFIG.PHONE) {
       var pg = scene.add.graphics();
       pg.setDepth(-50);
+      //  ⚠ **레이어 전체를 옅게 한다** (2026-08-04 사용자: "배경으로 쓰이는 애니메이션에
+      //    불투명도를 줘서 메뉴 가독성이 떨어지지않게 유지해").
+      //    도형마다 알파를 손보면 어느 하나를 빠뜨리고 그 하나가 글자 뒤에서 튄다.
+      //    레이어 알파는 **앞으로 무엇을 더 그려도 자동으로 걸린다** — 그게 이 방식의 값어치다.
+      pg.setAlpha(0.45);
       var pdef = GAME.HEROES[(GAME.TowerChar && GAME.TowerChar.exists && GAME.TowerChar.exists()
                               && GAME.TowerChar.get().heroKey) || 'vanguard']
                  || GAME.HEROES.vanguard;

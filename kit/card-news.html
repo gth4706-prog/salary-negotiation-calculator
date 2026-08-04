@@ -159,11 +159,17 @@ function drawCard(cv, tool, idx){
   /* 마지막 카드에는 주소를 크게 */
   if (isLast){
     ctx.fillStyle = tool.color;
-    roundRect(ctx, PAD, S - PAD - 116, S - PAD*2, 96, 22); ctx.fill();
+    roundRect(ctx, PAD, S - PAD - 128, S - PAD*2, 116, 24); ctx.fill();
     ctx.fillStyle = "#fff";
-    ctx.font = "800 44px 'Pretendard Variable',sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("joeltool.com", S/2, S - PAD - 88);
+    /* ⚠️ 도메인만 크게 적으면 보는 사람이 주소창에 직접 쳐야 한다 — 대부분 그러지 않는다.
+       인스타에서 실제로 눌리는 유일한 경로인 "프로필 링크"로 안내한다
+       (프로필 웹사이트 칸 = joeltool.com/go/ 링크인바이오 페이지). */
+    ctx.font = "800 40px 'Pretendard Variable',sans-serif";
+    ctx.fillText("프로필 링크 → 바로 열기", S/2, S - PAD - 100);
+    ctx.font = "600 26px 'Pretendard Variable',sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,.85)";
+    ctx.fillText("프로필 상단 링크를 눌러주세요", S/2, S - PAD - 54);
     ctx.textAlign = "left";
   } else {
     ctx.fillStyle = tool.color;
@@ -188,7 +194,10 @@ function caption(tool){
   return tool.hook.replace(/\n/g," ") + "\n\n"
     + tool.cards.map(function(c){ return "· " + c.t + " — " + c.b.split("\n")[0]; }).join("\n")
     + "\n\n설치도 회원가입도 없이 브라우저에서 바로 쓸 수 있어요.\n"
-    + "👉 프로필 링크에서 " + tool.name + " 확인 (joeltool.com)\n\n"
+    /* ⚠️ 인스타 캡션의 URL 은 클릭이 안 된다. 주소를 적어두면 "받아적어서 치라"는 뜻이
+       되어 대부분 이탈한다. 실제로 눌리는 프로필 링크로만 유도한다. */
+    + "👉 프로필 링크(@) 누르면 도구 목록이 나와요. 거기서 «" + tool.name + "» 탭!\n"
+    + "   저장해두면 필요할 때 바로 찾을 수 있어요 🔖\n\n"
     + (TAGS[tool.id] || "") + " #무료도구 #웹툴 #각잡살림";
 }
 

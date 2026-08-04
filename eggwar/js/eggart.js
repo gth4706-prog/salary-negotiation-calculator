@@ -72,6 +72,30 @@ var SM = 10;
     coinBronze: 0xc9993f, coinSilver: 0xc3cbd4, coinGold: 0xe8bf3a,
     bone: 0xeae3cd, leaf: 0x63c26a, leafDark: 0x3f8a4a,
     clay: 0xb5794a, rope: 0xd9c9a2, stone: 0x9aa3ad, goo: 0xa8c14a,
+    //  ── 재질 3단 승격 (2026-08-04 아트 개편) ────────────────────────────────
+    //  24토큰 중 명암 2단을 가진 것이 wood·blade·leather·leaf·shell 다섯뿐이었다.
+    //  나머지(bone·stone·clay·rope·bronze·iron·goo)는 **단일 톤**이라 어떻게 그려도
+    //  명암 단계가 안 생긴다 — "재질이 밋밋하다"의 코드상 원인이다.
+    //
+    //  규칙: Lite 는 명도 +18% + 색상을 노랑 쪽으로(같은 햇빛을 받으니 따뜻해진다).
+    //        Dark 는 명도 −32% + 채도를 살짝 빼고 파랑 쪽으로(그늘엔 하늘빛이 든다).
+    //  ⚠ `UI.tint()` 처럼 순수 흑백 방향으로만 밀면 **그늘이 회색이 되어 재질이 죽는다.**
+    //    그래서 값을 손으로 잡았다.
+    //  ⚠ 테마 A/B/C 가 base 토큰을 덮어쓰므로(js/theme-a.js 등), Lite/Dark 만 stock 에
+    //    남으면 라이트 테마에서 **밝은 면만 어두운 테마 색으로 튄다.** 아래
+    //    `UI.deriveMatTones()` 가 테마 전환 뒤에 3단을 다시 유도해 그 사고를 막는다.
+    woodLite: 0xb08c60, bladeLite: 0xf4f7ff,
+    ironLite: 0x6d7686, ironDark: 0x2c313c,
+    bronzeLite: 0xf0c268, bronzeDark: 0x7d5d20,
+    leatherLite: 0xb08a63,
+    boneLite: 0xfaf6e6, boneDark: 0xb2a988,
+    stoneLite: 0xc2cad2, stoneDark: 0x646c76,
+    clayLite: 0xd79c6c, clayDark: 0x7d4f2c,
+    ropeLite: 0xf0e4c4, ropeDark: 0xa08f6a,
+    leafLite: 0x92e08f,
+    gooLite: 0xd0e078, gooDark: 0x6c7d24,
+    shellLite: 0xfffaf0,
+    yolkDark: 0xc98a10,
     // ── 깃털 두 가지 (2026-07-30 분리) ────────────────────────────────────
     //  `feather` : **비행 중 화살**의 깃(js/skillfx.js). 필드 위 2.5~3px 선이다.
     //     가시성은 화살대 `woodDark`(필드 대비 5.64/4.18)가 담당하고 이 깃은 그 위의
@@ -89,6 +113,40 @@ var SM = 10;
     shell: 0xf6eeda, shellRim: 0xcbb98f,
     yolk: 0xffc233, yolkLite: 0xffe89a, albumen: 0xfff6e2,
     eye: 0x2b2233
+  };
+
+  //  ── 3단 재파생 (2026-08-04) ─────────────────────────────────────────────
+  //  테마 A/B/C 는 base 토큰(bone·stone·bronze…)을 덮어쓴다. 그때 Lite/Dark 가 stock
+  //  값으로 남으면 **밝은 면만 다른 테마 색이 되어** 재질이 두 조각으로 갈라진다.
+  //  → 테마를 적용한 **뒤에** 이 함수를 부르면 base 에서 3단을 다시 유도한다.
+  //  ⚠ 명도만 미는 것이 아니라 색상도 함께 민다(Lite 는 따뜻하게, Dark 는 차갑게).
+  //    회색으로 밀면 재질이 죽는다 — 위 표를 손으로 잡은 것과 같은 이유다.
+  UI.deriveMatTones = function () {
+    var pairs = [
+      ['wood', 'woodLite', 'woodDark'], ['blade', 'bladeLite', 'bladeDark'],
+      ['iron', 'ironLite', 'ironDark'], ['bronze', 'bronzeLite', 'bronzeDark'],
+      ['leather', 'leatherLite', 'leatherDark'], ['bone', 'boneLite', 'boneDark'],
+      ['stone', 'stoneLite', 'stoneDark'], ['clay', 'clayLite', 'clayDark'],
+      ['rope', 'ropeLite', 'ropeDark'], ['leaf', 'leafLite', 'leafDark'],
+      ['goo', 'gooLite', 'gooDark'], ['shell', 'shellLite', 'shellRim'],
+      ['yolk', 'yolkLite', 'yolkDark']
+    ];
+    var warm = function (c, f) {                 // 밝게 + 노랑 쪽
+      var r = (c >> 16) & 255, g2 = (c >> 8) & 255, b = c & 255;
+      r += (255 - r) * f; g2 += (255 - g2) * f * 0.92; b += (255 - b) * f * 0.66;
+      return ((r | 0) << 16) | ((g2 | 0) << 8) | (b | 0);
+    };
+    var cool = function (c, f) {                 // 어둡게 + 파랑 쪽
+      var r = (c >> 16) & 255, g2 = (c >> 8) & 255, b = c & 255;
+      r *= (1 - f); g2 *= (1 - f * 0.94); b *= (1 - f * 0.80);
+      return ((r | 0) << 16) | ((g2 | 0) << 8) | (b | 0);
+    };
+    for (var i = 0; i < pairs.length; i++) {
+      var base = M[pairs[i][0]];
+      if (typeof base !== 'number') continue;
+      M[pairs[i][1]] = warm(base, 0.28);
+      M[pairs[i][2]] = cool(base, 0.34);
+    }
   };
 
   //  ── 광원 (2026-08-04 아트 개편 · 이 파일의 새 기준점) ────────────────────────
@@ -2099,10 +2157,23 @@ var SM = 10;
       g.fillEllipse(sx, cy + bh * 0.22, bw * 2, bh * 2, 10);
       g.fillStyle(M[A.col] || M.leather, a);
       g.fillEllipse(sx, cy, bw * 2, bh * 2, 10);
+      //  ── 어깨 3단 (2026-08-04) ───────────────────────────────────────────
+      //  예전에는 어두운 타원 하나였다. 재질 3단이 생겼으니 **그늘 → 면 → 빛**을
+      //  겹쳐 어깨가 둥근 판으로 읽히게 한다. 광원은 좌상단이므로 빛은 왼쪽 위다.
+      //  ⚠ 도형이 어깨당 1개 → 3개로 는다. 어깨는 최대 4개라 +8 도형이고,
+      //    26기 기준 +208 — 이 게임 프레임에서 감당 범위다(격자가 그보다 크다).
+      var liteKey = A.col + 'Lite';
       for (var i = 0; i < A.sh; i++) {          // 어깨 판 — 등급만큼 늘어난다
         var ox = (i % 2 ? 1 : -1) * bw * (0.86 + Math.floor(i / 2) * 0.16);
+        var shy = cy - bh * 0.5;
         g.fillStyle(M[A.dark] || M.iron, a * 0.85);
-        g.fillEllipse(sx + ox, cy - bh * 0.5, bh * 1.5, bh * 1.2, 8);
+        g.fillEllipse(sx + ox, shy + bh * 0.10, bh * 1.5, bh * 1.2, 8);
+        g.fillStyle(M[A.col] || M.leather, a * 0.95);
+        g.fillEllipse(sx + ox, shy, bh * 1.34, bh * 1.05, 8);
+        if (bh >= 3) {
+          g.fillStyle(M[liteKey] || M[A.col] || M.leather, a * 0.75);
+          g.fillEllipse(sx + ox - bh * 0.18, shy - bh * 0.20, bh * 0.72, bh * 0.52, 8);
+        }
       }
     }
 

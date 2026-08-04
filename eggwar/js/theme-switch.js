@@ -135,6 +135,10 @@ GAME.UI = GAME.UI || {};
     });
     if (t.FX)  for (k in t.FX)  if (t.FX[k]  !== undefined && UI.FX)  UI.FX[k]  = t.FX[k];
     if (t.MAT) for (k in t.MAT) if (t.MAT[k] !== undefined && UI.MAT) UI.MAT[k] = t.MAT[k];
+    //  ⚠ 재질 3단(Lite/Dark)을 **base 에서 다시 유도한다** (2026-08-04).
+    //    테마는 base 만 덮어쓰므로, 안 다시 뽑으면 밝은 면만 stock 색으로 남아
+    //    재질이 두 조각으로 갈라진다. 위 MAT 적용 **뒤**여야 한다.
+    if (UI.deriveMatTones) UI.deriveMatTones();
     // 아트 윤곽선 색은 이펙트 잉크와 같은 값을 쓴다 — 화면 전체가 한 벌의 잉크로 그려진다
     if (UI.FX && UI.FX.ink !== undefined) UI.ART_INK_COLOR = UI.FX.ink;
     if (t.TXT) for (k in t.TXT) if (t.TXT[k] !== undefined) UI.TXT[k] = t.TXT[k];

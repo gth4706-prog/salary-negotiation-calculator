@@ -146,6 +146,67 @@ window.GAME = window.GAME || {};
     gfill(x - r * 0.22, wy - r * 0.18, r * 0.60, M.clay, 0.34 * a * S.FA);
   }
 
+  // ── 백열 코어 (2026-08-04 아트 개편) ─────────────────────────────────
+  //  레퍼런스의 타격은 **3층**이다: 어두운 윤곽 / 색 덩어리 / 흰 코어.
+  //  우리는 2층(잉크 윤곽 + 채움)이었고, 흰 코어가 sparkCore·lobCore·projCore
+  //  세 군데에만 있었다. 이 헬퍼를 한 곳에 두고 여러 이펙트가 같이 부른다 —
+  //  나중에 톤을 바꿀 때 한 줄이면 된다.
+  //
+  //  ⚠ **A안(재료)을 깨지 않는다.** 빛나는 것은 마법이 아니라 **부딪힌 순간의 백열**
+  //    이다. 이 세계에 네온도 마법진도 없다.
+  //  ⚠ 코어는 **네 번째 신호**다. 흑백으로도 범위가 읽혀야 한다는 규율은 그대로다 —
+  //    테두리·잉크·경계 위 물건 중 둘 이상은 코어와 무관하게 계속 남는다.
+  //  ⚠ 영웅별로 코어 색을 미세하게 달리한다. 같은 흰색 셋보다 캐릭터가 산다.
+  function core(x, wy, r, a, heroKey) {
+    var col = S.FX.sparkCore;
+    if (heroKey === 'vanguard') col = 0xfff0c0;        // 불
+    else if (heroKey === 'ranger') col = 0xe8fffb;     // 바람
+    else if (heroKey === 'warden') col = 0xfff6d0;     // 대지
+    gfill(x, wy, r * 0.34, col, 0.9 * a * S.FA);
+    gfill(x, wy, r * 0.17, 0xffffff, 0.75 * a * S.FA);
+  }
+
+  // ── 초승달 참격 (2026-08-04) ─────────────────────────────────────────
+  //  근접 타격이 `wedge`(쐐기)로만 표현돼 "베었다"가 아니라 "찔렀다"로 읽혔다.
+  //  두 호의 차집합으로 초승달을 만든다 — 레퍼런스 ③④의 굵은 참격이 이것이다.
+  //
+  //  ⚠ 각도가 **휘두른 방향으로 흐른다**(spin). 정지한 호는 붙여넣기처럼 보인다.
+  //  ⚠ 안쪽을 배경색이 아니라 **지우기**로 파낼 수 없으므로(Graphics 에 destination-out
+  //    이 없다) 바깥 호를 채우고 안쪽 호를 **한 번 더 채워 덮는** 방식이 아니라,
+  //    호를 여러 갈래로 잘라 그리는 방식을 쓴다 — 배경이 무엇이든 안전하다.
+  function crescent(x, wy, ang, r, a, heroKey) {
+    var g = S.g, i, n = 12;
+    var half = 1.15 / 2;                       // 각폭 1.15 rad
+    var spin = (1 - a) * 0.21;                 // 휘두른 방향으로 12° 흐른다
+    var rOut = r, rIn = r * 0.62;
+    var pts = [];
+    for (i = 0; i <= n; i++) {
+      var t = ang - half + spin + (2 * half) * (i / n);
+      pts.push({ x: x + Math.cos(t) * rOut, y: syy(wy) + Math.sin(t) * rOut * S.T });
+    }
+    for (i = n; i >= 0; i--) {
+      var t2 = ang - half + spin + (2 * half) * (i / n);
+      pts.push({ x: x + Math.cos(t2) * rIn, y: syy(wy) + Math.sin(t2) * rIn * S.T });
+    }
+    //  ① 잉크 윤곽 — 흑백으로도 읽히는 층
+    g.lineStyle(Math.max(1.6, r * 0.045), S.FX.ink, 0.55 * a * S.FA);
+    g.strokePoints(pts, true, true);
+    //  ② 색 덩어리
+    g.fillStyle(S.FX.blast, 0.42 * a * S.FA);
+    g.fillPoints(pts, true);
+    //  ③ 안쪽 가장자리의 백열 — 날이 지나간 자리
+    var cc = S.FX.sparkCore;
+    if (heroKey === 'vanguard') cc = 0xfff0c0;
+    else if (heroKey === 'warden') cc = 0xfff6d0;
+    g.lineStyle(Math.max(1.4, r * 0.032), cc, 0.85 * a * S.FA);
+    var inner = [];
+    for (i = 0; i <= n; i++) {
+      var t3 = ang - half + spin + (2 * half) * (i / n);
+      inner.push({ x: x + Math.cos(t3) * rIn * 1.03, y: syy(wy) + Math.sin(t3) * rIn * 1.03 * S.T });
+    }
+    g.strokePoints(inner, false, false);
+  }
+
   // ========================================================================
   //  1. dash — 박치기 / 대검 돌진 / 구르기 / 도약 / 돌진 / 뒷걸음 사격
   //     effect: dashTrail (x1,y1 → x2,y2)
@@ -247,6 +308,16 @@ window.GAME = window.GAME || {};
       var bb = burst * burst;
       gfill(e.x, e.y, r * (0.26 + p * 1.9), col, 0.42 * bb * S.FA);
       gink(e.x, e.y, r * (0.30 + p * 1.7), 3 + 5 * burst, col, 1.0 * burst * S.RA);
+      //  ── 초승달 참격 (2026-08-04) ────────────────────────────────────────
+      //  자기중심 광역기는 "휘둘렀다"인데 원만 그리면 "있다"로 보인다. 두 갈래
+      //  호로 베인 자리를 남긴다 — 레퍼런스 ③④의 굵은 참격이 이것이다.
+      //  ⚠ 각도는 **좌표에서 뽑은 고정 난수**다. 매 프레임 다시 굴리면 참격이
+      //    빙글빙글 돌아 어지럽다(이 파일의 `seedOf` 규율).
+      var ca = seedOf(e.x, e.y);
+      crescent(e.x, e.y, ca, r * 1.02, burst, e.heroKey);
+      crescent(e.x, e.y, ca + Math.PI, r * 0.88, burst * 0.75, e.heroKey);
+      //  터진 자리의 백열 — 3층 구조의 마지막 층
+      core(e.x, e.y, r * 0.9, bb, e.heroKey);
       // 밖으로 뻗는 살 — 원만 있으면 '퍼졌다'가 아니라 '있다'로 보인다
       var sd0 = seedOf(e.x, e.y), cy0 = syy(e.y);
       for (var q = 0; q < 8; q++) {
@@ -371,6 +442,8 @@ window.GAME = window.GAME || {};
     if (bburst > 0) {
       gfill(e.x, e.y, r * (0.35 + p * 1.6), BC, 0.40 * bburst * bburst * S.FA);
       gink(e.x, e.y, r * (0.40 + p * 1.4), 3 + 4 * bburst, BC, bburst * S.RA);
+      //  백열 코어 — 3층 구조의 마지막 층(2026-08-04). 착탄 순간에만 짧게.
+      core(e.x, e.y, r * 0.85, bburst * bburst, e.heroKey);
     }
     gink(e.x, e.y, r, 4, BC, b * 1.05 * S.RA);
     // 흙기둥 — 지면에서 위로 솟는다. 착탄이 '아래에서 위로' 읽힌다.

@@ -429,6 +429,28 @@ GAME.BattleScene.prototype.create = function () {
     heal:  ['#eaffee', '#7ef0a0', '#2c9a5e']
   };
 
+  //  ── COMBO 표시 (2026-08-04) ─────────────────────────────────────────────
+  //  레퍼런스 ③④가 연타의 쾌감을 만드는 장치다. 두 겹(숫자 + 'COMBO')으로 두는 이유:
+  //  숫자만 크게 키우면 피해 숫자와 헷갈린다.
+  //  ⚠ 자리를 **왼쪽 중단**으로 잡는다. 처음엔 오른쪽 위에 뒀는데 거기는 골드 표시가
+  //    이미 쓰고 있어 숫자 둘이 겹쳤다(실측 스크린샷). 오른쪽은 위부터 '남은 적 →
+  //    골드 → 스킬 버튼'으로 꽉 차 있고, 왼쪽은 체력 패널 아래가 비어 있다.
+  //  ⚠ 겹침 감사(tools/overlap-audit.js)는 이걸 **못 잡는다** — 콤보는 3연타 이상일
+  //    때만 뜨는데 감사는 전투를 진행시키지 않는다. 스크린샷으로만 확인 가능하다.
+  //  ⚠ `setScrollFactor(0)` — 전장이 확대돼도 따라 움직이면 안 된다(HUD 다).
+  var SM = GAME.CONFIG.SMALL;
+  var cbX = 26, cbY = GAME.CONFIG.HEIGHT * (P ? 0.30 : 0.34);
+  this.comboNum = this.add.text(cbX, cbY, '', {
+    fontFamily: (GAME.CONFIG.FONT_DISPLAY || GAME.CONFIG.FONT) + ', ' + GAME.CONFIG.FONT,
+    fontSize: (SM ? 40 : 46) + 'px', color: '#ffd24a',
+    stroke: '#3a2a10', strokeThickness: 7
+  }).setOrigin(0, 0.5).setDepth(9200).setScrollFactor(0).setVisible(false);
+  this.comboNum.setShadow(0, 4, 'rgba(40,26,10,0.5)', 4, false, true);
+  this.comboLbl = this.add.text(cbX + 3, cbY + (SM ? 22 : 26), 'COMBO', {
+    fontFamily: GAME.CONFIG.FONT, fontSize: (SM ? 13 : 15) + 'px',
+    color: '#ffe9a8', stroke: '#3a2a10', strokeThickness: 4
+  }).setOrigin(0, 0.5).setDepth(9200).setScrollFactor(0).setVisible(false);
+
   this.numPool = [];
   for (var n = 0; n < 26; n++) {
     var numTxt = this.add.text(0, 0, '', {
@@ -1032,6 +1054,25 @@ GAME.BattleScene.prototype.drawNumbers = function () {
     t.setPosition(n.x + (n.drift || 0) * prog, Iso.toScreenY(n.y) - 26 - (n.yOff || 0) - prog * 46);
   }
   for (; used < pool.length; used++) pool[used].setVisible(false);
+
+  //  ── COMBO 갱신 (2026-08-04) ─────────────────────────────────────────────
+  //  ⚠ 트윈을 안 쓴다. 숫자 풀과 같은 규율 — **경과 시간에서 곡선을 계산**하면
+  //    비용이 0 이고 GC 압력도 없다.
+  //  ⚠ 3연타부터 보여 준다. 1~2 타에 뜨면 상시 표시가 되어 특별함을 잃는다.
+  if (this.comboNum) {
+    var since = this.state.elapsed - (this._comboAt || -9999);
+    var on = (this._combo || 0) >= 3 && since < 1200;
+    if (!on) {
+      if (this.comboNum.visible) { this.comboNum.setVisible(false); this.comboLbl.setVisible(false); }
+    } else {
+      var fade = since > 900 ? Math.max(0, 1 - (since - 900) / 300) : 1;
+      //  방금 맞은 순간(140ms)에 튀어오른다 — '한 대 더 들어갔다'가 몸에 남는다.
+      var punch = since < 140 ? 1 + (1 - since / 140) * 0.42 : 1;
+      if (this.comboNum.text !== String(this._combo)) this.comboNum.setText(String(this._combo));
+      this.comboNum.setVisible(true).setAlpha(fade).setScale(punch);
+      this.comboLbl.setVisible(true).setAlpha(fade * 0.9);
+    }
+  }
 };
 
 GAME.BattleScene.prototype.update = function (time, delta) {
@@ -1386,6 +1427,18 @@ GAME.BattleScene.prototype._juice = function (dt) {
       u._hurtDir = (u.facing === undefined ? 0 : u.facing) + Math.PI;   // 맞은 반작용 방향
       if (pct > biggest) biggest = pct;
       if (u === this.hero) heroHit = true;
+      //  ── COMBO (2026-08-04) ────────────────────────────────────────────
+      //  **내가 때린 것만** 센다. 이 화면에서 '영웅 = 플레이어'인지는 모드마다
+      //  다르다(수성의 탑은 영웅이 적이다) — 피해 숫자가 쓰는 그 판단을 그대로 빌린다.
+      //  ⚠ 새 트리거를 안 만든다. 여기가 이미 "누가 얼마나 맞았나"를 아는 자리다.
+      var mineHit = ((this._heroIsPlayer === undefined) ? true : this._heroIsPlayer)
+                    ? (u !== this.hero) : (u === this.hero);
+      if (mineHit) {
+        //  1.2초 안에 다음 타격이 없으면 끊긴다 — 연타의 쾌감이지 누적 점수가 아니다.
+        if (this.state.elapsed - (this._comboAt || -9999) > 1200) this._combo = 0;
+        this._combo = (this._combo || 0) + 1;
+        this._comboAt = this.state.elapsed;
+      }
       //  ── 타격 파티클 (2026-08-04) ────────────────────────────────────────
       //  ⚠ **새 트리거를 안 만든다.** 여기는 이미 "체력이 줄었다"를 프레임 간
       //    비교로 잡아내는 자리다. 별도 훅을 만들면 두 기준이 갈라져 언젠가

@@ -94,7 +94,7 @@
 </main>
 
 <script src="card-data.js?v=5"></script>
-<script src="story-data.js?v=8"></script>
+<script src="story-data.js?v=9"></script>
 <script src="sozae-pool.js?v=3"></script>
 <script>
 /* =========================================================
@@ -278,9 +278,18 @@ function drawCard(cv, tool, idx){
      (그건 폰트 문제가 아니라 **원고가 너무 긴 것**이라 사람이 고쳐야 한다).
      ========================================================= */
   var W = S - PAD*2;
-  var bottomGuard = isLast
-      ? (tool.kind === "story" ? 190 : 145)   // 마지막 카드엔 CTA 박스가 있다
-      : 74;                                    // 일반 카드엔 하단 시리즈명
+  /* 마지막 카드엔 하단 박스가 있다. 소재의 질문 박스는 길이에 따라 커지므로
+     **먼저 그 높이를 재서** 본문 안전 영역을 정한다.
+     ⚠️ 예전엔 190px 로 고정해서, 질문이 길어지면 본문과 겹쳤다(2026-08-05). */
+  var bottomGuard;
+  if (isLast && tool.kind === "story"){
+    ctx.font = "800 40px 'Pretendard Variable',sans-serif";
+    bottomGuard = wrap(ctx, tool.ask, S - PAD*2 - 70).length * 54 + 44 + 30;
+  } else if (isLast){
+    bottomGuard = 145;
+  } else {
+    bottomGuard = 74;                          // 일반 카드엔 하단 시리즈명
+  }
   var safeBottom = S - PAD - bottomGuard;
   var topY = PAD + 168;
 
@@ -343,21 +352,27 @@ function drawCard(cv, tool, idx){
         "소재로만 후킹"이기 때문이다. 대신 질문으로 끝내 댓글·저장을 유도한다
         (인스타에서 노출을 키우는 건 결국 반응이다). */
   if (isLast && tool.kind === "story"){
-    ctx.fillStyle = tool.color;
-    roundRect(ctx, PAD, S - PAD - 172, S - PAD*2, 160, 24); ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.textAlign = "center";
-    /* 질문도 자동 맞춤 — 박스 높이를 넘지 않게 글자를 줄인다 */
-    var qs = 40, ql = 54, qlines;
-    for (var q = 0; q < 5; q++){
+    /* 질문 박스는 **높이를 고정하지 않는다.** 내용에 맞춰 늘어나고,
+       그래도 위쪽 본문과 겹칠 것 같으면 글자를 줄인다.
+       ⚠️ 예전에 160px 고정이라 질문이 길어지자 박스를 넘쳤다(2026-08-05). */
+    var qs = 40, ql = 54, qlines, boxH;
+    var qMaxTop = by + 24;                 // 본문이 끝난 지점 아래로만 그린다
+    for (var q = 0; q < 7; q++){
       ctx.font = "800 " + qs + "px 'Pretendard Variable',sans-serif";
       qlines = wrap(ctx, tool.ask, S - PAD*2 - 70);
-      if (qlines.length * ql <= 150) break;
-      qs *= 0.9; ql *= 0.9;
+      boxH = qlines.length * ql + 44;
+      if (S - PAD - boxH >= qMaxTop) break;
+      qs *= 0.92; ql *= 0.92;
     }
-    var qy = S - PAD - 172 + (160 - qlines.length*ql)/2 + ql*0.28;
+    var boxTop = S - PAD - boxH;
+    ctx.fillStyle = tool.color;
+    roundRect(ctx, PAD, boxTop, S - PAD*2, boxH, 24); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    var qy = boxTop + 22 + ql * 0.16;
     qlines.forEach(function(l){ ctx.fillText(l, S/2, qy); qy += ql; });
     ctx.textAlign = "left";
+    if (S - PAD - boxH < qMaxTop) cv.dataset.overflow = "1";
   } else if (isLast){
     ctx.fillStyle = tool.color;
     roundRect(ctx, PAD, S - PAD - 128, S - PAD*2, 116, 24); ctx.fill();

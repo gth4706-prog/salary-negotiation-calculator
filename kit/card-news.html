@@ -69,8 +69,8 @@
   </div>
 </main>
 
-<script src="card-data.js?v=3"></script>
-<script src="story-data.js?v=3"></script>
+<script src="card-data.js?v=4"></script>
+<script src="story-data.js?v=4"></script>
 <script>
 /* =========================================================
    카드 렌더링 — 캔버스에 직접 그린다.
@@ -121,11 +121,27 @@ function roundRect(ctx,x,y,w,h,r){
   ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
 }
 
+/* 소재(story)는 기승전결 구조라 body/ending/take 로 나뉘어 있고,
+   도구(tool)는 기존처럼 cards 하나다. 그리기 전에 한 배열로 펼친다.
+   ⚠️ 소재의 마지막 카드(결)는 "우리의 해석 + 댓글 유도"를 함께 담는다. */
+function sequence(t){
+  if (t.kind !== "story") return t.cards;
+  return t.body.concat([t.ending, t.take]);
+}
+function partLabel(t, i){
+  if (t.kind !== "story") return (i+1) + " / " + sequence(t).length;
+  var n = t.body.length;
+  if (i < n) return "승";
+  if (i === n) return "전";
+  return "결";
+}
+
 function drawCard(cv, tool, idx){
   var ctx = cv.getContext("2d");
+  var CARDS = sequence(tool);
   cv.width = S; cv.height = S;
   var isCover = idx === 0;
-  var isLast  = idx === tool.cards.length;   // 마지막 = CTA 카드
+  var isLast  = idx === CARDS.length;   // 마지막 = 결(소재) / CTA(도구)
 
   /* 배경 */
   ctx.fillStyle = isCover ? tool.color : tool.paper;
@@ -171,15 +187,16 @@ function drawCard(cv, tool, idx){
     return;
   }
 
-  var card = tool.cards[idx-1];
+  var card = CARDS[idx-1];
 
-  /* 번호 뱃지 */
+  /* 뱃지 — 소재는 기승전결(승/전/결), 도구는 "1 / 4" 숫자 */
+  var badgeW = (tool.kind === "story") ? 64 : 96;
   ctx.fillStyle = tool.color;
-  roundRect(ctx, PAD, PAD + 66, 96, 56, 28); ctx.fill();
+  roundRect(ctx, PAD, PAD + 66, badgeW, 56, 28); ctx.fill();
   ctx.fillStyle = "#fff";
   ctx.font = "800 30px 'Pretendard Variable',sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(idx + " / " + tool.cards.length, PAD + 48, PAD + 80);
+  ctx.fillText(partLabel(tool, idx-1), PAD + badgeW/2, PAD + 80);
   ctx.textAlign = "left";
 
   /* 소제목 */
@@ -250,7 +267,9 @@ function caption(tool){
     /* 소재 캡션 — 도구를 밀지 않는다(1단계 전략).
        출처 표기는 넣지 않는다(태현님 요청) — 논문이 아니라 썰이라서. */
     return tool.hook.replace(/\n/g," ") + "\n\n"
-      + tool.cards.map(function(c){ return "· " + c.t; }).join("\n")
+      + tool.body.map(function(c){ return "· " + c.t; }).join("\n")
+      + "\n· " + tool.ending.t
+      + "\n\n" + tool.take.b.replace(/\n/g," ")
       + "\n\n" + tool.ask.replace(/\n/g," ")
       + "\n\n" + tool.tags + " #각잡살림";
   }
@@ -270,16 +289,24 @@ var cur;
 
 /* 퍼널 단계 — 태현님 설계. 이 라벨은 **화면에서만** 쓰고 카드 이미지에는 안 넣는다
    (보는 사람에게는 의미 없는 내부 분류라서). 도구 카드는 마지막 단계로 본다. */
-var STAGES = ["소재", "소재>고민", "소재>고민>툴", "소재>툴", "툴>고민해결"];
+/* ⚠️ 3단계 전에는 툴을 노출하지 않는다(태현님 방침). */
+var STAGES = [
+  "1단계 · 소재",
+  "2단계 · 소재>고민",
+  "3단계 · 소재>고민>툴",
+  "4단계 · 툴>고민해결"
+];
 var STAGE_COLOR = {
-  "소재":"#3DD68C", "소재>고민":"#5FB8E3", "소재>고민>툴":"#C9A227",
-  "소재>툴":"#E2934A", "툴>고민해결":"#C4636C"
+  "1단계 · 소재":"#3DD68C",
+  "2단계 · 소재>고민":"#5FB8E3",
+  "3단계 · 소재>고민>툴":"#C9A227",
+  "4단계 · 툴>고민해결":"#C4636C"
 };
 
 /* 소재(story)를 먼저, 그다음 도구를 번호순으로. 지금은 "소재로 후킹" 단계다. */
 var ALL = (window.CARD_STORIES || []).concat(
   CARD_TOOLS.slice().sort(function(a,b){ return a.no.localeCompare(b.no); })
-    .map(function(t){ t.stage = t.stage || "툴>고민해결"; return t; })
+    .map(function(t){ t.stage = t.stage || "4단계 · 툴>고민해결"; return t; })
 );
 
 function fillSelect(filter){
@@ -316,7 +343,7 @@ fillSelect("");
 function render(){
   cur = ALL[sel.value|0];
   sheet.innerHTML = "";
-  for (var i=0; i<=cur.cards.length; i++){
+  for (var i=0; i<=sequence(cur).length; i++){
     (function(i){
       var fig = document.createElement("figure");
       var cv  = document.createElement("canvas");
@@ -328,7 +355,7 @@ function render(){
   }
   document.getElementById("cap").value = caption(cur);
   document.getElementById("status").textContent =
-    "[" + cur.stage + "] " + (cur.cards.length + 1) + "장 · 1080×1080";
+    "[" + cur.stage + "] " + (sequence(cur).length + 1) + "장 · 1080×1080";
 }
 
 document.getElementById("dl").addEventListener("click", function(){

@@ -261,3 +261,89 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 /* 연관 도구 아래 허브 복귀 링크 */
 .more-tools{margin:14px 0 0;font-size:13px}
 .more-tools a{font-weight:700}
+
+/* =========================================================
+   상단바 줄바꿈 방지 + 한글 가독성 보정 (2026-08-04)
+
+   ■ 왜 고쳤나 — 390px/320px 아이프레임으로 실측했더니:
+     390px: "각잡살림"이 "각잡/살림" 2줄, "가이드"가 "가이/드"로 쪼개짐
+     320px: "각잡살림"이 각/잡/살/림 4줄로 세로 배열, "퇴사 타이밍"도 세로
+     원인은 nav 어디에도 white-space:nowrap 이 없고 .brand 에 flex:none 이
+     없어서, 폭이 모자라면 flex 가 브랜드부터 찌그러뜨리고 한글은 글자 단위로
+     줄바꿈되기 때문. (영문은 단어 단위라 이 현상이 잘 안 드러난다.)
+
+   ■ 해결 방식 — 링크를 숨기거나 햄버거로 접지 않고 **가로 스크롤**로 둔다.
+     도구 사이 이동(가이드·소개·다른 도구)이 이 사이트의 주요 동선이라
+     모바일에서 감추면 탐색이 나빠진다. 애드센스 심사에서도 "탐색이 어려운
+     사이트"가 반려 사유로 언급된다(2026-08-03 조사).
+
+   ■ 한글 타이포 근거(2026-08-04 조사): 본문 16~17px, 행간 최소 1.5,
+     word-break:keep-all(한글은 어절 중간에서 끊으면 읽기 나쁘다),
+     음수 자간은 한글 가독성에 불리 — 큰 제목에만 제한적으로 쓴다.
+   ========================================================= */
+
+/* ---------- 1) 상단바: 절대 쪼개지지 않게 ---------- */
+.nav .in{gap:8px}
+.brand{flex:none;white-space:nowrap}          /* 브랜드가 가장 먼저 찌그러지던 원인 */
+.brand .n{white-space:nowrap}
+.nav .links{
+  margin-left:auto;
+  min-width:0;                                 /* flex 자식이 줄어들 수 있게 */
+  overflow-x:auto;                             /* 넘치면 가로로 민다 */
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;                        /* 스크롤바는 숨기고 동작만 남긴다 */
+}
+.nav .links::-webkit-scrollbar{display:none}
+.nav .links > *{flex:none}                     /* 링크·버튼·배지 전부 축소 금지 */
+.nav .links a,.lang-switch a,.ver-badge{white-space:nowrap}
+
+@media (max-width:520px){
+  .nav .in{padding:10px 16px;gap:6px}          /* 좌우 16px 는 유지(모바일 최소 여백) */
+  .brand .n{font-size:14.5px}
+  .brand svg{width:24px;height:24px}
+  .nav .links a{padding:8px 8px;font-size:13px}
+  .theme-btn{width:32px;height:32px;margin-left:2px}
+}
+/* 아주 좁은 화면에서는 배포 버전 배지를 숨긴다 —
+   개발·배포 확인용이라 일반 사용자에게 필수 정보가 아니다. */
+@media (max-width:380px){ .ver-badge{display:none} }
+
+/* ---------- 2) 한글 줄바꿈 규칙 ---------- */
+/* 어절 중간에서 끊지 않는다. 단, URL·시드값처럼 긴 문자열은 예외로 풀어준다. */
+body{word-break:keep-all;overflow-wrap:anywhere}
+code,.mono,.seed,input,textarea{word-break:normal}
+
+/* ---------- 3) 본문 가독성 ----------
+   기존 본문 15px / 설명문 12.5px / 푸터 11.5px 는 한글 권장선보다 작았다. */
+.article p,.article li{font-size:16.5px;line-height:1.85;letter-spacing:0}
+.card>.desc{font-size:13.5px;line-height:1.7}
+.helper{font-size:13.5px;line-height:1.7}
+.guides a span{font-size:13.5px;line-height:1.65}
+.footer .in{font-size:13.5px}
+.footer .cp{font-size:12.5px;line-height:1.7}
+.q .s{font-size:14px;line-height:1.65}
+.faq details p{font-size:14.5px;line-height:1.75}
+.tool-about p,.tool-about li{font-size:14.5px;line-height:1.8}
+
+/* 음수 자간은 한글에서 획이 붙어 보인다 — 본문은 0, 큰 제목만 약하게 */
+body{letter-spacing:0}
+h1{letter-spacing:-.02em}
+h2,h3{letter-spacing:-.01em}
+
+@media (max-width:520px){
+  /* 모바일에서 본문은 조금 더 키운다(읽는 거리가 가깝지만 화면이 좁다) */
+  .article p,.article li{font-size:16px;line-height:1.8}
+  .article h2{font-size:19px}
+  .article h3{font-size:16.5px}
+}
+
+/* 아주 좁은 화면에서 링크가 잘릴 때, 오른쪽 끝을 옅게 흐려 "더 있다"는 신호를 준다.
+   가로 스크롤은 되지만 스크롤바를 숨겨놨기 때문에 이 힌트가 없으면
+   잘린 항목이 그냥 없는 것처럼 보인다. */
+@media (max-width:380px){
+  .nav .links{
+    -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 16px),transparent);
+    mask-image:linear-gradient(90deg,#000 calc(100% - 16px),transparent);
+  }
+}

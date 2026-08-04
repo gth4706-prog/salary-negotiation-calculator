@@ -102,6 +102,25 @@ GAME.TouchPad.prototype._build = function () {
   // (실측 스크린샷). 면을 옅게 깔고 테두리를 굵게 살리면 같은 크기로도 전장이 보인다.
   var fillA = PHONE ? 0.07 : 0.22, lineA = PHONE ? 0.5 : 0.30;
   var knobA = PHONE ? 0.16 : 0.30;
+  //  ── 스틱도 물건이다 (2026-08-04) ────────────────────────────────────────
+  //  예전엔 회색 반투명 원 두 개라 '도형'으로 보였다. 뼈 테 + 밧줄 눈금으로 바꾼다.
+  //  ⚠ **면 알파는 안 올린다.** 위 주석이 실측으로 잡아 둔 값이다(폰 가로에서 면을
+  //    진하게 하면 전장 왼쪽에 진흙 웅덩이가 생긴다). 테두리로만 물건을 만든다.
+  var stickDeco = scene.add.graphics().setDepth(899).setScrollFactor(0);
+  (function () {
+    var M = GAME.UI.MAT, R0 = S.stickR;
+    stickDeco.lineStyle(Math.max(2.5, R0 * 0.055), M.bone, PHONE ? 0.55 : 0.70);
+    stickDeco.strokeCircle(sx, baseY, R0 * 0.97);
+    //  방향 눈금 넷 — 밧줄을 감아 둔 자리. 스틱이 '어느 쪽으로 미는 물건'임을 말한다.
+    stickDeco.lineStyle(Math.max(2, R0 * 0.045), M.rope, PHONE ? 0.45 : 0.6);
+    [0, 90, 180, 270].forEach(function (d) {
+      var t = d * Math.PI / 180, c = Math.cos(t), s2 = Math.sin(t);
+      stickDeco.lineBetween(sx + c * R0 * 0.80, baseY + s2 * R0 * 0.80,
+                            sx + c * R0 * 1.02, baseY + s2 * R0 * 1.02);
+    });
+  })();
+  this.objects.push(stickDeco);
+
   this.stickRing = scene.add.circle(sx, baseY, S.stickR, PAD.ring, fillA)
     .setStrokeStyle(PHONE ? 3 : 2, PAD.ink, lineA).setDepth(900).setScrollFactor(0);
   this.stickKnob = scene.add.circle(sx, baseY, S.knobR, PAD.ink, knobA)
@@ -200,10 +219,46 @@ GAME.TouchPad.prototype._addButton = function (key, x, y, r, label, color, onTap
   var scene = this.scene;
   // 호 위에 배치하다 보면 마지막 버튼이 화면 밖으로 밀린다(R 버튼이 실제로 잘렸다).
   // 버튼 크기를 키울 때마다 다시 터지므로 여기서 한 번에 가둔다.
-  var pad = 4;
+  //  ⚠ 여백은 **뼈 테 두께까지** 세야 한다(2026-08-04). 테가 r×1.19 까지 나가므로
+  //    4px 만 두면 테가 화면 밖으로 잘린다 — 이 줄이 원래 막으려던 사고와 같은 종류다.
+  var pad = Math.max(4, r * 0.24);
   x = Math.max(r + pad, Math.min(GAME.CONFIG.WIDTH - r - pad, x));
   y = Math.max(r + pad, Math.min(GAME.CONFIG.HEIGHT - r - pad, y));
   var PAD = GAME.TouchPad.palette();
+
+  //  ── 부족 테두리 (2026-08-04 아트 개편) ──────────────────────────────────
+  //  레퍼런스의 원형 스킬 버튼은 **금속 테 + 못**으로 무게를 만든다. 그런데 이 세계에
+  //  크롬도 네온도 없다 — 있는 것은 뼈·청동·밧줄뿐이다. 그대로 번역한다:
+  //  뼈를 깎아 만든 테 + 청동 못 + 아래로 떨어지는 그림자.
+  //  ⚠ **버튼 자체(원·글자·쿨다운)는 안 건드린다.** 크기·판정·라벨 축소 로직은 실측으로
+  //    잡아 둔 값이라(R 버튼이 화면 밖으로 밀린 사고) 장식만 뒤에 깐다.
+  //  ⚠ depth 898 — 버튼 원(900)·글자(902)·쿨다운(901) 전부보다 아래다.
+  var deco = scene.add.graphics().setDepth(898).setScrollFactor(0);
+  (function () {
+    var M = GAME.UI.MAT;
+    //  ⚠ **테는 버튼 바깥에 둔다.** 처음엔 0.95r 에 그렸는데 버튼 원(반지름 r, 알파
+    //    0.55 흰 면)이 그 위를 덮어 전혀 안 보였다(실측 스크린샷). 테는 원을 **감싸야**
+    //    테로 읽힌다 — 안쪽에 그리면 그냥 지워진다.
+    deco.fillStyle(0x000000, 0.30);                        // 떠 있다는 감각
+    deco.fillCircle(x, y + r * 0.13, r * 1.16);
+    deco.lineStyle(Math.max(4, r * 0.19), M.bone, 1);      // 뼈 테
+    deco.strokeCircle(x, y, r * 1.09);
+    deco.lineStyle(Math.max(1.5, r * 0.06), M.shellRim, 0.9);   // 테 바깥 그늘 = 두께
+    deco.strokeCircle(x, y, r * 1.19);
+    deco.fillStyle(M.bronze, 1);                           // 청동 못 넷
+    [45, 135, 225, 315].forEach(function (d) {
+      var t = d * Math.PI / 180;
+      deco.fillCircle(x + Math.cos(t) * r * 1.09, y + Math.sin(t) * r * 1.09, Math.max(2.5, r * 0.11));
+    });
+    deco.fillStyle(GAME.UI.LIGHT ? GAME.UI.LIGHT.key : 0xfff3d6, 0.6);   // 못 하이라이트
+    [45, 135, 225, 315].forEach(function (d) {
+      var t = d * Math.PI / 180;
+      deco.fillCircle(x + Math.cos(t) * r * 1.09 - r * 0.035, y + Math.sin(t) * r * 1.09 - r * 0.035,
+                      Math.max(1, r * 0.045));
+    });
+  })();
+  this.objects.push(deco);
+
   var circle = scene.add.circle(x, y, r, PAD.face, 0.55)
     .setStrokeStyle(2, color, 0.75).setDepth(900).setScrollFactor(0);
   circle.setInteractive(new Phaser.Geom.Circle(r, r, r), Phaser.Geom.Circle.Contains);

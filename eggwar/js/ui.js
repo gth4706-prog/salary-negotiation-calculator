@@ -112,17 +112,62 @@ GAME.UI = {
       g.fillRect(zc.x, Iso.toScreenY(zc.y), zc.w, zc.h * Iso.TILT);
     }
 
-    // 지형지물 — **거리 그림자(아래 bands)보다 먼저** 그린다.
+    // ── 원경 (2026-08-04 아트 개편) ────────────────────────────────────────
+    //  배경이 사실상 **1층**이었다: 단색 하나 + 검정 6밴드 + 격자. 레퍼런스의
+    //  "겹겹이 쌓인 깊이"가 구조적으로 나올 수 없었다. 원경/중경/근경 3층으로 나눈다.
+    //
+    //  ⚠ 색은 **전부 `fill` 에서 유도한다.** 하드코딩이 하나라도 있으면 테마 4종 ×
+    //    바이옴 6밴드가 거기서 깨진다(이 파일의 기존 규율).
+    //  ⚠ 원경 띠는 전장 **상단 14%** 에만 둔다. 유닛이 서는 구간에 들어가면 바닥이
+    //    시끄러워져 예고 원과 투사체가 안 보인다 — 이 게임의 제1규율이다.
+    var baseFill = B ? B.fill : C.arenaFill;
+    var farH = R.h * 0.14;
+    g.fillStyle(UI.mix(baseFill, 0x000000, 0.38), 1);
+    g.fillRect(R.x, R.y, R.w, farH);
+
+    //  먼 능선 — 톱니 실루엣. **좌표를 캐시한다**: 매 프레임 새로 뽑으면 언덕이 춤춘다
+    //  (`drawBiomeProps` 가 같은 이유로 캐시한다).
+    var ridgeKey = (B ? B.key || B.name || '' : '') + '|' + Math.round(R.w) + '|' + Math.round(farH);
+    if (UI._ridgeKey !== ridgeKey) {
+      var seed = 0, si;
+      for (si = 0; si < ridgeKey.length; si++) seed = (seed * 31 + ridgeKey.charCodeAt(si)) >>> 0;
+      var rnd = function () { seed ^= seed << 13; seed >>>= 0; seed ^= seed >> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
+      var pts = [], step = Math.max(26, R.w / 26), x;
+      for (x = -step; x <= R.w + step; x += step) {
+        pts.push({ x: x, y: farH * (0.55 + rnd() * 0.45) });
+      }
+      UI._ridge = pts; UI._ridgeKey = ridgeKey;
+    }
+    if (UI._ridge && UI._ridge.length > 1) {
+      var rp = UI._ridge, poly = [], k;
+      for (k = 0; k < rp.length; k++) poly.push({ x: R.x + rp[k].x, y: R.y + rp[k].y });
+      poly.push({ x: R.x + R.w + 40, y: R.y - 8 });
+      poly.push({ x: R.x - 40, y: R.y - 8 });
+      g.fillStyle(UI.mix(baseFill, 0x000000, 0.52), 1);
+      g.fillPoints(poly, true);
+    }
+
+    // 지형지물 — **거리 그림자(아래 그라디언트)보다 먼저** 그린다.
     // 그래야 안쪽 소품이 같이 어두워져 원근을 거스르지 않는다.
     if (B) UI.drawBiomeProps(g, B);
 
-    // 안쪽으로 갈수록(위쪽) 어둡게 — 거리감
-    var bands = 6;
+    // ── 근경 띠 ────────────────────────────────────────────────────────────
+    //  하단 안쪽 6%. 명도차 10% 뿐이다 — 더 벌리면 바닥이 두 동강 나 보인다.
+    var nearH = R.h * 0.06;
+    g.fillStyle(UI.mix(baseFill, 0xffffff, 0.10), 1);
+    g.fillRect(R.x, R.bottom - nearH, R.w, nearH);
+
+    // ── 거리 그라디언트 ────────────────────────────────────────────────────
+    //  ⚠ 예전에는 **6밴드**였다. 폰 가로에서 밴드 하나가 45px 라 계단(밴딩)으로 보였다.
+    //    셰이더(`addGradient`)를 쓰는 방법도 있지만 `Phaser.AUTO` 라 Canvas 폴백에서
+    //    **에러 없이 아무 일도 안 한다** — 그래서 밴드 수를 28 로 올려 같은 결과를
+    //    렌더러와 무관하게 얻는다. fillRect 28 번은 이 게임 프레임에서 무시할 수 있다.
+    var bands = 28;
     for (var b = 0; b < bands; b++) {
-      var y0 = A.y + (A.h / bands) * b;
-      var alpha = 0.16 * (1 - b / bands);
+      var t = b / bands;
+      var alpha = 0.20 * (1 - t) * (1 - t);      // 제곱 감쇠 — 위쪽만 진하고 매끄럽다
       g.fillStyle(0x000000, alpha);
-      g.fillRect(A.x, Iso.toScreenY(y0), A.w, (A.h / bands) * Iso.TILT + 1);
+      g.fillRect(R.x, R.y + R.h * t, R.w, R.h / bands + 1);
     }
 
     // 격자 — y 간격이 압축되어 자연히 원근처럼 보인다.
@@ -136,8 +181,41 @@ GAME.UI = {
       g.lineBetween(A.x, sy, A.right, sy);
     }
 
-    g.lineStyle(2, C.arenaLine, 1);
-    g.strokeRect(R.x, R.y, R.w, R.h);
+    // ── 액자 — 경계가 '선'이 아니라 '물건'이다 (2026-08-04) ────────────────
+    //  레퍼런스 ①의 액자 구조를 우리 세계관으로 번역한다: 나무 캐노피가 아니라
+    //  **부족 목책**이다. 이 세계에 있는 재료는 뼈·돌·나무·가죽·청동뿐이다.
+    //  ⚠ 안쪽으로 그린다. 바깥으로 그리면 폰 가로에서 여백이 6px 뿐이라 잘린다.
+    var M = UI.MAT, LT = UI.LIGHT;
+    var postW = Math.max(5, Math.min(9, R.w * 0.006));
+    var postGap = Math.max(34, R.h * 0.16);
+    g.fillStyle(M.woodDark, 1);
+    g.fillRect(R.x, R.y, postW, R.h);
+    g.fillRect(R.right - postW, R.y, postW, R.h);
+    //  광원이 좌상단이므로 **왼쪽 면만** 밝다. 양쪽 다 밝히면 광원이 두 개가 된다.
+    g.fillStyle(M.wood, 1);
+    g.fillRect(R.x, R.y, Math.max(1, postW * 0.34), R.h);
+    g.fillRect(R.right - postW, R.y, Math.max(1, postW * 0.34), R.h);
+    //  세로 기둥의 마디 — 밧줄로 동여맨 자리
+    g.fillStyle(M.rope, 0.75);
+    for (var py = R.y + postGap; py < R.bottom - 6; py += postGap) {
+      g.fillRect(R.x - 1, py, postW + 2, 3);
+      g.fillRect(R.right - postW - 1, py, postW + 2, 3);
+    }
+    //  위·아래 가로대 — 전장이 그 뒤로 들어가는 것처럼 보이게 그림자를 한 줄 깐다.
+    var railH = Math.max(4, R.h * 0.018);
+    g.fillStyle(M.woodDark, 1);
+    g.fillRect(R.x, R.y, R.w, railH);
+    g.fillRect(R.x, R.bottom - railH, R.w, railH);
+    g.fillStyle(M.wood, 1);
+    g.fillRect(R.x, R.y, R.w, Math.max(1, railH * 0.3));
+    g.fillStyle((UI.COL && UI.COL.shadow) || 0x000000, 0.28);
+    g.fillRect(R.x, R.y + railH, R.w, Math.max(2, railH * 0.6));
+    //  네 귀퉁이의 뼈 마디 — 목책이 '묶여 있다'를 말한다.
+    g.fillStyle(M.bone, 1);
+    var bn = Math.max(4, postW * 0.9);
+    [[R.x + postW / 2, R.y + railH], [R.right - postW / 2, R.y + railH],
+     [R.x + postW / 2, R.bottom - railH], [R.right - postW / 2, R.bottom - railH]]
+      .forEach(function (p) { g.fillEllipse(p[0], p[1], bn * 1.6, bn * 1.2, 8); });
 
     // 보스 층 테두리 — 전장 안이 아니라 **가장자리**에만 칠한다.
     // 논타겟 회피 게임이라 바닥 한가운데를 물들이면 예고 원이 죽는다.

@@ -22,6 +22,9 @@ GAME.MenuScene.prototype.create = function () {
   //  이 게임의 아트를 첫 화면이 하나도 안 보여 주고 있었다. 순수 렌더라 다른 데는
   //  아무 영향이 없다(js/lobbyart.js 주석 참조).
   //  ⚠ 씬 인스턴스는 재사용된다 — 매번 새로 만들고, 나갈 때 반드시 지운다.
+  //  배경은 **전 프로필**에서 그린다(영웅 아트와 달리 글자 뒤라 겹칠 일이 없다).
+  //  ⚠ `start` 보다 먼저 불러야 depth 순서가 맞는다(배경 -60 → 영웅 -50).
+  this._backdrop = GAME.LobbyArt ? GAME.LobbyArt.backdrop(this) : null;
   this._parade = GAME.LobbyArt ? GAME.LobbyArt.start(this) : null;
   this.events.off('shutdown', this._paradeStop, this);
   this.events.once('shutdown', this._paradeStop, this);
@@ -404,4 +407,9 @@ GAME.MenuScene.prototype.update = function (time, delta) {
 GAME.MenuScene.prototype._paradeStop = function () {
   if (this._parade && GAME.LobbyArt) GAME.LobbyArt.stop(this._parade);
   this._parade = null;
+  //  ⚠ 배경도 반드시 지운다. 씬 인스턴스는 재사용되는데 표시객체는 씬을 나갈 때
+  //    파괴되므로, 참조를 들고 있으면 다시 들어왔을 때 죽은 객체를 만진다
+  //    (이 저장소가 '지연생성 가드'에서 반복해 겪은 사고).
+  if (this._backdrop && this._backdrop.destroy) this._backdrop.destroy();
+  this._backdrop = null;
 };

@@ -41,6 +41,86 @@ GAME.LobbyArt = {
   // 이 폭보다 좁으면 그리지 않는다(양옆 여백이 안 나온다).
   MIN_W: 1100,
 
+  // ── 로비 배경 (2026-08-04 사용자: "이 로비배경부터 진행해") ──────────────────
+  //  로비는 크림색 단색이었다. 오늘 전장에 넣은 세계의 물건(원경 안개·능선·부족
+  //  목책)이 정작 **처음 보는 화면**에는 하나도 없었다 — 게임이 무슨 세계인지
+  //  첫 화면이 말해 주지 않는다.
+  //
+  //  ⚠ **전 프로필에서 그린다.** 옆의 영웅 아트(`start`)는 좁은 화면에서 꺼지지만
+  //    (여백이 없어 글자와 겹친다) 배경은 글자 **뒤**라 겹칠 일이 없다. 실제로
+  //    사람들이 보는 화면이 폰 가로인데 거기서만 빠지면 하나 마나다.
+  //  ⚠ **글자 대비를 해치지 않는다.** 이 로비의 글자는 어두운 색이고 배경은 크림이다.
+  //    그래서 지평선 아래만 살짝 눕히고 위쪽(제목·버튼이 앉는 자리)은 거의 안 건드린다.
+  //    값을 키우고 싶어지면 먼저 그 위에 글자가 앉는지부터 볼 것 —
+  //    전장 배경에서 똑같은 실수를 한 번 했다(v1.50 → v1.52 수정).
+  //  ⚠ 색은 전부 토큰에서 유도한다. 하드코딩하면 테마 4종에서 혼자 안 따라온다.
+  backdrop: function (scene) {
+    var UI = GAME.UI, C = GAME.CONFIG.COLORS, M = UI.MAT;
+    var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+    var g = scene.add.graphics();
+    g.setDepth(-60);                       // 영웅 아트(-50)보다도 뒤
+
+    var field = C.arenaFill || 0x6f7f4a;
+    var bg = (UI.COL && UI.COL.bg) || 0xfbf2df;
+    var horizon = H * 0.62;
+
+    //  ① 하늘 — 크림에서 아주 옅은 들판색으로. 12단이면 밴딩이 안 보인다.
+    var i, t;
+    for (i = 0; i < 12; i++) {
+      t = i / 12;
+      g.fillStyle(UI.mix(bg, field, 0.05 + t * 0.10), 1);
+      g.fillRect(0, horizon * t, W, horizon / 12 + 1);
+    }
+
+    //  ② 먼 능선 — 톱니 실루엣. 좌표는 화면 폭으로 해시해 **캐시한다**
+    //     (매 프레임 새로 뽑으면 언덕이 춤춘다 — 전장에서 배운 것).
+    var key = 'lobby|' + Math.round(W) + '|' + Math.round(H);
+    if (this._ridgeKey !== key) {
+      var seed = 0, si;
+      for (si = 0; si < key.length; si++) seed = (seed * 31 + key.charCodeAt(si)) >>> 0;
+      var rnd = function () {
+        seed ^= seed << 13; seed >>>= 0; seed ^= seed >> 17; seed ^= seed << 5; seed >>>= 0;
+        return seed / 4294967296;
+      };
+      var pts = [], step = Math.max(30, W / 22), x;
+      for (x = -step; x <= W + step; x += step) pts.push({ x: x, y: rnd() });
+      this._ridge = pts; this._ridgeKey = key;
+    }
+    var rid = this._ridge, poly = [], k;
+    var rh = H * 0.13;
+    for (k = 0; k < rid.length; k++) {
+      poly.push({ x: rid[k].x, y: horizon - rh * (0.35 + rid[k].y * 0.65) });
+    }
+    poly.push({ x: W + 60, y: horizon }); poly.push({ x: -60, y: horizon });
+    g.fillStyle(UI.mix(bg, field, 0.26), 1);
+    g.fillPoints(poly, true);
+
+    //  ③ 들판 — 지평선 아래. 여기가 이 화면에서 유일하게 진한 면이다.
+    g.fillStyle(UI.mix(bg, field, 0.40), 1);
+    g.fillRect(0, horizon, W, H - horizon);
+    g.fillStyle(UI.mix(bg, field, 0.52), 1);          // 앞쪽이 조금 더 진하다
+    g.fillRect(0, H * 0.86, W, H - H * 0.86);
+
+    //  ④ 부족 목책 — 지평선 위에 늘어선 기둥. 이 세계가 어디인지 한 줄로 말한다.
+    //     ⚠ 실루엣만 낸다(면 없이). 진하게 칠하면 그 위 버튼 글자와 싸운다.
+    var postW = Math.max(5, W * 0.006), gap = Math.max(34, W / 22);
+    var ph = H * 0.075;
+    for (x = gap * 0.5; x < W; x += gap) {
+      g.fillStyle(UI.mix(bg, M.woodDark, 0.42), 1);
+      g.fillRect(x, horizon - ph, postW, ph);
+      g.fillStyle(UI.mix(bg, M.wood, 0.34), 1);       // 광원 좌상단 — 왼쪽 면만
+      g.fillRect(x, horizon - ph, Math.max(1, postW * 0.34), ph);
+      g.fillStyle(UI.mix(bg, M.bone, 0.50), 1);       // 기둥 끝 뼈 마디
+      g.fillEllipse(x + postW / 2, horizon - ph, postW * 1.7, postW * 1.1, 8);
+    }
+    //  가로로 묶은 밧줄 두 줄
+    g.fillStyle(UI.mix(bg, M.rope, 0.38), 1);
+    g.fillRect(0, horizon - ph * 0.72, W, Math.max(1.5, ph * 0.045));
+    g.fillRect(0, horizon - ph * 0.34, W, Math.max(1.5, ph * 0.045));
+
+    return g;
+  },
+
   start: function (scene) {
     if (!GAME.UI || !GAME.UI.drawUnitFlat || !GAME.HEROES) return null;
     if (GAME.CONFIG.PHONE || GAME.CONFIG.PORTRAIT) return null;

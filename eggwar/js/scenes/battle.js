@@ -2498,12 +2498,63 @@ GAME.BattleScene.prototype.draw = function () {
     g.lineBetween(psx - ux * tail, psy - uy * tail, psx, psy);
     g.lineStyle(p.tracer ? 2 : 2.5, pcol, p.tracer ? 0.9 : 0.5);
     g.lineBetween(psx - ux * tail * 0.7, psy - uy * tail * 0.7, psx, psy);
+    //  ── 잔상 3점 (2026-08-04 사용자 요청: "화살과 날아가는 이펙트") ──────────
+    //  빠른 투사체는 프레임 사이를 순간이동하는 것처럼 보인다. 진행 반대 방향의
+    //  **직전 위치**에 점을 세 개 남기면 "어디서 와서 어디로 가는지"가 한 프레임에 읽힌다.
+    //  ⚠ 렌더 전용이다 — `combat.js` 의 투사체 객체에 필드를 안 만든다. 속도 벡터로
+    //    과거 위치를 **역산**하므로 히스토리를 보관할 필요도 없다(로직/렌더 분리).
+    var ghost = [[0.85, 0.42, 0.030], [0.65, 0.24, 0.060], [0.42, 0.11, 0.090]];
+    for (var gi2 = 0; gi2 < ghost.length; gi2++) {
+      var gs = ghost[gi2];
+      g.fillStyle(pcol, gs[1]);
+      g.fillCircle(psx - ux * sp * gs[2], psy - uy * sp * gs[2], Math.max(1.2, (rr + 1) * gs[0]));
+    }
+
     g.fillStyle(pcol, 0.28);
     g.fillCircle(psx, psy, rr + 6);
-    g.fillStyle(pcol, 1);
-    g.fillCircle(psx, psy, rr + 1);
-    g.fillStyle(FX.projCore, 0.95);
-    g.fillCircle(psx - rr * 0.18, psy - rr * 0.18, Math.max(1.8, rr - 3));
+
+    //  ── 화살촉 · 깃 (2026-08-04) ────────────────────────────────────────────
+    //  예전에는 **색 점 하나**였다. 이 게임의 규율이 "모든 공격은 눈에 보이는
+    //  투사체를 갖는다" 인데, 점은 '무엇이' 날아오는지는 말해주지 않는다.
+    //  촉(앞) + 대(중간) + 깃(뒤) 셋이면 원시 부족의 화살이 된다.
+    //  ⚠ 저격 예광탄(`tracer`)은 유도라 **곡선**으로 난다 — 방향이 계속 바뀌므로
+    //    각진 촉을 붙이면 꺾여 보인다. 예광탄은 예전 점 그림 그대로 둔다.
+    if (!p.tracer) {
+      var M2 = GAME.UI.MAT;
+      var nx2 = -uy, ny2 = ux;
+      var hl = rr + 5, hw = rr * 0.72 + 1.4;
+      //  대 — 나무
+      g.lineStyle(Math.max(1.6, rr * 0.42), M2.woodDark, 0.95);
+      g.lineBetween(psx - ux * (rr + 9), psy - uy * (rr + 9), psx + ux * rr * 0.4, psy + uy * rr * 0.4);
+      //  깃 — 뒤쪽 양옆
+      g.fillStyle(M2.feather, 0.9);
+      g.fillTriangle(psx - ux * (rr + 9), psy - uy * (rr + 9),
+                     psx - ux * (rr + 3) + nx2 * hw * 0.9, psy - uy * (rr + 3) + ny2 * hw * 0.9,
+                     psx - ux * (rr + 2), psy - uy * (rr + 2));
+      g.fillTriangle(psx - ux * (rr + 9), psy - uy * (rr + 9),
+                     psx - ux * (rr + 3) - nx2 * hw * 0.9, psy - uy * (rr + 3) - ny2 * hw * 0.9,
+                     psx - ux * (rr + 2), psy - uy * (rr + 2));
+      //  촉 — 돌. 잉크 한 겹을 뒤에 깔아 밝은 목초지에서도 실루엣이 남는다.
+      if (INKA > 0) {
+        g.fillStyle(INK, 0.5);
+        g.fillTriangle(psx + ux * (hl + 1.2), psy + uy * (hl + 1.2),
+                       psx + nx2 * (hw + 1.2), psy + ny2 * (hw + 1.2),
+                       psx - nx2 * (hw + 1.2), psy - ny2 * (hw + 1.2));
+      }
+      g.fillStyle(M2.stone, 1);
+      g.fillTriangle(psx + ux * hl, psy + uy * hl,
+                     psx + nx2 * hw, psy + ny2 * hw,
+                     psx - nx2 * hw, psy - ny2 * hw);
+      g.fillStyle(M2.stoneLite || M2.bone, 0.85);       // 갈아 놓은 날 — 좌상단 광원
+      g.fillTriangle(psx + ux * hl * 0.92, psy + uy * hl * 0.92,
+                     psx + nx2 * hw * 0.45, psy + ny2 * hw * 0.45,
+                     psx, psy);
+    } else {
+      g.fillStyle(pcol, 1);
+      g.fillCircle(psx, psy, rr + 1);
+      g.fillStyle(FX.projCore, 0.95);
+      g.fillCircle(psx - rr * 0.18, psy - rr * 0.18, Math.max(1.8, rr - 3));
+    }
   }
 
   if (this.state.over) {

@@ -247,14 +247,29 @@ GAME.UI = {
   // 여기 남겨두면 두 벌이 생겨 어느 쪽이 실제로 쓰이는지 알 수 없어진다.
 
   // 지면에 눕힌 원 (스킬 범위·예고·덫 표시)
+  //
+  //  ⚠ **분할 수를 반드시 넘긴다** (2026-08-04 프레임 저하 조사). 예전에는 안 넘겨
+  //    Phaser 기본값 **32분할**이 걸렸다. 이 게임은 지면 링을 한 프레임에 수십 개
+  //    그리고(예고·범위·발밑·죽음 연출), `ringInk` 는 잉크까지 **두 번** 그린다 —
+  //    링 하나가 정점 64개다. 실측에서 프레임당 `lineTo` 가 6,349회였고 CPU 의
+  //    25.6%가 정점 버퍼 업로드(`bufferData`)였다.
+  //  ⚠ 반지름에 비례해 늘린다. 작은 링에 32분할은 낭비고, 큰 예고 원(반지름 235)에
+  //    12분할은 각져 보인다. 지면 링은 TILT(0.72)로 눌려 세로가 짧으니 같은 반지름
+  //    기준으로 원보다 적은 분할이어도 매끄럽게 보인다.
+  _gseg: function (radius) {
+    var n = Math.round(Math.abs(radius) * 0.22);
+    return Math.max(10, Math.min(26, n));
+  },
   groundCircle: function (g, worldX, worldY, radius) {
     var Iso = GAME.Iso;
-    g.strokeEllipse(worldX, Iso.toScreenY(worldY), radius * 2, radius * 2 * Iso.TILT);
+    g.strokeEllipse(worldX, Iso.toScreenY(worldY), radius * 2, radius * 2 * Iso.TILT,
+                    GAME.UI._gseg(radius));
   },
 
   groundCircleFill: function (g, worldX, worldY, radius) {
     var Iso = GAME.Iso;
-    g.fillEllipse(worldX, Iso.toScreenY(worldY), radius * 2, radius * 2 * Iso.TILT);
+    g.fillEllipse(worldX, Iso.toScreenY(worldY), radius * 2, radius * 2 * Iso.TILT,
+                  GAME.UI._gseg(radius));
   },
 
   // 선택 표시 — 캐릭터 머리 위에 떠서 아래를 가리키는 화살표.

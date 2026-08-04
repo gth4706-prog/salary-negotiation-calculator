@@ -91,6 +91,32 @@ var SM = 10;
     eye: 0x2b2233
   };
 
+  //  ── 광원 (2026-08-04 아트 개편 · 이 파일의 새 기준점) ────────────────────────
+  //  > 아트 스테이트먼트: "해가 낮게 걸린 들판에서, 껍질 하나짜리 목숨들이
+  //  >  뼈와 돌을 들고 서로의 노른자를 터뜨린다."
+  //
+  //  이 게임이 평평해 보이던 진짜 이유는 그림 실력이 아니라 **광원이 정의된 적이
+  //  없다는 것**이었다. `eggBody` 는 좌상단에서 빛을 받게 그려져 있는데 접지 그림자는
+  //  발밑 정중앙에 찍혔다 — 둘이 서로 다른 말을 하고 있었다.
+  //
+  //  ⚠ `dir` 은 **새로 정한 값이 아니다.** 아래 `eggBody` 하이라이트 중심
+  //    `(-0.24r, -0.40r)` 을 정규화한 값이다(√(0.24²+0.40²)=0.4665 → -0.51, -0.86).
+  //    즉 **게임이 이미 쓰고 있던 방향을 명문화**하는 것이라, 기존 그림은 한 픽셀도
+  //    안 바뀌면서 나머지(그림자·리스광)가 여기에 맞춰진다.
+  //  ⚠ 예외는 셋뿐 — 불·백열·노른자. **자기가 광원인 것들**은 자기 자리에서 빛난다.
+  UI.LIGHT = {
+    dir: { x: -0.51, y: -0.86 },
+    key: 0xfff3d6, keyA: 0.55,        // 햇빛 — 모든 재질의 리스광이 이 색을 공유한다
+    bounceA: 0.22,                     // 지면 반사 세기(색은 아래 `bounce()` 가 유도한다)
+    ambient: 0x2a3346,                 // 그늘에 섞는 하늘빛 — 그늘이 회색이 되는 것을 막는다
+    //  바운스 색은 **하드코딩하지 않는다.** 목초지 반사광이므로 아레나 색에서 유도해야
+    //  테마 4종 × 바이옴 6밴드가 전부 자동으로 따라온다.
+    bounce: function () {
+      var base = (GAME.CONFIG && GAME.CONFIG.COLORS && GAME.CONFIG.COLORS.arenaFill) || 0x6f7f4a;
+      return (typeof UI.mix === 'function') ? UI.mix(base, 0xffffff, 0.28) : 0x8fa06a;
+    }
+  };
+
   // 테마가 MAT 을 갈아끼운 뒤 되돌아올 자리. theme-switch.js 가 읽는다.
   // (이 파일은 theme-switch.js **뒤에** 로드되므로 stock 스냅숏에는 못 넣는다)
   UI.MAT_BASE = (function () { var o = {}; for (var k in M) o[k] = M[k]; return o; })();
@@ -728,6 +754,43 @@ var SM = 10;
     if (r >= 8) {
       g.fillStyle(UI.tint(shell, 0.45), a * (ivory ? 0.9 : 0.55));
       g.fillEllipse(sx - r * 0.24 + lean * 0.70, by - r * 0.40, r * 0.36, r * 0.46, SM);
+    }
+
+    // ── 리스광 · 바운스 (2026-08-04 아트 개편) ──────────────────────────────
+    //  계란은 매끈한 회전체다 — **좌상단 호에 한 줄만 그으면 즉시 구가 된다.**
+    //  이 게임은 리스광이 가장 싸게 먹히는 형태를 이미 갖고 있으면서 안 쓰고 있었다.
+    //
+    //  ⚠ 반대편(우하단)의 **바운스 라이트**가 사실 더 중요하다. 그늘 쪽 실루엣이
+    //    배경에 붙어버리는 현상(크림 목초지에서 특히 심하다)을 떼어내는 정공법이다.
+    //    색은 지면 반사광이라 `UI.LIGHT.bounce()` 가 아레나 색에서 유도한다 —
+    //    하드코딩하면 테마 4종·바이옴 6밴드에서 혼자 안 따라온다.
+    //  ⚠ r < 9 이면 **그리지 않는다.** 그 크기에서 선을 하나 더 얹으면 형태가 뭉갠다
+    //    (이 파일이 "톱니 2.8px 는 얼룩이 된다"에서 이미 배운 것과 같은 논리).
+    if (r >= 9 && UI.LIGHT) {
+      var arc = function (a0, a1) {
+        var pts = [], n = 7, i, t, p;
+        for (i = 0; i <= n; i++) {
+          t = a0 + (a1 - a0) * (i / n);
+          p = { x: sx + Math.cos(t) * r * wide + lean * 0.5,
+                y: by - r + Math.sin(t) * r + r };
+          pts.push(p);
+        }
+        return pts;
+      };
+      //  ⚠ 호를 `eggPoints` 로 잘라 쓰지 않는 이유: 그 함수는 닫힌 윤곽을 돌려주므로
+      //    구간만 떼면 계란의 비대칭(위가 좁다)이 사라진다. 여기서는 **밝은 안쪽 달걀**
+      //    (좌상단으로 민 것)의 윤곽을 따라야 빛이 면 위에 앉는다.
+      var lit = UI.eggPoints(sx - r * 0.06, by - r * 0.05, r * 0.90, wide, 20, lean * 0.90);
+      var seg = function (from, to) {
+        var out = [], i;
+        for (i = from; i <= to && i < lit.length; i++) out.push(lit[i]);
+        return out;
+      };
+      //  eggPoints 는 20 등분이다 — 좌상단 사분면은 대략 10~15, 우하단은 1~5.
+      g.lineStyle(Math.max(1.2, r * 0.085), UI.LIGHT.key, UI.LIGHT.keyA * a);
+      g.strokePoints(seg(10, 15), false, false);
+      g.lineStyle(Math.max(1.0, r * 0.06), UI.LIGHT.bounce(), UI.LIGHT.bounceA * a);
+      g.strokePoints(seg(1, 5), false, false);
     }
 
     // 외곽선 — ivory 시안에서는 이게 진영 식별의 주역이라 두껍게 간다
@@ -2195,8 +2258,26 @@ var SM = 10;
     var f = facing === undefined ? Math.PI / 2 : facing;
     var side = opts && opts.side;
 
-    g.fillStyle(0x000000, 0.32 * a);
-    g.fillEllipse(sx, sy, r * 2.1, r * 2.1 * Iso.TILT, SM);
+    //  ── 접지 그림자 2겹 (2026-08-04 아트 개편) ────────────────────────────
+    //  ⚠ **결함 수정이기도 하다.** 예전에는 `0x000000` 을 하드코딩해 `UI.COL.shadow`
+    //    를 무시했다. 테마 A(기본)가 패널 그림자를 `0x6B5433` 으로 바꾼 이유가
+    //    "크림 위 순검정은 때가 낀 것처럼 보인다"(js/ui-theme.js)인데, 그 결정이
+    //    유닛에는 적용이 안 돼 **크림 목초지에 검은 얼룩 26개**가 찍히고 있었다.
+    //  ⚠ 오프셋은 광원(`UI.LIGHT.dir`, 좌상단)의 **반대쪽**이다. 값이 작은 이유:
+    //    빛이 낮아도 그림자를 길게 빼면 26기가 서로 겹쳐 바닥이 시커메진다.
+    //    0.16r 은 12~16px 유닛에서 2px 남짓 — 있는 줄 모르지만 없으면 평평하다.
+    //  ⚠ 2겹인 이유: 넓고 옅은 것(소프트) + 좁고 진한 것(코어)이 같이 있어야
+    //    "바닥에 붙어 있다"가 읽힌다. 한 겹은 스티커처럼 보인다.
+    var LT = UI.LIGHT || { dir: { x: -0.51, y: -0.86 } };
+    var shCol = (UI.COL && UI.COL.shadow) || 0x000000;
+    var ox = -LT.dir.x * r * 0.16, oy = -LT.dir.y * r * 0.10 * Iso.TILT;
+    //  ⚠ 소프트 겹은 **옅어야 한다.** 0.15 로 뒀더니 유닛 26기가 뭉치는 자리에서
+    //    그림자가 서로 겹쳐 바닥이 진흙탕이 됐다(실측 스크린샷). 겹침을 견디는 값은
+    //    0.10 이다 — 혼자 있을 때는 거의 안 보이지만 없으면 평평해 보이는 크기다.
+    g.fillStyle(shCol, 0.10 * a);
+    g.fillEllipse(sx + ox, sy + oy, r * 2.30, r * 2.30 * Iso.TILT, SM);
+    g.fillStyle(shCol, 0.40 * a);
+    g.fillEllipse(sx + ox * 0.56, sy + oy * 0.5, r * 1.45, r * 1.45 * Iso.TILT, SM);
 
     if (art.ground) {
       UI.drawGroundArt(g, art, sx, sy, r, color, a);
@@ -2216,6 +2297,10 @@ var SM = 10;
     //  장비 덧그리기 — 다리·몸통이 다 그려진 뒤라야 위에 얹힌다.
     //  ⚠ 여기는 `drawUnit` 이라 `kit` 이라는 지역 변수가 없다. `opts.kit` 을 봐야 한다
     //    (그냥 `kit` 으로 뒀다가 매 프레임 ReferenceError 가 났다 — boss-shot 이 잡았다).
+    //  ⚠ **`inkLayer` 를 거친다** (2026-08-04 결함 수정). 이 게임의 다른 그리기 계층은
+    //    전부 잉크 윤곽 프록시를 타는데 장비 3칸만 안 탔다. 그 결과 기본 테마(크림
+    //    목초지)에서 갑옷·신발·장신구의 대비가 1.25:1 로 떨어져 **산 물건이 화면에서
+    //    사라졌다.** 지수 경제로 10단까지 사게 만들어 놓고 안 보이면 살 이유가 없다.
     if (opts && opts.kit) UI.eggKit(g, sx, by, r, a, D, opts.kit);
 
     // ivory 시안 — 발밑 진영 링으로 아군/적군을 한 번 더 못박는다.

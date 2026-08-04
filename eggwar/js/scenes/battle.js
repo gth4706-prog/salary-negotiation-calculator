@@ -409,12 +409,35 @@ GAME.BattleScene.prototype.create = function () {
   // 이 화면에서 '영웅'이 곧 플레이어인가. 수성의 탑/방어전은 플레이어가 전략가라
   // 영웅이 적이다 → 강조 대상이 뒤집힌다(defend.js 가 false 로 덮어쓴다).
   this._heroIsPlayer = true;
+  //  타격 파티클 — `worldLayer` 가 만들어진 뒤라야 거기 담을 수 있다(전장과 같이 움직인다).
+  if (GAME.HitFX) GAME.HitFX.init(this);
+
+  //  ── 피해 숫자 그라디언트 (2026-08-04 아트 개편 · 1순위) ────────────────────
+  //  전투 화면에서 **가장 자주, 가장 크게 움직이는 것이 숫자다**(초당 수십 개).
+  //  그것이 18~34px 단색 텍스트라는 사실 하나가 "조잡함"의 최대 단일 지분이었다.
+  //  레퍼런스(액션 RPG)가 이기고 있는 지점을 정확히 같은 수단으로 따라잡는다:
+  //  세로 그라디언트 + 굵은 외곽선 + 등장 팝 + 크기 변주.
+  //
+  //  ⚠ 색은 **자기가 광원인 것**의 색이다(불·백열·노른자). 이 세계에 네온은 없다.
+  //  ⚠ 그라디언트는 Text **자기 캔버스 컨텍스트**에서 만들어야 한다. 그리고
+  //    `setFill` 은 캔버스를 다시 굽는 비싼 호출이라, 아래 `drawNumbers` 에서
+  //    **키(종류:크기)가 바뀔 때만** 부른다(기존 setFontSize/setColor 캐시와 같은 규율).
+  this.NUM_GRAD = {
+    mine:  ['#fff8d2', '#ffd24a', '#d9700f'],   // 내가 준 피해 — 햇빛에서 불로
+    crit:  ['#ffffff', '#ffcf8a', '#d8341a'],   // 치명타 — 백열 코어에서 불꽃으로
+    taken: ['#cfc2ad', '#8a7a63'],              // 내가 맞은 것 — 흙색, 일부러 덜 튄다
+    heal:  ['#eaffee', '#7ef0a0', '#2c9a5e']
+  };
+
   this.numPool = [];
   for (var n = 0; n < 26; n++) {
     var numTxt = this.add.text(0, 0, '', {
       fontFamily: GAME.CONFIG.FONT, fontSize: '18px', color: this.numFill,
       stroke: this.numStroke, strokeThickness: 4
     }).setOrigin(0.5).setVisible(false);
+    //  드롭섀도 — 캔버스 기본 기능이라 preFX(셰이더)보다 훨씬 싸다. 숫자 26개에
+    //  셰이더를 걸면 그게 곧 프레임이다. 배경이 밝든 어둡든 숫자가 뜬다.
+    numTxt.setShadow(0, 3, 'rgba(40,26,10,0.45)', 3, false, true);
     // ⚠ **떠서 흘러가는 글자**라고 표시해 둔다. 겹침 감사(tools/overlap-audit.js)는
     //   좌표를 손으로 박아 생기는 '고정 라벨 겹침'을 잡으려고 만든 도구인데,
     //   피해 숫자는 일부러 무작위로 흩어 놓고 0.75초 만에 사라지는 연출이라
@@ -958,19 +981,53 @@ GAME.BattleScene.prototype.drawNumbers = function () {
     var mine = heroIsPlayer ? !n.onHero : !!n.onHero;
     var SM = GAME.CONFIG.SMALL;
     var size;
-    if (n.crit) size = mine ? (SM ? 34 : 32) : (SM ? 21 : 20);
-    else        size = mine ? (SM ? 25 : 23) : (SM ? 16 : 15);
+    if (n.crit) size = mine ? (SM ? 40 : 38) : (SM ? 22 : 21);
+    else        size = mine ? (SM ? 30 : 28) : (SM ? 17 : 16);
+    //  ── 크기 변주 (2026-08-04) ────────────────────────────────────────────
+    //  레퍼런스는 **크기로 정보를 준다** — 2242 와 388 이 같은 크기로 뜨면 화면이
+    //  "무엇이 큰 한 방이었나"를 말해주지 않는다. 자릿수(log)로 재는 이유는 이 게임의
+    //  피해가 지수로 자라기 때문이다(고층에서 선형으로 재면 전부 최대치에 붙는다).
+    //  ⚠ 내가 준 피해에만 적용한다. 맞은 쪽까지 커지면 "덜 튀게 한다"는 결정과 어긋난다.
+    //  ⚠ 크기는 `setFontSize` 를 부르므로 값이 잘게 흔들리면 매 프레임 재래스터가 된다
+    //    → **4px 격자로 양자화**해 캐시가 실제로 듣게 한다.
+    if (mine) {
+      var mag = Math.min(1, Math.log(Math.max(1, n.value)) / Math.log(10000));
+      size = Math.round((size * (1 + mag * 0.42)) / 4) * 4;
+    }
     // ⚠ Phaser 의 Text 스타일 세터(setFontSize/setColor/setStroke)는 값이 같아도
     //   **매번 캔버스를 다시 굽는다**(updateText). 매 프레임 부르면 숫자 하나당
     //   프레임마다 3~4회 재래스터가 일어난다 — 실측: 숫자 4개에서 22.8회/프레임,
     //   세터를 빼면 7.4회/프레임. 사냥꾼 연사처럼 숫자가 한꺼번에 뜨면 이게 곧 렉이다.
     //   스타일은 **숫자가 새로 뜰 때만** 바뀌므로 슬롯별로 캐시해 달라질 때만 부른다.
-    var color = n.crit ? C.crit : (mine ? this.numFill : this.numTakenFill);
-    var sw = mine ? 5 : 3;
+    //  ⚠ 외곽선을 두껍게 간다(내 피해 7px). 그라디언트는 밝은 색을 쓰므로 크림
+    //    목초지 위에서 테두리가 없으면 글자가 배경에 녹는다 — 이 파일이 이미
+    //    "흰 글자가 배경과 2.1:1" 로 겪은 문제와 같은 계열이다.
+    var sw = mine ? (n.crit ? 8 : 7) : 4;
     if (t.__sz !== size) { t.setFontSize(size); t.__sz = size; }
-    // 크리티컬은 맞은 쪽이어도 색을 남긴다 — '치명타를 맞았다'는 건 알아야 할 정보다.
-    if (t.__col !== color) { t.setColor(color); t.__col = color; }
     if (t.__sw !== sw) { t.setStroke(this.numStroke, sw); t.__sw = sw; }
+    //  종류·크기가 바뀔 때만 그라디언트를 다시 굽는다(`setFill` 은 재래스터를 부른다).
+    //  치명타는 맞은 쪽이어도 불색을 남긴다 — '치명타를 맞았다'는 알아야 할 정보다.
+    var gk = (n.crit ? 'crit' : (mine ? 'mine' : 'taken')) + ':' + size;
+    if (t.__gk !== gk) {
+      var stops = this.NUM_GRAD[n.crit ? 'crit' : (mine ? 'mine' : 'taken')];
+      try {
+        var grd = t.context.createLinearGradient(0, 0, 0, size * 1.12);
+        for (var gi = 0; gi < stops.length; gi++) {
+          grd.addColorStop(gi / (stops.length - 1), stops[gi]);
+        }
+        t.setFill(grd);
+      } catch (e) {
+        t.setColor(stops[1] || stops[0]);      // 캔버스가 없으면 단색으로 물러선다
+      }
+      t.__gk = gk;
+    }
+    //  ── 등장 팝 ──────────────────────────────────────────────────────────
+    //  ⚠ 트윈을 쓰지 않는다. 숫자는 초당 수십 개가 뜨고 사라지는데 그때마다
+    //    트윈 객체를 만들면 그게 곧 GC 압력이다. **이미 있는 진행도(prog)에서
+    //    곡선을 계산**하면 비용이 0 이다.
+    //  처음 18% 구간에서 1.55배 → 1배로 내려앉는다. 그 뒤 마지막에 살짝 줄어든다.
+    var pop = prog < 0.18 ? (1 + (1 - prog / 0.18) * 0.55) : (1 - (prog - 0.18) * 0.18);
+    t.setScale(Math.max(0.55, pop));
     t.setAlpha(Math.max(0, 1 - prog * prog) * (mine ? 1 : 0.78));
     t.setPosition(n.x + (n.drift || 0) * prog, Iso.toScreenY(n.y) - 26 - (n.yOff || 0) - prog * 46);
   }
@@ -1329,6 +1386,28 @@ GAME.BattleScene.prototype._juice = function (dt) {
       u._hurtDir = (u.facing === undefined ? 0 : u.facing) + Math.PI;   // 맞은 반작용 방향
       if (pct > biggest) biggest = pct;
       if (u === this.hero) heroHit = true;
+      //  ── 타격 파티클 (2026-08-04) ────────────────────────────────────────
+      //  ⚠ **새 트리거를 안 만든다.** 여기는 이미 "체력이 줄었다"를 프레임 간
+      //    비교로 잡아내는 자리다. 별도 훅을 만들면 두 기준이 갈라져 언젠가
+      //    어긋난다(히트스톱이 같은 이유로 이 값을 빌려 쓴다).
+      //  단단한 것(방어력이 높은 유닛·보스 껍질)은 노른자가 아니라 불똥이 튄다 —
+      //  방패병을 때렸는데 노른자가 나오면 '뚫었다'는 거짓 신호가 된다.
+      if (GAME.HitFX) {
+        //  ⚠ 문턱을 40 으로 잡는다. 30 으로 뒀더니 **전사(방어력 30)** 가 걸려서
+        //    가장 흔한 유닛이 전부 불똥으로 빠졌고 노른자가 거의 안 튀었다(실측:
+        //    노른자 살아있는 수가 대부분 0). 이 게임의 피는 노른자다 — 방패를
+        //    든 것(방패병 45)만 '단단한 것'이어야 한다.
+        var hardHit = (u.def && (u.def.armor || 0) >= 40) || !!u.isBoss;
+        GAME.HitFX.hit(this, u.x, GAME.Iso.toScreenY(u.y) - (u.radius || 14) * 0.5,
+                       pct, hardHit ? 'hard' : 'soft');
+      }
+    }
+    //  죽는 순간 노른자가 크게 터진다(combat.js 의 바닥 얼룩과 짝을 이룬다).
+    if (prev !== undefined && prev > 0 && !u.alive && !u.__fxDead) {
+      u.__fxDead = true;
+      if (GAME.HitFX) {
+        GAME.HitFX.death(this, u.x, GAME.Iso.toScreenY(u.y) - (u.radius || 14) * 0.4, u.radius);
+      }
     }
     this._prevHp[key] = u.alive ? u.hp : 0;
   }

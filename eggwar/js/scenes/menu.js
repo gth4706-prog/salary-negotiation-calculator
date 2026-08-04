@@ -134,9 +134,11 @@ GAME.MenuScene.prototype.create = function () {
   var ry = by + smallH / 2 - u * 1.4;
   // 랭킹은 3분류(통곡의 탑 / 수성의 탑 / 대전) × 2기간이다.
   // 첫 화면은 **통곡의 탑 · 전체** — 이 게임에서 가장 많이 쌓이는 기록이다.
-  GAME.UI.button(this, rc[0].cx, ry, rc[0].w, smallH, '랭킹', function () {
+  var rkb = GAME.UI.button(this, rc[0].cx, ry, rc[0].w, smallH, '랭킹', function () {
     self.scene.start('Rank', { kind: 'tower', scope: 'all' });
   }, { fontSize: P ? 15 : 15 });
+  //  깃발 꽂힌 뼈 기둥 — 이긴 자가 꽂는 것이다(옛 🏅 을 대신한다).
+  if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, rkb, 'banner', 1);
   GAME.UI.button(this, rc[1].cx, ry, rc[1].w, smallH, '닉네임 변경', function () {
     GAME.Account.logout();
     self.scene.start('Login');
@@ -176,6 +178,9 @@ GAME.MenuScene.prototype.create = function () {
       GAME.Sound.toggle();
       sb.text.setText(sndLbl());
     }, { fontSize: P ? 13 : 13 });
+    //  뿔피리 — 옛 🔊(현대 스피커)을 대신한다. 켜짐/꺼짐은 **글자가 계속 말한다**
+    //  (표식만으로 상태를 나타내면 두 갈래가 똑같아진다 — 이모지를 걷다가 이미 겪었다).
+    if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, sb, 'horn', 1);
     this._soundBtnBottom = utilY + utilH / 2;
   }
 
@@ -186,6 +191,8 @@ GAME.MenuScene.prototype.create = function () {
       GAME.Music.toggle();
       mb.text.setText(musLbl());
     }, { fontSize: P ? 13 : 13 });
+    //  북 — 이 게임의 음악은 북에서 시작한다(옛 🎵 을 대신한다).
+    if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, mb, 'drum', 1);
     this._soundBtnBottom = utilY + utilH / 2;
   }
 
@@ -370,9 +377,12 @@ GAME.MenuScene.prototype._buildPhone = function () {
   for (var i = 0; i < slots.length; i++) {
     (function (kind, col) {
       if (kind === 'rank') {
-        UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, '랭킹', function () {
+        var rkb2 = UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, '랭킹', function () {
           self.scene.start('Rank', { kind: 'tower', scope: 'all' });
         }, { fontSize: 17 });
+        //  ⚠ 폰 가로 유틸 줄은 칸이 좁다 — `markFor` 가 자리를 재서 안 되면 스스로
+        //    안 그린다. 여기서 프로필로 분기하지 않는 이유다(칸 수가 기기마다 다르다).
+        if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, rkb2, 'banner', 1);
       } else if (kind === 'nick') {
         UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, '닉네임 변경', function () {
           GAME.Account.logout();
@@ -384,12 +394,14 @@ GAME.MenuScene.prototype._buildPhone = function () {
           GAME.Music.toggle();
           mb.text.setText(musLbl());
         }, { fontSize: 16 });
+        if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, mb, 'drum', 1);
       } else if (kind === 'sound') {
         var sndLbl = function () { return GAME.Sound.enabled ? '소리 켜짐' : '소리 꺼짐'; };
         var sb = UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, sndLbl(), function () {
           GAME.Sound.toggle();
           sb.text.setText(sndLbl());
         }, { fontSize: 16 });
+        if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, sb, 'horn', 1);
       } else if (kind === 'iosfs') {
         UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, '⛶ 전체화면 방법',
           function () { GAME.PWA.showHomeScreenGuide(); }, { fontSize: 14 });

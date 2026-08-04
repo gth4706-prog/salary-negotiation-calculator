@@ -166,17 +166,35 @@ GAME.LobbyArt = {
   DEMO_SPAWN: 1500,          // 적이 나오는 간격(ms)
   DEMO_SKILL_EVERY: 4,       // 몇 번째 처치마다 스킬을 쓰는가
 
-  _newDemo: function (W, H) {
+  //  band: { x0, x1, spawnX, delay, mute } — 데모가 살 수 있는 **가로 구간**.
+  //  ⚠ 없으면 화면 전체다(폰 가로가 그렇다 — 거기는 글자가 전부 지평선 **위**에 있어
+  //    목책이 화면을 가로질러도 아무것도 안 가린다).
+  //  ⚠ PC 는 다르다. **버튼 띠가 화면 정중앙**이라, 구간을 안 나누면 흐르는 목책이
+  //    버튼 한가운데를 관통한다. 그래서 PC 는 좌우 여백을 각각 하나의 구간으로 준다.
+  _newDemo: function (W, H, band) {
+    band = band || {};
     return {
       scroll: 0,             // 목책이 왼쪽으로 흐른 거리
       foes: [],
-      spawnAt: 600,
+      spawnAt: band.delay === undefined ? 600 : band.delay,
       kills: 0,
       act: null,             // 지금 재생 중인 공격/스킬 포즈
       actAt: -9999,
       skillFx: null,         // 스킬 파문(반경만 가진 단순 연출)
       slash: null,           // 칼이 지나간 자리(초승달 호)
-      W: W, H: H
+      W: W, H: H,
+      x0: band.x0 === undefined ? 0 : band.x0,
+      x1: band.x1 === undefined ? W : band.x1,
+      //  적이 걸어 들어오기 시작하는 x. 폰 가로의 기존 값(W*0.455)이 기본이다.
+      spawnX: band.spawnX === undefined ? W * 0.455 : band.spawnX,
+      //  ⚠ 소리를 내는 데모는 **하나뿐이어야 한다.** PC 는 좌우 둘이 동시에 도는데
+      //    둘 다 울리면 같은 타격음이 겹쳐 두 번 난다.
+      mute: !!band.mute,
+      //  목책이 서는 줄. 안 주면 **영웅 크기에서 역산**한다(폰 가로가 그렇게 잡혀
+      //  있고 그 화면은 이미 승인된 그림이다).
+      //  ⚠ PC 는 반드시 줘야 한다. 거기 영웅은 폰보다 훨씬 크게(3.1배) 서기 때문에
+      //    역산값이 배경의 들판 경계보다 100px 넘게 위로 뜬다 → 목책이 허공에 뜬다.
+      line: band.line
     };
   },
 
@@ -193,7 +211,7 @@ GAME.LobbyArt = {
       var fd = GAME.UNITS && GAME.UNITS[k];
       if (fd) {
         d.foes.push({
-          def: fd, x: d.W * 0.455, y: hero.y + (Math.random() * 12 - 6),
+          def: fd, x: d.spawnX, y: hero.y + (Math.random() * 12 - 6),
           vx: 0, hurt: 0, gone: 0, walk: Math.random() * 6
         });
       }
@@ -235,7 +253,7 @@ GAME.LobbyArt = {
         //    다만 `Sound` 가 없거나 꺼져 있으면 조용히 지나간다(sound.js 계약).
         //  ⚠ 스킬은 `boom`, 평타는 `hit` — 전투에서 쓰는 그 소리 그대로다. 로비에만
         //    다른 소리를 만들면 "이 게임의 소리"가 두 벌이 된다.
-        if (GAME.Sound) { try { GAME.Sound.play(skill ? 'boom' : 'hit'); } catch (e) {} }
+        if (GAME.Sound && !d.mute) { try { GAME.Sound.play(skill ? 'boom' : 'hit'); } catch (e) {} }
         //  맞은 놈은 날아가고, 스킬이면 **앞의 것들이 다 같이** 날아간다.
         var j, ff;
         for (j = 0; j < d.foes.length; j++) {
@@ -289,44 +307,55 @@ GAME.LobbyArt = {
     var M = GAME.UI.MAT, mix = GAME.UI.mix;
     var bg = (GAME.UI.COL && GAME.UI.COL.bg) || 0xfbf2df;
     var W = d.W, H = d.H;
-    var line = hero.y - (hero.def.radius || 16) * hero.scale * 1.5;
+    var line = (d.line === undefined)
+      ? hero.y - (hero.def.radius || 16) * hero.scale * 1.5
+      : d.line;
 
     //  ① 흐르는 **원경 능선** (2026-08-04 사용자: "배경이 전체 오른쪽에서 왼쪽으로")
     //  ⚠ 하늘·들판은 가로로 균일해서 밀어도 안 보인다 — 그건 `backdrop` 이 한 번 굽고
     //    끝낸다. **움직임을 만드는 것은 능선과 목책뿐**이므로 그 둘만 여기서 흐른다.
     //  ⚠ 이어 붙이려면 **한 주기를 두 번** 그려야 한다. 한 번만 그리면 왼쪽 끝에서
     //    끊겨 화면이 비는 순간이 생긴다.
-    var span = W * 0.62;                            // 능선 한 주기
+    //  구간 폭 기준으로 잰다 — PC 는 좌우 여백 하나가 곧 이 데모의 세계다.
+    var bx0 = d.x0, bx1 = d.x1, bw = Math.max(1, bx1 - bx0);
+    var span = bw * 0.62;                           // 능선 한 주기
     var rOff = d.scroll * 0.42;                     // 원경은 느리게 — 시차(parallax)
     var rp, seg, sx0;
     for (seg = 0; seg < 2; seg++) {
-      sx0 = -(rOff % span) + seg * span;
+      sx0 = bx0 - (rOff % span) + seg * span;
       var poly = [], n = 9, q;
+      //  ⚠ 한 주기가 구간 밖으로 **넘칠 수 있다**(스크롤 위상에 따라 오른쪽으로 최대
+      //    0.24 폭). 폰 가로는 구간이 화면 전체라 아무 일도 안 생기지만, PC 는 그
+      //    넘친 만큼이 그대로 **버튼 띠 위에 얹힌다.** 그래서 x 를 구간에 가둔다 —
+      //    경계에서 언덕이 수직으로 잘리는데, 이건 원경 안개 띠라 그렇게 보여도 된다.
+      var cl = function (v) { return v < bx0 ? bx0 : (v > bx1 ? bx1 : v); };
       for (q = 0; q <= n; q++) {
         //  ⚠ 좌표를 난수로 매 프레임 뽑지 않는다 — 언덕이 춤춘다. 주기 안에서
         //    결정적인 사인 합성으로 만든다(같은 x 면 언제나 같은 높이).
-        var u2 = q / n, ax = sx0 + span * u2;
+        var u2 = q / n, ax = cl(sx0 + span * u2);
         var hh = H * (0.055 + 0.030 * Math.sin(u2 * 6.283 + seg * 1.7)
                              + 0.018 * Math.sin(u2 * 15.7 + 2.1));
         poly.push({ x: ax, y: line - hh });
       }
-      poly.push({ x: sx0 + span, y: line }); poly.push({ x: sx0, y: line });
+      poly.push({ x: cl(sx0 + span), y: line }); poly.push({ x: cl(sx0), y: line });
       g.fillStyle(mix(bg, (GAME.CONFIG.COLORS.arenaFill || 0x6f7f4a), 0.22), 1);
       g.fillPoints(poly, true);
     }
 
     //  ② 흐르는 목책 — "걷고 있다"를 만드는 가장 강한 신호다(근경이라 빠르다).
-    var gap = Math.max(46, W / 13), pw = Math.max(4, W * 0.005), ph = H * 0.085;
+    var gap = Math.max(46, bw / 13), pw = Math.max(4, bw * 0.005), ph = H * 0.085;
     var off = d.scroll % gap;
-    for (var x = -off; x < W; x += gap) {
-      if (x < -pw) continue;
+    //  ⚠ 말뚝 꼭대기 뼈는 x 보다 `pw*0.85` 더 넓다 → 오른쪽 끝을 그만큼 앞에서 끊는다.
+    //    안 그러면 마지막 말뚝의 뼈만 구간 밖으로 삐져나온다.
+    for (var x = bx0 - off; x < bx1 - pw * 1.35; x += gap) {
+      if (x < bx0) continue;
       g.fillStyle(mix(bg, M.woodDark, 0.34), 1);
       g.fillRect(x, line - ph, pw, ph);
       g.fillStyle(mix(bg, M.bone, 0.42), 1);
       g.fillEllipse(x + pw / 2, line - ph, pw * 1.7, pw * 1.1, 8);
     }
     g.fillStyle(mix(bg, M.rope, 0.30), 1);
-    g.fillRect(0, line - ph * 0.66, W, Math.max(1.4, ph * 0.04));
+    g.fillRect(bx0, line - ph * 0.66, bw, Math.max(1.4, ph * 0.04));
 
     //  ② 스킬 파문 — 땅에 퍼지는 고리 하나. 화려함보다 **읽히는 것**이 먼저다.
     if (d.skillFx) {
@@ -343,8 +372,12 @@ GAME.LobbyArt = {
     if (d.slash) {
       var sp2 = d.slash.t / d.slash.total, sa = 1 - sp2;
       var rO = (hero.def.radius || 16) * hero.scale * (d.slash.big ? 3.0 : 2.2);
-      var rI = rO * 0.60;
-      var half = 0.62, spin = sp2 * 0.5 - 0.25;     // 위에서 아래로 훑는다
+      //  ⚠ 두께·호 길이는 **비율**이라 반지름이 커지면 같이 커진다. PC 영웅은 폰보다
+      //    1.8배 크게 서는데(3.1배 대 1.72배), 예전 값(0.60 / 0.62rad)이면 두께 44px
+      //    짜리 짧은 띠가 되어 **초승달이 아니라 베이지색 판때기**로 보였다(실측
+      //    스크린샷). 얇고 길게 만들면 두 크기 모두에서 '지나간 자국'으로 읽힌다.
+      var rI = rO * 0.72;
+      var half = 0.80, spin = sp2 * 0.5 - 0.25;     // 위에서 아래로 훑는다
       var pts2 = [], nn = 10, ii, tt;
       for (ii = 0; ii <= nn; ii++) {
         tt = -0.05 + spin - half + (2 * half) * (ii / nn);
@@ -383,8 +416,19 @@ GAME.LobbyArt = {
     if (!btn || !btn.text) return null;
     var t = btn.text;
     var s = (parseInt(t.style && t.style.fontSize, 10) || 18) * 1.15;
+    var cx = t.x - t.width / 2 - s * 0.72;
+    //  ⚠ **자리가 없으면 안 그린다.** 표식은 버튼 왼쪽 여백에 얹는 것이라, 라벨이
+    //    칸을 거의 채운 좁은 버튼(폰 가로 유틸 줄은 최대 6칸이다)에서는 테두리를
+    //    넘어 잘린다. 그런데 **칸 수가 기기마다 다르다** — 전체화면 API 가 없는
+    //    아이폰은 칸이 하나 빠지고, 관리자면 하나 는다. 즉 "어느 버튼이 좁은지"를
+    //    손으로 고를 수가 없다. 잴 수 있으니 여기서 잰다(이 저장소의 '좌표를 손으로
+    //    박지 않는다' 규율과 같은 이유다).
+    var r = btn.rect;
+    if (r && r.width) {
+      if (cx - s * 0.5 < r.x - r.width / 2 + s * 0.35) return null;
+    }
     var g = scene.add.graphics().setDepth((t.depth || 0) + (depthAbove || 0));
-    this.mark(g, kind, t.x - t.width / 2 - s * 0.72, t.y, s);
+    this.mark(g, kind, cx, t.y, s);
     return g;
   },
 
@@ -401,6 +445,18 @@ GAME.LobbyArt = {
   //    값을 키우고 싶어지면 먼저 그 위에 글자가 앉는지부터 볼 것 —
   //    전장 배경에서 똑같은 실수를 한 번 했다(v1.50 → v1.52 수정).
   //  ⚠ 색은 전부 토큰에서 유도한다. 하드코딩하면 테마 4종에서 혼자 안 따라온다.
+  //  이 화면에 자동 재생 데모가 서는가. **`start()` 와 `backdrop()` 이 같은 답을
+  //  봐야 한다** — 한쪽만 그린다고 판단하면 목책이 두 겹이 되거나 아예 사라진다.
+  //  조건은 `start()` 의 분기와 정확히 같다: 폰 가로거나, 세로가 아니면서 충분히 넓은 PC.
+  _hasDemo: function () {
+    if (GAME.CONFIG.PHONE) return true;
+    if (GAME.CONFIG.PORTRAIT) return false;
+    return GAME.CONFIG.WIDTH >= this.MIN_W;
+  },
+
+  //  지평선 — 배경(들판 경계)과 데모(목책이 서는 줄)가 **같은 값을 봐야** 한다.
+  LOBBY_HORIZON: 0.62,
+
   backdrop: function (scene) {
     var UI = GAME.UI, C = GAME.CONFIG.COLORS, M = UI.MAT;
     var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
@@ -409,7 +465,7 @@ GAME.LobbyArt = {
 
     var field = C.arenaFill || 0x6f7f4a;
     var bg = (UI.COL && UI.COL.bg) || 0xfbf2df;
-    var horizon = H * 0.62;
+    var horizon = H * this.LOBBY_HORIZON;
 
     //  ① 하늘 — 크림에서 아주 옅은 들판색으로. 12단이면 밴딩이 안 보인다.
     var i, t;
@@ -433,9 +489,14 @@ GAME.LobbyArt = {
       for (x = -step; x <= W + step; x += step) pts.push({ x: x, y: rnd() });
       this._ridge = pts; this._ridgeKey = key;
     }
-    //  ⚠ 폰에서는 **데모 레이어가 흐르는 능선·목책을 그린다.** 여기서 또 그리면
-    //    정지한 것과 흐르는 것이 겹쳐 두 겹으로 보인다.
-    var anim = !!GAME.CONFIG.PHONE;
+    //  ⚠ 데모가 도는 화면에서는 **데모 레이어가 흐르는 능선·목책을 그린다.** 여기서
+    //    또 그리면 정지한 것과 흐르는 것이 겹쳐 **두 겹**으로 보인다.
+    //  ⚠ 예전엔 이 판정이 `CONFIG.PHONE` 이었다. 데모가 폰에만 있었기 때문이다.
+    //    PC 에도 데모를 세우자(2026-08-05) 곧바로 목책이 두 줄로 겹쳤다(실측 스크린샷)
+    //    — 높이가 서로 달라서 울타리가 두 개 있는 것처럼 보였다.
+    //    → 판정을 **데모가 실제로 도는 조건**과 같은 식으로 맞춘다. 한쪽만 고치면
+    //      다시 어긋나므로 `_hasDemo` 하나를 양쪽이 같이 본다.
+    var anim = this._hasDemo();
     var rid = this._ridge, poly = [], k;
     if (anim) rid = [];
     var rh = H * 0.13;
@@ -474,6 +535,7 @@ GAME.LobbyArt = {
 
   start: function (scene) {
     if (!GAME.UI || !GAME.UI.drawUnitFlat || !GAME.HEROES) return null;
+    var self = this;
     var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
     var C = GAME.CONFIG.COLORS;
 
@@ -511,7 +573,7 @@ GAME.LobbyArt = {
       //  ⚠ 배경은 **`backdrop` 이 그린 것을 밀지 않는다** — 그건 한 번 구운 정지화면이다.
       //    대신 이 레이어가 자기 목책을 스크롤해 "걷고 있다"를 만든다.
       return {
-        g: pg, t: 0, demo: this._newDemo(W, H),
+        g: pg, t: 0, demos: [this._newDemo(W, H)],
         guards: [{
           def: pdef,
           //  왼쪽 열 한가운데. 버튼 띠(오른쪽 절반)를 절대 안 넘어간다.
@@ -555,7 +617,39 @@ GAME.LobbyArt = {
       });
     });
     if (!guards.length) { try { g.destroy(); } catch (e) {} return null; }
-    return { g: g, guards: guards, t: 0 };
+
+    // ── PC 로비 데모 (2026-08-05) ────────────────────────────────────────────
+    //  폰 가로에만 있던 자동 재생 시연을 PC 에도 세운다. 첫 화면이 "이 게임은 이런
+    //  게임이다"를 말해 주는 것이 목적이므로 큰 화면에서 빠질 이유가 없다.
+    //
+    //  ⚠ **폰과 자리 잡는 방식이 완전히 다르다.** 폰은 버튼이 오른쪽 절반이라 데모가
+    //    화면 전체를 써도 되지만, PC 는 **버튼 띠가 정중앙**이다. 그대로 옮기면
+    //    흐르는 목책이 버튼 한가운데를 관통한다 → 좌우 여백을 각각 하나의 구간으로
+    //    주고 그 안에서만 돌린다(`_newDemo` 의 band).
+    //  ⚠ 구간은 **영웅이 실제로 선 자리에서 역산한다.** 위 `margin` 을 그대로 쓰면
+    //    영웅이 구간 밖에 설 수 있다(여백 폭이 화면 폭에 따라 변한다).
+    //  ⚠ 소리는 왼쪽 하나만 낸다 — 둘 다 울리면 같은 타격음이 겹쳐 두 번 난다.
+    var mg = (W - 460) / 2;
+    var hz = H * this.LOBBY_HORIZON;
+    var demos = guards.map(function (h, gi) {
+      var left = (gi === 0);
+      //  ⚠ 영웅을 **지평선 위에 세운다.** 그대로 두면(H*0.58) 배경의 들판 경계보다
+      //    위에 떠서, 흐르는 목책과 발밑이 따로 논다.
+      h.y = hz + (h.def.radius || 16) * h.scale * 0.28;
+      return self._newDemo(W, H, {
+        x0: left ? 0 : W - mg,
+        x1: left ? mg : W,
+        //  적은 구간의 바깥쪽 끝에서 걸어 들어온다(영웅 쪽으로).
+        spawnX: left ? mg * 0.96 : W - mg * 0.04,
+        //  목책은 배경의 들판 경계에 세운다 — 배경과 데모가 **같은 지평선**을 본다.
+        line: hz,
+        //  시작 시각을 어긋내 좌우가 **한 몸처럼** 움직이지 않게 한다
+        //  (숨쉬기 위상을 어긋낸 것과 같은 이유다).
+        delay: 600 + gi * 1100,
+        mute: !left
+      });
+    });
+    return { g: g, guards: guards, t: 0, demos: demos };
   },
 
   // 매 프레임. `dtMs` 는 씬이 준 델타다.
@@ -565,11 +659,16 @@ GAME.LobbyArt = {
     state.t += dt;
     var g = state.g;
     g.clear();
-    //  데모(폰 가로) — 적을 굴리고 목책을 흘린 뒤, 영웅은 아래 루프가 그 위에 그린다.
-    if (state.demo && state.guards.length) {
-      state.demo.t0 = state.t;
-      this._demoUpdate(state.demo, state.guards[0], dt);
-      this._demoDraw(g, state.demo, state.guards[0]);
+    //  데모 — 적을 굴리고 목책을 흘린 뒤, 영웅은 아래 루프가 그 위에 그린다.
+    //  ⚠ **영웅과 짝을 맞춰 돈다**(PC 는 좌우 둘이다). 배열 길이가 어긋나도
+    //    조용히 건너뛴다 — 아트 하나 때문에 로비가 안 뜨면 안 된다.
+    if (state.demos) {
+      for (var di = 0; di < state.demos.length; di++) {
+        if (!state.guards[di]) continue;
+        state.demos[di].t0 = state.t;
+        this._demoUpdate(state.demos[di], state.guards[di], dt);
+        this._demoDraw(g, state.demos[di], state.guards[di]);
+      }
     }
     for (var i = 0; i < state.guards.length; i++) {
       var h = state.guards[i];
@@ -596,7 +695,7 @@ GAME.LobbyArt = {
         // `idle` 에 시각을 넘기면 그 한 기가 숨 쉬고 가끔 무기를 휘두른다(eggart 규약).
         //  ⚠ 데모가 돌 때는 **걸음걸이와 공격 포즈**를 같이 넘긴다. `walk` 는 위상이라
         //    제자리에서도 다리가 움직이고, 흐르는 목책이 "앞으로 간다"를 만든다.
-        var dm = state.demo;
+        var dm = state.demos && state.demos[i];
         GAME.UI.drawUnitFlat(g, h.def, h.x, h.y, h.color, this.ALPHA,
                              h.scale, h.facing,
                              dm ? state.t * 0.011 : null,

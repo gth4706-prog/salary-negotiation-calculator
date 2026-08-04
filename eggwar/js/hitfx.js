@@ -33,8 +33,18 @@
     T_RING: 'eggfx-ring',
 
     //  한 판에 살아 있을 수 있는 파티클 총량. 난전에서 수천 개가 뜨면 그게 곧 렉이다.
-    //  ⚠ 이 프로젝트는 "액션이 겹치면 프레임 저하"를 이미 신고받은 적이 있다.
-    MAX_ALIVE: 260,
+    //
+    //  ⚠⚠ **모바일 상한을 따로 둔다** (2026-08-04 사용자 리포트: "보통 모바일에서
+    //    렉 발생"). CPU 4배 스로틀(중급 안드로이드 재현)로 측정하니, 느린 프레임
+    //    (p95 이상)과 빠른 프레임(p50 이하)을 가른 지표 중 **파티클이 2.31배**로
+    //    가장 강한 상관이었다(이펙트 1.53배 · 유닛 0.99배 · Text 재굽기 0.65배).
+    //    즉 유닛 수나 글자 재굽기가 아니라 **파티클이 모바일 프레임을 먹는다.**
+    //  ⚠ 데스크톱 값을 낮추지는 않는다 — 거기서는 문제가 관측되지 않았고,
+    //    한 값으로 합치면 잘 도는 기기의 연출까지 같이 깎인다.
+    get MAX_ALIVE() {
+      var C = GAME.CONFIG;
+      return (C && (C.PHONE || C.PORTRAIT)) ? 110 : 260;
+    },
 
     _tex: function (scene) {
       if (scene.textures.exists(this.T_DOT)) return;
@@ -143,7 +153,11 @@
     hit: function (scene, x, y, pct, kind) {
       if (!scene || !scene._fxReady) return;
       var big = Math.max(0, Math.min(1, pct || 0));
-      var want = 3 + Math.round(big * 12);
+      //  ⚠ 한 번에 터지는 양도 모바일에서 줄인다. 상한만 낮추면 **큰 타격 한 번**에
+      //    예산이 다 차서, 정작 그 뒤의 여러 타격이 통째로 안 튀는 역효과가 난다
+      //    (상한은 총량 제한이지 분배 규칙이 아니다).
+      var C = GAME.CONFIG, mob = !!(C && (C.PHONE || C.PORTRAIT));
+      var want = mob ? (2 + Math.round(big * 6)) : (3 + Math.round(big * 12));
       var n = this._room(scene, want);
       if (n <= 0) return;
       //  '단단한 것'(방패·껍질·돌 유닛)은 노른자가 아니라 불똥과 조각이 튄다.

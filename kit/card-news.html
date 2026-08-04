@@ -95,7 +95,7 @@
 
 <script src="card-data.js?v=5"></script>
 <script src="story-data.js?v=5"></script>
-<script src="sozae-pool.js?v=1"></script>
+<script src="sozae-pool.js?v=2"></script>
 <script>
 /* =========================================================
    카드 렌더링 — 캔버스에 직접 그린다.
@@ -457,7 +457,7 @@ function poolRender(){
     sc.style.color = r.score >= 85 ? "#3DD68C" : (r.score >= 70 ? "#C9A227" : "#93A1B4");
     var tx = document.createElement("div");
     tx.className = "logtx";
-    tx.innerHTML = "<b>" + r.title + "</b>"
+    tx.innerHTML = "<b>" + (r.no ? r.no + "번 · " : "") + r.title + "</b>"
       + "<div class='muted' style='font-size:12px'>" + r.topic + " · " + r.addedAt
       + " · " + r.status + (r.usedAs ? " → " + r.usedAs : "") + "</div>"
       + "<div class='muted' style='font-size:12px'>" + (r.note || "") + "</div>";

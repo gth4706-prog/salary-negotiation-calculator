@@ -55,6 +55,40 @@ window.GAME = window.GAME || {};
     return s.slice(0, Math.max(1, maxChars - 1)) + '…';
   };
 
+  // ── 한국어 조사 (2026-08-05) ─────────────────────────────────────────────
+  //  이름 뒤에 붙는 조사는 **앞 글자의 받침**이 정한다. 그걸 안 하면 화면에
+  //  "화살비은(는)" 같은 글자가 그대로 뜬다 — 이 저장소에도 이미 한 군데 있었다
+  //  (`js/scenes/build.js` 의 '은(는)'). 로딩 화면 공략이 스킬 이름을 문장에
+  //  끼우기 시작하면서 이 문제가 화면 여러 곳으로 번지게 되어 헬퍼로 뺀다.
+  //
+  //  한글 음절은 0xAC00 + (초성×21 + 중성)×28 + 종성 이라, `(코드-0xAC00) % 28`
+  //  이 0 이면 받침이 없다.
+  //  ⚠ 'ㄹ' 받침(종성 8)은 예외다 — '으로'가 아니라 **'로'**('칼로', '술로').
+  //  ⚠ 한글이 아닌 글자로 끝나면(영문·숫자) 받침을 알 수 없다. 받침 없음으로
+  //    친다 — 이 게임의 이름은 전부 한글이라 실제로 걸릴 일이 없고, 걸려도
+  //    '는/를/가/로' 쪽이 덜 어색하다.
+  UI.josa = function (word, kind) {
+    var s = String(word === undefined || word === null ? '' : word);
+    var c = s.length ? s.charCodeAt(s.length - 1) : 0;
+    var jong = (c >= 0xAC00 && c <= 0xD7A3) ? (c - 0xAC00) % 28 : 0;
+    var has = jong > 0;
+    if (kind === 'eul') return has ? '을' : '를';
+    if (kind === 'i')   return has ? '이' : '가';
+    if (kind === 'gwa') return has ? '과' : '와';
+    if (kind === 'ro')  return (!has || jong === 8) ? '로' : '으로';
+    return has ? '은' : '는';
+  };
+
+  //  '{n}' 에 이름을 넣고 '{은}{를}{가}{로}' 를 그 이름에 맞는 조사로 바꾼다.
+  UI.fillName = function (tpl, name) {
+    return String(tpl)
+      .replace(/\{n\}/g, name)
+      .replace(/\{은\}/g, UI.josa(name, 'eun'))
+      .replace(/\{를\}/g, UI.josa(name, 'eul'))
+      .replace(/\{가\}/g, UI.josa(name, 'i'))
+      .replace(/\{로\}/g, UI.josa(name, 'ro'));
+  };
+
   // ───────────────────────────────────────────────────────────────────────
   //  1. 등급 사다리
   //     이 게임엔 뽑기가 없다. 그래서 등급은 **난이도**에 붙인다

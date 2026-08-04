@@ -62,6 +62,105 @@ GAME.TOWER_UNIT_TIPS = {
   ]
 };
 
+// ── 공략 한 줄 (2026-08-05 사용자 지시) ──────────────────────────────────────
+//  > "로딩에서는 어떻게해야 깰수있을지 **플레이방법을 토대로 공략을 제안**해주기만 하자"
+//
+//  기존 팁(`TOWER_UNIT_TIPS`)과 무엇이 다른가: 저건 "이 유닛은 이런 놈이다"라는
+//  **사실**이고, 이건 "이 판은 이렇게 깨라"는 **순서**다. 그리고 결정적으로
+//  **내가 지금 들고 있는 스킬을 보고 말한다** — 같은 층이라도 광전사와 사냥꾼의
+//  공략이 같을 수 없다. 그게 "플레이 방법을 토대로"의 뜻이라고 읽었다.
+//
+//  ⚠ 두 줄을 넘기지 않는다. 로딩은 3초다 — 네 줄을 쓰면 아무것도 안 읽힌다.
+//  ⚠ 완화(재도전 N회 -N%)는 **여기서도 말하지 않는다**(같은 지시). 화면은 진 횟수를
+//    세는 대신 이기는 방법을 말한다.
+
+//  먼저 죽여야 하는 순서. 앞쪽이 우선이다.
+//  근거: 회복(medic)·강화(sergeant)는 남겨두면 **다른 전부가 안 죽는다**, 그다음이
+//  피할 수 없는 딜(sniper)과 전 맵 사거리(mgnest)다. 앞줄 몸(bayonet/shieldman)은
+//  마지막 — 그것부터 치는 것이 이 게임에서 가장 흔한 패착이다.
+GAME.TOWER_THREAT_ORDER = [
+  'medic', 'sergeant', 'sniper', 'mgnest', 'chemtrooper',
+  'grenadier', 'rifleman', 'shieldman', 'mine', 'bayonet'
+];
+GAME.TOWER_THREAT_PLAN = {
+  medic: '약초꾼이 깎은 체력을 계속 되돌린다 — 이 판은 약초꾼을 먼저 지우고 시작하는 판이다.',
+  sergeant: '족장이 살아 있는 동안은 주변이 전부 강하다 — 족장부터 끊으면 나머지가 순해진다.',
+  sniper: '투창병은 피할 수 없는 공격이다 — 오래 끌수록 손해다. 가장 먼저 끊어라.',
+  mgnest: '쇠뇌 진지는 맵 어디든 닿는다 — 숨을 곳을 찾지 말고 곧장 붙어서 지워라.',
+  chemtrooper: '늪지기에게 맞으면 느려져 다른 공격까지 못 피한다 — 둔화부터 없애라.',
+  grenadier: '투석꾼은 예고 뒤에 터진다 — 그림자를 보고 움직이면 한 발도 안 맞는다.',
+  rifleman: '궁수의 화살은 직선이다 — 정면으로 다가가지 말고 옆으로 돌아 붙어라.',
+  shieldman: '방패병이 뒤를 대신 맞아준다 — 방패병을 밀어내거나 넘어가야 뒤가 뚫린다.',
+  mine: '가시덫이 깔려 있다 — 붉은 원이 뜨면 걸어서는 못 벗어난다. 이동 스킬을 아껴 둬라.',
+  bayonet: '전사는 뭉쳐서 벽을 만든다 — 한 놈씩 떼어내지 말고 뭉친 곳을 통째로 노려라.'
+};
+//  내가 들고 있는 스킬의 **성격**으로 쓰는 법을 말한다(js/heroes.js 의 `type`).
+//  ⚠ 조사는 **이름의 받침이 정한다**. '{은}{를}{가}{로}' 를 `UI.fillName` 이 바꾼다 —
+//    그냥 '은(는)' 이라고 적으면 화면에 "화살비은(는)" 이 그대로 뜬다(실측).
+GAME.TOWER_SKILL_PLAN = {
+  dash: '{n}{로} 앞줄을 넘어 뒤부터 치면 순서를 바꿀 수 있다.',
+  aoeSelf: '{n}{은} 적이 나를 둘러쌌을 때 가장 크다 — 뭉칠 때까지 참아라.',
+  aoeTarget: '{n}{은} 뭉친 자리에 넣어야 값을 한다. 한 놈에게 쓰지 마라.',
+  pull: '{n}{로} 뒷줄을 끌어내면 앞줄을 뚫지 않아도 된다.',
+  projectile: '{n}{은} 직선이라 겹쳐 선 줄을 노릴 때 가장 많이 맞는다.',
+  trap: '{n}{를} 길목에 미리 깔고 유인하면 싸움이 반으로 준다.',
+  buff: '{n}{은} 교전 직전에 켜라 — 켜고 들어가는 것과 맞고 켜는 것은 다르다.',
+  aura: '{n}{가} 켜져 있는 동안은 붙어 있어야 값을 한다.',
+  strike: '{n}{은} 한 놈을 확실히 지우는 데 쓴다 — 위에 적힌 표적에 써라.'
+};
+
+//  이 층 + 내 스킬 → 공략 두 줄. 못 만들면 빈 배열(호출부가 알아서 건너뛴다).
+GAME.towerAdvice = function (formation, heroKey) {
+  var out = [];
+  if (!formation || !formation.units || !formation.units.length) return out;
+
+  //  ① 이 층에서 가장 먼저 죽여야 하는 것
+  //  ⚠ **`u.type` 은 원본 키가 아니다.** 탑은 정예 파생을 만들면서 레벨·능력을 붙인
+  //    키를 쓴다 — 실측하면 `shieldman#6+charge` · `rifleman#3` 처럼 나온다.
+  //    그래서 `GAME.UnitLevel.baseKeyOf` 로 원본으로 되돌려야 표에서 찾힌다.
+  //    ⚠ 바로 아래 예전 팁 코드(`TOWER_UNIT_TIPS[u.type]`)가 이걸 안 해서 **탑에서는
+  //      한 번도 안 떴다** — 조건이 조용히 false 라 아무도 눈치채지 못했다.
+  //      (이 저장소의 "유닛 키는 표시 이름이 아니다" 함정과 같은 계열이다.)
+  var base = function (t) {
+    return (GAME.UnitLevel && GAME.UnitLevel.baseKeyOf) ? GAME.UnitLevel.baseKeyOf(t) : t;
+  };
+  var present = {};
+  formation.units.forEach(function (u) {
+    var k = base(u.type);
+    present[k] = (present[k] || 0) + 1;
+  });
+  var order = GAME.TOWER_THREAT_ORDER;
+  for (var i = 0; i < order.length; i++) {
+    if (present[order[i]] && GAME.TOWER_THREAT_PLAN[order[i]]) {
+      //  ⚠ 🎯 는 쓰지 않는다 — 이 화면에서 **층 목표**가 이미 그 아이콘을 쓴다.
+      //    같은 기호를 두 번 쓰면 '이겨야 하는 조건'과 '조언'이 한 덩어리로 읽힌다.
+      out.push('⚔ ' + GAME.TOWER_THREAT_PLAN[order[i]]);
+      break;
+    }
+  }
+
+  //  ② 그 일을 **내가 가진 수단**으로 어떻게 하나
+  //  ⚠ 스킬은 `TowerChar.picks`(슬롯→선택지 색인)로 정해진다. 여기서 기본값을
+  //    가정하면 상점에서 바꿔 낀 사람에게 엉뚱한 스킬을 권하게 된다.
+  var hero = GAME.HEROES && GAME.HEROES[heroKey];
+  var rec = (GAME.TowerChar && GAME.TowerChar.exists && GAME.TowerChar.exists())
+            ? GAME.TowerChar.get() : null;
+  if (hero && hero.skillOptions && rec && rec.picks) {
+    var mine = [];
+    (GAME.SKILL_SLOTS || []).forEach(function (slot) {
+      var opts = hero.skillOptions[slot] || [];
+      var sk = opts[rec.picks[slot] || 0];
+      if (sk && GAME.TOWER_SKILL_PLAN[sk.type]) mine.push(sk);
+    });
+    if (mine.length) {
+      //  매번 같은 줄이 뜨면 두 번째 도전부터는 안 읽는다 — 가진 것 중 하나를 고른다.
+      var sk2 = mine[Math.floor(Math.random() * mine.length)];
+      out.push('▸ ' + GAME.UI.fillName(GAME.TOWER_SKILL_PLAN[sk2.type], sk2.name));
+    }
+  }
+  return out;
+};
+
 GAME.TowerLoadingScene = function () {
   Phaser.Scene.call(this, { key: 'TowerLoading' });
 };
@@ -177,11 +276,24 @@ GAME.TowerLoadingScene.prototype.create = function () {
     if (formation && formation.planLabel) lines.push('◈ ' + formation.planLabel + ' — ' + formation.planHint);
     if (formation && formation.ruleLabel) lines.push('⚠ ' + formation.ruleLabel + ' — ' + formation.ruleDesc);
 
-    // 이 층에 나오는 유닛 종류 중 하나를 랜덤으로 골라 전술 팁을 띄운다.
-    if (formation && formation.units && formation.units.length) {
+    //  ── 공략 (2026-08-05 사용자 지시) ────────────────────────────────────────
+    //  > "어떻게해야 깰수있을지 플레이방법을 토대로 공략을 제안해주기만 하자"
+    //  '이 유닛은 이런 놈이다'(사실)에서 **'이 판은 이렇게 깨라'(순서)** 로 바꾼다.
+    //  두 줄: 먼저 죽일 것 + 내가 낀 스킬로 그걸 어떻게 하나.
+    var adv = GAME.towerAdvice ? GAME.towerAdvice(formation, self.heroKey) : [];
+    if (adv.length) {
+      adv.forEach(function (s) { lines.push(s); });
+    } else if (formation && formation.units && formation.units.length) {
+      //  공략을 못 만든 층(표에 없는 유닛만 나오는 경우)에서는 예전 팁으로 돌아간다 —
+      //  줄이 통째로 비면 화면이 허전해지고, 읽을 것이 없으면 3초가 더 길게 느껴진다.
+      //  ⚠ 여기도 **원본 키로 되돌려야** 한다(위 `towerAdvice` 주석 참조).
+      //    예전에는 파생 키(`shieldman#6+charge`)를 그대로 찾아서 탑에서는 이 팁이
+      //    한 번도 안 떴다 — 배치 화면(파생 없음)에서만 우연히 맞았다.
       var kinds = [];
       formation.units.forEach(function (u) {
-        if (kinds.indexOf(u.type) < 0 && GAME.TOWER_UNIT_TIPS[u.type]) kinds.push(u.type);
+        var k = (GAME.UnitLevel && GAME.UnitLevel.baseKeyOf)
+                ? GAME.UnitLevel.baseKeyOf(u.type) : u.type;
+        if (kinds.indexOf(k) < 0 && GAME.TOWER_UNIT_TIPS[k]) kinds.push(k);
       });
       if (kinds.length) {
         var pick = kinds[Math.floor(Math.random() * kinds.length)];

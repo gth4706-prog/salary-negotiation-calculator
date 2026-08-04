@@ -777,7 +777,8 @@ GAME.BuildScene.prototype.spent = function () {
 GAME.BuildScene.prototype._blockedReason = function (key) {
   var def = GAME.UNITS[key];
   if (def.maxPerFormation && this._countOf(key) >= def.maxPerFormation) {
-    return def.name + '은(는) 배치도당 ' + def.maxPerFormation + '개까지만 놓을 수 있습니다.';
+    return def.name + GAME.UI.josa(def.name, 'eun') + ' 배치도당 ' +
+           def.maxPerFormation + '개까지만 놓을 수 있습니다.';
   }
   //  ⚠ 판정도 **표시와 같은 단위**로 해야 한다. 표시만 인구로 바꾸면
   //    "인구 20/16" 처럼 앞뒤가 안 맞는 화면이 나온다(궁수 원가 15 → 인구 2).

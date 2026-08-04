@@ -51,7 +51,7 @@ GAME.TowerBoon = (function () {
     {
       key: 'riposte', label: '반격',
       desc: '맞으면 주변에 충격파가 나간다 (1초에 한 번)',
-      why: '피하기만 하던 플레이에 **일부러 맞으러 들어가는** 선택지를 준다',
+      why: '피하기만 하던 플레이에 일부러 맞으러 들어가는 선택지를 준다',
       hook: 'riposte', arg: { cd: 1000, radius: 96, dmgMul: 0.55 }
     },
     {
@@ -69,7 +69,7 @@ GAME.TowerBoon = (function () {
     {
       key: 'siphon', label: '흡수',
       desc: '처치할 때마다 체력을 8% 회복한다',
-      why: '물약에 의존하지 않고 **계속 싸워서** 버티는 길을 연다',
+      why: '물약에 의존하지 않고 계속 싸워서 버티는 길을 연다',
       hook: 'siphon', arg: { frac: 0.08 }
     },
     {

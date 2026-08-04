@@ -94,7 +94,7 @@
 </main>
 
 <script src="card-data.js?v=5"></script>
-<script src="story-data.js?v=6"></script>
+<script src="story-data.js?v=7"></script>
 <script src="sozae-pool.js?v=3"></script>
 <script>
 /* =========================================================
@@ -125,17 +125,50 @@ if (typeof CARD_TOOLS === "undefined" || typeof CARD_STORIES === "undefined") {
   throw new Error("card data not loaded");
 }
 
+/* =========================================================
+   줄바꿈 — 카드뉴스 가독성의 핵심 (2026-08-05 개선)
+
+   조사한 원칙(W3C 한글 텍스트 레이아웃 요구사항 / 카드뉴스 디자인 실무):
+     · 한글은 **어절 단위**로 끊는다. 글자 중간에서 끊으면 안 된다.
+     · **의미 단위**로 끊는 게 가장 잘 읽힌다 → 원고의 명시적 줄바꿈(\n)을 존중한다.
+     · **줄 길이의 균형**이 중요하다. 첫 줄만 꽉 채우고 마지막 줄에 한 어절만
+       남는 "고아 줄"이 생기면 읽기 나쁘고 보기에도 어설프다.
+     · 여백을 아끼지 않는다.
+
+   그래서 두 가지를 한다:
+     1) 작성자가 넣은 \n 은 그대로 지킨다(의미 단위 보존)
+     2) 그 안에서 자동 줄바꿈이 일어나면 **폭을 좁혀가며 균형을 맞춘다**
+        — 같은 줄 수를 유지하는 선에서 가장 좁은 폭을 찾으면 줄 길이가 고르게 된다.
+          (CSS 의 text-wrap:balance 와 같은 발상)
+   ========================================================= */
+function wrapRaw(ctx, para, maxW){
+  var words = para.split(" "), line = "", out = [];
+  words.forEach(function(w){
+    var test = line ? line + " " + w : w;
+    if (ctx.measureText(test).width > maxW && line) { out.push(line); line = w; }
+    else line = test;
+  });
+  out.push(line);
+  return out;
+}
+
 function wrap(ctx, text, maxW){
-  /* 한글은 어절 단위로 끊어야 읽기 좋다(글자 단위 금지). */
   var out = [];
   text.split("\n").forEach(function(para){
-    var words = para.split(" "), line = "";
-    words.forEach(function(w){
-      var test = line ? line + " " + w : w;
-      if (ctx.measureText(test).width > maxW && line) { out.push(line); line = w; }
-      else line = test;
-    });
-    out.push(line);
+    if (para === "") { out.push(""); return; }      // 빈 줄은 그대로 여백
+    var base = wrapRaw(ctx, para, maxW);
+    if (base.length > 1) {
+      /* 줄 수를 유지하는 가장 좁은 폭을 이분 탐색으로 찾아 균형을 맞춘다.
+         → 마지막 줄에 한 어절만 덜렁 남는 고아 줄이 사라진다. */
+      var lo = 0, hi = maxW, best = maxW;
+      for (var i = 0; i < 12; i++) {
+        var mid = (lo + hi) / 2;
+        if (wrapRaw(ctx, para, mid).length <= base.length) { best = mid; hi = mid; }
+        else lo = mid;
+      }
+      base = wrapRaw(ctx, para, best);
+    }
+    out = out.concat(base);
   });
   return out;
 }
@@ -198,15 +231,25 @@ function drawCard(cv, tool, idx){
     ctx.fillStyle = "rgba(255,255,255,.28)";
     ctx.fillText(tool.emoji, PAD, PAD + 40);
 
+    /* 표지도 자동 맞춤 — 후킹이 길어지면 글자를 줄여서라도 화면 안에 넣는다.
+       4줄을 넘거나 세로가 넘치면 축소한다. */
     ctx.fillStyle = "#fff";
-    ctx.font = "800 88px 'Pretendard Variable',sans-serif";
-    var lines = wrap(ctx, tool.hook, S - PAD*2);
-    var y = S/2 - (lines.length*112)/2 + 20;
-    lines.forEach(function(l){ ctx.fillText(l, PAD, y); y += 112; });
+    var hs = 88, hl = 112, lines;
+    for (var k = 0; k < 6; k++){
+      ctx.font = "800 " + hs + "px 'Pretendard Variable',sans-serif";
+      lines = wrap(ctx, tool.hook, S - PAD*2);
+      if (lines.length <= 4 && lines.length * hl < S - PAD*2 - 200) break;
+      hs *= 0.9; hl *= 0.9;
+    }
+    var y = S/2 - (lines.length*hl)/2 + 20;
+    lines.forEach(function(l){ ctx.fillText(l, PAD, y); y += hl; });
+    cv.dataset.overflow = (lines.length > 4) ? "1" : "";
 
     ctx.font = "500 40px 'Pretendard Variable',sans-serif";
     ctx.fillStyle = "rgba(255,255,255,.9)";
-    ctx.fillText(tool.sub, PAD, y + 18);
+    wrap(ctx, tool.sub, S - PAD*2).forEach(function(l, i){
+      ctx.fillText(l, PAD, y + 18 + i*52);
+    });
 
     ctx.font = "800 34px 'Pretendard Variable',sans-serif";
     ctx.fillStyle = "rgba(255,255,255,.95)";
@@ -226,22 +269,74 @@ function drawCard(cv, tool, idx){
   ctx.fillText(partLabel(tool, idx-1), PAD + badgeW/2, PAD + 80);
   ctx.textAlign = "left";
 
+  /* =========================================================
+     자동 맞춤 — 글자가 박스를 넘치는 일이 **구조적으로 없게** 한다.
+     (2026-08-05: 넘침 사례가 반복돼서, 사후 검사가 아니라 렌더러가 직접 막게 바꿨다)
+
+     소제목+본문의 실제 높이를 재고, 안전 영역을 넘으면 배율을 한 단계씩 줄여
+     들어맞을 때까지 반복한다. 78% 까지 줄여도 안 들어가면 화면에 경고를 띄운다
+     (그건 폰트 문제가 아니라 **원고가 너무 긴 것**이라 사람이 고쳐야 한다).
+     ========================================================= */
+  var W = S - PAD*2;
+  var bottomGuard = isLast
+      ? (tool.kind === "story" ? 190 : 145)   // 마지막 카드엔 CTA 박스가 있다
+      : 74;                                    // 일반 카드엔 하단 시리즈명
+  var safeBottom = S - PAD - bottomGuard;
+  var topY = PAD + 168;
+
+  function layout(scale){
+    var tSize = 62 * scale, tLine = 78 * scale;
+    var bSize = 46 * scale, bLine = 70 * scale;
+    ctx.font = "800 " + tSize + "px 'Pretendard Variable',sans-serif";
+    var tl = wrap(ctx, card.t, W);
+    ctx.font = "500 " + bSize + "px 'Pretendard Variable',sans-serif";
+    var bl = wrap(ctx, card.b, W);
+    var ruleGap = 14 * scale, ruleToBody = 74 * scale;
+    var end = topY + tl.length * tLine + ruleToBody + bl.length * bLine;
+    return { tl: tl, bl: bl, tSize: tSize, tLine: tLine, bSize: bSize,
+             bLine: bLine, ruleGap: ruleGap, ruleToBody: ruleToBody, end: end };
+  }
+
+  var L = null, scale = 1;
+  var STEPS = [1, 0.96, 0.92, 0.88, 0.84, 0.80, 0.78];
+  for (var si = 0; si < STEPS.length; si++){
+    L = layout(STEPS[si]); scale = STEPS[si];
+    if (L.end <= safeBottom) break;
+  }
+  /* ⚠️ 78% 까지 줄여도 안 들어가면 그건 원고가 너무 긴 것이다.
+     그런데 그대로 그리면 하단 CTA 박스와 겹쳐 카드가 망가진다.
+     그래서 **들어가는 줄까지만 그리고 잘라낸다.** 대신 화면에 "⚠ 넘침"을
+     크게 띄워 사람이 반드시 원고를 고치게 한다.
+     (조용히 넘치는 것보다, 잘리고 시끄럽게 알리는 쪽이 낫다) */
+  var didClip = false;
+  if (L.end > safeBottom){
+    var avail = safeBottom - (topY + L.tl.length * L.tLine + L.ruleToBody);
+    var maxLines = Math.max(1, Math.floor(avail / L.bLine));
+    if (L.bl.length > maxLines){
+      L.bl = L.bl.slice(0, maxLines);
+      L.bl[L.bl.length-1] = L.bl[L.bl.length-1] + "…";
+      didClip = true;
+    }
+  }
+  cv.dataset.overflow = (L.end > safeBottom) ? "1" : "";
+  cv.dataset.clipped = didClip ? "1" : "";
+  cv.dataset.scale = String(scale);
+
   /* 소제목 */
   ctx.fillStyle = ink;
-  ctx.font = "800 62px 'Pretendard Variable',sans-serif";
-  var th = wrap(ctx, card.t, S - PAD*2);
-  var ty = PAD + 168;
-  th.forEach(function(l){ ctx.fillText(l, PAD, ty); ty += 78; });
+  ctx.font = "800 " + L.tSize + "px 'Pretendard Variable',sans-serif";
+  var ty = topY;
+  L.tl.forEach(function(l){ ctx.fillText(l, PAD, ty); ty += L.tLine; });
 
   /* 강조선 */
   ctx.fillStyle = tool.color;
-  ctx.fillRect(PAD, ty + 14, 108, 8);
+  ctx.fillRect(PAD, ty + L.ruleGap, 108, 8);
 
   /* 본문 */
-  ctx.font = "500 46px 'Pretendard Variable',sans-serif";
+  ctx.font = "500 " + L.bSize + "px 'Pretendard Variable',sans-serif";
   ctx.fillStyle = ink;
-  var by = ty + 74;
-  wrap(ctx, card.b, S - PAD*2).forEach(function(l){ ctx.fillText(l, PAD, by); by += 70; });
+  var by = ty + L.ruleToBody;
+  L.bl.forEach(function(l){ ctx.fillText(l, PAD, by); by += L.bLine; });
 
   /* 마지막 카드.
      ⚠️ 소재(story) 카드에는 **도구 CTA 를 넣지 않는다.** 1단계 전략이
@@ -252,9 +347,16 @@ function drawCard(cv, tool, idx){
     roundRect(ctx, PAD, S - PAD - 172, S - PAD*2, 160, 24); ctx.fill();
     ctx.fillStyle = "#fff";
     ctx.textAlign = "center";
-    ctx.font = "800 40px 'Pretendard Variable',sans-serif";
-    var qy = S - PAD - 142;
-    wrap(ctx, tool.ask, S - PAD*2 - 70).forEach(function(l){ ctx.fillText(l, S/2, qy); qy += 54; });
+    /* 질문도 자동 맞춤 — 박스 높이를 넘지 않게 글자를 줄인다 */
+    var qs = 40, ql = 54, qlines;
+    for (var q = 0; q < 5; q++){
+      ctx.font = "800 " + qs + "px 'Pretendard Variable',sans-serif";
+      qlines = wrap(ctx, tool.ask, S - PAD*2 - 70);
+      if (qlines.length * ql <= 150) break;
+      qs *= 0.9; ql *= 0.9;
+    }
+    var qy = S - PAD - 172 + (160 - qlines.length*ql)/2 + ql*0.28;
+    qlines.forEach(function(l){ ctx.fillText(l, S/2, qy); qy += ql; });
     ctx.textAlign = "left";
   } else if (isLast){
     ctx.fillStyle = tool.color;
@@ -368,22 +470,37 @@ var bar = document.getElementById("stagebar");
 });
 fillSelect("");
 
+var over = 0;
 function render(){
   cur = ALL[sel.value|0];
   sheet.innerHTML = "";
+  over = 0;
   for (var i=0; i<=sequence(cur).length; i++){
     (function(i){
       var fig = document.createElement("figure");
       var cv  = document.createElement("canvas");
       var cap = document.createElement("figcaption");
       cap.textContent = i===0 ? "표지" : (i + "번째");
+      /* 자동 맞춤이 한계까지 갔거나 그래도 넘치면 눈에 보이게 알린다 —
+         그건 원고가 너무 긴 것이라 사람이 줄여야 한다. */
+      if (cv.dataset.overflow === "1"){
+        cap.textContent += "  ⚠ 넘침";
+        cap.style.color = "#E08D95";
+        fig.style.outline = "2px solid #C4636C";
+        over++;
+      } else if (parseFloat(cv.dataset.scale || "1") < 0.93){
+        cap.textContent += "  · 축소 " + Math.round(parseFloat(cv.dataset.scale)*100) + "%";
+        cap.style.color = "#C9A227";
+      }
       fig.appendChild(cv); fig.appendChild(cap); sheet.appendChild(fig);
       drawCard(cv, cur, i);
     })(i);
   }
   document.getElementById("cap").value = caption(cur);
   document.getElementById("status").textContent =
-    "[" + cur.stage + "] " + (sequence(cur).length + 1) + "장 · 1080×1080";
+    "[" + cur.stage + "] " + (sequence(cur).length + 1) + "장 · 1080×1080"
+    + (over ? "  ⚠ 넘침 " + over + "장 — 원고를 줄여야 합니다" : "");
+  document.getElementById("status").style.color = over ? "#E08D95" : "";
 }
 
 document.getElementById("dl").addEventListener("click", function(){

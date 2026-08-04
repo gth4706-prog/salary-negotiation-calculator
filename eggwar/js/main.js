@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v1.67';
+GAME.VERSION = 'v1.68';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -140,7 +140,17 @@ window.addEventListener('load', function () {
       'canvas  ' + Math.round(r.width) + ' x ' + Math.round(r.height) +
         '  @' + Math.round(r.left) + ',' + Math.round(r.top) + '\n' +
       'fill    ' + Math.round(r.width / iw * 100) + '% x ' + Math.round(r.height / ih * 100) + '%\n' +
-      'fitScale ' + fit.toFixed(3);
+      'fitScale ' + fit.toFixed(3) + '\n' +
+      //  ── 랭킹 서버 (2026-08-05) ────────────────────────────────────────────
+      //  "아이폰에서 서버 랭킹에 연결이 안돼" 를 **그 아이폰에서** 확인하기 위한 두 줄.
+      //  이 값이 없으면 원격 진단이 불가능하다 — 안 되는 기기가 내 손에 없기 때문에
+      //  지금까지 추측(서드파티 차단? CORS? 타임아웃?)만 늘어놨다.
+      //  · api    지금 어느 경로로 붙었나. `/api` 면 같은 오리진(라우트가 살아 있다),
+      //           `https://arena-api...` 면 예전 주소로 되돌아간 것이다.
+      //  · apiErr 마지막 실패 사유. '경로 없음'·'응답 없음(8000ms 초과)'·'연결 실패' 를
+      //           구분해서 보여 준다 — 셋의 원인이 서로 다르다.
+      'api     ' + (GAME.Api ? GAME.Api.activeBase() : '-') + '\n' +
+      'apiErr  ' + ((GAME.Api && GAME.Api.lastError) || '-');
   }
 
   // 창 크기·방향이 바뀌면 다시 맞춘다.

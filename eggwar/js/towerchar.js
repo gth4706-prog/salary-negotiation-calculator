@@ -509,8 +509,23 @@ GAME.TowerChar = {
   //
   //  ⚠ 신선한 캐릭터는 기록이 없으므로 완화가 정확히 1.000 이다 —
   //    `tools/regress.js` 의 R-1(4층 이상 무조작 0%) 기준선이 한 톨도 안 움직인다.
-  RELIEF_STEP: 0.04,      // 재도전 1회당 4%
-  RELIEF_MAX: 0.28,       // 7회에서 바닥 — "아주 조금씩"이라 벽이 사라지진 않는다
+  //  ── 2026-08-05 사용자 지시로 대폭 상향 ────────────────────────────────────
+  //  > "같은 라운드를 못깰때마다 10%씩 난이도를 낮춰줘 / 보스전은 5%만 낮춰줘"
+  //
+  //  4% → **10%**. 처음 값은 "아주 조금씩"이라는 말을 그대로 받아 잡은 것인데,
+  //  7번을 져도 28% 라 진짜 벽 앞에서는 체감이 거의 없었다.
+  //
+  //  ⚠ **보스 층은 절반이다.** 보스는 이 게임이 층을 나누는 기준점이고(10층마다),
+  //    같은 속도로 깎으면 다섯 번 만에 보스가 보스가 아니게 된다.
+  //  ⚠ 누적은 **곱이 아니라 합**이다(n × step). 곱으로 하면 0 에 점근하면서
+  //    "몇 번 지면 얼마나 쉬워지는가"를 사람이 셀 수 없다.
+  //  ⚠ 상한이 반드시 필요하다 — 없으면 10회에 적 체력이 0 이 된다. 두 경우 모두
+  //    **5회에서 바닥**으로 맞춘다(일반 50% · 보스 25%). 회수를 같게 두면
+  //    "다섯 번 지면 최대한 쉬워진다"는 규칙 하나만 기억하면 된다.
+  RELIEF_STEP: 0.10,           // 재도전 1회당 10%
+  RELIEF_MAX: 0.50,            // 5회에서 바닥
+  RELIEF_STEP_BOSS: 0.05,      // 보스 층은 절반
+  RELIEF_MAX_BOSS: 0.25,       // 역시 5회에서 바닥
   noteFloorFail: function (floor) {
     var rec = this.get();
     if (!rec) return;
@@ -527,19 +542,37 @@ GAME.TowerChar = {
     delete rec.floorFail;               // 깼으면 사라진다(다음 층은 온전한 난이도로)
     this._save(rec);
   },
+  //  이 층에 걸리는 한 걸음 크기와 상한. 보스 층은 절반이다.
+  //  ⚠ 보스 판정은 `GAME.Tower` 가 쥔다(`BOSS_EVERY`). 여기서 `floor % 10` 을 다시
+  //    적으면 주기를 바꿀 때 조용히 갈라진다 — 이 저장소가 가격표에서 이미 겪은 종류다.
+  reliefRule: function (floor) {
+    var boss = !!(GAME.Tower && GAME.Tower.isBossFloor && GAME.Tower.isBossFloor(floor));
+    return boss
+      ? { step: this.RELIEF_STEP_BOSS, max: this.RELIEF_MAX_BOSS, boss: true }
+      : { step: this.RELIEF_STEP, max: this.RELIEF_MAX, boss: false };
+  },
   //  적 체력·공격에 곱할 값(1 이하). 층이 다르거나 기록이 없으면 1.
   reliefFor: function (floor) {
     var rec = this.get();
     var f = rec && rec.floorFail;
     if (!f || f.f !== floor || !(f.n > 0)) return 1;
-    return 1 - Math.min(this.RELIEF_MAX, f.n * this.RELIEF_STEP);
+    var r = this.reliefRule(floor);
+    return 1 - Math.min(r.max, f.n * r.step);
   },
   //  화면에 보여 줄 값 — 몇 번 막혔고 몇 % 약해졌는가.
+  //  ⚠ `boss`/`atMax` 도 같이 준다. 보스 층은 깎이는 속도가 절반이라, 안 알려 주면
+  //    "왜 여기만 덜 쉬워지지"가 되고 완화가 고장 난 것처럼 보인다.
   reliefInfo: function (floor) {
     var rec = this.get();
     var f = rec && rec.floorFail;
     if (!f || f.f !== floor || !(f.n > 0)) return null;
-    return { tries: f.n, cut: Math.round((1 - this.reliefFor(floor)) * 100) };
+    var r = this.reliefRule(floor);
+    return {
+      tries: f.n,
+      cut: Math.round((1 - this.reliefFor(floor)) * 100),
+      boss: r.boss,
+      atMax: f.n * r.step >= r.max
+    };
   },
 
   // ── 새로 얻은 스킬 표시 (2026-08-01 사용자 지시) ─────────────────────────────

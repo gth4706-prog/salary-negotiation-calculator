@@ -1238,6 +1238,10 @@ GAME.TowerScene.prototype._runHintText = function () {
             ? GAME.TowerChar.reliefInfo(GAME.Tower.get().floor) : null;
   if (rel) {
     press += '  ·  🕯 재도전 ' + rel.tries + '회 — 이 층의 적이 ' + rel.cut + '% 약해졌다';
+    //  보스 층은 깎이는 속도가 절반이다. 말해 주지 않으면 "여기만 왜 덜 쉬워지지"가
+    //  되어 완화가 고장 난 것처럼 보인다.
+    if (rel.boss) press += ' (보스 층은 절반씩)';
+    if (rel.atMax) press += ' — 여기가 한계';
   }
   if (GAME.CONFIG.PHONE) return '적 유닛을 잡을 때마다 골드 — 비쌀수록 많이' + press;
   return '장비 ' + (worn.length ? worn.join(' · ') : '없음') +

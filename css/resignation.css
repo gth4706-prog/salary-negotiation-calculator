@@ -1,6 +1,114 @@
 /* =========================================================
    퇴사 타이밍 계산기 — 전용 스타일 (공유 style.css 뒤에 로드)
+   테마: "벽걸이 달력" — 모눈 종이 + 달력 빨강 + 스프링 제본
+
+   이 도구가 내놓는 답은 결국 **날짜 하나**다. 그래서 화면 전체가 달력의
+   시각 문법을 따른다 — 옅은 모눈 배경, 상단 제본 링, 날짜를 감싸는 빨간 원.
+   빨강은 달력에서 '공휴일·중요한 날'을 뜻하므로 결과 강조색으로 맞다.
+
+   ⚠️ 구현 방식: 공유 style.css 를 구동하는 토큰을 재정의한다
+      → 버튼·토글·입력까지 자동으로 같은 톤. 이 페이지에서만 로드된다.
    ========================================================= */
+
+/* ---------- 토큰 재정의 ---------- */
+:root{
+  --paper:#F7F6F2;--surface:#FFFFFF;--surface-2:#EDEBE4;
+  --line:#DEDBD1;--line-strong:#BEB9AA;
+  --ink:#23304F;          /* 잉크 인디고 */
+  --muted:#5C6479;--faint:#8D93A3;
+
+  --accent:#D23B30;       /* 달력 빨강 — 버튼·선택 상태 */
+  --accent-2:#E2564A;
+  --accent-ink:#A62A21;
+  --soft:#FBE7E4;
+  --warm:#FDF3D6;--warm-ink:#8A6510;
+
+  --good:#2F7D53;--good-bg:#E3F1E8;
+  --warn:#8A6510;--warn-bg:#FDF3D6;
+  --bad:#B3352B;--bad-bg:#FAE9E7;
+
+  --shadow:0 1px 2px rgba(35,48,79,.05),0 8px 24px rgba(35,48,79,.08);
+  --r:10px;--r-sm:7px;
+
+  --rt-grid:#E4E1D7;      /* 모눈 선 */
+  --rt-ring:#9AA0AE;      /* 제본 링 */
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#14181F;--surface:#1C222C;--surface-2:#252C38;
+  --line:#333B49;--line-strong:#4A5464;
+  --ink:#EBEFF6;--muted:#A3ADBE;--faint:#798395;
+  --accent:#E86A5E;--accent-2:#F08376;--accent-ink:#F5A197;
+  --soft:#2E1917;--warm:#2C2413;--warm-ink:#DDBB5C;
+  --good:#57B37F;--good-bg:#15291D;
+  --warn:#DDBB5C;--warn-bg:#2C2413;--bad:#E88478;--bad-bg:#2B1714;
+  --rt-grid:#252C38;--rt-ring:#4A5464;
+}}
+:root[data-theme="dark"]{
+  --paper:#14181F;--surface:#1C222C;--surface-2:#252C38;
+  --line:#333B49;--line-strong:#4A5464;
+  --ink:#EBEFF6;--muted:#A3ADBE;--faint:#798395;
+  --accent:#E86A5E;--accent-2:#F08376;--accent-ink:#F5A197;
+  --soft:#2E1917;--warm:#2C2413;--warm-ink:#DDBB5C;
+  --good:#57B37F;--good-bg:#15291D;--warn:#DDBB5C;--warn-bg:#2C2413;--bad:#E88478;--bad-bg:#2B1714;
+  --rt-grid:#252C38;--rt-ring:#4A5464;
+}
+:root[data-theme="light"]{
+  --paper:#F7F6F2;--surface:#FFFFFF;--surface-2:#EDEBE4;
+  --line:#DEDBD1;--line-strong:#BEB9AA;
+  --ink:#23304F;--muted:#5C6479;--faint:#8D93A3;
+  --accent:#D23B30;--accent-2:#E2564A;--accent-ink:#A62A21;
+  --soft:#FBE7E4;--warm:#FDF3D6;--warm-ink:#8A6510;
+  --good:#2F7D53;--good-bg:#E3F1E8;--warn:#8A6510;--warn-bg:#FDF3D6;--bad:#B3352B;--bad-bg:#FAE9E7;
+  --rt-grid:#E4E1D7;--rt-ring:#9AA0AE;
+}
+
+/* ---------- 달력 시그니처 ---------- */
+
+/* 배경 = 달력 모눈. 아주 옅게 깔아 방해하지 않는다. */
+body{
+  background-color:var(--paper);
+  background-image:
+    linear-gradient(var(--rt-grid) 1px,transparent 1px),
+    linear-gradient(90deg,var(--rt-grid) 1px,transparent 1px);
+  background-size:28px 28px;
+}
+
+/* nav = 달력 상단 제본. 링 구멍을 반복 그라디언트로 찍는다. */
+.nav{
+  background:var(--surface);
+  border-bottom:2px solid var(--ink);
+  position:relative;
+}
+.nav::after{
+  content:"";
+  position:absolute;left:0;right:0;bottom:-9px;height:9px;
+  background-image:radial-gradient(circle at 9px 4px,var(--rt-ring) 0 3px,transparent 3.5px);
+  background-size:34px 9px;
+  opacity:.55;
+  pointer-events:none;
+}
+
+/* 카드 = 달력 한 장. 위쪽에 빨간 머리띠. */
+.card{
+  background:var(--surface);
+  border:1px solid var(--line-strong);
+  box-shadow:var(--shadow);
+}
+.card.step{border-top:4px solid var(--accent)}
+
+/* 날짜는 고정폭 — 달력 숫자는 자리가 흔들리면 안 된다 */
+input[type="date"],.big-date,.dday,.result-date{font-variant-numeric:tabular-nums}
+
+/* 결과 날짜 = 달력에 빨간 동그라미 친 그 날 */
+.big-date,.result-date{
+  display:inline-block;
+  padding:6px 14px;
+  border:2.5px solid var(--accent);
+  border-radius:999px;
+  color:var(--accent-ink);
+  font-weight:800;
+}
+
 
 /* 연차 산정기준 토글 */
 .unit-toggle{display:flex;gap:6px}

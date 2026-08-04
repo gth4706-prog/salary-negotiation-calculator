@@ -1,0 +1,132 @@
+/* =========================================================
+   이직 연봉 협상 계산기 — 전용 스타일 (공유 style.css 뒤에 로드)
+   테마: "급여명세서 × 금융 대시보드"
+
+   레퍼런스 근거(2026-08-04 조사): 핀테크 UI의 최근 흐름은 (1) 장식보다
+   구조가 그대로 드러나는 명료한 레이아웃, (2) 수치를 이야기로 읽히게 하는
+   구성, (3) 신뢰를 만드는 정확한 숫자 표기로 모인다. 그래서 이 도구는
+   화려한 그래픽 대신 **실제 급여명세서의 시각 문법**을 빌린다 —
+   상단 금색 인쇄선, 절취선(perforation), 각진 서류 모서리, 고정폭 숫자.
+
+   ⚠️ 구현 방식(중요): 클래스를 하나하나 덮어쓰지 않고
+      **공유 style.css 를 구동하는 디자인 토큰 자체를 여기서 재정의**한다.
+      그러면 버튼·칩·슬라이더·막대·FAQ 까지 자동으로 같은 톤이 된다.
+      이 파일은 salary-calculator 페이지에서만 로드되므로 다른 도구엔 영향 없다.
+   ⚠️ 한글 라벨에 uppercase·넓은 자간을 걸지 말 것 — "직 군"처럼 벌어진다
+      (2026-08-04 실제로 그렇게 만들었다가 되돌림). 영문 장식 문구에만 쓴다.
+   ========================================================= */
+
+/* ---------- 1) 토큰 재정의 = 테마의 본체 ---------- */
+:root{
+  --paper:#F4F7FA;        /* 명세서 용지 */
+  --surface:#FFFFFF;
+  --surface-2:#E8EFF6;
+  --line:#DAE2EB;         /* 괘선 */
+  --line-strong:#B4C2D1;
+  --ink:#0B2239;          /* 잉크 네이비 */
+  --muted:#54677A;
+  --faint:#8698AA;
+
+  --accent:#0E7C5A;       /* 에메랄드 — 인상·이득 (슬라이더·칩·마커를 구동) */
+  --accent-2:#14A374;
+  --accent-ink:#0A5C43;
+  --soft:#E2F3EC;
+  --warm:#FAF0D9;
+  --warm-ink:#8A5F10;
+
+  --base:#0B2239;         /* 막대: 기본급 */
+  --bonus:#C09A32;        /* 막대: 성과급 (금색) */
+
+  --good:#0E7C5A;--good-bg:#E2F3EC;
+  --warn:#8A5F10;--warn-bg:#FAF0D9;
+  --bad:#B3352B;--bad-bg:#FAE9E7;
+
+  --shadow-sm:0 1px 2px rgba(11,34,57,.06);
+  --shadow:0 1px 2px rgba(11,34,57,.05),0 8px 24px rgba(11,34,57,.07);
+  --shadow-lg:0 8px 32px rgba(11,34,57,.16);
+
+  --r:7px;                /* 서류라서 모서리를 거의 안 굴린다 */
+  --r-sm:5px;
+
+  --sc-gold:#B8912F;      /* 인쇄선·강조 */
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0A1724;--surface:#122335;--surface-2:#1A3047;
+  --line:#22405C;--line-strong:#37607F;
+  --ink:#E9EFF6;--muted:#9CB0C4;--faint:#6E8398;
+  --accent:#3FC496;--accent-2:#5AD4AB;--accent-ink:#6FDDB8;
+  --soft:#0E2A22;--warm:#2A2211;--warm-ink:#E0B355;
+  --base:#5C86AE;--bonus:#C09A32;
+  --good:#3FC496;--good-bg:#0E2A22;
+  --warn:#E0B355;--warn-bg:#2A2211;
+  --bad:#E88478;--bad-bg:#2B1714;
+  --sc-gold:#D3AE4C;
+}}
+:root[data-theme="dark"]{
+  --paper:#0A1724;--surface:#122335;--surface-2:#1A3047;
+  --line:#22405C;--line-strong:#37607F;
+  --ink:#E9EFF6;--muted:#9CB0C4;--faint:#6E8398;
+  --accent:#3FC496;--accent-2:#5AD4AB;--accent-ink:#6FDDB8;
+  --soft:#0E2A22;--warm:#2A2211;--warm-ink:#E0B355;
+  --base:#5C86AE;--bonus:#C09A32;
+  --good:#3FC496;--good-bg:#0E2A22;--warn:#E0B355;--warn-bg:#2A2211;--bad:#E88478;--bad-bg:#2B1714;
+  --sc-gold:#D3AE4C;
+}
+:root[data-theme="light"]{
+  --paper:#F4F7FA;--surface:#FFFFFF;--surface-2:#E8EFF6;
+  --line:#DAE2EB;--line-strong:#B4C2D1;
+  --ink:#0B2239;--muted:#54677A;--faint:#8698AA;
+  --accent:#0E7C5A;--accent-2:#14A374;--accent-ink:#0A5C43;
+  --soft:#E2F3EC;--warm:#FAF0D9;--warm-ink:#8A5F10;
+  --base:#0B2239;--bonus:#C09A32;
+  --good:#0E7C5A;--good-bg:#E2F3EC;--warn:#8A5F10;--warn-bg:#FAF0D9;--bad:#B3352B;--bad-bg:#FAE9E7;
+  --sc-gold:#B8912F;
+}
+
+/* ---------- 2) 명세서 시그니처 ---------- */
+
+/* nav 아래 금색 인쇄선 — 서류 상단의 그 선 */
+.nav{box-shadow:inset 0 -3px 0 -1px var(--sc-gold)}
+
+/* h1 은 카드 안에 있고(.q) 부제를 .s 로 품는다 */
+h1.q::before{
+  content:"SALARY STATEMENT";
+  display:block;
+  font-family:var(--mono);
+  font-size:10px;font-weight:700;letter-spacing:.22em;
+  color:var(--sc-gold);
+  margin-bottom:8px;
+}
+h1.q{border-bottom:2px solid var(--ink);padding-bottom:11px}
+h1.q .s{display:block;padding-top:7px;font-weight:500;color:var(--muted)}
+
+/* 카드 = 명세서 한 장. 위에 잉크 띠, 사이에 절취선. */
+.card.step{border-top:3px solid var(--ink)}
+.card.step + .card.step::before{
+  content:"";
+  position:absolute;top:-10px;left:14px;right:14px;
+  border-top:2px dashed var(--line-strong);
+  opacity:.7;
+}
+.card{position:relative}
+
+/* ---------- 3) 숫자 = 명세서의 핵심 ----------
+   금액·퍼센트는 전부 고정폭. 자릿수가 흔들리면 금액 비교가 안 된다. */
+.money,.amt,.big-money,.net,.est-net,.mini-net,.slider-val,
+.pct-rank,.pct-scale,.c3,.k,.s{font-variant-numeric:tabular-nums}
+.big-money{font-family:var(--mono);font-weight:700}
+
+/* 라벨은 굵기·색으로만 서류 느낌을 낸다(자간 조작 금지) */
+.lbl{font-weight:700;font-size:13px;letter-spacing:-.01em;color:var(--ink)}
+.lbl .hint{font-weight:500;color:var(--muted)}
+
+/* 입력란 */
+input[type="number"],input[type="text"],select,textarea{font-variant-numeric:tabular-nums}
+
+/* 결론(포지션·판정)은 금색 세로선으로 눈에 먼저 들어오게 */
+.pos,.verdict{border-left:4px solid var(--sc-gold);border-radius:0 var(--r-sm) var(--r-sm) 0}
+
+/* ---------- 4) 모바일 ---------- */
+@media (max-width:520px){
+  h1.q::before{font-size:9px;letter-spacing:.18em}
+}

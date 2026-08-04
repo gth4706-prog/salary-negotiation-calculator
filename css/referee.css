@@ -1,6 +1,139 @@
 /* =========================================================
    커플 재판 — 전용 스타일 (공유 style.css 뒤에 로드)
+   테마: "법정" — 마호가니 법대 + 황동 + 판결문 용지
+
+   이 도구의 결과물은 '재판관 5명의 판정'이다. 그래서 화면이 재미 위주의
+   퀴즈가 아니라 **법정 문서**처럼 보여야 결과에 무게가 실린다.
+   제목·판정문에만 명조(Nanum Myeongjo)를 쓰고 본문은 Pretendard 로 둔다
+   (명조로 긴 본문을 깔면 화면에서 가독성이 떨어진다).
+
+   ⚠️ 구현 방식: 클래스를 하나씩 덮어쓰지 않고 **공유 style.css 를 구동하는
+      토큰을 재정의**한다 → 버튼·칩·슬라이더까지 자동으로 같은 톤이 된다.
+      이 파일은 couple-referee 페이지에서만 로드되므로 다른 도구엔 영향 없다.
    ========================================================= */
+
+/* ---------- 토큰 재정의 = 테마의 본체 ---------- */
+:root{
+  --paper:#F7F2E8;        /* 판결문 용지 */
+  --surface:#FFFDF8;
+  --surface-2:#EDE3D2;
+  --line:#DDD0BA;
+  --line-strong:#BFAD90;
+  --ink:#2A1A12;          /* 먹빛 */
+  --muted:#6B5744;
+  --faint:#9A8770;
+
+  --accent:#7B2B33;       /* 버건디 법복 — 버튼·선택 상태를 구동 */
+  --accent-2:#9C3A43;
+  --accent-ink:#5E1F26;
+  --soft:#F0E4E2;
+  --warm:#F5E9D0;
+  --warm-ink:#8A6A18;
+
+  --good:#3F6B4A;--good-bg:#E6EFE6;
+  --warn:#8A6A18;--warn-bg:#F7EED6;
+  --bad:#A32B22;--bad-bg:#F8E6E3;
+
+  --shadow:0 1px 2px rgba(42,26,18,.06),0 10px 28px rgba(42,26,18,.10);
+  --shadow-lg:0 10px 36px rgba(42,26,18,.22);
+  --r:10px;--r-sm:7px;
+
+  --cr-wood:#4A2A1E;      /* 법대 마호가니 */
+  --cr-brass:#C9A227;     /* 황동 */
+  --cr-serif:'Nanum Myeongjo',serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#1A120D;--surface:#241811;--surface-2:#2F2018;
+  --line:#3E2C21;--line-strong:#5A422F;
+  --ink:#F2E7D8;--muted:#B9A488;--faint:#8A7860;
+  --accent:#C4636C;--accent-2:#D57A82;--accent-ink:#E29AA1;
+  --soft:#2E1A1B;--warm:#2C2313;--warm-ink:#DCBB5A;
+  --good:#6FAE7E;--good-bg:#16281A;
+  --warn:#DCBB5A;--warn-bg:#2C2313;
+  --bad:#E0796D;--bad-bg:#2E1512;
+  --cr-wood:#2E1810;--cr-brass:#D9B63C;
+}}
+:root[data-theme="dark"]{
+  --paper:#1A120D;--surface:#241811;--surface-2:#2F2018;
+  --line:#3E2C21;--line-strong:#5A422F;
+  --ink:#F2E7D8;--muted:#B9A488;--faint:#8A7860;
+  --accent:#C4636C;--accent-2:#D57A82;--accent-ink:#E29AA1;
+  --soft:#2E1A1B;--warm:#2C2313;--warm-ink:#DCBB5A;
+  --good:#6FAE7E;--good-bg:#16281A;--warn:#DCBB5A;--warn-bg:#2C2313;--bad:#E0796D;--bad-bg:#2E1512;
+  --cr-wood:#2E1810;--cr-brass:#D9B63C;
+}
+:root[data-theme="light"]{
+  --paper:#F7F2E8;--surface:#FFFDF8;--surface-2:#EDE3D2;
+  --line:#DDD0BA;--line-strong:#BFAD90;
+  --ink:#2A1A12;--muted:#6B5744;--faint:#9A8770;
+  --accent:#7B2B33;--accent-2:#9C3A43;--accent-ink:#5E1F26;
+  --soft:#F0E4E2;--warm:#F5E9D0;--warm-ink:#8A6A18;
+  --good:#3F6B4A;--good-bg:#E6EFE6;--warn:#8A6A18;--warn-bg:#F7EED6;--bad:#A32B22;--bad-bg:#F8E6E3;
+  --cr-wood:#4A2A1E;--cr-brass:#C9A227;
+}
+
+/* ---------- 법정 시그니처 ---------- */
+
+/* nav = 법대 상단. 짙은 목재 + 황동 몰딩 한 줄. */
+.nav{
+  background:var(--cr-wood);
+  border-bottom:none;
+  box-shadow:inset 0 -3px 0 var(--cr-brass);
+  backdrop-filter:none;
+}
+.nav .brand,.nav .brand .n{color:#F3E7D2}
+.nav .brand svg{color:var(--cr-brass)}
+.nav .links a{color:#D3C0A4}
+.nav .links a:hover{color:#fff;background:rgba(255,255,255,.10)}
+.theme-btn{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.22);color:#E8D9BE}
+.theme-btn:hover{border-color:var(--cr-brass);color:var(--cr-brass)}
+.ver-badge{color:#C7B191;background:rgba(0,0,0,.25);border-color:rgba(255,255,255,.18)}
+.lang-switch a{color:#D3C0A4}
+
+/* 제목은 명조 — 판결문의 격식.
+   ⚠️ 제목 안에 들어있는 부제(.s/.desc)까지 명조가 걸리면 자간이 벌어져
+   읽기 나쁘다. 부제는 본문 폰트로 되돌린다(2026-08-04 확인). */
+.hero h1,h1,h2{font-family:var(--cr-serif);letter-spacing:-.01em}
+h1 .s,h2 .s,h1 .desc,h2 .desc,.card > .desc{
+  font-family:var(--font);
+  letter-spacing:-.005em;
+  font-weight:500;
+}
+
+/* 판정 카드 = 판결문. 이중 테두리 + 황동 상단선. */
+.judge-grid > *,.cr-summary{
+  border-top:3px solid var(--cr-brass);
+  box-shadow:inset 0 0 0 1px var(--line);
+}
+.cr-summary{
+  font-family:var(--cr-serif);
+  font-size:16px;
+  line-height:1.85;
+  background:var(--surface);
+  border:1px solid var(--line-strong);
+  padding:18px 20px;
+  border-radius:var(--r-sm);
+  position:relative;
+}
+/* 판결문 좌측의 붉은 세로선 — 문서라는 신호 */
+.cr-summary::before{
+  content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;
+  background:var(--accent);border-radius:3px;
+}
+
+/* 선택 버튼 = 배심원 표결 */
+.opt-btn{border-radius:6px}
+.opt-btn.on{box-shadow:inset 0 -2px 0 rgba(0,0,0,.25)}
+
+/* 판정 모드 배지(AI/간이) = 법원 인장 느낌 */
+.mode-badge{
+  border:1px solid var(--cr-brass);
+  color:var(--warm-ink);
+  background:var(--warm);
+  border-radius:999px;
+  font-weight:700;
+}
+
 
 /* 객관식 질문 */
 .qblock{margin-top:16px}

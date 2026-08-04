@@ -5,17 +5,17 @@
 /* ⚠️ 배포할 때마다 이 이름과 아래 SHELL 의 ?v= 를 **반드시 함께** 올린다.
    안 올리면 SW 가 옛 JS 를 계속 서빙해서 고친 게 반영되지 않는다.
    (2026-08-03 개발 중 실제로 이것 때문에 수정 전 코드가 돌아 오진단할 뻔했다.) */
-var CACHE = "wr-shell-v0.05";
+var CACHE = "wr-shell-v0.07";
 var SHELL = [
   "./",
   "./index.html",
   "../css/style.css?v=0.14",
-  "../css/wikiRabbithole.css?v=0.05",
+  "../css/wikiRabbithole.css?v=0.07",
   "../js/site.js?v=0.14",
-  "../js/wikiApi.js?v=0.05",
-  "../js/wikiStore.js?v=0.05",
-  "../js/wikiCrawl.js?v=0.05",
-  "../js/wikiRabbithole.js?v=0.05"
+  "../js/wikiApi.js?v=0.07",
+  "../js/wikiStore.js?v=0.07",
+  "../js/wikiCrawl.js?v=0.07",
+  "../js/wikiRabbithole.js?v=0.07"
 ];
 
 self.addEventListener("install", function (e) {

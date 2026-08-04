@@ -1,3 +1,59 @@
+/* =========================================================
+   마지막으로 남길 말은? — 전용 스타일 (공유 style.css 뒤에 로드)
+   테마: "밤에 쓰는 편지" — 남색 밤하늘 + 크림 편지지 + 괘선
+
+   이 도구는 낯선 사람에게 익명으로 편지를 남기는 곳이다. 낮의 밝은 도구
+   화면보다 **밤에 책상등 아래에서 편지지를 펴 놓은 톤**이 내용과 맞는다.
+   편지 본문 영역에만 괘선을 깔아 '편지지'라는 신호를 준다.
+
+   ⚠️ 구현 방식: 공유 style.css 를 구동하는 토큰을 재정의한다. 이 페이지에서만 로드.
+   ========================================================= */
+:root{
+  --paper:#121A2B;--surface:#1A2439;--surface-2:#232F49;
+  --line:#2E3C58;--line-strong:#44557A;
+  --ink:#EFE9DC;--muted:#A9B4CA;--faint:#7C89A3;
+
+  --accent:#C9A227;       /* 등불 황금 */
+  --accent-2:#DDB94A;
+  --accent-ink:#E8CC6B;
+  --soft:#242B1C;
+  --warm:#2B2415;--warm-ink:#DDB94A;
+
+  --good:#5FBF8C;--good-bg:#14291F;
+  --warn:#DDB94A;--warn-bg:#2B2415;
+  --bad:#E38477;--bad-bg:#2C1714;
+
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.5);
+  --r:10px;--r-sm:7px;
+
+  --al-paper:#F6EFDF;     /* 편지지 크림 */
+  --al-rule:#DCCFB4;      /* 편지지 괘선 */
+  --al-ink:#2A2417;       /* 편지 잉크 */
+}
+:root[data-theme="light"],:root[data-theme="dark"]{
+  --paper:#121A2B;--surface:#1A2439;--surface-2:#232F49;
+  --line:#2E3C58;--line-strong:#44557A;
+  --ink:#EFE9DC;--muted:#A9B4CA;--faint:#7C89A3;
+  --accent:#C9A227;--accent-2:#DDB94A;--accent-ink:#E8CC6B;
+  --soft:#242B1C;--warm:#2B2415;--warm-ink:#DDB94A;
+  --good:#5FBF8C;--good-bg:#14291F;--warn:#DDB94A;--warn-bg:#2B2415;--bad:#E38477;--bad-bg:#2C1714;
+}
+
+.nav{background:#0C1220;border-bottom:1px solid var(--line);backdrop-filter:none}
+.nav .brand svg{color:var(--accent)}
+
+/* 편지 본문·입력은 실제 편지지처럼 — 크림 바탕 + 괘선 */
+.letter-body,.al-letter,textarea{
+  background-color:var(--al-paper);
+  background-image:repeating-linear-gradient(
+    var(--al-paper) 0 30px, var(--al-rule) 30px 31px);
+  color:var(--al-ink);
+  border:1px solid var(--line-strong);
+  line-height:31px;          /* 괘선 간격과 행간을 맞춘다 */
+  padding-top:5px;
+}
+textarea::placeholder{color:#9A8F79}
+
 .al-theme{ --al-accent:#6B5BB8; }
 .al-card{ max-width:560px; margin:0 auto; }
 .al-letter{ font-size:17px; line-height:1.7; white-space:pre-wrap; padding:20px; border:1px solid var(--line); border-radius:var(--r-sm); background:var(--surface-2); min-height:80px; }

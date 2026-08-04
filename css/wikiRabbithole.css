@@ -1,4 +1,72 @@
 /* =========================================================
+   위키 토끼굴 — 테마 레이어 (이 파일 위쪽 = 테마, 아래 = 컴포넌트)
+   테마: "서재 / 오래된 백과사전"
+
+   이 도구는 **긴 글을 오래 읽는** 도구다. 그래서 다른 도구와 달리
+   본문에 명조(Nanum Myeongjo)를 쓴다 — 화면에서도 장문 독서에는 세리프가
+   덜 피로하고, '백과사전을 펼친' 느낌이 주제와 맞는다.
+   UI 라벨·버튼은 Pretendard 로 남긴다(작은 글씨는 고딕이 또렷하다).
+
+   ⚠️ 구현 방식: 공유 style.css 를 구동하는 토큰을 재정의한다. 이 페이지에서만 로드.
+   ========================================================= */
+:root{
+  --paper:#F4F0E6;        /* 책장 종이 */
+  --surface:#FBF8F1;
+  --surface-2:#E8E2D3;
+  --line:#DDD5C3;--line-strong:#BEB39B;
+  --ink:#241F17;          /* 활자 먹 */
+  --muted:#5F5849;--faint:#8C8474;
+  --accent:#2F6F4E;       /* 굴 초록 */
+  --accent-2:#3E8A63;
+  --accent-ink:#245840;
+  --soft:#E2EDE5;--warm:#F6EBD5;--warm-ink:#8A6510;
+  --good:#2F6F4E;--good-bg:#E2EDE5;--warn:#8A6510;--warn-bg:#F6EBD5;--bad:#A83A2E;--bad-bg:#F7E7E4;
+  --shadow:0 1px 2px rgba(36,31,23,.05),0 8px 24px rgba(36,31,23,.09);
+  --r:8px;--r-sm:6px;
+  --wr-serif:'Nanum Myeongjo',serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#16130E;--surface:#1F1B14;--surface-2:#2A251B;
+  --line:#382F22;--line-strong:#52462F;
+  --ink:#F0E9DA;--muted:#B4A992;--faint:#8A8070;
+  --accent:#68B98D;--accent-2:#84CBA3;--accent-ink:#9BD8B6;
+  --soft:#16281E;--warm:#2A2413;--warm-ink:#DCBB5A;
+  --good:#68B98D;--good-bg:#16281E;--warn:#DCBB5A;--warn-bg:#2A2413;--bad:#E08175;--bad-bg:#2B1714;
+}}
+:root[data-theme="dark"]{
+  --paper:#16130E;--surface:#1F1B14;--surface-2:#2A251B;
+  --line:#382F22;--line-strong:#52462F;
+  --ink:#F0E9DA;--muted:#B4A992;--faint:#8A8070;
+  --accent:#68B98D;--accent-2:#84CBA3;--accent-ink:#9BD8B6;
+  --soft:#16281E;--warm:#2A2413;--warm-ink:#DCBB5A;
+  --good:#68B98D;--good-bg:#16281E;--warn:#DCBB5A;--warn-bg:#2A2413;--bad:#E08175;--bad-bg:#2B1714;
+}
+:root[data-theme="light"]{
+  --paper:#F4F0E6;--surface:#FBF8F1;--surface-2:#E8E2D3;
+  --line:#DDD5C3;--line-strong:#BEB39B;
+  --ink:#241F17;--muted:#5F5849;--faint:#8C8474;
+  --accent:#2F6F4E;--accent-2:#3E8A63;--accent-ink:#245840;
+  --soft:#E2EDE5;--warm:#F6EBD5;--warm-ink:#8A6510;
+  --good:#2F6F4E;--good-bg:#E2EDE5;--warn:#8A6510;--warn-bg:#F6EBD5;--bad:#A83A2E;--bad-bg:#F7E7E4;
+}
+
+/* nav = 책등(spine) 느낌의 가는 초록 띠 */
+.nav{background:var(--surface);border-bottom:1px solid var(--line);box-shadow:inset 0 -3px 0 -1px var(--accent)}
+
+/* ---------- 읽기 화면 = 책 페이지 ---------- */
+.wr-body{font-family:var(--wr-serif);font-size:16.5px;line-height:1.95}
+/* ⚠️ text-align:justify 를 쓰지 말 것. 한글은 단어가 길어서 양끝맞춤을 하면
+   줄마다 어절 간격이 크게 벌어져 오히려 읽기 나빠진다(2026-08-04 실제로
+   적용해봤다가 되돌림). 왼끝맞춤 + keep-all 이 한글 장문에 맞다. */
+.wr-body p{word-break:keep-all}
+/* 첫 문단 첫 글자를 키운다 — 펼친 책의 신호 */
+.wr-body > p:first-of-type::first-letter{
+  float:left;font-size:3.1em;line-height:.92;
+  padding:2px 9px 0 0;color:var(--accent);font-weight:700;
+}
+#wr-title{font-family:var(--wr-serif)}
+
+/* =========================================================
    위키 토끼굴 — 전용 스타일 (공유 style.css 뒤에 로드)
    테마: 굴속 — 깊은 초록 + 종이 베이지.
    ⚠️ 오버레이(position:absolute + display:flex)를 쓰지 않는다.

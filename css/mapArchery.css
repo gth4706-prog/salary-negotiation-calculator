@@ -1,4 +1,65 @@
 /* =========================================================
+   여행지 활쏘기 — 테마 레이어 (이 파일 위쪽 = 테마, 아래 = 무대/캔버스)
+   테마: "낡은 지도 × 양궁 과녁"
+
+   이 도구의 두 요소가 지도와 활이므로, 배경은 지도 종이(세피아)로 두고
+   강조색은 **과녁 정중앙의 빨강**을 쓴다. 히어로 뒤에 아주 옅은 과녁 링을
+   깔아 '무엇을 하는 곳인지'를 글 없이 알린다.
+
+   ⚠️ 구현 방식: 공유 style.css 를 구동하는 토큰을 재정의한다. 이 페이지에서만 로드.
+   ⚠️ 캔버스 위 오버레이는 `.ma-stage [hidden]{display:none !important}` 규칙에
+      의존한다(아래 참고). 여기서 display 를 건드리지 말 것.
+   ========================================================= */
+:root{
+  --paper:#F0E9DA;--surface:#FBF7EE;--surface-2:#E5DBC7;
+  --line:#DACFB8;--line-strong:#BCAD8F;
+  --ink:#2E2418;--muted:#6A5C46;--faint:#95866D;
+  --accent:#B23A2E;       /* 과녁 정중앙 빨강 */
+  --accent-2:#C9523F;
+  --accent-ink:#8E2C22;
+  --soft:#F6E3DE;--warm:#F6EAD0;--warm-ink:#8A6510;
+  --good:#3F7A55;--good-bg:#E5EFE7;--warn:#8A6510;--warn-bg:#F6EAD0;--bad:#B23A2E;--bad-bg:#F6E3DE;
+  --shadow:0 1px 2px rgba(46,36,24,.05),0 8px 24px rgba(46,36,24,.09);
+  --r:10px;--r-sm:7px;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#171208;--surface:#211A0F;--surface-2:#2C2416;
+  --line:#3A3020;--line-strong:#544730;
+  --ink:#F1E9D8;--muted:#B6A88C;--faint:#8B7E67;
+  --accent:#DD7A68;--accent-2:#E9917F;--accent-ink:#F0A896;
+  --soft:#2E1A16;--warm:#2A2413;--warm-ink:#DCBB5A;
+  --good:#6FAE82;--good-bg:#16281C;--warn:#DCBB5A;--warn-bg:#2A2413;--bad:#DD7A68;--bad-bg:#2E1A16;
+}}
+:root[data-theme="dark"]{
+  --paper:#171208;--surface:#211A0F;--surface-2:#2C2416;
+  --line:#3A3020;--line-strong:#544730;
+  --ink:#F1E9D8;--muted:#B6A88C;--faint:#8B7E67;
+  --accent:#DD7A68;--accent-2:#E9917F;--accent-ink:#F0A896;
+  --soft:#2E1A16;--warm:#2A2413;--warm-ink:#DCBB5A;
+  --good:#6FAE82;--good-bg:#16281C;--warn:#DCBB5A;--warn-bg:#2A2413;--bad:#DD7A68;--bad-bg:#2E1A16;
+}
+:root[data-theme="light"]{
+  --paper:#F0E9DA;--surface:#FBF7EE;--surface-2:#E5DBC7;
+  --line:#DACFB8;--line-strong:#BCAD8F;
+  --ink:#2E2418;--muted:#6A5C46;--faint:#95866D;
+  --accent:#B23A2E;--accent-2:#C9523F;--accent-ink:#8E2C22;
+  --soft:#F6E3DE;--warm:#F6EAD0;--warm-ink:#8A6510;
+  --good:#3F7A55;--good-bg:#E5EFE7;--warn:#8A6510;--warn-bg:#F6EAD0;--bad:#B23A2E;--bad-bg:#F6E3DE;
+}
+
+/* 배경에 아주 옅은 과녁 링 — 화면 상단에 한 겹만 */
+body{
+  background-color:var(--paper);
+  background-image:repeating-radial-gradient(
+    circle at 50% 90px,
+    rgba(178,58,46,.055) 0 26px,
+    transparent 26px 52px);
+  background-repeat:no-repeat;
+  background-size:100% 620px;
+}
+.nav{background:var(--surface);border-bottom:2px solid var(--accent)}
+
+/* =========================================================
    여행지 활쏘기 — 전용 스타일 (공유 style.css 뒤에 로드)
    테마: 고지도 탐험 — 양피지 베이지 + 짙은 숲그린 + 활 나무색 + 화살촉 레드.
    fishing-tide처럼 이 페이지에서만 로드되어 다른 도구엔 영향 없음.

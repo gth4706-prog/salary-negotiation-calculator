@@ -1,4 +1,69 @@
 /* =========================================================
+   방 가구 배치 시뮬레이터 — 테마 레이어 (이 파일 위쪽 = 테마, 아래 = 레이아웃)
+   테마: "건축 청사진 / 모눈 제도지"
+
+   레퍼런스 근거(2026-08-04 조사): Floorplanner·Planner5D·Roomle 같은 무료
+   평면도 도구는 공통적으로 **제도지(모눈) 배경 + 코발트 치수선 + 최소한의 색**을
+   쓴다. 평면도 자체가 주인공이라 UI 가 색을 뺏으면 안 되기 때문이다.
+
+   ⚠️ 구현 방식: 공유 style.css 를 구동하는 토큰을 재정의한다
+      → 버튼·토글·입력까지 자동으로 같은 톤. 이 페이지에서만 로드된다.
+   ========================================================= */
+:root{
+  --paper:#F2F5F3;--surface:#FFFFFF;--surface-2:#E4EAE7;
+  --line:#D5DEDA;--line-strong:#B0BDB7;
+  --ink:#16302B;--muted:#54665F;--faint:#87968F;
+  --accent:#2E6F9E;--accent-2:#3E88BC;--accent-ink:#215A82;
+  --soft:#E0EDF5;--warm:#FBF0D8;--warm-ink:#8A6510;
+  --good:#2F7D53;--good-bg:#E3F1E8;--warn:#8A6510;--warn-bg:#FBF0D8;--bad:#B3352B;--bad-bg:#FAE9E7;
+  --shadow:0 1px 2px rgba(22,48,43,.05),0 8px 24px rgba(22,48,43,.08);
+  --r:8px;--r-sm:5px;
+  --rp-grid:#DDE6E1;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#101815;--surface:#18231F;--surface-2:#212E29;
+  --line:#2E3E38;--line-strong:#45584F;
+  --ink:#E9F1ED;--muted:#A2B3AB;--faint:#7B8C84;
+  --accent:#5AA6D6;--accent-2:#78BCE6;--accent-ink:#93CDF0;
+  --soft:#152A38;--warm:#2A2413;--warm-ink:#DCBB5A;
+  --good:#57B37F;--good-bg:#15291D;--warn:#DCBB5A;--warn-bg:#2A2413;--bad:#E88478;--bad-bg:#2B1714;
+  --rp-grid:#212E29;
+}}
+:root[data-theme="dark"]{
+  --paper:#101815;--surface:#18231F;--surface-2:#212E29;
+  --line:#2E3E38;--line-strong:#45584F;
+  --ink:#E9F1ED;--muted:#A2B3AB;--faint:#7B8C84;
+  --accent:#5AA6D6;--accent-2:#78BCE6;--accent-ink:#93CDF0;
+  --soft:#152A38;--warm:#2A2413;--warm-ink:#DCBB5A;
+  --good:#57B37F;--good-bg:#15291D;--warn:#DCBB5A;--warn-bg:#2A2413;--bad:#E88478;--bad-bg:#2B1714;
+  --rp-grid:#212E29;
+}
+:root[data-theme="light"]{
+  --paper:#F2F5F3;--surface:#FFFFFF;--surface-2:#E4EAE7;
+  --line:#D5DEDA;--line-strong:#B0BDB7;
+  --ink:#16302B;--muted:#54665F;--faint:#87968F;
+  --accent:#2E6F9E;--accent-2:#3E88BC;--accent-ink:#215A82;
+  --soft:#E0EDF5;--warm:#FBF0D8;--warm-ink:#8A6510;
+  --good:#2F7D53;--good-bg:#E3F1E8;--warn:#8A6510;--warn-bg:#FBF0D8;--bad:#B3352B;--bad-bg:#FAE9E7;
+  --rp-grid:#DDE6E1;
+}
+
+/* 배경 = 제도지 모눈(잔 눈금 20px + 굵은 눈금 100px 2단) */
+body{
+  background-color:var(--paper);
+  background-image:
+    linear-gradient(var(--rp-grid) 1px,transparent 1px),
+    linear-gradient(90deg,var(--rp-grid) 1px,transparent 1px),
+    linear-gradient(rgba(46,111,158,.07) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(46,111,158,.07) 1px,transparent 1px);
+  background-size:20px 20px,20px 20px,100px 100px,100px 100px;
+}
+.nav{background:var(--surface);border-bottom:1.5px solid var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line-strong)}
+/* 치수 표기는 고정폭 — 숫자 자리가 흔들리면 도면이 지저분해진다 */
+.sz,.dim{font-variant-numeric:tabular-nums}
+
+/* =========================================================
    방 가구 배치 시뮬레이터 — 전용 스타일 (공유 style.css 뒤에 로드)
    ========================================================= */
 

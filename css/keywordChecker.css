@@ -1,4 +1,35 @@
 /* =========================================================
+   키워드 진단기 — 테마 레이어 (이 파일 위쪽 = 테마, 아래 = 레이아웃)
+   테마: "검색 콘솔 / 분석 대시보드"
+
+   이 도구는 숫자를 읽는 도구다. 그래서 밝은 종이 톤 대신 **어두운 콘솔
+   배경 + 형광 데이터 색**을 쓴다. 다크 대시보드에서 수치 대비가 더 또렷하고,
+   '검색·분석 도구'라는 성격이 첫눈에 전달된다.
+
+   ⚠️ 이 도구만 라이트 테마에서도 콘솔 톤을 유지한다 — 밝게 바꾸면
+      형광 지표색의 대비가 죽어서 숫자가 안 읽힌다.
+   ========================================================= */
+:root,
+:root[data-theme="light"],
+:root[data-theme="dark"]{
+  --paper:#0F1319;--surface:#171C24;--surface-2:#1F2733;
+  --line:#2A3341;--line-strong:#3E4A5C;
+  --ink:#E9EEF5;--muted:#9AA8BA;--faint:#6E7C8E;
+  --accent:#3DD68C;--accent-2:#5FE3A5;--accent-ink:#7BEBB8;
+  --soft:#12291F;--warm:#2A2413;--warm-ink:#DCBB5A;
+  --good:#3DD68C;--good-bg:#12291F;--warn:#DCBB5A;--warn-bg:#2A2413;--bad:#E8776B;--bad-bg:#2B1614;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.45);
+  --r:9px;--r-sm:6px;
+}
+.nav{background:#0B0E13;border-bottom:1px solid var(--line);backdrop-filter:none}
+.nav .brand svg{color:var(--accent)}
+/* 지표·점수는 고정폭 */
+.score,.metric,.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+input[type="text"],input[type="url"],input[type="search"],textarea{
+  background:var(--surface-2);border-color:var(--line-strong);color:var(--ink);
+}
+
+/* =========================================================
    키워드 진단기 — 전용 스타일 (공유 style.css 뒤에 로드)
    ========================================================= */
 

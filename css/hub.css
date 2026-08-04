@@ -139,3 +139,33 @@ body{background:var(--hub-canvas);color:var(--hub-ink)}
 @media (prefers-reduced-motion:reduce){
   .tool-cards a,.tool-cards .go{transition:none}
 }
+
+/* =========================================================
+   도구별 색 미리보기 (2026-08-04 추가)
+   각 도구가 자기 주제에 맞는 테마를 갖게 되면서, 허브 카드도 그 색을
+   미리 보여줘야 "들어가면 뭐가 나올지"가 카드 단계에서 전달된다.
+   아이콘 칩 배경 + 호버 테두리 + 화살표 원에 그 도구의 대표색을 쓴다.
+   ⚠️ 색은 각 도구 CSS 의 --accent 와 같은 값으로 맞춘다. 도구 테마를
+      바꾸면 여기도 같이 바꿀 것(두 곳에 나뉘어 있다).
+   ========================================================= */
+.tool-cards a[href^="salary-calculator"]   { --tc:#0E7C5A }  /* 명세서 에메랄드 */
+.tool-cards a[href^="resignation-timing"]  { --tc:#D23B30 }  /* 달력 빨강 */
+.tool-cards a[href^="room-planner"]        { --tc:#2E6F9E }  /* 청사진 코발트 */
+.tool-cards a[href^="couple-referee"]      { --tc:#7B2B33 }  /* 법복 버건디 */
+.tool-cards a[href^="keyword-checker"]     { --tc:#1F9E63 }  /* 콘솔 그린 */
+.tool-cards a[href^="minecraft-seeds"]     { --tc:#5FA441 }  /* 잔디 초록 */
+.tool-cards a[href^="fishing-tide"]        { --tc:#FF4B3E }  /* 입질 레드 */
+.tool-cards a[href^="map-archery"]         { --tc:#B23A2E }  /* 과녁 빨강 */
+.tool-cards a[href^="wiki-rabbithole"]     { --tc:#2F6F4E }  /* 굴 초록 */
+.tool-cards a[href^="anon-letter"]         { --tc:#C9A227 }  /* 등불 황금 */
+
+/* 위 목록에 없는 도구는 허브 기본 강조색을 쓴다 */
+.tool-cards a{ --tc:var(--hub-accent) }
+
+.tool-cards a .ico{
+  background:color-mix(in srgb,var(--tc) 13%,transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--tc) 22%,transparent);
+}
+.tool-cards a:hover{ border-color:color-mix(in srgb,var(--tc) 55%,transparent) }
+.tool-cards a:hover .go{ background:var(--tc) }
+.tool-cards a .cat-tag{ color:color-mix(in srgb,var(--tc) 78%,var(--hub-muted)) }

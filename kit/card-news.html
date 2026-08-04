@@ -49,6 +49,7 @@
 </main>
 
 <script src="card-data.js"></script>
+<script src="story-data.js"></script>
 <script>
 /* =========================================================
    카드 렌더링 — 캔버스에 직접 그린다.
@@ -106,7 +107,8 @@ function drawCard(cv, tool, idx){
   ctx.fillStyle = isCover ? "rgba(255,255,255,.85)" : tool.color;
   ctx.font = "800 30px 'Pretendard Variable',sans-serif";
   ctx.textBaseline = "top";
-  ctx.fillText("각잡살림  ·  " + tool.no + "번 도구", PAD, PAD - 24);
+  ctx.fillText(tool.kind === "story" ? "각잡살림  ·  " + tool.name
+                                     : "각잡살림  ·  " + tool.no + "번 도구", PAD, PAD - 24);
 
   if (isCover){
     /* 표지 = 후킹 문장 */
@@ -126,7 +128,7 @@ function drawCard(cv, tool, idx){
 
     ctx.font = "800 34px 'Pretendard Variable',sans-serif";
     ctx.fillStyle = "rgba(255,255,255,.95)";
-    ctx.fillText(tool.name, PAD, S - PAD - 26);
+    ctx.fillText(tool.kind === "story" ? "실제로 자주 올라오는 사례" : tool.name, PAD, S - PAD - 26);
     return;
   }
 
@@ -158,8 +160,20 @@ function drawCard(cv, tool, idx){
   var by = ty + 74;
   wrap(ctx, card.b, S - PAD*2).forEach(function(l){ ctx.fillText(l, PAD, by); by += 70; });
 
-  /* 마지막 카드에는 주소를 크게 */
-  if (isLast){
+  /* 마지막 카드.
+     ⚠️ 소재(story) 카드에는 **도구 CTA 를 넣지 않는다.** 1단계 전략이
+        "소재로만 후킹"이기 때문이다. 대신 질문으로 끝내 댓글·저장을 유도한다
+        (인스타에서 노출을 키우는 건 결국 반응이다). */
+  if (isLast && tool.kind === "story"){
+    ctx.fillStyle = tool.color;
+    roundRect(ctx, PAD, S - PAD - 172, S - PAD*2, 160, 24); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.font = "800 40px 'Pretendard Variable',sans-serif";
+    var qy = S - PAD - 142;
+    wrap(ctx, tool.ask, S - PAD*2 - 70).forEach(function(l){ ctx.fillText(l, S/2, qy); qy += 54; });
+    ctx.textAlign = "left";
+  } else if (isLast){
     ctx.fillStyle = tool.color;
     roundRect(ctx, PAD, S - PAD - 128, S - PAD*2, 116, 24); ctx.fill();
     ctx.fillStyle = "#fff";
@@ -193,6 +207,15 @@ var TAGS = {
 };
 
 function caption(tool){
+  if (tool.kind === "story"){
+    /* 소재 캡션 — 도구를 밀지 않는다(1단계 전략).
+       출처 성격을 밝히고 질문으로 닫아 댓글을 유도한다. */
+    return tool.hook.replace(/\n/g," ") + "\n\n"
+      + tool.cards.map(function(c){ return "· " + c.t; }).join("\n")
+      + "\n\n" + tool.ask.replace(/\n/g," ")
+      + "\n\n※ " + tool.source
+      + "\n\n" + tool.tags + " #각잡살림";
+  }
   return tool.hook.replace(/\n/g," ") + "\n\n"
     + tool.cards.map(function(c){ return "· " + c.t + " — " + c.b.split("\n")[0]; }).join("\n")
     + "\n\n설치도 회원가입도 없이 브라우저에서 바로 쓸 수 있어요.\n"
@@ -207,17 +230,22 @@ var sheet = document.getElementById("sheet");
 var sel   = document.getElementById("tool");
 var cur;
 
-/* 공개 번호 순으로 정렬해 보여준다 — 목록에서 번호를 바로 확인할 수 있게. */
-CARD_TOOLS.map(function(t,i){ return {t:t,i:i}; })
-  .sort(function(a,b){ return a.t.no.localeCompare(b.t.no); })
-  .forEach(function(x){
-    var o = document.createElement("option");
-    o.value = x.i; o.textContent = x.t.no + "번 · " + x.t.emoji + " " + x.t.name;
-    sel.appendChild(o);
-  });
+/* 소재(story)를 먼저, 그다음 도구를 번호순으로 보여준다.
+   지금 발행 단계가 "소재로 후킹"이라 소재가 위에 있어야 손이 간다. */
+var ALL = (window.CARD_STORIES || []).concat(
+  CARD_TOOLS.slice().sort(function(a,b){ return a.no.localeCompare(b.no); })
+);
+ALL.forEach(function(t,i){
+  var o = document.createElement("option");
+  o.value = i;
+  o.textContent = (t.kind === "story")
+    ? "📖 " + t.name + " · " + t.hook.split("\n")[0]
+    : t.no + "번 · " + t.emoji + " " + t.name;
+  sel.appendChild(o);
+});
 
 function render(){
-  cur = CARD_TOOLS[sel.value|0];
+  cur = ALL[sel.value|0];
   sheet.innerHTML = "";
   for (var i=0; i<=cur.cards.length; i++){
     (function(i){

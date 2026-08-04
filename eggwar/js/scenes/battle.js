@@ -1407,6 +1407,36 @@ GAME.BattleScene.prototype._juice = function (dt) {
   if (this._hitStop === undefined) this._hitStop = 0;
   if (!this._prevHp) this._prevHp = {};
 
+  //  ── 근접 평타 참격 (2026-08-04 사용자 요청) ─────────────────────────────
+  //  > "검사는 스킬썼을때 최소한 검 휘두르는게 있으면 좋겠고"
+  //  광역기에는 초승달을 넣었지만(v1.51) **평타에는 그림이 없어** 붙어서 때리는
+  //  동안 화면이 조용했다. 근접 영웅은 대부분의 시간을 평타로 보낸다.
+  //
+  //  ⚠ **렌더 전용으로 관찰한다.** `combat.js` 에 훅을 만들지 않는다 — 발사 순간은
+  //    쿨타임이 0 근처에서 최대치로 **되감기는 것**으로 알 수 있다(`fire()` 가
+  //    `u.cd = cooldown` 으로 리셋한다). 체력 감소를 프레임 간 비교로 잡는
+  //    바로 아래 방식과 같은 계열이라 새 계약이 안 생긴다.
+  //  ⚠ 참격은 `state.effects` 가 아니라 **씬의 목록**에 쌓는다. 전투 상태에 렌더용
+  //    데이터를 넣으면 시뮬 결정성·저장·재현이 전부 그것을 끌고 다니게 된다.
+  var h = this.hero;
+  if (!this._swings) this._swings = [];
+  if (h && h.alive && h.def && h.def.attack === 'melee') {
+    var cd = h.cd || 0;
+    if (this._prevCd !== undefined && cd > this._prevCd + 1) {
+      //  얼굴 방향으로 벤다. 8방향 스냅은 그림용이고 여기는 연속값이 자연스럽다.
+      this._swings.push({
+        x: h.x, y: h.y, ang: (h.facing === undefined ? -Math.PI / 2 : h.facing),
+        r: (h.def.range || 90) * 1.30, t: 170, total: 170, key: h.type
+      });
+      if (this._swings.length > 4) this._swings.shift();   // 연타에서 쌓이지 않게
+    }
+    this._prevCd = cd;
+  }
+  for (var sw = this._swings.length - 1; sw >= 0; sw--) {
+    this._swings[sw].t -= dt;
+    if (this._swings[sw].t <= 0) this._swings.splice(sw, 1);
+  }
+
   var units = this.state.units;
   var biggest = 0, heroHit = false;
 
@@ -1904,6 +1934,16 @@ GAME.BattleScene.prototype.draw = function () {
   //  돈다. 위임 규칙은 전부 "true 를 돌려준 것만 건너뛴다" 하나뿐이라,
   //  시안이 모르는 kind(검기·회복·차단·노른자·구체)는 자동으로 원래 코드로 떨어진다.
   var FXS = (GAME.SkillFX && GAME.SkillFX.begin) ? GAME.SkillFX.begin(g, FX, this) : null;
+
+  //  근접 평타 참격 — `_juice` 가 쌓아 둔 렌더 전용 목록을 여기서 비운다.
+  //  ⚠ `begin()` **뒤**여야 한다(S.g 가 그때 꽂힌다). 앞에 두면 조용히 아무 일도 안 한다.
+  //  ⚠ 유닛보다 **먼저** 그린다 — 참격이 영웅을 덮으면 내가 어디 있는지 안 보인다.
+  if (FXS && FXS.swing && this._swings) {
+    for (var swi = 0; swi < this._swings.length; swi++) {
+      var sg = this._swings[swi];
+      FXS.swing(sg.x, sg.y, sg.ang, sg.r, Math.max(0, sg.t / sg.total), sg.key);
+    }
+  }
 
   // ── 지면 레이어: 마커·덫·이펙트 ──
   for (i = 0; i < this.markers.length; i++) {

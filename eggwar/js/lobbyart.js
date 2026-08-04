@@ -157,6 +157,143 @@ GAME.LobbyArt = {
     g.fillEllipse(cx - s * 0.14, cy - s * 0.20, s * 0.20, s * 0.26, 10);
   },
 
+  // ── 로비 데모 (2026-08-04) ──────────────────────────────────────────────────
+  //  적으로 쓸 유닛. **다양하게** 보이는 것이 목적이라 실루엣이 서로 다른 것만 고른다
+  //  (사용자: "유닛들은 다양하게해주고").
+  //  ⚠ 키는 표시 이름이 아니다(전사=bayonet · 궁수=rifleman …). 실제 키로 적을 것.
+  //    고정물(가시덫·쇠뇌 진지)은 뺀다 — 걸어오지 않으므로 데모가 성립하지 않는다.
+  DEMO_FOES: ['bayonet', 'rifleman', 'grenadier', 'sniper', 'shieldman', 'sergeant', 'chemtrooper'],
+  DEMO_SPAWN: 1500,          // 적이 나오는 간격(ms)
+  DEMO_SKILL_EVERY: 4,       // 몇 번째 처치마다 스킬을 쓰는가
+
+  _newDemo: function (W, H) {
+    return {
+      scroll: 0,             // 목책이 왼쪽으로 흐른 거리
+      foes: [],
+      spawnAt: 600,
+      kills: 0,
+      act: null,             // 지금 재생 중인 공격/스킬 포즈
+      actAt: -9999,
+      skillFx: null,         // 스킬 파문(반경만 가진 단순 연출)
+      W: W, H: H
+    };
+  },
+
+  _demoUpdate: function (d, hero, dt) {
+    if (!d) return;
+    var SPD = 46;                                  // 걷는 속도(px/s) — 목책이 이만큼 흐른다
+    d.scroll += (SPD * dt) / 1000;
+
+    //  적 소환 — 오른쪽 끝에서 걸어 들어온다.
+    d.spawnAt -= dt;
+    if (d.spawnAt <= 0 && d.foes.length < 3) {
+      d.spawnAt = this.DEMO_SPAWN + Math.random() * 700;
+      var keys = this.DEMO_FOES, k = keys[(Math.random() * keys.length) | 0];
+      var fd = GAME.UNITS && GAME.UNITS[k];
+      if (fd) {
+        d.foes.push({
+          def: fd, x: d.W * 0.455, y: hero.y + (Math.random() * 12 - 6),
+          vx: 0, hurt: 0, gone: 0, walk: Math.random() * 6
+        });
+      }
+    }
+
+    //  적 전진 · 맞은 뒤 날아감 · 퇴장
+    var reach = (hero.def.radius || 16) * hero.scale * 2.1;
+    var i, f, hit = false;
+    for (i = d.foes.length - 1; i >= 0; i--) {
+      f = d.foes[i];
+      if (f.gone > 0) {                            // 나가떨어지는 중
+        f.gone += dt;
+        f.x += (f.vx * dt) / 1000;
+        f.vx *= 0.985;
+        if (f.gone > 900) d.foes.splice(i, 1);
+        continue;
+      }
+      f.x -= ((SPD + 26) * dt) / 1000;             // 걸어오는 속도 = 내 걸음 + 자기 걸음
+      f.walk += dt * 0.012;
+      //  사거리에 들면 **때린다.** 판정이 아니라 연출이라 조건이 이것뿐이다.
+      if (f.x <= hero.x + reach && d.t0 - d.actAt > 520) {
+        hit = true;
+        d.kills++;
+        d.actAt = d.t0;
+        var skill = (d.kills % this.DEMO_SKILL_EVERY) === 0;
+        d.act = { art: (hero.def.art || 'berserker'), t: 0, wind: 0,
+                  kind: skill ? 'skill' : 'atk', type: skill ? 'aoeSelf' : undefined };
+        if (skill) d.skillFx = { t: 0, total: 460, x: hero.x, y: hero.y };
+        //  맞은 놈은 날아가고, 스킬이면 **앞의 것들이 다 같이** 날아간다.
+        var j, ff;
+        for (j = 0; j < d.foes.length; j++) {
+          ff = d.foes[j];
+          if (ff.gone > 0) continue;
+          if (!skill && ff !== f) continue;
+          ff.gone = 1;
+          ff.vx = 200 + Math.random() * 160;
+          ff.hurt = 1;
+        }
+      }
+    }
+
+    //  포즈 진행
+    if (d.act) {
+      d.act.t += dt;
+      var dur = (d.act.kind === 'skill') ? 520 : 340;
+      if (d.act.t > dur) d.act = null;
+    }
+    if (d.skillFx) {
+      d.skillFx.t += dt;
+      if (d.skillFx.t > d.skillFx.total) d.skillFx = null;
+    }
+  },
+
+  //  데모를 그린다. 목책은 **이 레이어가** 그려서 흐르게 한다(배경은 정지화면이다).
+  _demoDraw: function (g, d, hero) {
+    if (!d) return;
+    var M = GAME.UI.MAT, mix = GAME.UI.mix;
+    var bg = (GAME.UI.COL && GAME.UI.COL.bg) || 0xfbf2df;
+    var W = d.W, H = d.H;
+    var line = hero.y - (hero.def.radius || 16) * hero.scale * 1.5;
+
+    //  ① 흐르는 목책 — "걷고 있다"를 만드는 유일한 신호다.
+    var gap = Math.max(46, W / 13), pw = Math.max(4, W * 0.005), ph = H * 0.085;
+    var off = d.scroll % gap;
+    for (var x = -off; x < W * 0.56; x += gap) {
+      if (x < -pw) continue;
+      g.fillStyle(mix(bg, M.woodDark, 0.34), 1);
+      g.fillRect(x, line - ph, pw, ph);
+      g.fillStyle(mix(bg, M.bone, 0.42), 1);
+      g.fillEllipse(x + pw / 2, line - ph, pw * 1.7, pw * 1.1, 8);
+    }
+    g.fillStyle(mix(bg, M.rope, 0.30), 1);
+    g.fillRect(0, line - ph * 0.66, W * 0.56, Math.max(1.4, ph * 0.04));
+
+    //  ② 스킬 파문 — 땅에 퍼지는 고리 하나. 화려함보다 **읽히는 것**이 먼저다.
+    if (d.skillFx) {
+      var p = d.skillFx.t / d.skillFx.total, ia = 1 - p;
+      var rr = (hero.def.radius || 16) * hero.scale * (1.2 + p * 2.4);
+      g.lineStyle(Math.max(2, rr * 0.09), (GAME.UI.FX && GAME.UI.FX.blast) || 0xffb347, 0.75 * ia);
+      g.strokeEllipse(d.skillFx.x, d.skillFx.y, rr * 2, rr * 2 * 0.42, 16);
+      g.fillStyle((GAME.UI.FX && GAME.UI.FX.sparkCore) || 0xfff3cd, 0.5 * ia * ia);
+      g.fillEllipse(d.skillFx.x, d.skillFx.y, rr * 1.1, rr * 1.1 * 0.42, 14);
+    }
+
+    //  ③ 적 — 나가떨어지는 놈은 기울고 옅어진다.
+    for (var i = 0; i < d.foes.length; i++) {
+      var f = d.foes[i];
+      var a = f.gone > 0 ? Math.max(0, 1 - f.gone / 900) : 1;
+      var sc = hero.scale * 0.78;
+      var rr2 = (f.def.radius || 14) * sc;
+      var shc = (GAME.UI.COL && GAME.UI.COL.shadow) || 0x000000;
+      g.fillStyle(shc, 0.22 * a);
+      g.fillEllipse(f.x, f.y, rr2 * 1.7, rr2 * 1.7 * 0.42, 12);
+      try {
+        GAME.UI.drawUnitFlat(g, f.def, f.x, f.y - (f.gone > 0 ? Math.min(26, f.gone * 0.05) : 0),
+                             GAME.CONFIG.COLORS.strategist, a * this.ALPHA, sc,
+                             Math.PI / 2, f.gone > 0 ? 0 : f.walk, 0);
+      } catch (e) { /* 하나가 실패해도 로비는 떠 있어야 한다 */ }
+    }
+  },
+
   //  버튼 라벨 **왼쪽**에 표식을 놓는다. 라벨이 가운데 정렬이라 그 폭에서 역산한다.
   //  ⚠ 버튼을 만든 **뒤**에 불러야 한다(그때라야 text.width 가 정해진다).
   markFor: function (scene, btn, kind, depthAbove) {
@@ -250,11 +387,57 @@ GAME.LobbyArt = {
 
   start: function (scene) {
     if (!GAME.UI || !GAME.UI.drawUnitFlat || !GAME.HEROES) return null;
-    if (GAME.CONFIG.PHONE || GAME.CONFIG.PORTRAIT) return null;
     var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+    var C = GAME.CONFIG.COLORS;
+
+    // ── 폰 가로 (2026-08-04 사용자: "로비에 영웅 세워줘 · 멋있게") ──────────────
+    //  예전에는 폰에서 **아예 안 그렸다**("여백이 없어 글자와 겹친다"). 그런데 이
+    //  게임의 실제 플레이는 전부 폰 가로다 — 가장 좋은 자산이 정작 사람들이 보는
+    //  화면에서만 빠져 있었다.
+    //
+    //  다시 재 보니 여백이 **있다.** 폰 가로 로비는 왼쪽 열에 제목(위 ~37%)과
+    //  도움말(아래 ~80%)만 있고 그 사이가 통째로 빈다. 오른쪽은 버튼이 다 쓴다.
+    //  → 그 빈 구간에 **한 기를 크게** 세운다. 둘을 세우면 각각이 작아져 계란의
+    //    생김새(투구·무기·표정)가 다시 사라진다 — 이 파일이 '행렬'에서 이미 배운 것이다.
+    //  ⚠ 세로(PORTRAIT)는 여전히 안 그린다. 거기는 위아래로 꽉 차 정말로 자리가 없다.
+    if (GAME.CONFIG.PHONE) {
+      var pg = scene.add.graphics();
+      pg.setDepth(-50);
+      var pdef = GAME.HEROES[(GAME.TowerChar && GAME.TowerChar.exists && GAME.TowerChar.exists()
+                              && GAME.TowerChar.get().heroKey) || 'vanguard']
+                 || GAME.HEROES.vanguard;
+      if (!pdef) { try { pg.destroy(); } catch (e) {} return null; }
+      // ── 자동 재생 데모 (2026-08-04 사용자 지시) ─────────────────────────────
+      //  > "제자리에서 오른쪽으로 걸어가는 모션 / 배경이 오른쪽에서 왼쪽으로 움직이면서
+      //  >  적유닛이 나오고 전사가 공격모션해서 유닛이 나가떨어지는 애니메이션 /
+      //  >  유닛들은 다양하게 / 가끔 스킬도"
+      //
+      //  로비가 **게임을 보여 준다.** 정지 화면이 아니라 짧은 시연이다.
+      //  ⚠ **전투 로직을 안 쓴다.** `js/combat.js` 를 부르면 밸런스·저장·시드가 로비에
+      //    끌려 들어온다. 여기는 좌표와 타이머만 있는 **연출**이고, 죽고 사는 판정도
+      //    없다(적은 맞으면 무조건 날아간다). 순수 렌더라는 이 파일의 약속을 지킨다.
+      //  ⚠ 배경은 **`backdrop` 이 그린 것을 밀지 않는다** — 그건 한 번 구운 정지화면이다.
+      //    대신 이 레이어가 자기 목책을 스크롤해 "걷고 있다"를 만든다.
+      return {
+        g: pg, t: 0, demo: this._newDemo(W, H),
+        guards: [{
+          def: pdef,
+          //  왼쪽 열 한가운데. 버튼 띠(오른쪽 절반)를 절대 안 넘어간다.
+          x: W * 0.175,
+          //  ⚠  의 y 는 **발밑이 아니라 몸 중심**이다. 0.78 로 뒀더니
+          //    아래 절반이 도움말 글자를 덮었다(실측). 0.62 라야 글 위에서 멈춘다.
+          y: H * 0.68,
+          //  ⚠ 3.3 배는 왼쪽 열을 통째로 먹었다. 1.8 이 "계란이 읽히면서 글을 안 덮는" 선이다.
+          scale: Math.min(1.72, H / 232),
+          facing: -Math.PI / 2,            // 정면. 뒤를 보면 eggart 가 얼굴을 지운다
+          color: C.controller,
+          phase: 0
+        }]
+      };
+    }
+    if (GAME.CONFIG.PORTRAIT) return null;
     if (W < this.MIN_W) return null;
 
-    var C = GAME.CONFIG.COLORS;
     var g = scene.add.graphics();
     g.setDepth(-50);                       // 무조건 글자 뒤로
 
@@ -290,12 +473,43 @@ GAME.LobbyArt = {
     state.t += dt;
     var g = state.g;
     g.clear();
+    //  데모(폰 가로) — 적을 굴리고 목책을 흘린 뒤, 영웅은 아래 루프가 그 위에 그린다.
+    if (state.demo && state.guards.length) {
+      state.demo.t0 = state.t;
+      this._demoUpdate(state.demo, state.guards[0], dt);
+      this._demoDraw(g, state.demo, state.guards[0]);
+    }
     for (var i = 0; i < state.guards.length; i++) {
       var h = state.guards[i];
       try {
+        //  ── 발밑 (2026-08-04) ────────────────────────────────────────────
+        //  그림자가 없으면 영웅이 배경 위에 **떠 있다.** 전장에서 잡은 규칙과 같이
+        //  간다: 넓고 옅은 겹 + 좁고 진한 겹, 오프셋은 광원(좌상단)의 반대쪽.
+        //  ⚠ 숨쉬기로 몸이 오르내려도 그림자는 **제자리**다. 같이 움직이면 발이
+        //    바닥에서 떨어졌다 붙었다 하는 것으로 보인다.
+        var M = GAME.UI.MAT, L = GAME.UI.LIGHT;
+        var rr = (h.def.radius || 16) * h.scale;
+        var shc = (GAME.UI.COL && GAME.UI.COL.shadow) || 0x000000;
+        var ox = L ? -L.dir.x * rr * 0.16 : 0, oy = L ? -L.dir.y * rr * 0.10 * 0.72 : 0;
+        g.fillStyle(shc, 0.13);
+        g.fillEllipse(h.x + ox, h.y + oy, rr * 2.5, rr * 2.5 * 0.42, 14);
+        g.fillStyle(shc, 0.30);
+        g.fillEllipse(h.x + ox * 0.6, h.y + oy * 0.5, rr * 1.5, rr * 1.5 * 0.42, 12);
+        //  진영 링 — 전장에서 내 영웅을 가리키는 그 표식이다. 로비에서도 같은 말을 한다.
+        g.lineStyle(Math.max(2, rr * 0.10), h.color, 0.75);
+        g.strokeEllipse(h.x, h.y, rr * 1.9, rr * 1.9 * 0.42, 14);
+        g.lineStyle(Math.max(1.2, rr * 0.05), M.bone, 0.55);
+        g.strokeEllipse(h.x, h.y, rr * 2.2, rr * 2.2 * 0.42, 14);
+
         // `idle` 에 시각을 넘기면 그 한 기가 숨 쉬고 가끔 무기를 휘두른다(eggart 규약).
+        //  ⚠ 데모가 돌 때는 **걸음걸이와 공격 포즈**를 같이 넘긴다. `walk` 는 위상이라
+        //    제자리에서도 다리가 움직이고, 흐르는 목책이 "앞으로 간다"를 만든다.
+        var dm = state.demo;
         GAME.UI.drawUnitFlat(g, h.def, h.x, h.y, h.color, this.ALPHA,
-                             h.scale, h.facing, null, state.t + h.phase);
+                             h.scale, h.facing,
+                             dm ? state.t * 0.011 : null,
+                             state.t + h.phase,
+                             dm ? dm.act : null);
       } catch (e) { /* 아트 하나가 실패해도 로비는 떠 있어야 한다 */ }
     }
   },

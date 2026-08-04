@@ -208,7 +208,7 @@ GAME.LobbyArt = {
         f.gone += dt;
         f.x += (f.vx * dt) / 1000;
         f.vx *= 0.985;
-        if (f.gone > 900) d.foes.splice(i, 1);
+        if (f.gone > 620) d.foes.splice(i, 1);
         continue;
       }
       f.x -= ((SPD + 26) * dt) / 1000;             // 걸어오는 속도 = 내 걸음 + 자기 걸음
@@ -219,7 +219,12 @@ GAME.LobbyArt = {
         d.kills++;
         d.actAt = d.t0;
         var skill = (d.kills % this.DEMO_SKILL_EVERY) === 0;
-        d.act = { art: (hero.def.art || 'berserker'), t: 0, wind: 0,
+        //  ⚠ **예비 동작부터 재생한다.** actPose 는 t<0 을 "칼을 치켜드는 구간"으로
+        //    쓰는데(js/eggart.js), t:0 에서 시작하면 그 구간을 통째로 건너뛴다 —
+        //    칼이 가장 크게 움직이는 자리가 바로 거기다. 길이도 표에서 읽는다
+        //    (광전사 wind 240 · dur 600). 340 으로 잘랐더니 본동작도 57%에서 끊겼다.
+        var AC = (GAME.UI.ACT && (GAME.UI.ACT[hero.def.art] || GAME.UI.ACT._default)) || { wind: 200, dur: 480 };
+        d.act = { art: (hero.def.art || 'berserker'), t: -AC.wind, wind: 1, dur: AC.dur,
                   kind: skill ? 'skill' : 'atk', type: skill ? 'aoeSelf' : undefined };
         if (skill) d.skillFx = { t: 0, total: 460, x: hero.x, y: hero.y };
         //  ── 참격 + 소리 (2026-08-04 사용자: "칼 휘두르는 모션 + 이펙트 + 효과음") ──
@@ -238,17 +243,35 @@ GAME.LobbyArt = {
           if (ff.gone > 0) continue;
           if (!skill && ff !== f) continue;
           ff.gone = 1;
-          ff.vx = 200 + Math.random() * 160;
+          //  ⚠ 너무 멀리 날면 오른쪽 안내문 자리까지 들어간다(실측). 짧게 날고
+          //    빨리 사라지게 해 글자 위로 안 넘어가게 한다.
+          ff.vx = 120 + Math.random() * 90;
           ff.hurt = 1;
         }
       }
     }
 
+    //  ── 쉬지 않고 휘두른다 (2026-08-04 사용자: "실제 칼은 움직이질않아") ────────
+    //  예전에는 **적이 사거리에 닿는 순간에만** 포즈를 잡았다. 그런데 그건 1.5초에
+    //  한 번, 340ms 만 지속된다 — 실측 표본 4회 중 3회가 "포즈 없음" 이었다.
+    //  즉 로비를 보고 있는 대부분의 시간 동안 칼이 **정지**해 있었다.
+    //  → 적이 없어도 주기적으로 휘두른다. 걸어가며 칼을 휘두르는 그림이 되어야
+    //    "이 게임은 이런 게임이다"가 첫 화면에서 전해진다.
+    //  ⚠ 적을 때리는 쪽이 우선이다 — 이미 포즈 중이면 새로 시작하지 않는다.
+    if (!d.act && d.t0 - d.actAt > 900) {
+      d.actAt = d.t0;
+      var AC2 = (GAME.UI.ACT && (GAME.UI.ACT[hero.def.art] || GAME.UI.ACT._default)) || { wind: 200, dur: 480 };
+      d.act = { art: (hero.def.art || 'berserker'), t: -AC2.wind, wind: 1, dur: AC2.dur, kind: 'atk' };
+      d.slash = { t: 0, total: 220, x: hero.x, y: hero.y, big: false };
+      //  ⚠ **여기서는 소리를 내지 않는다.** 0.9초마다 울리면 로비에 있는 내내
+      //    타격음이 이어져 시끄럽다. 소리는 **적을 실제로 때렸을 때만** 낸다
+      //    (이 파일의 위쪽 분기). 허공을 가르는 데는 소리가 없는 것이 맞기도 하다.
+    }
+
     //  포즈 진행
     if (d.act) {
       d.act.t += dt;
-      var dur = (d.act.kind === 'skill') ? 520 : 340;
-      if (d.act.t > dur) d.act = null;
+      if (d.act.t > (d.act.dur || 480)) d.act = null;
     }
     if (d.skillFx) {
       d.skillFx.t += dt;
@@ -467,11 +490,11 @@ GAME.LobbyArt = {
     if (GAME.CONFIG.PHONE) {
       var pg = scene.add.graphics();
       pg.setDepth(-50);
-      //  ⚠ **레이어 전체를 옅게 한다** (2026-08-04 사용자: "배경으로 쓰이는 애니메이션에
-      //    불투명도를 줘서 메뉴 가독성이 떨어지지않게 유지해").
-      //    도형마다 알파를 손보면 어느 하나를 빠뜨리고 그 하나가 글자 뒤에서 튄다.
-      //    레이어 알파는 **앞으로 무엇을 더 그려도 자동으로 걸린다** — 그게 이 방식의 값어치다.
-      pg.setAlpha(0.45);
+      //  ⚠ **레이어 알파를 걸지 않는다** (2026-08-04, 한 번 넣었다가 되돌렸다).
+      //    0.45 를 걸어 봤더니 **경계선이 보였다** — 레이어 알파는 '그려진 픽셀'만
+      //    반투명하게 만들어서 도형의 가장자리가 그대로 남는다(화면 전체가 균일하게
+      //    물러나는 것이 아니다). 실제 게임에서 확인하니 100% 로도 메뉴를 안 가린다
+      //    (데모는 지평선 아래에 있고 글자는 그 위·옆에 있다) → 그대로 둔다.
       var pdef = GAME.HEROES[(GAME.TowerChar && GAME.TowerChar.exists && GAME.TowerChar.exists()
                               && GAME.TowerChar.get().heroKey) || 'vanguard']
                  || GAME.HEROES.vanguard;

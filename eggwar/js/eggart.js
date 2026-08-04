@@ -280,16 +280,50 @@ var SM = 10;
   // ── 달걀 외곽선 ───────────────────────────────────────────────
   // 위는 좁고 아래는 넓다. 반높이 r, 최대 반폭 ≈ 1.04 * r * wide
   // lean : 보행 기울기. 발밑을 축으로 꼭대기를 lean 만큼 민다(전단 변형).
-  UI.eggPoints = function (cx, cy, r, wide, n, lean) {
-    var pts = [], N = n || 20, i, a, y, w, f;
+  //  ⚠⚠ **버퍼를 돌려 쓴다** (2026-08-04 렉 조사 결과).
+  //    예전에는 호출마다 배열 하나 + 점 객체 20개를 **새로** 만들었다. 이 함수는
+  //    유닛 하나를 그릴 때 여러 번 불리고(윤곽·밝은 면·리스광), `UI.inkLayer` 가
+  //    몸통 그리기를 **두 번** 돌리므로 다시 두 배다. 유닛 26기 × 60fps 면
+  //    초당 수십만 개의 단명 객체가 된다.
+  //    실측(tools/stall-probe.js): 힙이 프레임마다 ±10~30MB 로 요동쳤고 그 자리에
+  //    460~757ms 스톨이 붙어 있었다 — **사용자가 신고한 렉의 정체는 GC 였다.**
+  //
+  //  ⚠ 풀을 쓰려면 **호출부가 결과를 오래 들고 있으면 안 된다.** 이 함수의 결과는
+  //    전부 그 자리에서 `fillPoints`/`strokePoints` 로 넘겨 소비된다(확인함).
+  //    한 번에 살아 있어야 하는 최대 개수는 `eggBody` 의 outer + litPts = 2 개인데,
+  //    여유를 크게 둬서 **8벌**을 돌린다. 프레임을 넘겨 보관하는 호출부가 새로
+  //    생기면 이 전제가 깨진다 — 그럴 땐 `copy: true` 를 넘겨 새 배열을 받을 것.
+  var EGG_POOL = [], EGG_AT = 0;
+  //  리스광 구간용 스크래치 — 매 프레임 유닛마다 새로 만들지 않는다(위 주석 참조).
+  //  길이는 고정이다: 좌상단 호 6점(10~15), 우하단 바운스 5점(1~5).
+  var RIM_KEY = [], RIM_BOUNCE = [], _ri;
+  for (_ri = 0; _ri < 6; _ri++) RIM_KEY.push({ x: 0, y: 0 });
+  for (_ri = 0; _ri < 5; _ri++) RIM_BOUNCE.push({ x: 0, y: 0 });
+  UI.eggPoints = function (cx, cy, r, wide, n, lean, copy) {
+    var N = n || 20, i, a, y, w, f, pts, p;
     wide = wide || 0.78;
     lean = lean || 0;
+    if (copy) {
+      pts = [];
+      for (i = 0; i < N; i++) pts.push({ x: 0, y: 0 });
+    } else {
+      //  같은 길이의 버퍼만 재사용한다(길이가 다르면 새로 만들어 자리에 꽂는다).
+      pts = EGG_POOL[EGG_AT];
+      if (!pts || pts.length !== N) {
+        pts = [];
+        for (i = 0; i < N; i++) pts.push({ x: 0, y: 0 });
+        EGG_POOL[EGG_AT] = pts;
+      }
+      EGG_AT = (EGG_AT + 1) % 8;
+    }
     for (i = 0; i < N; i++) {
       a = (Math.PI * 2 / N) * i;
       y = -Math.cos(a) * r;
       w = 1 - 0.30 * Math.cos(a);
       f = (r - y) / (2 * r);                     // 꼭대기 1 → 바닥 0
-      pts.push({ x: cx + Math.sin(a) * r * wide * w + lean * f, y: cy + y });
+      p = pts[i];
+      p.x = cx + Math.sin(a) * r * wide * w + lean * f;
+      p.y = cy + y;
     }
     return pts;
   };
@@ -805,8 +839,12 @@ var SM = 10;
     // 베이스(그늘) → 밝은 안쪽 달걀을 좌상단으로 밀어 우하단에 초승달 그림자를 남긴다
     g.fillStyle(UI.tint(shell, -0.30), a);
     g.fillPoints(outer, true);
+    //  ⚠ **한 번만 만든다.** 아래 리스광이 같은 윤곽(좌상단으로 민 밝은 안쪽 달걀)을
+    //    쓰는데, 예전에는 거기서 `eggPoints` 를 한 번 더 불러 같은 배열을 두 벌
+    //    만들고 있었다(2026-08-04 렉 조사에서 발견). 값이 같으므로 나눠 쓴다.
     g.fillStyle(shell, a);
-    g.fillPoints(UI.eggPoints(sx - r * 0.06, by - r * 0.05, r * 0.90, wide, 20, lean * 0.90), true);
+    var litPts = UI.eggPoints(sx - r * 0.06, by - r * 0.05, r * 0.90, wide, 20, lean * 0.90);
+    g.fillPoints(litPts, true);
 
     // 하이라이트
     if (r >= 8) {
@@ -824,31 +862,28 @@ var SM = 10;
     //    하드코딩하면 테마 4종·바이옴 6밴드에서 혼자 안 따라온다.
     //  ⚠ r < 9 이면 **그리지 않는다.** 그 크기에서 선을 하나 더 얹으면 형태가 뭉갠다
     //    (이 파일이 "톱니 2.8px 는 얼룩이 된다"에서 이미 배운 것과 같은 논리).
-    if (r >= 9 && UI.LIGHT) {
-      var arc = function (a0, a1) {
-        var pts = [], n = 7, i, t, p;
-        for (i = 0; i <= n; i++) {
-          t = a0 + (a1 - a0) * (i / n);
-          p = { x: sx + Math.cos(t) * r * wide + lean * 0.5,
-                y: by - r + Math.sin(t) * r + r };
-          pts.push(p);
-        }
-        return pts;
-      };
-      //  ⚠ 호를 `eggPoints` 로 잘라 쓰지 않는 이유: 그 함수는 닫힌 윤곽을 돌려주므로
-      //    구간만 떼면 계란의 비대칭(위가 좁다)이 사라진다. 여기서는 **밝은 안쪽 달걀**
-      //    (좌상단으로 민 것)의 윤곽을 따라야 빛이 면 위에 앉는다.
-      var lit = UI.eggPoints(sx - r * 0.06, by - r * 0.05, r * 0.90, wide, 20, lean * 0.90);
-      var seg = function (from, to) {
-        var out = [], i;
-        for (i = from; i <= to && i < lit.length; i++) out.push(lit[i]);
-        return out;
-      };
+    //  ⚠⚠ **한 프레임에 객체를 만들지 않는다** (2026-08-04 렉 조사).
+    //    처음 판은 유닛마다 프레임마다 ① `eggPoints` 한 벌(20객체) ② 클로저 두 개
+    //    ③ `seg()` 가 만드는 배열 두 개를 새로 만들었고, `inkLayer` 가 몸통 그리기를
+    //    **두 번** 돌리므로 그게 다시 두 배였다. 유닛 26기면 프레임당 수천 개다.
+    //    실측(tools/stall-probe.js): 힙이 프레임마다 ±10~30MB 로 요동쳤고 그 자리에
+    //    460~757ms 스톨이 붙어 있었다 — **렉의 정체는 GC 였다.**
+    //    → 위에서 이미 만든 `litPts` 를 그대로 쓰고, 구간은 `lineBetween` 으로 긋는다.
+    //      배열도 클로저도 안 만든다.
+    //  ⚠ **재사용 스크래치 배열**을 쓴다. `lineBetween` 루프로 바꿔 봤더니 할당은
+    //    없어졌지만 그리기 호출이 유닛당 57 → 64 회로 **늘었다**(실측 draw-census).
+    //    이 저장소가 신뢰하는 지표는 환경에 안 휘둘리는 '프레임당 호출 수'이므로
+    //    그건 나쁜 교환이다. 아래처럼 미리 만든 배열을 제자리에서 채우면
+    //    **호출 2회 · 할당 0** 으로 둘 다 얻는다.
+    if (r >= 9 && UI.LIGHT && litPts) {
       //  eggPoints 는 20 등분이다 — 좌상단 사분면은 대략 10~15, 우하단은 1~5.
+      var li, sp, dp;
+      for (li = 0; li < 6; li++) { sp = litPts[10 + li]; dp = RIM_KEY[li]; if (sp) { dp.x = sp.x; dp.y = sp.y; } }
       g.lineStyle(Math.max(1.2, r * 0.085), UI.LIGHT.key, UI.LIGHT.keyA * a);
-      g.strokePoints(seg(10, 15), false, false);
+      g.strokePoints(RIM_KEY, false, false);
+      for (li = 0; li < 5; li++) { sp = litPts[1 + li]; dp = RIM_BOUNCE[li]; if (sp) { dp.x = sp.x; dp.y = sp.y; } }
       g.lineStyle(Math.max(1.0, r * 0.06), UI.LIGHT.bounce(), UI.LIGHT.bounceA * a);
-      g.strokePoints(seg(1, 5), false, false);
+      g.strokePoints(RIM_BOUNCE, false, false);
     }
 
     // 외곽선 — ivory 시안에서는 이게 진영 식별의 주역이라 두껍게 간다

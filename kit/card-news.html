@@ -77,7 +77,7 @@
   <div class="caption-box">
     <h2>인스타 캡션 (복사해서 쓰세요)</h2>
     <textarea id="cap" spellcheck="false"></textarea>
-    <p class="note">해시태그는 자동 구성됩니다. 인스타 캡션의 URL은 클릭이 안 되므로 프로필 링크로 유도합니다.</p>
+    <p class="note">2026 기준으로 다시 짰습니다 — <b>해시태그는 도달을 늘리지 않습니다</b>(Mosseri). 그래서 태그는 5~6개로 줄이고, 검색이 읽는 <b>키워드를 문장으로</b> 넣었어요. 첫 125자 안에 후킹이 오고, 마지막엔 댓글 + <b>DM 공유</b> 유도가 붙습니다(공유가 도달에 가장 크게 작동).</p>
   </div>
 
   <div class="caption-box">
@@ -94,7 +94,7 @@
 </main>
 
 <script src="card-data.js?v=5"></script>
-<script src="story-data.js?v=7"></script>
+<script src="story-data.js?v=8"></script>
 <script src="sozae-pool.js?v=3"></script>
 <script>
 /* =========================================================
@@ -379,38 +379,78 @@ function drawCard(cv, tool, idx){
   }
 }
 
+/* =========================================================
+   캡션 — 2026년 인스타 기준으로 다시 짬 (2026-08-05)
+
+   ■ 조사에서 확인된 것 (Mosseri 발언 + 2026 가이드들)
+     · **해시태그는 도달을 늘리지 않는다.** Mosseri 가 직접 정리했다.
+       주제를 알려주는 라벨 역할만 하고, 분배에는 영향이 거의 없다.
+       → 30개씩 붙이던 방식은 이제 손해다. **5~10개 니치 태그면 충분.**
+     · **대신 캡션의 키워드가 발견을 만든다.** 인스타 검색이 캡션·화면 텍스트를 읽는다.
+       키워드 중심 캡션이 태그 위주보다 도달 약 30%·좋아요 2배라는 분석이 있다.
+     · 도달을 실제로 움직이는 신호는 **체류(watch time) / 공유(sends per reach) /
+       좋아요(likes per reach)**. 특히 **DM 공유**가 크다.
+     · 첫 125자가 전부다. "더 보기" 전에 잘리므로 **앞에 이유를 둔다.**
+     · CTA 는 구체적일수록 낫다. "댓글 남겨주세요"보다 **"몇 번이 제일 억울해요?"**
+       같은 형태가 3배 낫다는 분석. 캐러셀은 마지막 CTA 가 참여를 20~30% 올린다.
+
+   ■ 그래서 이렇게 바꿨다
+     1) 첫 줄 = 후킹(125자 안에 승부)
+     2) 그다음 = **키워드가 자연스럽게 들어간 문장** (검색용. 태그로 때우지 않는다)
+     3) 본문 = 흐름 요약
+     4) CTA = 댓글 + **DM 공유 유도**(공유가 도달에 가장 크게 작동해서)
+     5) 태그 = **6개 내외**로 줄이고 맨 아래에만
+   ========================================================= */
+
+/* 검색용 키워드 — 캡션 문장 안에 자연스럽게 녹인다(태그가 아니라 문장으로) */
+var KEYWORDS = {
+  "salary-calculator":"이직 연봉협상, 처우협의, 실수령액 계산",
+  "room-planner":"원룸 가구 배치, 침대 사이즈, 방 크기별 배치",
+  "resignation-timing":"퇴사 타이밍, 퇴직금 발생일, 연차수당",
+  "couple-referee":"커플 싸움, 연애 고민",
+  "minecraft-seeds":"마인크래프트 시드 추천",
+  "fishing-tide":"낚시 물때, 갯바위 포인트, 만조 간조 시각",
+  "map-archery":"국내 여행지 추천, 주말 여행",
+  "wiki-rabbithole":"비행기 오프라인 읽을거리, 장거리 비행 준비",
+  "keyword-checker":"블로그 SEO 키워드 진단"
+};
+
+/* 태그는 6개 내외 — 도달용이 아니라 주제 라벨용이라 많을수록 손해다 */
 var TAGS = {
-  "salary-calculator":"#연봉협상 #이직 #연봉계산기 #실수령액 #직장인",
-  "room-planner":"#원룸인테리어 #자취방 #가구배치 #방꾸미기 #이사준비 #침대사이즈",
-  "resignation-timing":"#퇴사 #퇴직금 #연차수당 #직장인 #퇴사준비",
-  "couple-referee":"#커플 #연애 #커플싸움 #연애고민",
-  "minecraft-seeds":"#마인크래프트 #마크시드 #마인크래프트시드 #게임",
-  "fishing-tide":"#낚시 #물때 #바다낚시 #낚시포인트 #초보낚시",
-  "map-archery":"#여행 #국내여행 #여행지추천 #주말여행",
-  "wiki-rabbithole":"#비행기 #오프라인 #장거리비행 #읽을거리 #여행준비",
-  "keyword-checker":"#블로그 #SEO #키워드 #블로그운영"
+  "salary-calculator":"#이직 #연봉협상 #처우협의 #실수령액 #직장인",
+  "room-planner":"#원룸 #자취방 #가구배치 #침대사이즈 #이사준비",
+  "resignation-timing":"#퇴사 #퇴직금 #연차수당 #퇴사준비",
+  "couple-referee":"#커플 #연애고민 #커플싸움",
+  "minecraft-seeds":"#마인크래프트 #마크시드 #마크추천",
+  "fishing-tide":"#낚시 #물때 #바다낚시 #낚시포인트",
+  "map-archery":"#국내여행 #여행지추천 #주말여행",
+  "wiki-rabbithole":"#장거리비행 #비행기 #여행준비 #읽을거리",
+  "keyword-checker":"#블로그 #블로그SEO #키워드"
 };
 
 function caption(tool){
   if (tool.kind === "story"){
-    /* 소재 캡션 — 도구를 밀지 않는다(1단계 전략).
-       출처 표기는 넣지 않는다(태현님 요청) — 논문이 아니라 썰이라서. */
-    return tool.hook.replace(/\n/g," ") + "\n\n"
-      + tool.body.map(function(c){ return "· " + c.t; }).join("\n")
-      + "\n" + (tool.turn || (tool.ending ? [tool.ending] : []))
-                 .map(function(c){ return "· " + c.t; }).join("\n")
+    var turn = tool.turn || (tool.ending ? [tool.ending] : []);
+    return tool.hook.replace(/\n/g," ")            // 1) 첫 줄 = 후킹
+      + "\n\n" + (tool.lead || tool.sub)           // 2) 키워드 문장(검색용)
+      + "\n\n"
+      + tool.body.map(function(c){ return "· " + c.t; }).join("\n")   // 3) 흐름
+      + "\n" + turn.map(function(c){ return "· " + c.t; }).join("\n")
       + "\n\n" + tool.take.b.replace(/\n/g," ")
-      + "\n\n" + tool.ask.replace(/\n/g," ")
-      + "\n\n" + tool.tags + " #각잡살림";
+      + "\n\n" + tool.ask.replace(/\n/g," ")                          // 4) CTA
+      + "\n📩 비슷한 일 겪은 사람한테 이 글 보내주세요."
+      + "\n\n" + (tool.tags || "") + " #각잡살림";
   }
-  return tool.hook.replace(/\n/g," ") + "\n\n"
+  return tool.hook.replace(/\n/g," ")
+    + "\n\n" + (KEYWORDS[tool.id] ? KEYWORDS[tool.id] + " — 브라우저에서 바로 쓰는 무료 도구예요." : "")
+    + "\n\n"
     + tool.cards.map(function(c){ return "· " + c.t + " — " + c.b.split("\n")[0]; }).join("\n")
-    + "\n\n설치도 회원가입도 없이 브라우저에서 바로 쓸 수 있어요.\n"
-    /* ⚠️ 인스타 캡션의 URL 은 클릭이 안 된다. 주소를 적어두면 "받아적어서 치라"는 뜻이
+    + "\n\n설치도 회원가입도 없어요."
+    /* ⚠️ 인스타 캡션의 URL 은 클릭이 안 된다. 주소를 적으면 "받아적어서 치라"는 뜻이
        되어 대부분 이탈한다. 실제로 눌리는 프로필 링크로만 유도한다. */
-    + "👉 프로필 링크(@) 누르고 «" + tool.no + "번 " + tool.name + "» 탭!\n"
-    + "   저장해두면 필요할 때 바로 찾을 수 있어요 🔖\n\n"
-    + (TAGS[tool.id] || "") + " #무료도구 #웹툴 #각잡살림";
+    + "\n👉 프로필 링크(@) 누르고 «" + tool.no + "번 " + tool.name + "» 탭!"
+    + "\n📩 필요할 것 같은 친구한테 보내주세요."
+    + "\n\n" + (TAGS[tool.id] || "") + " #무료도구 #각잡살림";
 }
 
 var sheet = document.getElementById("sheet");

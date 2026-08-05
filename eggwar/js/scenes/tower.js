@@ -929,13 +929,41 @@ GAME.TowerScene.prototype._buildChallenge = function () {
   var bw = Math.min(W - 30, 420);
   var bh = u * 7;
   var gap = u * 1.4;
-  var restH = this.char ? (u * 5 + gap) : 0;
+  //  ⚠ 아래 줄은 **캐릭터가 없어도** 나온다. 이어하기를 받는 쪽 기기에는 당연히
+  //    캐릭터가 없기 때문이다 — 예전처럼 `this.char` 로 줄 전체를 숨기면 정작
+  //    코드를 넣어야 할 기기에서 들어갈 길이 사라진다.
+  var restH = u * 5 + gap;
   var byBottom = H - u * 2 - restH;
+
+  // ── 이어하기 (2026-08-05 사용자 지시) ──────────────────────────────────────
+  //  캐릭터(골드·장비·능력치·현재 층)는 그 기기 localStorage 에만 있어서 기기를
+  //  바꾸면 사라진다. 계정이 없는 구조의 구멍이라 코드로 옮긴다(js/transfer.js).
+  var rowY = H - u * 2 - u * 2.5;
+  var rowW = Math.min(W - 60, this.char ? 400 : 240);
+  var rc2 = GAME.Layout.cols(this.char ? 2 : 1,
+    { gap: 10, width: rowW, left: (W - rowW) / 2, pad: 0 });
+  var carryCol = rc2[this.char ? 1 : 0];
+  GAME.UI.button(this, carryCol.cx, rowY, carryCol.w, u * 5, '이어하기', function () {
+    GAME.Modal.open(self, {
+      title: '기기 사이로 진행 옮기기',
+      items: [
+        { key: 'out', name: '이어하기 코드 만들기', note: '이 기기의 진행을 코드로 뽑는다' },
+        { key: 'in', name: '코드 붙여넣기', note: '다른 기기에서 뽑은 코드를 불러온다' },
+        { key: 'no', name: '닫기' }
+      ],
+      onPick: function (it) {
+        if (!it || it.key === 'no') return;
+        GAME.TransferUI.open(self, it.key === 'out' ? 'export' : 'import', function (changed) {
+          if (changed) self.scene.restart({ step: 'landing' });
+        });
+      }
+    });
+  }, { fontSize: P ? 13 : 13 });
 
   // 캐릭터 삭제 — 요청 4번의 유일한 "1층부터 다시" 경로. 확인 없이 지우면 실수로
   // 성장을 통째로 날릴 수 있어 반드시 팝업으로 한 번 더 확인한다.
   if (this.char) {
-    GAME.UI.button(this, W / 2, H - u * 2 - u * 2.5, Math.min(W - 60, 240), u * 5, '캐릭터 삭제', function () {
+    GAME.UI.button(this, rc2[0].cx, rowY, rc2[0].w, u * 5, '캐릭터 삭제', function () {
       GAME.Modal.open(self, {
         title: '캐릭터를 삭제할까요?',
         items: [

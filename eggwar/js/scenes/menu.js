@@ -52,6 +52,12 @@ GAME.MenuScene.prototype.create = function () {
     me + '  ·  누적 ' + rec.total.toLocaleString('ko-KR') + '점  ·  격파 ' + rec.rounds + '회' +
     (rank ? '  ·  ' + rank + '위' : ''),
     P ? 15 : 15, C.accent, 0.5);
+  //  ── 이어하기를 **찾을 수 있게** 한다 (2026-08-05 사용자 지시) ────────────────
+  //  기능을 만들어 두고 탑 허브 안쪽에만 두면 아무도 못 찾는다. 닉네임 바로 아래가
+  //  "이 계정은 이 기기 것"이라는 사실을 읽는 자리라, 그 한계를 말할 자리도 여기다.
+  GAME.UI.label(this, W / 2, u * 28,
+    '기기를 바꾸려면  통곡의 탑 → 이어하기', P ? 13 : 13, C.textFaint, 0.5);
+  this._carryNotice();
 
   var bw = Math.min(W - 60, 440);
 
@@ -301,10 +307,16 @@ GAME.MenuScene.prototype._buildPhone = function () {
   var nick = UI.text(this, lcx, y, me,
     { size: 20, color: C.accent, origin: 0.5, originY: 0, align: 'center', wrap: LW });
   y = nick.y + nick.height + 2;
-  UI.text(this, lcx, y,
+  var statLine = UI.text(this, lcx, y,
     '누적 ' + rec.total.toLocaleString('ko-KR') + '점  ·  격파 ' + rec.rounds + '회' +
     (rank ? ('  ·  ' + rank + '위') : ''),
     { size: 15, color: C.textDim, origin: 0.5, originY: 0, align: 'center', wrap: LW });
+  //  ⚠ 폰 가로는 왼쪽 열이 좁다 — 한 줄로 못 넣으면 아래 안내문을 밀어낸다.
+  //    그래서 짧게 끊어 쓴다(PC 문구와 뜻은 같다).
+  UI.text(this, lcx, statLine.y + statLine.height + 3,
+    '기기 바꿀 땐 통곡의 탑 → 이어하기',
+    { size: 13, color: C.textFaint, origin: 0.5, originY: 0, align: 'center', wrap: LW });
+  this._carryNotice();
 
   // 조작 안내는 간판 기둥 **바닥에서 위로** 쌓는다 — 위 문구가 길어져도 안 밀린다.
   var by = H - 14;
@@ -436,4 +448,41 @@ GAME.MenuScene.prototype._paradeStop = function () {
   //    (이 저장소가 '지연생성 가드'에서 반복해 겪은 사고).
   if (this._backdrop && this._backdrop.destroy) this._backdrop.destroy();
   this._backdrop = null;
+};
+
+// ── 이어하기 한 번 안내 (2026-08-05 사용자 지시: "옮기기 시스템 알려주거나") ──────
+//  기능을 만들어 놓고 안 알리면 없는 것과 같다. 다만 **한 번만** 말한다 —
+//  들어올 때마다 팝업이 뜨면 그건 안내가 아니라 방해다.
+//  ⚠ '봤음' 표시는 `GAME.Onboard` 의 저장소를 **그대로 빌려 쓴다**. 같은 성격의
+//    기록을 키 두 개로 나눠 두면 계정을 지울 때 한쪽만 남는다.
+//  ⚠ **이미 진행이 있는 사람에게만** 띄운다. 방금 시작한 사람에게 "옮기는 법"은
+//    아직 아무 뜻이 없다.
+//  ⚠ PIN(비밀번호) 은 **아직 서버에 없다.** 없는 기능을 안내하지 않는다 —
+//    올라가면 그때 이 문구에 덧붙인다.
+GAME.MenuScene.prototype._carryNotice = function () {
+  var ID = 'carry-code-v1';
+  if (!GAME.Onboard || !GAME.Modal) return;
+  if (GAME.Onboard.seen().indexOf(ID) >= 0) return;
+  var t = GAME.Tower && GAME.Tower.get ? GAME.Tower.get() : null;
+  var hasProgress = !!(t && ((t.best || 0) > 1 || (t.floor || 1) > 1));
+  if (!hasProgress) return;
+
+  var self = this;
+  //  씬이 다 그려진 뒤에 띄운다 — create 도중에 열면 뒤 화면이 아직 없어 어색하다.
+  this.time.delayedCall(400, function () {
+    if (!self.scene.isActive()) return;
+    GAME.Onboard.markSeen(ID);
+    GAME.Modal.open(self, {
+      title: '기기를 바꿔도 이어서 할 수 있습니다',
+      items: [
+        { key: 'go', name: '지금 코드 만들기',
+          note: '통곡의 탑 → 이어하기 에서 언제든 다시 열 수 있습니다' },
+        { key: 'no', name: '나중에',
+          note: '골드·장비·능력치·층은 이 기기에만 저장됩니다' }
+      ],
+      onPick: function (it) {
+        if (it && it.key === 'go') self.scene.start('Tower', {});
+      }
+    });
+  });
 };

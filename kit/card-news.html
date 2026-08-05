@@ -64,6 +64,7 @@
   .mini{min-width:34px;padding:4px 7px;font-size:12.5px;border-radius:7px;
         border:1px solid #3A4757;background:transparent;color:#93A1B4;cursor:pointer}
   .mini:hover{border-color:#3DD68C;color:#3DD68C}
+  .mini.got{border-color:#3DD68C;color:#3DD68C;background:rgba(61,214,140,.10)}
   .poolscore{flex:none;width:40px;text-align:center;font-weight:800;font-size:16px;font-variant-numeric:tabular-nums}
 </style>
 </head>
@@ -73,6 +74,7 @@
   <h1>📱 인스타 카드뉴스 생성기</h1>
   <select id="tool"></select>
   <button class="primary" id="dl">PNG 저장</button>
+  <button id="dl-auto" title="브라우저의 '자동 다운로드' 권한이 허용일 때만 동작합니다">한 번에 8장 시도</button>
   <span class="muted" id="status">1080×1080 · 도구 테마색 자동 적용</span>
 </header>
 
@@ -84,8 +86,10 @@
   <div class="caption-box">
     <h2>인스타 캡션 (복사해서 쓰세요)</h2>
     <textarea id="cap" spellcheck="false"></textarea>
-    <p class="note" id="dl-note" style="color:#C9A227">📥 버튼 한 번이면 <b>8장이 다운로드 폴더로 자동 저장</b>됩니다(1.2초 간격으로 한 장씩, 10초쯤 걸려요).<br>⚠️ <b>처음 한 번만</b>: 브라우저가 주소창 오른쪽에 <b>“파일 여러 개 다운로드를 차단했습니다”</b> 아이콘을 띄웁니다. 모달이 아니라 작은 아이콘이라 놓치기 쉬워요 — 그걸 눌러 <b>“항상 허용”</b>을 선택하면 그 뒤로는 안 물어보고 매번 8장이 다 떨어집니다.</p>
     <p class="note" id="dl-redo" hidden></p>
+    <p class="note" id="dl-note" style="color:#C9A227">📥 <b>[PNG 저장]을 8번 누르면</b> 다운로드 폴더에 8장이 들어갑니다. 버튼이 <b>“다음 장 저장 (3/8)”</b>으로 스스로 넘어가니 <b>같은 자리를 계속 누르시면</b> 돼요. 위 번호에 ✓가 찍히는 걸로 진행이 보입니다.<br>
+    <b>왜 한 번에 안 되나요?</b> 브라우저는 클릭 한 번에 파일 <b>하나만</b> 자동 저장을 허용합니다. 나머지는 <b>“자동 다운로드”</b> 사이트 권한이 있어야 하는데, 이게 차단이면 페이지가 무슨 수를 써도 첫 장만 저장됩니다(실제로 그랬습니다). 이 방식은 그 권한이 <b>아예 필요 없어서</b> 항상 됩니다.<br>
+    <b>한 번에 받고 싶으면</b>: 주소창 왼쪽 아이콘(자물쇠/슬라이더) → <b>사이트 설정</b> → <b>자동 다운로드</b> → <b>허용</b>으로 바꾼 뒤 <b>[한 번에 8장 시도]</b>를 누르세요.</p>
     <p class="note">2026 기준으로 다시 짰습니다 — <b>해시태그는 도달을 늘리지 않습니다</b>(Mosseri). 그래서 태그는 5~6개로 줄이고, 검색이 읽는 <b>키워드를 문장으로</b> 넣었어요. 첫 125자 안에 후킹이 오고, 마지막엔 댓글 + <b>DM 공유</b> 유도가 붙습니다(공유가 도달에 가장 크게 작동).</p>
   </div>
 
@@ -575,6 +579,7 @@ function render(){
   document.getElementById("cap").value = caption(cur);
   prepareDlUrls(sheet.querySelectorAll("canvas"));
   refreshDlButton();
+  renderRedoRow();      // 번호 버튼은 처음부터 보인다(진행 표시 겸용)
   document.getElementById("status").textContent =
     "[" + cur.stage + "] " + (sequence(cur).length + 1) + "장 · 1080×1080"
     + (over ? "  ⚠ 넘침 " + over + "장 — 원고를 줄여야 합니다" : "");
@@ -582,42 +587,51 @@ function render(){
 }
 
 /* =========================================================
-   PNG 저장 — 그냥 다운로드 폴더로 (2026-08-06, 태현님 3차 요청)
+   PNG 저장 (2026-08-06 4차) — 권한이 필요 없는 방식을 기본으로
 
-   ■ 요구
-     "브라우저에서 다운로드하면 다운로드 폴더로 가는 것처럼 폴더 선택을 생략해줘."
-     → 폴더 선택창(File System Access API)과 IndexedDB 기억을 전부 걷어냈다.
-       평범한 `<a download>` 다운로드만 쓴다. 저장 위치는 브라우저 설정을 그대로 따른다.
+   ■ 왜 또 바꿨나
+     "1장 때만 승인 물어보고, 8장까지 진행된다고 하는데 실제론 1장만 저장됐다."
+     상태 카운터가 8까지 갔다는 건 코드가 8번 다 시도했다는 뜻이다.
+     즉 **브라우저가 2번째부터 버렸다.** 여기서 확정된 사실:
 
-   ■ 이 방식의 알려진 약점과, 여기서 한 대응
-     브라우저는 **클릭 한 번에 자동 다운로드 하나**만 조용히 허용하고, 그 뒤로는
-     "이 사이트에서 파일 여러 개를 다운로드" 권한을 묻는다. 이 프롬프트는 모달이
-     아니라 **주소창 오른쪽 작은 아이콘**이라 못 보고 지나치기 쉽다 —
-     예전에 "일부만 저장된다"고 했던 게 이것이다. 허용을 한 번 누르면
-     그 사이트에는 영구 적용되고 그 뒤로는 8장이 전부 떨어진다.
+       **자동 다운로드 여러 건은 사이트 권한(Chrome: "자동 다운로드")에 달려 있고,
+       그게 차단이면 페이지가 무슨 짓을 해도 첫 장만 저장된다.**
+       간격(0.5→0.7→1.2초)도, 첫 장 동기 실행도, 앵커 정리 지연도 소용없다.
+       한 번 차단으로 굳으면 물어보지도 않고 계속 버린다.
 
-     페이지가 할 수 있는 건 여기까지다. **몇 장이 실제로 저장됐는지 알 방법이 없다**
-     (다운로드 API 에 성공/실패 콜백이 없다). 그래서 성공했다고 단정하지 않고
-     아래 두 가지로 받쳐둔다:
-       1) 간격을 넉넉히 준다(1.2초). 몰아치면 브라우저가 묶어서 버린다.
-       2) 저장 후 **번호 버튼(1~8)** 을 띄운다. 빠진 장이 있으면 그 번호만 눌러
-          바로 다시 받는다. 한 번 클릭 = 다운로드 한 건이라 이건 항상 성공한다.
+     지금까지 시도하고 전부 실패한 것 — **다시 시도하지 말 것**:
+       동시 클릭 / 0.5초 / 0.7초+동기 / 1.2초+지연정리.
 
-   ⚠️ a.click() 은 **클릭 핸들러 안에서 동기적으로** 실행돼야 사용자 제스처로
-      인정된다. canvas.toBlob 은 비동기라 그 안에서 부르면 제스처가 끊긴다.
+   ■ 그래서 기본을 바꿨다: **클릭 한 번 = 다운로드 한 건**
+     이건 권한이 아예 필요 없다. 각 클릭이 자기 제스처를 가지므로
+     브라우저가 항상 첫 건으로 취급해 허용한다. **100% 동작한다.**
+     대신 8번 눌러야 하므로, 누르는 부담을 최대한 줄였다:
+       - 큰 버튼이 "다음 장 저장 (3/8)" 로 스스로 진행한다. 위치가 안 바뀌니
+         같은 자리를 연타하면 된다.
+       - 번호 버튼 1~8 을 처음부터 띄우고 받은 장에 ✓ 를 찍는다.
+         뭘 받았고 뭐가 남았는지 눈으로 보인다.
+
+   ■ 한 번에 받고 싶으면 (선택)
+     [한 번에 8장 시도] 버튼을 따로 뒀다. 이건 위의 사이트 권한이 허용일 때만
+     동작한다 — 안내문에 켜는 방법을 적어뒀다. 켜져 있으면 이게 제일 편하다.
+
+   ⚠️ a.click() 은 **클릭 핸들러 안에서 동기적으로** 실행돼야 제스처로 인정된다.
+      canvas.toBlob 은 비동기라 그 안에서 부르면 제스처가 끊긴다.
       그래서 렌더 직후 미리 blob 을 만들어 둔다(prepareDlUrls).
    ⚠️ 앵커를 click() 직후 곧바로 제거하면 blob 다운로드가 취소되는 경우가 있다.
       제거는 잠시 뒤에 한다.
    ========================================================= */
-var DL_GAP  = 1200;   // 장 사이 간격(ms). 넉넉하게 — 느려도 빠지는 것보다 낫다.
+var DL_GAP  = 1200;   // [한 번에 8장 시도] 에서 쓰는 간격(ms)
 var dlUrls  = [];     // 카드별 blob URL
 var dlBlobs = [];     // 그 blob 원본
-var dlTimer = null;   // 진행 중인 자동 저장 타이머
+var dlTimer = null;   // 일괄 시도 진행 중
+var dlIdx   = 0;      // 한 장씩 모드에서 다음에 받을 장
+var dlGot   = {};     // 받은 장 표시 {인덱스:true}
 
 function clearDlUrls(){
   if (dlTimer) { clearTimeout(dlTimer); dlTimer = null; }
   dlUrls.forEach(function(u){ if (u) URL.revokeObjectURL(u); });
-  dlUrls = []; dlBlobs = [];
+  dlUrls = []; dlBlobs = []; dlIdx = 0; dlGot = {};
 }
 
 /* 렌더 직후 백그라운드로 PNG 를 인코딩해 둔다.
@@ -643,38 +657,46 @@ function downloadAt(i){
   var a = document.createElement("a");
   a.href = dlUrls[i];
   a.download = pngName(i);
-  a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
   /* ⚠️ 즉시 제거하지 않는다 — blob 다운로드가 취소될 수 있다 */
   setTimeout(function(){ if (a.parentNode) a.parentNode.removeChild(a); }, 4000);
+  dlGot[i] = true;
+  renderRedoRow();
   return true;
 }
+
+function cardCount(){ return sheet.querySelectorAll("canvas").length; }
 
 function refreshDlButton(){
   var btn = document.getElementById("dl");
   if (!btn) return;
-  var n = sheet.querySelectorAll("canvas").length;
-  btn.textContent = dlTimer ? "저장 중…" : "PNG " + n + "장 저장";
-  btn.disabled = !!dlTimer;
+  var n = cardCount();
+  if (dlTimer){ btn.textContent = "받는 중…"; btn.disabled = true; return; }
+  btn.disabled = false;
+  btn.textContent = (dlIdx >= n)
+    ? "처음부터 다시 받기"
+    : (dlIdx === 0 ? "PNG 저장 (1/" + n + ")" : "다음 장 저장 (" + (dlIdx+1) + "/" + n + ")");
 }
 
-/* 빠진 장을 한 번에 메우는 번호 버튼. 저장을 한 번이라도 돌리면 나타난다. */
+/* 번호 버튼 1~n — 받은 장에 ✓. 아무 때나 눌러 그 장만 다시 받는다. */
 function renderRedoRow(){
   var host = document.getElementById("dl-redo");
   if (!host) return;
-  var n = sheet.querySelectorAll("canvas").length;
-  host.innerHTML = "<span style=\"opacity:.8\">빠진 장이 있으면 그 번호를 누르세요 →</span> ";
+  var n = cardCount();
+  host.innerHTML = "";
+  var lab = document.createElement("span");
+  lab.style.opacity = ".8";
+  lab.textContent = "장별로 받기 → ";
+  host.appendChild(lab);
   for (var i = 0; i < n; i++){
     (function(i){
       var b = document.createElement("button");
       b.type = "button";
-      b.className = "mini";
-      b.textContent = String(i+1);
+      b.className = "mini" + (dlGot[i] ? " got" : "");
+      b.textContent = dlGot[i] ? (i+1) + "✓" : String(i+1);
       b.title = pngName(i);
-      b.addEventListener("click", function(){
-        if (downloadAt(i)) { b.textContent = i+1 + " ✓"; }
-      });
+      b.addEventListener("click", function(){ downloadAt(i); });
       host.appendChild(b);
       host.appendChild(document.createTextNode(" "));
     })(i);
@@ -682,43 +704,67 @@ function renderRedoRow(){
   host.hidden = false;
 }
 
+/* ---- 기본: 클릭 한 번 = 한 장 (권한 불필요, 항상 동작) ---- */
 document.getElementById("dl").addEventListener("click", function(){
-  if (dlTimer) return;                                  // 이미 진행 중
-  var cvs = Array.prototype.slice.call(sheet.querySelectorAll("canvas"));
-  var st  = document.getElementById("status");
-  if (!cvs.length) return;
-  var n = cvs.length;
+  if (dlTimer) return;
+  var n = cardCount(), st = document.getElementById("status");
+  if (!n) return;
 
-  /* 1장: 제스처 안에서 동기로 — 여기서 "여러 파일 허용" 프롬프트가 뜬다 */
-  if (!downloadAt(0)) {
+  if (dlIdx >= n){ dlIdx = 0; dlGot = {}; renderRedoRow(); }
+
+  if (!downloadAt(dlIdx)){
     st.textContent = "이미지 준비 중… 1~2초 뒤 다시 눌러주세요";
     st.style.color = "#C9A227";
     return;
   }
-  st.textContent = "1 / " + n + "장 내려받는 중… 주소창에 다운로드 허용 물음이 뜨면 '허용'";
+  dlIdx++;
+  if (dlIdx >= n){
+    st.textContent = "✅ " + n + "장 다 받았어요 — 다운로드 폴더를 확인해주세요";
+    st.style.color = "";
+    logAdd(cur, n);
+  } else {
+    st.textContent = dlIdx + " / " + n + "장 — 같은 버튼을 계속 눌러주세요";
+    st.style.color = "#C9A227";
+  }
+  refreshDlButton();
+});
+
+/* ---- 선택: 한 번에 8장 시도 (사이트 권한이 허용일 때만 동작) ---- */
+document.getElementById("dl-auto").addEventListener("click", function(){
+  if (dlTimer) return;
+  var n = cardCount(), st = document.getElementById("status");
+  if (!n) return;
+
+  dlIdx = 0; dlGot = {};
+  if (!downloadAt(0)){
+    st.textContent = "이미지 준비 중… 1~2초 뒤 다시 눌러주세요";
+    st.style.color = "#C9A227";
+    return;
+  }
+  dlIdx = 1;
+  st.textContent = "1 / " + n + "장… 차단 아이콘이 뜨면 '항상 허용'을 눌러주세요";
   st.style.color = "#C9A227";
 
-  /* 2장부터: 타이머가 이어받는다.
-     ⚠️ step 을 곧바로 부르면 안 된다 — 1장과 2장이 **0ms 간격으로 붙어서** 나가
-        브라우저가 둘을 묶어 버린다(실측으로 잡음). 반드시 첫 호출도 지연시킨다. */
   var i = 1;
   function step(){
-    if (i >= n) {
+    if (i >= n){
       dlTimer = null;
-      /* ⚠️ "전부 저장했어요" 라고 단정하지 않는다 — 페이지는 확인할 방법이 없다 */
-      st.textContent = n + "장 모두 내려받기를 요청했어요. 다운로드 폴더에서 "
-                     + n + "개인지 확인해주세요";
+      /* ⚠️ 성공을 단정하지 않는다. 다운로드는 성공 콜백이 없어서 페이지가 모른다.
+            권한이 차단이면 여기까지 와도 실제 파일은 1개뿐이다(실제로 겪음). */
+      st.textContent = n + "장 요청 완료 — 다운로드 폴더에 " + n
+                     + "개가 아니면, 위 번호 버튼으로 빠진 장만 받아주세요";
       st.style.color = "";
+      dlIdx = n;
       logAdd(cur, n);
       refreshDlButton();
-      renderRedoRow();
       return;
     }
     downloadAt(i);
-    i++;
-    st.textContent = i + " / " + n + "장 내려받는 중…";
+    i++; dlIdx = i;
+    st.textContent = i + " / " + n + "장 요청 중…";
     dlTimer = setTimeout(step, DL_GAP);
   }
+  /* ⚠️ 곧바로 부르면 1·2장이 0ms 간격으로 붙어 나간다(실측). 첫 호출도 지연시킨다. */
   dlTimer = setTimeout(step, DL_GAP);
   refreshDlButton();
 });

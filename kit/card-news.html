@@ -60,6 +60,10 @@
   .onedl{display:block;width:100%;margin-top:5px;font-size:11.5px;padding:5px 0;
          border-radius:7px;border:1px solid #3A4757;background:transparent;color:#93A1B4;cursor:pointer}
   .onedl:hover{border-color:#3DD68C;color:#3DD68C}
+  /* 빠진 장을 메우는 번호 버튼 (#dl-redo) — 저장을 한 번 돌리면 나타난다 */
+  .mini{min-width:34px;padding:4px 7px;font-size:12.5px;border-radius:7px;
+        border:1px solid #3A4757;background:transparent;color:#93A1B4;cursor:pointer}
+  .mini:hover{border-color:#3DD68C;color:#3DD68C}
   .poolscore{flex:none;width:40px;text-align:center;font-weight:800;font-size:16px;font-variant-numeric:tabular-nums}
 </style>
 </head>
@@ -80,7 +84,8 @@
   <div class="caption-box">
     <h2>인스타 캡션 (복사해서 쓰세요)</h2>
     <textarea id="cap" spellcheck="false"></textarea>
-    <p class="note" id="dl-note" style="color:#C9A227"></p>
+    <p class="note" id="dl-note" style="color:#C9A227">📥 버튼 한 번이면 <b>8장이 다운로드 폴더로 자동 저장</b>됩니다(1.2초 간격으로 한 장씩, 10초쯤 걸려요).<br>⚠️ <b>처음 한 번만</b>: 브라우저가 주소창 오른쪽에 <b>“파일 여러 개 다운로드를 차단했습니다”</b> 아이콘을 띄웁니다. 모달이 아니라 작은 아이콘이라 놓치기 쉬워요 — 그걸 눌러 <b>“항상 허용”</b>을 선택하면 그 뒤로는 안 물어보고 매번 8장이 다 떨어집니다.</p>
+    <p class="note" id="dl-redo" hidden></p>
     <p class="note">2026 기준으로 다시 짰습니다 — <b>해시태그는 도달을 늘리지 않습니다</b>(Mosseri). 그래서 태그는 5~6개로 줄이고, 검색이 읽는 <b>키워드를 문장으로</b> 넣었어요. 첫 125자 안에 후킹이 오고, 마지막엔 댓글 + <b>DM 공유</b> 유도가 붙습니다(공유가 도달에 가장 크게 작동).</p>
   </div>
 
@@ -577,171 +582,46 @@ function render(){
 }
 
 /* =========================================================
-   PNG 저장 — 폴더에 직접 쓴다 (2026-08-06 최종, 이게 정답)
+   PNG 저장 — 그냥 다운로드 폴더로 (2026-08-06, 태현님 3차 요청)
 
-   ■ 여기까지 온 경과 (전부 실패한 시도들 — 다시 시도하지 말 것)
-     1) 8장을 한꺼번에 a.click() → **한 장만** 저장됐다.
-     2) 0.5초 간격 순차 → 같은 결과.
-     3) 0.7초 간격 + 첫 장을 제스처 안에서 동기 실행 → **여전히 일부만** 저장됐다.
-     4) "탭 한 번 = 한 장" → 되긴 하지만 8번 눌러야 해서 번거롭다.
-     5) ZIP → 확실하지만 이미지로 바로 받길 원하셨다.
+   ■ 요구
+     "브라우저에서 다운로드하면 다운로드 폴더로 가는 것처럼 폴더 선택을 생략해줘."
+     → 폴더 선택창(File System Access API)과 IndexedDB 기억을 전부 걷어냈다.
+       평범한 `<a download>` 다운로드만 쓴다. 저장 위치는 브라우저 설정을 그대로 따른다.
 
-   ■ 왜 1~3이 전부 실패했나
-     **다운로드(a.click)를 쓰는 한 절대 안정적으로 안 된다.** 브라우저는
-     "자동 다운로드 여러 건"을 사이트 권한으로 취급하고, 허용을 눌러도
-     짧은 시간에 몰린 요청을 묶어서 버리거나 중간부터 조용히 무시한다.
-     간격을 늘리는 건 완화일 뿐 보장이 아니다. **몇 장이 저장될지 페이지가
-     알 수도, 확인할 수도 없다** — 이게 가장 큰 문제였다.
+   ■ 이 방식의 알려진 약점과, 여기서 한 대응
+     브라우저는 **클릭 한 번에 자동 다운로드 하나**만 조용히 허용하고, 그 뒤로는
+     "이 사이트에서 파일 여러 개를 다운로드" 권한을 묻는다. 이 프롬프트는 모달이
+     아니라 **주소창 오른쪽 작은 아이콘**이라 못 보고 지나치기 쉽다 —
+     예전에 "일부만 저장된다"고 했던 게 이것이다. 허용을 한 번 누르면
+     그 사이트에는 영구 적용되고 그 뒤로는 8장이 전부 떨어진다.
 
-   ■ 그래서: File System Access API 로 **폴더에 직접 파일을 쓴다**
-     `showDirectoryPicker()` 로 폴더를 고르면, 그 뒤 쓰기는 다운로드가
-     아니라 **파일시스템 쓰기**다. 다운로드 건수 제한이 아예 적용되지 않는다.
-     한 장씩 await 로 순서대로 쓰므로 **몇 장이 실제로 쓰였는지 정확히 안다.**
+     페이지가 할 수 있는 건 여기까지다. **몇 장이 실제로 저장됐는지 알 방법이 없다**
+     (다운로드 API 에 성공/실패 콜백이 없다). 그래서 성공했다고 단정하지 않고
+     아래 두 가지로 받쳐둔다:
+       1) 간격을 넉넉히 준다(1.2초). 몰아치면 브라우저가 묶어서 버린다.
+       2) 저장 후 **번호 버튼(1~8)** 을 띄운다. 빠진 장이 있으면 그 번호만 눌러
+          바로 다시 받는다. 한 번 클릭 = 다운로드 한 건이라 이건 항상 성공한다.
 
-   ■ "그냥 다운로드 폴더에 자동으로 넣어줘" (2026-08-06 태현님 요청)
-     **웹페이지가 사용자 지정 없이 디스크에 쓰는 건 브라우저가 원천 차단한다.**
-     어느 사이트든 다운로드 폴더를 마음대로 읽고 쓸 수 있으면 안 되니까 —
-     이건 우회 수단이 없는 보안 경계다. 대신 할 수 있는 최선은 이것:
-
-       1) **처음 한 번만** 폴더를 고른다. 선택창이 `startIn:"downloads"` 로
-          **다운로드 폴더에서 열리므로** 그대로 [폴더 선택]만 누르면 된다.
-       2) 고른 폴더 핸들을 **IndexedDB 에 저장**한다(핸들은 구조화 복제가 되므로
-          localStorage 와 달리 그대로 보관된다).
-       3) 다음부터는 버튼만 누르면 **선택창 없이** 그 폴더로 바로 저장된다.
-          페이지를 새로 열었을 때만 브라우저가 "파일 편집 허용?" 을 한 번 묻는데
-          (권한이 탭 단위로 초기화되기 때문) **클릭 한 번이고 폴더 선택창이 아니다.**
-
-     폴더를 바꾸고 싶으면 안내문의 [폴더 바꾸기] 로 다시 고를 수 있다.
-
-   ■ 폴백 (Chrome/Edge 데스크톱이 아닌 경우 — iOS Safari, Firefox 등)
-     showDirectoryPicker 가 없으면 예전의 "탭 한 번 = 한 장" 방식으로 떨어진다.
-     느리지만 **저장 안 되는 것보다 확실한 게 낫다.** 어느 쪽이든 카드마다 있는
-     [이 장만 저장] 버튼은 그대로 남는다.
+   ⚠️ a.click() 은 **클릭 핸들러 안에서 동기적으로** 실행돼야 사용자 제스처로
+      인정된다. canvas.toBlob 은 비동기라 그 안에서 부르면 제스처가 끊긴다.
+      그래서 렌더 직후 미리 blob 을 만들어 둔다(prepareDlUrls).
+   ⚠️ 앵커를 click() 직후 곧바로 제거하면 blob 다운로드가 취소되는 경우가 있다.
+      제거는 잠시 뒤에 한다.
    ========================================================= */
-var HAS_FS = (typeof window.showDirectoryPicker === "function");
-
-/* ---------- 저장 폴더 기억하기 (IndexedDB) ----------
-   ⚠️ localStorage 는 문자열만 담아서 디렉터리 핸들을 못 넣는다. IndexedDB 는
-      구조화 복제라 핸들을 그대로 보관할 수 있다 — 이 용도로 IDB 를 쓰는 이유. */
-var DIR_DB = "gaksal-cardnews", DIR_STORE = "handles", DIR_KEY = "saveDir";
-
-function dirDb(){
-  return new Promise(function(res, rej){
-    var rq = indexedDB.open(DIR_DB, 1);
-    rq.onupgradeneeded = function(){ rq.result.createObjectStore(DIR_STORE); };
-    rq.onsuccess = function(){ res(rq.result); };
-    rq.onerror   = function(){ rej(rq.error); };
-    setTimeout(function(){ rej(new Error("IndexedDB 응답 없음")); }, 5000);
-  });
-}
-/* ⚠️ 꺼낸 값이 진짜 디렉터리 핸들인지 확인한다. 예전 형식이 남아 있거나
-      값이 깨져 있으면 안내문에 "저장 폴더: undefined" 가 뜨고 저장이 실패한다
-      (실제로 겪음). 모양이 안 맞으면 없는 것으로 취급한다. */
-function isDirHandle(v){
-  return !!v && typeof v.getFileHandle === "function"
-             && typeof v.queryPermission === "function"
-             && typeof v.name === "string";
-}
-function dirGet(){
-  return dirDb().then(function(db){
-    return new Promise(function(res){
-      var rq = db.transaction(DIR_STORE, "readonly").objectStore(DIR_STORE).get(DIR_KEY);
-      rq.onsuccess = function(){ res(isDirHandle(rq.result) ? rq.result : null); };
-      rq.onerror   = function(){ res(null); };
-    });
-  })["catch"](function(){ return null; });
-}
-function dirPut(handle){
-  return dirDb().then(function(db){
-    db.transaction(DIR_STORE, "readwrite").objectStore(DIR_STORE).put(handle, DIR_KEY);
-  })["catch"](function(){ /* 기억 못 해도 저장 자체는 되므로 무시 */ });
-}
-
-/* 기억해둔 폴더 핸들. **페이지 로드 때 미리 읽어둔다.**
-   ⚠️ 클릭 핸들러 안에서 IndexedDB 를 읽으면 안 된다. showDirectoryPicker 와
-      requestPermission 은 **사용자 제스처가 살아 있을 때만**(약 5초) 동작하는데,
-      IndexedDB open 은 물리면 응답이 아주 늦거나 아예 안 온다(실제로 겪음).
-      그 사이 제스처가 만료돼 "must be handling a user gesture" 로 실패한다.
-      → 로드 시점에 미리 읽어 이 변수에 담아두고, 클릭 때는 동기적으로 꺼내 쓴다. */
-var savedDir = null;
-
-/* 저장에 쓸 폴더를 확보한다.
-   기억해둔 폴더가 있으면 권한만 다시 받고(클릭 한 번), 없으면 선택창을 연다.
-   ⚠️ 반드시 클릭 핸들러 안에서 부르고, 그 앞에 다른 await 를 두지 않는다. */
-async function ensureSaveDir(forcePick){
-  if (!forcePick && savedDir){
-    var opt = { mode: "readwrite" };
-    var p = await savedDir.queryPermission(opt);
-    if (p !== "granted") p = await savedDir.requestPermission(opt);
-    if (p === "granted") return savedDir;
-    /* 거부했으면 아래로 떨어져 새로 고르게 한다 */
-  }
-  var dir = await window.showDirectoryPicker({
-    id: "gaksal-cardnews", mode: "readwrite", startIn: "downloads"
-  });
-  savedDir = dir;
-  dirPut(dir);            // 기억은 배경에서 — 저장을 기다리게 하지 않는다
-  return dir;
-}
-
-/* 안내문 — 기억된 폴더가 있으면 그 이름을 보여준다 */
-var savedDirName = null;      // 버튼 라벨도 이 값에 따라 달라진다
-
-function noteHtml(saved){
-  if (!HAS_FS){
-    return "📥 이 브라우저는 폴더 저장을 지원하지 않아 <b>버튼을 누를 때마다 한 장씩</b> 저장됩니다. "
-      + "8장이면 8번 눌러주세요. Chrome·Edge(PC)에서 열면 한 번에 전부 저장됩니다.";
-  }
-  return saved
-    ? "📁 저장 폴더: <b>" + saved.name + "</b> — 버튼만 누르면 전부 여기에 들어갑니다. "
-      + "(페이지를 새로 열면 브라우저가 <b>“파일 편집 허용”</b>을 한 번 묻습니다. 폴더 선택창이 아니라 클릭 한 번이에요) "
-      + "<a href=\"#\" id=\"dl-repick\">폴더 바꾸기</a>"
-    : "📁 <b>처음 한 번만</b> 저장할 폴더를 골라주세요. 선택창이 <b>다운로드 폴더에서 열리니</b> "
-      + "그대로 [폴더 선택]을 누르시면 됩니다. 그 뒤로는 버튼만 누르면 바로 저장돼요. "
-      + "<br><span style=\"opacity:.75\">웹페이지가 폴더 지정 없이 디스크에 쓰는 건 브라우저가 막아둬서, 이 한 번은 생략할 수 없습니다.</span>";
-}
-
-function paintDlNote(saved){
-  var el = document.getElementById("dl-note");
-  el.innerHTML = noteHtml(saved);
-  var re = document.getElementById("dl-repick");
-  if (re) re.addEventListener("click", function(ev){
-    ev.preventDefault();
-    var cvs = Array.prototype.slice.call(sheet.querySelectorAll("canvas"));
-    if (cvs.length) saveAllToFolder(cvs, document.getElementById("status"), true);
-  });
-}
-
-function renderDlNote(){
-  /* ⚠️ 먼저 동기적으로 그린다. IndexedDB 읽기가 늦어지면(느리거나 아예 안 오면)
-        안내문이 빈 채로 남는 일이 실제로 있었다. 기본 문구를 먼저 띄우고,
-        기억된 폴더가 확인되면 그때 올려 쓴다. */
-  savedDirName = savedDir ? savedDir.name : null;
-  refreshDlButton();          // 폴더가 기억되면 버튼에서 "(폴더 선택)" 이 빠진다
-  paintDlNote(savedDir);
-  if (!HAS_FS || savedDir) return;
-  dirGet().then(function(saved){
-    if (!saved) return;
-    savedDir = saved; savedDirName = saved.name;
-    refreshDlButton();
-    paintDlNote(saved);
-  });
-}
-renderDlNote();
-var dlUrls  = [];     // 카드별 blob URL (폴백·개별저장용 a.download)
-var dlBlobs = [];     // 그 blob 원본 — 폴더 저장 때 재인코딩 없이 그대로 쓴다
-var dlIdx   = 0;      // 폴백 모드에서 다음에 저장할 장
-var dlBusy  = false;  // 폴더 저장 진행 중
+var DL_GAP  = 1200;   // 장 사이 간격(ms). 넉넉하게 — 느려도 빠지는 것보다 낫다.
+var dlUrls  = [];     // 카드별 blob URL
+var dlBlobs = [];     // 그 blob 원본
+var dlTimer = null;   // 진행 중인 자동 저장 타이머
 
 function clearDlUrls(){
+  if (dlTimer) { clearTimeout(dlTimer); dlTimer = null; }
   dlUrls.forEach(function(u){ if (u) URL.revokeObjectURL(u); });
-  dlUrls = []; dlBlobs = []; dlIdx = 0;
+  dlUrls = []; dlBlobs = [];
 }
 
 /* 렌더 직후 백그라운드로 PNG 를 인코딩해 둔다.
-   ⚠️ blob 자체도 보관한다 — 저장할 때 다시 toBlob 을 부르면
-      1080×1080 을 8번 재인코딩하게 되고, 그만큼 저장이 느려지고
-      인코딩이 지연되는 상황에서 저장이 통째로 멈출 수 있다. */
+   저장 시점에 toBlob 을 부르면 제스처가 끊겨 다운로드 자체가 안 된다. */
 function prepareDlUrls(cvs){
   clearDlUrls();
   Array.prototype.forEach.call(cvs, function(cv, i){
@@ -753,124 +633,93 @@ function prepareDlUrls(cvs){
   });
 }
 
-/* 동기 실행 — 클릭 핸들러 안에서 부른다 (개별 저장 · 폴백 전용) */
+function pngName(i){
+  return cur.id + "-" + String(i+1).padStart(2,"0") + ".png";
+}
+
+/* 동기 실행 — 반드시 클릭 핸들러 안에서 부른다 */
 function downloadAt(i){
   if (!dlUrls[i]) return false;
   var a = document.createElement("a");
   a.href = dlUrls[i];
   a.download = pngName(i);
+  a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
+  /* ⚠️ 즉시 제거하지 않는다 — blob 다운로드가 취소될 수 있다 */
+  setTimeout(function(){ if (a.parentNode) a.parentNode.removeChild(a); }, 4000);
   return true;
-}
-
-function pngName(i){
-  return cur.id + "-" + String(i+1).padStart(2,"0") + ".png";
-}
-
-/* i번 카드의 PNG Blob. 미리 만들어둔 게 있으면 그걸 그대로 쓴다.
-   ⚠️ 타임아웃이 반드시 필요하다: toBlob 은 콜백을 **영원히 안 부를 수 있고**
-      (탭이 백그라운드일 때 실제로 겪었다) 그러면 저장 루프가 통째로 멈춰
-      버튼이 "저장 중…"에 갇힌다. 한 장이 막히면 그 장만 실패로 넘긴다. */
-function cardBlob(cv, i){
-  if (dlBlobs[i]) return Promise.resolve(dlBlobs[i]);
-  return new Promise(function(res, rej){
-    var settled = false;
-    var timer = setTimeout(function(){
-      if (!settled){ settled = true; rej(new Error("PNG 인코딩이 응답하지 않음")); }
-    }, 15000);
-    cv.toBlob(function(b){
-      if (settled) return;
-      settled = true; clearTimeout(timer);
-      if (b){ dlBlobs[i] = b; res(b); } else rej(new Error("toBlob 실패"));
-    }, "image/png");
-  });
 }
 
 function refreshDlButton(){
   var btn = document.getElementById("dl");
   if (!btn) return;
   var n = sheet.querySelectorAll("canvas").length;
-  if (HAS_FS){
-    btn.textContent = dlBusy ? "저장 중…"
-      : "PNG " + n + "장 저장" + (savedDirName ? "" : " (폴더 선택)");
-    btn.disabled = dlBusy;
-  } else {
-    btn.textContent = (dlIdx === 0)
-      ? "PNG 저장 (1/" + n + ")"
-      : (dlIdx >= n ? "처음부터 다시 저장" : "다음 장 저장 (" + (dlIdx+1) + "/" + n + ")");
-    btn.disabled = false;
-  }
+  btn.textContent = dlTimer ? "저장 중…" : "PNG " + n + "장 저장";
+  btn.disabled = !!dlTimer;
 }
 
-/* ---- 폴더에 직접 쓰기 (Chrome/Edge 데스크톱) ----
-   forcePick=true 면 기억해둔 폴더를 무시하고 다시 고른다([폴더 바꾸기]) */
-async function saveAllToFolder(cvs, st, forcePick){
-  var n = cvs.length, dir;
-  try {
-    dir = await ensureSaveDir(forcePick);
-  } catch (e) {
-    /* 사용자가 선택창을 닫은 것 — 오류가 아니다 */
-    st.textContent = "저장을 취소했어요";
-    st.style.color = "";
-    return;
-  }
-
-  dlBusy = true; refreshDlButton();
-  var done = 0, failed = [];
+/* 빠진 장을 한 번에 메우는 번호 버튼. 저장을 한 번이라도 돌리면 나타난다. */
+function renderRedoRow(){
+  var host = document.getElementById("dl-redo");
+  if (!host) return;
+  var n = sheet.querySelectorAll("canvas").length;
+  host.innerHTML = "<span style=\"opacity:.8\">빠진 장이 있으면 그 번호를 누르세요 →</span> ";
   for (var i = 0; i < n; i++){
-    st.textContent = "저장 중… " + (i+1) + " / " + n + "장";
-    st.style.color = "#C9A227";
-    try {
-      var blob = await cardBlob(cvs[i], i);
-      var fh = await dir.getFileHandle(pngName(i), { create: true });
-      var w  = await fh.createWritable();
-      await w.write(blob);
-      await w.close();
-      done++;
-    } catch (e) {
-      failed.push(i + 1);
-      console.error("저장 실패", pngName(i), e);
-    }
+    (function(i){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "mini";
+      b.textContent = String(i+1);
+      b.title = pngName(i);
+      b.addEventListener("click", function(){
+        if (downloadAt(i)) { b.textContent = i+1 + " ✓"; }
+      });
+      host.appendChild(b);
+      host.appendChild(document.createTextNode(" "));
+    })(i);
   }
-
-  dlBusy = false; refreshDlButton(); renderDlNote();
-  if (failed.length){
-    /* 실패를 숨기지 않는다 — 몇 번 카드가 안 됐는지 정확히 알려준다 */
-    st.textContent = done + " / " + n + "장 저장. 실패: " + failed.join(", ")
-                   + "번 — 카드 밑 [이 장만 저장]으로 받아주세요";
-    st.style.color = "#E08D95";
-  } else {
-    st.textContent = "✅ " + n + "장 전부 " + dir.name + " 폴더에 저장했어요";
-    st.style.color = "";
-  }
-  if (done > 0) logAdd(cur, done);
+  host.hidden = false;
 }
 
 document.getElementById("dl").addEventListener("click", function(){
+  if (dlTimer) return;                                  // 이미 진행 중
   var cvs = Array.prototype.slice.call(sheet.querySelectorAll("canvas"));
   var st  = document.getElementById("status");
-  if (!cvs.length || dlBusy) return;
+  if (!cvs.length) return;
+  var n = cvs.length;
 
-  if (HAS_FS){ saveAllToFolder(cvs, st); return; }
-
-  /* ---- 폴백: 탭 한 번 = 한 장 ---- */
-  if (dlIdx >= cvs.length) dlIdx = 0;
-  if (!downloadAt(dlIdx)){
+  /* 1장: 제스처 안에서 동기로 — 여기서 "여러 파일 허용" 프롬프트가 뜬다 */
+  if (!downloadAt(0)) {
     st.textContent = "이미지 준비 중… 1~2초 뒤 다시 눌러주세요";
     st.style.color = "#C9A227";
     return;
   }
-  dlIdx++;
-  if (dlIdx >= cvs.length){
-    st.textContent = cvs.length + "장 모두 저장했어요";
-    st.style.color = "";
-    logAdd(cur, cvs.length);
-  } else {
-    st.textContent = dlIdx + " / " + cvs.length + "장 저장 — 버튼을 다시 눌러주세요";
-    st.style.color = "#C9A227";
+  st.textContent = "1 / " + n + "장 내려받는 중… 주소창에 다운로드 허용 물음이 뜨면 '허용'";
+  st.style.color = "#C9A227";
+
+  /* 2장부터: 타이머가 이어받는다.
+     ⚠️ step 을 곧바로 부르면 안 된다 — 1장과 2장이 **0ms 간격으로 붙어서** 나가
+        브라우저가 둘을 묶어 버린다(실측으로 잡음). 반드시 첫 호출도 지연시킨다. */
+  var i = 1;
+  function step(){
+    if (i >= n) {
+      dlTimer = null;
+      /* ⚠️ "전부 저장했어요" 라고 단정하지 않는다 — 페이지는 확인할 방법이 없다 */
+      st.textContent = n + "장 모두 내려받기를 요청했어요. 다운로드 폴더에서 "
+                     + n + "개인지 확인해주세요";
+      st.style.color = "";
+      logAdd(cur, n);
+      refreshDlButton();
+      renderRedoRow();
+      return;
+    }
+    downloadAt(i);
+    i++;
+    st.textContent = i + " / " + n + "장 내려받는 중…";
+    dlTimer = setTimeout(step, DL_GAP);
   }
+  dlTimer = setTimeout(step, DL_GAP);
   refreshDlButton();
 });
 

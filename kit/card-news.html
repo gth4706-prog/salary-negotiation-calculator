@@ -80,7 +80,7 @@
   <div class="caption-box">
     <h2>인스타 캡션 (복사해서 쓰세요)</h2>
     <textarea id="cap" spellcheck="false"></textarea>
-    <p class="note" style="color:#C9A227">📥 <b>버튼을 누를 때마다 한 장씩</b> 저장됩니다. 8장이면 8번 누르시면 돼요. (브라우저가 클릭 한 번에 파일 하나만 허용해서 이렇게 만들었습니다) 카드마다 <b>[이 장만 저장]</b> 버튼으로 원하는 장만 받을 수도 있어요.</p>
+    <p class="note" style="color:#C9A227">📥 <b>한 번만 누르면 전체가 자동으로 저장</b>됩니다. 처음에 브라우저가 “파일 여러 개를 다운로드하도록 허용할까요?”를 물으면 <b>허용</b>을 눌러주세요(그 뒤로는 안 물어봅니다). 혹시 빠진 장이 있으면 카드 밑 <b>[이 장만 저장]</b>으로 받으시면 돼요.</p>
     <p class="note">2026 기준으로 다시 짰습니다 — <b>해시태그는 도달을 늘리지 않습니다</b>(Mosseri). 그래서 태그는 5~6개로 줄이고, 검색이 읽는 <b>키워드를 문장으로</b> 넣었어요. 첫 125자 안에 후킹이 오고, 마지막엔 댓글 + <b>DM 공유</b> 유도가 붙습니다(공유가 도달에 가장 크게 작동).</p>
   </div>
 
@@ -577,54 +577,51 @@ function render(){
 }
 
 /* =========================================================
-   PNG 저장 (2026-08-06 수정)
+   PNG 저장 — 한 번 누르면 끝까지 자동 (2026-08-06 최종)
 
-   ⚠️ 실제로 겪은 문제: "전체 PNG 저장"을 눌렀더니 **6번째 장 하나만** 저장됐다.
-      원인은 toBlob 콜백들이 거의 동시에 끝나면서 a.click() 이 한꺼번에 터졌기 때문.
-      브라우저는 사용자 제스처 한 번에 자동 다운로드를 하나만 허용하고 나머지를
-      조용히 버린다(모바일은 더 엄격하다).
-
-   그래서 **한 장씩 순서대로, 간격을 두고** 내려받는다.
-   그래도 브라우저가 "여러 파일 다운로드"를 물어보면 허용해야 한다 —
-   화면에 그 안내를 띄운다. 카드마다 개별 저장 버튼도 따로 뒀다(가장 확실한 경로).
-   ========================================================= */
-/* =========================================================
-   PNG 저장 — 한 번에 한 장씩 (2026-08-06 재설계)
-
-   ■ 지금까지의 경과
+   ■ 여기까지 온 경과
      1) 8장을 한꺼번에 내려받게 했더니 **한 장만** 저장됐다.
-        브라우저는 클릭 한 번(사용자 제스처 1회)에 자동 다운로드를 하나만 허용한다.
-     2) 0.5초 간격 순차 저장으로 바꿔도 결과는 같았다 —
-        간격 문제가 아니라 **제스처 하나에 묶여 있는 게 문제**였다.
-     3) ZIP 으로 묶는 방법은 동작했지만, 태현님이 이미지로 바로 받길 원하셨다.
+     2) 0.5초 간격 순차 저장으로 바꿔도 결과가 같았다.
+     3) ZIP 으로 묶으면 확실했지만 태현님이 이미지로 바로 받길 원하셨다.
+     4) 그래서 "탭 한 번 = 한 장"으로 바꿨더니 8번 눌러야 해서 번거로웠다.
+     → **지금: 한 번 누르면 나머지는 타이머가 자동으로 이어받는다.**
 
-   ■ 그래서 이렇게 한다
-     **탭 한 번 = 다운로드 한 건.** 버튼을 누를 때마다 다음 장이 저장되고
-     버튼 라벨이 "다음 장 저장 (3/8)" 로 바뀐다. 각 다운로드가 각자의 제스처를
-     가지므로 브라우저가 막지 않는다.
+   ■ 왜 이게 되는가 / 무엇이 필요한가
+     브라우저는 사용자 제스처 하나에 자동 다운로드를 **하나만** 조용히 허용하고,
+     같은 페이지가 곧이어 더 받으려 하면 **"이 사이트에서 파일 여러 개를 다운로드하도록
+     허용하시겠습니까?"** 를 한 번 묻는다. 여기서 **허용**을 누르면 그 사이트에는
+     권한이 남아 이후로는 묻지 않는다. 즉 막혔던 건 타이밍이 아니라 이 권한이었고,
+     간격을 벌리는 것만으로는 절대 풀리지 않는다.
+     → 첫 장은 클릭 핸들러 안에서 **동기로** 내려받아 제스처를 살리고(권한 프롬프트를
+       띄우는 방아쇠), 2장부터는 setTimeout 으로 이어받는다.
 
-   ⚠️ 핵심 제약: a.click() 이 **클릭 핸들러 안에서 동기적으로** 실행돼야
-      사용자 제스처로 인정된다. canvas.toBlob 은 비동기라 그 안에서 부르면
-      제스처가 끊긴다. 그래서 **미리 blob URL 을 만들어 두고**, 클릭 때는
-      만들어둔 URL 로 바로 내려받는다.
+   ⚠️ a.click() 이 클릭 핸들러 안에서 **동기적으로** 실행돼야 제스처로 인정된다.
+      canvas.toBlob 은 비동기라 그 안에서 부르면 제스처가 끊긴다.
+      그래서 렌더 직후 **미리 blob URL 을 만들어 둔다.**
+   ⚠️ 권한을 거부했거나 iOS Safari 처럼 다중 다운로드를 아예 막는 환경에서는
+      2장부터 조용히 버려진다. 그래서 **카드마다 [이 장만 저장] 버튼을 남겨둔다** —
+      이게 어떤 환경에서도 동작하는 최후 경로다. 자동 저장이 끝나면 화면에도
+      "안 받아진 장은 카드 밑 버튼으로" 안내를 띄운다.
    ========================================================= */
+var DL_GAP = 700;     // 장 사이 간격(ms). 너무 짧으면 브라우저가 묶어서 버린다.
 var dlUrls = [];      // 카드별 미리 만들어둔 blob URL
-var dlIdx  = 0;       // 다음에 저장할 장
+var dlTimer = null;   // 진행 중인 자동 저장 타이머
 
 function clearDlUrls(){
+  if (dlTimer) { clearTimeout(dlTimer); dlTimer = null; }
   dlUrls.forEach(function(u){ if (u) URL.revokeObjectURL(u); });
-  dlUrls = []; dlIdx = 0;
+  dlUrls = [];
 }
 
 /* 렌더 직후 백그라운드로 blob URL 을 만들어 둔다 */
 function prepareDlUrls(cvs){
   clearDlUrls();
-  cvs.forEach(function(cv, i){
+  Array.prototype.forEach.call(cvs, function(cv, i){
     cv.toBlob(function(blob){ dlUrls[i] = URL.createObjectURL(blob); }, "image/png");
   });
 }
 
-/* 동기 실행 — 반드시 클릭 핸들러 안에서 부른다 */
+/* 동기 실행 — 첫 장은 반드시 클릭 핸들러 안에서 부른다 */
 function downloadAt(i){
   if (!dlUrls[i]) return false;
   var a = document.createElement("a");
@@ -638,34 +635,44 @@ function downloadAt(i){
 
 function refreshDlButton(){
   var btn = document.getElementById("dl");
+  if (!btn) return;
   var n = sheet.querySelectorAll("canvas").length;
-  btn.textContent = (dlIdx === 0)
-    ? "PNG 저장 (1/" + n + ")"
-    : (dlIdx >= n ? "처음부터 다시 저장" : "다음 장 저장 (" + (dlIdx+1) + "/" + n + ")");
+  btn.textContent = dlTimer ? "저장 중…" : "PNG " + n + "장 저장";
+  btn.disabled = !!dlTimer;
 }
 
 document.getElementById("dl").addEventListener("click", function(){
+  if (dlTimer) return;                                   // 이미 진행 중
   var cvs = Array.prototype.slice.call(sheet.querySelectorAll("canvas"));
   var st = document.getElementById("status");
   if (!cvs.length) return;
+  var n = cvs.length;
 
-  if (dlIdx >= cvs.length) { dlIdx = 0; }          // 다 받았으면 처음부터
-
-  if (!downloadAt(dlIdx)) {
-    st.textContent = "이미지 준비 중… 잠시 뒤 다시 눌러주세요";
+  /* 1장: 제스처 안에서 동기로 — 여기서 "여러 파일 허용" 프롬프트가 뜬다 */
+  if (!downloadAt(0)) {
+    st.textContent = "이미지 준비 중… 1~2초 뒤 다시 눌러주세요";
     st.style.color = "#C9A227";
     return;
   }
+  st.textContent = "1 / " + n + "장 저장 중… (여러 파일 허용을 물으면 '허용')";
+  st.style.color = "#C9A227";
 
-  dlIdx++;
-  if (dlIdx >= cvs.length){
-    st.textContent = cvs.length + "장 모두 저장했어요";
-    st.style.color = "";
-    logAdd(cur, cvs.length);
-  } else {
-    st.textContent = dlIdx + " / " + cvs.length + "장 저장 — 버튼을 다시 눌러주세요";
-    st.style.color = "#C9A227";
-  }
+  /* 2장부터: 타이머가 이어받는다 */
+  var i = 1;
+  (function step(){
+    if (i >= n) {
+      dlTimer = null;
+      st.textContent = n + "장 저장했어요 — 빠진 장이 있으면 카드 밑 [이 장만 저장]으로";
+      st.style.color = "";
+      logAdd(cur, n);
+      refreshDlButton();
+      return;
+    }
+    downloadAt(i);
+    i++;
+    st.textContent = i + " / " + n + "장 저장 중…";
+    dlTimer = setTimeout(step, DL_GAP);
+  })();
   refreshDlButton();
 });
 

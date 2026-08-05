@@ -22,7 +22,7 @@
   .sheet{display:flex;gap:16px;flex-wrap:wrap}
   figure{margin:0}
   figcaption{font-size:12px;color:#93A1B4;padding:6px 2px}
-  canvas{width:270px;height:270px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.5);display:block}
+  canvas{width:270px;height:337px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.5);display:block}
   .caption-box{margin-top:26px;background:#1A222C;border:1px solid #2A3341;border-radius:10px;padding:16px 18px}
   .caption-box h2{font-size:14px;margin:0 0 10px}
   textarea{width:100%;min-height:210px;font:inherit;font-size:13.5px;line-height:1.75;background:#0F1319;color:#E9EEF5;border:1px solid #2A3341;border-radius:8px;padding:13px;resize:vertical}
@@ -36,7 +36,7 @@
     .stagebar{padding:11px 16px;gap:6px}
     .chip{font-size:12px;padding:6px 11px}
     .sheet{gap:12px;justify-content:center}
-    canvas{width:min(46vw,220px);height:min(46vw,220px)}
+    canvas{width:min(46vw,220px);height:min(57.5vw,275px)}
     .caption-box{padding:13px 14px}
     textarea{min-height:260px;font-size:13px}
   }
@@ -75,7 +75,7 @@
   <select id="tool"></select>
   <button class="primary" id="dl">PNG 저장</button>
   <button id="dl-auto" title="브라우저의 '자동 다운로드' 권한이 허용일 때만 동작합니다">한 번에 8장 시도</button>
-  <span class="muted" id="status">1080×1080 · 도구 테마색 자동 적용</span>
+  <span class="muted" id="status">1080×1350(4:5) · 도구 테마색 자동 적용</span>
 </header>
 
 <div id="stagebar" class="stagebar"></div>
@@ -117,7 +117,14 @@
    ⚠️ 웹폰트가 로드되기 전에 그리면 기본 폰트로 찍힌다 —
       반드시 document.fonts.ready 를 기다린 뒤 그릴 것.
    ========================================================= */
-var S = 1080;                 // 인스타 정사각 권장 해상도
+/* ⚠️ 4:5 세로형(1080×1350). 2026-08-06 변경 — 정사각(1080×1080)에서 바꿨다.
+   이유: 인스타 **프로필 그리드가 4:5 세로 타일**이라, 정사각으로 올리면
+   좌우가 각각 10%씩 잘린다. 피드에서는 멀쩡한데 프로필에서만 글자가 잘려
+   보이는 게 이것이다(태현님이 실제로 겪음).
+   4:5 로 만들면 피드·프로필 **양쪽 모두 잘림 없이** 나오고, 피드에서 차지하는
+   세로 면적도 커진다. 캐러셀은 장마다 비율이 같아야 하므로 전 장을 4:5 로 통일한다.
+   ⚠️ 가로(CW)와 세로(CH)를 구분해서 쓸 것. 예전엔 S 하나로 둘 다 썼다. */
+var CW = 1080, CH = 1350;
 var PAD = 96;
 
 /* ⚠️ 데이터 파일(card-data.js / story-data.js)이 안 실리면 예전에는 스크립트가
@@ -212,18 +219,18 @@ function partLabel(t, i){
 function drawCard(cv, tool, idx){
   var ctx = cv.getContext("2d");
   var CARDS = sequence(tool);
-  cv.width = S; cv.height = S;
+  cv.width = CW; cv.height = CH;
   var isCover = idx === 0;
   var isLast  = idx === CARDS.length;   // 마지막 = 결(소재) / CTA(도구)
 
   /* 배경 */
   ctx.fillStyle = isCover ? tool.color : tool.paper;
-  ctx.fillRect(0,0,S,S);
+  ctx.fillRect(0,0,CW,CH);
 
   /* 표지: 대각선 결 — 단조로운 단색을 피한다 */
   if (isCover){
     ctx.save(); ctx.globalAlpha = .07; ctx.strokeStyle = "#fff"; ctx.lineWidth = 26;
-    for (var i=-S; i<S*2; i+=90){ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i-S,S); ctx.stroke(); }
+    for (var i=-CH; i<CW+CH; i+=90){ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i-CH,CH); ctx.stroke(); }
     ctx.restore();
   }
 
@@ -246,27 +253,30 @@ function drawCard(cv, tool, idx){
 
     /* 표지도 자동 맞춤 — 후킹이 길어지면 글자를 줄여서라도 화면 안에 넣는다.
        4줄을 넘거나 세로가 넘치면 축소한다. */
+    /* ⚠️ 4:5 로 바꾸면서 키웠다(88→104). 정사각 기준 크기 그대로 두니 세로가
+       270px 늘어난 만큼 위아래가 휑하게 비었다. 표지는 프로필 그리드의 썸네일이라
+       글자가 클수록 유리하다. 길면 아래 루프가 알아서 줄인다. */
     ctx.fillStyle = "#fff";
-    var hs = 88, hl = 112, lines;
+    var hs = 104, hl = 132, lines;
     for (var k = 0; k < 6; k++){
       ctx.font = "800 " + hs + "px 'Pretendard Variable',sans-serif";
-      lines = wrap(ctx, tool.hook, S - PAD*2);
-      if (lines.length <= 4 && lines.length * hl < S - PAD*2 - 200) break;
+      lines = wrap(ctx, tool.hook, CW - PAD*2);
+      if (lines.length <= 4 && lines.length * hl < CH - PAD*2 - 200) break;
       hs *= 0.9; hl *= 0.9;
     }
-    var y = S/2 - (lines.length*hl)/2 + 20;
+    var y = CH/2 - (lines.length*hl)/2 + 20;
     lines.forEach(function(l){ ctx.fillText(l, PAD, y); y += hl; });
     cv.dataset.overflow = (lines.length > 4) ? "1" : "";
 
-    ctx.font = "500 40px 'Pretendard Variable',sans-serif";
+    ctx.font = "500 46px 'Pretendard Variable',sans-serif";
     ctx.fillStyle = "rgba(255,255,255,.9)";
-    wrap(ctx, tool.sub, S - PAD*2).forEach(function(l, i){
-      ctx.fillText(l, PAD, y + 18 + i*52);
+    wrap(ctx, tool.sub, CW - PAD*2).forEach(function(l, i){
+      ctx.fillText(l, PAD, y + 22 + i*60);
     });
 
     ctx.font = "800 34px 'Pretendard Variable',sans-serif";
     ctx.fillStyle = "rgba(255,255,255,.95)";
-    ctx.fillText(tool.name, PAD, S - PAD - 26);
+    ctx.fillText(tool.name, PAD, CH - PAD - 26);
     return;
   }
 
@@ -290,25 +300,28 @@ function drawCard(cv, tool, idx){
      들어맞을 때까지 반복한다. 78% 까지 줄여도 안 들어가면 화면에 경고를 띄운다
      (그건 폰트 문제가 아니라 **원고가 너무 긴 것**이라 사람이 고쳐야 한다).
      ========================================================= */
-  var W = S - PAD*2;
+  var W = CW - PAD*2;
   /* 마지막 카드엔 하단 박스가 있다. 소재의 질문 박스는 길이에 따라 커지므로
      **먼저 그 높이를 재서** 본문 안전 영역을 정한다.
      ⚠️ 예전엔 190px 로 고정해서, 질문이 길어지면 본문과 겹쳤다(2026-08-05). */
   var bottomGuard;
   if (isLast && tool.kind === "story"){
     ctx.font = "800 40px 'Pretendard Variable',sans-serif";
-    bottomGuard = wrap(ctx, tool.ask, S - PAD*2 - 70).length * 54 + 44 + 30;
+    bottomGuard = wrap(ctx, tool.ask, CW - PAD*2 - 70).length * 54 + 44 + 30;
   } else if (isLast){
     bottomGuard = 145;
   } else {
     bottomGuard = 74;                          // 일반 카드엔 하단 시리즈명
   }
-  var safeBottom = S - PAD - bottomGuard;
+  var safeBottom = CH - PAD - bottomGuard;
   var topY = PAD + 168;
 
   function layout(scale){
-    var tSize = 62 * scale, tLine = 78 * scale;
-    var bSize = 46 * scale, bLine = 70 * scale;
+    /* ⚠️ 4:5 로 바꾸면서 키웠다(소제목 62→70, 본문 46→52). 세로가 늘어나 안전
+       영역이 270px 넓어졌으므로 그만큼 글자를 키워도 들어간다. 모바일 피드에서
+       본문 글자가 클수록 읽힌다. 길면 아래 STEPS 루프가 알아서 줄인다. */
+    var tSize = 70 * scale, tLine = 88 * scale;
+    var bSize = 52 * scale, bLine = 80 * scale;
     ctx.font = "800 " + tSize + "px 'Pretendard Variable',sans-serif";
     var tl = wrap(ctx, card.t, W);
     ctx.font = "500 " + bSize + "px 'Pretendard Variable',sans-serif";
@@ -344,10 +357,20 @@ function drawCard(cv, tool, idx){
   cv.dataset.clipped = didClip ? "1" : "";
   cv.dataset.scale = String(scale);
 
+  /* 세로 균형 (2026-08-06, 4:5 로 바꾸면서 추가)
+     정사각 때는 본문이 위에서 시작해도 아래가 적당히 찼는데, 세로가 270px 늘어나자
+     **본문 아래가 휑하게 비어** 글이 위로 쏠려 보였다. 남는 공간의 일부만큼 내려
+     블록을 광학 중심에 놓는다(0.42 = 정중앙보다 살짝 위. 정중앙에 두면 시각적으로는
+     아래로 처져 보인다).
+     ⚠️ 넘쳐서 잘린 카드는 남는 공간이 없으므로 그대로 위에서 시작한다. */
+  var blockH = L.tl.length * L.tLine + L.ruleToBody + L.bl.length * L.bLine;
+  var slack  = safeBottom - topY - blockH;
+  var startY = topY + (slack > 0 ? slack * 0.42 : 0);
+
   /* 소제목 */
   ctx.fillStyle = ink;
   ctx.font = "800 " + L.tSize + "px 'Pretendard Variable',sans-serif";
-  var ty = topY;
+  var ty = startY;
   L.tl.forEach(function(l){ ctx.fillText(l, PAD, ty); ty += L.tLine; });
 
   /* 강조선 */
@@ -372,38 +395,38 @@ function drawCard(cv, tool, idx){
     var qMaxTop = by + 24;                 // 본문이 끝난 지점 아래로만 그린다
     for (var q = 0; q < 7; q++){
       ctx.font = "800 " + qs + "px 'Pretendard Variable',sans-serif";
-      qlines = wrap(ctx, tool.ask, S - PAD*2 - 70);
+      qlines = wrap(ctx, tool.ask, CW - PAD*2 - 70);
       boxH = qlines.length * ql + 44;
-      if (S - PAD - boxH >= qMaxTop) break;
+      if (CH - PAD - boxH >= qMaxTop) break;
       qs *= 0.92; ql *= 0.92;
     }
-    var boxTop = S - PAD - boxH;
+    var boxTop = CH - PAD - boxH;
     ctx.fillStyle = tool.color;
-    roundRect(ctx, PAD, boxTop, S - PAD*2, boxH, 24); ctx.fill();
+    roundRect(ctx, PAD, boxTop, CW - PAD*2, boxH, 24); ctx.fill();
     ctx.fillStyle = "#fff";
     ctx.textAlign = "center";
     var qy = boxTop + 22 + ql * 0.16;
-    qlines.forEach(function(l){ ctx.fillText(l, S/2, qy); qy += ql; });
+    qlines.forEach(function(l){ ctx.fillText(l, CW/2, qy); qy += ql; });
     ctx.textAlign = "left";
-    if (S - PAD - boxH < qMaxTop) cv.dataset.overflow = "1";
+    if (CH - PAD - boxH < qMaxTop) cv.dataset.overflow = "1";
   } else if (isLast){
     ctx.fillStyle = tool.color;
-    roundRect(ctx, PAD, S - PAD - 128, S - PAD*2, 116, 24); ctx.fill();
+    roundRect(ctx, PAD, CH - PAD - 128, CW - PAD*2, 116, 24); ctx.fill();
     ctx.fillStyle = "#fff";
     ctx.textAlign = "center";
     /* ⚠️ 도메인만 크게 적으면 보는 사람이 주소창에 직접 쳐야 한다 — 대부분 그러지 않는다.
        인스타에서 실제로 눌리는 유일한 경로인 "프로필 링크"로 안내한다
        (프로필 웹사이트 칸에 넣어둔 링크인바이오 페이지 /go/). */
     ctx.font = "800 40px 'Pretendard Variable',sans-serif";
-    ctx.fillText("프로필 링크 → " + tool.no + "번", S/2, S - PAD - 100);
+    ctx.fillText("프로필 링크 → " + tool.no + "번", CW/2, CH - PAD - 100);
     ctx.font = "600 26px 'Pretendard Variable',sans-serif";
     ctx.fillStyle = "rgba(255,255,255,.85)";
-    ctx.fillText("프로필 상단 링크에서 " + tool.no + "번을 눌러주세요", S/2, S - PAD - 54);
+    ctx.fillText("프로필 상단 링크에서 " + tool.no + "번을 눌러주세요", CW/2, CH - PAD - 54);
     ctx.textAlign = "left";
   } else {
     ctx.fillStyle = tool.color;
     ctx.font = "700 30px 'Pretendard Variable',sans-serif";
-    ctx.fillText(tool.name, PAD, S - PAD - 8);
+    ctx.fillText(tool.name, PAD, CH - PAD - 8);
   }
 }
 
@@ -581,7 +604,7 @@ function render(){
   refreshDlButton();
   renderRedoRow();      // 번호 버튼은 처음부터 보인다(진행 표시 겸용)
   document.getElementById("status").textContent =
-    "[" + cur.stage + "] " + (sequence(cur).length + 1) + "장 · 1080×1080"
+    "[" + cur.stage + "] " + (sequence(cur).length + 1) + "장 · 1080×1350 (4:5)"
     + (over ? "  ⚠ 넘침 " + over + "장 — 원고를 줄여야 합니다" : "");
   document.getElementById("status").style.color = over ? "#E08D95" : "";
 }

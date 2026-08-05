@@ -57,6 +57,9 @@
   .logdel{flex:none;font-size:12px;padding:6px 10px;border-radius:8px;
           border:1px solid #3A4757;background:transparent;color:#93A1B4;cursor:pointer}
   .logdel:hover{border-color:#C4636C;color:#E08D95}
+  .onedl{display:block;width:100%;margin-top:5px;font-size:11.5px;padding:5px 0;
+         border-radius:7px;border:1px solid #3A4757;background:transparent;color:#93A1B4;cursor:pointer}
+  .onedl:hover{border-color:#3DD68C;color:#3DD68C}
   .poolscore{flex:none;width:40px;text-align:center;font-weight:800;font-size:16px;font-variant-numeric:tabular-nums}
 </style>
 </head>
@@ -77,6 +80,7 @@
   <div class="caption-box">
     <h2>인스타 캡션 (복사해서 쓰세요)</h2>
     <textarea id="cap" spellcheck="false"></textarea>
+    <p class="note" style="color:#C9A227">⚠️ 브라우저가 <b>"여러 파일 다운로드"</b>를 물어보면 허용해 주세요. 막혀 있으면 한 장만 저장됩니다. 카드마다 <b>[이 장만 저장]</b> 버튼도 있어요.</p>
     <p class="note">2026 기준으로 다시 짰습니다 — <b>해시태그는 도달을 늘리지 않습니다</b>(Mosseri). 그래서 태그는 5~6개로 줄이고, 검색이 읽는 <b>키워드를 문장으로</b> 넣었어요. 첫 125자 안에 후킹이 오고, 마지막엔 댓글 + <b>DM 공유</b> 유도가 붙습니다(공유가 도달에 가장 크게 작동).</p>
   </div>
 
@@ -547,7 +551,19 @@ function render(){
         cap.textContent += "  · 축소 " + Math.round(parseFloat(cv.dataset.scale)*100) + "%";
         cap.style.color = "#C9A227";
       }
-      fig.appendChild(cv); fig.appendChild(cap); sheet.appendChild(fig);
+      fig.appendChild(cv); fig.appendChild(cap);
+      /* 카드별 개별 저장 — 브라우저가 다중 다운로드를 막을 때 가장 확실한 경로.
+         특히 모바일에서 "전체 저장"이 한 장만 떨어지는 일이 있어서 넣었다. */
+      var one = document.createElement("button");
+      one.className = "onedl";
+      one.textContent = "이 장만 저장";
+      one.addEventListener("click", function(){
+        one.textContent = "저장 중…";
+        saveOne(cv, cur.id + "-" + String(i+1).padStart(2,"0") + ".png")
+          .then(function(){ one.textContent = "저장됨 ✓"; });
+      });
+      fig.appendChild(one);
+      sheet.appendChild(fig);
       drawCard(cv, cur, i);
     })(i);
   }
@@ -558,23 +574,167 @@ function render(){
   document.getElementById("status").style.color = over ? "#E08D95" : "";
 }
 
-document.getElementById("dl").addEventListener("click", function(){
-  var cvs = sheet.querySelectorAll("canvas");
-  var st = document.getElementById("status");
-  st.textContent = "저장 중…";
-  cvs.forEach(function(cv, i){
+/* =========================================================
+   PNG 저장 (2026-08-06 수정)
+
+   ⚠️ 실제로 겪은 문제: "전체 PNG 저장"을 눌렀더니 **6번째 장 하나만** 저장됐다.
+      원인은 toBlob 콜백들이 거의 동시에 끝나면서 a.click() 이 한꺼번에 터졌기 때문.
+      브라우저는 사용자 제스처 한 번에 자동 다운로드를 하나만 허용하고 나머지를
+      조용히 버린다(모바일은 더 엄격하다).
+
+   그래서 **한 장씩 순서대로, 간격을 두고** 내려받는다.
+   그래도 브라우저가 "여러 파일 다운로드"를 물어보면 허용해야 한다 —
+   화면에 그 안내를 띄운다. 카드마다 개별 저장 버튼도 따로 뒀다(가장 확실한 경로).
+   ========================================================= */
+/* =========================================================
+   초소형 ZIP 만들기 (2026-08-06)
+
+   ⚠️ 왜 필요한가: "전체 PNG 저장"이 한 장만 떨어졌다.
+      브라우저는 사용자 제스처 하나에 자동 다운로드를 **하나만** 허용하고
+      나머지는 "여러 파일 다운로드" 권한을 물어본다. 순차로 간격을 둬도
+      권한이 막혀 있으면 그대로 버려진다(모바일은 더 엄격).
+      → **파일 하나로 묶어 내려주면 이 문제가 통째로 사라진다.**
+
+   외부 라이브러리를 쓰지 않는다(이 사이트의 원칙). PNG 는 이미 압축돼 있어서
+   무압축(STORE) 방식으로 담아도 크기 손해가 사실상 없다.
+   ========================================================= */
+var CRC_TABLE = (function(){
+  var t = new Uint32Array(256);
+  for (var n = 0; n < 256; n++){
+    var c = n;
+    for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes){
+  var c = 0xFFFFFFFF;
+  for (var i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+/* files: [{name, bytes(Uint8Array)}] → Blob */
+function makeZip(files){
+  var chunks = [], central = [], offset = 0;
+
+  function u16(v){ return [v & 0xFF, (v >>> 8) & 0xFF]; }
+  function u32(v){ return [v & 0xFF, (v >>> 8) & 0xFF, (v >>> 16) & 0xFF, (v >>> 24) & 0xFF]; }
+  function bytesOf(arr){ return new Uint8Array(arr); }
+
+  files.forEach(function(f){
+    var nameBytes = new TextEncoder().encode(f.name);
+    var crc = crc32(f.bytes);
+    var size = f.bytes.length;
+
+    /* 로컬 파일 헤더 */
+    var local = []
+      .concat(u32(0x04034B50))   // 시그니처
+      .concat(u16(20))           // 필요 버전
+      .concat(u16(0))            // 플래그
+      .concat(u16(0))            // 압축 방식 0 = STORE
+      .concat(u16(0), u16(0))    // 시각·날짜(안 씀)
+      .concat(u32(crc))
+      .concat(u32(size))         // 압축 크기
+      .concat(u32(size))         // 원본 크기
+      .concat(u16(nameBytes.length))
+      .concat(u16(0));           // 확장 필드 없음
+    chunks.push(bytesOf(local), nameBytes, f.bytes);
+
+    /* 중앙 디렉터리 항목 */
+    central.push({
+      name: nameBytes, crc: crc, size: size, offset: offset
+    });
+    offset += local.length + nameBytes.length + size;
+  });
+
+  var cdStart = offset, cdBytes = [];
+  central.forEach(function(e){
+    var h = []
+      .concat(u32(0x02014B50))
+      .concat(u16(20), u16(20), u16(0), u16(0))
+      .concat(u16(0), u16(0))
+      .concat(u32(e.crc), u32(e.size), u32(e.size))
+      .concat(u16(e.name.length), u16(0), u16(0), u16(0), u16(0))
+      .concat(u32(0))
+      .concat(u32(e.offset));
+    cdBytes = cdBytes.concat(h);
+    for (var i = 0; i < e.name.length; i++) cdBytes.push(e.name[i]);
+  });
+  chunks.push(new Uint8Array(cdBytes));
+
+  var end = []
+    .concat(u32(0x06054B50))
+    .concat(u16(0), u16(0))
+    .concat(u16(central.length), u16(central.length))
+    .concat(u32(cdBytes.length))
+    .concat(u32(cdStart))
+    .concat(u16(0));
+  chunks.push(new Uint8Array(end));
+
+  return new Blob(chunks, { type: "application/zip" });
+}
+
+function canvasBytes(cv){
+  return new Promise(function(resolve){
     cv.toBlob(function(blob){
-      var a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = cur.id + "-" + String(i+1).padStart(2,"0") + ".png";
-      a.click();
-      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
-      if (i === cvs.length-1) {
-        st.textContent = cvs.length + "장 저장 완료";
-        logAdd(cur, cvs.length);
-      }
+      var fr = new FileReader();
+      fr.onload = function(){ resolve(new Uint8Array(fr.result)); };
+      fr.readAsArrayBuffer(blob);
     }, "image/png");
   });
+}
+
+function saveOne(cv, name){
+  return new Promise(function(resolve){
+    cv.toBlob(function(blob){
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); resolve(); }, 500);
+    }, "image/png");
+  });
+}
+
+document.getElementById("dl").addEventListener("click", function(){
+  var cvs = Array.prototype.slice.call(sheet.querySelectorAll("canvas"));
+  var st = document.getElementById("status");
+  var btn = this;
+  if (!cvs.length) return;
+  btn.disabled = true;
+  st.style.color = "#C9A227";
+  st.textContent = "묶는 중… 0 / " + cvs.length;
+
+  /* ⚠️ 한 장씩 내려받으면 브라우저가 2번째부터 막는다(실제로 1장만 저장됐다).
+     ZIP 하나로 묶으면 다운로드가 한 번뿐이라 권한 문제가 아예 없다. */
+  var files = [], i = 0;
+  function step(){
+    if (i >= cvs.length){
+      var zipBlob = makeZip(files);
+      var url = URL.createObjectURL(zipBlob);
+      var a = document.createElement("a");
+      a.href = url;
+      /* ⚠️ 파일명에 한글을 넣지 않는다 — 일부 브라우저·OS 에서 다운로드가
+     조용히 실패한다. ZIP 안의 개별 파일명도 ASCII 로 둔다. */
+      a.download = cur.id + "-" + cvs.length + "cards.zip";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+      st.textContent = cvs.length + "장 ZIP 저장 완료";
+      st.style.color = "";
+      btn.disabled = false;
+      logAdd(cur, cvs.length);
+      return;
+    }
+    st.textContent = "묶는 중… " + (i+1) + " / " + cvs.length;
+    canvasBytes(cvs[i]).then(function(bytes){
+      files.push({ name: cur.id + "-" + String(i+1).padStart(2,"0") + ".png", bytes: bytes });
+      i++; step();
+    });
+  }
+  step();
 });
 
 /* =========================================================

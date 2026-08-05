@@ -86,11 +86,12 @@
   <div class="caption-box">
     <h2>인스타 캡션 (복사해서 쓰세요)</h2>
     <textarea id="cap" spellcheck="false"></textarea>
+    <p class="note" id="cap-audit" style="line-height:1.9"></p>
     <p class="note" id="dl-redo" hidden></p>
     <p class="note" id="dl-note" style="color:#C9A227">📥 <b>[PNG 저장]을 8번 누르면</b> 다운로드 폴더에 8장이 들어갑니다. 버튼이 <b>“다음 장 저장 (3/8)”</b>으로 스스로 넘어가니 <b>같은 자리를 계속 누르시면</b> 돼요. 위 번호에 ✓가 찍히는 걸로 진행이 보입니다.<br>
     <b>왜 한 번에 안 되나요?</b> 브라우저는 클릭 한 번에 파일 <b>하나만</b> 자동 저장을 허용합니다. 나머지는 <b>“자동 다운로드”</b> 사이트 권한이 있어야 하는데, 이게 차단이면 페이지가 무슨 수를 써도 첫 장만 저장됩니다(실제로 그랬습니다). 이 방식은 그 권한이 <b>아예 필요 없어서</b> 항상 됩니다.<br>
     <b>한 번에 받고 싶으면</b>: 주소창 왼쪽 아이콘(자물쇠/슬라이더) → <b>사이트 설정</b> → <b>자동 다운로드</b> → <b>허용</b>으로 바꾼 뒤 <b>[한 번에 8장 시도]</b>를 누르세요.</p>
-    <p class="note">2026 기준으로 다시 짰습니다 — <b>해시태그는 도달을 늘리지 않습니다</b>(Mosseri). 그래서 태그는 5~6개로 줄이고, 검색이 읽는 <b>키워드를 문장으로</b> 넣었어요. 첫 125자 안에 후킹이 오고, 마지막엔 댓글 + <b>DM 공유</b> 유도가 붙습니다(공유가 도달에 가장 크게 작동).</p>
+    <p class="note">2026-08-06 최신 사례 조사 후 다시 짰습니다. 바뀐 것 — ① 첫 줄이 <b>표지 문구 재탕이 아니라</b> “더보기”를 부르는 다른 문장 ② <b>301~800자</b>를 목표(4,408건 분석에서 참여율이 가장 높은 구간. 흔히 말하는 125자 이내는 오히려 최악) ③ <b>저장 유도</b> 추가(저장·DM공유가 좋아요보다 3~5배 강한 신호) ④ 카드 소제목 나열을 빼고 <b>읽을 문장</b>으로 ⑤ 태그 3~5개, 큰 태그일수록 적게.</p>
   </div>
 
   <div class="caption-box">
@@ -106,8 +107,8 @@
   </div>
 </main>
 
-<script src="card-data.js?v=5"></script>
-<script src="story-data.js?v=9"></script>
+<script src="card-data.js?v=6"></script>
+<script src="story-data.js?v=10"></script>
 <script src="sozae-pool.js?v=4"></script>
 <script>
 /* =========================================================
@@ -466,42 +467,105 @@ var KEYWORDS = {
   "keyword-checker":"블로그 SEO 키워드 진단"
 };
 
-/* 태그는 6개 내외 — 도달용이 아니라 주제 라벨용이라 많을수록 손해다 */
+/* 태그 — **브랜드 태그 포함 5개**로 맞춘다(caption() 이 #각잡살림 을 붙이므로 여기는 4개).
+   2026 권장은 3~5개이고, **큰 태그일수록 적게 섞는다**(니치 3~5 / 중형 2~3 / 대형 1~2).
+   경쟁이 심한 대형 태그(#이직 #낚시 #커플 같은)에 여러 개를 걸어봐야 묻힌다.
+   그래서 각 줄의 **앞쪽 2~3개는 니치**, 마지막 1개만 대형으로 뒀다. */
 var TAGS = {
-  "salary-calculator":"#이직 #연봉협상 #처우협의 #실수령액 #직장인",
-  "room-planner":"#원룸 #자취방 #가구배치 #침대사이즈 #이사준비",
-  "resignation-timing":"#퇴사 #퇴직금 #연차수당 #퇴사준비",
-  "couple-referee":"#커플 #연애고민 #커플싸움",
-  "minecraft-seeds":"#마인크래프트 #마크시드 #마크추천",
-  "fishing-tide":"#낚시 #물때 #바다낚시 #낚시포인트",
-  "map-archery":"#국내여행 #여행지추천 #주말여행",
-  "wiki-rabbithole":"#장거리비행 #비행기 #여행준비 #읽을거리",
-  "keyword-checker":"#블로그 #블로그SEO #키워드"
+  "salary-calculator":"#처우협의 #연봉협상 #실수령액 #이직",
+  "room-planner":"#가구배치 #침대사이즈 #자취방 #원룸",
+  "resignation-timing":"#퇴사타이밍 #연차수당 #퇴직금 #퇴사",
+  "couple-referee":"#커플싸움 #연애고민 #커플",
+  "minecraft-seeds":"#마크시드 #마인크래프트시드 #마인크래프트",
+  "fishing-tide":"#물때 #낚시포인트 #갯바위낚시 #낚시",
+  "map-archery":"#여행지추천 #주말여행 #당일치기 #국내여행",
+  "wiki-rabbithole":"#장거리비행 #기내읽을거리 #오프라인저장 #여행준비",
+  "keyword-checker":"#블로그SEO #키워드분석 #블로그"
 };
 
+/* =========================================================
+   캡션 v2 (2026-08-06) — 최근 사례·데이터 조사 후 다시 짬
+
+   ■ 예전 캡션에서 실제로 확인된 결함 3가지
+     1) **첫 줄이 표지 문구와 똑같았다.** 표지는 이미 이미지로 본 문장이라,
+        가장 값비싼 125자(접히기 전 영역)를 재탕으로 버리고 있었다.
+        첫 줄의 역할은 내용을 다 말하는 게 아니라 **"더보기"를 누르게 만드는 것.**
+     2) **저장(save) 유도가 아예 없었다.** 2026 기준 저장·DM공유는 좋아요보다
+        3~5배 강한 신호인데, 캡션에 저장할 이유가 될 정보가 없었다.
+     3) **카드 소제목을 그대로 나열**했다. 이미 카드로 본 문장이라 읽을 게 없고,
+        검색에 걸릴 문장도 못 된다.
+
+   ■ 조사에서 확인한 수치 (근거는 docs/cardnews-rules.md 에 출처와 함께)
+     · 캡션 길이별 참여율(4,408건): 1~50자 6.23% / **51~125자 2.04%(최악)** /
+       126~300자 3.94% / **301~800자 4.2%(최고)** / 800자+ 3.83%.
+       → 흔히 말하는 "125자 이내"가 오히려 골짜기다. **목표는 301~800자.**
+     · 해시태그는 3~5개. 큰 태그일수록 적게(니치 3~5 / 중형 2~3 / 대형 1~2).
+     · 캐러셀 7~10장이 이상적(우리는 8장).
+     · 저장률 목표 도달 대비 5%, 공유율 1%.
+
+   ■ 그래서 구조를 이렇게 바꿨다
+     1 capHook  — 표지와 **다른** 문장. 궁금증만 남기고 끊는다
+     2 lead     — 검색 키워드 문장. 접히기 전에 걸리도록 바로 뒤에
+     3 capBody  — 상황을 문장으로 (소제목 나열 폐기)
+     4 take     — 해석
+     5 capHelp  — **"그래서 어떻게 하나". 저장을 만드는 부분**
+     6 capSave  — 저장 유도 한 줄
+     7 ask      — 댓글 질문
+     8 share    — DM 공유 유도
+     9 tags     — 5개
+   ========================================================= */
 function caption(tool){
+  var P = [];
   if (tool.kind === "story"){
-    var turn = tool.turn || (tool.ending ? [tool.ending] : []);
-    return tool.hook.replace(/\n/g," ")            // 1) 첫 줄 = 후킹
-      + "\n\n" + (tool.lead || tool.sub)           // 2) 키워드 문장(검색용)
-      + "\n\n"
-      + tool.body.map(function(c){ return "· " + c.t; }).join("\n")   // 3) 흐름
-      + "\n" + turn.map(function(c){ return "· " + c.t; }).join("\n")
-      + "\n\n" + tool.take.b.replace(/\n/g," ")
-      + "\n\n" + tool.ask.replace(/\n/g," ")                          // 4) CTA
-      + "\n📩 비슷한 일 겪은 사람한테 이 글 보내주세요."
-      + "\n\n" + (tool.tags || "") + " #각잡살림";
+    /* capHook 이 없는 예전 소재는 표지 문구로 폴백한다(생성은 되게).
+       다만 그건 위 1)번 결함이므로 화면에 경고를 띄운다. */
+    P.push(tool.capHook || tool.hook.replace(/\n/g," "));
+    P.push(tool.lead || tool.sub);
+    P.push(tool.capBody || tool.body.map(function(c){ return "· " + c.t; }).join("\n"));
+    P.push(tool.take.b.replace(/\n/g," "));
+    if (tool.capHelp) P.push("📌 알아두면 좋은 것\n" + tool.capHelp);
+    var tail = [];
+    if (tool.capSave) tail.push(tool.capSave);
+    tail.push(tool.ask.replace(/\n/g," "));
+    tail.push("📩 비슷한 일 겪은 사람한테 보내주세요.");
+    P.push(tail.join("\n"));
+    P.push(tool.tags || "");
+    return P.join("\n\n").trim();
   }
-  return tool.hook.replace(/\n/g," ")
-    + "\n\n" + (KEYWORDS[tool.id] ? KEYWORDS[tool.id] + " — 브라우저에서 바로 쓰는 무료 도구예요." : "")
-    + "\n\n"
-    + tool.cards.map(function(c){ return "· " + c.t + " — " + c.b.split("\n")[0]; }).join("\n")
-    + "\n\n설치도 회원가입도 없어요."
+
+  /* 도구 카드는 정보형이라 **요약 리스트를 남긴다** — 정보형 캐러셀에서는
+     리스트 자체가 저장 이유가 된다(썰과 반대). */
+  P.push(tool.capHook || tool.hook.replace(/\n/g," "));
+  if (KEYWORDS[tool.id]) P.push(KEYWORDS[tool.id] + " — 브라우저에서 바로 쓰는 무료 도구예요. 설치도 회원가입도 없어요.");
+  P.push(tool.cards.map(function(c){ return "· " + c.t + " — " + c.b.split("\n")[0]; }).join("\n"));
+  P.push("📌 필요할 때 바로 찾게 저장해두세요."
     /* ⚠️ 인스타 캡션의 URL 은 클릭이 안 된다. 주소를 적으면 "받아적어서 치라"는 뜻이
        되어 대부분 이탈한다. 실제로 눌리는 프로필 링크로만 유도한다. */
     + "\n👉 프로필 링크(@) 누르고 «" + tool.no + "번 " + tool.name + "» 탭!"
-    + "\n📩 필요할 것 같은 친구한테 보내주세요."
-    + "\n\n" + (TAGS[tool.id] || "") + " #무료도구 #각잡살림";
+    + "\n📩 필요할 것 같은 친구한테 보내주세요.");
+  P.push((TAGS[tool.id] || "") + " #각잡살림");
+  return P.join("\n\n").trim();
+}
+
+/* 캡션 품질 점검 — 조사에서 나온 기준을 그대로 검사한다.
+   ⚠️ 사람이 눈으로 세지 않게 만든다. 규칙을 문서에만 적어두면 결국 안 지켜진다. */
+function captionAudit(text, tool){
+  var n = text.length;
+  var tags = (text.match(/#/g) || []).length;
+  var out = [];
+  out.push(n >= 301 && n <= 800
+    ? "✅ " + n + "자 (301~800자 = 참여율 가장 높은 구간)"
+    : (n < 301 ? "⚠️ " + n + "자 — 301자 이상을 권합니다(126~300자는 3.94%, 301~800자는 4.2%)"
+               : "⚠️ " + n + "자 — 800자를 넘으면 참여율이 다시 떨어집니다(3.83%)"));
+  out.push(tags >= 3 && tags <= 5 ? "✅ 태그 " + tags + "개 (3~5개 권장)"
+                                  : "⚠️ 태그 " + tags + "개 — 3~5개로 맞춰주세요");
+  var head = text.split("\n")[0];
+  var coverSame = head === String(tool.hook || "").replace(/\n/g," ");
+  out.push(coverSame ? "⚠️ 첫 줄이 표지 문구와 같습니다 — capHook 을 따로 써주세요"
+                     : "✅ 첫 줄이 표지와 다릅니다 (" + head.length + "자)");
+  out.push(/저장/.test(text) ? "✅ 저장 유도 있음" : "⚠️ 저장 유도가 없습니다 (저장은 좋아요보다 3~5배 강한 신호)");
+  out.push(/📩|보내주세요/.test(text) ? "✅ DM 공유 유도 있음" : "⚠️ DM 공유 유도가 없습니다");
+  return out;
 }
 
 var sheet = document.getElementById("sheet");
@@ -599,7 +663,15 @@ function render(){
       drawCard(cv, cur, i);
     })(i);
   }
-  document.getElementById("cap").value = caption(cur);
+  var capText = caption(cur);
+  document.getElementById("cap").value = capText;
+  /* 캡션 품질 점검을 화면에 띄운다 — 규칙을 문서에만 적어두면 결국 안 지켜진다 */
+  var aud = captionAudit(capText, cur);
+  document.getElementById("cap-audit").innerHTML =
+    aud.map(function(l){
+      var warn = l.indexOf("⚠️") === 0;
+      return "<span style=\"color:" + (warn ? "#E08D95" : "#93A1B4") + "\">" + l + "</span>";
+    }).join("<br>");
   prepareDlUrls(sheet.querySelectorAll("canvas"));
   refreshDlButton();
   renderRedoRow();      // 번호 버튼은 처음부터 보인다(진행 표시 겸용)

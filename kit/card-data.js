@@ -8,6 +8,7 @@ window.CARD_TOOLS = [
   {
     id:"salary-calculator", no:"01", emoji:"🧭", color:"#0E7C5A", ink:"#0B2239", paper:"#F4F7FA",
     name:"이직 연봉 협상 계산기",
+    capHook:"\"연봉 5,000\"이라는 말만 듣고 사인했다가, 1년 뒤 퇴직금 계산할 때 알게 되는 게 있어요.",
     hook:"제안받은 연봉,\n올린 게 맞나?",
     sub:"인상률만 보면 손해볼 수 있어요",
     cards:[
@@ -20,6 +21,7 @@ window.CARD_TOOLS = [
   {
     id:"room-planner", no:"04", emoji:"📦", color:"#2E6F9E", ink:"#16302B", paper:"#F2F5F3",
     name:"방 가구 배치 시뮬레이터",
+    capHook:"치수는 분명히 맞췄는데 막상 놓으니 문이 안 열리는 일, 생각보다 자주 생겨요.",
     hook:"이 침대,\n내 방에 들어갈까?",
     sub:"사기 전에 놓아보세요",
     cards:[
@@ -32,6 +34,7 @@ window.CARD_TOOLS = [
   {
     id:"resignation-timing", no:"02", emoji:"📅", color:"#D23B30", ink:"#23304F", paper:"#F7F6F2",
     name:"퇴사 타이밍 계산기",
+    capHook:"같은 달에 나가도 며칠 차이로 퇴직금과 연차수당이 통째로 달라집니다.",
     hook:"퇴사, 언제 해야\n다 챙길까?",
     sub:"퇴직금과 연차수당 둘 다",
     cards:[
@@ -44,6 +47,7 @@ window.CARD_TOOLS = [
   {
     id:"couple-referee", no:"05", emoji:"⚖️", color:"#7B2B33", ink:"#2A1A12", paper:"#F7F2E8",
     name:"커플 재판",
+    capHook:"둘이 얘기하면 끝이 안 나는 싸움이 있어요. 서로 자기가 맞다고 확신할 때요.",
     hook:"누가 잘못했는지\n재판관 5명이 판정",
     sub:"성향이 다 다릅니다",
     cards:[
@@ -56,6 +60,7 @@ window.CARD_TOOLS = [
   {
     id:"minecraft-seeds", no:"08", emoji:"⛏️", color:"#5FA441", ink:"#EFECE0", paper:"#2B2B26",
     name:"마인크래프트 시드 추천기",
+    capHook:"새 월드 만들 때마다 스폰 지점 보고 지웠다 만들었다 반복하고 계신가요.",
     hook:"어떤 시드로\n시작할까?",
     sub:"질문 네 개면 끝",
     cards:[
@@ -68,6 +73,7 @@ window.CARD_TOOLS = [
   {
     id:"fishing-tide", no:"06", emoji:"🎣", color:"#FF4B3E", ink:"#F4F7FA", paper:"#071E33",
     name:"낚시 물때 가이드",
+    capHook:"같은 포인트인데 어떤 날은 잡히고 어떤 날은 종일 꽝인 이유, 물때에 있어요.",
     hook:"어디로, 몇 시에\n가야 할까?",
     sub:"물때를 모르면 시간만 버려요",
     cards:[
@@ -80,6 +86,7 @@ window.CARD_TOOLS = [
   {
     id:"map-archery", no:"07", emoji:"🏹", color:"#B23A2E", ink:"#2E2418", paper:"#F0E9DA",
     name:"여행지 활쏘기",
+    capHook:"\"어디 가지?\"를 30분째 얘기하다 결국 집에 있기로 한 주말, 한 번쯤 있으셨죠.",
     hook:"어디 갈지 못 정했으면\n활로 정해요",
     sub:"도는 지도에 화살을 쏩니다",
     cards:[
@@ -92,6 +99,7 @@ window.CARD_TOOLS = [
   {
     id:"wiki-rabbithole", no:"09", emoji:"🕳", color:"#2F6F4E", ink:"#241F17", paper:"#F4F0E6",
     name:"위키 토끼굴",
+    capHook:"비행기 타기 직전에야 받아둘 걸 그랬다 싶은 게 읽을거리예요. 기내 와이파이는 느리고요.",
     hook:"비행기에서\n읽을 게 떨어졌다면",
     sub:"미리 받아두세요",
     cards:[
@@ -104,6 +112,7 @@ window.CARD_TOOLS = [
   {
     id:"keyword-checker", no:"03", emoji:"🔎", color:"#1F9E63", ink:"#E9EEF5", paper:"#0F1319",
     name:"키워드 진단기",
+    capHook:"글은 썼는데 검색에서 무슨 단어로 잡히는지 모르고 계신 경우가 많아요.",
     hook:"내 글, 무슨 키워드로\n잡혀 있을까?",
     sub:"링크만 넣으면 됩니다",
     cards:[

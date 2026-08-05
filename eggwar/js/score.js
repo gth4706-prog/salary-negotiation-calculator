@@ -325,6 +325,82 @@ GAME.Score = {
     return out;
   },
 
+
+  // ── 서버 재동기화 (2026-08-05 사용자 신고) ─────────────────────────────────
+  //  > "내 안드로이드로 접속했을때 아이폰에서 쌓은 기록이 안보여"
+  //
+  //  원인: `add()` 는 점수가 난 **그 순간에만** `Api.postScore` 를 부르고 **재시도가
+  //  없다**("실패해도 로컬 기록은 남는다"). 아이폰은 서버에 못 붙는 상태였으므로
+  //  (`js/api.js` 의 서드파티 차단 문제, 2026-08-05 라우트로 해결) 그동안의 기록이
+  //  **그 기기 localStorage 에만** 남고 서버로는 한 번도 안 올라갔다. 다른 기기에서
+  //  안 보이는 게 당연하다. 연결이 고쳐져도 **과거 기록은 저절로 올라가지 않는다.**
+  //
+  //  ⚠ **그냥 다시 올리면 안 된다.** 서버의 `/score` 는 필드마다 병합 방식이 다르다
+  //    (workers/arena-api/worker.js 실측):
+  //      total  += score        ← 더한다. 다시 올리면 **부풀어 오른다**
+  //      rounds += (won ? 1:0)  ← 더한다. 같은 문제
+  //      best / towerBest / dtowerBest / trophyBest  ← **큰 값만 남긴다**
+  //    → 그래서 `score: 0` · `won: false` 로 보내고 **최고 기록 필드만** 싣는다.
+  //      더해지는 값은 0 이라 몇 번을 보내도 총점·판수가 안 변하고(멱등),
+  //      최고 기록은 큰 쪽이 이기므로 서버가 이미 더 높으면 아무 일도 안 일어난다.
+  //  ⚠ 기간 랭킹('7일')에는 **오늘 올린 것으로** 잡힌다(이벤트 시각이 지금이라).
+  //    옛 기록의 날짜까지 되살릴 방법은 없다 — 전체 랭킹이 정확하면 충분하다고 봤다.
+  //  ⚠ 한 세션에 한 번만 시도한다. 실패하면 조용히 넘어간다(로컬 기록은 그대로다).
+  _resynced: false,
+  resync: function () {
+    if (this._resynced) return Promise.resolve(null);
+    if (!GAME.Api || !GAME.Api.enabled()) return Promise.resolve(null);
+    var me = GAME.Account && GAME.Account.current ? GAME.Account.current() : null;
+    if (!me) return Promise.resolve(null);
+    this._resynced = true;
+
+    //  이 기기가 들고 있는 최고 기록. 분류별 기록과 옛 저장소(_legacyBests) 둘 다 본다
+    //  — 기기에 따라 한쪽에만 남아 있을 수 있다.
+    var self = this;
+    function localBest(kind) {
+      var v = 0;
+      var b = (self._ranks()[me] || {})[kind];
+      if (b && b.best > 0) v = b.best;
+      var lg = self._legacyBests(kind)[me] || 0;
+      return Math.max(v, lg);
+    }
+    var mine = {
+      tower: localBest('tower'),
+      dtower: localBest('dtower'),
+      arena: Math.max(localBest('arena'), this.sampleArena(me, Date.now()) || 0)
+    };
+    if (!(mine.tower > 0 || mine.dtower > 0 || mine.arena > 0)) return Promise.resolve(null);
+
+    //  서버가 이미 더 높으면 보내지 않는다 — 쓸데없는 쓰기를 안 만든다.
+    return GAME.Api.me(me).then(function (res) {
+      var a = (res && res.agg) || {};
+      var need = (mine.tower > (a.towerBest || 0)) ||
+                 (mine.dtower > (a.dtowerBest || 0)) ||
+                 (mine.arena > (a.trophyBest || 0));
+      if (!need) return { sent: false, reason: '서버가 이미 최신' };
+      //  ⚠ **실제로 더 높은 칸만** 싣는다. 0 은 서버가 무시하도록 짜여 있다
+      //    (`if (f > agg.towerBest)` · `if (tr > 0)`).
+      //    특히 트로피는 서버가 `agg.trophy = tr` 로 **덮어쓴다**(최고값 `trophyBest`
+      //    만 큰 값을 남긴다). 낮은 기기가 재동기화하면서 현재 트로피를 끌어내리면
+      //    안 되므로, 더 높을 때만 보낸다.
+      var send = {
+        tower: mine.tower > (a.towerBest || 0) ? mine.tower : 0,
+        dtower: mine.dtower > (a.dtowerBest || 0) ? mine.dtower : 0,
+        trophy: mine.arena > (a.trophyBest || 0) ? mine.arena : 0
+      };
+      return GAME.Api.postScore({
+        id: me,
+        score: 0, won: false, role: 'C', esc: 0, formation: '',
+        tower: send.tower, dtower: send.dtower, trophy: send.trophy,
+        hero: '', gear: ''
+      }).then(function () { return { sent: true, sentFields: send }; });
+    }).catch(function (e) {
+      //  못 붙으면 그냥 넘어간다. 다음 방문에 다시 시도한다.
+      self._resynced = false;
+      return { sent: false, reason: (e && e.message) || '연결 실패' };
+    });
+  },
+
   // 분류별 랭킹. kind: 'tower'|'dtower'|'arena' · scope: 'week'|'all'
   // 반환 행: { id, value, at, hero, gear }
   kindBoard: function (kind, scope) {

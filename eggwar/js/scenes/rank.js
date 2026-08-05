@@ -81,6 +81,21 @@ GAME.RankScene.prototype._load = function () {
   this._renderRows(local);
 
   if (!GAME.Api.enabled()) return;
+
+  //  ── 이 기기 기록을 서버에 한 번 밀어 올린다 (2026-08-05) ──────────────────
+  //  사용자 신고: "안드로이드로 접속했을때 아이폰에서 쌓은 기록이 안보여".
+  //  점수는 **난 순간에만** 서버로 가고 재시도가 없다 → 그때 서버에 못 붙었던 기기의
+  //  기록은 영영 로컬에만 남는다. 랭킹 화면은 사용자가 "내 기록이 없다"를 **바로 그
+  //  자리에서 알아채는 화면**이라, 고치기 가장 좋은 지점이 여기다.
+  //  ⚠ 멱등하다(`Score.resync` 주석 참조) — 총점·판수는 안 건드리고 최고 기록만 올린다.
+  //  ⚠ 목록 갱신을 **기다리지 않는다.** 올린 값이 이번 화면에 반영되지 않아도
+  //    다음에 열면 보인다 — 화면이 뜨는 것을 재동기화가 막으면 안 된다.
+  //  ⚠ 다시 부를 때 무한히 돌지 않는다: 성공하면 `_resynced` 가 참으로 남아
+  //    두 번째 `resync()` 는 곧바로 null 을 돌려준다(= 여기서 멈춘다).
+  GAME.Score.resync().then(function (r) {
+    if (r && r.sent && self.scene.isActive()) self._load();
+  });
+
   GAME.Api.board(this.kind, this.scope).then(function (res) {
     if (!self.scene.isActive()) return;
     self._setNote(GAME.Score.scopeNote(true));

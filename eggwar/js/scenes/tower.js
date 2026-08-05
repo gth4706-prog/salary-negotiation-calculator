@@ -949,10 +949,17 @@ GAME.TowerScene.prototype._buildChallenge = function () {
       items: [
         { key: 'out', name: '이어하기 코드 만들기', note: '이 기기의 진행을 코드로 뽑는다' },
         { key: 'in', name: '코드 붙여넣기', note: '다른 기기에서 뽑은 코드를 불러온다' },
+        //  ⚠ PIN 칸은 **서버가 지원할 때만** 보인다. 워커 배포가 게임보다 늦을 수
+        //    있어서, 없는 기능을 눌러 보고 실패하는 일이 없게 한다.
+        //    `GAME.Auth.supported` 는 로그인 때 한 번 확인해 둔 값이다.
+        (GAME.Auth && GAME.Auth.supported)
+          ? { key: 'pin', name: '닉네임 잠그기 (PIN)', note: '숫자 4자리로 내 닉네임을 보호한다' }
+          : null,
         { key: 'no', name: '닫기' }
-      ],
+      ].filter(Boolean),
       onPick: function (it) {
         if (!it || it.key === 'no') return;
+        if (it.key === 'pin') { self._setPin(); return; }
         GAME.TransferUI.open(self, it.key === 'out' ? 'export' : 'import', function (changed) {
           if (changed) self.scene.restart({ step: 'landing' });
         });
@@ -1419,4 +1426,59 @@ GAME.TowerScene.prototype._refresh = function () {
     var bottom = this.compText.getBounds().bottom + 10;
     this.panelRect.setSize(this.panelGeo.w, Math.max(20, bottom - this.panelGeo.top));
   }
+};
+
+// ── 닉네임 잠그기 (PIN) ─────────────────────────────────────────────────────
+//  ⚠ 서버가 이 기능을 모르면 애초에 이 메뉴가 안 보인다(호출부 참조).
+//  ⚠ PIN 은 **어디에도 저장하지 않는다** — 보내고 버린다.
+//  ⚠ 두 번 받아 서로 맞는지 확인한다. 4자리는 오타가 나도 티가 안 나서,
+//    한 번만 받으면 자기가 뭘 걸었는지 모른 채 잠기게 된다.
+GAME.TowerScene.prototype._setPin = function () {
+  var self = this;
+  var me = GAME.Account.current();
+  if (!me) return;
+  GAME.Auth.status(me).then(function (st) {
+    if (!self.scene.isActive()) return;
+    var already = st.hasPin;
+    GAME.PinUI.open(self, {
+      title: already ? (me + ' — PIN 변경') : (me + ' — PIN 설정'),
+      //  ⚠ 4자리는 약하다는 사실을 숨기지 않는다. 다른 곳 비밀번호를 재사용하면
+      //    그게 가장 큰 위험이다.
+      note: already
+        ? '새 PIN 을 두 번 입력하세요. 기존 PIN 은 다음 화면에서 확인합니다.'
+        : '숫자 4자리로 이 닉네임을 잠급니다. 다른 기기에서 이 닉네임으로 들어오려면 ' +
+          'PIN 이 필요합니다. 4자리는 강하지 않으니 다른 곳에서 쓰는 비밀번호는 쓰지 마세요.',
+      second: '한 번 더',
+      confirm: already ? '다음' : '설정',
+      onSubmit: function (pin, say, done) {
+        if (already) {
+          //  변경이면 기존 PIN 을 한 번 더 받는다.
+          done();
+          GAME.PinUI.open(self, {
+            title: '기존 PIN 확인',
+            note: '지금 걸려 있는 PIN 을 입력하세요.',
+            confirm: '변경',
+            onSubmit: function (oldPin, say2, done2) {
+              say2('처리 중…');
+              GAME.Auth.set(me, pin, oldPin).then(function (r) {
+                if (r.ok) { done2(); self._pinToast('PIN 을 바꿨습니다.'); return; }
+                say2('⚠ ' + (r.why || '변경에 실패했습니다.'));
+              });
+            }
+          });
+          return;
+        }
+        say('처리 중…');
+        GAME.Auth.set(me, pin).then(function (r) {
+          if (r.ok) { done(); self._pinToast('이제 이 닉네임은 PIN 으로 잠깁니다.'); return; }
+          say('⚠ ' + (r.why || '설정에 실패했습니다.'));
+        });
+      }
+    });
+  });
+};
+
+GAME.TowerScene.prototype._pinToast = function (msg) {
+  if (!this.scene.isActive()) return;
+  GAME.Modal.open(this, { title: msg, items: [{ key: 'ok', name: '확인' }] });
 };

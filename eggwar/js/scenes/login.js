@@ -161,8 +161,55 @@ GAME.LoginScene.prototype._removeInput = function () {
 };
 
 GAME.LoginScene.prototype._submit = function (value) {
-  var r = GAME.Account.login(value);
+  var self = this;
+  //  ⚠ 닉네임 검사를 **먼저** 통과시킨다(길이·금지어). 서버에 물어보기 전에
+  //    거를 수 있는 건 여기서 거른다.
+  var id = String(value == null ? '' : value).trim().replace(/\s+/g, ' ');
+  var pre = GAME.Account.validate ? GAME.Account.validate(id) : null;
+  if (pre && !pre.ok) { this.msg.setText(pre.reason); return; }
+  if (pre && pre.id) id = pre.id;      // 다듬어진 형태를 쓴다(공백 정리 등)
+
+  //  ── PIN 이 걸린 닉네임인가 (2026-08-05) ─────────────────────────────────
+  //  ⚠ 서버가 이 기능을 모르면(`supported:false`) **예전과 똑같이** 그냥 들어간다.
+  //    워커 배포는 사람이 대시보드에서 해야 해서 게임보다 늦을 수 있는데,
+  //    그때 로그인이 막히면 아무도 게임을 못 한다.
+  if (!GAME.Auth) { this._enter(id); return; }
+  this.msg.setText('확인 중…');
+  GAME.Auth.status(id).then(function (st) {
+    if (!self.scene.isActive()) return;
+    self.msg.setText('');
+    if (!st.supported || !st.hasPin) { self._enter(id); return; }
+    self._askPin(id);
+  });
+};
+
+//  닉네임 확정 → 메뉴로.
+GAME.LoginScene.prototype._enter = function (id) {
+  var r = GAME.Account.login(id);
   if (!r.ok) { this.msg.setText(r.reason); return; }
   this._removeInput();
   this.scene.start('Menu');
+};
+
+//  PIN 입력을 받는다. DOM 판을 쓰는 이유는 `js/transferui.js` 와 같다
+//  (Phaser 캔버스에 텍스트 입력이 없다).
+GAME.LoginScene.prototype._askPin = function (id) {
+  var self = this;
+  this._removeInput();
+  GAME.PinUI.open(this, {
+    title: id + ' — PIN 입력',
+    note: '이 닉네임은 PIN(숫자 4자리)으로 잠겨 있습니다.',
+    confirm: '들어가기',
+    onSubmit: function (pin, say, done) {
+      say('확인 중…');
+      GAME.Auth.verify(id, pin).then(function (r) {
+        if (r.ok) { done(); self._enter(id); return; }
+        say('⚠ ' + (r.why || 'PIN 이 다릅니다.'));
+      });
+    },
+    onCancel: function () {
+      //  취소하면 닉네임부터 다시 — 입력창을 되살린다.
+      if (self.scene.isActive()) self._makeInput();
+    }
+  });
 };

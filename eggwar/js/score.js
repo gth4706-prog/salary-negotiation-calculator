@@ -347,57 +347,101 @@ GAME.Score = {
   //    옛 기록의 날짜까지 되살릴 방법은 없다 — 전체 랭킹이 정확하면 충분하다고 봤다.
   //  ⚠ 한 세션에 한 번만 시도한다. 실패하면 조용히 넘어간다(로컬 기록은 그대로다).
   _resynced: false,
+  RESYNC_MAX: 120,          // 한 번에 되살릴 최대 판수(로컬은 최근 200판을 들고 있다)
+
   resync: function () {
     if (this._resynced) return Promise.resolve(null);
     if (!GAME.Api || !GAME.Api.enabled()) return Promise.resolve(null);
     var me = GAME.Account && GAME.Account.current ? GAME.Account.current() : null;
     if (!me) return Promise.resolve(null);
     this._resynced = true;
-
-    //  이 기기가 들고 있는 최고 기록. 분류별 기록과 옛 저장소(_legacyBests) 둘 다 본다
-    //  — 기기에 따라 한쪽에만 남아 있을 수 있다.
     var self = this;
-    function localBest(kind) {
-      var v = 0;
-      var b = (self._ranks()[me] || {})[kind];
-      if (b && b.best > 0) v = b.best;
-      var lg = self._legacyBests(kind)[me] || 0;
-      return Math.max(v, lg);
-    }
-    var mine = {
-      tower: localBest('tower'),
-      dtower: localBest('dtower'),
-      arena: Math.max(localBest('arena'), this.sampleArena(me, Date.now()) || 0)
-    };
-    if (!(mine.tower > 0 || mine.dtower > 0 || mine.arena > 0)) return Promise.resolve(null);
 
-    //  서버가 이미 더 높으면 보내지 않는다 — 쓸데없는 쓰기를 안 만든다.
     return GAME.Api.me(me).then(function (res) {
       var a = (res && res.agg) || {};
-      var need = (mine.tower > (a.towerBest || 0)) ||
-                 (mine.dtower > (a.dtowerBest || 0)) ||
-                 (mine.arena > (a.trophyBest || 0));
-      if (!need) return { sent: false, reason: '서버가 이미 최신' };
-      //  ⚠ **실제로 더 높은 칸만** 싣는다. 0 은 서버가 무시하도록 짜여 있다
-      //    (`if (f > agg.towerBest)` · `if (tr > 0)`).
-      //    특히 트로피는 서버가 `agg.trophy = tr` 로 **덮어쓴다**(최고값 `trophyBest`
-      //    만 큰 값을 남긴다). 낮은 기기가 재동기화하면서 현재 트로피를 끌어내리면
-      //    안 되므로, 더 높을 때만 보낸다.
+      var rec = self._all()[me] || {};
+      var ents = rec.entries || [];
+
+      //  ── ① 서버에 **한 번도 안 간 판**을 골라 그대로 다시 보낸다 ──────────────
+      //  기준은 서버의 `updatedAt` — 성공한 전송이 있을 때마다 갱신되는 값이다.
+      //  그보다 **뒤에 생긴 로컬 판**은 서버에 닿은 적이 없다는 뜻이므로 안전하게
+      //  되살릴 수 있다. 이러면 총점·판수까지 제대로 복구된다.
+      //  ⚠ `updatedAt` 이 없으면(아주 옛 기록) **replay 하지 않는다.** 기준이 없는데
+      //    보내면 이미 반영된 판을 또 더해 총점이 부풀어 오른다 — 그럴 땐 아래 ②로 간다.
+      //  ⚠ 전송이 중간중간 실패한 경우, 마지막 성공보다 **앞선** 실패 판은 건너뛴다.
+      //    덜 살리는 쪽이 두 번 세는 쪽보다 낫다(총점은 되돌릴 수 없다).
+      var since = Number(a.updatedAt || 0);
+      var missing = [];
+      if (since > 0) {
+        for (var i = 0; i < ents.length; i++) {
+          if (Number(ents[i].t || 0) > since) missing.push(ents[i]);
+        }
+        if (missing.length > self.RESYNC_MAX) missing = missing.slice(-self.RESYNC_MAX);
+      }
+
+      if (missing.length) {
+        //  한 건씩 차례로. 서버에 한꺼번에 던지지 않는다.
+        var idx = 0;
+        function step() {
+          if (idx >= missing.length) {
+            return { sent: true, mode: 'replay', n: missing.length };
+          }
+          var e = missing[idx++];
+          //  수성의 탑 층은 진형 이름에서 읽는다(`_kindsOf` 와 같은 규칙).
+          var dm = /수성의 탑\s*(\d+)\s*층/.exec(String(e.formation || ''));
+          return GAME.Api.postScore({
+            id: me,
+            score: e.score || 0,
+            won: !!e.won,
+            role: e.role || 'C',
+            esc: e.esc || 0,
+            formation: e.formation || '',
+            tower: (e.won && e.role === 'C') ? (e.tower || 0) : 0,
+            dtower: (dm && e.won && e.role === 'S') ? parseInt(dm[1], 10) : 0,
+            trophy: 0,
+            hero: '', gear: ''
+          }).then(step, function () {
+            //  중간에 끊기면 거기까지만. 다음 방문에 이어서 한다.
+            self._resynced = false;
+            return { sent: idx > 1, mode: 'replay-partial', n: idx - 1 };
+          });
+        }
+        return step();
+      }
+
+      //  ── ② 되살릴 판이 없으면 **최고 기록만** 밀어 올린다 ──────────────────
+      //  로컬 판 목록이 잘렸거나(최근 200판) 기준 시각이 없을 때의 안전한 경로.
+      //  ⚠ 서버 `/score` 는 `total += score` · `rounds += won` 으로 **더한다**.
+      //    그래서 `score: 0` · `won: false` 로 보내 더해지는 값을 0 으로 만든다 —
+      //    몇 번을 보내도 총점·판수가 안 변하고(멱등) 최고 기록만 큰 쪽으로 갱신된다.
+      function localBest(kind) {
+        var v = 0;
+        var b = (self._ranks()[me] || {})[kind];
+        if (b && b.best > 0) v = b.best;
+        return Math.max(v, self._legacyBests(kind)[me] || 0);
+      }
+      var mine = {
+        tower: localBest('tower'),
+        dtower: localBest('dtower'),
+        arena: Math.max(localBest('arena'), self.sampleArena(me, Date.now()) || 0)
+      };
+      //  ⚠ **실제로 더 높은 칸만** 싣는다. 특히 트로피는 서버가 `agg.trophy = tr` 로
+      //    덮어쓰므로(최고값만 max 병합) 낮은 기기가 현재 트로피를 끌어내리면 안 된다.
       var send = {
         tower: mine.tower > (a.towerBest || 0) ? mine.tower : 0,
         dtower: mine.dtower > (a.dtowerBest || 0) ? mine.dtower : 0,
         trophy: mine.arena > (a.trophyBest || 0) ? mine.arena : 0
       };
+      if (!(send.tower || send.dtower || send.trophy)) {
+        return { sent: false, mode: 'none', reason: '서버가 이미 최신' };
+      }
       return GAME.Api.postScore({
-        id: me,
-        score: 0, won: false, role: 'C', esc: 0, formation: '',
-        tower: send.tower, dtower: send.dtower, trophy: send.trophy,
-        hero: '', gear: ''
-      }).then(function () { return { sent: true, sentFields: send }; });
+        id: me, score: 0, won: false, role: 'C', esc: 0, formation: '',
+        tower: send.tower, dtower: send.dtower, trophy: send.trophy, hero: '', gear: ''
+      }).then(function () { return { sent: true, mode: 'best', sentFields: send }; });
     }).catch(function (e) {
-      //  못 붙으면 그냥 넘어간다. 다음 방문에 다시 시도한다.
       self._resynced = false;
-      return { sent: false, reason: (e && e.message) || '연결 실패' };
+      return { sent: false, mode: 'fail', reason: (e && e.message) || '연결 실패' };
     });
   },
 

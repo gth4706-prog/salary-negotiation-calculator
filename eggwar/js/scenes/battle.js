@@ -1441,7 +1441,21 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         versus: self.versus,
         test: self.test,
         arenaResult: arenaResult,
-        learnNotes: learnRec.lastNotes || []
+        //  ── 탑에서는 학습 문구를 안 보여 준다 (2026-08-05 사용자 신고) ────────
+        //  > "못깨고나서 7단계 올라갔다는 표현이보여서"
+        //
+        //  그 문구는 `js/learn.js` 의 **대전용 난이도 단계**다("격파당해 난이도가
+        //  N단계로 올랐습니다"). 탑 진형도 id 가 `tower-<층>` 으로 고정이라 Learn 이
+        //  층마다 단계를 쌓고, 그게 결과 화면에 그대로 떴다.
+        //
+        //  ⚠ **탑 난이도는 그 값을 안 쓴다.** 탑은 `Tower.modsFor`(층 곡선 + 막힌 층
+        //    완화)로 굴러간다 — 즉 화면에 뜬 "올랐습니다"는 탑에서 아무 뜻이 없고,
+        //    하필 **완화(난이도가 내려간다)와 정반대로 읽힌다.** 사용자가 "완화가
+        //    도는 게 맞냐"고 물은 이유가 정확히 이것이다.
+        //  ⚠ 기록 자체(`Learn.record`)는 **안 건드린다.** `Learn.get(id).adapt` 를
+        //    탑 전투가 실제로 쓰고 있어서(이 파일 위쪽), 지우면 탑 AI 의 적응이
+        //    조용히 달라진다 — 표시 문제를 밸런스 변경으로 갚지 않는다.
+        learnNotes: self.tower ? [] : (learnRec.lastNotes || [])
       });
     });
   }

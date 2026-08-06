@@ -31,7 +31,18 @@ GAME.Transfer = {
   SLOTS: [
     { k: 'char',   key: function () { return GAME.TowerChar && GAME.TowerChar.KEY; } },
     { k: 'tower',  key: function () { return GAME.Tower && GAME.Tower.KEY; } },
-    { k: 'dtower', key: function () { return GAME.DefendTower && GAME.DefendTower.KEY; } },
+    { k: 'dtower', key: function () { return GAME.DefendTower && GAME.DefendTower.KEY; },
+      //  ⚠ 2026-08-07 — `key()` 는 v2 를 가리키는데, **v1 시절에 만든 코드**에는 옛
+      //    규칙의 25회차가 들어 있다. 그대로 넣으면 "새 키라 옛 기록이 안 새어
+      //    들어온다"는 보장에 구멍이 난다. 진행은 통째로 버리고 껍데기만 만든다 —
+      //    수성의 탑은 **누구든 1회차부터**(사용자 요구)이기 때문이다.
+      //  ⚠ 옛 최고 기록은 `DefendTower.legacyBest()` 가 v1 저장소에서 따로 읽는다.
+      //    여기서 `best` 를 넘겨 주면 새 기록에 섞여 거짓이 된다.
+      sanitize: function (rec) {
+        return { floor: 1, best: 0, runs: (rec && rec.runs) || 0, kills: 0,
+                 placed: null, tier: null, gold: 0, unitLv: {}, refine: {},
+                 bonusBudget: 0, seed: 0 };
+      } },
     { k: 'abuild', key: function () { return GAME.ArenaBuild && GAME.ArenaBuild.KEY; } },
     { k: 'tlearn', key: function () { return GAME.TowerLearn && GAME.TowerLearn.KEY; } },
     { k: 'score',  key: function () { return GAME.Score && GAME.Score.KEY; } },
@@ -113,7 +124,11 @@ GAME.Transfer = {
       var slot = this.SLOTS[i], key = slot.key();
       if (!key || !data.s.hasOwnProperty(slot.k)) continue;
       var all = GAME.Store.get(key, {}) || {};
-      all[data.id] = data.s[slot.k];
+      //  슬롯이 정화기를 갖고 있으면 **넣기 직전에** 통과시킨다. 옛 판 코드가
+      //  새 규칙의 저장소로 들어오는 유일한 문이라, 문에서 거른다.
+      var val = data.s[slot.k];
+      if (slot.sanitize) { try { val = slot.sanitize(val); } catch (e) { continue; } }
+      all[data.id] = val;
       GAME.Store.set(key, all);
     }
     //  옮긴 뒤에는 그 닉네임으로 로그인해야 방금 넣은 것이 보인다.

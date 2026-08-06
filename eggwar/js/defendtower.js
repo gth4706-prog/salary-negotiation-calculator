@@ -14,7 +14,23 @@ window.GAME = window.GAME || {};
 //   수성의 탑   — 4층부터 '배치' 없이는 못 이긴다
 // 두 탑의 난이도 곡선이 벌어지면 한쪽만 파게 된다. 수치를 바꿀 때 양쪽을 같이 재라.
 GAME.DefendTower = {
-  KEY: 'asymgame.deftower.v1',
+  // ── 저장 키 (2026-08-07 · v1 → v2) ────────────────────────────────────────
+  //  규칙이 바뀌었으므로(패배해도 유지) 옛 25회차와 새 25회차는 **애초에 다른 값**이다.
+  //  ⚠ **v1 을 마이그레이션하지 않는다.** 새 키라 옛 기록이 절대 안 새어 들어온다 —
+  //    "갓베론이 들어와도 1회차부터"(사용자 요구)를 보장하는 가장 확실한 방법이다.
+  //    v1 에서 가져오는 것은 `legacyBest()` 하나뿐이고 **표시 전용**이다.
+  KEY: 'asymgame.deftower.v2',
+  LEGACY_KEY: 'asymgame.deftower.v1',
+
+  //  옛 규칙에서 세운 최고 기록. **읽기만 한다** — v2 에 옮겨 적으면 그 순간이 곧
+  //  마이그레이션이고, 값이 두 곳에 생겨 갈라진다.
+  //  ⚠ 지우면 "내가 25회차까지 갔던 건 어디 갔나"가 되고, 새 기록에 섞으면 거짓이 된다.
+  //    남기되 **옛 규칙의 기록**이라고 이름 붙여 보여 준다.
+  legacyBest: function () {
+    var all = GAME.Store.get(this.LEGACY_KEY, {}) || {};
+    var r = all[this._key()];
+    return (r && r.best) || 0;
+  },
 
   // ── 전략가(플레이어)가 쓰는 예산 ──
   // 넉넉하게 시작해 천천히 오른다. 이쪽이 빨리 오르면 물량으로만 이기게 된다.
@@ -261,7 +277,7 @@ GAME.DefendTower = {
     var rec = this._all()[this._key()];
     if (!rec) {
       return { floor: 1, best: 0, runs: 0, kills: 0, placed: null, tier: null,
-               gold: 0, unitLv: {}, refine: {}, bonusBudget: 0 };
+               gold: 0, unitLv: {}, refine: {}, bonusBudget: 0, seed: 0 };
     }
     if (!rec.floor) rec.floor = 1;
     // 옛 저장본에는 없는 칸 — 읽을 때 채운다(마이그레이션 코드를 따로 두지 않는다)
@@ -269,7 +285,211 @@ GAME.DefendTower = {
     if (!rec.unitLv) rec.unitLv = {};
     if (!rec.refine) rec.refine = {};
     if (typeof rec.bonusBudget !== 'number') rec.bonusBudget = 0;
+    if (typeof rec.seed !== 'number') rec.seed = 0;
     return rec;
+  },
+
+  //  영웅 추종 가중치 배정용 시드. 없으면 그때 굴려 **저장**한다.
+  //  ⚠ 읽기 함수가 쓰는 것이 이상해 보이지만, 대안은 두 가지 다 나쁘다 —
+  //    ① 매번 새로 굴리면 같은 회차를 재도전할 때마다 영웅 성격이 바뀌어
+  //       "무엇을 고칠까"가 성립하지 않는다(운이 아니라 문제로 읽혀야 한다).
+  //    ② 기록 생성 시점에만 굴리면 v1 시절 기록·손으로 만든 기록에 시드가 없다.
+  //  ⚠ 도구는 재현성을 위해 이 값을 **직접 박는다**(tools/defend-curve.js 참조).
+  seedOf: function () {
+    var rec = this.get();
+    if (rec.seed) return rec.seed;
+    var s = (Math.floor(Math.random() * 0x7ffffffe) + 1) | 0;
+    rec.seed = s;
+    this._save(rec);
+    return s;
+  },
+
+  // ── 막힌 회차는 **그 회차만** 조용히 약해진다 (2026-08-07) ──────────────────
+  //  통곡의 탑 `js/towerchar.js` 의 같은 이름 함수들과 **같은 모양**이되 값은 독립이다.
+  //  (모양을 맞추는 이유: 두 탑의 규칙이 갈라지면 "다섯 번 지면 최대한 쉬워진다"는
+  //   규칙 하나로 두 탑을 설명할 수 없게 된다.)
+  //
+  //  ⚠ **화면에 안 띄운다**(사용자 지시). "너는 N번 졌다"를 화면이 세어 주는 것은
+  //    도움이 아니라 면박이고, 깼을 때의 성취도 같이 깎는다.
+  //    → `reliefInfo` 는 그래도 남긴다. **화면에서 뗀 기제는 감사만이 유일한 눈**이다
+  //      (`tools/deftower-audit.js`).
+  //  ⚠ 상한이 반드시 필요하다 — 없으면 20번 지는 순간 적 체력이 0 이 된다.
+  //  ⚠ 누적은 **곱이 아니라 합**(n × step). 곱이면 0 에 점근해 사람이 셀 수 없다.
+  //  ⚠ 회차를 **깨면 초기화**한다. 안 그러면 완화가 영구 누적되어 뒤 회차가 통째로 쉬워진다.
+  //  ⚠ 통곡의 탑과 달리 **보스 예외를 두지 않는다.** 저쪽은 보스 5% 고정이지만
+  //    이쪽 보스는 `BOSS_MOD_HP`/`BOSS_MOD_DMG` 로 이미 따로 세워 둔 축이 있어,
+  //    완화까지 갈라 놓으면 보스 회차의 실제 난이도를 두 손잡이가 동시에 흔든다.
+  RELIEF_STEP: 0.05,           // 재도전 1회당 5%p
+  RELIEF_MAX: 0.25,            // 5회에서 바닥
+
+  noteFloorFail: function (floor) {
+    var rec = this.get();
+    if (!rec) return;
+    var f = rec.floorFail;
+    //  회차가 바뀌면 처음부터 — 완화는 **지금 막힌 벽**에만 쌓인다.
+    if (!f || f.f !== floor) f = { f: floor, n: 0 };
+    f.n++;
+    rec.floorFail = f;
+    this._save(rec);
+  },
+
+  clearFloorFail: function (floor) {
+    var rec = this.get();
+    if (!rec || !rec.floorFail || rec.floorFail.f !== floor) return;
+    delete rec.floorFail;               // 깼으면 사라진다(다음 회차는 온전한 난이도로)
+    this._save(rec);
+  },
+
+  //  영웅의 체력·공격에 곱할 값(1 이하). 회차가 다르거나 기록이 없으면 정확히 1.
+  reliefFor: function (floor) {
+    var rec = this.get();
+    var f = rec && rec.floorFail;
+    if (!f || f.f !== floor || !(f.n > 0)) return 1;
+    return 1 - Math.min(this.RELIEF_MAX, f.n * this.RELIEF_STEP);
+  },
+
+  //  감사 전용 — 몇 번 막혔고 몇 % 약해졌는가. **화면에는 쓰지 않는다.**
+  reliefInfo: function (floor) {
+    var rec = this.get();
+    var f = rec && rec.floorFail;
+    if (!f || f.f !== floor || !(f.n > 0)) return null;
+    return {
+      tries: f.n,
+      cut: Math.round((1 - this.reliefFor(floor)) * 100),
+      atMax: f.n * this.RELIEF_STEP >= this.RELIEF_MAX
+    };
+  },
+
+  // ── 내 진형이 기본보다 얼마나 세졌는가 (2026-08-07) ─────────────────────────
+  //  영웅 난이도가 따라올 대상이다. **두 축을 가른다**(스펙 §4.1):
+  //    내 총 화력(dps) → 영웅의 체력   (안 그러면 영웅이 즉시 녹는다)
+  //    내 총 내구(ehp) → 영웅의 공격력 (안 그러면 영웅이 못 뚫는다)
+  //  ⚠ 기하평균으로 합치면 안 된다. 통곡의 탑이 정확히 그것으로 사고를 냈다 —
+  //    공격 몰빵 빌드가 기하평균에 희석되어 "42층을 3초만에" 깨졌다.
+  //
+  //  ⚠⚠ **분모가 이 함수의 핵심이다.** 같은 배치를 '성장 0' 으로 계산한 값으로 나눈다.
+  //    ① 성장이 없으면 구성이 무엇이든 **정확히 1.000** 이다
+  //       → `tools/defend-curve.js profile=fresh` 가 기존 기준표를 그대로 재현한다
+  //         (통곡의 탑이 "신선한 캐릭터는 배수가 정확히 1.000" 으로 R-1 기준선을
+  //          지킨 것과 같은 수법).
+  //    ② 약하게 배치해 약한 영웅을 받는 **샌드백이 성립하지 않는다** — 분자와 분모가
+  //       같이 움직여 비율이 안 변한다. (약하게 배치하면 회차 기본값이 그대로 남아
+  //       그냥 진다 — 스펙 §4.2.)
+  //
+  //  ⚠ 증원(bonusBudget)은 유닛 **수**를 늘리는 성장이라 위 비율에서 상쇄된다.
+  //    그래서 예산 비(`placeBudgetFor / budgetFor`)로 따로 곱한다. 이 값도 증원이
+  //    없으면 정확히 1.000 이다.
+  //
+  //  placed 는 `[{ type }]` 만 있으면 된다(좌표를 안 본다) — 씬은 실제 배치를,
+  //  도구는 원형에서 만든 목록을 그대로 넘길 수 있다.
+  growthIndex: function (placed, floor) {
+    var rec = this.get();
+    var list = placed || rec.placed || [];
+    var UL = GAME.UnitLevel;
+    var f = floor || rec.floor || 1;
+    var dps = 0, dps0 = 0, ehp = 0, ehp0 = 0;
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i];
+      if (!p || !p.type) continue;
+      //  ⚠ `type` 은 원본 키가 아닐 수 있다 — 탑은 `shieldman#6+charge` 같은 정예
+      //    파생 키를 쓴다. 되돌리지 않으면 `GAME.UNITS[type]` 이 undefined 가 되어
+      //    조용히 건너뛴다(이 저장소가 로딩 공략에서 이미 겪은 사고).
+      var key = UL ? UL.baseKeyOf(p.type) : p.type;
+      var def = GAME.UNITS[key];
+      if (!def) continue;
+      var lm = UL ? UL.modsForLevel(UL.levelOf(key)) : { hp: 1, damage: 1 };
+      var rm = this.refineMods(key) || { hp: 1, damage: 1 };
+      //  가중치는 def 의 고정값이라 분자·분모에 똑같이 걸린다 — 어떤 유닛이 평균을
+      //  더 끌고 가는지만 정한다.
+      var d0 = (def.damage || 0) / Math.max(0.1, (def.cooldown || 1000) / 1000);
+      var e0 = (def.hp || 0) * (1 + (def.armor || 0) / 100);
+      dps0 += d0; dps += d0 * ((lm.damage || 1) * (rm.damage || 1));
+      ehp0 += e0; ehp += e0 * ((lm.hp || 1) * (rm.hp || 1));
+    }
+    var base = this.budgetFor(f);
+    var bg = base > 0 ? (this.placeBudgetFor(f) / base) : 1;
+    return {
+      dps: (dps0 > 0 ? dps / dps0 : 1) * bg,
+      ehp: (ehp0 > 0 ? ehp / ehp0 : 1) * bg
+    };
+  },
+
+  // ── 영웅마다 추종 폭이 다르다 (2026-08-07) ─────────────────────────────────
+  //  ⚠ 1:1 추종은 업그레이드를 무의미하게 만든다. 통곡의 탑이 이 신고를 그대로 받았다:
+  //    "내가 강해지는거에따라 똑같이 전부다 강해져버리니까 게임이 그냥 계속 똑같은
+  //     느낌이야 … 결국 사용자입장에서 변칙적이어야해"
+  //  거기서 쓴 해법이 `Tower.UNIT_PROFILES`(자리마다 추종 가중치를 다르게, 기대값은
+  //  정확히 1.0)다. 평균 난이도는 안 움직이면서 매판 누가 위협적인지가 달라진다.
+  //  **수성의 탑 거울**: 쳐들어오는 영웅마다 가중치를 다르게 굴린다 —
+  //  어떤 회차의 영웅은 내 화력을 바짝 따라오고(단단한 놈), 어떤 놈은 내 내구를
+  //  따라온다(아픈 놈).
+  //
+  //  ⚠ **기대값을 정확히 1.0 으로 맞춘다.** 안 그러면 평균 난이도가 슬쩍 움직여
+  //    실측으로 잡은 `FOLLOW_POW` 가 조용히 어긋나고, `defend-curve.js` 가 재는 값이
+  //    더는 실제 게임을 대표하지 않게 된다.
+  //      hpW  기대값 = .3×1.5 + .3×0.7 + .2×1.1 + .2×0.6 = 1.00
+  //      dmgW 기대값 = .3×0.7 + .3×1.5 + .2×1.1 + .2×0.6 = 1.00
+  //  ⚠ 폭은 통곡의 탑(0.2~2.0)보다 **좁게** 시작한다. 저쪽은 유닛 15기의 평균이라
+  //    편차가 녹지만, 수성의 탑은 **영웅이 한 명뿐**이라 같은 폭이면 훨씬 크게 느껴진다.
+  //    넓히려거든 실측(`tools/defend-curve.js`)으로 확인하고 넓힐 것.
+  HERO_PROFILES: [
+    { key: 'tough', p: 0.30, hpW: 1.5, dmgW: 0.7 },   // 단단한 놈 — 내 화력을 바짝 따라온다
+    { key: 'sharp', p: 0.30, hpW: 0.7, dmgW: 1.5 },   // 아픈 놈  — 내 내구를 바짝 따라온다
+    { key: 'full',  p: 0.20, hpW: 1.1, dmgW: 1.1 },   // 둘 다 조금씩
+    { key: 'plain', p: 0.20, hpW: 0.6, dmgW: 0.6 }    // 성장을 거의 안 따라온다
+  ],
+
+  //  ── 추종 지수 — **실측으로 정했다** (2026-08-07) ──────────────────────────
+  //  통곡의 탑은 같은 자리에서 0.75 를 골랐다. 여기서는 **0.55 다.** 눈으로 고르지
+  //  않았고, 서로 다른 답이 나온 데에는 이유가 있다(아래).
+  //
+  //  실측 (`tools/defend-curve.js mode=avg profile=upgraded rep=24 seed=20260728`,
+  //   원형 10종 × 영웅 3종 평균 방어율. upgraded = 유닛 L5 · 정련 5 · 증원 120):
+  //    지수      30★    60★
+  //    0(추종없음) 33%     —     ← 성장을 안 따라오면 탑이 4.7배 쉬워진다(기제 검증)
+  //    0.55       7%     7%     ← **채택**
+  //    0.75       3%     5%
+  //    1.00       3%     3%
+  //    (fresh 기준) 7%    6%
+  //
+  //  판정 축은 둘이다:
+  //    ① **성장해도 체감이 그대로인가** — upgraded 가 fresh 와 같은 방어율이어야 한다.
+  //       0.55 만 7/7 대 7/6 으로 맞는다. 0.75·1.00 은 30★ 이 7%→3% 로 **두 배 이상
+  //       어려워진다** — 키울수록 손해가 되어 "키워도 소용없다"보다 나쁘다.
+  //    ② **후반이 안 쉬워지는가**(30→60 이 안 오른다) — 0.55 는 0%p 로 통과.
+  //       0.75 는 +2%p 였다.
+  //
+  //  ⚠ 왜 통곡의 탑(0.75)과 다른가: 저쪽 성장은 **상한이 없다**(골드 ×1.08/회차 ·
+  //    T10 무기 공격력 +1350). 지수<1 이면 무한히 자라는 지수 경제를 유한 지수로는
+  //    결국 못 따라가므로 높은 값이 필요했다. 수성의 탑 성장은 **상한이 있다**
+  //    (유닛 레벨 5 · 정련 10 — 증원만 무제한). 그래서 낮은 지수로도 따라잡힌다.
+  //    **두 탑에 같은 값을 쓰지 말 것.** 같은 문제에 다른 답이 나오는 것이 정상이고,
+  //    그래서 각각 재야 한다.
+  FOLLOW_POW: 0.55,
+  //  오버플로 안전장치. 증원(bonusBudget)은 계속 살 수 있어 지수에 상한이 없다.
+  //  낮게 잡으면 "무한의 탑에 고정 상한을 두면 언젠가 반드시 넘는다"는 통곡의 탑
+  //  사고를 되풀이하므로 넉넉히 둔다.
+  FOLLOW_CAP: 12,
+
+  //  결정적 난수(xorshift) — `js/tower.js` 의 `_urng` 와 같은 식이다.
+  _hrng: function (seed) {
+    var s = seed | 0; if (!s) s = 1;
+    return function () {
+      s ^= s << 13; s ^= s >>> 17; s ^= s << 5; s |= 0;
+      return ((s >>> 0) % 100000) / 100000;
+    };
+  },
+
+  //  이 회차 영웅의 성격. 시드는 (기록 시드, 회차) 라 **같은 회차는 재도전해도 같다** —
+  //  "무엇을 고칠까"가 성립하려면 운이 아니라 문제로 읽혀야 한다.
+  heroProfile: function (floor) {
+    var r = this._hrng((this.seedOf() ^ (floor * 2654435761)) | 0)();
+    var list = this.HERO_PROFILES, acc = 0;
+    for (var i = 0; i < list.length; i++) {
+      acc += list[i].p;
+      if (r < acc) return list[i];
+    }
+    return list[list.length - 1];
   },
 
   _save: function (rec) {
@@ -300,13 +520,24 @@ GAME.DefendTower = {
     return Math.min(this.heroBudgetRawFor(floor), GAME.Tower.maxSpendable());
   },
 
-  // 층이 오르면 영웅 자체도 단단해진다(예산 상한에 닿은 뒤에도 난이도가 오르게).
-  //  ① 층 기본 성장 (hp +1.8%/층, dmg +1.5%/층)
-  //  ② 예산 상한을 넘긴 몫의 환산 — 이게 없으면 15층 이후 난이도가 거꾸로 간다(위 주석)
-  //  ③ 영웅별 보정 — 영웅 내구도 2.7배 격차를 수성의 탑 안에서만 상쇄
-  // heroKey 는 생략 가능하다. 생략하면 그 층의 영웅을 스스로 구한다
-  // (기존 호출부 `heroModsFor(floor)` 를 그대로 두기 위한 것 — 씬은 건드리지 않는다).
-  heroModsFor: function (floor, heroKey) {
+  // 회차가 오르면 영웅 자체도 단단해진다(예산 상한에 닿은 뒤에도 난이도가 오르게).
+  //  ① 회차 기본 성장 (hp +1.8%/회차, dmg +1.5%/회차)
+  //  ② 예산 상한을 넘긴 몫의 환산 — 이게 없으면 15회차 이후 난이도가 거꾸로 간다(위 주석)
+  //  ③ **내 진형 성장 추종** (2026-08-07 신설) — 내 화력이 영웅의 체력을,
+  //     내 내구가 영웅의 공격을 부른다. 영구 성장으로 바꾼 대가를 여기서 치른다.
+  //  ④ 영웅별 보정(`HERO_DIFF`, 지금은 전부 1.00)
+  //  ⑤ 조용한 완화 — 같은 회차에서 진 만큼 영웅이 약해진다
+  //
+  //  heroKey 는 생략 가능하다(생략하면 그 회차의 영웅을 스스로 구한다).
+  //  idx 도 생략 가능하다 — 생략하면 기록에 저장된 배치로 계산한다. 전투 씬은
+  //  **그 판에 실제로 세운 배치**를 넘긴다(로비 미리보기와 전투가 같은 값을 보게).
+  //
+  //  ⚠ 순서를 바꾸지 말 것. 완화는 **맨 마지막에 곱한다** — 앞에 넣으면 보스 배수나
+  //    추종에 먹혀 실제로 깎이는 폭이 달라진다.
+  //  ⚠ 화면 표시(`js/scenes/defend-tower.js`)도 이 함수를 쓰므로 완화가 반영된
+  //    **정직한 값**이 뜬다. 완화를 문구로 알리지 않는 것과 모순되지 않는다 —
+  //    "너는 N번 졌다"를 안 세어 줄 뿐, 영웅이 얼마나 센지는 계속 사실대로 적는다.
+  heroModsFor: function (floor, heroKey, idx) {
     var t = Math.max(0, floor - 1);
     var hp = 1 + 0.018 * t, dmg = 1 + 0.015 * t;
 
@@ -318,12 +549,21 @@ GAME.DefendTower = {
       dmg *= Math.pow(over, this.OVERFLOW_DMG_POW);
     }
 
+    // ③ 성장 추종 — 두 축을 **가른 채로** 각각 따라간다(기하평균 금지, 스펙 §4.1)
+    var g = idx || this.growthIndex(null, floor);
+    var prof = this.heroProfile(floor);
+    var hf = Math.max(1, Math.min(this.FOLLOW_CAP, Math.pow(g.dps || 1, this.FOLLOW_POW)));
+    var df = Math.max(1, Math.min(this.FOLLOW_CAP, Math.pow(g.ehp || 1, this.FOLLOW_POW)));
+    hp *= 1 + (hf - 1) * prof.hpW;
+    dmg *= 1 + (df - 1) * prof.dmgW;
+
     if (this.isBossFloor(floor)) { hp *= this.BOSS_MOD_HP; dmg *= this.BOSS_MOD_DMG; }
 
-    // heroKeyFor 는 이제 층만 본다 — 숙련도를 구하러 Learn 을 건드릴 이유가 없다
+    // heroKeyFor 는 이제 회차만 본다 — 숙련도를 구하러 Learn 을 건드릴 이유가 없다
     var hk = heroKey || this.heroKeyFor(floor);
     var k = (this.HERO_DIFF && this.HERO_DIFF[hk]) || 1;
-    return { hp: hp * k, damage: dmg * k };
+    var rel = this.reliefFor(floor);
+    return { hp: hp * k * rel, damage: dmg * k * rel };
   },
 
   // 이 층에서 AI 컨트롤러가 최소한 이만큼은 잘한다.
@@ -443,25 +683,29 @@ GAME.DefendTower = {
     return rec;
   },
 
-  // 실패 — **1층부터 다시.** 골드·유닛 레벨·증원·배치도 같이 사라진다.
-  //  영구 성장으로 두면 1층이 통째로 무의미해지고(레벨 5 진형으로 1층을 도는 상태),
-  //  무배치 기준선(SC-4)도 "골드가 얼마나 쌓였느냐"에 따라 달라져 측정 자체가 안 된다.
+  // 실패 — **아무것도 안 지운다.** 회차·골드·유닛 레벨·정련·증원·배치도가 전부 남는다.
   //
-  //  2026-07-29 · **두 탑의 패배 규칙이 여기로 통일됐다.** 통곡의 탑에도 체크포인트가
-  //  있었는데(`Tower.CHECKPOINT_EVERY`) 사용자 지시로 없앴다 —
-  //  이제 양쪽 다 "1번이라도 패배하면 1층부터, 빌드도 통째로 초기화"다.
-  //  (통곡의 탑에서 빌드 초기화를 맡는 건 `TowerRun.end()` 다.)
-  //  ⚠ `best`(최고 기록)만 남긴다. 랭킹 점수의 근거라 지우면 안 된다.
+  //  ── 2026-08-07 · 옛 규칙(1회차부터 다시)을 버렸다 ─────────────────────────
+  //  옛 주석은 리셋의 근거를 이렇게 적어 두었다:
+  //    "영구 성장으로 두면 1층이 통째로 무의미해지고(레벨 5 진형으로 1층을 도는 상태),
+  //     무배치 기준선(SC-4)도 '골드가 얼마나 쌓였느냐'에 따라 달라져 측정 자체가 안 된다."
+  //  그 우려는 **여전히 옳고, 이번 변경이 그 둘을 각각 푼다**:
+  //    · 1층이 무의미해지는 문제 → `heroModsFor` 의 성장 추종(내가 세지면 영웅도 센다)
+  //    · 측정이 안 되는 문제     → `tools/defend-curve.js` 의 고정 성장 프로필
+  //  같은 주석의 "두 탑의 패배 규칙이 여기로 통일됐다"(2026-07-29)는 **이미 낡았다** —
+  //  통곡의 탑이 2026-08-01 에 "패배해도 층 유지"로 바꿨고, 수성의 탑만 옛 규칙에
+  //  혼자 남아 있었다. 서버 실측이 그 결과를 그대로 보여 준다(수성 최고 25회차 vs
+  //  통곡 최고 62층) — 숫자 크기의 차이는 난이도가 아니라 리셋 규칙의 차이였다.
+  //
+  //  ⚠ `placed` 와 `tier` 는 **짝이다.** 한쪽만 남기면 등급표가 어긋나 거짓이 된다.
+  //    둘 다 남기는 것이 이 변경의 핵심이다 — `js/scenes/build.js` 가 이미
+  //    `DefendTower.get().placed` 를 읽어 이어가는 코드를 갖고 있어 그 경로가 살아난다.
+  //  ⚠ 완화(`noteFloorFail`)는 여기서 부르지 않는다. 이 함수는 **저장만** 하고,
+  //    "졌다"는 사건은 씬(`js/scenes/defend.js`)이 한 곳에서 기록한다 —
+  //    두 곳에서 세면 한 번의 패배가 두 번 세어진다.
   fail: function () {
     var rec = this.get();
     rec.runs = (rec.runs || 0) + 1;
-    rec.floor = 1;
-    rec.placed = null;
-    rec.tier = null;      // placed 를 지웠으면 그 등급표도 같이 지운다(짝이 안 맞으면 거짓말이 된다)
-    rec.gold = 0;
-    rec.unitLv = {};
-    rec.refine = {};
-    rec.bonusBudget = 0;
     this._save(rec);
     return rec;
   },

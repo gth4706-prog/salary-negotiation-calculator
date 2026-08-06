@@ -122,8 +122,12 @@ GAME.DefendScene.prototype.create = function () {
   if (this.defendTower) {
     var DT = GAME.DefendTower;
     this.aiSkill = DT.skillFor(this.defendTower);
-    this.budget = DT.heroBudgetFor(this.defendTower);      // 층 고정 영웅 예산
-    heroMods = DT.heroModsFor(this.defendTower);
+    this.budget = DT.heroBudgetFor(this.defendTower);      // 회차 고정 영웅 예산
+    //  ⚠ **이 판에 실제로 세운 배치**로 성장 지수를 만든다. 기록의 `placed` 를 쓰면
+    //    배치를 고치고 바로 들어온 판에서 한 판 늦은 값을 쓰게 된다 —
+    //    "고쳤는데 왜 그대로지"가 되고, 고친 것과 결과의 인과가 끊긴다.
+    heroMods = DT.heroModsFor(this.defendTower, null,
+                              DT.growthIndex(this.placed, this.defendTower));
   } else {
     var ctrl = GAME.Learn.getCtrl();
     this.aiSkill = ctrl.skill || 0;
@@ -461,9 +465,18 @@ GAME.DefendScene.prototype.update = function (time, delta) {
     // 수성의 탑: 승패를 층에 반영한다. 숙련도는 층이 정하므로 Learn 은 건드리지 않는다.
     var towerRec = null, learnNotes = [];
     if (this.defendTower) {
-      towerRec = defended
-        ? GAME.DefendTower.clear(this.defendTower, this.placed.slice(), this.tier, this.state)
-        : GAME.DefendTower.fail();
+      //  ⚠ 완화를 세는 곳은 **여기 한 곳뿐**이다. `clear`/`fail` 안에서도 세면
+      //    한 번의 승패가 두 번 기록된다.
+      //  ⚠ 순서: 먼저 `clear`/`fail` 로 회차를 확정한 다음 완화를 손댄다.
+      //    `clear` 가 `rec.floor` 를 다음 회차로 올리므로, 완화는 **방금 깬 회차**
+      //    번호로 지워야 한다(`this.defendTower`).
+      if (defended) {
+        towerRec = GAME.DefendTower.clear(this.defendTower, this.placed.slice(), this.tier, this.state);
+        GAME.DefendTower.clearFloorFail(this.defendTower);
+      } else {
+        towerRec = GAME.DefendTower.fail();
+        GAME.DefendTower.noteFloorFail(this.defendTower);
+      }
     } else {
       var rec = GAME.Learn.recordCtrl(aiWon, { timedOut: this.state.winner === 'draw' });
       this.aiSkill = rec.skill;

@@ -109,14 +109,20 @@ GAME.ResultScene.prototype.create = function () {
     // 수성의 탑 — 영웅을 막아냈으면 한 층 올라간다
     var DT = GAME.DefendTower;
     if (this.winner === 'controller') {
-      title = this.defendTower + '층 방어 실패'; color = C.accentAlt;
-      sub = '영웅에게 뚫렸습니다. 1층부터 다시 시작합니다.' +
-            (this.towerRec ? ' 최고 기록 ' + (this.towerRec.best || 0) + '층.' : '');
+      // 2026-08-07 — 패배해도 회차가 안 돌아간다(영구 성장). "1층부터" 문구를 없애고
+      //  같은 회차 재도전을 안내한다. **배치를 고칠 수 있다는 것을 여기서 말한다** —
+      //  매 패배의 질문이 "무엇을 고칠까"가 되는 것이 이 변경의 노림수다.
+      title = this.defendTower + '회차 방어 실패'; color = C.accentAlt;
+      sub = '영웅에게 뚫렸습니다. 배치를 고쳐 같은 회차에 다시 도전할 수 있습니다 — ' +
+            '골드·유닛 강화·증원은 그대로 남습니다.' +
+            (this.towerRec ? ' 최고 기록 ' + (this.towerRec.best || 0) + '회차.' : '');
     } else {
       var nf = this.defendTower + 1;
-      title = this.defendTower + '층 방어 성공'; color = C.accent;
+      //  같은 화면 안에서 단위가 갈리면 안 된다 — 패배 쪽을 '회차'로 바꿨으므로
+      //  승리 쪽도 같이 맞춘다(수성의 탑 로비도 '회차'로 부른다).
+      title = this.defendTower + '회차 방어 성공'; color = C.accent;
       sub = (this.winner === 'draw' ? '시간 안에 뚫지 못했습니다 — 방어 성공. ' : '영웅을 격퇴했습니다. ') +
-            '다음은 ' + nf + '층 — 오는 영웅 ' +
+            '다음은 ' + nf + '회차 — 오는 영웅 ' +
             GAME.HEROES[DT.heroKeyFor(nf, DT.skillFor(nf))].name +
             ' (예산 ' + DT.heroBudgetFor(nf) + ') vs 내 배치 ' + DT.budgetFor(nf) + '.';
     }
@@ -210,7 +216,7 @@ GAME.ResultScene.prototype.create = function () {
   var b1;
   // 2026-08-01 — 패배해도 층이 안 돌아가므로 재도전 문구도 같은 층을 가리킨다.
   if (this.tower) b1 = (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : this.tower + '층 재도전');
-  else if (this.defendTower) b1 = (this.winner === 'controller' ? '1층부터 다시' : (this.defendTower + 1) + '층 방어');
+  else if (this.defendTower) b1 = (this.winner === 'controller' ? '그대로 재도전' : (this.defendTower + 1) + '회차 방어');
   else if (this.versus) b1 = '다음 상대';
   else if (this.defendMode) b1 = '배치 고쳐 다시';
   else b1 = '같은 진형에 다시 도전';
@@ -219,8 +225,15 @@ GAME.ResultScene.prototype.create = function () {
     // `_skipToNextFloor` 가 이 화면 자체를 건너뛴다). 그래서 여기는 항상 "같은 층 재도전"
     // 이고, 허브를 한 번 더 거치지 않고 `instantRetry` 로 곧장 그 층 전투로 들어간다.
     if (self.tower) self.scene.start('Tower', { step: 'challenge', instantRetry: true });
-    else if (self.defendTower) self.scene.start('DefendTower',
-      { cleared: self.winner !== 'controller' });   // 막아냈으면 성장 화면부터 연다
+    else if (self.defendTower) {
+      // 2026-08-07 — 졌으면 **배치를 그대로 들고 곧장 다시 붙는다**(허브를 안 거친다).
+      //  막아냈으면 예전대로 허브로 가서 성장 화면부터 연다.
+      if (self.winner === 'controller') {
+        self.scene.start('Build', { defendTower: self.defendTower, instantStart: true });
+      } else {
+        self.scene.start('DefendTower', { cleared: true });
+      }
+    }
     else if (self.versus) self.scene.start('Versus');
     else if (self.defendMode) self.scene.start('Build');
     else self.scene.start('Draft', { formationId: self.formationId });
@@ -248,10 +261,15 @@ GAME.ResultScene.prototype.create = function () {
       //  ⚠ 아래에 이미 '메뉴' 버튼이 있다. 여기까지 '메뉴로'로 두면 같은 곳으로 가는
       //    버튼이 두 개가 된다(QA 실측: 대전·수성의 탑 결과 화면). 각 모드에서
       //    **다음에 할 만한 것**으로 바꾼다.
-      this.defendTower ? '🛡 수성의 탑'
+      this.defendTower ? '🛠 배치 고치기'
         : (this.versus ? '⚔ 다시 대전' : (this.defendMode ? '컨트롤러로 도전' : '다른 진형 고르기')),
       function () {
-        if (self.defendTower) { self.scene.start('DefendTower'); return; }
+        // 배치 수정은 **항상 열려 있다**(사용자 지시) — 이긴 판에서도 다음 회차를
+        //  들어가기 전에 고칠 수 있어야 한다.
+        if (self.defendTower) {
+          self.scene.start('Build', { defendTower: GAME.DefendTower.get().floor });
+          return;
+        }
         if (self.versus) { self.scene.start('Versus'); return; }
         self.scene.start('Select');
       }, { fontSize: P ? 15 : 16 });
@@ -368,7 +386,7 @@ GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
   var b1;
   // 2026-08-01 — 패배해도 층이 안 돌아가므로 재도전 문구도 같은 층을 가리킨다.
   if (this.tower) b1 = (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : this.tower + '층 재도전');
-  else if (this.defendTower) b1 = (this.winner === 'controller' ? '1층부터 다시' : (this.defendTower + 1) + '층 방어');
+  else if (this.defendTower) b1 = (this.winner === 'controller' ? '그대로 재도전' : (this.defendTower + 1) + '회차 방어');
   else if (this.versus) b1 = '다음 상대';
   else if (this.defendMode) b1 = '배치 고쳐 다시';
   else b1 = '같은 진형에 다시 도전';
@@ -378,8 +396,15 @@ GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
     // `_skipToNextFloor` 가 이 화면 자체를 건너뛴다). 그래서 여기는 항상 "같은 층 재도전"
     // 이고, 허브를 한 번 더 거치지 않고 `instantRetry` 로 곧장 그 층 전투로 들어간다.
     if (self.tower) self.scene.start('Tower', { step: 'challenge', instantRetry: true });
-    else if (self.defendTower) self.scene.start('DefendTower',
-      { cleared: self.winner !== 'controller' });   // 막아냈으면 성장 화면부터 연다
+    else if (self.defendTower) {
+      // 2026-08-07 — 졌으면 **배치를 그대로 들고 곧장 다시 붙는다**(허브를 안 거친다).
+      //  막아냈으면 예전대로 허브로 가서 성장 화면부터 연다.
+      if (self.winner === 'controller') {
+        self.scene.start('Build', { defendTower: self.defendTower, instantStart: true });
+      } else {
+        self.scene.start('DefendTower', { cleared: true });
+      }
+    }
     else if (self.versus) self.scene.start('Versus');
     else if (self.defendMode) self.scene.start('Build');
     else self.scene.start('Draft', { formationId: self.formationId });
@@ -393,9 +418,17 @@ GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
     ? [['🛒 상점', function () { self.scene.start('TowerShop', { tab: 'item' }); }],
        ['⚒ 능력치', function () { self.scene.start('TowerShop', { tab: 'stats' }); }],
        ['🏠 로비', function () { self.scene.start('Tower', { step: 'challenge' }); }]]
-    : [[(this.defendTower ? '메뉴로' : (this.versus ? '메뉴로'
+    : [[(this.defendTower ? '🛠 배치 고치기' : (this.versus ? '메뉴로'
           : (this.defendMode ? '컨트롤러로 도전' : '다른 진형'))),
-        function () { self.scene.start((self.defendTower || self.versus) ? 'Menu' : 'Select'); }],
+        function () {
+          // 배치 수정은 **항상 열려 있다**(사용자 지시) — 이긴 판에서도 다음 회차를
+          //  들어가기 전에 고칠 수 있어야 한다.
+          if (self.defendTower) {
+            self.scene.start('Build', { defendTower: GAME.DefendTower.get().floor });
+            return;
+          }
+          self.scene.start(self.versus ? 'Menu' : 'Select');
+        }],
        ['🏆 랭킹', function () { self.scene.start('Rank', { kind: self._rankKind(), scope: 'all' }); }],
        ['메뉴', function () { self.scene.start('Menu'); }]];
   row.forEach(function (o, i) {

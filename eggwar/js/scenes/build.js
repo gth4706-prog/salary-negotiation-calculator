@@ -151,12 +151,19 @@ GAME.BuildScene.prototype.init = function (data) {
   this.arena = !!(data && data.arena);
   // 대전에서 '기지 만들기'로 들어왔는가 — 저장 시 그 배치도를 내 기지로 삼는다
   this.pickBase = !!(data && data.pickBase);
+  //  ── '그대로 재도전' 착지점 (2026-08-07) ──────────────────────────────────
+  //  결과 화면에서 배치를 안 고치고 바로 다시 붙는 길. 통곡의 탑의 `instantRetry`
+  //  (js/scenes/result.js)와 같은 문법이다 — 허브를 한 번 더 거치지 않는다.
+  //  ⚠ 씬 인스턴스는 재사용되므로 **매번 여기서 되돌린다.** 안 그러면 한 번 켠 뒤
+  //    배치 화면에 영영 못 머문다(이 저장소에서 세 번 겪은 계열의 사고다).
+  this.instantStart = !!(data && data.instantStart);
   // ── 지난 층의 배치를 그대로 불러온다 (2026-07-29, 사용자 지시) ──────────────
   // 수성의 탑은 같은 진형으로 층을 이어 오르는 모드다. 매 층 빈 판에서 다시 짜게 하면
   // 층수가 오를수록 '같은 배치를 다시 그리는 노동'만 늘어난다.
   // 불러온 뒤 고칠 수 있으므로 선택지를 뺏지도 않는다.
-  // ⚠ 진 판에서는 `DefendTower.fail()` 이 placed 를 지우므로 여기서 자동으로 빈 판이 된다
-  //   — "지면 처음부터"라는 규칙과 어긋나지 않는다.
+  // ⚠ 2026-08-07 — 진 판에서도 `placed` 가 남는다(영구 성장). 그래서 재도전은 **지난
+  //   배치를 그대로 들고** 시작하고, 사용자가 고칠 자리를 여기서 연다. 이것이 이번
+  //   변경의 핵심 동선이다 — 매 패배의 질문이 "무엇을 고칠까"가 된다.
   if (this.arena) {
     // 대전 배치도는 id 당 하나다 → 들어오면 **내 것을 불러와 고치는** 것이 기본이다.
     var myBase = GAME.Arena.baseFormation();
@@ -691,6 +698,14 @@ GAME.BuildScene.prototype.create = function () {
   if (PH) {
     this._hint('아래 파란 칸을 탭하면 배치  ·  놓인 유닛을 탭하면 삭제(✕)와 강화가 뜬다',
       GAME.BuildScene.HINT_MS);
+  }
+
+  //  불러온 배치가 실제로 있을 때만 곧장 붙는다. 비었으면 그냥 배치 화면에 머문다
+  //  — 빈 배치로 들어가면 `_defend()` 가 경고만 내고 아무 일도 안 일어나, 사용자
+  //    입장에서는 버튼이 죽은 것처럼 보인다.
+  if (this.instantStart && this.defendTower && this.placed.length) {
+    this.instantStart = false;
+    this._defend();
   }
 };
 

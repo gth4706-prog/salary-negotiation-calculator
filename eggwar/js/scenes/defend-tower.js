@@ -50,6 +50,8 @@ GAME.DefendTowerScene.prototype.init = function (data) {
   // 이 저장소에서 이미 터진 유형이다. 씬을 다시 들어올 때마다 반드시 비운다.
   this._heroG = null;
   this._heroGeo = null;
+  // 안내 모달은 씬을 다시 들어올 때마다 다시 판단한다 — 캐시하지 않는다.
+  this._noticeTimer = null;
 };
 
 GAME.DefendTowerScene.prototype.create = function () {
@@ -68,7 +70,7 @@ GAME.DefendTowerScene.prototype.create = function () {
 
   // 폰 가로(820×390)는 한 열로 흘릴 높이가 없다 — 아래에서 올라오는 버튼과
   // 위에서 내려오는 문구가 만난다(실측: 겹침 4건, 27px 버튼).
-  if (GAME.CONFIG.PHONE) { this._createPhone(); this._maybeAutoGrowth(); return; }
+  if (GAME.CONFIG.PHONE) { this._createPhone(); this._maybeAutoGrowth(); this._resetNotice(); return; }
 
   var rec = DT.get();
   var floor = rec.floor;
@@ -179,6 +181,42 @@ GAME.DefendTowerScene.prototype.create = function () {
   this.events.on('shutdown', function () { self._closeGrowth(); });
 
   this._maybeAutoGrowth();
+  this._resetNotice();
+};
+
+// ── 규칙이 바뀌었다는 것을 **한 번만** 말한다 (2026-08-07) ────────────────────
+//  말 안 하면 업데이트가 아니라 **고장으로 읽힌다** — 25회차까지 갔던 사람이 들어와서
+//  1회차를 보면 기록이 날아간 것으로 본다.
+//  ⚠ 옛 기록이 있는 사람에게만 띄운다. 처음 온 사람에게 "규칙이 바뀌었습니다"는
+//    아직 아무 뜻이 없다.
+//  ⚠ '봤음' 표시는 `GAME.Onboard` 의 저장소를 **그대로 빌려 쓴다**(js/scenes/menu.js 의
+//    `_carryNotice` 와 같은 규율 — 같은 성격의 기록을 키 두 개로 나눠 두면 계정을
+//    지울 때 한쪽만 남는다).
+//  ⚠ 이 모달은 `tools/overlap-audit.js` 가 씬 대신 모달을 재게 만든다. 그 도구가
+//    시작할 때 `markSeen('dtower-reset-v2')` 를 부르도록 같이 고쳐 두었다.
+GAME.DefendTowerScene.prototype._resetNotice = function () {
+  var ID = 'dtower-reset-v2';
+  if (!GAME.Onboard || !GAME.Modal) return;
+  if (GAME.Onboard.seen().indexOf(ID) >= 0) return;
+  var old = GAME.DefendTower.legacyBest();
+  if (!old) return;
+
+  var self = this;
+  //  씬이 다 그려진 뒤에 띄운다 — create 도중에 열면 뒤 화면이 아직 없어 어색하다.
+  this._noticeTimer = this.time.delayedCall(400, function () {
+    if (!self.scene.isActive()) return;
+    GAME.Onboard.markSeen(ID);
+    GAME.Modal.open(self, {
+      title: '수성의 탑이 새로워졌습니다',
+      items: [
+        { key: 'ok', name: '이제 져도 그대로 남습니다',
+          note: '회차 · 골드 · 유닛 강화 · 정련 · 증원 · 배치도가 유지되고, 배치를 고쳐 다시 도전합니다' },
+        { key: 'old', name: '옛 규칙 최고 기록 ' + old + '회차',
+          note: '규칙이 바뀌어 기록은 1회차부터 다시 시작합니다 — 옛 기록은 이 자리에 남습니다' }
+      ],
+      onPick: function () { /* 알리기만 한다 — 고를 것이 없다 */ }
+    });
+  });
 };
 
 // 지금 올려둔 유닛 레벨 요약 — "  ·  전사 Lv.3 · 쇠뇌 진지 Lv.2"
@@ -418,9 +456,11 @@ GAME.DefendTowerScene.prototype._openGrowth = function () {
   objs.push(UI.text(this, W / 2, py0 + 42,
     '골드는 침입 영웅의 체력을 깎을 때마다 들어온다. 격퇴하면 가장 많다.',
     { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 }).setDepth(902));
+  //  2026-08-07 — 예전 문구("지면 골드·레벨·증원이 전부 사라진다")는 **거짓이 됐다.**
+  //  규칙이 바뀐 화면에 옛 경고가 남아 있으면 사람이 그 경고대로 논다(안 사고 아낀다).
   objs.push(UI.text(this, W / 2, py0 + 66,
-    '레벨은 유닛 종류 단위로 최대 ' + UL.MAX + '단. 지면 골드·레벨·증원이 전부 사라진다.',
-    { size: 'micro', color: UI.TXT.crit, origin: 0.5, originY: 0 }).setDepth(902));
+    '레벨은 유닛 종류 단위로 최대 ' + UL.MAX + '단. 져도 골드·레벨·증원은 그대로 남는다.',
+    { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 }).setDepth(902));
 
   function mk(cx, cy, label, fn, opts) {
     var b = UI.button(self, cx, cy, bw, bh, label, fn, opts);

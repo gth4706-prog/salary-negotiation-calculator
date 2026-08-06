@@ -848,15 +848,27 @@ window.GAME = window.GAME || {};
     opts = opts || {};
     var f = Math.max(1, num(floor, 1));
     var e = Math.max(2, num(every, 10));
-    var into = ((f - 1) % e);
     var h = num(opts.height, 14);
+    //  ── 한 칸 어긋나 있었다 (2026-08-05) ──────────────────────────────────
+    //  보스는 `floor % every === 0` 이다(`Tower.isBossFloor`). 그런데 진행도를
+    //  `(f - 1) % e` 로 재고 있어서 한 칸씩 밀렸다:
+    //    9층  → "다음 보스까지 2층"(실제로는 1층)
+    //    10층 → "다음 보스까지 1층"  ← **보스 층에 서 있는데** 1층 남았다고 한다
+    //    게이지도 최대 0.9 라 보스 앞에서 한 번도 안 찬다.
+    //  ⚠ 규칙(`% e === 0`)과 표시(`(f-1) % e`)가 **서로 다른 식**이었던 것이 원인이다.
+    //    표시는 규칙에서 그대로 유도해야 한다.
+    var into = (f % e);              // 이 구간에서 몇 층째인가 (보스 층이면 0)
+    var onBoss = (into === 0);
+    var togo = onBoss ? 0 : (e - into);
     var m = UI.meter(scene, x, y, w, h, {
       color: UI.tier(4).hex, seg: e, danger: -1, radius: h / 2
     });
-    m.set(into / e);
+    m.set(onBoss ? 1 : (into / e));
 
     var cap = UI.text(scene, x + w / 2, y + h + 5,
-      opts.text === undefined ? ('다음 보스까지 ' + (e - into) + '층') : opts.text, {
+      opts.text === undefined
+        ? (onBoss ? '보스 층' : ('다음 보스까지 ' + togo + '층'))
+        : opts.text, {
         size: 'micro', color: TXT.textMid, origin: 0.5, originY: 0
       });
     var baseDestroy = m.destroy;

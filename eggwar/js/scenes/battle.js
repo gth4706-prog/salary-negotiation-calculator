@@ -61,6 +61,9 @@ GAME.BattleScene.prototype.init = function (data) {
   this._endHold = -1;        // -1 = 아직 유예에 안 들어감
   this._endElapsed = 0;
   this._endShown = -1;
+  //  토스트 큐 — 씬 인스턴스가 재사용되므로 여기서 되돌린다(이 파일의 상습 사고 계열).
+  this._toastQ = [];
+  this._toastOn = false;
 };
 
 GAME.BattleScene.prototype.create = function () {
@@ -885,7 +888,30 @@ GAME.BattleScene.prototype._ultBanner = function (name) {
   try { navigator.vibrate && navigator.vibrate([22, 50, 30]); } catch (e) {}
 };
 
+//  ── 토스트 (2026-08-05: 큐 신설) ────────────────────────────────────────────
+//  예전에는 새 토스트가 앞의 것을 **즉시 지웠다**. 구슬을 줍는 순간 회복 구역이
+//  나타나거나 공격반사 경고가 겹치면 첫 줄을 **읽을 새도 없이** 사라졌다 —
+//  이 저장소가 구슬·축복에서 두 번 겪은 "받은 줄도 몰랐다"와 같은 계열이다.
+//  ⚠ 뒤에 밀린 것이 있으면 **짧게** 보여 준다. 4초씩 쌓으면 전투가 끝나도 안내가
+//    남아 흐른다 — 큐는 밀리는 것을 없애려고 두는 것이지 늘리려는 게 아니다.
+//  ⚠ 큐 길이를 막는다. 난전에서 수십 개가 밀리면 그건 안내가 아니라 소음이다.
+//  ⚠ `DefendScene` 은 자기 `init` 을 따로 갖는다 → 여기서 **게으르게 초기화**한다
+//    (프로토타입을 빌려 쓰는 씬이 undefined 를 만나 터지는 사고가 이미 있었다).
+GAME.BattleScene.prototype.TOAST_MAX = 4;
 GAME.BattleScene.prototype._orbToast = function (text) {
+  if (!text) return;
+  if (!this._toastQ) this._toastQ = [];
+  if (this._toastQ.length >= this.TOAST_MAX) return;
+  this._toastQ.push(text);
+  if (!this._toastOn) this._toastPump();
+};
+
+GAME.BattleScene.prototype._toastPump = function () {
+  var self = this;
+  if (!this._toastQ || !this._toastQ.length) { this._toastOn = false; return; }
+  var text = this._toastQ.shift();
+  this._toastOn = true;
+
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH;
   var r = GAME.Iso.screenRect();
@@ -896,9 +922,14 @@ GAME.BattleScene.prototype._orbToast = function (text) {
     GAME.CONFIG.SMALL ? 17 : 20, C.accent, 0.5).setOrigin(0.5, 1).setDepth(60);
   this._orbMsg.setAlign('center').setWordWrapWidth(Math.min(W - 60, r.w - 40));
   var m = this._orbMsg;
-  // 4초 뒤 사라진다. 씬이 먼저 죽어도 안전하게(파괴된 객체를 만지면 Phaser 가 터진다).
-  this.time.delayedCall(4000, function () {
+
+  //  뒤에 밀린 게 있으면 짧게, 없으면 넉넉히.
+  var dur = this._toastQ.length ? 1700 : 4000;
+  // 씬이 먼저 죽어도 안전하게(파괴된 객체를 만지면 Phaser 가 터진다).
+  this.time.delayedCall(dur, function () {
     if (m && m.scene) m.destroy();
+    if (self.scene && self.scene.isActive && self.scene.isActive()) self._toastPump();
+    else self._toastOn = false;
   });
 };
 

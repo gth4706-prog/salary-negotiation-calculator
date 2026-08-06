@@ -557,8 +557,12 @@ GAME.DefendTowerScene.prototype._openSheet = function () {
   objs.push(UI.text(this, W / 2, py0 + 44,
     '한 회차 = 쳐들어오는 영웅 하나를 막아내는 것. 지면 1회차부터 다시.',
     { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 }).setDepth(902));
+  //  ⚠ 같은 한 칸 어긋남이 여기에도 있었다(`js/ui-hud.js` 의 `bandMeter` 주석 참조).
+  //    보스 판정은 `floor % BOSS_EVERY === 0` 인데 표시는 `(floor-1) % ...` 이라
+  //    보스 회차에 서서 "다음 보스까지 1회차"라고 말했다. 규칙에서 그대로 유도한다.
+  var dtInto = floor % DT.BOSS_EVERY;
   objs.push(UI.text(this, W / 2, py0 + 70,
-    '다음 보스까지 ' + (DT.BOSS_EVERY - ((floor - 1) % DT.BOSS_EVERY)) + '회차',
+    dtInto === 0 ? '보스 회차' : ('다음 보스까지 ' + (DT.BOSS_EVERY - dtInto) + '회차'),
     { size: 'micro', color: UI.TXT.crit, origin: 0.5, originY: 0 }).setDepth(902));
 
   function mk(cx, cy, label, fn, opts) {

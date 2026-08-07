@@ -32,7 +32,10 @@ lore: '부족의 앞줄에 서기로 한 알. 뒤에 선 동료가 활을 당길
     // 쿨 9초로 길게 잡되 초기 쿨이 유닛마다 흩어지므로(runAbility) 여러 기가 있으면
     // 번갈아 들어온다 — "쉴 새 없이 뭔가 온다"는 밀도를 물량이 아니라 시차로 만든다.
     // 피해는 작게(22). 이 능력의 일은 죽이는 게 아니라 **가만히 못 있게 하는 것**이다.
-    ability: { type: 'charge', cooldown: 6600, telegraph: 450,
+    // `motif` 는 **아트 전용 키**다(js/skillfx.js 의 MOTIF_MAT 팔레트를 고른다).
+    // 밸런스에는 한 톨도 안 들어간다 — heroes.js 의 스킬 60종이 이미 같은 키를 쓰고 있고,
+    // 유닛 능력 9종만 빠져 있어서 **아홉 가지가 전부 같은 진흙색으로 터지고 있었다.**
+    ability: { type: 'charge', motif: 'blade', cooldown: 6600, telegraph: 450,
                minRange: 110, maxRange: 210, dist: 210,
                damage: 54, radius: 36, knockback: 16 }
   },
@@ -51,7 +54,7 @@ lore: '숲에서 새알을 노리던 사냥꾼. 화살은 곧게 날아가니 �
     // 돌진은 원거리 영웅에게 안 통한다 — 붙기 전에 또 물러나면 그만이다.
     // 그래서 **거리를 유지해도 닿는 것**을 하나 만든다: 발밑에 그림자가 지고,
     // 그 자리에 계속 서 있으면 맞는다. 피하는 법은 하나뿐 — 움직이는 것.
-    ability: { type: 'barrage', cooldown: 7200, telegraph: 640,
+    ability: { type: 'barrage', motif: 'feather', cooldown: 7200, telegraph: 640,
                minRange: 150, maxRange: 900,
                damage: 104, radius: 72, repeat: 1,
                // 예측 사격 계수 — 진행 방향으로 미리 쏜다(combat.js 주석 참조)
@@ -69,7 +72,7 @@ lore: '강가의 둥근 돌만 골라 담는 무릿매꾼. 겨눈 자리에 그�
     // 2026-07-31 · 스킬 신설. 정체성(구역 봉쇄)을 그대로 키운다 —
     // 한 발이 아니라 **세 발을 흩어 떨어뜨려** 서 있을 자리를 지운다.
     // 피해는 평타(69)보다 낮게 잡는다. 이 스킬의 일은 죽이는 게 아니라 **쫓아내는 것**이다.
-    ability: { type: 'barrage', cooldown: 7600, telegraph: 700,
+    ability: { type: 'barrage', motif: 'rock', cooldown: 7600, telegraph: 700,
                minRange: 120, maxRange: 900,
                damage: 92, radius: 66, repeat: 3, spread: 190, interval: 380,
                // 예측 사격 계수 — 진행 방향으로 미리 쏜다(combat.js 주석 참조)
@@ -86,7 +89,7 @@ lore: '한 번 던지면 반드시 박히는 미늘 작살. 대신 다시 던질
     chase: 110, aggro: 440, spacing: 38,
     // 2026-07-31 · 스킬 신설. 이미 자동명중이라 '맞추는 것'을 더 줘도 의미가 없다 →
     // **예고가 보이는 큰 한 방**을 준다. 피할 수 있게 만들어 자동명중과 결이 달라진다.
-    ability: { type: 'barrage', cooldown: 9000, telegraph: 900,
+    ability: { type: 'barrage', motif: 'bone', cooldown: 9000, telegraph: 900,
                minRange: 160, maxRange: 900,
                damage: 188, radius: 82, repeat: 1,
                // 예측 사격 계수 — 진행 방향으로 미리 쏜다(combat.js 주석 참조)
@@ -114,7 +117,7 @@ lore: '약초를 씹어 상처에 붙이는 손. 스스로는 안 싸우지만 �
     //  55%/4.5초 — 반으로 깎되 0 으로는 안 만든다. 0 이면 답이 아니라 벽이 되고,
     //  이 게임의 흡혈은 광역 명중 수에 비례해 증폭되므로(표기 25% → 실효 79%)
     //  절반만 깎아도 광역 영웅에게는 체감이 크다.
-    ability: { type: 'healBurst', cooldown: 14000, telegraph: 500,
+    ability: { type: 'healBurst', motif: 'sand', cooldown: 14000, telegraph: 500,
                radius: 190, heal: 130,
                enemyHealCut: 0.55, enemyHealCutMs: 4500 }
   },
@@ -133,7 +136,7 @@ lore: '통나무를 깎아 만든 대방패. 날아오는 것을 대신 받아 �
     // **19초짜리 벽**이었다(사냥꾼 유효 피해 16.5 × 쿨 750ms). 체력을 깎으면 존재 이유가
     // 사라지고, 그대로 두면 지루하다. 그래서 **거리를 지우는 수단**을 줬다 —
     // 이제 방패병은 맞아주는 물건이 아니라 '피해야 하는 순간'을 만든다.
-    ability: { type: 'charge', cooldown: 6400, telegraph: 520,
+    ability: { type: 'charge', motif: 'shield', cooldown: 6400, telegraph: 520,
                minRange: 120, maxRange: 270, dist: 270,
                damage: 66, radius: 44, knockback: 24 }
   },
@@ -149,7 +152,7 @@ lore: '소뿔 투구를 쓰고 앞장서는 우두머리. 그가 보고 있는 �
     chase: 160, aggro: 300, spacing: 41,
     // 2026-07-31 · 스킬 신설. 상시 버프(1.30)가 정체성이므로 **일시적으로 더 크게** 준다.
     // 포효가 터지면 그 몇 초가 진형의 화력 정점이다 — 그때 붙어 있으면 위험하다는 신호.
-    ability: { type: 'warcry', cooldown: 15000, telegraph: 600,
+    ability: { type: 'warcry', motif: 'rope', cooldown: 15000, telegraph: 600,
                radius: 220, dmgMul: 1.6, ms: 4000 }
   },
 
@@ -168,7 +171,7 @@ lore: '통나무로 짜 세운 거치 쇠뇌. 한 발도 못 움직이는 대신
     immobile: true,
     // 2026-07-31 · 스킬 신설. 못 움직이는 대신 **집중 사격**으로 한 구역을 지운다.
     // 고정물이라 컨트롤러가 위치만 바꾸면 피할 수 있다 — 대가가 분명한 스킬이다.
-    ability: { type: 'barrage', cooldown: 8200, telegraph: 620,
+    ability: { type: 'barrage', motif: 'blade', cooldown: 8200, telegraph: 620,
                minRange: 100, maxRange: 900,
                damage: 100, radius: 58, repeat: 4, spread: 150, interval: 300,
                // 예측 사격 계수 — 진행 방향으로 미리 쏜다(combat.js 주석 참조)
@@ -195,7 +198,7 @@ lore: '끈끈한 늪 수액을 단지에 담아 던진다. 맞은 자는 발이 
     chase: 140, aggro: 320, spacing: 41,
     // 2026-07-31 · 스킬 신설. 둔화가 정체성이므로 **넓게 한 번에** 건다.
     // 카이팅(거리를 벌리는 답)을 직접 벌주는 유일한 전략 유닛 스킬이다.
-    ability: { type: 'barrage', cooldown: 8600, telegraph: 760,
+    ability: { type: 'barrage', motif: 'bog', cooldown: 8600, telegraph: 760,
                minRange: 120, maxRange: 900,
                damage: 62, radius: 110, repeat: 1, slowMul: 0.5, slowMs: 2600,
                // 예측 사격 계수 — 진행 방향으로 미리 쏜다(combat.js 주석 참조)

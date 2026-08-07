@@ -2247,6 +2247,26 @@ GAME.BattleScene.prototype.draw = function () {
           g.lineBetween(hx, hyy - 5, hx, hyy + 5);
         }
       }
+      //  ── 약초 잎이 위로 떠오른다 (2026-08-07) ──────────────────────────────
+      //  ⚠ `healPulse` 는 `SkillFX._drawEffectInner` 가 false 를 돌려주는 kind 라
+      //    재료(motif)를 붙여도 그 파일이 안 읽는다. 그래서 여기서 층을 하나 더 얹는다
+      //    — **새 kind 를 만들지 않는다**(렌더러가 모르는 kind 는 조용히 안 그려진다).
+      //  ⚠ 약초꾼 능력(healBurst)일 때만이다. 상시 회복(`healRadius`)까지 잎을 띄우면
+      //    1초마다 화면에 잎이 깔려 예고 원을 가린다 — 이 게임 제1규율(바닥이 시끄러우면
+      //    회피가 안 된다)에 걸린다. `owner` 는 combat 의 `_withAbilFx` 가 심는다.
+      var _hb = e.owner && e.owner.def && e.owner.def.ability &&
+                e.owner.def.ability.type === 'healBurst';
+      if (_hb) {
+        var hly = Iso.toScreenY(e.y), hsd = (e.x * 7.31 + e.y * 13.07) % 6.2832;
+        for (var hl = 0; hl < 3; hl++) {
+          var hla = hsd + (Math.PI * 2 / 3) * hl;
+          var hlx = e.x + Math.cos(hla) * e.r * 0.58;
+          var hlyy = hly + Math.sin(hla) * e.r * 0.58 * Iso.TILT - 6 - (1 - ha) * 26;
+          if (INKA > 0) { g.fillStyle(INK, ha * 0.5 * INKA); g.fillEllipse(hlx, hlyy, 11, 7.5, 8); }
+          g.fillStyle(hl === 1 ? GAME.UI.MAT.leafDark : GAME.UI.MAT.leaf, ha * 0.95);
+          g.fillEllipse(hlx, hlyy, 9, 5.5, 8);
+        }
+      }
 
     } else if (e.kind === 'block') {
       // 방패병이 투사체를 막았다 — 링 + 짧은 파편 4개
@@ -2408,8 +2428,26 @@ GAME.BattleScene.prototype.draw = function () {
     //   타격 순간과 히트스톱이 정확히 겹치므로** 거기서는 진짜로 보인다.
     var fdt = this._frameDt();
     var walk = GAME.UI.updateGait(u, fdt);
-    // 전투 모션 — 영웅만. 렌더 전용 관측자라 combat 을 한 줄도 안 읽어 바꾸지 않는다.
+    // 전투 모션 — 영웅과 **전략 유닛**(2026-08-07 확대). 렌더 전용 관측자라
+    // combat 을 읽기만 하고 한 줄도 안 바꾼다.
     var act = GAME.UI.updateAct(u, fdt);
+
+    //  ── 정련(수성의 탑)이 무기에 실린다 (2026-08-07) ────────────────────────
+    //  ⚠ `def` 에는 정련 표식이 없다 — `js/scenes/defend.js` 가 `refineMods` 로 hp/damage
+    //    에 곱하기만 하고 def 에 아무것도 안 남긴다. 그래서 **호출부가 조회해서 넘긴다.**
+    //  ⚠ **유닛당 한 번만** 읽는다. `DefendTower.refineOf` 는 `get()` → 저장소 읽기라
+    //    매 프레임 부르면 한 프레임에 저장소를 20번 두드리게 된다.
+    //  ⚠ `u.type` 은 원본 키가 아닐 수 있다(탑 정예 파생 `shieldman#6+charge`) —
+    //    `UnitLevel.baseKeyOf` 로 되돌려야 한다. 이 저장소가 로딩 공략에서 이미 겪은
+    //    사고의 같은 얼굴이다(안 되돌리면 조용히 undefined → 0 이 된다).
+    if (u._rfStep === undefined) {
+      u._rfStep = 0;
+      if (this.defendTower && u.side === 'strategist' &&
+          GAME.DefendTower && GAME.DefendTower.refineOf) {
+        var _bk = GAME.UnitLevel ? GAME.UnitLevel.baseKeyOf(u.type) : u.type;
+        u._rfStep = GAME.DefendTower.refineOf(_bk) || 0;
+      }
+    }
     // 피격 휘청임 — 계란은 무게중심이 위에 있는 오뚝이라 맞으면 흔들려야 한다.
     // 맞은 반대 방향으로 밀렸다가 감쇠 진동으로 돌아온다. **그리는 좌표만** 흔들고
     // 월드 좌표(u.x/u.y)는 건드리지 않는다 — 판정·밸런스 불변.
@@ -2430,7 +2468,8 @@ GAME.BattleScene.prototype.draw = function () {
     // (어깨띠는 양 진영 같은 모양이므로 side 를 필요로 하지 않는다.)
     var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, 1, u.facing, walk,
                                undefined, { footRing: false, sizeMul: u.eliteDraw || 1,
-                                            act: act, gearTier: u._gearTier, kit: u._kit });
+                                            act: act, gearTier: u._gearTier, kit: u._kit,
+                                            refine: u._rfStep });
 
     //  ── 방어 태세 표시 (2026-08-03) ──────────────────────────────────────────
     //  "때리면 안 되는 시간"을 **글자 없이** 알려야 한다. 두 단계로 보여준다:

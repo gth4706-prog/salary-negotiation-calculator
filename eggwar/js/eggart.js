@@ -277,6 +277,74 @@ var SM = 10;
             (((ab + (bb - ab) * t) | 0)));
   };
 
+  //  ── 재질 3단을 '색'이 아니라 '이름'으로 찾는다 (2026-08-07) ──────────────────
+  //  `UI.tint(c, ±f)` 는 **흑백 축으로만** 민다. 이 파일이 `deriveMatTones` 주석에
+  //  스스로 적어 뒀듯 그렇게 밀면 **그늘이 회색이 되어 재질이 죽는다** — 그런데 정작
+  //  전략 유닛 장비는 거의 전부 `tint` 로 명암을 만들고 있었다(늪지기 단지 `tint(clay,-0.30)`,
+  //  늪지기 삿갓 `tint(rope,-0.22)`, 쇠뇌 방벽 `tint(wood,±)` …).
+  //
+  //  → 색값이 MAT 토큰이면 그 토큰의 **Lite/Dark 짝**을 돌려주고, 아니면 `deriveMatTones`
+  //    와 **같은 계수**로 warm/cool 을 유도한다. 두 벌이 갈라지면 테마를 바꿨을 때
+  //    장비만 색이 튄다(이 파일이 이미 겪은 사고다).
+  //
+  //  ⚠ **진영색에는 쓰지 않는다.** `tint(color, ±)` 자리는 그대로 둔다 — 진영색을
+  //    노랑/파랑으로 밀면 아군·적군 구분이 흐려진다. 이건 **재질 축 전용**이다.
+  var TONE_CACHE = null, TONE_STAMP = null;
+  function toneIndex() {
+    //  MAT 은 테마 전환(`deriveMatTones`)으로 갈아끼워진다 → 값이 바뀌면 표를 다시 만든다.
+    //  도장(stamp)은 대표 토큰 몇 개면 충분하다(전부 비교하면 매 호출이 비싸진다).
+    var stamp = M.wood + ':' + M.bone + ':' + M.stone + ':' + M.iron + ':' + M.blade;
+    if (TONE_CACHE && TONE_STAMP === stamp) return TONE_CACHE;
+    var idx = {}, k, base, li, dk;
+    for (k in M) {
+      if (/(Lite|Dark|Rim)$/.test(k)) continue;
+      li = M[k + 'Lite']; dk = M[k + 'Dark'];
+      if (k === 'shell') { li = M.shellLite; dk = M.shellRim; }
+      base = M[k];
+      if (typeof base !== 'number') continue;
+      //  같은 색값을 쓰는 토큰이 둘 있으면(coinBronze == bronze 등) 먼저 온 쪽이 이긴다.
+      if (idx[base] === undefined) idx[base] = { lite: li, dark: dk };
+    }
+    TONE_CACHE = idx; TONE_STAMP = stamp;
+    return idx;
+  }
+  function warmTone(c, f) {                      // 밝게 + 노랑 쪽 (deriveMatTones 와 동일)
+    var r = (c >> 16) & 255, g2 = (c >> 8) & 255, b = c & 255;
+    r += (255 - r) * f; g2 += (255 - g2) * f * 0.92; b += (255 - b) * f * 0.66;
+    return ((r | 0) << 16) | ((g2 | 0) << 8) | (b | 0);
+  }
+  function coolTone(c, f) {                      // 어둡게 + 파랑 쪽
+    var r = (c >> 16) & 255, g2 = (c >> 8) & 255, b = c & 255;
+    r *= (1 - f); g2 *= (1 - f * 0.94); b *= (1 - f * 0.80);
+    return ((r | 0) << 16) | ((g2 | 0) << 8) | (b | 0);
+  }
+  UI.lit = function (col, f) {
+    var e = toneIndex()[col];
+    if (e && typeof e.lite === 'number' && f === undefined) return e.lite;
+    return warmTone(col, f === undefined ? 0.28 : f);
+  };
+  UI.shade = function (col, f) {
+    var e = toneIndex()[col];
+    if (e && typeof e.dark === 'number' && f === undefined) return e.dark;
+    return coolTone(col, f === undefined ? 0.34 : f);
+  };
+
+  //  ── 광원 하이라이트 한 점 (2026-08-07) ──────────────────────────────────────
+  //  `UI.LIGHT` 는 좌상단에서 온다고 명문화돼 있는데, 그것을 읽는 곳이 `eggBody` 의
+  //  리스광과 접지 그림자 **둘뿐**이었다. 투구·무기·등짐은 광원이 있는 줄도 몰랐다 —
+  //  그게 "장비가 평평하다"의 코드상 원인이다.
+  //
+  //  ⚠ **도형 하나로 끝낸다.** 리스광처럼 호를 그리면 유닛 하나당 호출이 크게 는다
+  //    (v1.66 의 결론: 이 게임에서 믿을 지표는 프레임당 그리기 호출 수다).
+  //  ⚠ 호출부가 `r < 9` 를 걸러 준다(LOD). 여기서도 한 번 더 막는다.
+  //  w/h 는 하이라이트 타원의 **지름**이다(fillEllipse 계약과 같게).
+  UI.sheen = function (g, cx, cy, w, h, a, col) {
+    if (!(w > 0.8) || !(h > 0.8) || !(a > 0.02)) return;
+    var L = UI.LIGHT;
+    g.fillStyle(col === undefined ? L.key : col, a);
+    g.fillEllipse(cx + L.dir.x * w * 0.22, cy + L.dir.y * h * 0.22, w, h, 8);
+  };
+
   // ── 달걀 외곽선 ───────────────────────────────────────────────
   // 위는 좁고 아래는 넓다. 반높이 r, 최대 반폭 ≈ 1.04 * r * wide
   // lean : 보행 기울기. 발밑을 축으로 꼭대기를 lean 만큼 민다(전단 변형).
@@ -334,17 +402,23 @@ var SM = 10;
   //  back  : 몸 뒤 레이어 (화살통·망토 등)
   //  face  : 'open' | 'slit' | 'none'
   //  wide  : 달걀 가로 비율 (체급 표현)
+  //  fam   : 계급(유닛 레벨) 장식의 **재료 계열** [L2~3, L4~5] — 2026-08-07 신설.
+  //          ⚠ 예전엔 열 종류가 전부 청동→강철 하나였다. 실측(`tools/unit-art-sheet.js
+  //            mode=lv`)에서 L5 가 되면 열 종류가 **같은 은색 관을 쓴 계란**이 되어
+  //            "종류는 실루엣이 전담한다"는 제1원칙이 무너졌다. 유닛마다 자기 재료를 준다.
+  //          ⚠ 전부 중립 재질색이다. `leaf`(초록)는 **못 쓴다** — 진영색 민트(165°)·
+  //            녹청(168°)과 색역이 겹친다(설계 경계 5번).
   UI.ART = {
     // ── 전략가 유닛 10종 ──
-    warrior:  { helm: 'pot',     gear: 'sword',      back: null,     face: 'open', wide: 0.80 },
-    archer:   { helm: 'band',    gear: 'bow',        back: 'quiver', face: 'open', wide: 0.74 },
-    slinger:  { helm: 'cap',     gear: 'sling',      back: 'pouch',  face: 'open', wide: 0.76 },
-    spearman: { helm: 'hood',    gear: 'javelin',    back: null,     face: 'open', wide: 0.74 },
-    herbalist:{ helm: 'leaf',    gear: 'leafstaff',  back: 'pack',   face: 'open', wide: 0.76 },
-    shieldman:{ helm: 'bucket',  gear: 'towerShield',back: null,     face: 'slit', wide: 0.86 },
-    chieftain:{ helm: 'horns',   gear: 'handaxe',    back: 'cape',   face: 'open', wide: 0.78 },
-    bogman:   { helm: 'sedge',   gear: 'sapjar',     back: null,     face: 'open', wide: 0.78 },
-    ballista: { helm: 'pot',     gear: 'crossbowNest', back: null,   face: 'open', wide: 0.80, squat: true },
+    warrior:  { helm: 'pot',     gear: 'sword',      back: null,     face: 'open', wide: 0.80, fam: ['bronze', 'blade'] },
+    archer:   { helm: 'band',    gear: 'bow',        back: 'quiver', face: 'open', wide: 0.74, fam: ['bone', 'boneLite'] },
+    slinger:  { helm: 'cap',     gear: 'sling',      back: 'pouch',  face: 'open', wide: 0.76, fam: ['stone', 'stoneLite'] },
+    spearman: { helm: 'hood',    gear: 'javelin',    back: null,     face: 'open', wide: 0.74, fam: ['bone', 'boneLite'] },
+    herbalist:{ helm: 'leaf',    gear: 'leafstaff',  back: 'pack',   face: 'open', wide: 0.76, fam: ['wood', 'bone'] },
+    shieldman:{ helm: 'bucket',  gear: 'towerShield',back: null,     face: 'slit', wide: 0.86, fam: ['iron', 'blade'] },
+    chieftain:{ helm: 'horns',   gear: 'handaxe',    back: 'cape',   face: 'open', wide: 0.78, fam: ['bronze', 'blade'] },
+    bogman:   { helm: 'sedge',   gear: 'sapjar',     back: null,     face: 'open', wide: 0.78, fam: ['stone', 'stoneLite'] },
+    ballista: { helm: 'pot',     gear: 'crossbowNest', back: null,   face: 'open', wide: 0.80, squat: true, fam: ['iron', 'blade'] },
     snaretrap:{ ground: 'spiketrap' },
 
     // ── 영웅 3종 ──
@@ -585,10 +659,48 @@ var SM = 10;
   UI.ACT = {
     //  WIND : 예비 동작 길이  ·  DUR : 모션 총 길이  ·  A : 기울기 진폭(측면축)
     //  B = A × TAN675 로 자동 계산한다 — φ 를 손으로 적으면 어긋난다.
+    //  kyLo/kyHi : 이 아트의 눌림 한계(생략하면 전역 0.78~1.20).
     berserker: { wind: 240, dur: 600, A: 0.120 },   // 큰 각 — 대검이 주 신호
     hunter:    { wind: 200, dur: 420, A: 0.092 },   // 가장 얕다 — 몸을 안 쓰는 게 정체성
     guardian:  { wind: 300, dur: 620, A: 0.099 },   // 느리게 감고 버틴다
-    _default:  { wind: 200, dur: 480, A: 0.100 }
+    _default:  { wind: 200, dur: 480, A: 0.100 },
+
+    //  ── 전략 유닛 (2026-08-07) ──────────────────────────────────────────────
+    //  실측(`tools/unit-art-sheet.js`)에서 본 것: 유닛은 전장에서 **걸음걸이 말고는
+    //  아무것도 안 움직인다.** `updateAct` 가 `!u.isHero` 한 줄로 통째로 막고 있었다.
+    //  그래서 영웅 옆에 서면 유닛이 미끄러지는 정물처럼 보인다 — "영웅만 좋아 보인다"의
+    //  가장 큰 몫이 여기다(그림 밀도가 아니라 **움직이는가**의 차이).
+    //
+    //  ⚠⚠ **ky 를 영웅보다 좁게 간다(0.90~1.10).** `eggBody` 는 면적 보존으로 가로를
+    //    1/ky 로 늘리는데, 유닛은 진형에서 `spacing` 38~41px 로 붙어 선다. 영웅 폭
+    //    (0.84~1.10)을 그대로 주면 폰(`UNIT_DRAW_SCALE` 1.30)에서 옆 유닛과 겹친다 —
+    //    이 파일이 KY_MIN/MAX 주석에 적어 둔 그 사고를 유닛 수만큼 반복하게 된다.
+    //  ⚠ 진폭(A)도 영웅보다 얕다. 화면에 유닛이 15~25기라, 영웅 한 명과 같은 폭으로
+    //    흔들면 전장이 통째로 출렁인다.
+    //  ⚠ `dur` 는 여기 값과 **쿨타임의 90%** 중 작은 쪽이다(`updateAct`). 쇠뇌 진지는
+    //    쿨이 420ms 뿐이라 이 상한이 없으면 모션이 다음 발사를 덮는다.
+    warrior:   { wind: 190, dur: 400, A: 0.085, kyLo: 0.90, kyHi: 1.10 },  // 단검 — 짧고 빠르다
+    archer:    { wind: 220, dur: 420, A: 0.060, kyLo: 0.92, kyHi: 1.08 },  // 시위 — 몸을 거의 안 쓴다
+    slinger:   { wind: 240, dur: 460, A: 0.090, kyLo: 0.90, kyHi: 1.10 },  // 무릿매 — 크게 돌린다
+    spearman:  { wind: 260, dur: 440, A: 0.075, kyLo: 0.92, kyHi: 1.08 },  // 작살 — 길게 겨눈다
+    herbalist: { wind: 200, dur: 460, A: 0.055, kyLo: 0.93, kyHi: 1.08 },  // 안 싸운다 — 가장 얕다
+    shieldman: { wind: 280, dur: 460, A: 0.070, kyLo: 0.92, kyHi: 1.08 },  // 무겁다
+    chieftain: { wind: 200, dur: 430, A: 0.088, kyLo: 0.90, kyHi: 1.10 },  // 손도끼
+    bogman:    { wind: 230, dur: 450, A: 0.078, kyLo: 0.92, kyHi: 1.08 },  // 단지를 던진다
+    //  ⚠ 쇠뇌 진지는 **고정물**이다. `updateAct` 가 `drift` 를 0 으로 막는다 —
+    //    못 움직이는 것이 이 유닛의 값인데 그림이 앞으로 미끄러지면 거짓말이 된다.
+    ballista:  { wind: 110, dur: 330, A: 0.050, kyLo: 0.94, kyHi: 1.06 }
+  };
+
+  //  능력 타입 → 스킬 포즈. 유닛의 능력은 슬롯(QWER)이 아니라 `def.ability.type` 이다.
+  //  ⚠ 여기 없는 타입은 **조용히 null** 이 되고 모션이 안 뜬다(에러도 안 난다) —
+  //    영웅 슬롯 매핑이 파수꾼 오라를 그렇게 잃었던 그 자리다. 감사가 이 표를 직접 본다.
+  UI.ABIL_POSE = {
+    charge: 'dash',          // 달려들기 · 방패 돌진 — 몸이 뒤늦게 따라붙는다
+    barrage: 'aoeTarget',    // 예고 폭격 — 팔을 든 채 유지(유일하게 진짜 예비가 있는 타입)
+    shockwave: 'aoeSelf',    // 자기중심 파동 — 눌렸다 펴진다
+    healBurst: 'buff',       // 약초꾼 — 웅크렸다 부풀기
+    warcry: 'aura'           // 족장 — 깃대를 땅에 꽂고 버틴다
   };
 
   //  ky 는 이 범위를 벗어나면 안 된다. `eggBody` 가 면적을 보존하느라 가로를 1/ky 로
@@ -671,6 +783,14 @@ var SM = 10;
   //  act 를 포즈로 바꾼다. **순수 함수** — 같은 인자면 같은 반환(gait·idlePose 와 같은 규율).
   //  act : null | { art:'berserker'|…, t:ms(발동 후), wind:0..1, kind:'atk'|'skill', type:… }
   //  반환 키 중 ky/rise/lean/pitch/reach/atk 는 idlePose 와 같은 이름이라 합산할 수 있다.
+  //  아트별 눌림 한계. 전략 유닛은 진형에서 붙어 서므로 영웅보다 좁다(`UI.ACT` 주석).
+  function clampKyOf(v, C) {
+    var lo = (C && C.kyLo) || KY_MIN, hi = (C && C.kyHi) || KY_MAX;
+    if (lo < KY_MIN) lo = KY_MIN;
+    if (hi > KY_MAX) hi = KY_MAX;
+    return v < lo ? lo : (v > hi ? hi : v);
+  }
+
   UI.actPose = function (act) {
     if (!act) return null;
 
@@ -683,7 +803,11 @@ var SM = 10;
                  guard: act.art === 'guardian' ? 0.10 : 0,
                  gearDrop: 0, spin: 0, legF: 0, legSpread: 0 };
       skillPose(act.type, clamp01(act.t / ds), Ps);
+      Ps.ky = clampKyOf(Ps.ky, Cs);
       if (Ps.drift > 1.4) Ps.drift = 1.4; else if (Ps.drift < -1.4) Ps.drift = -1.4;
+      //  고정물은 **절대 안 움직인다.** 그림이 앞으로 미끄러지면 "저기 보이는데
+      //  여기서 맞는다"가 되고, 못 움직이는 것이 이 유닛의 값인데 그게 거짓말이 된다.
+      if (act.noDrift) Ps.drift = 0;
       Ps.lean = -Cs.A * Ps.atk;
       Ps.pitch = Cs.A * TAN675 * Ps.atk;
       return Ps;
@@ -700,7 +824,7 @@ var SM = 10;
     if (t < 0) {
       // ── 예비 ── 아직 안 때렸다. w 가 1 에 가까울수록 완전히 감긴 상태.
       k = -Math.pow(w, act.art === 'guardian' ? 1 : 0.7);   // 파수꾼만 선형(느리다=무겁다)
-      ky = 1 + 0.10 * w * (act.art === 'hunter' ? 0.5 : 1);
+      ky = clampKyOf(1 + 0.10 * w * (act.art === 'hunter' ? 0.5 : 1), C);
       rise = -0.05 * w;
       reach = 1 - 0.12 * w;
       drift = -0.10 * w;
@@ -711,7 +835,7 @@ var SM = 10;
         // ── 타격 ── 짧고 빠르다. 만화 타이밍의 핵심은 여기가 예비의 1/3 이라는 것.
         var u = t / strike;
         k = -1 + (1 + peak) * Math.pow(u, 0.55);
-        ky = clampKy(1.10 - 0.26 * Math.sqrt(u));
+        ky = clampKyOf(1.10 - 0.26 * Math.sqrt(u), C);
         rise = -0.05 + 0.15 * u;
         reach = 1 + 0.34 * u;
         drift = -0.10 + 0.36 * u;
@@ -722,7 +846,7 @@ var SM = 10;
         var hold = act.art === 'guardian' ? 0.38 : 0;   // 창을 박은 채 유지
         var fall = Math.cos(v * Math.PI * 0.5);
         k = peak * (hold ? (1 - (1 - hold) * ease(v)) : fall);
-        ky = clampKy(0.84 + 0.16 * ease(v));
+        ky = clampKyOf(0.84 + 0.16 * ease(v), C);
         rise = 0.10 * fall;
         reach = 1 + 0.34 * fall;
         drift = 0.26 * fall;
@@ -736,6 +860,9 @@ var SM = 10;
     // 정면(D.fx≈0)에서는 legFA 가 화면에서 죽는다 — 옆으로 벌려 보완한다.
     legSpread = 0.50 * (legF > 0 ? legF : -legF);
 
+    //  고정물(쇠뇌 진지)은 앞뒤로 미끄러지지 않는다 — 위 스킬 분기와 같은 이유다.
+    if (act.noDrift) drift = 0;
+
     return {
       ky: ky, rise: rise, reach: reach, atk: k,
       lean: -C.A * k, pitch: C.A * TAN675 * k,   // φ = 67.5° 고정 (위 주석)
@@ -747,14 +874,33 @@ var SM = 10;
   //  `updateGait` 의 형제. **렌더 전용 관측자** — combat 의 값을 읽기만 하고
   //  자기 상태는 `u._act*` 에만 쓴다(battle.js 의 `_juice` 가 `_prevHp` 를 쓰는 것과 같은 패턴).
   //  ⚠ combat 을 한 줄도 안 고친다. 이 경계를 깨면 렌더가 밸런스를 움직이게 된다.
+  //  ── 2026-08-07 · **전략 유닛에도 연다** ─────────────────────────────────────
+  //  예전 첫 줄은 `if (!u || !u.isHero || !u.alive)` 였다. 그 한 줄 때문에 전장의
+  //  유닛 15~25기가 걸음걸이 말고는 아무것도 안 움직였다 — "영웅만 좋아 보인다"의
+  //  가장 큰 몫이 그림 밀도가 아니라 **움직이는가**였다(실측 컨택트시트로 확인).
+  //
+  //  ⚠ **판정은 여전히 한 줄도 안 건드린다.** 이 함수는 `u.cd`/`u.abilCd` 를 **읽기만**
+  //    하고 자기 상태는 `u._act*` 에만 쓴다(영웅과 같은 규약).
+  //  ⚠ 아트 표(`UI.ACT`)에 항목이 있는 종류만 움직인다. 용 보스(`beast:…`)·가시덫
+  //    (`snaretrap`)은 항목이 없어 예전처럼 조용히 null 이다 — 회귀 위험 0.
   UI.updateAct = function (u, dtMs) {
-    if (!u || !u.isHero || !u.alive) { if (u) u._act = null; return null; }
+    if (!u || !u.alive) { if (u) u._act = null; return null; }
     // ⚠ `u.def.art` 를 먼저 보면 안 된다 — `createHero` 의 def 는 **화이트리스트**라
     //   `art` 가 거기 없다(CLAUDE.md 가 chargeKnock 으로 이미 경고한 그 함정이다).
     //   영웅의 아트 키는 `u.hero`(원본 HEROES 항목)에만 있다.
     var art = (u.hero && u.hero.art) || (u.def && u.def.art);
+    if (!u.isHero && !UI.ACT[art]) { u._act = null; return null; }
     var C = UI.ACT[art] || UI.ACT._default;
     var dt = (typeof dtMs === 'number' && isFinite(dtMs)) ? dtMs : 0;
+    //  유닛의 기본 공격 모션은 **쿨의 90% 를 못 넘는다.** 쇠뇌 진지 쿨이 420ms 뿐이라
+    //  이 상한이 없으면 모션이 다음 발사를 덮어 "언제 쐈는지"가 안 읽힌다.
+    var atkDur = C.dur;
+    if (!u.isHero) {
+      var cdBase0 = (u.def && u.def.cooldown) || 900;
+      atkDur = Math.min(C.dur, Math.max(140, cdBase0 * 0.90));
+    }
+    //  고정물은 그림이 앞뒤로 미끄러지면 안 된다(`actPose` 의 `noDrift`).
+    var noDrift = !!(u.def && u.def.immobile);
 
     // ① 스킬 슬롯의 쿨이 **올라갔으면** 방금 시전한 것이다(`castSkill` 이 리셋한다).
     //    기본 공격보다 먼저 본다 — 스킬이 곧 그 순간의 주인공이다.
@@ -773,18 +919,37 @@ var SM = 10;
       u._actDur = UI.SKILL_DUR[skType] || 480;
     }
 
+    // ①-2 유닛의 능력 — 슬롯이 아니라 `u.abilCd` 를 본다(`runAbility` 가 리셋한다).
+    //  ⚠ 모션 길이를 **예고(telegraph) 길이에 맞춘다.** 예고는 이 게임에서 유일하게
+    //    '진짜 지연'이라 예비 동작이 정직해진다(영웅 aoeTarget 과 같은 논리).
+    //    시전 프레임에 피해가 들어가는 것은 그대로다 — 그림만 뒤따라간다.
+    if (!skType && !u.isHero) {
+      var aCd = u.abilCd || 0;
+      if (u._actPrevAbilCd !== undefined && aCd > u._actPrevAbilCd + 1) {
+        var ab0 = u._abilCur || (u.def && u.def.ability) ||
+                  (u.def && u.def.abilities && u.def.abilities[0]);
+        var apose = ab0 && UI.ABIL_POSE[ab0.type];
+        if (apose) {
+          skType = apose;
+          u._actT = 0; u._actOn = true; u._actKind = 'skill'; u._actType = apose;
+          u._actDur = Math.max(260, Math.min(900, ((ab0.telegraph || 400) + 200)));
+        }
+      }
+      u._actPrevAbilCd = aCd;
+    }
+
     // ② 쿨타임이 올라갔으면 방금 때린 것이다(fire 가 def.cooldown 으로 리셋한다).
     var cd = u.cd || 0;
     if (!skType && u._actPrevCd !== undefined && cd > u._actPrevCd + 1) {
       u._actT = 0; u._actOn = true; u._actKind = 'atk'; u._actType = null;
-      u._actDur = C.dur;
+      u._actDur = atkDur;
     }
     u._actPrevCd = cd;
 
     // ③ 진행 중이면 시간을 흘린다.
     if (u._actOn) {
       u._actT = (u._actT || 0) + dt;
-      if (u._actT > (u._actDur || C.dur)) { u._actOn = false; u._actT = 0; u._actKind = null; }
+      if (u._actT > (u._actDur || atkDur)) { u._actOn = false; u._actT = 0; u._actKind = null; }
     }
 
     // ④ 예비 — 다음 타격까지 남은 시간이 곧 예비 진행도다.
@@ -797,15 +962,19 @@ var SM = 10;
       // — 200ms 넘게 멈춘 포즈를 만들지 않는다는 규율에 걸린다.
       // 0.65 는 "무기를 들었다"는 읽히되 극단이 아닌 지점이고, 완전히 감기는 것은
       // 타격 직전 W 구간 안에서만 일어난다.
-      if (cd <= 0) wind = 0.65;
+      //  ⚠ **유닛에는 이 상시 0.65 를 주지 않는다.** 유닛은 진형에서 몇십 초씩 가만히
+      //    서 있고(사거리 밖·고정물·약초꾼처럼 아예 안 때리는 종류), 그 자세가 굳으면
+      //    "쉬는 모습"이 통째로 바뀐다. 유닛은 **실제 쿨이 돌 때만** 감는다.
+      if (cd <= 0) { if (u.isHero) wind = 0.65; }
       else if (cd < W) wind = 1 - cd / W;
     }
 
     if (u._actOn) {
-      u._act = { art: art, t: u._actT, dur: u._actDur || C.dur, wind: 0,
-                 kind: u._actKind || 'atk', type: u._actType || null };
+      u._act = { art: art, t: u._actT, dur: u._actDur || atkDur, wind: 0,
+                 kind: u._actKind || 'atk', type: u._actType || null, noDrift: noDrift };
     } else if (wind > 0) {
-      u._act = { art: art, t: -1, dur: C.dur, wind: wind, kind: 'atk', type: null };
+      u._act = { art: art, t: -1, dur: atkDur, wind: wind, kind: 'atk', type: null,
+                 noDrift: noDrift };
     } else u._act = null;
     return u._act;
   };
@@ -1063,12 +1232,21 @@ var SM = 10;
     var cloth = ivory ? color : M.leather;   // ivory 시안은 천을 진영색으로
     var i, hs;
 
+    //  ── 광원 (2026-08-07) ──────────────────────────────────────────────────
+    //  `UI.LIGHT` 는 좌상단이라고 이 파일이 명문화해 뒀는데, 투구는 **광원이 있는 줄도
+    //  몰랐다** — 그래서 열세 종의 머리가 전부 납작한 색 덩어리로 보였다.
+    //  둥근 투구마다 리스광 **하나**만 얹는다(도형 +1, r<9 면 생략).
+    var top = function (cx, cy, w, h, col) {
+      if (r >= 9) UI.sheen(g, cx, cy, w, h, 0.30 * a, col);
+    };
+
     if (kind === 'pot') {                    // 전사 — 낮고 넓은 냄비투구
       var pw = prof ? 1.06 : 1.24;
       var pcx = sx + lat * r * 0.06;
       g.fillStyle(M.bladeDark, a);
       g.fillEllipse(pcx, by - r * 0.70, r * pw, r * 0.86, SM);
-      g.fillStyle(UI.tint(M.bladeDark, -0.25), a);
+      top(pcx, by - r * 0.78, r * pw * 0.42, r * 0.30, UI.lit(M.bladeDark));
+      g.fillStyle(UI.shade(M.bladeDark), a);
       g.fillRect(pcx - r * pw * 0.55, by - r * 0.74, r * pw * 1.10, r * 0.20);
       if (back) {                            // 뒤 — 목가리개 + 리벳
         g.fillStyle(UI.tint(M.bladeDark, -0.14), a);
@@ -1113,6 +1291,7 @@ var SM = 10;
     } else if (kind === 'cap') {             // 투석꾼 — 작은 가죽 모자 + 챙
       g.fillStyle(M.leatherDark, a);
       g.fillEllipse(sx, by - r * 0.78, r * (prof ? 0.86 : 0.96), r * 0.62, SM);
+      top(sx, by - r * 0.86, r * 0.34, r * 0.22, M.leatherLite);
       if (back) {                            // 뒤 — 챙이 안 보이고 목덜미 천만
         g.fillStyle(UI.tint(M.leather, -0.18), a);
         g.fillRoundedRect(sx - r * 0.44, by - r * 0.64, r * 0.88, r * 0.54, r * 0.14);
@@ -1185,8 +1364,9 @@ var SM = 10;
       var bwr = prof ? 0.44 : 0.56;
       g.fillStyle(M.iron, a);
       g.fillRoundedRect(sx - r * bwr, by - r * 1.30, r * bwr * 2, r * 1.06, r * 0.18);
+      top(sx - r * bwr * 0.30, by - r * 1.12, r * bwr * 0.66, r * 0.34, M.ironLite);
       if (back) {                            // 뒤 — 틈이 없다. 대신 목가리개 + 리벳
-        g.fillStyle(UI.tint(M.iron, -0.24), a);
+        g.fillStyle(M.ironDark, a);
         g.fillRoundedRect(sx - r * 0.64, by - r * 0.46, r * 1.28, r * 0.48, r * 0.12);
         if (r >= 10) {
           g.fillStyle(UI.tint(M.iron, 0.20), a);
@@ -1221,6 +1401,7 @@ var SM = 10;
       var dome = function () {
         g.fillStyle(M.leatherDark, a);
         g.fillEllipse(sx, by - r * 0.74, r * (prof ? 0.92 : 1.10), r * 0.70, SM);
+        top(sx, by - r * 0.84, r * 0.36, r * 0.24, M.leatherLite);
       };
       if (prof) {
         horn(-lat, 0.52, UI.tint(M.bone, -0.38), 0.02);   // 먼 뿔 — 투구 뒤로 가림
@@ -1245,17 +1426,26 @@ var SM = 10;
 
     } else if (kind === 'sedge') {           // 늪지기 — 삿갓 (게임에서 가장 넓은 실루엣)
       var brim = prof ? 1.10 : 1.34;
+      var stip = sx + lat * r * 0.10, sbrim = by - r * 0.52;
       g.fillStyle(M.rope, a);
-      g.fillTriangle(sx + lat * r * 0.10, by - r * 1.52,
-                     sx - r * brim, by - r * 0.52,
-                     sx + r * brim, by - r * 0.52);
+      g.fillTriangle(stip, by - r * 1.52, sx - r * brim, sbrim, sx + r * brim, sbrim);
+      //  짚 골 두 줄 — 삿갓은 이 게임에서 가장 넓은 면이라 단색이면 판때기가 된다.
+      //  광원이 좌상단이므로 왼쪽 절반을 밝게, 오른쪽을 어둡게 갈라 원뿔로 읽히게 한다.
+      if (r >= 9 && !back) {
+        g.fillStyle(M.ropeDark, a * 0.55);
+        g.fillTriangle(stip, by - r * 1.52, sx + r * brim * 0.20, sbrim, sx + r * brim, sbrim);
+        g.lineStyle(Math.max(0.8, r * 0.045), M.ropeLite, a * 0.7);
+        g.lineBetween(stip, by - r * 1.40, sx - r * brim * 0.62, sbrim);
+        g.lineStyle(Math.max(0.8, r * 0.045), M.ropeDark, a * 0.6);
+        g.lineBetween(stip, by - r * 1.40, sx + r * brim * 0.58, sbrim);
+      }
       if (back) {                            // 뒤 — 갓 윗면이 보이고 턱끈 매듭이 등에
-        g.fillStyle(UI.tint(M.rope, 0.20), a);
+        g.fillStyle(M.ropeLite, a);
         g.fillEllipse(sx, by - r * 0.58, r * brim * 1.86, r * 0.30, SM);
-        g.fillStyle(UI.tint(M.rope, -0.34), a);
+        g.fillStyle(M.ropeDark, a);
         g.fillEllipse(sx, by - r * 0.28, r * 0.32, r * 0.24, SM);
       } else {                               // 앞·옆 — 챙 아랫면 그림자
-        g.fillStyle(UI.tint(M.rope, -0.22), a);
+        g.fillStyle(M.ropeDark, a);
         g.fillRect(sx - r * brim, by - r * 0.62, r * brim * 2, Math.max(1.4, r * 0.16));
         if (!prof) {
           g.fillStyle(0x000000, a * 0.16);
@@ -1266,6 +1456,7 @@ var SM = 10;
     } else if (kind === 'onehorn') {         // 광전사 — 뼈 가시 볏 (앞뒤로 선 모히칸)
       g.fillStyle(M.leatherDark, a);
       g.fillEllipse(sx, by - r * 0.78, r * (prof ? 1.00 : 1.18), r * 0.76, SM);
+      top(sx, by - r * 0.90, r * 0.38, r * 0.26, M.leatherLite);
       g.fillStyle(M.bone, a);
       var spikes = prof ? [[-0.46, 0.52], [-0.14, 0.86], [0.20, 0.78], [0.50, 0.48]]
                  : (back ? [[-0.12, 0.60], [0.12, 0.88]] : [[-0.12, 0.92], [0.14, 0.64]]);
@@ -1297,10 +1488,12 @@ var SM = 10;
         ear(-lat, 0.50);                     // 먼 귀 먼저 → 두건에 가림
         g.fillStyle(M.leatherDark, a);
         g.fillEllipse(sx, by - r * 0.80, r * 1.00, r * 0.94, SM);
+        top(sx, by - r * 0.94, r * 0.34, r * 0.28, M.leatherLite);
         ear(lat, 1.16);
       } else {
         g.fillStyle(M.leatherDark, a);
         g.fillEllipse(sx, by - r * 0.80, r * 1.16, r * 0.94, SM);
+        top(sx, by - r * 0.94, r * 0.38, r * 0.30, M.leatherLite);
         ear(-1, lat < 0 ? 1.08 : (lat > 0 ? 0.84 : 1.0));
         ear(1, lat > 0 ? 1.08 : (lat < 0 ? 0.84 : 1.0));
       }
@@ -1326,8 +1519,9 @@ var SM = 10;
       var cwr = prof ? 0.46 : 0.58;
       g.fillStyle(M.iron, a);
       g.fillRoundedRect(sx - r * cwr, by - r * 1.34, r * cwr * 2, r * 1.10, r * 0.20);
+      top(sx - r * cwr * 0.30, by - r * 1.16, r * cwr * 0.66, r * 0.36, M.ironLite);
       if (back) {
-        g.fillStyle(UI.tint(M.iron, -0.24), a);
+        g.fillStyle(M.ironDark, a);
         g.fillRoundedRect(sx - r * 0.66, by - r * 0.50, r * 1.32, r * 0.50, r * 0.12);
         if (r >= 10) {
           g.fillStyle(UI.tint(M.iron, 0.20), a);
@@ -1428,16 +1622,24 @@ var SM = 10;
       }
 
     } else if (kind === 'pack') {            // 등짐
+      g.fillStyle(M.leatherDark, a);
+      g.fillRoundedRect(sx + ox * 1.72 - r * 0.34, by + oy * 1.20 - r * 0.26, r * 0.68, r * 0.86, r * 0.14);
       g.fillStyle(M.leather, a);
-      g.fillRoundedRect(sx + ox * 1.72 - r * 0.34, by + oy * 1.20 - r * 0.30, r * 0.68, r * 0.86, r * 0.14);
+      g.fillRoundedRect(sx + ox * 1.72 - r * 0.34, by + oy * 1.20 - r * 0.30, r * 0.62, r * 0.78, r * 0.14);
       g.fillStyle(M.leafDark, a);
       g.fillEllipse(sx + ox * 1.72, by + oy * 1.20 - r * 0.40, r * 0.44, r * 0.24, SM);
+      g.fillStyle(M.leaf, a);
+      g.fillEllipse(sx + ox * 1.72 - r * 0.10, by + oy * 1.20 - r * 0.46, r * 0.24, r * 0.14, SM);
 
     } else if (kind === 'pouch') {           // 돌주머니
+      g.fillStyle(M.leatherDark, a);
+      g.fillEllipse(sx + ox * 1.55, by + oy * 1.10 + r * 0.36, r * 0.62, r * 0.56, SM);
       g.fillStyle(M.leather, a);
-      g.fillEllipse(sx + ox * 1.55, by + oy * 1.10 + r * 0.30, r * 0.62, r * 0.56, SM);
+      g.fillEllipse(sx + ox * 1.55, by + oy * 1.10 + r * 0.28, r * 0.56, r * 0.50, SM);
       g.fillStyle(M.stone, a);
       g.fillEllipse(sx + ox * 1.55, by + oy * 1.10 + r * 0.12, (r * 0.17) * 2, (r * 0.17) * 2, SM);
+      g.fillStyle(M.stoneLite, a * 0.9);
+      g.fillEllipse(sx + ox * 1.55 - r * 0.06, by + oy * 1.10 + r * 0.06, (r * 0.07) * 2, (r * 0.07) * 2, 8);
     }
   };
 
@@ -1547,17 +1749,44 @@ var SM = 10;
   //  atk : -1(끝까지 당김) … 0(정지) … +1(때린 순간). 0 이면 지금과 픽셀 단위로 동일하다.
   //  guard/gearDrop/spin/tipCap 은 **전투 모션 전용 선택 인자**다.
   //  안 넘기면 전부 0/무제한이라 예전과 픽셀 단위로 같은 그림이 나온다(카드 화면 무변경).
-  UI.eggGear = function (g, kind, sx, by, r, color, a, D, reach, atk, guard, gearDrop, spin, tipCap, tier) {
+  //  ── 계급·정련이 무기에 실린다 (2026-08-07) ─────────────────────────────────
+  //  실측(`tools/unit-art-sheet.js mode=lv`)에서 본 것: 레벨을 올려도 **무기는 한 톨도
+  //  안 바뀐다.** 계급 장식만 붙으니 "자란 병사"가 아니라 "훈장을 붙인 계란"이 된다.
+  //  → 무기의 **금속부만** 계급 재질로 승격한다(`art.fam`). 크기·길이·형태는 안 바꾼다.
+  //  ⚠ **`GEAR_TIERS` 의 `len`/`wide`/`grd` 는 안 빌린다.** 무기가 길어지면 `tipCap`
+  //    (판정 사거리) 약속이 흔들린다 — v0.81 폰 창끝 26px 초과 사고가 그것이다.
+  //  ⚠ `rf`(정련 0~10)는 **불티 개수 하나**로만 말한다. 채워진 광휘 원은 두 번 시도해
+  //    두 번 실패했다(라이트 테마 잉크 윤곽이 회갈색 얼룩을 만든다 — 아래 spark 주석).
+  UI.REFINE_SPARK = function (rf) {
+    if (!(rf > 0)) return 0;
+    return rf >= 10 ? 5 : (rf >= 7 ? 3 : (rf >= 4 ? 2 : 0));
+  };
+
+  UI.eggGear = function (g, kind, sx, by, r, color, a, D, reach, atk, guard, gearDrop, spin, tipCap, tier, art, lv, rf) {
     if (!kind) return;
     // ⚠ 아래 본문 전체가 `M`(=UI.MAT)을 직접 읽는다. 등급별 재질을 무기 종류마다
     //   손으로 갈아 끼우면 12종 × 8등급을 다 건드려야 하고 한 곳만 빠져도 조용히 어긋난다.
     //   그래서 **이 함수 안에서만 `M` 을 가린다** — 등급이 없으면 원본 그대로다.
     var TI = UI.GEAR_TIERS[tier || 0];
     var M = UI.MAT;
-    if (TI) {
+    lv = (typeof lv === 'number' && lv > 1) ? lv : 1;
+    rf = (typeof rf === 'number' && rf > 0) ? rf : 0;
+    var rankM = (lv > 1 && art && art.fam) ? UI.rankMat(lv, art) : 0;
+    if (TI || rankM || rf > 0) {
       M = {};
       for (var mk in UI.MAT) M[mk] = UI.MAT[mk];
-      for (var tk in TI.mat) M[tk] = TI.mat[tk];
+      //  ① 계급 — 금속 세 토큰만 그 유닛의 계열로 갈아끼운다.
+      //     나무·가죽·밧줄·잎은 **안 건드린다**(활채가 청동이 되면 활이 아니게 된다).
+      if (rankM) {
+        M.blade = rankM; M.bladeDark = UI.shade(rankM);
+        M.bronze = rankM; M.iron = UI.shade(rankM);
+      }
+      //  ② 정련 — 금속을 한 단 더 밝게. 색만 바뀌고 형태는 그대로다.
+      if (rf > 0) {
+        M.blade = UI.lit(M.blade); M.bronze = UI.lit(M.bronze); M.iron = UI.lit(M.iron);
+      }
+      //  ③ 상점 무기 등급(영웅) — 마지막에 덮는다. 영웅에는 lv/rf 가 없으므로 충돌 없다.
+      if (TI) for (var tk in TI.mat) M[tk] = TI.mat[tk];
     }
     // 형태 배수 — 등급이 없으면 전부 1(=예전 그림과 픽셀 단위로 동일).
     var tLen = (TI && TI.len) || 1, tWide = (TI && TI.wide) || 1;
@@ -1585,6 +1814,27 @@ var SM = 10;
     // 종류마다 날 끝 좌표가 다른데 거기에 맞춰 효과를 짜면 12종을 따로 손봐야 하고,
     // 하나만 빠져도 "이 무기만 안 빛난다"가 된다. 손은 모든 무기가 공유하는 한 점이다.
     // 무기 **뒤에** 깔리도록 여기서(본체 그리기 전에) 그린다.
+    //  ── 정련 불티 (2026-08-07) ────────────────────────────────────────────
+    //  아래 상점 등급 광휘와 **정확히 같은 그림**을 쓴다. 새 그림을 만들면 두 벌이 되고
+    //  나중에 톤을 바꿀 때 한쪽만 고쳐진다(이 파일의 상습 사고 패턴).
+    //  ⚠ 정련 3 이하는 색만 바뀌고 점은 안 뜬다 — 화면에 점이 늘어나는 것이
+    //    난전에서 그대로 노이즈이므로, 값을 실제로 많이 쓴 사람에게만 준다.
+    var rfSpark = UI.REFINE_SPARK(rf);
+    if (rfSpark > 0 && r >= 9) {
+      var rgo = { x: hx - sx, y: hy - by };
+      var rgl = Math.sqrt(rgo.x * rgo.x + rgo.y * rgo.y) || 1;
+      var rcx = hx + (rgo.x / rgl) * r * 0.30, rcy = hy + (rgo.y / rgl) * r * 0.30 - r * 0.16;
+      var rsd = (sx * 0.7 + by * 1.3);
+      var rcol = rf >= 10 ? 0xffc94d : (rf >= 7 ? 0xffd98a : 0xf3e6bd);
+      for (var ri = 0; ri < rfSpark; ri++) {
+        var ra2 = rsd * 0.05 + ri * (Math.PI * 2 / rfSpark);
+        var rrr = r * (0.42 + 0.20 * ((ri % 2) ? 1 : 0.35));
+        var rdot = Math.max(0.8, r * 0.062);
+        g.fillStyle(rcol, (0.78 + 0.18 * (ri % 2)) * a);
+        g.fillEllipse(rcx + Math.cos(ra2) * rrr, rcy + Math.sin(ra2) * rrr * 0.8, rdot * 2, rdot * 2, SM);
+      }
+    }
+
     if (TI && TI.spark) {
       // ⚠ **채워진 광휘 원은 못 쓴다.** 두 번 시도해서 두 번 다 실패했다:
       //   0.95r 은 계란 몸을 통째로 덮었고, 0.46r 로 줄여도 라이트 테마의 잉크 윤곽
@@ -1649,7 +1899,15 @@ var SM = 10;
     if (kind === 'sword') {                  // 전사 — 짧은 청동검 + 나무 버클러
       var bx = X(0.52, -0.62), byy = Y(0.52, -0.62, 0.02);
       g.fillStyle(M.wood, a); g.fillEllipse(bx, byy, (r * 0.50) * 2, (r * 0.50) * 2, SM);
+      //  나무 결 두 줄 — 매끈한 껍질 옆에 거친 나무를 세우는 것이 이 게임의 대비축이다
+      //  ("매끈함(껍질) vs 거침(뼈·돌)" — docs/proposals/2026-08-04-art-direction.md).
+      if (r >= 10) {
+        g.lineStyle(Math.max(0.8, r * 0.05), M.woodDark, a * 0.7);
+        g.lineBetween(bx - r * 0.34, byy - r * 0.16, bx + r * 0.34, byy - r * 0.16);
+        g.lineBetween(bx - r * 0.30, byy + r * 0.18, bx + r * 0.30, byy + r * 0.18);
+      }
       g.lineStyle(lw(0.09), M.woodDark, a); g.strokeEllipse(bx, byy, (r * 0.50) * 2, (r * 0.50) * 2, SM);
+      if (r >= 9) UI.sheen(g, bx, byy, r * 0.44, r * 0.34, 0.28 * a, UI.lit(M.wood));
       g.fillStyle(M.bronze, a); g.fillEllipse(bx, byy, (r * 0.17) * 2, (r * 0.17) * 2, SM);
 
       // 자루 — 손 아래로 짧게
@@ -1676,9 +1934,17 @@ var SM = 10;
         t = -1 + (2 / 6) * k;
         arc.push({ x: cxp + bulge * (1 - t * t), y: cyp + h * t });
       }
-      g.lineStyle(lw(0.13 * big * tWide), M.wood, a);
+      //  활채를 **두 줄**로 긋는다 — 어두운 심 위에 얇고 밝은 겉을 얹으면 둥근 나무봉이
+      //  된다. 한 줄짜리 `lineBetween` 은 굵기가 일정해서 언제나 납작한 띠로 보인다
+      //  (보스 아트가 `ribbon()` 을 만든 것과 같은 이유 — 여기서는 도형 +1 로 끝낸다).
+      g.lineStyle(lw(0.13 * big * tWide), M.woodDark, a);
       g.strokePoints(arc, false, false);
-      if (tOrn >= 1) {                          // 활채 중앙 손잡이 감개
+      g.lineStyle(Math.max(0.8, r * 0.06 * big * tWide), M.wood, a);
+      g.strokePoints(arc, false, false);
+      //  손잡이 감개는 **상시**로 바꾼다(예전엔 상점 등급 1 이상에서만 떴다 = 유닛은 영영 못 봤다)
+      g.lineStyle(lw(0.15 * big * tWide), M.leatherDark, a);
+      g.lineBetween(cxp + bulge * 0.86, cyp - h * 0.14, cxp + bulge * 0.86, cyp + h * 0.14);
+      if (tOrn >= 1) {                          // 활채 중앙 손잡이 감개 — 고급은 청동
         g.lineStyle(lw(0.16 * big * tWide), M.bronze, a);
         g.lineBetween(cxp + bulge * 0.86, cyp - h * 0.16, cxp + bulge * 0.86, cyp + h * 0.16);
       }
@@ -1723,25 +1989,43 @@ var SM = 10;
       //  고리도 같이 벌리고, 끈을 손과 같은 쪽에 매 얼굴 앞을 지나지 않게 한다.
       var lxp = sx + fx * r * 0.18 + px * r * sprd, lyp = by - r * 1.38 + fy * r * 0.10 + py * r * sprd;
       var ss = px < -0.01 ? -1 : 1;
-      g.lineStyle(lw(0.08), M.rope, a * 0.85);
+      //  끈을 두 겹으로 — 어두운 심 + 밝은 겉. 한 겹이면 고리가 허공에 뜬 원으로 보인다.
+      g.lineStyle(lw(0.10), M.ropeDark, a * 0.75);
       g.strokeEllipse(lxp, lyp, r * 1.44, r * 0.56, SM);
       g.lineBetween(hx, hy, lxp + ss * r * 0.68, lyp + r * 0.06);
+      g.lineStyle(Math.max(0.8, r * 0.055), M.rope, a * 0.9);
+      g.strokeEllipse(lxp, lyp, r * 1.44, r * 0.56, SM);
+      g.lineBetween(hx, hy, lxp + ss * r * 0.68, lyp + r * 0.06);
+      //  돌 — 아랫배를 어둡게 깔고 그 위에 본색, 좌상단에 리스광. 셋이면 구가 된다.
+      g.fillStyle(M.stoneDark, a);
+      g.fillEllipse(lxp + ss * r * 0.72, lyp + r * 0.10, (r * 0.26) * 2, (r * 0.26) * 2, SM);
       g.fillStyle(M.stone, a);
-      g.fillEllipse(lxp + ss * r * 0.72, lyp + r * 0.04, (r * 0.26) * 2, (r * 0.26) * 2, SM);
-      g.fillStyle(UI.tint(M.stone, 0.35), a);
+      g.fillEllipse(lxp + ss * r * 0.72, lyp + r * 0.04, (r * 0.24) * 2, (r * 0.24) * 2, SM);
+      g.fillStyle(M.stoneLite, a);
       g.fillEllipse(lxp + ss * r * 0.66, lyp - r * 0.04, (r * 0.09) * 2, (r * 0.09) * 2, SM);
 
     } else if (kind === 'javelin') {         // 투창병 — 몸의 두 배짜리 긴 작살
       var t0x = X(-1.00, 0.34), t0y = Y(-1.00, 0.34, 0.58);
       var t1x = X(1.72, 0.34), t1y = Y(1.72, 0.34, 0.30);
-      g.lineStyle(lw(0.19), UI.tint(M.wood, 0.18), a);   // 어두운 지면에서 긴 직선이 죽지 않게 밝게
-      g.lineBetween(t0x, t0y, t1x, t1y);
       var dxn = t1x - t0x, dyn = t1y - t0y, dl = Math.sqrt(dxn * dxn + dyn * dyn) || 1;
       dxn /= dl; dyn /= dl;
+      var jnx = -dyn, jny = dxn;             // 자루에 직교하는 축
+      //  자루를 **두 줄**로 — 아래 어두운 선 + 위 밝은 선. 한 줄이면 원통이 아니라 막대다.
+      //  (이 무기는 몸의 두 배라 화면에서 가장 긴 직선이고, 그래서 가장 납작해 보였다.)
+      g.lineStyle(lw(0.19), M.woodDark, a);
+      g.lineBetween(t0x, t0y, t1x, t1y);
+      g.lineStyle(Math.max(0.9, r * 0.075), UI.lit(M.wood), a);
+      g.lineBetween(t0x + jnx * r * 0.05, t0y + jny * r * 0.05,
+                    t1x + jnx * r * 0.05, t1y + jny * r * 0.05);
       g.fillStyle(M.blade, a);               // 촉
       g.fillTriangle(t1x + dxn * r * 0.42, t1y + dyn * r * 0.42,
                      t1x - dyn * r * 0.26, t1y + dxn * r * 0.26,
                      t1x + dyn * r * 0.26, t1y - dxn * r * 0.26);
+      if (r >= 10) {                         // 촉 능선 — 금속이 각을 갖는다
+        g.lineStyle(Math.max(0.8, r * 0.05), M.bladeDark, a * 0.85);
+        g.lineBetween(t1x - dxn * r * 0.10, t1y - dyn * r * 0.10,
+                      t1x + dxn * r * 0.40, t1y + dyn * r * 0.40);
+      }
       if (r >= 9) {                          // 미늘
         g.fillStyle(M.bone, a);
         g.fillTriangle(t1x - dxn * r * 0.30, t1y - dyn * r * 0.30,
@@ -1751,12 +2035,21 @@ var SM = 10;
 
     } else if (kind === 'leafstaff') {       // 약초꾼 — 약초 다발 지팡이
       var stx = X(0.30, 0.66);
-      g.lineStyle(lw(0.12), M.wood, a);
+      g.lineStyle(lw(0.13), M.woodDark, a);
       g.lineBetween(stx, Y(0.30, 0.66, -0.55), stx, Y(0.30, 0.66, 1.55));
+      g.lineStyle(Math.max(0.8, r * 0.055), M.wood, a);
+      g.lineBetween(stx - r * 0.03, Y(0.30, 0.66, -0.55), stx - r * 0.03, Y(0.30, 0.66, 1.55));
+      if (r >= 10) {                         // 다발을 묶은 밧줄 매듭 — '들고 다니는 약초'
+        g.lineStyle(Math.max(1, r * 0.09), M.rope, a);
+        g.lineBetween(stx - r * 0.18, Y(0.30, 0.66, 1.44), stx + r * 0.18, Y(0.30, 0.66, 1.44));
+      }
+      //  잎 세 장을 **3단으로 갈라** 다발로 읽히게 한다. 예전엔 leafDark 한 장 + leaf 두 장
+      //  이라 겹친 잎이 한 덩어리로 뭉쳤다(실측 시트에서 초록 얼룩으로 보였다).
       g.fillStyle(M.leafDark, a);
       g.fillEllipse(stx, Y(0.30, 0.66, 1.62), r * 0.72, r * 0.34, SM);
       g.fillStyle(M.leaf, a);
       g.fillEllipse(stx - r * 0.24, Y(0.30, 0.66, 1.82), r * 0.50, r * 0.26, SM);
+      g.fillStyle(M.leafLite, a);
       g.fillEllipse(stx + r * 0.26, Y(0.30, 0.66, 1.74), r * 0.46, r * 0.24, SM);
       g.fillStyle(0xd8f5c8, a * 0.55);       // 은은한 회복 기운
       g.fillEllipse(stx, Y(0.30, 0.66, 1.72), (r * 0.30) * 2, (r * 0.30) * 2, SM);
@@ -1766,14 +2059,26 @@ var SM = 10;
       var cx2 = X(1.02, 0.42), cy2 = Y(1.02, 0.42, 0.02);
       g.fillStyle(M.wood, a);
       g.fillRoundedRect(cx2 - r * 0.58, cy2 - r * 1.05, r * 1.16, r * 2.20, r * 0.26);
+      //  판자 세 장의 **밝기를 다르게** — 광원이 좌상단이므로 왼쪽 판자가 가장 밝다.
+      //  예전에는 세 장이 같은 색이고 경계선만 있어서 통짜 나무 문짝으로 보였다.
+      g.fillStyle(UI.lit(M.wood), a * 0.55);
+      g.fillRect(cx2 - r * 0.58, cy2 - r * 1.05, r * 0.39, r * 2.20);
+      g.fillStyle(M.woodDark, a * 0.42);
+      g.fillRect(cx2 + r * 0.19, cy2 - r * 1.05, r * 0.39, r * 2.20);
       g.lineStyle(lw(0.11), M.woodDark, a);
       g.strokeRoundedRect(cx2 - r * 0.58, cy2 - r * 1.05, r * 1.16, r * 2.20, r * 0.26);
       g.lineStyle(Math.max(0.8, r * 0.06), M.woodDark, a * 0.8);
       g.lineBetween(cx2 - r * 0.19, cy2 - r * 0.95, cx2 - r * 0.19, cy2 + r * 1.02);
       g.lineBetween(cx2 + r * 0.19, cy2 - r * 0.95, cx2 + r * 0.19, cy2 + r * 1.02);
+      if (r >= 10) {                         // 테 리벳 — 판자를 잡아 주는 물건이 보인다
+        g.fillStyle(M.bronze, a * 0.95);
+        for (var ri2 = -1; ri2 <= 1; ri2++) {
+          g.fillEllipse(cx2, cy2 + r * 0.82 * ri2, (Math.max(1, r * 0.075)) * 2, (Math.max(1, r * 0.075)) * 2, 8);
+        }
+      }
       g.fillStyle(M.bronze, a);              // 방패 배꼽
       g.fillEllipse(cx2, cy2, (r * 0.28) * 2, (r * 0.28) * 2, SM);
-      g.fillStyle(UI.tint(M.bronze, 0.4), a);
+      g.fillStyle(UI.lit(M.bronze), a);
       g.fillEllipse(cx2 - r * 0.08, cy2 - r * 0.08, (r * 0.10) * 2, (r * 0.10) * 2, SM);
 
     } else if (kind === 'handaxe') {         // 족장 — 던지는 손도끼 + 깃대
@@ -1783,33 +2088,57 @@ var SM = 10;
       g.fillStyle(M.quill, a);
       g.fillTriangle(pxp, Y(0.05, -0.85, 2.10), pxp - r * 0.34, Y(0.05, -0.85, 1.45), pxp + r * 0.34, Y(0.05, -0.85, 1.45));
 
-      g.lineStyle(lw(0.13), M.wood, a);
+      g.lineStyle(lw(0.14), M.woodDark, a);
       g.lineBetween(hx, hy, X(1.55, 0.30), Y(1.55, 0.30, 0.05));
-      g.fillStyle(M.bronze, a);              // 자루 한쪽에만 붙는 반달 날
-      g.fillPoints([
+      g.lineStyle(Math.max(0.8, r * 0.055), M.wood, a);
+      g.lineBetween(hx, hy - r * 0.04, X(1.55, 0.30), Y(1.55, 0.30, 0.09));
+      if (r >= 10) {                         // 손잡이 가죽 감기 두 줄
+        g.lineStyle(Math.max(0.9, r * 0.08), M.leatherDark, a * 0.9);
+        g.lineBetween(X(0.72, 0.24), Y(0.72, 0.24, 0.02), X(0.72, 0.36), Y(0.72, 0.36, 0.02));
+        g.lineBetween(X(0.92, 0.24), Y(0.92, 0.24, 0.02), X(0.92, 0.36), Y(0.92, 0.36, 0.02));
+      }
+      var axeBlade = [
         { x: X(1.14, 0.30), y: Y(1.14, 0.30, 0.10) },
         { x: X(1.52, 0.30), y: Y(1.52, 0.30, 0.14) },
         { x: X(1.62, 0.30), y: Y(1.62, 0.30, 0.72) },
         { x: X(1.30, 0.30), y: Y(1.30, 0.30, 0.88) },
         { x: X(1.06, 0.30), y: Y(1.06, 0.30, 0.60) }
-      ], true);
+      ];
+      g.fillStyle(M.bronze, a);              // 자루 한쪽에만 붙는 반달 날
+      g.fillPoints(axeBlade, true);
+      if (r >= 10) {                         // 날 능선 — 반달이 판때기가 아니라 날이 된다
+        g.lineStyle(Math.max(0.8, r * 0.06), UI.shade(M.bronze), a * 0.9);
+        g.lineBetween(X(1.16, 0.30), Y(1.16, 0.30, 0.24), X(1.34, 0.30), Y(1.34, 0.30, 0.74));
+      }
 
     } else if (kind === 'sapjar') {          // 늪지기 — 끈끈한 수액 단지
       var jx = X(0.86, 0.16), jy = Y(0.86, 0.16, 0.05);
+      //  ⚠ 예전엔 `UI.tint(M.clay, -0.30)` — 흑백 축으로만 밀어 그늘이 **회색 진흙**이 됐다.
+      //    이 파일이 `deriveMatTones` 에 스스로 적어 둔 경고를 유닛 쪽에서 그대로 어기고
+      //    있었다. 3단(clayDark / clay / clayLite)으로 바꾼다.
+      g.fillStyle(M.clayDark, a);            // 아랫배 그늘
+      g.fillEllipse(jx, jy + r * 0.10, r * 1.06, r * 0.82, SM);
       g.fillStyle(M.clay, a);
-      g.fillEllipse(jx, jy, r * 1.06, r * 0.82, SM);
-      g.fillStyle(UI.tint(M.clay, -0.30), a);
+      g.fillEllipse(jx, jy, r * 1.02, r * 0.78, SM);
+      if (r >= 9) UI.sheen(g, jx, jy, r * 0.40, r * 0.30, 0.30 * a, M.clayLite);
+      g.fillStyle(M.clayDark, a);
       g.fillRect(jx - r * 0.28, jy - r * 0.58, r * 0.56, r * 0.24);
       g.fillStyle(M.goo, a);                 // 흘러넘치는 수액
       g.fillEllipse(jx, jy - r * 0.52, r * 0.52, r * 0.20, SM);
       g.fillEllipse(jx + r * 0.30, jy + r * 0.06, (r * 0.14) * 2, (r * 0.14) * 2, SM);
       g.fillEllipse(jx + r * 0.40, jy + r * 0.38, (r * 0.10) * 2, (r * 0.10) * 2, SM);
+      if (r >= 10) {                         // 수액 윗면 — 끈적한 것은 빛을 받는 면이 넓다
+        g.fillStyle(M.gooLite, a * 0.85);
+        g.fillEllipse(jx - r * 0.06, jy - r * 0.56, r * 0.30, r * 0.11, SM);
+      }
 
     } else if (kind === 'crossbowNest') {    // 쇠뇌 진지 — 통나무 방벽 + 거치 쇠뇌
       g.lineStyle(lw(0.17), M.woodDark, a);
       g.lineBetween(X(-0.55, 0), Y(-0.55, 0, 0.55), X(1.55, 0), Y(1.55, 0, 0.55));
-      g.lineStyle(lw(0.13), M.wood, a);      // 활대 (정면 수직)
+      g.lineStyle(lw(0.13), M.woodDark, a);  // 활대 (정면 수직)
       g.lineBetween(X(1.05, -1.10), Y(1.05, -1.10, 0.55), X(1.05, 1.10), Y(1.05, 1.10, 0.55));
+      g.lineStyle(Math.max(0.8, r * 0.055), UI.lit(M.wood), a);
+      g.lineBetween(X(1.05, -1.10), Y(1.05, -1.10, 0.60), X(1.05, 1.10), Y(1.05, 1.10, 0.60));
       g.lineStyle(Math.max(0.8, r * 0.05), M.rope, a);
       g.lineBetween(X(1.05, -1.10), Y(1.05, -1.10, 0.55), X(0.55, 0), Y(0.55, 0, 0.55));
       g.lineBetween(X(0.55, 0), Y(0.55, 0, 0.55), X(1.05, 1.10), Y(1.05, 1.10, 0.55));
@@ -1819,12 +2148,23 @@ var SM = 10;
       // 방벽 — 몸통 아래쪽을 가려 "반쯤 숨은 계란" 실루엣을 만든다
       g.fillStyle(M.wood, a);
       g.fillRect(sx - r * 1.32, by + r * 0.04, r * 2.64, r * 1.26);
-      g.fillStyle(UI.tint(M.wood, -0.28), a);
+      g.fillStyle(M.woodDark, a);
       for (var w = 0; w < 4; w++) {
         g.fillRect(sx - r * 1.32 + r * 0.66 * w + r * 0.60, by + r * 0.04, Math.max(1, r * 0.08), r * 1.26);
       }
-      g.fillStyle(UI.tint(M.wood, 0.18), a);
+      g.fillStyle(UI.lit(M.wood), a);
       g.fillRect(sx - r * 1.32, by + r * 0.04, r * 2.64, Math.max(1.4, r * 0.16));
+      //  통나무 끝단 — 원 네 개. 이게 없으면 방벽은 **판때기 한 장**이다(실측 시트에서
+      //  쇠뇌 진지가 갈색 상자로 보였다). 원 하나로 "통나무를 쌓았다"가 즉시 읽힌다.
+      if (r >= 10) {
+        for (var wl = 0; wl < 4; wl++) {
+          var wlx = sx - r * 1.32 + r * 0.66 * wl + r * 0.33;
+          g.fillStyle(M.woodDark, a * 0.9);
+          g.fillEllipse(wlx, by + r * 0.72, (r * 0.24) * 2, (r * 0.24) * 2, 8);
+          g.fillStyle(UI.lit(M.wood), a * 0.75);
+          g.fillEllipse(wlx - r * 0.04, by + r * 0.68, (r * 0.12) * 2, (r * 0.12) * 2, 8);
+        }
+      }
 
     } else if (kind === 'greatsword') {      // 광전사 — 양손 대검
       // 영웅 중 가장 큰 무기다. 여기가 눌리면 광전사가 '아무것도 안 든 계란'이 된다
@@ -1989,10 +2329,14 @@ var SM = 10;
       s = i === 0 ? -1 : 1;
       g.lineBetween(sx + swx + s * r * 0.26, by + bob + swy + r * 0.80, fex[i], fey[i]);
     }
-    g.fillStyle(M.bronze, a);
+    //  발 — 2단. 예전엔 청동 단색 타원 하나라 발이 '바닥에 붙은 색점'이었다.
+    //  그늘을 아래에 깔고 본색을 위에 얹으면 그 자체로 접지가 읽힌다.
     for (i = 0; i < 2; i++) {
       s = i === 0 ? -1 : 1;
-      g.fillEllipse(fex[i] + s * r * 0.02, fey[i] + r * 0.04, r * 0.40, r * 0.22, SM);
+      g.fillStyle(UI.shade(M.bronze), a);
+      g.fillEllipse(fex[i] + s * r * 0.02, fey[i] + r * 0.07, r * 0.40, r * 0.22, SM);
+      g.fillStyle(M.bronze, a);
+      g.fillEllipse(fex[i] + s * r * 0.02, fey[i] + r * 0.02, r * 0.36, r * 0.19, SM);
     }
   };
 
@@ -2033,26 +2377,42 @@ var SM = 10;
   //  네 단계가 서로 **다른 방향**(가로 / 세로 / 사선 / 뾰족)으로 자란다.
   //  같은 방향으로 커지기만 하면 흑백에서 L3 과 L4 를 구분할 수 없다 — 그래서 축을 나눴다.
   //
-  //  재질은 중립색만(진영색 색역 침범 금지): L2~3 청동, L4~5 강철.
+  //  재질은 중립색만(진영색 색역 침범 금지). **유닛마다 자기 계열**을 쓴다(`UI.ART.fam`).
   //  이건 **보조 신호**다. 색을 지워도 네 단계가 형태로 남는다.
   //  r < 7 이면 전부 끈다(그 크기에서는 장식이 실루엣을 뭉갠다 — LOD 규칙).
-  UI.rankMat = function (lv) { return lv >= 4 ? M.blade : M.bronze; };
+  //
+  //  ⚠⚠ **2026-08-07 실측이 바꾼 것 두 가지** (`scratchpad/unit-sheet-lv-before.png`)
+  //   ① 열 종류가 전부 청동→강철 하나를 써서 L5 에서 **누가 누구인지 사라졌다.**
+  //      → `art.fam` 이 있으면 그것을 쓴다. 없으면(영웅·구버전 def) 예전과 같다.
+  //   ② 볏(L3)과 뿔관(L5)이 **투구 한가운데를 가로질러** 늪지기 삿갓·족장 소뿔·궁수
+  //      깃털이 통째로 덮였다. 이 파일의 제1원칙("종류는 투구+장비 실루엣이 전담")이
+  //      레벨을 올리는 순간 무너지고 있었다 — **키울수록 누구인지 모르게 되는 것**이다.
+  //      → 볏은 위로 올려 투구 **꼭대기 위**에만 얹고, 뿔관의 머리 둘레 고리는 지우고
+  //        뿔을 바깥·아래로 벌린다. 자라는 방향(세로 / 뾰족)은 그대로다.
+  UI.rankMat = function (lv, art) {
+    var fam = art && art.fam;
+    if (fam) {
+      var key = lv >= 4 ? fam[1] : fam[0];
+      if (typeof M[key] === 'number') return M[key];
+    }
+    return lv >= 4 ? M.blade : M.bronze;
+  };
 
   // 어깨 견장 (L2+) — 몸통 위, 투구 아래
   UI.eggRankBody = function (g, art, sx, by, r, color, a, D, lv) {
     if (lv < 2 || r < 7) return;
     D = UI.asDir(D);
-    var mat = UI.rankMat(lv);
+    var mat = UI.rankMat(lv, art);
     var ex = r * 1.00 * ((art.wide || 0.78) / 0.78);
     var shy = by - r * 0.30;
     for (var s = -1; s <= 1; s += 2) {
       var hx = sx + D.px * ex * s, hy = shy + D.py * ex * s;
-      g.fillStyle(UI.tint(mat, -0.12), a);
+      g.fillStyle(UI.shade(mat), a);
       g.fillTriangle(hx - D.px * s * r * 0.14, hy - D.py * s * r * 0.14 - r * 0.26,
                      hx + D.px * s * r * 0.58, hy + D.py * s * r * 0.58 + r * 0.06,
                      hx - D.px * s * r * 0.06, hy - D.py * s * r * 0.06 + r * 0.30);
       if (r >= 11) {                       // 판 위 굴곡 — 금속으로 읽히게
-        g.fillStyle(UI.tint(mat, 0.28), a * 0.9);
+        g.fillStyle(UI.lit(mat), a * 0.9);
         g.fillTriangle(hx - D.px * s * r * 0.10, hy - D.py * s * r * 0.10 - r * 0.20,
                        hx + D.px * s * r * 0.40, hy + D.py * s * r * 0.40 - r * 0.02,
                        hx + D.px * s * r * 0.04, hy + D.py * s * r * 0.04 - r * 0.02);
@@ -2064,7 +2424,9 @@ var SM = 10;
   UI.eggRankBanner = function (g, art, sx, by, r, color, a, D, lv) {
     if (lv < 4 || r < 7) return;
     D = UI.asDir(D);
-    var bx = sx - D.fx * r * 0.52, byy = by - r * 0.30 - D.fy * r * 0.52;
+    //  ⚠ 깃대를 몸 **뒤로 더** 뺀다(0.52 → 0.72). 예전 값은 위를 보고 선 유닛에서
+    //    깃대가 투구 바로 위를 지나 볏·소뿔과 겹쳤다(실측 시트에서 확인).
+    var bx = sx - D.fx * r * 0.72, byy = by - r * 0.30 - D.fy * r * 0.72;
     var tx = bx - D.fx * r * 0.34, ty = byy - r * 2.05;
     g.lineStyle(Math.max(1.3, r * 0.11), M.wood, a);
     g.lineBetween(bx, byy, tx, ty);
@@ -2077,7 +2439,7 @@ var SM = 10;
                   { x: tx + r * 0.70, y: ty + r * 0.62 },
                   { x: tx + r * 0.10, y: ty + r * 0.94 }], true);
     if (r >= 11) {                          // 깃대 꼭지 — 뾰족한 실루엣 하나 더
-      g.fillStyle(UI.rankMat(lv), a);
+      g.fillStyle(UI.rankMat(lv, art), a);
       g.fillTriangle(tx - r * 0.13, ty + r * 0.02, tx + r * 0.13, ty + r * 0.02, tx, ty - r * 0.36);
     }
   };
@@ -2086,49 +2448,59 @@ var SM = 10;
   UI.eggRankHead = function (g, art, sx, by, r, color, a, D, lv) {
     if (lv < 3 || r < 7) return;
     D = UI.asDir(D);
-    var mat = UI.rankMat(lv);
-    var cy = by - r * 1.02;
+    var mat = UI.rankMat(lv, art);
+    //  ⚠ **투구 꼭대기 위로 올린다** (0.98 → 1.24r · 2026-08-07 실측).
+    //    예전 값은 투구 한가운데였다 — 늪지기 삿갓·족장 소뿔·궁수 깃털이 볏에 덮여
+    //    L3 부터 열 종류가 같아 보였다. 위로 옮겨도 "위로 길어진다"는 축은 그대로다.
+    var cy = by - r * 1.24;
 
     if (lv >= 3) {
       // 볏 — 앞뒤축을 따라 늘어선 뿔 세 개(가운데가 가장 높다).
       // ⚠ 처음엔 앞뒤축만 쓰는 납작한 지느러미였는데, **정면에서 면적이 0 이 되어 사라졌다**
       //   (정면이면 D.fx=0 이라 세 꼭짓점의 x 가 같아진다 — 실측 스크린샷에서 L2 와 구분 불가).
       //   그래서 각 뿔에 가로 두께를 준다. 어느 방향에서 봐도 위로 솟은 실루엣이 남는다.
-      var t3 = [-0.42, 0, 0.42];
+      var t3 = [-0.36, 0, 0.36];
       for (var j = 0; j < 3; j++) {
         var tt = t3[j];
         var bx3 = sx + D.fx * r * tt, by3 = cy + D.fy * r * tt;
-        var hgt = (tt === 0 ? 0.92 : 0.58);
-        var wdt = (tt === 0 ? 0.17 : 0.14);
-        g.fillStyle(UI.tint(mat, tt === 0 ? 0.16 : -0.16), a);
+        var hgt = (tt === 0 ? 0.80 : 0.50);
+        var wdt = (tt === 0 ? 0.15 : 0.12);
+        g.fillStyle(tt === 0 ? UI.lit(mat) : UI.shade(mat), a);
         g.fillTriangle(bx3 - r * wdt, by3 + r * 0.06,
                        bx3 + r * wdt, by3 + r * 0.06,
                        bx3 + D.fx * r * 0.05, by3 - r * hgt);
       }
     }
 
-    if (lv >= 5) {                          // 뿔 관 — 머리 둘레에서 바깥·위로 뻗는 뿔 세 개
-      var ring = by - r * 0.74;
-      g.lineStyle(Math.max(1.4, r * 0.13), mat, a);
-      g.strokeEllipse(sx, ring, r * 1.34 * ((art.wide || 0.78) / 0.78), r * 0.40, SM);
-      var off = [-1, 0, 1];
-      for (var i = 0; i < 3; i++) {
+    if (lv >= 5) {
+      //  뿔 관 — 바깥·위로 뻗는 뿔 세 개.
+      //  ⚠ **머리 둘레 고리를 지웠다** (2026-08-07). 그 고리(`by-0.74r` 의 타원)가
+      //    투구를 가로질러 방패병 통투구·족장 소뿔을 통째로 잘라 먹고 있었다.
+      //    뿔만 남기고 **바깥·아래**로 벌리면 "윤곽이 뾰족해진다"는 축은 유지되면서
+      //    머리 한가운데가 비어 투구 실루엣이 살아난다.
+      var ring = by - r * 0.62;
+      var off = [-1, 1];
+      for (var i = 0; i < off.length; i++) {
         var o = off[i];
-        var hx = sx + D.px * r * 0.62 * o, hy = ring + D.py * r * 0.62 * o;
+        var hx = sx + D.px * r * 0.86 * o, hy = ring + D.py * r * 0.86 * o;
+        g.fillStyle(UI.shade(mat), a);
+        g.fillTriangle(hx - r * 0.15, hy + r * 0.10,
+                       hx + r * 0.15, hy + r * 0.10,
+                       hx + D.px * r * 0.52 * o, hy - r * 0.72);
         g.fillStyle(mat, a);
-        g.fillTriangle(hx - r * 0.13, hy,
-                       hx + r * 0.13, hy,
-                       hx + D.px * r * 0.30 * o, hy - r * (o === 0 ? 0.86 : 0.62));
+        g.fillTriangle(hx - r * 0.09, hy + r * 0.06,
+                       hx + r * 0.09, hy + r * 0.06,
+                       hx + D.px * r * 0.44 * o, hy - r * 0.62);
       }
     }
   };
 
   // 발밑 계급 눈금 (전장 전용) — 레벨을 **정확히 셀 수 있게** 하는 보조 표시.
   // 실루엣만으로는 "3인가 4인가"가 헷갈릴 수 있고, 전장은 유닛이 수십 기다.
-  UI.eggRankGround = function (g, sx, sy, r, color, a, lv) {
+  UI.eggRankGround = function (g, sx, sy, r, color, a, lv, art) {
     if (lv < 2 || r < 8) return;
     var T = (GAME.Iso ? GAME.Iso.TILT : 1);
-    var mat = UI.rankMat(lv);
+    var mat = UI.rankMat(lv, art);
     var rx = r * 1.28, ry = r * 1.28 * T;
     for (var i = 0; i < lv; i++) {
       // **발 앞쪽**(+PI/2)에 찍는다. 뒤(-PI/2)에 두면 캐릭터 몸통에 가려 하나도 안 보인다(실측).
@@ -2244,7 +2616,8 @@ var SM = 10;
     }
   };
 
-  UI.drawEggChar = function (g, art, sx, by, r, color, a, facing, grounded, reach, walk, lv, idle, act, tipCap, gearTier) {
+  //  refine : 수성의 탑 정련 단계(0~10). 생략하면 0 = 예전과 픽셀 단위로 동일.
+  UI.drawEggChar = function (g, art, sx, by, r, color, a, facing, grounded, reach, walk, lv, idle, act, tipCap, gearTier, refine) {
     var Iso = GAME.Iso, T = (grounded && Iso) ? Iso.TILT : 1;
     var D = UI.dir8(facing === undefined ? Math.PI / 2 : facing, T);
     var G = UI.gait(walk, art);
@@ -2305,7 +2678,8 @@ var SM = 10;
     var rank = UI.rankOf({ lv: lv });     // 생략·이상값이면 1 (= 장식 없음)
     var back = function (gg) { UI.eggBack(gg, art.back, cx, cy + dyGear, r, color, a, D); };
     var gear = function (gg) { UI.eggGear(gg, art.gear, cx + lean * 0.5, cy + dyGear, r, color, a, D,
-                                          rch, atk, guard, gearDrop, spin, tipCap, gearTier); };
+                                          rch, atk, guard, gearDrop, spin, tipCap, gearTier,
+                                          art, rank, refine); };
     var helm = function (gg) { UI.eggHelm(gg, art.helm, cx + lean, cy + dyHead, r, color, a, D); };
     // 계급 장식도 장비와 같은 레이어 규칙을 탄다(잉크 윤곽 포함) — 라이트 테마에서
     // 청동/강철이 목초지에 묻히지 않게 하려면 반드시 inkLayer 를 거쳐야 한다.
@@ -2334,6 +2708,10 @@ var SM = 10;
   // 기존 호출부(배치·드래프트·패널 등)를 한 곳도 고치지 않아도 된다.
   //   opts.side     : 'controller' | 'strategist' — 발밑 링의 실선/파선을 가른다
   //   opts.footRing : false 면 발밑 링을 그리지 않는다(전투 화면이 2패스로 따로 그린다)
+  //   opts.refine   : 수성의 탑 정련 단계(0~10). 무기 금속이 밝아지고 손끝에 불티가 뜬다.
+  //                   ⚠ `def` 에 안 싣는 이유: 정련은 `js/scenes/defend.js` 가 hp/damage
+  //                     에 곱하기만 하고 def 에 표식을 안 남긴다. 그 파일을 안 건드리려고
+  //                     **호출부가 조회해서 넘기는** 길을 택했다(`js/scenes/battle.js`).
   // ⚠ 색(`color`)에서 진영을 되짚으면 안 된다 — 피격 순간 `color = 0xffffff` 로 덮이므로
   //   그 프레임만 진영이 사라진다(battle.js 의 flash). 그래서 side 를 따로 받는다.
   // ⚠ `opts` 를 `drawEggChar`·`eggBody` 까지 내려보내지 않는다 — 어깨띠는 양 진영이
@@ -2419,14 +2797,14 @@ var SM = 10;
     }
 
     var lv = UI.rankOf(def);
-    UI.eggRankGround(g, sx, sy, r, color, a, lv);
+    UI.eggRankGround(g, sx, sy, r, color, a, lv, art);
     // 무기 그림이 판정 사거리를 넘지 않게 하는 상한(px). `def.range` 는 전투에서
     // 이미 `Combat.scaleDef` 로 WORLD_SCALE 이 곱해진 **실효 사거리**다.
     // 카드 화면의 원본 def 는 사거리가 커서 상한이 사실상 안 걸린다 — 의도한 것이다
     // (카드는 '어디까지 닿는가'를 가르치는 화면이 아니다).
     var tipCap = (typeof def.range === 'number' && def.range > 0) ? def.range + 12 : 0;
     UI.drawEggChar(g, art, sx, by, r, color, a, f, true, 1, walk, lv, idle, act, tipCap,
-                   opts && opts.gearTier);
+                   opts && opts.gearTier, opts && opts.refine);
     return { sx: sx, sy: sy, by: by };
   };
 

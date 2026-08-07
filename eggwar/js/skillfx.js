@@ -696,15 +696,40 @@ window.GAME = window.GAME || {};
     gink(e.x, e.y, e.r * (0.86 + p * 0.22), 4, col, a * S.RA);
     gink(e.x, e.y, e.r * (0.80 + p * 0.20), 2, M.shell, a * 0.8 * S.RA);
     gfill(e.x, e.y, e.r * 0.9, M.shell, 0.10 * a * S.FA);
-    // 잎사귀 세 장이 위로 떠오른다 (약초·가죽·풀숲 — 전부 '두르는' 스킬이다)
+
+    //  ── 포효(warcry)는 잎이 아니라 **퍼지는 소리**다 (2026-08-07) ────────────
+    //  족장의 포효가 `ring` total 420 이라 이 함수(buff)로 들어오는데, 그러면 화면에
+    //  **잎사귀 세 장이 떠오른다** — 뿔피리를 부는 우두머리 위로 약초가 날리는 그림이다.
+    //  이름이 약속한 것을 그림이 안 지키는, 이 파일이 `MOTIF_MAT` 을 만든 것과 같은 종류.
+    //  ⚠ `e.owner` 는 `Combat._withAbilFx` 가 심는다. 없으면(영웅 버프) 예전 그림 그대로다.
+    var isCry = !!(e.owner && e.owner.def && e.owner.def.ability &&
+                   e.owner.def.ability.type === 'warcry');
     var sd = seedOf(e.x, e.y), cy = syy(e.y);
-    for (var k = 0; k < 3; k++) {
-      var ang = sd + (Math.PI * 2 / 3) * k;
-      var lx = e.x + Math.cos(ang) * e.r * 0.62;
-      var ly = cy + Math.sin(ang) * e.r * 0.62 * S.T - 6 - p * 26;
-      if (S.INKA > 0) { S.g.fillStyle(S.INK, a * 0.5 * S.INKA); S.g.fillEllipse(lx, ly, 9.5, 6.5, 8); }
-      S.g.fillStyle(k === 1 ? M.leafDark : M.leaf, a * 0.95);
-      S.g.fillEllipse(lx, ly, 8, 5, 8);
+    if (isCry) {
+      //  바깥으로 퍼지는 호 세 겹 — 소리는 위로 떠오르지 않고 **번져 나간다.**
+      //  세 겹이 시차를 두고 나가야 '한 번 크게 외쳤다'가 읽힌다(동심원 하나는 맥동이다).
+      for (var w = 0; w < 3; w++) {
+        var wp = p - w * 0.16;
+        if (wp <= 0 || wp >= 1) continue;
+        gink(e.x, e.y, e.r * (0.35 + wp * 0.80), 3.2 - w * 0.6, col, (1 - wp) * a * 0.9 * S.RA);
+      }
+      //  뿔피리 쪽으로 튀는 마른 부스러기 — A안(재료)의 문법을 지킨다.
+      for (var c2 = 0; c2 < 5; c2++) {
+        var ca = sd + (Math.PI * 2 / 5) * c2;
+        var cd2 = e.r * (0.50 + p * 0.55);
+        shard(e.x + Math.cos(ca) * cd2, cy + Math.sin(ca) * cd2 * S.T - p * 10,
+              1.8 + e.r * 0.012, c2 % 2 ? M.stone : M.wood, a * 0.85);
+      }
+    } else {
+      // 잎사귀 세 장이 위로 떠오른다 (약초·가죽·풀숲 — 전부 '두르는' 스킬이다)
+      for (var k = 0; k < 3; k++) {
+        var ang = sd + (Math.PI * 2 / 3) * k;
+        var lx = e.x + Math.cos(ang) * e.r * 0.62;
+        var ly = cy + Math.sin(ang) * e.r * 0.62 * S.T - 6 - p * 26;
+        if (S.INKA > 0) { S.g.fillStyle(S.INK, a * 0.5 * S.INKA); S.g.fillEllipse(lx, ly, 9.5, 6.5, 8); }
+        S.g.fillStyle(k === 1 ? M.leafDark : M.leaf, a * 0.95);
+        S.g.fillEllipse(lx, ly, 8, 5, 8);
+      }
     }
     dust(e.x, e.y, e.r * 0.55, a * 0.5);
     gline(e.x, e.y, e.r * 0.5, 2, col, a * 0.5 * S.RA);
@@ -937,7 +962,12 @@ window.GAME = window.GAME || {};
       rope:    { clay: 0xd8c08c, stone: 0xe8d9ae, wood: 0x9a7440 },   // 마른 밧줄
       feather: { clay: 0xe8804f, stone: 0xf0a860, wood: 0x9a6030 },   // 따뜻한 깃
       ember:   { clay: 0xd8451a, stone: 0xff8c2e, wood: 0x5e2409 },   // 잉걸불
-      frost:   { clay: 0x9fd4ea, stone: 0xe4f6ff, wood: 0x4a7b91 }    // 서리
+      frost:   { clay: 0x9fd4ea, stone: 0xe4f6ff, wood: 0x4a7b91 },   // 서리
+      //  늪 (2026-08-07) — 늪지기의 수액 단지. 기존 아홉 색에 **늪빛이 없어서**
+      //  광역 둔화가 투석꾼의 돌·궁수의 깃털과 같은 진흙색으로 터지고 있었다.
+      //  값은 `UI.MAT` 의 goo 계열(gooDark/goo/gooLite)에서 잡았다 — 이 세계의 물건 색이다.
+      //  ⚠ 이건 `effects.kind` 가 아니라 **팔레트 표의 키**다("새 kind 금지" 규율 밖).
+      bog:     { clay: 0x6c7d24, stone: 0xd0e078, wood: 0x3d4713 }    // 늪 수액
       // blade — 기본 MAT 그대로(금속). 표에 없으므로 자동으로 원래 색이다.
     },
 

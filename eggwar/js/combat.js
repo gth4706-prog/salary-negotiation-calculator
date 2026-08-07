@@ -1674,6 +1674,26 @@ GAME.Combat = {
     return list[(u._abilIdx || 0) % list.length];
   },
 
+  //  ── 이 능력이 만드는 이펙트 전부에 `motif`/`owner` 를 붙인다 (2026-08-07) ──────
+  //  `castSkill` 이 이미 쓰는 패턴 그대로다(그 주석: "이펙트마다 손으로 `motif:` 를 달지
+  //  않는다 — 12곳이 넘어서 하나라도 빠지면 그 스킬만 조용히 무채색이 된다").
+  //  능력 쪽도 push 자리가 여섯이라 같은 사고가 난다.
+  //  ⚠ `owner` 를 같이 싣는 이유: 렌더가 "누가 쓴 능력인가"를 알아야 포효(warcry)를
+  //    회복(healBurst)과 다르게 그릴 수 있다. 예고에는 이미 있었는데 나머지에 없었다.
+  //  ⚠ **판정·피해·쿨에는 아무 영향이 없다.** 이펙트 객체에 필드 두 개가 더 붙을 뿐이다.
+  _withAbilFx: function (state, u, ab, fn) {
+    var mo = ab && ab.motif;
+    var p0 = state.effects.push;
+    state.effects.push = function (o) {
+      if (o) {
+        if (mo && o.motif === undefined) o.motif = mo;
+        if (o.owner === undefined) o.owner = u;
+      }
+      return p0.apply(this, arguments);
+    };
+    try { return fn(); } finally { state.effects.push = p0; }
+  },
+
   runAbility: function (u, state, dt) {
     var ab = this._abilityOf(u);
     if (!ab) return false;
@@ -1685,7 +1705,10 @@ GAME.Combat = {
     // 시전 중 — 예고가 끝나면 터뜨린다
     if (u.abilT > 0) {
       u.abilT -= dtMs;
-      if (u.abilT <= 0) this._execAbility(u, state, ab);
+      if (u.abilT <= 0) {
+        var self0 = this;
+        this._withAbilFx(state, u, ab, function () { self0._execAbility(u, state, ab); });
+      }
       return true;
     }
     if (u.abilCd > 0 || u.rootedFor > 0) return false;
@@ -1749,6 +1772,8 @@ GAME.Combat = {
       kind: 'telegraph', x: ab.type === 'shockwave' ? u.x : u.abilX,
       y: ab.type === 'shockwave' ? u.y : u.abilY,
       r: ab.radius || 60, t: ab.telegraph, total: ab.telegraph, side: u.side,
+      // 재료(js/skillfx.js MOTIF_MAT). 없으면 예전처럼 기본 팔레트다.
+      motif: ab.motif,
       // 용 보스 원소색 구분(js/scenes/battle.js `bossGlowOf`)이 시전자를 찾을 수
       // 있도록 싣는다 — barrage 가 실제로 터질 때 만드는 예고(_execAbility)는
       // 이미 owner 를 싣고 있었는데, 이 '예고 중' 미리보기 예고에는 없었다.
@@ -2472,8 +2497,13 @@ GAME.Combat = {
             }
           }
         }
+        //  ⚠ **재료(motif)·시전자(owner)·영웅키를 그대로 물려준다** (2026-08-07 수정).
+        //    예전에는 여기서 통째로 잃었다 — 예고까지는 깃털/돌인데 **터지는 순간만
+        //    무채색**이 되는 결함이 유닛뿐 아니라 영웅 aoeTarget(화살비·유성비·낙석
+        //    유도…)에도 그대로 있었다. 폭발이 그 스킬의 정점인데 거기서 재료가 사라졌다.
         state.effects[i] = {
-          kind: 'blast', x: e.x, y: e.y, r: e.r, t: 200, total: 200, side: e.side
+          kind: 'blast', x: e.x, y: e.y, r: e.r, t: 200, total: 200, side: e.side,
+          motif: e.motif, owner: e.owner, heroKey: e.heroKey, abil: e.abil
         };
         continue;
       }

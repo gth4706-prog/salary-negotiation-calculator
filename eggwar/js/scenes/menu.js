@@ -357,7 +357,10 @@ GAME.MenuScene.prototype._buildPhone = function () {
   if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, pbB, 'tower', 1);
 
   var pbC = UI.button(this, c2[1].cx, r2 + rowH / 2, c2[1].w, rowH,
-    '수성의 탑\n' + dtower.floor + '층' + (dtower.best ? ('  ·  최고 ' + dtower.best) : ''),
+    //  옛 규칙 최고 기록도 곁들인다 — 위 PC 버튼과 같은 이유(고장으로 안 읽히게).
+    '수성의 탑\n' + dtower.floor + '회차' + (dtower.best ? ('  ·  최고 ' + dtower.best) : '')
+      + (((GAME.DefendTower.legacyBest && GAME.DefendTower.legacyBest()) || 0)
+          ? ('  ·  옛 ' + GAME.DefendTower.legacyBest()) : ''),
     function () { self.scene.start('DefendTower'); },
     { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
       hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: 19 });

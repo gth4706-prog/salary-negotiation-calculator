@@ -157,6 +157,19 @@ GAME.BuildScene.prototype.init = function (data) {
   //  ⚠ 씬 인스턴스는 재사용되므로 **매번 여기서 되돌린다.** 안 그러면 한 번 켠 뒤
   //    배치 화면에 영영 못 머문다(이 저장소에서 세 번 겪은 계열의 사고다).
   this.instantStart = !!(data && data.instantStart);
+  //  ⚠⚠ **일회성 플래그를 씬 인자에서 지운다.** Phaser 는 `scene.start(key)` 를 인자
+  //    없이 부르면 이전 `settings.data` 를 그대로 두고, `js/pwa.js` 의 `GAME.Nav` 는
+  //    뒤로가기에서 **진입 당시 인자를 그대로 다시 넘긴다.** 안 지우면 설치본에서:
+  //      진다 → '그대로 재도전' → 전투 → 안드로이드 뒤로가기 → [나가기]
+  //      → Nav 가 `{instantStart:true}` 로 Build 를 되살림 → **같은 전투가 재시작된다**
+  //    (포기했는데 다시 싸우게 된다. 뒤로가기로는 배치 화면에 영영 못 간다.)
+  //    `js/scenes/tower.js:92` · `js/scenes/versus.js:35` 가 같은 이유로 같은 일을 한다.
+  //  ⚠ 통째로 비우면 Nav 가 `defendTower` 를 잃어 뒤로가기가 대전 배치로 간다 —
+  //    **오래 가는 인자는 남기고 일회성만 턴다.**
+  if (this.scene && this.scene.settings) {
+    this.scene.settings.data = { defendTower: this.defendTower,
+                                 arena: this.arena, pickBase: this.pickBase };
+  }
   // ── 지난 층의 배치를 그대로 불러온다 (2026-07-29, 사용자 지시) ──────────────
   // 수성의 탑은 같은 진형으로 층을 이어 오르는 모드다. 매 층 빈 판에서 다시 짜게 하면
   // 층수가 오를수록 '같은 배치를 다시 그리는 노동'만 늘어난다.

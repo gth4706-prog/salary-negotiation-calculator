@@ -150,14 +150,7 @@ GAME.DefendTowerScene.prototype.create = function () {
 
   if (floor > 1) {
     GAME.UI.button(this, W / 2, H - u * 2 - u * 2.5, Math.min(W - 60, 240), u * 5, '1회차부터 다시', function () {
-      DT.fail();
-      //  ⚠ **`scene.restart()` 를 부르지 않는다** (2026-08-03 사용자 신고: "화면 반짝임").
-      //    씬을 통째로 다시 만들면 한 프레임 동안 화면이 비었다가 다시 그려져
-      //    **깜빡임**으로 보인다. 시트를 열어 두고 버튼을 여러 번 누르는 화면이라
-      //    누를 때마다 화면이 번쩍이면 조작감이 무너진다.
-      //    바뀌는 것은 **골드·레벨·값 숫자뿐**이므로 그 자리들만 다시 쓴다.
-      self._refreshGrowth();
-
+      self._confirmRestart();
     }, { fontSize: P ? 13 : 13 });
   }
   GAME.UI.button(this, W / 2, byBottom - bh * 0.5, bw, bh, '← 메뉴', function () {
@@ -182,6 +175,34 @@ GAME.DefendTowerScene.prototype.create = function () {
 
   this._maybeAutoGrowth();
   this._resetNotice();
+};
+
+// ── '1회차부터 다시' — 반드시 확인을 받는다 (2026-08-07) ──────────────────────
+//  ⚠ 이 버튼 두 개(PC 하단 · 폰 ☰ 시트)는 오랫동안 `DT.fail()` 을 불렀다. 옛 `fail()`
+//    이 곧 초기화였기 때문인데, 영구 성장으로 바뀌며 `fail()` 이 `runs++` 만 하게 되어
+//    **눌러도 아무 일이 안 일어나는 상태**가 됐다(검토에서 잡힘). `restartRun()` 으로
+//    옮긴다.
+//  ⚠ 확인 없이 실행하지 않는다. 예전에는 잃을 것이 '이번 도전'뿐이었지만 이제는
+//    골드·유닛 레벨·정련·증원이 통째로 날아간다 — 통곡의 탑 캐릭터 삭제와 같은 무게다.
+GAME.DefendTowerScene.prototype._confirmRestart = function () {
+  var self = this;
+  if (!GAME.Modal) { return; }        // 모달이 없으면 아무것도 안 한다(조용히 지우지 않는다)
+  var rec = GAME.DefendTower.get();
+  GAME.Modal.open(this, {
+    title: '1회차부터 다시 시작할까요?',
+    items: [
+      { key: 'no', name: '아니요 — 그대로 이어서',
+        note: rec.floor + '회차 · 골드 ' + (rec.gold || 0) + ' 유지' },
+      { key: 'yes', name: '네, 처음부터',
+        note: '골드 · 강화 · 배치도가 사라집니다 (최고 기록은 남음)' }
+    ],
+    onPick: function (it) {
+      if (!it || it.key !== 'yes') return;
+      GAME.DefendTower.restartRun();
+      if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('click');
+      self.scene.restart();
+    }
+  });
 };
 
 // ── 규칙이 바뀌었다는 것을 **한 번만** 말한다 (2026-08-07) ────────────────────
@@ -209,10 +230,12 @@ GAME.DefendTowerScene.prototype._resetNotice = function () {
     GAME.Modal.open(self, {
       title: '수성의 탑이 새로워졌습니다',
       items: [
+        //  ⚠ note 는 짧게. `js/modal.js` 가 행 폭에 맞춰 감싸는데 길면 두 줄이 되어
+        //    아래 행에 물린다(글자끼리는 안 겹쳐 겹침 감사가 못 잡는다).
         { key: 'ok', name: '이제 져도 그대로 남습니다',
-          note: '회차 · 골드 · 유닛 강화 · 정련 · 증원 · 배치도가 유지되고, 배치를 고쳐 다시 도전합니다' },
-        { key: 'old', name: '옛 규칙 최고 기록 ' + old + '회차',
-          note: '규칙이 바뀌어 기록은 1회차부터 다시 시작합니다 — 옛 기록은 이 자리에 남습니다' }
+          note: '골드 · 강화 · 배치도가 유지됩니다' },
+        { key: 'old', name: '옛 규칙 최고 ' + old + '회차',
+          note: '기록은 1회차부터 · 옛 기록은 메뉴에 남습니다' }
       ],
       onPick: function () { /* 알리기만 한다 — 고를 것이 없다 */ }
     });
@@ -595,7 +618,7 @@ GAME.DefendTowerScene.prototype._openSheet = function () {
   objs.push(UI.text(this, W / 2, py0 + 10, '탑 메뉴',
     { size: 'subhead', color: C.text, origin: 0.5, originY: 0 }).setDepth(902));
   objs.push(UI.text(this, W / 2, py0 + 44,
-    '한 회차 = 쳐들어오는 영웅 하나를 막아내는 것. 지면 1회차부터 다시.',
+    '한 회차 = 쳐들어오는 영웅 하나를 막아내는 것. 져도 성장은 그대로 남는다.',
     { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 }).setDepth(902));
   //  ⚠ 같은 한 칸 어긋남이 여기에도 있었다(`js/ui-hud.js` 의 `bandMeter` 주석 참조).
   //    보스 판정은 `floor % BOSS_EVERY === 0` 인데 표시는 `(floor-1) % ...` 이라
@@ -620,7 +643,7 @@ GAME.DefendTowerScene.prototype._openSheet = function () {
     self._closeSheet(); self.scene.start('Menu');
   }, { fontSize: 'buttonSm' });
   var restart = mk(bx[2], cyA, '1회차부터 다시', function () {
-    self._closeSheet(); DT.fail(); self.scene.restart();
+    self._closeSheet(); self._confirmRestart();
   }, { fontSize: 'buttonSm' });
   if (floor <= 1) restart.setDisabled(true);
 

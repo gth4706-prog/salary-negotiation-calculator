@@ -25,6 +25,13 @@ window.GAME = window.GAME || {};
 GAME.Transfer = {
   TAG: 'EGGWAR1',
 
+  //  ── payload 판 번호 (2026-08-07 신설) ──────────────────────────────────────
+  //  1 = v1.76 이전. 수성의 탑 칸에 **옛 규칙(지면 1회차부터)** 의 기록이 들었다.
+  //  2 = v1.77 이후. 수성의 탑이 영구 성장이라 그 기록은 **정직한 진행**이다.
+  //  ⚠ 이걸 안 두면 둘을 구분할 방법이 없어, 옛 코드를 막으려다 새 코드의 진행까지
+  //    지우게 된다(실제로 그 상태였다 — 검토에서 잡힘).
+  VER: 2,
+
   //  옮길 저장소들. **진행에 해당하는 것만** 넣는다.
   //  ⚠ 전부 `Store.get(KEY)` 가 `{ 닉네임: 값 }` 모양이라, 그 닉네임 칸만 떼어 담는다.
   //    통째로 담으면 이 기기의 **다른 사람 기록까지** 상대 기기로 넘어간다.
@@ -38,6 +45,9 @@ GAME.Transfer = {
       //    수성의 탑은 **누구든 1회차부터**(사용자 요구)이기 때문이다.
       //  ⚠ 옛 최고 기록은 `DefendTower.legacyBest()` 가 v1 저장소에서 따로 읽는다.
       //    여기서 `best` 를 넘겨 주면 새 기록에 섞여 거짓이 된다.
+      //  ⚠⚠ **`data.v === 1` 인 코드에만 건다**(`VER` 참조). 처음 판은 무조건 걸어서
+      //    v1.77 이후에 만든 **정직한 진행까지 통째로 지웠다**(검토에서 잡힘) —
+      //    확인 화면은 "수성 40회차"라고 약속해 놓고 적용하면 1회차·골드 0 이 됐다.
       sanitize: function (rec) {
         return { floor: 1, best: 0, runs: (rec && rec.runs) || 0, kills: 0,
                  placed: null, tier: null, gold: 0, unitLv: {}, refine: {},
@@ -57,7 +67,7 @@ GAME.Transfer = {
   make: function (id) {
     id = id || (GAME.Account && GAME.Account.current && GAME.Account.current());
     if (!id) return null;
-    var data = { v: 1, id: id, at: Date.now(), s: {} };
+    var data = { v: this.VER, id: id, at: Date.now(), s: {} };
     for (var i = 0; i < this.SLOTS.length; i++) {
       var slot = this.SLOTS[i], key = slot.key();
       if (!key) continue;
@@ -93,7 +103,11 @@ GAME.Transfer = {
     var data;
     try { data = JSON.parse(this._unb64(parts[1])); }
     catch (e) { return { ok: false, why: '코드를 읽지 못했습니다.' }; }
-    if (!data || data.v !== 1 || !data.id) return { ok: false, why: '지원하지 않는 코드입니다.' };
+    //  옛 판(1)도 계속 받는다 — 이미 만들어 둔 코드를 못 쓰게 만들면 안 된다.
+    //  다만 `apply` 가 판 번호를 보고 수성의 탑 칸만 다르게 다룬다.
+    if (!data || !data.id || !(data.v === 1 || data.v === 2)) {
+      return { ok: false, why: '지원하지 않는 코드입니다.' };
+    }
     return { ok: true, data: data };
   },
 
@@ -109,7 +123,13 @@ GAME.Transfer = {
       out.push((h ? h.name : c.heroKey) + ' · 골드 ' + (c.gold || 0));
     }
     var d = data.s && data.s.dtower;
-    if (d && d.best) out.push('수성 ' + d.best + '회차');
+    //  ⚠ 옛 판(v1) 코드의 수성 기록은 적용할 때 버려진다(위 `sanitize`). 그런데도
+    //    "수성 40회차"라고 적으면 **화면이 약속한 것과 실제가 반대**가 된다.
+    //    무엇을 잃는지 모르고 누르게 하지 않는 것이 이 함수의 목적이다.
+    if (d && d.best) {
+      out.push(data.v === 1 ? ('수성의 탑은 1회차부터 (규칙이 바뀌었습니다)')
+                            : ('수성 ' + d.best + '회차'));
+    }
     return data.id + (out.length ? '  —  ' + out.join(' · ') : '  —  기록 없음');
   },
 
@@ -127,7 +147,11 @@ GAME.Transfer = {
       //  슬롯이 정화기를 갖고 있으면 **넣기 직전에** 통과시킨다. 옛 판 코드가
       //  새 규칙의 저장소로 들어오는 유일한 문이라, 문에서 거른다.
       var val = data.s[slot.k];
-      if (slot.sanitize) { try { val = slot.sanitize(val); } catch (e) { continue; } }
+      //  옛 판(v1) 코드일 때만 정화한다. 새 판(v2)의 수성의 탑 기록은 옮겨야 할
+      //  **정직한 진행**이라 지우면 안 된다.
+      if (slot.sanitize && data.v === 1) {
+        try { val = slot.sanitize(val); } catch (e) { continue; }
+      }
       all[data.id] = val;
       GAME.Store.set(key, all);
     }

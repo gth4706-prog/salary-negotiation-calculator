@@ -474,7 +474,9 @@ GAME.DefendScene.prototype.update = function (time, delta) {
         towerRec = GAME.DefendTower.clear(this.defendTower, this.placed.slice(), this.tier, this.state);
         GAME.DefendTower.clearFloorFail(this.defendTower);
       } else {
-        towerRec = GAME.DefendTower.fail();
+        //  ⚠ 진 판의 배치도 **반드시 넘긴다.** 안 넘기면 `rec.placed` 가 '마지막으로
+        //    이긴 배치'로 되돌아가 재도전이 내 수정을 버린다(js/defendtower.js `fail` 주석).
+        towerRec = GAME.DefendTower.fail(this.placed.slice(), this.tier);
         GAME.DefendTower.noteFloorFail(this.defendTower);
       }
     } else {

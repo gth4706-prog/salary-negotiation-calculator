@@ -121,10 +121,25 @@ GAME.ResultScene.prototype.create = function () {
       //  같은 화면 안에서 단위가 갈리면 안 된다 — 패배 쪽을 '회차'로 바꿨으므로
       //  승리 쪽도 같이 맞춘다(수성의 탑 로비도 '회차'로 부른다).
       title = this.defendTower + '회차 방어 성공'; color = C.accent;
-      sub = (this.winner === 'draw' ? '시간 안에 뚫지 못했습니다 — 방어 성공. ' : '영웅을 격퇴했습니다. ') +
+      //  ── 해금을 **여기서 축하한다** (2026-08-07 · 2단계) ─────────────────
+      //  ⚠ 새로 열린 것을 말 안 하면 해금이 보상이 아니라 '어느 날 갑자기 늘어난 칸'이
+      //    된다. 이 저장소가 축복·구슬에서 두 번 겪은 실패가 정확히 그것이다 —
+      //    "받은 줄을 몰랐다". 그래서 판정 문구의 **맨 앞**에 놓는다.
+      var got = DT.unlockedBy ? DT.unlockedBy(this.defendTower) : [];
+      var gotNames = got.map(function (k) { return GAME.UNITS[k].name; });
+      if (gotNames.length) {
+        title = '🔓 ' + gotNames.join(' · ') + ' 해금!';
+        color = GAME.UI.TXT.crit;
+      }
+      var nx = DT.nextUnlock ? DT.nextUnlock() : null;
+      sub = (gotNames.length
+              ? (this.defendTower + '회차를 깼습니다 — ' + gotNames.join('·') + '을(를) 배치할 수 있게 됐습니다. ')
+              : ((this.winner === 'draw' ? '시간 안에 뚫지 못했습니다 — 방어 성공. ' : '영웅을 격퇴했습니다. '))) +
             '다음은 ' + nf + '회차 — 오는 영웅 ' +
             GAME.HEROES[DT.heroKeyFor(nf, DT.skillFor(nf))].name +
-            ' (예산 ' + DT.heroBudgetFor(nf) + ') vs 내 배치 ' + DT.budgetFor(nf) + '.';
+            ' (예산 ' + DT.heroBudgetFor(nf) + ') vs 내 배치 ' + DT.budgetFor(nf) + '.' +
+            //  다음 목표를 늘 보여 준다 — 사다리는 '다음 칸이 보일 때'만 사다리다.
+            (nx ? ('  다음 해금: ' + GAME.UNITS[nx.key].name + ' (' + nx.at + '회차)') : '');
     }
   } else if (this.defendMode) {
     // 전략가 방어전 — AI 컨트롤러가 이겼으면 내 진형이 뚫린 것

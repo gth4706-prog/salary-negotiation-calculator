@@ -133,6 +133,19 @@ GAME.DefendTowerScene.prototype.create = function () {
     '◈ ' + DT.goldOf() + ' 골드' + this._levelSummaryText(),
     P ? 15 : 18, GAME.UI.TXT.crit, 0.5).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 30));
 
+  // ── 다음 해금 (2026-08-07 · 2단계) ────────────────────────────────────────
+  //  ⚠ 사다리는 **다음 칸이 보일 때**만 사다리다. 안 보이면 그냥 회차가 오르는 것이고,
+  //    "왜 계속 올라야 하는가"에 화면이 답을 못 한다.
+  var nx0 = DT.nextUnlock ? DT.nextUnlock() : null;
+  if (nx0) {
+    y += u * 1.2;
+    stack(GAME.UI.label(this, W / 2, y,
+      '🔓 다음 해금 — ' + GAME.UNITS[nx0.key].name + '  (' + nx0.at + '회차 · ' +
+      nx0.left + '회차 남음)',
+      P ? 14 : 16, GAME.UI.TXT.crit, 0.5).setOrigin(0.5, 0)
+      .setAlign('center').setWordWrapWidth(W - 30), u * 0.8);
+  }
+
   var E = DT.EARLY_FLOORS;
   if (floor <= E) {
     stack(GAME.UI.label(this, W / 2, y,

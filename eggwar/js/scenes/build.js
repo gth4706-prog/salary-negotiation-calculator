@@ -157,6 +157,9 @@ GAME.BuildScene.prototype.init = function (data) {
   //  ⚠ 씬 인스턴스는 재사용되므로 **매번 여기서 되돌린다.** 안 그러면 한 번 켠 뒤
   //    배치 화면에 영영 못 머문다(이 저장소에서 세 번 겪은 계열의 사고다).
   this.instantStart = !!(data && data.instantStart);
+  //  해금 판정기는 create 가 매번 다시 만든다 — 씬을 재사용할 때 지난 판의
+  //  모드(수성의 탑 ↔ 대전)가 남아 있으면 안 되므로 여기서 비운다.
+  this._lockOf = null;
   //  ⚠⚠ **일회성 플래그를 씬 인자에서 지운다.** Phaser 는 `scene.start(key)` 를 인자
   //    없이 부르면 이전 `settings.data` 를 그대로 두고, `js/pwa.js` 의 `GAME.Nav` 는
   //    뒤로가기에서 **진입 당시 인자를 그대로 다시 넘긴다.** 안 지우면 설치본에서:
@@ -467,6 +470,17 @@ GAME.BuildScene.prototype.create = function () {
 
   // ── 유닛 팔레트 ─────────────────────────────────────────────────────────
   //  폰 가로는 **한 줄 10칸**(TFT 상점 줄). 오른쪽 VER_W 는 DOM 버전 배지 자리라 비운다.
+  // ── 해금 (2026-08-07 · 2단계) ─────────────────────────────────────────────
+  //  ⚠ 잠긴 것을 **숨기지 않는다.** 숨기면 "이게 전부"로 읽혀 오를 이유가 안 생긴다.
+  //    회색으로 두고 몇 회차에 열리는지 적어 두면 그 자체가 목표가 된다
+  //    (통곡의 탑 상점이 못 사는 아이템을 지우지 않는 것과 같은 이유).
+  //  ⚠ 수성의 탑에서만 건다 — 대전 배치는 예전 그대로 전부 열려 있다.
+  var lockOn = !!this.defendTower && !!GAME.DefendTower.isUnlocked;
+  this._lockOf = function (key) {
+    if (!lockOn) return 0;
+    return GAME.DefendTower.isUnlocked(key) ? 0 : GAME.DefendTower.unlockAt(key);
+  };
+
   var perRow = PH ? GAME.UNIT_ORDER.length : 5;
   this.chips = [];
   var cols = PH ? phSlots(perRow, PHL.PAD, W - PHL.PAD - PHL.VER_W, PHL.PAL_GAP)
@@ -479,8 +493,11 @@ GAME.BuildScene.prototype.create = function () {
     var rect = this.add.rectangle(c0.cx, rowY.cy, c0.w, chipH, UI.COL.surfaceAlt)
       .setStrokeStyle(1, UI.COL.border);
     rect.setInteractive({ useHandCursor: true });
+    //  ⚠ 잠긴 칩도 **누를 수 있게 둔다.** 눌러도 아무 일이 없으면 "고장"으로 읽힌다 —
+    //    대신 몇 회차에 열리는지 말해 준다(`_pick` 이 판정한다).
     (function (k) { rect.on('pointerdown', function () { self._pick(k); }); })(key);
-    chipRects.push({ key: key, rect: rect, x: c0.x, w: c0.w, cx: c0.cx, y: rowY.y, cy: rowY.cy, h: chipH });
+    chipRects.push({ key: key, rect: rect, x: c0.x, w: c0.w, cx: c0.cx, y: rowY.y, cy: rowY.cy, h: chipH,
+                     lock: this._lockOf(key) });
   }
   // ★ 아이콘 Graphics 는 칩 사각형 **다음에** 만든다. 이 한 줄이 예전 버그의 수정이다.
   this.palG = this.add.graphics();
@@ -790,6 +807,13 @@ GAME.BuildScene.prototype._warn = function (msg) {
 
 GAME.BuildScene.prototype._pick = function (key) {
   this.picked = key;
+  //  ⚠ 잠긴 유닛을 골랐으면 **그 자리에서** 말해 준다. 안 그러면 전장을 탭해 봐야
+  //    경고가 뜨는데, 그 왕복이 이 화면에서 가장 흔한 헛수고다(칩 흐리기 주석 참조).
+  var lockAt = this._lockOf ? this._lockOf(key) : 0;
+  if (lockAt && this._warn) {
+    var d = GAME.UNITS[key];
+    this._warn(d.name + GAME.UI.josa(d.name, 'eun') + ' ' + lockAt + '회차를 깨면 열립니다.');
+  }
   this._status();
   this.redraw();
 };
@@ -804,6 +828,15 @@ GAME.BuildScene.prototype.spent = function () {
 // (판단을 한 곳에 모아둬야 "흐린데 눌러보니 놓아진다" 같은 어긋남이 안 생긴다)
 GAME.BuildScene.prototype._blockedReason = function (key) {
   var def = GAME.UNITS[key];
+  //  ── 해금 (2026-08-07) ──────────────────────────────────────────────────
+  //  ⚠ **여기에 넣는 것이 중요하다.** 팔레트에서만 막으면 다른 배치 경로(불러온
+  //    배치도·드래그·단축키)로 잠긴 유닛이 들어온다. 이 함수가 배치의 단일 관문이라
+  //    표시와 판정이 갈라지지 않는다(이 함수 위 주석이 그 이유를 이미 적어 두었다).
+  var lockAt = this._lockOf ? this._lockOf(key) : 0;
+  if (lockAt) {
+    return def.name + GAME.UI.josa(def.name, 'eun') + ' ' + lockAt +
+           '회차를 깨면 열립니다.';
+  }
   if (def.maxPerFormation && this._countOf(key) >= def.maxPerFormation) {
     return def.name + GAME.UI.josa(def.name, 'eun') + ' 배치도당 ' +
            def.maxPerFormation + '개까지만 놓을 수 있습니다.';
@@ -1688,6 +1721,19 @@ GAME.BuildScene.prototype.redraw = function () {
     // 예전에는 눌러야 경고가 떴다 — 그 왕복이 이 화면에서 가장 흔한 헛수고였다.
     chip.nameTxt.setColor(blocked ? C.textFaint : C.text).setAlpha(blocked ? 0.6 : 1);
     chip.costTxt.setColor(blocked ? C.danger : C.accent).setAlpha(blocked ? 0.85 : 1);
+    //  ── 잠긴 칩 (2026-08-07) ────────────────────────────────────────────
+    //  ⚠ **여기서 덮어써야 한다.** 이 루프가 매번 색과 글자를 다시 쓰므로 create 에서
+    //    한 번 칠해 두면 첫 프레임에 지워진다.
+    //  ⚠ **이름은 남긴다** — 무엇이 열리는지 모르면 목표가 안 된다. 자리 문제로
+    //    이름을 회차로 바꿨다가, 그러면 "5회차"라는 이름의 유닛처럼 보여서 되돌렸다.
+    //  ⚠ 값 대신 `🔒N` 을 적는다. 못 놓는 것에 가격을 적으면 "돈이 모자란가"로 읽힌다.
+    //  (`chip.lock` 은 씬을 만들 때 한 번 정해지고 그 안에서 안 바뀐다 — 해금은
+    //   회차를 깨야 일어나고 그때는 씬이 다시 만들어진다. 되돌리는 분기가 필요 없다.)
+    if (chip.lock) {
+      chip.costTxt.setText('🔒' + chip.lock).setColor(C.textDim).setAlpha(0.95);
+      chip.nameTxt.setColor(C.textDim).setAlpha(0.75);
+      chip.rect.setAlpha(on ? 1 : 0.42);
+    }
     //  ⚠ `×2` 배지는 뺐다(2026-08-03 사용자 지시: "괜히 더 헷갈려").
     //    같은 화면에 인구 숫자가 이미 있어서 두 숫자가 서로 다른 뜻으로 읽혔다.
     chip.countTxt.setVisible(false).setText('');

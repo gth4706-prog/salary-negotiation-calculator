@@ -74,12 +74,40 @@ window.GAME = window.GAME || {};
     return a;
   }
 
+  // ── 분할 수를 **크기에서** 정한다 (2026-08-07) ─────────────────────────────
+  //  Phaser 기본값은 크기와 무관하게 32 다. 그런데 이 게임의 유닛은 폰에서
+  //  25~33px 이고, 그 안의 눈·그림자·장비는 8~20px 짜리 타원이다.
+  //  8px 타원을 32조각으로 나누면 한 조각이 0.8px — **화면에 없는 정밀도**를
+  //  프레임마다 3만 번씩 계산하고 있었다(실측: 프레임당 타원 호출 360회).
+  //
+  //  ⚠ **"안 보인다"를 짐작하지 않고 픽셀로 답했다.** 다각형이 진짜 타원에서
+  //    벗어나는 최대 거리(사지타) = r·(1−cos(π/n)). 폰 DPR 3 환산:
+  //        크기        지금(32분할)   이 규칙
+  //        8×6         0.06 기기px    8분할  0.91
+  //        20×24       0.17           18분할 0.55
+  //        80×60       0.58           32분할 0.58 (그대로)
+  //        200×120     1.44           32분할 1.44 (그대로)
+  //    즉 **가장 나빠지는 경우(0.91)도 지금 이미 나가고 있는 최악(1.44)보다 낫다.**
+  //    큰 타원은 상한 32 에 걸려 한 톨도 안 바뀐다 — 눈에 띄는 곳은 안 건드린다.
+  //
+  //  ⚠ 분할 수를 **명시로 넘기는 호출은 그대로 존중한다**(`js/bossart.js` 가 8~12 로
+  //    이미 낮춰 부른다). 여기서 덮으면 남이 실측으로 잡아 둔 값을 지우게 된다.
+  var SEG_PX = 4;      // 한 조각이 대략 이 길이(설계px)가 되게
+  var MIN_N = 8;       // 아무리 작아도 팔각형 밑으로는 안 간다
+  var MAX_N = 32;      // Phaser 기본값 — 이보다 곱게 만들지 않는다
+  function autoN(w, h) {
+    //  둘레 근사 π·(w+h)/2. 정확한 타원 둘레가 필요 없다 — 조각 수를 정하는 데만 쓴다.
+    var per = Math.PI * (Math.abs(w) + Math.abs(h)) * 0.5;
+    var n = Math.ceil(per / SEG_PX);
+    return n < MIN_N ? MIN_N : (n > MAX_N ? MAX_N : n);
+  }
+
   P.fillEllipse = function (x, y, w, h, smoothness) {
-    if (smoothness === undefined) smoothness = 32;
+    if (smoothness === undefined) smoothness = autoN(w, h);
     return this.fillPoints(points(x, y, w, h, smoothness), true);
   };
   P.strokeEllipse = function (x, y, w, h, smoothness) {
-    if (smoothness === undefined) smoothness = 32;
+    if (smoothness === undefined) smoothness = autoN(w, h);
     return this.strokePoints(points(x, y, w, h, smoothness), true);
   };
   //  ...Shape 판도 같이 갈아준다. 원본은 `shape.getPoints(n)` 를 부르므로 그냥 두면
@@ -114,7 +142,38 @@ window.GAME = window.GAME || {};
         }
       }
       //  부동소수 오차만 허용한다. 1e-9 는 화면 픽셀로 옮기면 0 이다.
-      return { ok: worst < 1e-9, worst: worst, points: n };
-    }
+      if (!(worst < 1e-9)) return { ok: false, worst: worst, points: n, why: '좌표가 원본과 다름' };
+
+      //  ── 분할 수 규칙 검사 (2026-08-07) ──────────────────────────────────
+      //  ⚠ 위 대조는 "주어진 n 에서 좌표가 맞는가"만 본다. **n 을 스스로 고르기
+      //    시작했으므로 그 선택도 검사해야 한다** — 안 그러면 규칙이 조용히 어긋나도
+      //    (예: SEG_PX 를 20 으로 바꿔 놓아도) 이 함수는 계속 초록불이다.
+      //  판정 기준은 "지금 이미 나가고 있는 최악보다 나쁘지 않은가"다. 큰 타원은
+      //  32 에 걸려 지금과 똑같으므로, 그 값이 곧 허용선이다.
+      function sagitta(r, k) { return r * (1 - Math.cos(Math.PI / k)); }
+      var BIG = 200, BIGH = 120;                       // 이 게임에서 가장 큰 타원 계열
+      var bar = sagitta(Math.max(BIG, BIGH) / 2, autoN(BIG, BIGH));
+      var sizes = [[6, 4], [8, 6], [12, 10], [16, 20], [20, 24], [34, 40],
+                   [60, 40], [80, 60], [140, 90], [BIG, BIGH]];
+      var worstSag = 0, worstAt = '';
+      for (var si = 0; si < sizes.length; si++) {
+        var w2 = sizes[si][0], h2 = sizes[si][1];
+        var k = autoN(w2, h2);
+        if (!(k >= MIN_N && k <= MAX_N)) {
+          return { ok: false, why: '분할 수가 범위 밖 ' + w2 + 'x' + h2 + ' → ' + k };
+        }
+        var s = sagitta(Math.max(w2, h2) / 2, k);
+        if (s > worstSag) { worstSag = s; worstAt = w2 + 'x' + h2 + '(' + k + '분할)'; }
+      }
+      if (worstSag > bar) {
+        return { ok: false, why: '오차가 기존 최악(' + bar.toFixed(3) + 'px)을 넘음 — ' +
+                                 worstAt + ' ' + worstSag.toFixed(3) + 'px' };
+      }
+      return { ok: true, worst: worst, points: n,
+               sag: worstSag, sagBar: bar, sagAt: worstAt };
+    },
+
+    //  도구가 절감량을 잴 수 있게 규칙을 밖에서도 부를 수 있게 둔다.
+    autoN: function (w, h) { return autoN(w, h); }
   };
 })();

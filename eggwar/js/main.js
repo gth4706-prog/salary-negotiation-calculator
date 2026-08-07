@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v1.78';
+GAME.VERSION = 'v1.79';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -150,7 +150,61 @@ window.addEventListener('load', function () {
       //  · apiErr 마지막 실패 사유. '경로 없음'·'응답 없음(8000ms 초과)'·'연결 실패' 를
       //           구분해서 보여 준다 — 셋의 원인이 서로 다르다.
       'api     ' + (GAME.Api ? GAME.Api.activeBase() : '-') + '\n' +
-      'apiErr  ' + ((GAME.Api && GAME.Api.lastError) || '-');
+      'apiErr  ' + ((GAME.Api && GAME.Api.lastError) || '-') + '\n' +
+      //  ── 프레임 (2026-08-07) ───────────────────────────────────────────────
+      //  이 PC 로는 실사용자 프레임을 못 잰다(vsync 로 창이 1fps 로 스로틀된다 —
+      //  CLAUDE.md). 그래서 렉 조사가 계속 "정황상 괜찮다"에서 멈췄다.
+      //  **재는 자리를 사람 손에 쥐어 준다** — 폰에서 `?diag=1` 로 열고 난전을 한 판
+      //  치른 뒤 이 줄을 읽으면, 추측 없이 어디를 깎을지 정할 수 있다.
+      //  p95·최악을 같이 내는 이유: 평균은 스톨을 숨긴다(이 저장소가 이미 겪은 것 —
+      //  "느린 프레임의 부하 지표가 평균과 같다"였다).
+      'frame   ' + FrameMeter.line();
+  }
+
+  // ── 프레임 계측기 — `?diag=1` 일 때만 돈다 ────────────────────────────────
+  //  ⚠ 꺼져 있으면 **비용이 정확히 0** 이다(rAF 조차 안 건다). 계측이 게임에 남으면
+  //    그게 다음 사람의 함정이 된다는 이 저장소 규율(`tools/stall-probe.js`)을 지킨다.
+  //  ⚠ Phaser 의 loop 에 끼어들지 않고 별도 rAF 로 **벽시계 간격**만 본다. 게임이
+  //    멈춘 것(스톨)을 재려면 게임 밖에서 봐야 한다 — 안에서 재면 멈춘 동안은
+  //    아무 표본도 안 남는다.
+  var FrameMeter = (function () {
+    var on = false, last = 0, n = 0, slow = 0, worst = 0;
+    //  히스토그램으로 쌓는다(1ms 칸 × 200). 표본 배열을 계속 늘리면 그 자체가
+    //  쓰레기를 만들어 재려던 것을 망친다.
+    var H = new Uint32Array(201);
+    function tick(t) {
+      if (!on) return;
+      if (last) {
+        var dt = t - last;
+        var b = dt < 0 ? 0 : (dt > 200 ? 200 : (dt | 0));
+        H[b]++; n++;
+        if (dt > 33.4) slow++;             // 30fps 미만 프레임
+        if (dt > worst) worst = dt;
+      }
+      last = t;
+      requestAnimationFrame(tick);
+    }
+    function pct(p) {
+      if (!n) return 0;
+      var need = n * p, acc = 0;
+      for (var i = 0; i <= 200; i++) { acc += H[i]; if (acc >= need) return i; }
+      return 200;
+    }
+    return {
+      start: function () { if (on) return; on = true; requestAnimationFrame(tick); },
+      reset: function () { H = new Uint32Array(201); n = 0; slow = 0; worst = 0; last = 0; },
+      line: function () {
+        if (!n) return '재는 중…';
+        return 'p50 ' + pct(0.5) + 'ms · p95 ' + pct(0.95) + 'ms · 최악 ' +
+               Math.round(worst) + 'ms · 30fps미만 ' +
+               (slow / n * 100).toFixed(1) + '% (' + n + '프레임)';
+      }
+    };
+  })();
+  //  화면을 탭하면 다시 센다 — "지금부터 이 구간" 을 사람이 정할 수 있어야 한다.
+  if (diag) {
+    FrameMeter.start();
+    window.addEventListener('pointerdown', function () { FrameMeter.reset(); }, true);
   }
 
   // 창 크기·방향이 바뀌면 다시 맞춘다.

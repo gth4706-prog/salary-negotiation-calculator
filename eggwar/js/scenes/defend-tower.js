@@ -130,7 +130,7 @@ GAME.DefendTowerScene.prototype.create = function () {
   // ── 골드 (v0.36) ─────────────────────────────────────────────────────────
   // 적 영웅을 깎은 만큼 쌓인다. 유닛 레벨업·증원에 쓴다.
   stack(GAME.UI.label(this, W / 2, y,
-    '◈ ' + DT.goldOf() + ' 골드' + this._levelSummaryText(),
+    '💰 ' + DT.goldOf() + ' 골드' + this._levelSummaryText(),
     P ? 15 : 18, GAME.UI.TXT.crit, 0.5).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 30));
 
   // ── 다음 해금 (2026-08-07 · 2단계) ────────────────────────────────────────
@@ -401,7 +401,7 @@ GAME.DefendTowerScene.prototype._createPhone = function () {
   //  왼쪽 열은 보스 층에서 [현판 132 + 게이지 + 보스 경고 2줄] 로 이미 꽉 찬다(실측: 60층에서 겹침).
   //  하단 줄도 60층이면 "체력 +259% · 공격 +179% · 숙련 95%" 로 길어져 자리가 없다.
   //  가운데 열(196..492)의 설명문 아래가 유일하게 남는 자리다.
-  var goldT = UI.text(this, mx, midY, '◈ ' + DT.goldOf() + ' 골드',
+  var goldT = UI.text(this, mx, midY, '💰 ' + DT.goldOf() + ' 골드',
     { size: 'caption', color: UI.TXT.crit, wrap: mw });
   var lvTxt = this._levelSummaryText();
   if (lvTxt) {
@@ -487,7 +487,7 @@ GAME.DefendTowerScene.prototype._openGrowth = function () {
   objs.push(veil);
   objs.push(UI.panel(this, px0, py0, pw, phh, { level: 1 }).setDepth(901));
 
-  objs.push(UI.text(this, W / 2, py0 + 10, '⚒ 성장   —   ◈ ' + DT.goldOf() + ' 골드',
+  objs.push(UI.text(this, W / 2, py0 + 10, '⚒ 성장   —   💰 ' + DT.goldOf() + ' 골드',
     { size: 'subhead', color: C.accentAlt, origin: 0.5, originY: 0 }).setDepth(902));
   objs.push(UI.text(this, W / 2, py0 + 42,
     '골드는 침입 영웅의 체력을 깎을 때마다 들어온다. 격퇴하면 가장 많다.',
@@ -541,7 +541,7 @@ GAME.DefendTowerScene.prototype._openGrowth = function () {
             : ('체력 +' + pct(mNow, 'hp') + '%   공격 +' + pct(mNow, 'damage') + '%'))
         : '';
       var label = def.name + '  Lv.' + lv +
-        (cost === null ? '   최대' : ('  →  ' + (lv + 1) + '   ◈ ' + cost)) +
+        (cost === null ? '   최대' : ('  →  ' + (lv + 1) + '   💰 ' + cost)) +
         (gain ? '\n' + gain : '');
       var cx = col[slot % 3], cy = slot < 3 ? row1 : row2;
       var b = mk(cx, cy, label, function () {
@@ -577,7 +577,7 @@ GAME.DefendTowerScene.prototype._openGrowth = function () {
   //    실제로 늘어나는 1명과 어긋난다(사용자 신고).
   var POPD = (GAME.BuildScene && GAME.BuildScene.POP_DIV) || 10;
   var stepPop = Math.max(1, Math.round(DT.EXTRA_BUDGET_STEP / POPD));
-  var eb = mk(bcx, bcy, '증원  +' + stepPop + ' 인구\n◈ ' + price, function () {
+  var eb = mk(bcx, bcy, '증원  +' + stepPop + ' 인구\n💰 ' + price, function () {
     if (DT.buyBudget()) {
       if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('click');
       self._closeGrowth();
@@ -604,12 +604,14 @@ GAME.DefendTowerScene.prototype._toggleSheet = function () {
 //  ⚠ 시트를 닫았다 여는 방식이라 **한 프레임 안에** 끝난다. 화면 전체를 버리는
 //    `scene.restart()` 와 달리 배경·전장 그림이 그대로 남아 깜빡임이 없다.
 GAME.DefendTowerScene.prototype._refreshGrowth = function () {
+  //  ⚠ 예전 판은 **아무 일도 안 했다** (2026-08-08 발견). 두 군데가 어긋나 있었다:
+  //    ① `this.sheet`(☰ 시트)를 봤는데 성장 패널은 `this.growth` 다 → 조건이 늘 거짓.
+  //    ② `this._goldLbl` 은 **어디에서도 대입되지 않는다** → 그 분기는 죽은 코드.
+  //    그래서 레벨업을 누르면 패널이 닫히고 **다시 안 열렸다** — 위 주석이 말한
+  //    "시트를 열어 두고 버튼을 여러 번 누르는 화면"이 실제로는 성립하지 않았다.
   try {
-    var open = !!this.sheet;
-    if (open) { this._closeSheet(); this._openGrowth(); }
-    if (this._goldLbl && this._goldLbl.setText) {
-      this._goldLbl.setText('◈ ' + GAME.DefendTower.get().gold);
-    }
+    this._closeGrowth();
+    this._openGrowth();
   } catch (e) { /* 화면이 이미 바뀌었으면 아무 일도 아니다 */ }
 };
 

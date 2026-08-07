@@ -301,9 +301,18 @@ GAME.DefendScene.prototype.create = function () {
 
   // 방어전은 조작이 없어서 실측 60~68초를 그냥 지켜봐야 한다(컨트롤러 판은 19~32초).
   // 그래서 **2배속을 기본값**으로 두고, 고른 배속은 다음 판에도 기억한다.
-  var SPEEDS = [1, 2, 4];
+  //  ⚠ **2배속까지만** (2026-08-08 사용자 지시). 4배속은 한 프레임에 전투를 네 번
+  //    돌리는 것이라, 예고(telegraph)가 실시간의 1/4 로 스쳐 지나가 **무엇이 왜 죽었는지
+  //    안 보인다.** 수성의 탑은 관전형이라 '보는 것'이 유일한 피드백인데 그게 사라진다.
+  var SPEEDS = [1, 2];
+  //  ⚠ 저장된 값이 4 인 사람이 이미 있다(예전 판에서 골랐다). `indexOf` 로 걸러
+  //    2 로 되돌린다 — 안 그러면 목록에 없는 값이라 `cycleSpeed` 의 `indexOf` 가
+  //    -1 을 내고 **버튼을 눌러도 1배속으로만 튄다.**
   this.speed = GAME.Store.get('asymgame.defendSpeed', 2);
-  if (SPEEDS.indexOf(this.speed) === -1) this.speed = 2;
+  if (SPEEDS.indexOf(this.speed) === -1) {
+    this.speed = 2;
+    GAME.Store.set('asymgame.defendSpeed', 2);   // 옛 값을 남겨 두지 않는다
+  }
 
   function speedLabel() {
     // 작은 화면(폰 가로·세로)은 짧게. 세로에서 '(탭/스페이스)'까지 넣으면 라벨이

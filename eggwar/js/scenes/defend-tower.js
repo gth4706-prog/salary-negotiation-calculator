@@ -523,11 +523,23 @@ GAME.DefendTowerScene.prototype._openGrowth = function () {
       //  것이 안 보이면 고를 근거가 없다. 지금 배수와 다음 배수를 나란히 보여 준다.
       var mNow = UL.modsForLevel ? UL.modsForLevel(lv) : null;
       var mNext = (cost !== null && UL.modsForLevel) ? UL.modsForLevel(lv + 1) : null;
-      var pctOf = function (m) {
-        if (!m) return '';
-        return '체력 +' + Math.round((m.hp - 1) * 100) + '%  공격 +' + Math.round((m.damage - 1) * 100) + '%';
-      };
-      var gain = mNext ? (pctOf(mNow) + '  →  ' + pctOf(mNext)) : pctOf(mNow);
+      //  ── 두 번째 줄은 **칸 안에 들어가야 한다** (2026-08-08 사용자 신고) ────────
+      //  예전 문구: `체력 +23% 공격 +17%  →  체력 +29% 공격 +21%`.
+      //  현재값과 다음값을 통째로 두 번 적어서 폰 가로 칸(212px)을 **한참 넘고 옆 칸까지
+      //  뻗었다.** 겹침 감사가 이걸 못 잡은 이유는 그 도구가 **버튼-자기라벨 쌍을 통째로
+      //  건너뛰기** 때문이다(그래서 `tools/overlap-audit.js` 에 '넘침' 검사를 신설했다).
+      //
+      //  고친 방향: **값을 두 번 적지 않는다.** 화살표를 값 안으로 넣어
+      //  `체력 23→29%  공격 17→21%` 로 쓰면 뜻은 그대로인데 길이가 절반이다.
+      //  ⚠ `+` 를 뺐다 — 두 글자를 아끼는 것이 여기서는 크고, `23→29%` 는 부호 없이도
+      //    '오른다'가 화살표로 읽힌다.
+      var pct = function (m, k) { return Math.round((m[k] - 1) * 100); };
+      var gain = mNow
+        ? (mNext
+            ? ('체력 ' + pct(mNow, 'hp') + '→' + pct(mNext, 'hp') + '%   ' +
+               '공격 ' + pct(mNow, 'damage') + '→' + pct(mNext, 'damage') + '%')
+            : ('체력 +' + pct(mNow, 'hp') + '%   공격 +' + pct(mNow, 'damage') + '%'))
+        : '';
       var label = def.name + '  Lv.' + lv +
         (cost === null ? '   최대' : ('  →  ' + (lv + 1) + '   ◈ ' + cost)) +
         (gain ? '\n' + gain : '');

@@ -13,7 +13,10 @@ GAME.AIHero = function (state, hero, skill, adapt) {
   //  ⚠ `skill` 과 다른 축이다. skill 은 **얼마나 잘하나**(반응 속도·조준),
   //    adapt 는 **무엇을 노리나**(전술). 섞으면 "어려워지기만 하고 안 배운다".
   //  ⚠ 안 주면 예전과 **완전히 같게** 군다(0). 학습이 꺼진 경로가 있어도 안전하다.
-  this.adapt = adapt || { focusRanged: 0 };
+  this.adapt = adapt || {};
+  if (this.adapt.focusRanged === undefined) this.adapt.focusRanged = 0;
+  if (this.adapt.killSupport === undefined) this.adapt.killSupport = 0;
+  if (this.adapt.avoidZone === undefined) this.adapt.avoidZone = 0;
   this.reactT = 0;
   this.retargetT = 0;
   this.target = null;
@@ -57,6 +60,17 @@ GAME.AIHero.prototype.update = function (dtMs) {
       if (this.adapt.focusRanged > 0 && (e.def.range || 0) > 150) {
         score -= 620 * this.adapt.focusRanged;
       }
+      //  배운 것: 지원부터 끊는다. **때리지 않는 유닛**(약초꾼·껍질장이·울짱꾼)과
+      //  회복·보호막을 주는 유닛이 대상이다 — 저들이 살아 있으면 아무리 때려도
+      //  되돌려진다.
+      //  ⚠ 두 가설이 겹치면 할인이 두 번 붙는다. 그건 의도한 것이다 — 원거리 지원
+      //    유닛(약초꾼)이 둘 다에 걸리는 건 실제로 가장 먼저 끊어야 할 표적이다.
+      if (this.adapt.killSupport > 0) {
+        var ab = e.def.ability;
+        var isSup = (e.def.damage || 0) <= 0 ||
+                    (ab && (ab.type === 'healBurst' || ab.type === 'warcry'));
+        if (isSup) score -= 520 * this.adapt.killSupport;
+      }
       if (score < bestScore) { bestScore = score; best = e; }
     }
     this.target = best;
@@ -75,11 +89,57 @@ GAME.AIHero.prototype.update = function (dtMs) {
       if (!mn.alive || !C.isHazard(mn)) continue;
       var dm = C.dist(h, mn);
       if (dm < mn.def.triggerRadius + 40 + 30 * sk) {
-        var ux = (h.x - mn.x) / (dm || 1), uy = (h.y - mn.y) / (dm || 1);
+        //  ⚠ 여기에도 같은 함정이 있었다(정중앙이면 `dm||1` 로 0 방향이 나온다).
+        //    지뢰 위에 정확히 서는 일은 드물어 여태 안 드러났을 뿐이다.
+        var ux, uy;
+        if (dm < 1) { ux = Math.cos(h.facing || 0); uy = Math.sin(h.facing || 0); }
+        else { ux = (h.x - mn.x) / dm; uy = (h.y - mn.y) / dm; }
         h.x += ux * C.effSpeed(h) * dt * dodgePower;
         h.y += uy * C.effSpeed(h) * dt * dodgePower;
         C.clampToArena(h);
         acted = true;
+      }
+    }
+
+    //  배운 것: 자리를 잡고 기다리는 피해(잉걸불·가시 오라)를 크게 돌아간다.
+    //  ⚠ 이건 **회피가 아니라 경로 선택**이다. 예고는 잠깐 떴다 사라지지만 구역은
+    //    몇 초를 버티므로, 같은 세기로 밀어내면 구역 가장자리에서 진동만 한다.
+    //    그래서 반경에 여유(`pad`)를 크게 주고 밀어내는 힘도 따로 잡는다.
+    if (this.adapt.avoidZone > 0) {
+      var zp = 0.6 + 1.0 * this.adapt.avoidZone;
+      var zones = s.emberZones || [];
+      for (i = 0; i < zones.length; i++) {
+        var zn = zones[i];
+        if (zn.side === 'controller') continue;
+        var dz = Math.sqrt((h.x - zn.x) * (h.x - zn.x) + (h.y - zn.y) * (h.y - zn.y));
+        var pad = zn.r + 30 + 50 * this.adapt.avoidZone;
+        if (dz < pad) {
+          //  ⚠ **정중앙에 서 있으면 도망칠 방향이 0 으로 나뉜다** — 그대로 두면
+          //    영웅이 불 한가운데 못 박힌 채 타 죽는다(실측: 30프레임 동안 0px 이동).
+          //    구역은 던져서 만드는 물건이라 영웅 발밑에 정확히 떨어질 수 있다.
+          var zx, zy;
+          if (dz < 1) { zx = Math.cos(h.facing || 0); zy = Math.sin(h.facing || 0); }
+          else { zx = (h.x - zn.x) / dz; zy = (h.y - zn.y) / dz; }
+          h.x += zx * C.effSpeed(h) * dt * zp;
+          h.y += zy * C.effSpeed(h) * dt * zp;
+          C.clampToArena(h);
+          acted = true;
+        }
+      }
+      //  고정 오라(울짱꾼)도 같은 성격이다 — 자리를 잡고 기다린다.
+      for (i = 0; i < s.units.length; i++) {
+        var au = s.units[i];
+        if (!au.alive || au.side === h.side || !au.def.auraAlways) continue;
+        var da = C.dist(h, au), padA = (au.def.auraRadius || 0) + 26 + 40 * this.adapt.avoidZone;
+        if (da < padA) {
+          var ax, ay;
+          if (da < 1) { ax = Math.cos(h.facing || 0); ay = Math.sin(h.facing || 0); }
+          else { ax = (h.x - au.x) / da; ay = (h.y - au.y) / da; }
+          h.x += ax * C.effSpeed(h) * dt * zp;
+          h.y += ay * C.effSpeed(h) * dt * zp;
+          C.clampToArena(h);
+          acted = true;
+        }
       }
     }
 
@@ -89,7 +149,9 @@ GAME.AIHero.prototype.update = function (dtMs) {
       if (ef.kind !== 'telegraph' || ef.side === 'controller') continue;
       var de = Math.sqrt((h.x - ef.x) * (h.x - ef.x) + (h.y - ef.y) * (h.y - ef.y));
       if (de < ef.r + 20) {
-        var ex = (h.x - ef.x) / (de || 1), ey = (h.y - ef.y) / (de || 1);
+        var ex, ey;
+        if (de < 1) { ex = Math.cos(h.facing || 0); ey = Math.sin(h.facing || 0); }
+        else { ex = (h.x - ef.x) / de; ey = (h.y - ef.y) / de; }
         h.x += ex * C.effSpeed(h) * dt * dodgePower;
         h.y += ey * C.effSpeed(h) * dt * dodgePower;
         C.clampToArena(h);

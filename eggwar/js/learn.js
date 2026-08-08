@@ -48,8 +48,17 @@ GAME.Learn = {
       //    가설→시험→채택 고리가 있으니 **같은 고리를 그대로** 이쪽에도 쓴다.
       //  ⚠ skill 과 adapt 는 다른 것이다. skill 은 '얼마나 잘하나'(반응·정확도),
       //    adapt 는 '무엇을 노리나'(전술). 섞으면 어려워지기만 하고 안 배운다.
+      //  ⚠ 가설 하나로는 **세 판이면 끝난다** — 판정이 나면 다시 다이얼로 돌아간다.
+      //    여럿을 두면 질 때마다 다른 것을 시도해서 "매번 다른 상대"가 된다.
+      //  ⚠ 그리고 이 표가 **신규 유닛에 존재 이유를 준다.** 가설마다 답이 되는 유닛이
+      //    따로 있어야, 유닛을 스무 종 넣은 것이 장식이 아니라 선택지가 된다:
+      //      focusRanged → 방패병·되받이·매듭지기 (원거리를 지켜 준다)
+      //      killSupport → 매듭지기·돌쌓이       (지원을 먼저 못 끊게 한다)
+      //      avoidZone   → 울짱꾼·불씨꾼          (피할 수 없는 자리를 만든다)
       adapt: {
-        focusRanged: 0        // 원거리부터 지운다 (0 = 예전 그대로)
+        focusRanged: 0,       // 원거리부터 지운다 (0 = 예전 그대로)
+        killSupport: 0,       // 회복·보호막 주는 쪽부터 끊는다
+        avoidZone: 0          // 구역(잉걸불·가시)을 더 크게 피해 다닌다
       },
       trial: null,
       rejected: {},
@@ -69,6 +78,20 @@ GAME.Learn = {
     if (from > 0 && from > to * 1.5) {
       c.push({ key: 'focusRanged',
                why: '원거리에게 일방적으로 맞음 → 원거리부터 파고들게' });
+    }
+    //  진형이 계속 회복·보호막을 받아 안 죽는다 → 그걸 주는 쪽부터 끊는다.
+    //  ⚠ 기준을 '회복량이 있었나'가 아니라 **'영웅이 넣은 피해에 견줘 컸나'** 로 둔다.
+    //    조금 회복하는 건 정상이고, 때린 게 되돌려지는 수준일 때만 전술을 바꾼다.
+    var healed = t.strategistHealed || 0, dealt = t.heroDamageDealt || 0;
+    if (healed > 0 && healed > dealt * 0.30) {
+      c.push({ key: 'killSupport',
+               why: '진형이 계속 회복함 → 회복·보호막 주는 쪽부터 끊게' });
+    }
+    //  자리를 잡고 기다리는 피해(잉걸불·가시 오라·폭발)에 계속 맞는다 → 크게 돌아간다.
+    var zone = t.heroDmgFromZone || 0, taken = t.heroDamageTaken || 0;
+    if (zone > 0 && taken > 0 && zone > taken * 0.25) {
+      c.push({ key: 'avoidZone',
+               why: '구역 피해에 계속 맞음 → 그 자리를 크게 돌아가게' });
     }
     return c.filter(function (x) {
       return !rec.rejected[x.key] && rec.adapt[x.key] < 1 - 0.001;
@@ -296,7 +319,8 @@ GAME.Learn = {
     //  ⚠ 예전 저장본에는 adapt 가 없다. 없는 채로 넘기면 AI 가 `adapt.focusRanged`
     //    에서 죽는다 — 저장 스키마를 늘릴 때 이 채우기를 빼먹으면 조용히 터진다.
     if (!rec.adapt) rec.adapt = this.DEFAULT_CTRL().adapt;
-    if (rec.adapt.focusRanged === undefined) rec.adapt.focusRanged = 0;
+    var _d = this.DEFAULT_CTRL().adapt;
+    for (var _k in _d) if (rec.adapt[_k] === undefined) rec.adapt[_k] = _d[_k];
     if (!rec.rejected) rec.rejected = {};
     if (rec.trial === undefined) rec.trial = null;
     return rec;

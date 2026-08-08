@@ -45,6 +45,12 @@ GAME.Combat = {
         //  "원거리에게 맞기만 하고 한 대도 못 때렸다"를 다음 판에 쓰려면 **두 값을
         //  따로 재야** 한다. 지금까지는 맞은 총량만 있어 무엇에게 맞았는지 몰랐다.
         heroDmgFromRanged: 0, heroDmgToRanged: 0,
+        //  '구역'에게 맞은 양 — 잉걸불·가시 오라·사망 폭발·가시덫처럼 **자리를 잡고
+        //  기다리는** 피해다. 이게 크다는 건 영웅이 자리를 못 고르고 있다는 뜻이다.
+        heroDmgFromZone: 0,
+        //  진형이 되돌린 양(회복 + 보호막) vs 영웅이 넣은 양. 둘을 견줘야 "때린 게
+        //  되돌려지고 있다"를 알 수 있다 — 회복량만으로는 많고 적음을 판단 못 한다.
+        strategistHealed: 0, heroDamageDealt: 0,
         // 플레이어 성향 관측 (GAME.Profile 이 읽는다)
         heroDistSamples: [], projectilesAtHero: 0, projectilesHitHero: 0
       }
@@ -619,7 +625,7 @@ GAME.Combat = {
           if (!xv.alive || xv === unit || this.isHazard(xv)) continue;
           var xdx = xv.x - unit.x, xdy = xv.y - unit.y;
           if (xdx * xdx + xdy * xdy <= br * br) {
-            this.applyDamage(xv, bdm, unit, state, { noCrit: true });
+            this.applyDamage(xv, bdm, unit, state, { noCrit: true, zone: true });
           }
         }
         state.effects.push({ kind: 'ring', x: unit.x, y: unit.y, r: br,
@@ -728,9 +734,10 @@ GAME.Combat = {
         //  "원거리에게 맞기만 하고 한 대도 못 때렸다"를 다음 판에 쓰려면 **그 두 값을
         //  따로 재야** 한다. 지금까지는 맞은 총량만 있어서 무엇에게 맞았는지 몰랐다.
         if ((source.def.range || 0) > 150) state.telemetry.heroDmgFromRanged += eff;
-      } else if (source && source.isHero && unit.side === 'strategist' &&
-                 (unit.def.range || 0) > 150 && state && state.telemetry) {
-        state.telemetry.heroDmgToRanged += eff;
+        if (opts && opts.zone) state.telemetry.heroDmgFromZone += eff;
+      } else if (source && source.isHero && unit.side === 'strategist' && state && state.telemetry) {
+        state.telemetry.heroDamageDealt += eff;
+        if ((unit.def.range || 0) > 150) state.telemetry.heroDmgToRanged += eff;
         // 내가 맞고 있다는 걸 소리로도 알린다(화면만 보면 놓친다)
         if (GAME.Sound) GAME.Sound.play('heroHurt');
       } else if (GAME.Sound && GAME.Sound.playFor && !unit.isHero && eff > 0) {
@@ -839,7 +846,16 @@ GAME.Combat = {
   //  ⚠ 이 게임의 흡혈은 **맞은 대상 수에 비례해 증폭**된다(CLAUDE.md 의 실측:
   //    표기 25% 가 실효 79%). 그래서 흡혈만 따로 깎는 방식으로는 광역 영웅에게
   //    체감이 안 온다 — 회복의 총량을 깎아야 답이 된다.
-  heal: function (u, amount) {
+  //  ⚠ 이 함수는 **전략가·영웅 양쪽이 다 쓴다.** 진형이 되돌린 양만 세려면
+  //    편을 봐야 한다 — 안 보면 영웅의 흡혈까지 진형 회복으로 잡힌다.
+  heal: function (u, amount, state) {
+    if (state && state.telemetry && u && u.side === 'strategist' && amount > 0) {
+      state.telemetry.strategistHealed += Math.min(amount, Math.max(0, u.maxHp - u.hp));
+    }
+    return this._heal0(u, amount);
+  },
+
+  _heal0: function (u, amount) {
     if (!u.alive) return;
     //  ⚠ `buffs` 가 **없는 유닛도 이 문을 통과한다** — 치유 구역(healzone.js)이
     //    넘기는 대상처럼 최소 필드만 가진 객체가 있다. 가드 없이 `u.buffs.length`
@@ -1347,7 +1363,7 @@ GAME.Combat = {
         t: sk.duration
       });
       if (skShield) u.shield += skShield;
-      if (sk.healNow) this.heal(u, sk.healNow);
+      if (sk.healNow) this.heal(u, sk.healNow, state);
       state.effects.push({
         kind: 'ring', x: u.x, y: u.y, r: u.def.radius + 26,
         t: 400, total: 400, side: u.side
@@ -1997,7 +2013,7 @@ GAME.Combat = {
         o = state.units[i];
         if (!o.alive || o.side !== u.side || this.isHazard(o)) continue;
         if (this.dist(u, o) > ab.radius) continue;
-        if (ab.heal) this.heal(o, ab.heal);
+        if (ab.heal) this.heal(o, ab.heal, state);
         //  ── 선불 방어 (2026-08-08 · 껍질장이) ────────────────────────────
         //  ⚠ 회복(사후)과 **축이 다르다**: 보호막은 맞기 **전에** 깎는다. 그래서
         //    영웅의 한 방 버스트가 무효가 되고 두 박자로 나눠 쳐야 한다.
@@ -2012,6 +2028,12 @@ GAME.Combat = {
             }
           }
           if (!sdup) o.buffs.push({ shield: ab.shield, t: ab.shieldMs || 6000, shieldTag: true });
+          //  ⚠ **보호막도 '되돌린 양'이다.** 회복만 세면 껍질장이가 아무리 막아 줘도
+          //    관측이 0 이라 "진형이 계속 버틴다"는 가설이 안 선다 — 껍질장이가
+          //    학습의 눈에 안 보이는 유닛이 되어 버린다.
+          if (state && state.telemetry && o.side === 'strategist') {
+            state.telemetry.strategistHealed += ab.shield;
+          }
         }
       }
       // ── 같은 연기가 **적에게는 상처**로 간다 (2026-08-02) ──────────────
@@ -2409,7 +2431,7 @@ GAME.Combat = {
           var edx = vic2.x - zn.x, edy = vic2.y - zn.y;
           if (edx * edx + edy * edy > zn.r * zn.r) continue;
           this.applyDamage(vic2, zn.dps * 0.5, zn.owner || null, state,
-                           { noCrit: true, noLs: true });
+                           { noCrit: true, noLs: true, zone: true });
         }
       }
     }
@@ -2461,7 +2483,7 @@ GAME.Combat = {
               // 상시 오라(파수꾼 '무게')는 흡혈을 태우지 않는다 — 초당 4번 도는 판정에
               // 흡혈이 붙으면 서 있기만 해도 회복이 쌓여 '버티는 지속형'이 '무적'이 된다.
               this.applyDamage(v, au.dps * (au.tickMs || 250) / 1000, u, state,
-                { noCrit: true, noNumber: !!au.noNumber,
+                { noCrit: true, noNumber: !!au.noNumber, zone: true,
                   lsScale: au.noLs ? 0 : this._ls(auraHit++), lsBudget: auraLs });
             }
           }
@@ -2480,7 +2502,7 @@ GAME.Combat = {
             if (!al.alive || al.side !== u.side || al === u) continue;
             if (al.hp >= al.maxHp) continue;
             if (this.dist(u, al) <= u.def.healRadius) {
-              this.heal(al, u.def.healPerTick);
+              this.heal(al, u.def.healPerTick, state);
               healed++;
               if (u.side === 'strategist') state.telemetry.medicHealed += u.def.healPerTick;
             }

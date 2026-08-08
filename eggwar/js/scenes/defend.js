@@ -507,7 +507,11 @@ GAME.DefendScene.prototype.update = function (time, delta) {
       var rec = GAME.Learn.recordCtrl(aiWon, {
         timedOut: this.state.winner === 'draw',
         heroDmgFromRanged: _t.heroDmgFromRanged || 0,
-        heroDmgToRanged: _t.heroDmgToRanged || 0
+        heroDmgToRanged: _t.heroDmgToRanged || 0,
+        heroDmgFromZone: _t.heroDmgFromZone || 0,
+        heroDamageTaken: _t.heroDamageTaken || 0,
+        heroDamageDealt: _t.heroDamageDealt || 0,
+        strategistHealed: _t.strategistHealed || 0
       });
       this.aiSkill = rec.skill;
       learnNotes = rec.lastNotes || [];

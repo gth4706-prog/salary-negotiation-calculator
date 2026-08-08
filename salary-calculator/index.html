@@ -20,7 +20,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%AD%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
 <link rel="stylesheet" href="../css/style.css?v=0.17">
-<link rel="stylesheet" href="../css/salaryCalc.css?v=0.12">
+<link rel="stylesheet" href="../css/salaryCalc.css?v=0.13">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"이직 연봉 협상 계산기(처우협의 계산)","applicationCategory":"FinanceApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"희망연봉, 평균연봉, 직군별 평균 연봉, 실수령액을 계산하고 제안받은 연봉의 포지션을 확인하는 무료 도구."}
 </script>
@@ -49,7 +49,7 @@
     <a href="../about.html">소개</a>
     <a class="lang-switch" href="en/" title="Switch to English" hreflang="en">🇺🇸 EN</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.12</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.13</span>
   </div>
 </div></nav>
 
@@ -175,6 +175,11 @@
       <tr><th scope="row">10,000만원</th><td>8,333,333원</td><td>706,589원</td><td>1,227,800원</td><td><strong>6,398,945원</strong></td><td>76,787,334원</td></tr>
       </tbody>
     </table>
+    <figure style="margin:20px 0">
+      <img src="img/salary-net-breakdown.png" width="1200" height="730" loading="lazy" decoding="async"
+           alt="연봉 5,000만원의 월 세전 급여 4,166,667원에서 근로소득세 303,600원, 국민연금 188,417원, 건강보험 142,602원, 장기요양보험 18,738원, 고용보험 35,700원이 빠져 월 실수령액 3,477,610원이 되는 구성을 보여주는 막대그래프." style="width:100%;height:auto;border:1px solid var(--line);border-radius:8px">
+      <figcaption style="font-size:13px;color:var(--muted);margin-top:8px;text-align:center">연봉 5,000만원 기준 — 세전 월급의 약 16%가 공제로 빠집니다</figcaption>
+    </figure>
     <h3>실수령액에서 빠지는 항목</h3>
     <p>세전 월급에서 아래 사회보험료와 근로소득세를 뺀 금액이 실수령액입니다.</p>
     <ul>
@@ -185,6 +190,11 @@
       <li><strong>근로소득세·지방소득세</strong> 연봉 구간에 따라 달라집니다</li>
     </ul>
     <h3>연봉이 두 배여도 실수령액은 두 배가 아닙니다</h3>
+    <figure style="margin:20px 0">
+      <img src="img/salary-net-curve.png" width="1200" height="660" loading="lazy" decoding="async"
+           alt="연봉별 실수령 비율 그래프. 연봉 2,400만원은 세전의 89.6%가 남지만 10,000만원은 76.8%만 남아, 연봉이 오를수록 실수령 비율이 떨어진다." style="width:100%;height:auto;border:1px solid var(--line);border-radius:8px">
+      <figcaption style="font-size:13px;color:var(--muted);margin-top:8px;text-align:center">세전 월급 중 통장에 남는 비율 — 89.6%에서 76.8%로 떨어집니다</figcaption>
+    </figure>
     <p>연봉이 3,000만원에서 6,000만원으로 두 배가 되어도 월 실수령액은
        2,212,800원에서 4,081,766원으로 <strong>약 1.8배</strong>만 늘어납니다.
        소득세가 구간을 따라 더 가파르게 오르기 때문입니다.
@@ -261,7 +271,7 @@
 </div></footer>
 
 <script src="../js/site.js?v=0.07"></script>
-<script src="../js/app.js?v=0.12"></script>
+<script src="../js/app.js?v=0.13"></script>
 <!-- Cloudflare Web Analytics — 쿠키를 쓰지 않고 개인을 식별하지 않는다.
      이 토큰은 공개 페이지에 심으라고 만들어진 클라이언트 식별자다(비밀값 아님).
      ⚠️ 자동 설치(auto_install)가 켜져 있었지만 실제로는 비콘이 주입되지 않아

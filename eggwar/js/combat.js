@@ -561,8 +561,12 @@ GAME.Combat = {
       // ── 정예 '폭심' — 죽으면 크게 터진다 (towerrule.js) ──────────────────
       //  "붙어서 아무거나 먼저 잡기"를 벌준다. 아군도 함께 맞는다 — 그래야 위치가 의미를 갖는다.
       //  ⚠ `noCrit` 로 준다. 사망 폭발이 크리까지 터지면 즉사 구간이 생겨 배울 수 없다.
-      if (unit.elite === 'bomb' && unit.eliteCfg && state) {
-        var bc = unit.eliteCfg, br = (bc.radius || 132);
+      //  ⚠ 이 게이트가 `elite === 'bomb'` **한 줄**이라, def 에 `deathBlast` 를 적은
+      //    유닛도 같은 폭발을 쓰게 열었다(2026-08-08 단지꾼 · 말벌집).
+      //    새 코드를 만들지 않는 것이 핵심이다 — 아군도 맞는 성질, 크리 없음,
+      //    고리 이펙트까지 정예 '폭심'과 **똑같이** 굴러야 배운 것이 그대로 통한다.
+      if ((unit.elite === 'bomb' || unit.def.deathBlast) && state) {
+        var bc = unit.eliteCfg || unit.def.deathBlast, br = (bc.radius || 132);
         var bdm = (unit.def.damage || 10) * (bc.dmgMul || 1.9);
         for (var xi = 0; xi < state.units.length; xi++) {
           var xv = state.units[xi];
@@ -1812,8 +1816,11 @@ GAME.Combat = {
     }
     this.faceAttack(u, Math.atan2(u.abilY - u.y, u.abilX - u.x));
     state.effects.push({
-      kind: 'telegraph', x: ab.type === 'shockwave' ? u.x : u.abilX,
-      y: ab.type === 'shockwave' ? u.y : u.abilY,
+      //  ⚠ `pull` 도 **제 자리에서** 퍼진다(덩굴채). 여기 안 넣으면 예고 원이
+      //    `u.abilX`(=조준점) 에 떠서 "저기서 온다"고 거짓말을 한다.
+      kind: 'telegraph',
+      x: (ab.type === 'shockwave' || ab.type === 'pull') ? u.x : u.abilX,
+      y: (ab.type === 'shockwave' || ab.type === 'pull') ? u.y : u.abilY,
       r: ab.radius || 60, t: ab.telegraph, total: ab.telegraph, side: u.side,
       // 재료(js/skillfx.js MOTIF_MAT). 없으면 예전처럼 기본 팔레트다.
       motif: ab.motif,
@@ -1929,6 +1936,36 @@ GAME.Combat = {
       }
       state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: ab.radius,
                            t: 420, total: 420, side: u.side });
+
+    } else if (ab.type === 'pull') {
+      //  덩굴채 — 원거리 영웅의 **안전거리를 지운다.** 영웅 스킬 `pull`(combat.js 위쪽)을
+      //  그대로 옮겨 왔다: 같은 원뿔·같은 `displaceTo`·같은 `clampToLeash`.
+      //  ⚠ **끌어당기는 거리를 남긴다**(`keep`). 0 으로 붙여 버리면 겹쳐 서서 서로
+      //    안 보이고, 이 게임엔 유닛 충돌이 없어 밀려난 채로 끼어 버린다.
+      //  ⚠ 아군은 절대 안 당긴다 — 진형이 제 손으로 무너지면 배치의 뜻이 사라진다.
+      var halfA = ((ab.coneDeg || 360) * Math.PI / 180) / 2;
+      var aim = Math.atan2(u.abilY - u.y, u.abilX - u.x);
+      var pulled = 0;
+      for (i = 0; i < state.units.length; i++) {
+        o = state.units[i];
+        if (!o.alive || o.side === u.side || this.isHazard(o)) continue;
+        var pd = this.dist(u, o);
+        if (pd > ab.dist) continue;
+        var pa = Math.atan2(o.y - u.y, o.x - u.x);
+        if (halfA < Math.PI) {
+          var pdf = Math.atan2(Math.sin(pa - aim), Math.cos(pa - aim));
+          if (Math.abs(pdf) > halfA) continue;
+        }
+        if (ab.damage) bite(o);
+        var keep = (ab.keep === undefined) ? 96 : ab.keep;
+        this.displaceTo(o, u.x + Math.cos(pa) * Math.max(keep, pd - (ab.power || 130)),
+                           u.y + Math.sin(pa) * Math.max(keep, pd - (ab.power || 130)));
+        this.clampToArena(o); this.clampToLeash(o, state);
+        pulled++;
+      }
+      u._lastPulled = pulled;   // 감사가 "실제로 당겼는가"를 셀 수 있게 남긴다
+      state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: ab.dist,
+                           t: 300, total: 300, side: u.side });
 
     } else if (ab.type === 'barrage') {
       // 예고 원을 여러 개 뿌린다. 첫 발은 예고 지점, 나머지는 그 주변으로 흩는다 —

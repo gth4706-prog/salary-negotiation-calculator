@@ -661,6 +661,27 @@ GAME.UNITS.shellwright = {
 //  ⚠ 관통은 방어력을 **깎는** 것이지 무시가 아니다 — 무시로 두면 방어 몰빵이 통째로
 //    죽어 선택지가 사라진다(js/combat.js 의 `armorPen` 주석 참조).
 //  ⚠ 실루엣: 족장(소뿔 투구)과 **우두머리처럼 보이면 안 된다.** 투구 없이 돌머리 망치만.
+//  ── 확장 2차 (2026-08-08) ─────────────────────────────────────────────────
+//  ⚠ 스펙의 '단지꾼'을 **벌집꾼**으로 바꿔 적는다. 스펙 자신이 "늪지기가 이미 단지를
+//    던지니 말벌집으로 간다"고 물건을 바꿨는데 이름만 단지(壇)로 남아 있었다 —
+//    손에 벌집을 들고 이름이 단지꾼이면 그림과 이름이 서로 다른 말을 한다.
+GAME.UNITS.hivethrower = { key: 'hivethrower', name: '벌집꾼', art: 'hivethrower',
+  cost: 30, pop: 3, hp: 200, armor: 15, speed: 102, range: 50, damage: 20, cooldown: 1200,
+  attack: 'melee', coneDeg: 70, radius: 13, shape: 'round', weapon: 'hive',
+  chase: 200, aggro: 210,
+  //  죽으면 터진다 — **아군도 맞는다.** 그래야 "어디에 세울지"가 뜻을 갖는다.
+  //  정예 '폭심'과 같은 배선을 쓰므로 크리도 안 뜨고 고리 이펙트도 똑같다.
+  deathBlast: { radius: 118, dmgMul: 3.2 } };
+
+GAME.UNITS.vinewhip = { key: 'vinewhip', name: '덩굴채', art: 'vinewhip',
+  cost: 40, pop: 4, hp: 230, armor: 25, speed: 96, range: 58, damage: 22, cooldown: 1300,
+  attack: 'melee', coneDeg: 75, radius: 13, shape: 'round', weapon: 'vinelash',
+  chase: 220, aggro: 240, maxPerFormation: 2,
+  //  원거리 영웅의 **안전거리를 지운다.** 붙여 버리진 않는다(keep) — 겹쳐 서면
+  //  서로 안 보이고, 이 게임엔 유닛 충돌이 없어 낀 채로 남는다.
+  ability: { type: 'pull', motif: 'rope', cooldown: 10000, telegraph: 600,
+             dist: 205, coneDeg: 360, power: 130, keep: 96, damage: 18 } };
+
 GAME.UNITS.hammer = {
   key: 'hammer', name: '망치잡이', art: 'hammer',
   lore: '단단한 것을 깨는 데만 쓰는 돌망치. 느리지만 껍질이든 갑옷이든 가리지 않는다.',
@@ -675,7 +696,7 @@ GAME.UNIT_ORDER = [
   'bayonet', 'rifleman', 'grenadier', 'sniper',
   'shieldman', 'medic', 'sergeant', 'chemtrooper', 'mgnest', 'mine',
   //  ── 3단계 신규 (2026-08-08) ──
-  'reflector', 'palisade', 'shellwright', 'hammer'
+  'reflector', 'palisade', 'shellwright', 'hammer', 'hivethrower', 'vinewhip'
 ];
 
 // 이 유닛의 공격이 **자동명중(회피 불가)** 인가. 지금은 투창병 하나뿐이다.

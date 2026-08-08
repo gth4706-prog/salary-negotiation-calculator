@@ -428,6 +428,9 @@ var SM = 10;
     palisade:   { helm: 'plank',    gear: 'stakes',     back: null,    face: 'open', wide: 0.84, squat: true, fam: ['wood', 'stone'] },
     shellwright:{ helm: 'shellcap', gear: 'shellPlate', back: 'pack',  face: 'open', wide: 0.76, fam: ['bone', 'boneLite'] },
     hammer:     { helm: 'ragwrap',  gear: 'stoneMaul',  back: null,    face: 'open', wide: 0.80, fam: ['stone', 'stoneLite'] },
+    //  ── 확장 2차 (2026-08-08) ──
+    hivethrower:{ helm: 'veil',     gear: 'hive',       back: null,    face: 'open', wide: 0.78, fam: ['clay', 'bronze'] },
+    vinewhip:   { helm: 'thorncrown', gear: 'vinelash', back: null,    face: 'open', wide: 0.78, fam: ['wood', 'bone'] },
 
     // ── 영웅 3종 ──
     berserker:{ helm: 'onehorn', gear: 'greatsword', back: 'fur',    face: 'open', wide: 0.82, hero: true },
@@ -1440,6 +1443,32 @@ var SM = 10;
                        sx + lat * r * 0.54, by - r * 0.74);
       }
 
+    } else if (kind === 'veil') {            // 벌집꾼 — 벌을 막는 망사 두건
+      //  ⚠ 늪지기(삿갓)와 **반드시 갈려야 한다.** 저쪽은 넓고 납작한 원뿔이고,
+      //    이쪽은 머리에 딱 붙는 둥근 두건 + 얼굴 앞 망사다. 폭으로 갈린다.
+      g.fillStyle(M.rope, a);
+      g.fillEllipse(sx, by - r * 0.94, r * 1.16, r * 1.04, SM);
+      g.fillStyle(UI.tint(M.rope, -0.22), a * 0.6);
+      g.fillEllipse(sx + r * 0.24, by - r * 0.88, r * 0.56, r * 0.72, SM);
+      if (!back && r >= 8) {                 // 망사 — 가로줄 두 개면 '그물'로 읽힌다
+        g.lineStyle(Math.max(0.8, r * 0.07), UI.tint(M.rope, -0.34), a * 0.85);
+        g.lineBetween(sx - r * 0.50, by - r * 0.80, sx + r * 0.50, by - r * 0.80);
+        g.lineBetween(sx - r * 0.46, by - r * 0.62, sx + r * 0.46, by - r * 0.62);
+      }
+
+    } else if (kind === 'thorncrown') {      // 덩굴채 — 머리에 감은 마른 덩굴
+      //  가시가 **바깥으로** 뻗는다. 껍질장이(위로 솟은 흰 조각)와 방향으로 갈리고,
+      //  족장(위로 선 두 뿔)과도 개수·각도로 갈린다.
+      g.fillStyle(M.woodDark, a);
+      g.fillRoundedRect(sx - r * 0.58, by - r * 1.00, r * 1.16, r * 0.26, r * 0.11);
+      var tk = [[-0.86, -0.28], [-0.55, -0.62], [0.55, -0.62], [0.86, -0.28]];
+      g.fillStyle(M.wood, a);
+      for (var tc = 0; tc < tk.length; tc++) {
+        var bx = sx + r * tk[tc][0] * 0.66, byy = by - r * 0.90;
+        g.fillTriangle(bx, byy - r * 0.14, bx, byy + r * 0.14,
+                       bx + r * tk[tc][0] * 0.62, byy + r * tk[tc][1] * 0.62);
+      }
+
     } else if (kind === 'bucket') {          // 방패병 — 통투구
       var bwr = prof ? 0.44 : 0.56;
       g.fillStyle(M.iron, a);
@@ -1749,7 +1778,8 @@ var SM = 10;
     sword: 0.45, bow: 0.95, longbow: 1.02, sling: 0.40, javelin: 0.55,
     leafstaff: 0.20, towerShield: 0.60, handaxe: 0.30, sapjar: 0.35,
     greatsword: 0.35, hookShield: 0.55, crossbowNest: 0,
-    shellGuard: 0.58, stakes: 0.30, shellPlate: 0.34, stoneMaul: 0.42
+    shellGuard: 0.58, stakes: 0.30, shellPlate: 0.34, stoneMaul: 0.42,
+    hive: 0.44, vinelash: 0.86
   };
   UI.GEAR_DROP = { sapjar: 0.18, sword: 0.10 };
   //  칼류는 정면일수록 **더 세워 든다** — 옆으로만 밀면 눈앞을 가로지르는 각이 남는다.
@@ -2211,6 +2241,57 @@ var SM = 10;
       if (r >= 10) {                          // 자루를 감은 가죽 — 무거운 물건이라는 신호
         g.fillStyle(M.leatherDark, a);
         g.fillRect(btx + r * 0.06, bty - r * 0.52, r * 0.26, r * 0.34);
+      }
+
+    } else if (kind === 'hive') {            // 벌집꾼 — 들고 다니는 말벌집
+      //  ⚠ 늪지기의 수액 단지와 갈리는 지점: 단지는 **매끈한 항아리**, 벌집은
+      //    **층진 원뿔 + 아래 구멍**이다. 죽으면 터지는 물건이라는 걸 형태가 말해야
+      //    "왜 이 자리에 세웠나"가 읽힌다.
+      //  ⚠ 처음엔 너무 작아 갈색 덩어리로만 읽혔다 — 늪지기의 단지와 구분하려면
+      //    **층이 세 겹이라는 게 보일 만큼** 커야 한다.
+      var hvx = X(0.86, 0.42), hvy = Y(0.86, 0.42, -0.10);
+      g.fillStyle(M.clay, a);
+      for (var hl = 0; hl < 3; hl++) {       // 층진 벌집 — 아래로 갈수록 넓다
+        var hw = r * (0.52 + hl * 0.22), hy2 = hvy - r * 0.58 + r * hl * 0.44;
+        g.fillEllipse(hvx, hy2, hw * 2, r * 0.52, SM);
+      }
+      g.fillStyle(UI.lit(M.clay), a * 0.5);
+      g.fillEllipse(hvx - r * 0.20, hvy - r * 0.56, r * 0.56, r * 0.28, SM);
+      g.lineStyle(Math.max(0.8, r * 0.07), UI.tint(M.clay, -0.34), a * 0.9);
+      for (var hs = 0; hs < 2; hs++) {       // 층 경계 — '겹겹'이 읽히는 유일한 신호
+        g.lineBetween(hvx - r * (0.56 + hs * 0.20), hvy - r * 0.30 + r * hs * 0.44,
+                      hvx + r * (0.56 + hs * 0.20), hvy - r * 0.30 + r * hs * 0.44);
+      }
+      g.fillStyle(0x14161c, a * 0.85);       // 아래 구멍 — 벌이 나오는 자리
+      g.fillEllipse(hvx, hvy + r * 0.72, r * 0.40, r * 0.28, SM);
+      if (r >= 10) {                         // 벌 두 마리 — 크게 그릴 때만
+        g.fillStyle(M.bronze, a);
+        g.fillEllipse(hvx + r * 0.72, hvy - r * 0.30, r * 0.16, r * 0.12, 8);
+        g.fillEllipse(hvx - r * 0.66, hvy + r * 0.14, r * 0.14, r * 0.11, 8);
+      }
+
+    } else if (kind === 'vinelash') {        // 덩굴채 — 늘어뜨린 가시덩굴 채찍
+      //  ⚠ 궁수의 활·투창병의 창처럼 **직선**이면 안 된다. 끌어당기는 물건이라
+      //    휘어 있어야 한다 — 마디마다 각을 꺾어 늘어뜨린다.
+      //  ⚠ 처음엔 마디를 **아래로만** 내렸더니(dy 0.5~0.6 × 4마디) 채찍이 발밑까지
+      //    내려가 몸 뒤로 숨어 시트에서 안 보였다. 옆으로 뻗으며 늘어지게 바꿨다.
+      var vx = X(0.92, 0.42), vy = Y(0.92, 0.42, -0.52);
+      //  ⚠ 두 번째 실패: 방향은 고쳤는데 **너무 짧아서**(총 0.5r) 실물 크기 r=13 에선
+      //    손 옆의 얼룩으로만 보였다. 대방패가 2.2r 인 걸 보고 길이를 그 급으로 올렸다.
+      var px = vx, py = vy, seg = [[0.74, 0.28], [0.58, 0.44], [0.74, 0.24], [0.52, 0.40]];
+      g.lineStyle(Math.max(1.3, r * 0.15), M.wood, a);
+      for (var vi = 0; vi < seg.length; vi++) {
+        var nx2 = px + r * seg[vi][0], ny2 = py + r * seg[vi][1];
+        g.lineBetween(px, py, nx2, ny2);
+        px = nx2; py = ny2;
+      }
+      g.fillStyle(M.woodDark, a);            // 가시 — 마디마다 하나
+      var sx2 = vx, sy2 = vy;
+      for (var vj = 0; vj < seg.length; vj++) {
+        sx2 += r * seg[vj][0]; sy2 += r * seg[vj][1];
+        if (r < 9) continue;
+        g.fillTriangle(sx2 - r * 0.05, sy2, sx2 + r * 0.05, sy2,
+                       sx2 + r * (vj % 2 ? -0.26 : 0.26), sy2 - r * 0.14);
       }
 
     } else if (kind === 'towerShield') {     // 방패병 — 몸을 가리는 나무 대방패

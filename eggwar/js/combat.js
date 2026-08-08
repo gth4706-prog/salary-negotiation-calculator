@@ -120,7 +120,20 @@ GAME.Combat = {
         }
       }
     }
-    return this._baseUnit(this.scaleDef(def), x, y, side, typeKey);
+    var u = this._baseUnit(this.scaleDef(def), x, y, side, typeKey);
+    //  ── 상시 오라 (2026-08-08 · 울짱꾼) ──────────────────────────────────────
+    //  ⚠ 이 등록이 지금까지 **`createHero` 안에만 있었다** — 유닛에는 경로 자체가
+    //    없어서 def 에 `auraDps` 를 적어도 조용히 아무 일도 안 일어났다(실측으로 잡음).
+    //    이 폴더가 이미 겪은 "등록 0개인데 에러도 없어서 되고 있다고 착각했다"와
+    //    같은 계열이다 — 그래서 감사가 **오라 개수부터** 센다.
+    //  ⚠ `moveOnly` 는 파수꾼(영웅) 때문에 생긴 조건이라 기본값을 유지하고,
+    //    `auraAlways` 를 적은 def 만 상시로 돈다(고정물은 안 움직여서 안 걸린다).
+    if (u.def.auraDps) {
+      u.auras.push({ radius: u.def.auraRadius, dps: u.def.auraDps, t: Infinity, tick: 0,
+                     tickMs: 500, noLs: true, noNumber: true, passive: true,
+                     moveOnly: !u.def.auraAlways });
+    }
+    return u;
   },
 
   // 영웅 = 아이템 보정을 반영한 합성 def를 가진 특수 유닛
@@ -168,8 +181,14 @@ GAME.Combat = {
     // 상시 오라는 **기존 auras 틱을 그대로 쓴다**(새 판정 루프를 만들면 스킬 오라와
     //   규칙이 갈라져 조용히 어긋난다). t: Infinity 라 splice 로 사라지지 않는다.
     if (u.def.auraDps) {
+      //  ⚠ `moveOnly` 는 파수꾼(영웅) 때문에 생긴 조건이다 — 상시로 두면 **AI 공격
+      //    영웅이 공짜로 받아** SC-3 편차가 27%p 가 됐다(위 주석). 그런데 그 위험은
+      //    **오라를 가진 쪽이 영웅일 때**의 것이다. 전략가가 세우는 고정물(울짱꾼)은
+      //    반대 방향이라 같은 조건을 걸면 **한 번도 안 발동한다**(안 움직이니까).
+      //    그래서 `auraAlways` opt-in 을 둔다 — 안 적은 기존 def 는 그대로 moveOnly 다.
       u.auras.push({ radius: u.def.auraRadius, dps: u.def.auraDps, t: Infinity, tick: 0,
-                     tickMs: 500, noLs: true, noNumber: true, passive: true, moveOnly: true });
+                     tickMs: 500, noLs: true, noNumber: true, passive: true,
+                     moveOnly: !u.def.auraAlways });
     }
     return u;
   },
@@ -432,7 +451,31 @@ GAME.Combat = {
 
     // 방어력은 '비율' 경감이다. 정액 차감으로 하면 방어력 높은 영웅에게
     // 약한 공격 다수(=물량)가 최소피해 1로 무력화되어, 물량이라는 전략 자체가 죽는다.
-    var eff = Math.max(1, dmg * (100 / (100 + this.effArmor(unit))));
+    //  ── 방어구 관통 (2026-08-08 · 망치잡이) ────────────────────────────────
+    //  ⚠ **opt-in 필드 하나**다. `armorPen` 이 없는 기존 유닛은 한 톨도 안 바뀐다
+    //    (`slowMul`·`knockback` 과 같은 패턴). 방어력을 **깎는** 것이지 무시하는 게
+    //    아니다 — 무시로 두면 방어 몰빵 빌드가 통째로 죽어 선택지가 사라진다.
+    //  ⚠ 비율 경감(100/(100+armor))은 이 게임의 핵심 규율이라 식 자체는 안 건드린다.
+    var _pen = (source && source.def && source.def.armorPen) || 0;
+    var _arm = this.effArmor(unit) * (1 - Math.min(0.8, _pen));
+    var eff = Math.max(1, dmg * (100 / (100 + _arm)));
+
+    //  ── 보호막이 먼저 깎인다 (2026-08-08 · 껍질장이) ──────────────────────────
+    //  ⚠ **방어력 뒤에 온다.** 방어는 비율이고 보호막은 정액이라, 순서를 바꾸면
+    //    보호막이 방어력만큼 부풀어 값이 두 배로 듣는다.
+    //  ⚠ 버프를 다 훑지 않고 **첫 보호막 하나만** 쓴다 — 위 `healBurst` 가 중복을
+    //    갱신으로 막으므로 하나뿐이고, 여러 개를 더하면 '쌓으면 무적'이 된다.
+    if (eff > 0 && unit.buffs) {
+      for (var _sb = 0; _sb < unit.buffs.length; _sb++) {
+        var _b = unit.buffs[_sb];
+        if (!_b.shieldTag || !(_b.shield > 0)) continue;
+        var _use = Math.min(_b.shield, eff);
+        _b.shield -= _use; eff -= _use;
+        if (_b.shield <= 0) unit.buffs.splice(_sb, 1);
+        break;
+      }
+      if (eff <= 0) return 0;      // 통째로 막았다 — 피해도 흡혈도 없다
+    }
 
     // ── 방어 태세 — **때리면 안 되는 시간** (2026-08-03 사용자 지시) ────────────
     //  "붙어서 계속때리기만하면 안돼. 방어태세일때 때리면 공격반사! 라고 뜨면서
@@ -1833,7 +1876,23 @@ GAME.Combat = {
       for (i = 0; i < state.units.length; i++) {
         o = state.units[i];
         if (!o.alive || o.side !== u.side || this.isHazard(o)) continue;
-        if (this.dist(u, o) <= ab.radius) this.heal(o, ab.heal || 100);
+        if (this.dist(u, o) > ab.radius) continue;
+        if (ab.heal) this.heal(o, ab.heal);
+        //  ── 선불 방어 (2026-08-08 · 껍질장이) ────────────────────────────
+        //  ⚠ 회복(사후)과 **축이 다르다**: 보호막은 맞기 **전에** 깎는다. 그래서
+        //    영웅의 한 방 버스트가 무효가 되고 두 박자로 나눠 쳐야 한다.
+        //  ⚠ 버프 시스템의 태그 패턴을 그대로 쓴다(warcry·healCut 과 같은 모양).
+        //    중복 시전은 **더 큰 값으로 갱신**한다 — 쌓이면 무적이 된다.
+        if (ab.shield > 0) {
+          var sdup = false;
+          for (var si = 0; si < o.buffs.length; si++) {
+            if (o.buffs[si].shieldTag) {
+              o.buffs[si].shield = Math.max(o.buffs[si].shield, ab.shield);
+              o.buffs[si].t = ab.shieldMs || 6000; sdup = true; break;
+            }
+          }
+          if (!sdup) o.buffs.push({ shield: ab.shield, t: ab.shieldMs || 6000, shieldTag: true });
+        }
       }
       // ── 같은 연기가 **적에게는 상처**로 간다 (2026-08-02) ──────────────
       //  약초꾼에게 새 유닛을 만들어 붙이는 대신 **이미 있는 스킬의 반대편**을

@@ -967,7 +967,11 @@ window.GAME = window.GAME || {};
       //  광역 둔화가 투석꾼의 돌·궁수의 깃털과 같은 진흙색으로 터지고 있었다.
       //  값은 `UI.MAT` 의 goo 계열(gooDark/goo/gooLite)에서 잡았다 — 이 세계의 물건 색이다.
       //  ⚠ 이건 `effects.kind` 가 아니라 **팔레트 표의 키**다("새 kind 금지" 규율 밖).
-      bog:     { clay: 0x6c7d24, stone: 0xd0e078, wood: 0x3d4713 }    // 늪 수액
+      bog:     { clay: 0x6c7d24, stone: 0xd0e078, wood: 0x3d4713 },   // 늪 수액
+      //  껍질 (2026-08-08) — 껍질장이의 보호막. `bone` 이 이미 흰색이라 그냥 쓰면
+      //  둘이 안 갈린다. 껍질은 뼈보다 **살짝 따뜻하고 테가 진하다**(계란 껍질이다).
+      //  값은 `UI.MAT` 의 shell/shellLite/shellRim 계열에서 잡았다.
+      shell:   { clay: 0xf6ead6, stone: 0xfffaf0, wood: 0xc0ac8c }    // 계란 껍질
       // blade — 기본 MAT 그대로(금속). 표에 없으므로 자동으로 원래 색이다.
     },
 

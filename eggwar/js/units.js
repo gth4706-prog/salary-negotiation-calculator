@@ -598,9 +598,84 @@ for (var _bk in GAME.BOSS_UNITS) GAME.UNITS[_bk] = GAME.BOSS_UNITS[_bk];
 GAME.isBoss = function (def) { return !!(def && def.isBoss); };
 
 // 플레이어 팔레트 · AI 뽑기 풀. **보스는 여기 없다.**
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  3단계 신규 유닛 — 1차 배치 (2026-08-08)
+//  스펙: docs/superpowers/specs/2026-08-07-defend-tower-permanent-progression-design.md §7
+//
+//  ⚠ **가격은 스탯이 아니라 역할이 정한다.** 기존 10종을 재 보면 합산가치/값이
+//    전사 7.78 ↔ 가시덫 0.03 으로 260배 벌어진다 — 싼 범용은 스탯이 좋고, 비싼 전문
+//    유닛은 스탯이 낮은 대신 **기제**가 값어치다. 신규는 전부 후자 자리에 놓는다.
+//  ⚠ 세계관: 원시 재료만 쓴다(나무·돌·뼈·가죽·밧줄·잎·흙·껍질). 종류 구분은
+//    **투구+장비 실루엣**이 전담한다 — 기존 10종과 겹치면 안 된다.
+// ═══════════════════════════════════════════════════════════════════════════
+
+//  되받이 — **때리는 행위에 대가를 매긴다.** 지금 진형에는 이 축이 하나도 없었다.
+//  ⚠ `def.guard` 는 보스 14종이 이미 쓰는 기제다(`tickGuard` 가 전 유닛 루프에서
+//    돈다 — 보스 게이트가 없다). **코드 0줄.**
+//  ⚠ `maxPerFormation: 2` 가 핵심이다. 지금 예고(노란 고리)는 보스 전용이라 화면에
+//    **하나뿐**인 것을 전제로 그려진다. 15기가 각자 고리를 띄우면 난장판이 된다.
+GAME.UNITS.reflector = {
+  key: 'reflector', name: '되받이', art: 'reflector',
+  lore: '깨진 껍질을 등에 덧대 웅크리는 법을 배운 알. 때린 쪽이 더 아프다.',
+  desc: '가끔 웅크린다. 그동안 받는 피해가 줄고, 때린 적이 대신 아프다.',
+  cost: 40, pop: 4, hp: 300, armor: 40, speed: 105, range: 52, damage: 26, cooldown: 1000,
+  attack: 'melee', coneDeg: 80, radius: 14, shape: 'shield', weapon: 'shellGuard',
+  chase: 200, aggro: 230,
+  maxPerFormation: 2,
+  guard: { every: 9000, first: 4000, warn: 800, ms: 3000, cut: 0.45, reflect: 0.50 }
+};
+
+//  울짱꾼 — **공간을 조각한다.** 전략가가 처음으로 '지형'을 만드는 유닛이다.
+//  ⚠⚠ 처음 컨셉은 "길을 막는다"였는데 **전제가 틀렸다** — 이 게임에는 유닛끼리
+//    충돌이 없어서 영웅이 그냥 지나간다(실측). 막는 대신 **서 있으면 아프게** 한다.
+//    물리로 막는 게 아니라 대가로 밀어내는 것이 이 게임의 언어(예고 원)와 맞는다.
+//  ⚠ `auraAlways` 가 필요한 이유는 `js/combat.js` 의 오라 주석에 적어 뒀다 —
+//    기본 `moveOnly` 는 움직일 때만 발동해서 고정물에는 한 번도 안 걸린다.
+GAME.UNITS.palisade = {
+  key: 'palisade', name: '울짱꾼', art: 'palisade',
+  lore: '뾰족하게 깎은 말뚝을 땅에 박는다. 박고 나면 그도 거기서 움직이지 않는다.',
+  desc: '움직이지 않는 가시 울짱. 곁에 서 있는 적을 계속 갉는다. 공격은 하지 않는다.',
+  cost: 30, pop: 3, hp: 260, armor: 30, speed: 0, range: 0, damage: 0, cooldown: 1000,
+  attack: 'melee', radius: 13, shape: 'square', weapon: 'stakes',
+  immobile: true, chase: 0, aggro: 0,
+  auraRadius: 74, auraDps: 15, auraAlways: true
+};
+
+//  껍질장이 — **선불 방어.** 약초꾼은 맞은 **뒤** 채우고, 이쪽은 맞기 **전** 막는다.
+//  ⚠ 회복과 축이 다르다 — 영웅의 한 방 버스트가 무효가 되어 두 박자로 나눠 쳐야 한다.
+//  ⚠ 공격력 0 은 약초꾼과 같은 규율이다(안 싸우는 유닛에 피해 스킬을 주면 정체성이 깨진다).
+GAME.UNITS.shellwright = {
+  key: 'shellwright', name: '껍질장이', art: 'shellwright',
+  lore: '깨진 알껍질을 주워 모아 다듬는다. 남의 등에 덧대 주는 것이 그의 싸움이다.',
+  desc: '주변 아군에게 껍질 보호막을 씌운다. 스스로는 싸우지 않는다.',
+  cost: 40, pop: 4, hp: 150, armor: 20, speed: 100, range: 0, damage: 0, cooldown: 1000,
+  attack: 'melee', radius: 12, shape: 'round', weapon: 'shellPlate',
+  chase: 60, aggro: 0, spacing: 34,
+  ability: { type: 'healBurst', motif: 'shell', cooldown: 11000, telegraph: 500,
+             radius: 175, shield: 90, shieldMs: 7000 }
+};
+
+//  망치잡이 — **상대의 빌드를 벌준다.** AI 영웅은 예산의 42% 를 방어구에 쓰는데
+//  (`tools/defend-curve.js` pickItems), 그 선택을 벌주는 유닛이 하나도 없었다.
+//  ⚠ 관통은 방어력을 **깎는** 것이지 무시가 아니다 — 무시로 두면 방어 몰빵이 통째로
+//    죽어 선택지가 사라진다(js/combat.js 의 `armorPen` 주석 참조).
+//  ⚠ 실루엣: 족장(소뿔 투구)과 **우두머리처럼 보이면 안 된다.** 투구 없이 돌머리 망치만.
+GAME.UNITS.hammer = {
+  key: 'hammer', name: '망치잡이', art: 'hammer',
+  lore: '단단한 것을 깨는 데만 쓰는 돌망치. 느리지만 껍질이든 갑옷이든 가리지 않는다.',
+  desc: '느리게 치지만 한 방이 크고, 적의 방어를 절반 넘게 뚫는다.',
+  cost: 40, pop: 4, hp: 210, armor: 25, speed: 108, range: 56, damage: 68, cooldown: 1600,
+  attack: 'melee', coneDeg: 70, radius: 14, shape: 'square', weapon: 'stoneMaul',
+  chase: 250, aggro: 220,
+  armorPen: 0.55
+};
+
 GAME.UNIT_ORDER = [
   'bayonet', 'rifleman', 'grenadier', 'sniper',
-  'shieldman', 'medic', 'sergeant', 'chemtrooper', 'mgnest', 'mine'
+  'shieldman', 'medic', 'sergeant', 'chemtrooper', 'mgnest', 'mine',
+  //  ── 3단계 신규 (2026-08-08) ──
+  'reflector', 'palisade', 'shellwright', 'hammer'
 ];
 
 // 이 유닛의 공격이 **자동명중(회피 불가)** 인가. 지금은 투창병 하나뿐이다.

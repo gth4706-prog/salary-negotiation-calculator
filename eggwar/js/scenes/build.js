@@ -387,12 +387,19 @@ GAME.BuildScene.prototype.create = function () {
 
   // ── 행 배분 ────────────────────────────────────────────────────────────
   //  손으로 좌표를 박지 않는다. 세로는 HUD 352px 안에 342px 를 쓴다(여유 10).
-  var chipH = PH ? PHL.PAL_H : 62;
+  //  ⚠ 폰 가로는 예전에 칩 하나가 **팔레트 띠(PAL_H=74) 전체**를 먹었다 —
+  //    한 줄 배치였기 때문이다. 두 줄로 나눈 지금 그대로 두면 둘째 줄이 화면
+  //    밖으로 나간다(잘림 감사가 14건으로 잡았다). 띠 안에서 반씩 나눠 쓴다.
+  var chipH = PH ? Math.floor((PHL.PAL_H - PHL.PAL_GAP) / 2) : 62;
   var rows = PH ? {
     budget: { y: PHL.METER_Y, h: PHL.METER_H, cy: PHL.METER_Y + PHL.METER_H / 2,
               bottom: PHL.METER_Y + PHL.METER_H },
+    //  ⚠ 폰 가로는 예전에 **한 줄에 전부** 넣어서 pal0/pal1 이 같은 y 였다.
+    //    14종을 한 줄에 밀면 칸이 50px 밑으로 떨어져 글자가 잘린다 — 두 줄로 나눈다.
     pal0:   { y: PHL.PAL_Y, h: chipH, cy: PHL.PAL_Y + chipH / 2, bottom: PHL.PAL_Y + chipH },
-    pal1:   { y: PHL.PAL_Y, h: chipH, cy: PHL.PAL_Y + chipH / 2, bottom: PHL.PAL_Y + chipH }
+    pal1:   { y: PHL.PAL_Y + chipH + PHL.PAL_GAP, h: chipH,
+              cy: PHL.PAL_Y + chipH + PHL.PAL_GAP + chipH / 2,
+              bottom: PHL.PAL_Y + chipH * 2 + PHL.PAL_GAP }
   } : L.rows(P ? [
     { name: 'budget', h: 26, gap: 4 },
     { name: 'power',  h: 19, gap: 3 },
@@ -481,7 +488,10 @@ GAME.BuildScene.prototype.create = function () {
     return GAME.DefendTower.isUnlocked(key) ? 0 : GAME.DefendTower.unlockAt(key);
   };
 
-  var perRow = PH ? GAME.UNIT_ORDER.length : 5;
+  //  ⚠ 예전엔 `PH ? 전체 : 5` 였다. 유닛이 10종일 때만 맞는 값이라, 14종으로 늘리자
+  //    3행째가 생기고 아래 `r0 === 0 ? pal0 : pal1` 이 **2행과 3행을 같은 자리에 겹쳐**
+  //    그렸다(겹침 감사가 16건으로 잡았다). 행 수는 두 줄로 고정이니 개수에서 역산한다.
+  var perRow = Math.ceil(GAME.UNIT_ORDER.length / 2);
   this.chips = [];
   var cols = PH ? phSlots(perRow, PHL.PAD, W - PHL.PAD - PHL.VER_W, PHL.PAL_GAP)
                 : L.cols(perRow, { gap: (P ? 5 : 8), pad: pad });
@@ -519,8 +529,11 @@ GAME.BuildScene.prototype.create = function () {
       ch.tile = { x: ch.x + 3, y: ch.y + 2, w: ch.w - 6, h: chipH - 22 };
       // 이름표 띠 — 유닛이 이름판 뒤에 서 있는 카드 모양. 좁은 칸에서 아이콘을
       // 크게 두면서 이름도 읽히게 하는 유일한 방법이다(둘 다 크게는 물리적으로 불가).
-      ch.bar = { x: ch.x + 3, y: ch.y + chipH - 21, w: ch.w - 6, h: 19 };
-      ch.nameTxt = UI.text(this, ch.cx, ch.y + chipH - 20, def.name,
+      //  ⚠ 칩이 두 줄이 되며 높이가 74 → 35 로 반이 됐다. 예전 오프셋(-21/-20)은
+      //    74px 칩 기준이라 이름 띠가 위쪽 값/자물쇠와 5px 겹쳤다(감사가 잡았다).
+      //    이름을 아래로 더 붙여 값과 3px 벌린다.
+      ch.bar = { x: ch.x + 3, y: ch.y + chipH - 18, w: ch.w - 6, h: 17 };
+      ch.nameTxt = UI.text(this, ch.cx, ch.y + chipH - 17, def.name,
         { size: 'micro', color: C.text, origin: 0.5, originY: 0 });
       ch.costTxt = UI.text(this, ch.x + ch.w - 5, ch.y + 2, GAME.BuildScene.popText(this._costOf(def)),
         { size: 'micro', color: C.accent, origin: 1, originY: 0 });

@@ -421,6 +421,14 @@ var SM = 10;
     ballista: { helm: 'pot',     gear: 'crossbowNest', back: null,   face: 'open', wide: 0.80, squat: true, fam: ['iron', 'blade'] },
     snaretrap:{ ground: 'spiketrap' },
 
+    // ── 수성의 탑 확장 4종 (2026-08-08) ──────────────────────────────────────
+    //  ⚠ 넷 다 **투구부터** 기존 열 종과 갈라 놨다(실루엣 제1원칙). 뿔은 족장이,
+    //    통투구는 방패병이, 잎은 약초꾼이 이미 쓰고 있어서 쐐기·널빤지·알껍질·천감개로 갔다.
+    reflector:  { helm: 'wedge',    gear: 'shellGuard', back: null,    face: 'slit', wide: 0.84, fam: ['iron', 'blade'] },
+    palisade:   { helm: 'plank',    gear: 'stakes',     back: null,    face: 'open', wide: 0.84, squat: true, fam: ['wood', 'stone'] },
+    shellwright:{ helm: 'shellcap', gear: 'shellPlate', back: 'pack',  face: 'open', wide: 0.76, fam: ['bone', 'boneLite'] },
+    hammer:     { helm: 'ragwrap',  gear: 'stoneMaul',  back: null,    face: 'open', wide: 0.80, fam: ['stone', 'stoneLite'] },
+
     // ── 영웅 3종 ──
     berserker:{ helm: 'onehorn', gear: 'greatsword', back: 'fur',    face: 'open', wide: 0.82, hero: true },
     hunter:   { helm: 'wolf',    gear: 'longbow',    back: 'quiver', face: 'open', wide: 0.72, hero: true },
@@ -1153,7 +1161,7 @@ var SM = 10;
 
   // ── 얼굴 ──────────────────────────────────────────────────────
   // 투구 틈(슬릿)의 화면상 높이 — 눈을 정확히 그 안에 넣어야 한다
-  UI.SLIT_Y = { bucket: 0.82, crest: 0.84 };
+  UI.SLIT_Y = { bucket: 0.82, crest: 0.84, wedge: 0.80 };
 
   UI.eggFace = function (g, art, sx, by, r, a, D) {
     if (r < 7 || art.face === 'none') return;
@@ -1358,6 +1366,78 @@ var SM = 10;
         g.fillEllipse(sx - r * 0.48, by - r * 1.00, r * 0.62, r * 0.26, SM);
         g.fillEllipse(sx + r * 0.48, by - r * 1.00, r * 0.62, r * 0.26, SM);
         g.fillEllipse(sx + lat * r * 0.10, by - r * 1.20, r * 0.30, r * 0.46, SM);
+      }
+
+    } else if (kind === 'wedge') {           // 되받이 — 앞으로 각진 쐐기 투구
+      //  통투구(방패병)와 **모양으로** 갈린다: 저쪽은 네모 상자, 이쪽은 앞이 뾰족한
+      //  쐐기다. 흑백으로 줄여도 두 실루엣이 안 헷갈린다(컨택트시트 확인).
+      g.fillStyle(M.iron, a);
+      var wgw = prof ? 0.42 : 0.54;
+      g.fillTriangle(sx - r * wgw, by - r * 0.98,
+                     sx + r * wgw, by - r * 0.98,
+                     sx + lat * r * 0.16, by - r * 1.44);
+      g.fillRect(sx - r * wgw, by - r * 1.02, r * wgw * 2, r * 0.22);
+      g.fillStyle(UI.tint(M.iron, 0.22), a);   // 좌상단 광원 — 왼쪽 비탈이 밝다
+      g.fillTriangle(sx - r * wgw, by - r * 0.98,
+                     sx + lat * r * 0.16, by - r * 1.44,
+                     sx - r * wgw * 0.10, by - r * 0.98);
+      if (back) {
+        g.fillStyle(M.ironDark, a);
+        g.fillRoundedRect(sx - r * 0.58, by - r * 0.44, r * 1.16, r * 0.44, r * 0.12);
+      } else {
+        g.fillStyle(0x14161c, a);
+        var wsl = prof ? 0.40 : 0.68;
+        g.fillRect(sx + lat * r * 0.10 - r * wsl * 0.5, by - r * 0.86, r * wsl, Math.max(1.2, r * 0.14));
+      }
+
+    } else if (kind === 'plank') {           // 울짱꾼 — 머리에 가로로 얹은 널빤지
+      //  고정물이라 **가만히 서 있는 실루엣**이 종류 신호다. 가로로 길게 뻗은 널빤지는
+      //  다른 아홉 종 어디에도 없어서 멀리서도 "저건 안 움직이는 것"으로 읽힌다.
+      g.fillStyle(M.wood, a);
+      g.fillRoundedRect(sx - r * 0.98, by - r * 1.24, r * 1.96, r * 0.30, r * 0.07);
+      g.fillStyle(UI.lit(M.wood), a * 0.55);
+      g.fillRect(sx - r * 0.98, by - r * 1.24, r * 0.72, r * 0.30);
+      g.fillStyle(M.woodDark, a * 0.45);
+      g.fillRect(sx + r * 0.34, by - r * 1.24, r * 0.64, r * 0.30);
+      g.fillStyle(M.rope, a);                // 이마에 동여맨 끈 — 널빤지를 붙잡는 물건
+      g.fillRect(sx - r * 0.46, by - r * 0.94, r * 0.92, Math.max(1, r * 0.11));
+
+    } else if (kind === 'shellcap') {        // 껍질장이 — 위로 솟은 깨진 껍질 조각
+      //  ⚠ 두 번 실패하고 세 번째다. 껍질(shell)은 계란 몸통과 **같은 near-white** 라
+      //    머리를 덮는 형태로 그리면 무슨 짓을 해도 흰 덩어리가 된다(테두리를 둘러도
+      //    시트에서 안 살아났다). 그래서 **덮지 않고 세운다** — 조각 사이로 배경이
+      //    보이니까 실루엣이 몸에서 떨어진다. 위로 솟은 톱니는 다른 열세 종에 없다.
+      var band = by - r * 0.86;
+      g.fillStyle(M.leatherDark, a);          // 조각을 물린 가죽 띠
+      g.fillRoundedRect(sx - r * 0.60, band - r * 0.16, r * 1.20, r * 0.30, r * 0.10);
+      var sh = [[-0.44, 0.52], [-0.02, 0.86], [0.42, 0.60]];
+      for (var sc = 0; sc < sh.length; sc++) {
+        var ox = sx + r * sh[sc][0], oh = r * sh[sc][1];
+        g.fillStyle(M.shell, a);
+        g.fillTriangle(ox - r * 0.20, band, ox + r * 0.20, band, ox + r * 0.03, band - oh);
+        g.fillStyle(UI.lit(M.shell), a * 0.55);
+        g.fillTriangle(ox - r * 0.20, band, ox + r * 0.03, band - oh, ox - r * 0.03, band);
+        if (r >= 8) {                          // 진한 테 — 흰 조각끼리 안 붙어 보이게
+          g.lineStyle(Math.max(0.9, r * 0.08), M.shellRim, a);
+          g.lineBetween(ox - r * 0.20, band, ox + r * 0.03, band - oh);
+          g.lineBetween(ox + r * 0.03, band - oh, ox + r * 0.20, band);
+        }
+      }
+
+    } else if (kind === 'ragwrap') {         // 망치잡이 — 천을 둘둘 감은 머리
+      //  ⚠ **뿔을 주면 안 된다.** 족장이 이미 뿔이라, 큰 무기를 든 유닛에 뿔까지 얹으면
+      //    둘이 같은 실루엣이 된다(설계 경계: 종류는 실루엣이 전담한다).
+      //    그래서 머리는 일부러 **가장 낮고 밋밋하게** 두고, 무기가 혼자 말하게 한다.
+      g.fillStyle(M.leather, a);
+      g.fillRoundedRect(sx - r * 0.62, by - r * 1.10, r * 1.24, r * 0.46, r * 0.20);
+      g.fillStyle(M.leatherDark, a * 0.7);   // 감은 자국 두 줄
+      g.fillRect(sx - r * 0.62, by - r * 0.98, r * 1.24, Math.max(1, r * 0.08));
+      g.fillRect(sx - r * 0.62, by - r * 0.82, r * 1.24, Math.max(1, r * 0.08));
+      if (!back) {                           // 이마 위로 삐져나온 천 끝
+        g.fillStyle(M.leather, a);
+        g.fillTriangle(sx + lat * r * 0.52, by - r * 1.04,
+                       sx + lat * r * 0.92, by - r * 0.82,
+                       sx + lat * r * 0.54, by - r * 0.74);
       }
 
     } else if (kind === 'bucket') {          // 방패병 — 통투구
@@ -1668,7 +1748,8 @@ var SM = 10;
   UI.GEAR_SPREAD = {
     sword: 0.45, bow: 0.95, longbow: 1.02, sling: 0.40, javelin: 0.55,
     leafstaff: 0.20, towerShield: 0.60, handaxe: 0.30, sapjar: 0.35,
-    greatsword: 0.35, hookShield: 0.55, crossbowNest: 0
+    greatsword: 0.35, hookShield: 0.55, crossbowNest: 0,
+    shellGuard: 0.58, stakes: 0.30, shellPlate: 0.34, stoneMaul: 0.42
   };
   UI.GEAR_DROP = { sapjar: 0.18, sword: 0.10 };
   //  칼류는 정면일수록 **더 세워 든다** — 옆으로만 밀면 눈앞을 가로지르는 각이 남는다.
@@ -2053,6 +2134,84 @@ var SM = 10;
       g.fillEllipse(stx + r * 0.26, Y(0.30, 0.66, 1.74), r * 0.46, r * 0.24, SM);
       g.fillStyle(0xd8f5c8, a * 0.55);       // 은은한 회복 기운
       g.fillEllipse(stx, Y(0.30, 0.66, 1.72), (r * 0.30) * 2, (r * 0.30) * 2, SM);
+
+    } else if (kind === 'shellGuard') {      // 되받이 — 되받아치는 갑각 방패
+      //  ⚠ 대방패(방패병)와 **반드시 달라야 한다.** 저쪽은 세로로 긴 나무 판자문이고,
+      //    이쪽은 **둥근 갑각 + 가운데 뾰족 돌기**다. 돌기가 "받아치는 물건"이라는
+      //    신호를 혼자 감당한다(반사는 눈에 안 보이는 기제라 형태로 알려야 한다).
+      //  ⚠ 처음엔 갑각(shell)으로 그렸다가 **몸통에 먹혔다.** shell 은 계란 몸 색과
+      //    같은 near-white 라, 계란 캐릭터가 들면 실루엣이 통째로 사라진다(시트로 확인).
+      //    같은 이유로 껍질 재료는 **몸에서 떨어진 부위**에만 써야 한다. 그래서 돌로 갔다.
+      var gcx = X(0.96, 0.44), gcy = Y(0.96, 0.44, 0.04);
+      g.fillStyle(M.stone, a);
+      g.fillEllipse(gcx, gcy, r * 1.30, r * 1.50, SM);
+      g.fillStyle(UI.lit(M.stone), a * 0.55);
+      g.fillEllipse(gcx - r * 0.18, gcy - r * 0.22, r * 0.68, r * 0.80, SM);
+      g.lineStyle(Math.max(0.8, r * 0.07), UI.tint(M.stone, -0.34), a * 0.9);
+      for (var rb = -1; rb <= 1; rb++) {     // 갈비 세 줄 — 갑각이라는 재질 신호
+        g.lineBetween(gcx + r * rb * 0.24, gcy - r * 0.62, gcx + r * rb * 0.24, gcy + r * 0.62);
+      }
+      g.lineStyle(lw(0.11), UI.tint(M.stone, -0.42), a);
+      g.strokeCircle(gcx, gcy, r * 0.66);
+      g.fillStyle(M.bronze, a);              // 가운데 뿔 — 되받아친다는 유일한 형태 신호
+      g.fillTriangle(gcx - r * 0.16, gcy - r * 0.17,
+                     gcx - r * 0.16, gcy + r * 0.17,
+                     gcx + r * 0.62, gcy);
+
+    } else if (kind === 'stakes') {          // 울짱꾼 — 발치에 비스듬히 박은 말뚝
+      //  무기가 아니라 **땅에 박힌 것**이다. 그래서 손높이가 아니라 발치에 그리고,
+      //  기울기를 서로 다르게 준다(똑같이 세우면 울타리가 아니라 창꽂이로 보인다).
+      var stkX = X(0.62, 0.30), stkY = Y(0.62, 0.30, 0.92);
+      var tilt = [-0.34, 0.06, 0.40], len = [1.16, 1.44, 1.08];
+      for (var si = 0; si < 3; si++) {
+        var tx = stkX + r * (si - 1) * 0.52, ty = stkY;
+        var hx = tx + r * tilt[si] * 0.86, hy = ty - r * len[si];
+        g.lineStyle(Math.max(1.4, r * 0.20), M.wood, a);
+        g.lineBetween(tx, ty, hx, hy);
+        g.fillStyle(M.woodDark, a);          // 뾰족한 끝 — 찔린다는 신호
+        g.fillTriangle(hx - r * 0.15, hy + r * 0.10, hx + r * 0.15, hy + r * 0.10, hx, hy - r * 0.22);
+      }
+      if (r >= 9) {                          // 말뚝을 묶은 가로 끈
+        g.lineStyle(Math.max(0.8, r * 0.08), M.rope, a * 0.9);
+        g.lineBetween(stkX - r * 0.62, stkY - r * 0.62, stkX + r * 0.62, stkY - r * 0.58);
+      }
+
+    } else if (kind === 'shellPlate') {      // 껍질장이 — 남에게 붙여 줄 껍질 조각
+      //  약초꾼(잎지팡이)과 갈리는 지점: 저쪽은 **긴 막대**, 이쪽은 **손바닥만 한 판**이다.
+      var pcx = X(0.86, 0.40), pcy = Y(0.86, 0.40, 0.10);
+      g.fillStyle(M.shell, a);
+      g.fillTriangle(pcx - r * 0.62, pcy + r * 0.52, pcx + r * 0.62, pcy + r * 0.34, pcx + r * 0.10, pcy - r * 0.72);
+      g.fillStyle(UI.lit(M.shell), a * 0.55);
+      g.fillTriangle(pcx - r * 0.62, pcy + r * 0.52, pcx + r * 0.10, pcy - r * 0.72, pcx - r * 0.10, pcy + r * 0.20);
+      g.lineStyle(Math.max(0.9, r * 0.09), M.shellRim, a);
+      g.lineBetween(pcx - r * 0.62, pcy + r * 0.52, pcx + r * 0.10, pcy - r * 0.72);
+      g.lineBetween(pcx + r * 0.10, pcy - r * 0.72, pcx + r * 0.62, pcy + r * 0.34);
+      g.lineBetween(pcx + r * 0.62, pcy + r * 0.34, pcx - r * 0.62, pcy + r * 0.52);
+      if (r >= 9) {                          // 손에 쥔 자리
+        g.fillStyle(M.leather, a);
+        g.fillRect(pcx - r * 0.18, pcy + r * 0.34, r * 0.44, Math.max(1.2, r * 0.16));
+      }
+
+    } else if (kind === 'stoneMaul') {       // 망치잡이 — 자루 긴 돌망치
+      //  ⚠ 손도끼(족장)와 **크기와 머리 모양**으로 갈린다: 저쪽은 짧은 자루에 초승달
+      //    날, 이쪽은 긴 자루에 **네모난 돌덩이**다. 갑옷을 부수는 물건이라는 게
+      //    형태에서 읽혀야 관통이라는 눈에 안 보이는 기제가 납득된다.
+      var hax = X(0.90, 0.42), hay = Y(0.90, 0.42, -0.16);
+      var btx = hax - r * 0.34, bty = hay + r * 1.42;
+      g.lineStyle(Math.max(1.6, r * 0.20), M.wood, a);   // 자루
+      g.lineBetween(btx, bty, hax, hay);
+      g.fillStyle(M.stone, a);                            // 머리 — 네모난 돌덩이
+      g.fillRoundedRect(hax - r * 0.60, hay - r * 0.52, r * 1.20, r * 0.92, r * 0.10);
+      g.fillStyle(UI.lit(M.stone), a * 0.55);
+      g.fillRect(hax - r * 0.60, hay - r * 0.52, r * 1.20, r * 0.30);
+      g.fillStyle(UI.tint(M.stone, -0.26), a * 0.6);
+      g.fillRect(hax - r * 0.60, hay + r * 0.16, r * 1.20, r * 0.24);
+      g.lineStyle(lw(0.09), UI.tint(M.stone, -0.34), a);
+      g.strokeRoundedRect(hax - r * 0.60, hay - r * 0.52, r * 1.20, r * 0.92, r * 0.10);
+      if (r >= 10) {                          // 자루를 감은 가죽 — 무거운 물건이라는 신호
+        g.fillStyle(M.leatherDark, a);
+        g.fillRect(btx + r * 0.06, bty - r * 0.52, r * 0.26, r * 0.34);
+      }
 
     } else if (kind === 'towerShield') {     // 방패병 — 몸을 가리는 나무 대방패
       // 몸 앞으로 충분히 내밀어야 투구가 방패 위로 보인다(가려버리면 종류를 못 읽는다)

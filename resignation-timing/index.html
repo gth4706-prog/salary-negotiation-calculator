@@ -20,11 +20,18 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%AA%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
 <link rel="stylesheet" href="../css/style.css?v=0.17">
-<link rel="stylesheet" href="../css/resignation.css?v=0.08">
+<link rel="stylesheet" href="../css/resignation.css?v=0.09">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"퇴사 타이밍 계산기","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"입사일을 기준으로 퇴직금·연차수당을 모두 챙길 수 있는 최적 퇴사일을 계산하는 무료 도구."}
 </script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"연차는 1년 근무하면 며칠 생기나요?","acceptedAnswer":{"@type":"Answer","text":"1년을 채우는 순간 15일이 한 번에 생깁니다. 그 전에는 한 달 개근마다 1일씩 최대 11일까지 발생하므로, 입사 1년 시점에는 최대 26일을 갖게 됩니다. 3년차부터 2년마다 1일씩 늘어 25일에서 멈춥니다."}},
+{"@type":"Question","name":"퇴직금은 언제부터 받을 수 있나요?","acceptedAnswer":{"@type":"Answer","text":"계속근로기간 1년 이상이고 4주 평균 주 15시간 이상 근무한 경우에 발생합니다. 1년에서 하루라도 모자라면 퇴직금은 0원입니다."}},
+{"@type":"Question","name":"퇴직금 계산식은 어떻게 되나요?","acceptedAnswer":{"@type":"Answer","text":"퇴직금 = 1일 평균임금 × 30일 × (재직일수 ÷ 365) 입니다. 1일 평균임금은 퇴직 직전 3개월 임금 총액을 그 기간 총일수로 나눈 값입니다. 대략 월급 한 달치 × 근속연수로 어림잡을 수 있습니다."}}
+]}
+</script>
 </head>
 <body>
 
@@ -38,13 +45,13 @@
     <a href="../about.html">소개</a>
     <a class="lang-switch" href="en/" title="Switch to English" hreflang="en">🇺🇸 EN</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.08</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.09</span>
   </div>
 </div></nav>
 
 <main class="wrap page stack">
   <header class="hero">
-    <h1>퇴사 타이밍 계산기</h1>
+    <h1>퇴사 타이밍 계산기 — 퇴직금·연차 다 챙기는 퇴사일</h1>
     <p>입사일만 넣으면 <b>퇴직금·연차수당을 다 챙길 수 있는 날짜</b>를 계산해 드려요. 그 아래에서 <b>퇴사 이유도 가볍게 점검</b>해볼 수 있어요.</p>
   </header>
 
@@ -94,6 +101,66 @@
        도구 페이지는 텍스트가 얇아 검색·심사 양쪽에서 불리하다. 채우기용이 아니라
        실제로 사용자가 궁금해하는 것만 적는다. "못 하는 것"을 빼지 말 것. -->
   <section class="card tool-about">
+
+    <h2>근속연수별 연차 일수 표</h2>
+    <p>연차는 <strong>1년을 채우는 순간 15일이 한 번에</strong> 생깁니다.
+       그 전에는 한 달 개근할 때마다 1일씩, <strong>최대 11일</strong>까지입니다.
+       1년을 채우면 그 11일과 별도로 15일이 더 생기므로, 입사 1년 시점에는
+       <strong>최대 26일</strong>을 손에 쥐게 됩니다. 하루 차이로 이 15일이 갈립니다.</p>
+    <table>
+      <thead><tr><th scope="col">근속</th><th scope="col">연차 일수</th><th scope="col">비고</th></tr></thead>
+      <tbody>
+      <tr><th scope="row">1년차</th><td><strong>15일</strong></td><td>법정 최소. 이때부터 15일이 한 번에 생깁니다</td></tr>
+      <tr><th scope="row">2년차</th><td><strong>15일</strong></td><td></td></tr>
+      <tr><th scope="row">3년차</th><td><strong>16일</strong></td><td>3년차에 1일 늘어 16일</td></tr>
+      <tr><th scope="row">4년차</th><td><strong>16일</strong></td><td></td></tr>
+      <tr><th scope="row">5년차</th><td><strong>17일</strong></td><td></td></tr>
+      <tr><th scope="row">6년차</th><td><strong>17일</strong></td><td></td></tr>
+      <tr><th scope="row">7년차</th><td><strong>18일</strong></td><td></td></tr>
+      <tr><th scope="row">8년차</th><td><strong>18일</strong></td><td></td></tr>
+      <tr><th scope="row">9년차</th><td><strong>19일</strong></td><td></td></tr>
+      <tr><th scope="row">10년차</th><td><strong>19일</strong></td><td></td></tr>
+      <tr><th scope="row">11년차</th><td><strong>20일</strong></td><td></td></tr>
+      <tr><th scope="row">13년차</th><td><strong>21일</strong></td><td></td></tr>
+      <tr><th scope="row">15년차</th><td><strong>22일</strong></td><td></td></tr>
+      <tr><th scope="row">17년차</th><td><strong>23일</strong></td><td></td></tr>
+      <tr><th scope="row">19년차</th><td><strong>24일</strong></td><td></td></tr>
+      <tr><th scope="row">21년차</th><td><strong>25일</strong></td><td>상한 도달 — 이후로는 더 늘지 않습니다</td></tr>
+      </tbody>
+    </table>
+    <p>3년차부터 <strong>2년마다 1일씩</strong> 늘고 <strong>25일에서 멈춥니다</strong>.
+       위 표는 위 계산기와 같은 공식으로 만들었습니다.</p>
+
+    <h2>퇴직금은 언제부터, 얼마나 나오나요</h2>
+    <p>퇴직금은 <strong>계속근로기간 1년 이상</strong>이고 <strong>4주 평균 주 15시간 이상</strong>
+       일한 경우에 발생합니다. 1년에서 하루라도 모자라면 <strong>0원</strong>입니다.
+       이게 퇴사일을 하루 단위로 따져야 하는 이유입니다.</p>
+    <h3>계산식</h3>
+    <p><strong>퇴직금 = 1일 평균임금 × 30일 × (재직일수 ÷ 365)</strong></p>
+    <p>1일 평균임금은 퇴직 직전 3개월간 받은 임금 총액을 그 기간의 총일수로 나눈 값입니다.
+       상여금과 연차수당도 일정 비율이 들어갑니다. 대략적으로는
+       <strong>월급 한 달치 × 근속연수</strong>로 어림잡으면 크게 어긋나지 않습니다.</p>
+    <div class="callout">
+      <strong>예시</strong> — 월 300만원을 받고 3년 근무했다면 퇴직금은 약 <strong>900만원</strong>,
+      5년이면 약 <strong>1,500만원</strong> 수준입니다. 정확한 금액은 직전 3개월 임금에 따라
+      달라지니 <a href="#hire-date">위 계산기</a>에 입사일과 월급을 넣어 확인하세요.
+    </div>
+
+    <h2>퇴직금과 연차, 둘 다 챙기는 날짜는 따로 있습니다</h2>
+    <p>두 권리는 <strong>발생 시점이 다릅니다.</strong> 퇴직금은 입사일 기준 1년,
+       연차는 회사 기준(입사일 기준 또는 회계연도 기준)에 따라 갱신일이 달라집니다.</p>
+    <ul>
+      <li><strong>입사일 기준</strong> 회사라면 두 날짜가 같아서 1년째 되는 날 이후에 나가면 됩니다.</li>
+      <li><strong>회계연도 기준(1월 1일)</strong> 회사라면 1년을 채운 뒤에도
+          <strong>다음 1월 1일</strong>까지 버티면 새 연차가 한 번 더 생깁니다.</li>
+      <li>남은 연차는 <strong>연차수당으로 정산</strong>받을 수 있습니다. 15일이면 반달치 월급에 해당합니다.</li>
+    </ul>
+    <div class="callout">
+      <strong>주의</strong> — 5인 미만 사업장은 근로기준법의 연차 규정이 적용되지 않습니다.
+      퇴직금은 5인 미만이어도 1년 이상 근무하면 발생합니다.
+      회계연도 기준 회사의 연차 정산 방식은 취업규칙에 따라 달라지니 확인이 필요합니다.
+    </div>
+
     <h2>퇴사일은 왜 하루 차이로 달라지나요</h2>
     <h3>어떻게 계산하나요</h3>
     <p>퇴직금은 <b>계속근로 1년</b>을 채워야 발생합니다. 하루라도 모자라면 한 푼도 안 나와요. 연차는 다릅니다 — 입사 1년 미만이면 <b>한 달 개근마다 1일씩(최대 11일)</b>, 1년을 넘기면 그때부터 <b>15일이 한꺼번에</b> 생기고 이후 2년마다 하루씩 늘어 최대 25일입니다. 이 도구는 입사일만 받아서 두 날짜를 각각 계산하고, <b>둘 다 챙기는 가장 이른 날</b>을 알려드려요.</p>
@@ -129,7 +196,7 @@
 </div></footer>
 
 <script src="../js/site.js?v=0.05"></script>
-<script src="../js/resignation.js?v=0.08"></script>
+<script src="../js/resignation.js?v=0.09"></script>
 <!-- Cloudflare Web Analytics — 쿠키를 쓰지 않고 개인을 식별하지 않는다.
      이 토큰은 공개 페이지에 심으라고 만들어진 클라이언트 식별자다(비밀값 아님).
      ⚠️ 자동 설치(auto_install)가 켜져 있었지만 실제로는 비콘이 주입되지 않아

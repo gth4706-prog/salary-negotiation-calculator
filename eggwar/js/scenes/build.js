@@ -115,8 +115,18 @@ GAME.BuildScene.PHONE = {
   // '내 배치 저장' 같은 긴 라벨이 빡빡했다 — 넓히는 데 쓰는 것이 맞다.
   START_CX: 610, START_W: 268,
   MENU_CX: 782, MENU_W: 56,
-  BOARD_TOP: 66,
+  //  ── 초록 접근 지대를 줄였다 (2026-08-08, 사용자 지시) ────────────────────
+  //  실측: 보드 66~300 중 **위쪽 초록이 76px**(3분의 1)이었고 파란 배치 구역은 123px 뿐이었다.
+  //  ⚠ 투영(`_applyBoardProjection`)은 **바닥 기준**이라 `TILT` 가 상한(1.4)에 걸린
+  //    동안에는 보드 위를 잘라도 파란 구역이 그대로다 — 초록만 줄어든다.
+  //    (상한 아래로 내려가면 파란 구역까지 같이 줄어드니 이 값을 더 키우지 말 것)
+  //  ⚠ 초록을 **0 으로 만들지 않는다.** 적이 어디서 오는지 보여 주는 맥락이라,
+  //    다 지우면 배치가 '어느 방향을 막는 일'이라는 게 화면에서 사라진다. 24px 남긴다.
+  BOARD_TOP: 118,
   BOARD_BOTTOM: 300,
+  //  줄인 자리를 쓴다: 왼쪽은 고른 유닛 설명, 오른쪽은 배치 초기화.
+  INFO_Y: 64, INFO_H: 48,
+  RESET_W: 150,
   PAL_Y: 306, PAL_H: 74, PAL_GAP: 3,
   VER_W: 60
 };
@@ -576,6 +586,48 @@ GAME.BuildScene.prototype.create = function () {
       function () { if (self.arena) self._saveArena(); else self._defend(); },
       { fill: UI.COL.panelTeal, line: C.controller, hover: UI.COL.panelTealHi,
         color: C.accent, fontSize: 'buttonSm', hitPad: 4 });
+    // ── 고른 유닛 설명 줄 + 배치 초기화 (2026-08-08, 사용자 지시) ─────────
+    //  ⚠ 유닛이 20종이 되면서 **이름만으로는 무엇인지 알 수 없게** 됐다.
+    //    칩을 누르면 그 자리에서 능력치 한 줄 + 특징 한 줄을 보여 준다 —
+    //    설명을 보러 다른 화면으로 갔다 오게 하면 배치하던 손이 끊긴다.
+    var infoW = W - PHL.PAD * 2 - PHL.RESET_W - 8;
+    this.infoBg = this.add.rectangle(PHL.PAD + infoW / 2, PHL.INFO_Y + PHL.INFO_H / 2,
+      infoW, PHL.INFO_H, UI.COL.surfaceAlt).setStrokeStyle(1, UI.COL.border);
+    this.infoLine1 = UI.text(this, PHL.PAD + 10, PHL.INFO_Y + 6, '', {
+      size: 'caption', color: C.text, originY: 0
+    });
+    this.infoLine2 = UI.text(this, PHL.PAD + 10, PHL.INFO_Y + 26, '', {
+      size: 'micro', color: UI.COL.textDim, originY: 0
+    });
+    //  ⚠ **확인을 받는다.** 스무 기를 세운 판을 한 번의 오탭으로 날리면
+    //    되돌리기(한 묶음씩)로는 복구가 사실상 불가능하다.
+    UI.button(this, W - PHL.PAD - PHL.RESET_W / 2, PHL.INFO_Y + PHL.INFO_H / 2,
+      PHL.RESET_W, PHL.INFO_H, '배치 초기화', function () {
+        if (!self.placed.length) { if (self._warn) self._warn('아직 놓은 유닛이 없습니다.'); return; }
+        //  ⚠ `Modal.confirm` 은 이 저장소에 없다 — 확인은 **항목 두 개짜리
+        //    `Modal.open`** 으로 받는다(수성의 탑 '1회차부터 다시'와 같은 모양).
+        //    없는 API 를 부르면 조용히 아무 일도 안 일어난다.
+        if (!GAME.Modal) {          // 모달이 없으면 조용히 지우지 않는다
+          if (self._warn) self._warn('지금은 초기화할 수 없습니다.');
+          return;
+        }
+        GAME.Modal.open(self, {
+          title: '배치를 전부 지울까요?',
+          items: [
+            { key: 'no', name: '아니요 — 그대로 둡니다',
+              note: '놓은 유닛 ' + self.placed.length + '기 유지' },
+            { key: 'yes', name: '네, 전부 지웁니다',
+              note: '되돌리기로는 복구할 수 없습니다' }
+          ],
+          onPick: function (it) {
+            if (!it || it.key !== 'yes') return;
+            self.placed = []; self.history = []; self.selected = null;
+            if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('click');
+            self._status(); self.redraw();
+          }
+        });
+      }, { fontSize: 'buttonSm', color: C.crit });
+
     this.menuBtn = UI.button(this, mCx, PHL.BTN_CY, mW, PHL.BTN_H,
       this.arena ? '← 대전' : '☰',
       function () { if (self.arena) self._arenaExit(); else self._toggleSheet(); },
@@ -736,6 +788,9 @@ GAME.BuildScene.prototype.create = function () {
   });
 
   this.input.mouse.disableContextMenu();
+  //  ⚠ 들어오자마자 이미 한 종류가 골라져 있다(`init` 의 `picked`). 그런데 설명 줄을
+  //    탭할 때만 채우면 **처음 화면이 빈 상자로** 보인다 — 고장으로 읽힌다.
+  if (this._showInfo) this._showInfo(this.picked);
   this._status();
   this.redraw();
   if (PH) {
@@ -827,8 +882,54 @@ GAME.BuildScene.prototype._pick = function (key) {
     var d = GAME.UNITS[key];
     this._warn(d.name + GAME.UI.josa(d.name, 'eun') + ' ' + lockAt + '회차를 깨면 열립니다.');
   }
+  this._showInfo(key);
   this._status();
   this.redraw();
+};
+
+//  고른 유닛이 무엇인지 두 줄로 말한다(2026-08-08, 사용자 지시).
+//  ⚠ 유닛 표에 이미 `desc`(한 줄 설명)가 있다 — 새로 쓰지 않고 그걸 쓴다.
+//    새로 쓰면 표와 화면이 서로 다른 말을 하기 시작한다.
+GAME.BuildScene.prototype._showInfo = function (key) {
+  if (!this.infoLine1) return;
+  var d = GAME.UNITS[key];
+  if (!d) { this.infoLine1.setText(''); this.infoLine2.setText(''); return; }
+  var dps = d.damage > 0 ? Math.round(d.damage / Math.max(0.2, (d.cooldown || 1000) / 1000)) : 0;
+  var bits = [d.name, '인구 ' + (d.pop || 1)];
+  bits.push('체력 ' + d.hp);
+  if (d.armor) bits.push('방어 ' + d.armor);
+  if (dps > 0) bits.push('초당 ' + dps);
+  else bits.push('공격 없음');
+  //  ⚠ 사거리는 **숫자를 안 쓴다.** 아레나 단위라 '원거리 1436' 같은 값이 나오는데
+  //    그건 사람에게 아무 뜻이 없다 — 멀리 치느냐 붙어서 치느냐만 알면 된다.
+  if ((d.range || 0) > 150) bits.push('원거리');
+  //  이 유닛만의 특성 — 능력치로는 안 보이는 것들.
+  var tag = [];
+  if (d.ability) tag.push('스킬');
+  if (d.guard) tag.push('되받기');
+  if (d.armorPen) tag.push('방어 관통');
+  if (d.auraAlways) tag.push('상시 오라');
+  if (d.deathBlast) tag.push('사망 폭발');
+  if (d.knotRadius) tag.push('피해 분담');
+  if (d.stackOnAllyDeath) tag.push('사망마다 성장');
+  if (d.immobile) tag.push('고정');
+  //  ⚠ 특성을 다 늘어놓으면 한 줄이 56자가 되어 상자(≈47자)를 넘는다(계산으로 확인).
+  //    둘까지만 적는다 — 셋째부터는 어차피 안 읽힌다.
+  if (tag.length) bits.push(tag.slice(0, 2).join('·'));
+  //  ⚠ **자르지 말고 덜 중요한 것부터 뺀다.** 그냥 46자에서 자르면 '쇠뇌 진지'처럼
+  //    이름이 긴 유닛은 하필 **특성**('스킬·고정')이 잘려 나간다 — 가장 알고 싶은 것이
+  //    사라지는 셈이다. 방어 → 체력 순으로 빼면 51자가 42자가 되어 다 들어간다.
+  function cut(str, n) { return str.length > n ? (str.slice(0, n - 1) + '…') : str; }
+  var DROP = ['방어 ', '체력 '];
+  for (var di = 0; di < DROP.length && bits.join(' · ').length > 46; di++) {
+    for (var bi = bits.length - 1; bi >= 0; bi--) {
+      if (bits[bi].indexOf(DROP[di]) === 0) { bits.splice(bi, 1); break; }
+    }
+  }
+  this.infoLine1.setText(cut(bits.join(' · '), 46));
+  var lock = this._lockOf ? this._lockOf(key) : 0;
+  this.infoLine2.setText(lock ? ('🔒 ' + lock + '회차를 깨면 열립니다')
+                              : cut(d.desc || d.lore || '', 46));
 };
 
 GAME.BuildScene.prototype.spent = function () {

@@ -431,6 +431,10 @@ var SM = 10;
     //  ── 확장 2차 (2026-08-08) ──
     hivethrower:{ helm: 'veil',     gear: 'hive',       back: null,    face: 'open', wide: 0.78, fam: ['clay', 'bronze'] },
     vinewhip:   { helm: 'thorncrown', gear: 'vinelash', back: null,    face: 'open', wide: 0.78, fam: ['wood', 'bone'] },
+    //  ── 확장 3차 (2026-08-08) ──
+    ashthrower: { helm: 'ashhood',  gear: 'ashpouch',   back: 'pouch', face: 'open', wide: 0.76, fam: ['stone', 'stoneLite'] },
+    stonepiler: { helm: 'cairnhat', gear: 'cairn',      back: null,    face: 'open', wide: 0.84, fam: ['stone', 'bronze'] },
+    knotter:    { helm: 'knothood', gear: 'knotrope',   back: null,    face: 'open', wide: 0.78, fam: ['rope', 'leather'] },
 
     // ── 영웅 3종 ──
     berserker:{ helm: 'onehorn', gear: 'greatsword', back: 'fur',    face: 'open', wide: 0.82, hero: true },
@@ -1469,6 +1473,47 @@ var SM = 10;
                        bx + r * tk[tc][0] * 0.62, byy + r * tk[tc][1] * 0.62);
       }
 
+    } else if (kind === 'ashhood') {         // 잿가루꾼 — 재를 막는 낮은 두건 + 코싸개
+      //  ⚠ 벌집꾼(망사 두건)과 갈리는 지점: 저쪽은 얼굴 앞 **가로줄 그물**,
+      //    이쪽은 코 아래를 덮는 **삼각 천**이다. 같은 '두건'이라도 덮는 자리가 다르다.
+      g.fillStyle(M.stone, a);
+      g.fillRoundedRect(sx - r * 0.60, by - r * 1.06, r * 1.20, r * 0.42, r * 0.16);
+      g.fillStyle(UI.lit(M.stone), a * 0.5);
+      g.fillRect(sx - r * 0.60, by - r * 1.06, r * 0.44, r * 0.42);
+      if (!back) {
+        g.fillStyle(UI.tint(M.stone, -0.30), a);   // 코싸개 — 아래로 늘어진 삼각 천
+        g.fillTriangle(sx - r * 0.40, by - r * 0.70, sx + r * 0.40, by - r * 0.70,
+                       sx + lat * r * 0.06, by - r * 0.24);
+      }
+
+    } else if (kind === 'cairnhat') {        // 돌쌓이 — 머리에 얹은 돌 세 개
+      //  ⚠ 이 게임에서 **성장이 눈에 보이는 유일한 유닛**이다. 겹이 쌓일수록 돌이
+      //    늘어나므로(`_stacks`), 기본 모습부터 '쌓는 물건'으로 읽혀야 한다.
+      var cs = [[0.00, 1.34, 0.34], [-0.30, 1.02, 0.28], [0.32, 1.00, 0.26]];
+      for (var ci = 0; ci < cs.length; ci++) {
+        g.fillStyle(M.stone, a);
+        g.fillEllipse(sx + r * cs[ci][0], by - r * cs[ci][1], r * cs[ci][2] * 2, r * cs[ci][2] * 1.6, SM);
+        g.fillStyle(UI.lit(M.stone), a * 0.5);
+        g.fillEllipse(sx + r * cs[ci][0] - r * 0.08, by - r * cs[ci][1] - r * 0.07,
+                      r * cs[ci][2] * 1.0, r * cs[ci][2] * 0.7, SM);
+      }
+      g.lineStyle(Math.max(0.8, r * 0.07), UI.tint(M.stone, -0.38), a * 0.9);
+      g.strokeCircle(sx, by - r * 1.34, r * 0.34);
+
+    } else if (kind === 'knothood') {        // 매듭지기 — 이마에 맨 매듭
+      //  ⚠ 덩굴채(바깥으로 뻗은 가시)와 갈리는 지점: 이쪽은 **가운데 하나로 뭉친
+      //    매듭**이다. 뻗느냐 뭉치느냐로 16px 에서도 갈린다.
+      g.fillStyle(M.rope, a);
+      g.fillRect(sx - r * 0.62, by - r * 0.98, r * 1.24, r * 0.22);
+      g.fillEllipse(sx + lat * r * 0.10, by - r * 1.06, r * 0.46, r * 0.42, SM);
+      g.fillStyle(UI.tint(M.rope, -0.30), a * 0.85);
+      g.fillRect(sx - r * 0.62, by - r * 0.84, r * 1.24, Math.max(1, r * 0.08));
+      if (!back && r >= 9) {                 // 늘어뜨린 두 가닥
+        g.lineStyle(Math.max(0.9, r * 0.09), M.rope, a);
+        g.lineBetween(sx + lat * r * 0.20, by - r * 0.92, sx + lat * r * 0.46, by - r * 0.56);
+        g.lineBetween(sx + lat * r * 0.02, by - r * 0.92, sx + lat * r * 0.22, by - r * 0.50);
+      }
+
     } else if (kind === 'bucket') {          // 방패병 — 통투구
       var bwr = prof ? 0.44 : 0.56;
       g.fillStyle(M.iron, a);
@@ -1779,7 +1824,7 @@ var SM = 10;
     leafstaff: 0.20, towerShield: 0.60, handaxe: 0.30, sapjar: 0.35,
     greatsword: 0.35, hookShield: 0.55, crossbowNest: 0,
     shellGuard: 0.58, stakes: 0.30, shellPlate: 0.34, stoneMaul: 0.42,
-    hive: 0.44, vinelash: 0.86
+    hive: 0.44, vinelash: 0.86, ashpouch: 0.44, cairn: 0.38, knotrope: 0.36
   };
   UI.GEAR_DROP = { sapjar: 0.18, sword: 0.10 };
   //  칼류는 정면일수록 **더 세워 든다** — 옆으로만 밀면 눈앞을 가로지르는 각이 남는다.
@@ -2293,6 +2338,42 @@ var SM = 10;
         g.fillTriangle(sx2 - r * 0.05, sy2, sx2 + r * 0.05, sy2,
                        sx2 + r * (vj % 2 ? -0.26 : 0.26), sy2 - r * 0.14);
       }
+
+    } else if (kind === 'ashpouch') {        // 잿가루꾼 — 재를 뿌리는 자루
+      var apx = X(0.84, 0.40), apy = Y(0.84, 0.40, 0.06);
+      g.fillStyle(M.leather, a);
+      g.fillEllipse(apx, apy + r * 0.20, r * 0.90, r * 1.02, SM);
+      g.fillStyle(M.leatherDark, a * 0.6);
+      g.fillEllipse(apx + r * 0.16, apy + r * 0.24, r * 0.40, r * 0.58, SM);
+      g.fillStyle(M.rope, a);                // 목을 조인 끈
+      g.fillRect(apx - r * 0.30, apy - r * 0.32, r * 0.60, Math.max(1.2, r * 0.14));
+      if (r >= 9) {                          // 흩날리는 재 — 이 유닛의 유일한 '무엇을 하나' 신호
+        g.fillStyle(M.stone, a * 0.75);
+        var ad = [[0.62, -0.52, 0.13], [0.92, -0.26, 0.10], [0.70, -0.02, 0.08]];
+        for (var ai2 = 0; ai2 < ad.length; ai2++) {
+          g.fillEllipse(apx + r * ad[ai2][0], apy + r * ad[ai2][1],
+                        r * ad[ai2][2] * 2, r * ad[ai2][2] * 2, 8);
+        }
+      }
+
+    } else if (kind === 'cairn') {           // 돌쌓이 — 팔에 안은 돌덩이
+      var cnx = X(0.82, 0.40), cny = Y(0.82, 0.40, 0.22);
+      g.fillStyle(M.stone, a);
+      g.fillRoundedRect(cnx - r * 0.52, cny - r * 0.44, r * 1.04, r * 0.88, r * 0.16);
+      g.fillStyle(UI.lit(M.stone), a * 0.55);
+      g.fillRect(cnx - r * 0.52, cny - r * 0.44, r * 1.04, r * 0.28);
+      g.lineStyle(lw(0.10), UI.tint(M.stone, -0.40), a);
+      g.strokeRoundedRect(cnx - r * 0.52, cny - r * 0.44, r * 1.04, r * 0.88, r * 0.16);
+
+    } else if (kind === 'knotrope') {        // 매듭지기 — 매듭 지은 밧줄 뭉치
+      //  ⚠ 덩굴채의 채찍과 **길이로** 갈린다: 저쪽은 2.2r 늘어진 선, 이쪽은 손 안에
+      //    뭉친 고리 두 개다. 늘어뜨리면 둘이 같아진다.
+      var krx = X(0.86, 0.40), kry = Y(0.86, 0.40, 0.04);
+      g.lineStyle(Math.max(1.3, r * 0.15), M.rope, a);
+      g.strokeCircle(krx - r * 0.26, kry, r * 0.40);
+      g.strokeCircle(krx + r * 0.28, kry + r * 0.14, r * 0.34);
+      g.fillStyle(UI.tint(M.rope, -0.26), a);  // 가운데 매듭
+      g.fillEllipse(krx + r * 0.02, kry + r * 0.06, r * 0.34, r * 0.30, SM);
 
     } else if (kind === 'towerShield') {     // 방패병 — 몸을 가리는 나무 대방패
       // 몸 앞으로 충분히 내밀어야 투구가 방패 위로 보인다(가려버리면 종류를 못 읽는다)

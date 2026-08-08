@@ -682,6 +682,32 @@ GAME.UNITS.vinewhip = { key: 'vinewhip', name: '덩굴채', art: 'vinewhip',
   ability: { type: 'pull', motif: 'rope', cooldown: 10000, telegraph: 600,
              dist: 205, coneDeg: 360, power: 130, keep: 96, damage: 18 } };
 
+//  ── 확장 3차 (2026-08-08) ─────────────────────────────────────────────────
+GAME.UNITS.ashthrower = { key: 'ashthrower', name: '잿가루꾼', art: 'ashthrower',
+  cost: 40, pop: 4, hp: 190, armor: 20, speed: 100, range: 54, damage: 18, cooldown: 1400,
+  attack: 'melee', coneDeg: 70, radius: 13, shape: 'round', weapon: 'ashpouch',
+  chase: 190, aggro: 230, maxPerFormation: 2,
+  //  스킬을 **못 쓰게** 하는 게 아니라 **아껴 쓰게** 만든다(침묵은 버린 후보다).
+  ability: { type: 'ashcloud', motif: 'sand', cooldown: 12000, telegraph: 550,
+             radius: 150, cdMul: 1.35, ms: 6000 } };
+
+GAME.UNITS.stonepiler = { key: 'stonepiler', name: '돌쌓이', art: 'stonepiler',
+  cost: 30, pop: 3, hp: 240, armor: 30, speed: 92, range: 52, damage: 24, cooldown: 1500,
+  attack: 'melee', coneDeg: 70, radius: 14, shape: 'square', weapon: 'cairn',
+  chase: 170, aggro: 200,
+  //  아군이 쓰러질 때마다 커진다 — "싼 것부터 치운다"는 영웅의 기본 전술을 벌준다.
+  //  ⚠ 상한이 없으면 마지막 한 기가 보스가 되어 '오래 버티기'가 배치를 이긴다.
+  stackOnAllyDeath: { hp: 22, armor: 4, max: 8 } };
+
+GAME.UNITS.knotter = { key: 'knotter', name: '매듭지기', art: 'knotter',
+  cost: 40, pop: 4, hp: 210, armor: 25, speed: 98, range: 50, damage: 20, cooldown: 1400,
+  attack: 'melee', coneDeg: 70, radius: 13, shape: 'round', weapon: 'knotrope',
+  chase: 180, aggro: 210, maxPerFormation: 1,
+  //  묶인 아군끼리 피해를 나눠 진다 — 한 기만 집중해서 끊는 전술을 무효로 만든다.
+  //  ⚠ 총량은 안 늘린다(나누기만 한다). 상한 3기 — 진형 전체가 묶이면 광역이 유일한
+  //    답이 되어 근접 영웅의 선택지가 사라진다.
+  knotRadius: 120, knotShare: 0.5, knotMax: 3 };
+
 GAME.UNITS.hammer = {
   key: 'hammer', name: '망치잡이', art: 'hammer',
   lore: '단단한 것을 깨는 데만 쓰는 돌망치. 느리지만 껍질이든 갑옷이든 가리지 않는다.',
@@ -696,7 +722,7 @@ GAME.UNIT_ORDER = [
   'bayonet', 'rifleman', 'grenadier', 'sniper',
   'shieldman', 'medic', 'sergeant', 'chemtrooper', 'mgnest', 'mine',
   //  ── 3단계 신규 (2026-08-08) ──
-  'reflector', 'palisade', 'shellwright', 'hammer', 'hivethrower', 'vinewhip'
+  'reflector', 'palisade', 'shellwright', 'hammer', 'hivethrower', 'vinewhip', 'ashthrower', 'stonepiler', 'knotter'
 ];
 
 // 이 유닛의 공격이 **자동명중(회피 불가)** 인가. 지금은 투창병 하나뿐이다.

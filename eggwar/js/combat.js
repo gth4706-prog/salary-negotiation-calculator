@@ -395,6 +395,42 @@ GAME.Combat = {
     // 지뢰는 피해로 제거할 수 없다. 밟아서 터뜨리거나, 피해서 지나가는 수밖에.
     if (this.isHazard(unit)) return 0;
 
+    //  ── 매듭 (2026-08-08 · 매듭지기) ──────────────────────────────────────
+    //  묶인 아군끼리 피해를 **나눠 진다.** 한 기만 집중해서 끊는 전술이 안 통하고,
+    //  답은 광역으로 동시에 치는 것이 된다.
+    //  ⚠ `noKnot` 로 재귀를 끊는다. 안 끊으면 나눈 피해가 다시 나뉘어 무한히 퍼진다.
+    //  ⚠ 총량은 안 늘린다 — 나누기만 한다. 늘리면 매듭지기가 있는 진형이 오히려
+    //    더 빨리 녹아 정체성이 뒤집힌다.
+    if (state && !(opts && opts.noKnot) && dmg > 0) {
+      var _kn = null;
+      for (var _ki = 0; _ki < state.units.length; _ki++) {
+        var _kc = state.units[_ki];
+        if (!_kc.alive || _kc.side !== unit.side || !_kc.def.knotRadius) continue;
+        if (this.dist(_kc, unit) > _kc.def.knotRadius) continue;
+        _kn = _kc; break;
+      }
+      if (_kn) {
+        var _link = [];
+        for (var _kj = 0; _kj < state.units.length; _kj++) {
+          var _kt = state.units[_kj];
+          if (!_kt.alive || _kt.side !== unit.side || _kt === unit) continue;
+          if (this.isHazard(_kt)) continue;
+          if (this.dist(_kn, _kt) <= _kn.def.knotRadius) _link.push(_kt);
+        }
+        var _cap = (_kn.def.knotMax || 3);
+        if (_link.length > _cap) _link.length = _cap;
+        if (_link.length) {
+          var _share = (_kn.def.knotShare || 0.5);
+          var _each = (dmg * _share) / _link.length;
+          for (var _kk = 0; _kk < _link.length; _kk++) {
+            this.applyDamage(_link[_kk], _each, source, state,
+                             { noCrit: true, noKnot: true, noLs: true });
+          }
+          dmg = dmg * (1 - _share);
+        }
+      }
+    }
+
     // ── 축복 훅 — 영웅이 **때릴 때** (towerboon.js) ────────────────────────
     //  ⚠ `source.isHero` 검사가 핵심이다. 빼면 축복이 적까지 강화한다.
     var bh = state && state.boons;
@@ -624,6 +660,36 @@ GAME.Combat = {
       }
       if (state && state.towerHealOn && GAME.HealZone && unit.side === 'strategist' && !this.isHazard(unit)) {
         GAME.HealZone.maybeDrop(state, unit.x, unit.y);
+      }
+      //  ── 돌쌓이 (2026-08-08) ──────────────────────────────────────────────
+      //  아군이 쓰러질 때마다 그 자리의 돌을 하나 얹는다 — 영웅의 기본 전술
+      //  ("싼 것부터 치운다")을 **벌주는** 첫 유닛이다.
+      //  ⚠ `state.onKill` 에 체이닝하지 않고 여기서 직접 돈다. 저 훅은 씬이 통째로
+      //    갈아끼우는 자리라(수성의 탑이 골드 계산에 쓴다), 얹으면 씬 순서에 따라
+      //    조용히 사라진다. def 가 신호이고 죽음이 사건이니 죽는 자리에서 처리한다.
+      //  ⚠ 상한을 둔다. 진형이 통째로 갈리는 판에서 상한이 없으면 마지막 한 기가
+      //    보스가 되어 "배치를 잘 짰다"가 아니라 "오래 버텼다"가 이긴다.
+      if (state && !this.isHazard(unit)) {
+        for (var sp = 0; sp < state.units.length; sp++) {
+          var pil = state.units[sp];
+          if (!pil.alive || pil === unit || pil.side !== unit.side) continue;
+          var pc = pil.def.stackOnAllyDeath;
+          if (!pc) continue;
+          pil._stacks = (pil._stacks || 0);
+          if (pil._stacks >= (pc.max || 8)) continue;
+          pil._stacks++;
+          var addHp = pc.hp || 22;
+          pil.maxHp += addHp; pil.hp += addHp;          // 이미 깎인 만큼은 안 채워 준다
+          //  ⚠ 방어는 **기존 배선(`effArmor` 의 `armorAdd` 버프)** 으로 얹는다.
+          //    처음엔 `pil.bonusArmor` 라는 새 필드를 만들었는데 그걸 읽는 곳이
+          //    아무 데도 없어서 **숫자만 오르고 실제로는 안 단단해질** 뻔했다.
+          var sb = null;
+          for (var sq = 0; sq < pil.buffs.length; sq++) {
+            if (pil.buffs[sq].stoneTag) { sb = pil.buffs[sq]; break; }
+          }
+          if (!sb) { sb = { armorAdd: 0, t: Infinity, stoneTag: true }; pil.buffs.push(sb); }
+          sb.armorAdd += (pc.armor || 4);
+        }
       }
       if (state && state.onKill) state.onKill(unit, state);
       // 관측: 원거리 유닛이 근접 공격에 죽었나 (kite 학습 신호)
@@ -1289,7 +1355,16 @@ GAME.Combat = {
                      t: sk.duration, tick: 0 });
     }
 
-    u.skillCd[slot] = sk.cooldown * (u.cdrMul || 1);
+    //  ── 잿가루 (2026-08-08 · 잿가루꾼) ────────────────────────────────────
+    //  ⚠ '침묵'은 이 게임이 **버린 후보**다 — "무조작 0%" 약속과 정면으로 싸운다.
+    //    잿가루는 못 쓰게 하는 게 아니라 **아껴 쓰게** 만든다: 스킬은 언제나 나가고,
+    //    다음 것이 늦게 온다. 값은 시전 시점에 한 번만 곱해지므로, 이미 돌던 쿨다운을
+    //    소급해 늘리지 않는다(뒤늦게 늘어나면 화면이 거짓말을 한다).
+    var _cdb = 1;
+    for (var _cb = 0; _cb < u.buffs.length; _cb++) {
+      if (u.buffs[_cb].cdMul) _cdb *= u.buffs[_cb].cdMul;
+    }
+    u.skillCd[slot] = sk.cooldown * (u.cdrMul || 1) * _cdb;
 
     // 이 시전이 만든 이펙트 전부에 시전자를 표시한다(위 `_fxMark` 주석 참조).
     this._tagSkillFx(state, _fxMark, u);
@@ -1933,6 +2008,23 @@ GAME.Combat = {
           if (o.buffs[wi].warcryTag) { o.buffs[wi].t = ab.ms || 4000; dup = true; break; }
         }
         if (!dup) o.buffs.push({ damageMul: ab.dmgMul || 1.6, t: ab.ms || 4000, warcryTag: true });
+      }
+      state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: ab.radius,
+                           t: 420, total: 420, side: u.side });
+
+    } else if (ab.type === 'ashcloud') {
+      //  잿가루꾼 — `warcry`(족장)의 **거울**이다: 같은 모양의 태그 버프를 같은 방식으로
+      //  밀어넣되, 아군이 아니라 **적**에게 넣고 값이 공격력이 아니라 쿨다운이다.
+      //  ⚠ 중복 시전은 시간만 갱신한다 — 곱해 쌓이면 사실상 침묵이 되어 버린 후보로 돌아간다.
+      for (i = 0; i < state.units.length; i++) {
+        o = state.units[i];
+        if (!o.alive || o.side === u.side || this.isHazard(o)) continue;
+        if (this.dist(u, o) > ab.radius) continue;
+        var adup = false;
+        for (var ai = 0; ai < o.buffs.length; ai++) {
+          if (o.buffs[ai].ashTag) { o.buffs[ai].t = ab.ms || 6000; adup = true; break; }
+        }
+        if (!adup) o.buffs.push({ cdMul: ab.cdMul || 1.35, t: ab.ms || 6000, ashTag: true });
       }
       state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: ab.radius,
                            t: 420, total: 420, side: u.side });

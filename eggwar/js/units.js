@@ -729,7 +729,11 @@ GAME.UNITS.knotter = { key: 'knotter', name: '매듭지기', art: 'knotter',
 GAME.UNITS.emberthrower = { key: 'emberthrower', name: '불씨꾼', art: 'emberthrower',
   voice: 'ember', voicePitch: 1.00,
   cost: 40, pop: 4, hp: 180, armor: 15, speed: 100, range: 150, damage: 16, cooldown: 1500,
-  attack: 'ranged', projectileSpeed: 320, radius: 12, shape: 'round', weapon: 'firepot',
+  //  ⚠ 처음에 'ranged' 라고 적었는데 **fire() 에 그런 분기가 없다** — 평타가 조용히
+  //    사라지고 헛스윙 소리만 났다(유니티 이식에서 공격 타입을 세다가 잡음).
+  //    존재하는 타입은 melee/projectile/aoe/targeted 넷뿐이다.
+  attack: 'projectile', projectileSpeed: 320, projectileRadius: 6,
+  radius: 12, shape: 'round', weapon: 'firepot',
   chase: 150, aggro: 260, maxPerFormation: 2,
   //  던진 자리에 불이 남는다 — 전장이 시간에 따라 좁아진다.
   //  ⚠ 심은 쪽은 안 밟는다(아군까지 태우면 진형이 제 불에 녹는다).

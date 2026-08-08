@@ -187,22 +187,67 @@ GAME.TowerRule = (function () {
       return RULES[order[((idx % CYCLE) + CYCLE) % CYCLE]];
     },
 
+    // ── 조건의 세기가 층을 따라간다 (2026-08-08, 사용자 지시) ────────────────
+    //  신고: "층이 증가할수록 단순히 유닛 수만 늘리는 게 아니라 능력치나 배치로 좀
+    //  다양하게 접목해 줬으면 좋겠어."
+    //  조건표 자체는 6층부터 이미 골고루 돌고 있었다 — 문제는 **값이 안 자란다**는
+    //  것이었다. 6층의 '좁은눈'과 37층의 '좁은눈'이 같은 값이면 후반엔 있으나 마나다.
+    //  → 배수를 1 에서 얼마나 떨어져 있는지(=조건의 '세기')를 층에 비례해 키운다.
+    //  ⚠ 배수를 그냥 곱하면 안 된다. `hp: 0.78` 처럼 **1 보다 작은 배수**는 곱할수록
+    //    커져서 조건이 거꾸로 약해진다. 그래서 **1 에서의 거리**를 키운다.
+    //  ⚠ 상한 1.8 — 실측(regress R-1)에서 그 위로 가면 후반 층이 벽이 된다.
+    ruleScale: function (floor) {
+      var f = Math.max(FROM_FLOOR, floor || FROM_FLOOR);
+      return Math.min(1.8, 1 + (f - FROM_FLOOR) * 0.018);
+    },
+
     // 층 조건의 배수를 기존 mods 에 곱해서 돌려준다. 원본은 안 건드린다.
-    applyMods: function (mods, rule) {
+    applyMods: function (mods, rule, floor) {
       var out = {};
       var k;
       for (k in mods) out[k] = mods[k];
       if (!rule || !rule.mods) return out;
-      for (k in rule.mods) out[k] = (out[k] === undefined ? 1 : out[k]) * rule.mods[k];
+      var sc = (floor === undefined) ? 1 : this.ruleScale(floor);
+      for (k in rule.mods) {
+        var v = rule.mods[k];
+        var scaled = 1 + (v - 1) * sc;      // 1 에서의 거리를 키운다
+        if (scaled < 0.05) scaled = 0.05;   // 0 이하로 내려가 유닛이 사라지는 것 방지
+        out[k] = (out[k] === undefined ? 1 : out[k]) * scaled;
+      }
       return out;
+    },
+
+    // ── 후반에는 조건이 둘이다 (2026-08-08) ───────────────────────────────
+    //  ⚠ `SECOND_FROM` 아래에서는 절대 둘이 안 걸린다. 배우는 구간에 조건 둘을 겹치면
+    //    무엇 때문에 죽었는지 못 가린다 — 이 파일이 '한 번에 하나'로 만든 이유 그대로다.
+    //  ⚠ 보스 층은 여전히 조건 없음(위 `ruleFor` 가 이미 막는다).
+    //  ⚠ 둘째 조건은 **첫째와 다른 것**을 고른다. 같은 것이 두 번 걸리면 배수가
+    //    제곱이 되어 그 층만 벽이 된다.
+    SECOND_FROM: 35,
+
+    ruleFor2: function (floor, seed) {
+      if (floor < this.SECOND_FROM) return null;
+      var first = this.ruleFor(floor, seed);
+      if (!first) return null;               // 쉬는 층·보스 층은 그대로 쉰다
+      var s = (seed === undefined) ? seedNow() : (seed | 0);
+      var r = rng((s ^ (floor * 0x27d4eb2d)) | 0);
+      for (var tries = 0; tries < 8; tries++) {
+        var cand = RULES[Math.floor(r() * RULES.length) % RULES.length];
+        if (cand.key !== first.key) return cand;
+      }
+      return null;
     },
 
     // 전투가 읽을 훅 묶음. 조건이 없으면 null 이라 전투는 아무 일도 하지 않는다.
     hooksFor: function (floor, seed) {
       var r = this.ruleFor(floor, seed);
-      if (!r || !r.hook) return null;
+      var r2 = this.ruleFor2(floor, seed);
+      if ((!r || !r.hook) && (!r2 || !r2.hook)) return null;
       var h = {};
-      h[r.hook] = r.hookArg || true;
+      if (r && r.hook) h[r.hook] = r.hookArg || true;
+      //  ⚠ 훅이 겹치면 **덮어쓰지 않는다** — 첫째를 남긴다. 정예 훅이 두 번 걸리면
+      //    한 유닛에 정예가 둘 붙어 그림도 판정도 꼬인다.
+      if (r2 && r2.hook && h[r2.hook] === undefined) h[r2.hook] = r2.hookArg || true;
       return h;
     }
   };

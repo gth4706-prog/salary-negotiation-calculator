@@ -255,8 +255,21 @@ GAME.Combat = {
   effArmor: function (u) {
     var a = u.def.armor || 0;
     for (var i = 0; i < u.buffs.length; i++) if (u.buffs[i].armorAdd) a += u.buffs[i].armorAdd;
+    //  ── 최후 저항 (2026-08-08, 사용자 신고) ────────────────────────────────
+    //  "항상 방패병만 마지막에 남고 남은 20초 동안 방패병만 때리다가 끝나는 게 지루하다."
+    //  구조적인 결과다: AI 도 사람도 **체력 낮은 적부터** 지우므로, 방어 45·체력 큰
+    //  방패병이 반드시 마지막에 남는다. 거기서부터는 사건이 없고 씹는 시간만 남는다.
+    //  → 마지막 한둘이 되면 **방어가 무너진다.** 진형이라는 게 서로 받쳐 주는 것이라,
+    //    받쳐 줄 동료가 없으면 두꺼움이 유지될 이유도 없다(연출과 규칙이 같은 말을 한다).
+    //  ⚠ 체력이 아니라 **방어만** 깎는다. 체력을 깎으면 화면의 체력바가 갑자기 줄어
+    //    "버그"로 읽힌다 — 방어는 눈에 안 보이는 값이라 그런 일이 없다.
+    if (u._lastStand) a *= this.LAST_STAND.armorMul;
     return a;
   },
+
+  //  ⚠ 값은 아래 두 도구로 재고 정했다: `regress.js`(탑) · `defend-curve.js`(수성의 탑).
+  //    양쪽 다 흔들면 안 되는 값이라 눈으로 고치지 말 것.
+  LAST_STAND: { at: 2, afterMs: 20000, armorMul: 0.55, dmgMul: 1.25 },
 
   effSpeed: function (u) {
     if (u.def.immobile) return 0;
@@ -268,6 +281,9 @@ GAME.Combat = {
   // 분대장이 주변에 있으면 공격력이 올라간다. 영웅은 자기 버프(전투 각성)를 받는다.
   effDamage: function (u, state) {
     var d = u.def.damage;
+    //  최후 저항 — 마지막 한둘은 더 세게 친다. 방어만 깎으면 '약해져서 빨리 죽는다'가
+    //  되어 김이 빠진다. 서로 빨리 결판나야 **사건**이 된다.
+    if (u._lastStand) d *= this.LAST_STAND.dmgMul;
     for (var b = 0; b < u.buffs.length; b++) {
       if (u.buffs[b].damageMul) d *= u.buffs[b].damageMul;
     }
@@ -2411,6 +2427,33 @@ GAME.Combat = {
     state.noHitFor += dtMs;
 
     var i, u, k;
+
+    //  ── 최후 저항 판정 (2026-08-08) ────────────────────────────────────────
+    //  ⚠ **시간 조건을 같이 건다.** 머릿수만 보면 판 초반에 소수로 시작한 진형이
+    //    처음부터 최후 저항이 되어 밸런스가 통째로 바뀐다. 20초를 넘겨서까지
+    //    한둘만 남아 있을 때가 '지루한 꼬리'다.
+    //  ⚠ 위험물(가시덫)은 세지 않는다 — 쓰러뜨릴 대상이 아니라서 남아 있어도
+    //    '한 기 남았다'가 아니다.
+    if (state.elapsed > this.LAST_STAND.afterMs) {
+      var _ls = { strategist: 0, controller: 0 };
+      for (i = 0; i < state.units.length; i++) {
+        u = state.units[i];
+        if (!u.alive || u.isHero || this.isHazard(u)) continue;
+        _ls[u.side] = (_ls[u.side] || 0) + 1;
+      }
+      for (i = 0; i < state.units.length; i++) {
+        u = state.units[i];
+        if (!u.alive || u.isHero || this.isHazard(u)) continue;
+        if (_ls[u.side] <= this.LAST_STAND.at && !u._lastStand) {
+          u._lastStand = true;
+          //  자리를 지킬 이유가 사라졌다 — 끝까지 쫓는다.
+          u.leash = Infinity;
+          u.committed = true;
+          state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: (u.def.radius || 12) * 3,
+                               t: 420, total: 420, side: u.side });
+        }
+      }
+    }
 
     //  ── 잉걸불 구역 (2026-08-08 · 불씨꾼) ──────────────────────────────────
     //  전장이 시간에 따라 좁아진다 — 회피가 '한 번의 반응'이 아니라 '누적된 계획'이 된다.

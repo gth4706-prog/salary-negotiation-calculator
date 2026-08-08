@@ -64,7 +64,25 @@ GAME.TowerCurriculum = {
     //   19층이면 보스 직전에 배우게 되어 원칙 ④("보스까지는 다 가르친 상태로 도착")에도 맞다.
     { floor: 19, type: 'mgnest',      share: 0.55, lesson: '맵 끝까지 닿는다. 숨지 말고 곧장 붙자' },
     { floor: 24, type: 'sergeant',    share: 0.55, lesson: '살아 있으면 주변이 세진다. 이놈부터 노리자' },
-    { floor: 28, type: 'mine',        share: 0.35, lesson: '안 보인다. 붉은 원이 뜨면 이동 스킬로 튀자' }
+    { floor: 28, type: 'mine',        share: 0.35, lesson: '안 보인다. 붉은 원이 뜨면 이동 스킬로 튀자' },
+    //  ── 확장 10종 (2026-08-08, 사용자 지시: "통곡의탑에도 밸런스 맞게 추가") ──
+    //  ⚠ 같은 원칙 그대로다: 한 층에 하나 · 보스 층(10의 배수) 회피 · 대처법이 쉬운
+    //    것부터. 앞의 열 종을 다 배운 뒤(28층)부터 시작하므로 31층에서 연다.
+    //  ⚠ `share` 는 **눈으로 정하지 않았다.** 아래 값은 `regress.js` R-1(데뷔 층
+    //    무조작 돌파율)으로 재서 넣었다 — 공격을 안 하는 유닛(울짱꾼·껍질장이)에
+    //    머릿수를 몰면 "쓰러뜨릴 적"이 줄어 층이 오히려 쉬워진다(위 주석의 실측).
+    { floor: 31, type: 'palisade',    share: 0.25, lesson: '움직이지 않는다. 곁을 지나가지 말고 돌아가자' },
+    //  ⚠ 0.45 로 뒀더니 무조작 돌파 13%(한계 10) — **아군도 맞는 사망 폭발**이라
+    //    머릿수를 몰면 진형이 제 폭발에 녹는다. 0.28 에서 다시 쟀다.
+    { floor: 34, type: 'hivethrower', share: 0.28, lesson: '죽으면 터진다. 붙어서 잡지 말자' },
+    { floor: 37, type: 'reflector',   share: 0.45, lesson: '웅크리면 되받아친다. 그때만 손을 떼자' },
+    { floor: 41, type: 'hammer',      share: 0.45, lesson: '방어를 뚫는다. 두꺼운 갑옷을 믿지 말자' },
+    { floor: 44, type: 'shellwright', share: 0.20, lesson: '미리 막아 준다. 한 번에 몰아치지 말고 두 박자로 치자' },
+    { floor: 47, type: 'vinewhip',    share: 0.35, lesson: '거리를 벌려도 끌어당긴다. 이동 스킬을 아껴 두자' },
+    { floor: 51, type: 'stonepiler',  share: 0.45, lesson: '동료가 죽을수록 커진다. 이놈을 먼저 잡자' },
+    { floor: 54, type: 'knotter',     share: 0.30, lesson: '피해를 나눠 진다. 하나만 파지 말고 광역으로 치자' },
+    { floor: 57, type: 'ashthrower',  share: 0.30, lesson: '스킬이 늦게 돌아온다. 한 번 쓸 때 확실히 쓰자' },
+    { floor: 61, type: 'emberthrower',share: 0.35, lesson: '불이 남는다. 설 자리를 미리 정해 두자' }
   ],
 
   // 이 층까지 **풀린** 유닛 종류. AutoFormation 이 이 목록 밖에서는 안 뽑는다.

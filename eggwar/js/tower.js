@@ -282,7 +282,7 @@ GAME.Tower = {
     var dmgM = skipPower ? 1 : this.dmgMul();
     var m = { hp: (1 + 0.012 * t) * hpM, damage: (1 + 0.010 * t) * dmgM };
     if (skipRule || !GAME.TowerRule) return m;
-    return GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor));
+    return GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor), floor);
   },
 
   // ── 유닛별 편차 (2026-08-02 사용자 지시) ─────────────────────────────────────
@@ -356,7 +356,7 @@ GAME.Tower = {
     var dmgM = 1 + (dmgFollow - 1) * prof.dmgW;
     var m = { hp: (1 + 0.012 * t) * hpM, damage: (1 + 0.010 * t) * dmgM };
     if (skipRule || !GAME.TowerRule) return m;
-    return GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor));
+    return GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor), floor);
   },
 
   // ── 보스 전용 성장 (2026-08-01 사용자 지시: "보스가 너무 약해") ────────────────
@@ -440,7 +440,7 @@ GAME.Tower = {
     //    난이도 상승은 진형·호위가 맡는다(보스는 '위협', 진형은 '난이도').
     var m = { hp: this._bossFollow(this.atkIndex()),
               damage: this._bossFollow(this.ehpIndex()) };
-    if (GAME.TowerRule) m = GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor));
+    if (GAME.TowerRule) m = GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor), floor);
     //  막힌 층 완화는 **보스에게도** 걸린다. 사람이 벽으로 느끼는 층은 대개 보스 층인데
     //  거기만 빼면 정작 필요한 자리에서 안 듣는다(js/towerchar.js `noteFloorFail` 참조).
     var rf = (GAME.TowerChar && GAME.TowerChar.reliefFor) ? GAME.TowerChar.reliefFor(floor) : 1;
@@ -736,6 +736,15 @@ GAME.Tower = {
         f.rule = rule.key;
         f.ruleLabel = rule.label;
         f.ruleDesc = rule.desc;
+        //  ⚠ 후반(35층~)에는 조건이 **둘**이다. 화면에 하나만 적으면 나머지 하나는
+        //    설명 없이 사람을 때리는 셈이라, 이 게임이 지켜 온 "보고 피할 수 있다"가
+        //    깨진다 — 둘 다 적는다.
+        var rule2 = GAME.TowerRule.ruleFor2 ? GAME.TowerRule.ruleFor2(floor) : null;
+        if (rule2) {
+          f.rule2 = rule2.key;
+          f.ruleLabel = rule.label + ' + ' + rule2.label;
+          f.ruleDesc = rule.desc + ' / ' + rule2.desc;
+        }
       }
     }
 

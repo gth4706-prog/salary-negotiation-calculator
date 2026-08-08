@@ -928,8 +928,34 @@ GAME.BuildScene.prototype._showInfo = function (key) {
   }
   this.infoLine1.setText(cut(bits.join(' · '), 46));
   var lock = this._lockOf ? this._lockOf(key) : 0;
+  //  ⚠ **스킬이 있다고만 적으면 아무 정보가 아니다**(사용자 지시). 무엇을 하는지
+  //    한 마디로 말한다. 설명(`desc`)보다 스킬이 우선인 이유: 설명은 생김새를
+  //    말하지만 스킬은 **이 유닛 앞에서 무슨 일이 일어나는지**를 말한다.
+  //  ⚠ 문구는 능력의 실제 값에서 만든다 — 손으로 적어 두면 값을 바꿨을 때
+  //    화면만 옛말을 하게 된다(이 저장소가 반복해서 겪은 종류).
   this.infoLine2.setText(lock ? ('🔒 ' + lock + '회차를 깨면 열립니다')
-                              : cut(d.desc || d.lore || '', 46));
+                              : cut(this._skillLine(d) || d.desc || d.lore || '', 46));
+};
+
+//  능력 하나를 한 마디로. 없으면 빈 문자열(그러면 `desc` 가 대신 나온다).
+GAME.BuildScene.prototype._skillLine = function (d) {
+  var a = d.ability || (d.abilities && d.abilities[0]);
+  if (!a) return '';
+  var cd = Math.round((a.cooldown || 0) / 1000);
+  var tail = cd ? ('  (' + cd + '초마다)') : '';
+  var t = a.type;
+  if (t === 'charge')    return '⚔ 돌진 — 달려들어 밀쳐낸다' + tail;
+  if (t === 'barrage')   return '☄ 폭격 — 바닥에 예고 원, 피하면 안 맞는다' + tail;
+  if (t === 'shockwave') return '💥 충격파 — 제 주위를 한 번에 친다' + tail;
+  if (t === 'warcry')    return '📣 함성 — 주변 아군 공격력을 올린다' + tail;
+  if (t === 'pull')      return '🪢 끌어당기기 — 거리를 벌려도 붙잡는다' + tail;
+  if (t === 'ashcloud')  return '🌫 잿가루 — 영웅 스킬이 늦게 돌아온다' + tail;
+  if (t === 'ember')     return '🔥 불씨 — 그 자리를 몇 초간 못 쓰게 만든다' + tail;
+  if (t === 'healBurst') {
+    if (a.shield) return '🛡 보호막 — 아군이 맞기 전에 미리 막아 준다' + tail;
+    return '✚ 회복 — 주변 아군을 한 번에 되살린다' + tail;
+  }
+  return '';
 };
 
 GAME.BuildScene.prototype.spent = function () {

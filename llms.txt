@@ -1,0 +1,29 @@
+# 각잡살림 (joeltool.com)
+
+> 각 잡고 만든 살림(생활 도구). 회원가입·설치 없이 브라우저에서 바로 쓰는 무료 웹 도구 모음입니다.
+> 대부분 브라우저 안에서만 계산하며 입력값을 서버에 저장하지 않습니다.
+
+## 연봉·이직
+
+- [이직 연봉 협상 계산기](https://joeltool.com/salary-calculator/): 직군·연차를 넣으면 내 연봉이 상위 몇 %인지, 제안받은 연봉이 적정한지 판정합니다. **연봉별 월 실수령액 표(2,400~10,000만원)** 를 함께 제공합니다. 연봉 3,000만원 월 실수령액 약 2,220,006원 / 5,000만원 약 3,490,038원 / 8,000만원 약 5,253,620원 (부양가족 1인·비과세 식대 20만원·2026년 요율 기준).
+- [퇴사 타이밍 계산기](https://joeltool.com/resignation-timing/): 입사일을 넣으면 퇴직금 발생일(근속 1년)과 다음 연차 발생일을 계산해 둘 다 챙기는 퇴사일을 알려줍니다.
+- [연봉 협상 가이드 6편](https://joeltool.com/guides.html): 기본급과 성과급의 차이, 협상 스크립트, 처우협의 절차.
+
+## 집·공간
+
+- [방 가구 배치 시뮬레이터](https://joeltool.com/room-planner/): 평수와 방 모양을 고르고 가구를 끌어다 놓으면 통로 폭·겹침을 실시간으로 진단합니다.
+- [침대 사이즈 총정리](https://joeltool.com/room-planner/guide/bed-size-guide.html): 싱글 100×200, 슈퍼싱글 110×200, 더블 135×200, 퀸 150×200, 킹 160×200cm. 프레임 외경과 침구 사이즈, 국내 킹과 미국 King의 차이까지.
+
+## 취미·생활
+
+- [낚시 물때 가이드](https://joeltool.com/fishing-tide/): 지역·기법·어종 3문항으로 실제 갯바위 포인트 1,076곳 중 오늘 갈 곳을 추천하고 만조·간조 시각을 보여줍니다. **음력 물때표**(음력 8일·23일 조금, 15일·30일 사리) 포함.
+- [마인크래프트 시드 추천기](https://joeltool.com/minecraft-seeds/): 질문 2단계로 실제 검증된 시드 204개 중에서 골라줍니다.
+- [여행지 활쏘기](https://joeltool.com/map-archery/): 회전하는 지도에 활을 쏴서 시군구 250곳 중 여행지를 뽑습니다.
+- [위키 토끼굴](https://joeltool.com/wiki-rabbithole/): 주제 하나로 한국어 위키 150편을 미리 받아 오프라인에서 읽습니다.
+- [커플 재판](https://joeltool.com/couple-referee/): 두 사람의 진술을 성향이 다른 재판관 5명이 각각 판정합니다.
+
+## 참고
+
+- [가이드 전체 목록](https://joeltool.com/guides.html)
+- [소개](https://joeltool.com/about.html) · [개인정보처리방침](https://joeltool.com/privacy.html) · [면책조항](https://joeltool.com/disclaimer.html)
+- 문의: contact@joeltool.com

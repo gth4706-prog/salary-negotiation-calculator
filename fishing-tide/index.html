@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Do+Hyeon&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<link rel="stylesheet" href="../css/style.css?v=0.18">
+<link rel="stylesheet" href="../css/style.css?v=0.19">
 <link rel="stylesheet" href="../css/fishingTide.css?v=0.14">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"낚시 물때 가이드","applicationCategory":"UtilityApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"초보 낚시꾼을 위해 지역과 목표 어종만 고르면 실제 낚시 포인트, 오늘 물때·만조 간조 시각, 알맞은 낚시 방법까지 알려주는 무료 도구."}
@@ -41,7 +41,7 @@
     <a href="../about.html">소개</a>
     <a class="lang-switch" href="en/" title="Switch to English" hreflang="en">🇺🇸 EN</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.18</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.19</span>
   </div>
 </div></nav>
 
@@ -129,6 +129,11 @@
       <tr><th scope="row">음력 15일 · 30일</th><td><strong>사리</strong></td><td>물살이 가장 셉니다</td></tr>
       </tbody>
     </table>
+    <figure style="margin:20px 0">
+      <img src="img/tide-cycle.png" width="1200" height="990" loading="lazy" decoding="async"
+           alt="물때 15일 주기 순환도. 음력 1·16일 8물부터 시작해 8·23일 조금, 15·30일 사리로 이어지는 15일 주기를 원형으로 표시했다." style="width:100%;height:auto;border:1px solid var(--line);border-radius:8px">
+      <figcaption style="font-size:13px;color:var(--muted);margin-top:8px;text-align:center">음력 날짜로 보는 물때 15일 주기 — 8·23일이 조금, 15·30일이 사리</figcaption>
+    </figure>
     <h3>조금과 사리가 뭔가요</h3>
     <p><strong>조금</strong>은 밀물과 썰물의 높이 차가 가장 작아 물살이 느린 날입니다.
        <strong>사리</strong>는 그 반대로 조수 간만의 차가 가장 커서 물살이 가장 셉니다.
@@ -140,6 +145,11 @@
       <li><strong>중간 물때(3~5물, 10~12물)</strong> — 물이 적당히 흐르고 조작도 어렵지 않아 무난합니다.</li>
       <li><strong>사리 전후</strong> — 물살이 세서 채비가 흘러가 다루기 어렵지만, 먹이가 많이 돌아 큰 고기가 붙는 날로 봅니다.</li>
     </ul>
+    <figure style="margin:20px 0">
+      <img src="img/tide-neap-vs-spring.png" width="1200" height="780" loading="lazy" decoding="async"
+           alt="조금과 사리의 조수 간만 차이를 비교한 단면도. 조금은 만조와 간조의 높이 차가 작고, 사리는 차이가 커서 갯바위가 드러나는 정도가 달라진다." style="width:100%;height:auto;border:1px solid var(--line);border-radius:8px">
+      <figcaption style="font-size:13px;color:var(--muted);margin-top:8px;text-align:center">조금과 사리 — 같은 자리라도 갯바위가 드러나는 정도가 달라집니다</figcaption>
+    </figure>
     <h3>바다마다 물때 영향이 다릅니다</h3>
     <p><strong>서해</strong>는 조수 간만의 차가 커서(인천 기준 최대 9m 안팎) 물때를 가장 크게 탑니다.
        갯벌이 드러나는 정도가 달라 들어갈 수 있는 자리 자체가 바뀝니다.

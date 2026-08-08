@@ -279,7 +279,12 @@ GAME.DefendScene.prototype.create = function () {
   //  ⚠ 보스는 영웅이 아니라 유닛이라 `skills`/`skillCd` 가 없다 — AIHero 를 붙이면
   //    없는 것을 만지다 죽는다. 보스는 `Combat.update` 의 일반 유닛 AI(chase/aggro)가
   //    몰고 오고, 자기 `ability`/`abilities` 도 그쪽에서 그대로 돈다.
-  this.ai = this.bossKey ? null : new GAME.AIHero(this.state, this.hero, this.aiSkill);
+  //  ⚠ 학습된 전술을 넘긴다. 안 넘기면 `Learn` 이 배운 것이 **저장만 되고 한 번도
+  //    쓰이지 않는다** — 이 저장소가 가장 자주 겪은 종류의 고장이다(기록은 되는데
+  //    읽는 곳이 없다).
+  this.ai = this.bossKey ? null
+    : new GAME.AIHero(this.state, this.hero, this.aiSkill,
+                      (GAME.Learn && GAME.Learn.getCtrl) ? GAME.Learn.getCtrl().adapt : null);
 
   // 전략가는 조작하지 않지만, 특정 유닛을 눌러 추적할 수는 있어야 한다.
   // 누르면 그 유닛 머리 위에 **흰 채움 + 잉크 테두리** 마커가 뜨고 발밑에 이중 링이 생긴다.
@@ -497,7 +502,13 @@ GAME.DefendScene.prototype.update = function (time, delta) {
         GAME.DefendTower.noteFloorFail(this.defendTower);
       }
     } else {
-      var rec = GAME.Learn.recordCtrl(aiWon, { timedOut: this.state.winner === 'draw' });
+      //  ⚠ 관측을 안 넘기면 가설이 **영원히 안 세워진다**(후보 함수가 볼 게 없다).
+      var _t = this.state.telemetry || {};
+      var rec = GAME.Learn.recordCtrl(aiWon, {
+        timedOut: this.state.winner === 'draw',
+        heroDmgFromRanged: _t.heroDmgFromRanged || 0,
+        heroDmgToRanged: _t.heroDmgToRanged || 0
+      });
       this.aiSkill = rec.skill;
       learnNotes = rec.lastNotes || [];
     }

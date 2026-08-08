@@ -41,6 +41,10 @@ GAME.Combat = {
         medicHealed: 0, guardBlocked: 0, rangedDiedInMelee: 0, heroXSamples: [],
         // 진형이 영웅에게 닿지도 못했는가 (제자리에서 왕복하는 문제를 감지하는 신호)
         strategistUnits: 0, engagedUnits: 0, heroDamageTaken: 0,
+        //  ── 학습 관측 (2026-08-08) ────────────────────────────────────────
+        //  "원거리에게 맞기만 하고 한 대도 못 때렸다"를 다음 판에 쓰려면 **두 값을
+        //  따로 재야** 한다. 지금까지는 맞은 총량만 있어 무엇에게 맞았는지 몰랐다.
+        heroDmgFromRanged: 0, heroDmgToRanged: 0,
         // 플레이어 성향 관측 (GAME.Profile 이 읽는다)
         heroDistSamples: [], projectilesAtHero: 0, projectilesHitHero: 0
       }
@@ -720,6 +724,13 @@ GAME.Combat = {
         var relief = (eff / Math.max(1, unit.maxHp * 0.02)) * 1000;
         state.noHitFor = Math.max(0, state.noHitFor - relief);
         state.telemetry.heroDamageTaken += eff;
+        //  ── 학습 관측 (2026-08-08) ────────────────────────────────────────
+        //  "원거리에게 맞기만 하고 한 대도 못 때렸다"를 다음 판에 쓰려면 **그 두 값을
+        //  따로 재야** 한다. 지금까지는 맞은 총량만 있어서 무엇에게 맞았는지 몰랐다.
+        if ((source.def.range || 0) > 150) state.telemetry.heroDmgFromRanged += eff;
+      } else if (source && source.isHero && unit.side === 'strategist' &&
+                 (unit.def.range || 0) > 150 && state && state.telemetry) {
+        state.telemetry.heroDmgToRanged += eff;
         // 내가 맞고 있다는 걸 소리로도 알린다(화면만 보면 놓친다)
         if (GAME.Sound) GAME.Sound.play('heroHurt');
       } else if (GAME.Sound && GAME.Sound.playFor && !unit.isHero && eff > 0) {

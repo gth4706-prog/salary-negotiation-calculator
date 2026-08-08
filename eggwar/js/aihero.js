@@ -5,10 +5,15 @@ window.GAME = window.GAME || {};
 //
 // 낮은 숙련도에서는 사람 초보처럼 굴게 만든다 — 반응이 늦고, 회피를 흘리고,
 // 스킬을 아무 때나 쓴다. 그래야 '점점 어려워진다'가 체감된다.
-GAME.AIHero = function (state, hero, skill) {
+GAME.AIHero = function (state, hero, skill, adapt) {
   this.state = state;
   this.hero = hero;
   this.skill = Math.max(0, Math.min(1, skill || 0));
+  //  ── 학습된 전술 (2026-08-08) ────────────────────────────────────────────
+  //  ⚠ `skill` 과 다른 축이다. skill 은 **얼마나 잘하나**(반응 속도·조준),
+  //    adapt 는 **무엇을 노리나**(전술). 섞으면 "어려워지기만 하고 안 배운다".
+  //  ⚠ 안 주면 예전과 **완전히 같게** 군다(0). 학습이 꺼진 경로가 있어도 안전하다.
+  this.adapt = adapt || { focusRanged: 0 };
   this.reactT = 0;
   this.retargetT = 0;
   this.target = null;
@@ -44,6 +49,14 @@ GAME.AIHero.prototype.update = function (dtMs) {
       var e = enemies[i];
       var d = C.dist(h, e);
       var score = sk > 0.5 ? (e.hp * 0.6 + d) : d;   // 숙련도 높으면 약한 적 우선
+      //  배운 것: 원거리부터 지운다. 거리 점수에서 깎아 **더 멀어도 먼저 고른다**.
+      //  ⚠ 620 은 아레나 폭의 3/4 쯤이다. 처음에 260 으로 뒀더니 **표적이 안 바뀌었다** —
+      //    코앞(30px)과 반대편(240px) 차이도 못 넘겨서 배운 티가 안 났다.
+      //  ⚠ 값을 무한대로 두지 않고 거리 기준으로 깎는 이유: 완전히 무시하면 코앞의
+      //    전사를 놔두고 반대편 궁수만 쫓다가 아무것도 못 잡는다.
+      if (this.adapt.focusRanged > 0 && (e.def.range || 0) > 150) {
+        score -= 620 * this.adapt.focusRanged;
+      }
       if (score < bestScore) { bestScore = score; best = e; }
     }
     this.target = best;

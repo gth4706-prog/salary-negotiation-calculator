@@ -42,9 +42,37 @@ GAME.Learn = {
     return {
       battles: 0, wins: 0,
       skill: 0,               // 0~1  AI 컨트롤러의 숙련도 (지면 오른다)
+      //  ── 학습 (2026-08-08) ─────────────────────────────────────────────
+      //  ⚠ 지금까지 이쪽은 **난이도 다이얼**이었다: 지면 skill 이 0.12 오를 뿐,
+      //    "무엇을 잘못했는지"는 아무 데도 안 남았다. 진형 쪽(record)에는 이미
+      //    가설→시험→채택 고리가 있으니 **같은 고리를 그대로** 이쪽에도 쓴다.
+      //  ⚠ skill 과 adapt 는 다른 것이다. skill 은 '얼마나 잘하나'(반응·정확도),
+      //    adapt 는 '무엇을 노리나'(전술). 섞으면 어려워지기만 하고 안 배운다.
+      adapt: {
+        focusRanged: 0        // 원거리부터 지운다 (0 = 예전 그대로)
+      },
+      trial: null,
+      rejected: {},
       obs: { deathsToMelee: 0, deathsToRanged: 0, timeouts: 0 },
       lastNotes: []
     };
+  },
+
+  //  컨트롤러가 세울 수 있는 가설. **관측이 가리킬 때만** 낸다.
+  //  ⚠ 아무 때나 내면 시험이 계속 돌아가서 무엇이 효과가 있었는지 알 수 없다.
+  _ctrlCandidate: function (rec, t) {
+    var c = [];
+    //  사용자가 든 예: "원거리를 한 대도 못 때리고 많이 맞았다면 → 다음 판은
+    //  파고들어 원거리부터". 기준을 1.5배로 둔 이유는, 원거리에게 좀 맞는 건
+    //  정상이고 **일방적으로 맞을 때만** 전술을 바꿔야 하기 때문이다.
+    var from = t.heroDmgFromRanged || 0, to = t.heroDmgToRanged || 0;
+    if (from > 0 && from > to * 1.5) {
+      c.push({ key: 'focusRanged',
+               why: '원거리에게 일방적으로 맞음 → 원거리부터 파고들게' });
+    }
+    return c.filter(function (x) {
+      return !rec.rejected[x.key] && rec.adapt[x.key] < 1 - 0.001;
+    });
   },
 
   _all: function () { return GAME.Store.get(this.KEY, {}); },
@@ -265,6 +293,12 @@ GAME.Learn = {
     if (!rec) return this.DEFAULT_CTRL();
     if (rec.skill === undefined) rec.skill = 0;
     if (!rec.obs) rec.obs = this.DEFAULT_CTRL().obs;
+    //  ⚠ 예전 저장본에는 adapt 가 없다. 없는 채로 넘기면 AI 가 `adapt.focusRanged`
+    //    에서 죽는다 — 저장 스키마를 늘릴 때 이 채우기를 빼먹으면 조용히 터진다.
+    if (!rec.adapt) rec.adapt = this.DEFAULT_CTRL().adapt;
+    if (rec.adapt.focusRanged === undefined) rec.adapt.focusRanged = 0;
+    if (!rec.rejected) rec.rejected = {};
+    if (rec.trial === undefined) rec.trial = null;
     return rec;
   },
 
@@ -294,6 +328,43 @@ GAME.Learn = {
       }
     } else {
       notes.push('AI 컨트롤러가 돌파했습니다 (숙련도 ' + Math.round(rec.skill * 100) + '%)');
+    }
+
+    //  ── 가설 시험 판정 (진형 쪽 `record` 와 같은 고리) ──────────────────
+    //  ⚠ **개선을 입증해야 채택한다.** '나빠지지 않으면 유지'로 하면 승률 0 에서
+    //    계속 져도 통과되어 나쁜 변경이 쌓인다(진형 쪽에서 이미 배운 것).
+    //  ⚠ 여기서 '이긴다'는 **AI 가 뚫는다**는 뜻이다 — 사람 입장에선 진 것이다.
+    //    그래서 이 학습이 잘 돌수록 사람은 더 자주 지고, 그때마다 다시 배치를
+    //    바꾸게 된다. 그게 이 모드가 지루해지지 않는 유일한 축이다.
+    if (rec.trial) {
+      var since = rec.battles - rec.trial.atBattle;
+      if (since >= this.TRIAL_BATTLES) {
+        var rateSince = (rec.wins - rec.trial.atWins) / since;
+        if (rateSince > rec.trial.baseRate + 0.001) {
+          notes.push('"' + rec.trial.label + '" 가 통해서 계속 씁니다');
+        } else {
+          rec.adapt[rec.trial.key] = rec.trial.prev;
+          rec.rejected[rec.trial.key] = true;
+          notes.push('"' + rec.trial.label + '" 는 효과가 없어 되돌렸습니다');
+        }
+        rec.trial = null;
+      }
+    }
+
+    //  진 판에서만 새 가설을 세운다 — 이기고 있는데 굳이 바꿀 이유가 없다.
+    if (!rec.trial && !won) {
+      var cands = this._ctrlCandidate(rec, t);
+      if (cands.length) {
+        var pick = cands[0];
+        var prev = rec.adapt[pick.key];
+        rec.adapt[pick.key] = this.clamp(prev + this.STEP, 0, 1);
+        rec.trial = {
+          key: pick.key, prev: prev, label: pick.why,
+          baseRate: rec.battles ? rec.wins / rec.battles : 0,
+          atBattle: rec.battles, atWins: rec.wins
+        };
+        notes.push('시험 시작 — ' + pick.why);
+      }
     }
 
     rec.lastNotes = notes;

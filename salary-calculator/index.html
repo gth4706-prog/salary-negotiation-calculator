@@ -20,12 +20,13 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%AD%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
 <link rel="stylesheet" href="../css/style.css?v=0.17">
-<link rel="stylesheet" href="../css/salaryCalc.css?v=0.14">
+<link rel="stylesheet" href="../css/salaryCalc.css?v=0.15">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"이직 연봉 협상 계산기(처우협의 계산)","applicationCategory":"FinanceApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"희망연봉, 평균연봉, 직군별 평균 연봉, 실수령액을 계산하고 제안받은 연봉의 포지션을 확인하는 무료 도구."}
 </script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"나이별 평균연봉과 중위연봉은 얼마인가요?","acceptedAnswer":{"@type":"Answer","text":"평균연봉은 45~49세에 5,460만원으로 정점을 찍고, 중위연봉은 40~44세에 4,524만원으로 더 이른 시기에 정점을 찍습니다. 평균이 소수 고소득자에게 끌려 올라가기 때문입니다. 55~59세 중위연봉은 3,300만원으로 25~29세와 같습니다. 통계청 2023년 임금근로일자리 소득 기준, 월 세전 소득을 연 환산한 값입니다."}},
 {"@type":"Question","name":"연봉 5000만원 실수령액은 얼마인가요?","acceptedAnswer":{"@type":"Answer","text":"부양가족 1인·비과세 식대 20만원 기준으로 월 약 3,477,610원입니다. 세전 월급 4,166,667원에서 4대보험 약 385,456원과 근로소득세 약 303,600원이 빠진 금액입니다."}},
 {"@type":"Question","name":"실수령액은 어떻게 계산하나요?","acceptedAnswer":{"@type":"Answer","text":"세전 월급에서 국민연금 4.75퍼센트, 건강보험 3.595퍼센트, 장기요양보험(건강보험료의 13.14퍼센트), 고용보험 0.9퍼센트와 근로소득세를 뺀 금액입니다. 비과세 식대는 보험료·세금 계산에서 제외됩니다."}},
 {"@type":"Question","name":"제안받은 연봉이 좋은 건지 어떻게 알아요?","acceptedAnswer":{"@type":"Answer","text":"직군·연차가 같은 사람들의 평균 연봉과 비교해 상위 몇 %인지가 1차 기준입니다. 연봉 구성(기본급 vs 성과급)도 함께 봐야 하며, 총액이 같아도 기본급이 큰 오퍼가 실질적으로 더 유리합니다."}},
@@ -49,7 +50,7 @@
     <a href="../about.html">소개</a>
     <a class="lang-switch" href="en/" title="Switch to English" hreflang="en">🇺🇸 EN</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.14</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.15</span>
   </div>
 </div></nav>
 
@@ -208,6 +209,50 @@
     </div>
   </section>
 
+
+  <!-- 나이별 평균 vs 중위 (2026-08-08 신설)
+       인스타 250만 조회 레퍼런스의 구성을 그대로 가져왔다:
+       "나"에 관한 질문형 제목 / 결론 먼저 / 표+막대 그림 / 출처·주의 명시.
+       우리 우위는 **두 정점이 다르다**는 것 — 레퍼런스엔 없는 통찰이다.
+       ⚠️ 표 숫자와 그림 숫자는 같은 데이터에서 생성한다(tools/reels 의 ageimg.py). -->
+  <section class="card article" id="age-salary">
+    <h2>내 연봉, 또래보다 높은 걸까 — 나이별 평균 vs 중위</h2>
+    <p><strong>평균연봉은 45~49세에 정점(5,460만원)</strong>을 찍고,
+       <strong>중위연봉은 그보다 이른 40~44세에 정점(4,524만원)</strong>을 찍습니다.
+       두 정점이 다른 이유는 <strong>평균이 소수 고소득자에게 끌려 올라가기</strong> 때문입니다.
+       내 위치를 볼 때는 평균보다 <strong>중위값</strong>이 체감에 가깝습니다.</p>
+    <figure style="margin:20px 0">
+      <img src="img/age-avg-vs-median.png" width="1200" height="1180" loading="lazy" decoding="async"
+           alt="나이별 평균연봉과 중위연봉 비교표. 20~24세 평균 2,352만원 중위 2,484만원부터 65세 이상 평균 2,436만원 중위 1,776만원까지, 평균은 45~49세 5,460만원, 중위는 40~44세 4,524만원에서 정점을 찍는다."
+           style="width:100%;height:auto;border:1px solid var(--line);border-radius:8px">
+      <figcaption style="font-size:13px;color:var(--muted);margin-top:8px;text-align:center">평균 정점(45~49세)과 중위 정점(40~44세)이 다릅니다</figcaption>
+    </figure>
+    <table>
+      <thead><tr><th scope="col">연령대</th><th scope="col">평균연봉</th><th scope="col">중위연봉</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">20~24세</th><td>2,352만원</td><td><strong>2,484만원</strong></td></tr>
+        <tr><th scope="row">25~29세</th><td>3,528만원</td><td><strong>3,300만원</strong></td></tr>
+        <tr><th scope="row">30~34세</th><td>4,296만원</td><td><strong>3,876만원</strong></td></tr>
+        <tr><th scope="row">35~39세</th><td>5,016만원</td><td><strong>4,344만원</strong></td></tr>
+        <tr style="background:#fffae8"><th scope="row">40~44세 <span style="background:#f0b028;color:#463004;font-size:12px;padding:2px 7px;border-radius:5px;white-space:nowrap">중위 최고</span></th><td>5,376만원</td><td><strong>4,524만원</strong></td></tr>
+        <tr style="background:#fffae8"><th scope="row">45~49세 <span style="background:#f0b028;color:#463004;font-size:12px;padding:2px 7px;border-radius:5px;white-space:nowrap">평균 최고</span></th><td>5,460만원</td><td><strong>4,200만원</strong></td></tr>
+        <tr><th scope="row">50~54세</th><td>5,376만원</td><td><strong>3,720만원</strong></td></tr>
+        <tr><th scope="row">55~59세</th><td>4,896만원</td><td><strong>3,300만원</strong></td></tr>
+        <tr><th scope="row">60~64세</th><td>3,672만원</td><td><strong>2,640만원</strong></td></tr>
+        <tr><th scope="row">65세 이상</th><td>2,436만원</td><td><strong>1,776만원</strong></td></tr>
+      </tbody>
+    </table>
+    <h3>55~59세 중위연봉은 25~29세와 같습니다</h3>
+    <p>둘 다 <strong>3,300만원</strong>입니다. 30년을 일해도 중위값 기준으로는 같은 자리로 돌아옵니다.
+       평균만 보면 55~59세가 4,896만원으로 25~29세(3,528만원)보다 훨씬 높아 보이지만,
+       그 차이의 상당 부분은 <strong>상위 소수가 만든 것</strong>입니다.</p>
+    <div class="callout">
+      <strong>자료</strong> — 통계청 «2023년 임금근로일자리 소득(보수) 결과», 월 세전 소득 × 12로 환산했습니다.
+      ※ 같은 나이여도 <strong>업종·기업규모·근속연수·고용형태</strong>에 따라 차이가 매우 큽니다.
+      내 조건에 맞는 위치는 <a href="#step1">위 계산기</a>에서 직군·연차를 넣어 확인하세요.
+    </div>
+  </section>
+
   <!-- FAQ (검색 유입용) -->
   <section class="card">
     <h2>자주 묻는 질문</h2>
@@ -271,7 +316,7 @@
 </div></footer>
 
 <script src="../js/site.js?v=0.07"></script>
-<script src="../js/app.js?v=0.14"></script>
+<script src="../js/app.js?v=0.15"></script>
 <!-- Cloudflare Web Analytics — 쿠키를 쓰지 않고 개인을 식별하지 않는다.
      이 토큰은 공개 페이지에 심으라고 만들어진 클라이언트 식별자다(비밀값 아님).
      ⚠️ 자동 설치(auto_install)가 켜져 있었지만 실제로는 비콘이 주입되지 않아

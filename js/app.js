@@ -3,7 +3,11 @@
    흐름: STEP1(직군+지금연봉[기본급/성과급]+희망연봉, 실시간 실수령) → STEP2(연차)
         → STEP2r(지금·희망 연봉 포지션: 상위%·현실성) → STEP3(제안연봉[기본급/성과급], 실시간 실수령)
         → STEP4(지금 vs 제안 위치 + 기본급 우선 매력도 판정 + 희망연봉 과다 시 커리어 조언)
-   ⚠️ 실수령액은 2026 요율 근사(1인·비과세식대20만). 정식은 국세청 간이세액표로 대체 예정.
+   ⚠️ 실수령액 = 2026년 확정 요율(국민연금 4.75% / 건강보험 3.595% /
+      장기요양 건보료의 13.14% / 고용보험 0.9%) + 국세청 간이세액표 근사.
+      1인·비과세식대 20만원 기준.
+      ⚠️ 요율은 매년 바뀐다. 여기와 salary-calculator/index.html 의 정적 표,
+         llms.txt 세 곳이 **같은 값**이어야 한다.
    ⚠️ 평균/포지션은 예시 데이터. 정식은 고용노동부 공공데이터로 대체 예정.
    ⚠️ 업계 평균 인상률(5%)·후보자 기대 인상률(10%)·기본급 기준선(2%/7%)은 통용 참고치. 실통계 확보 시 교체.
    KO/EN 공유: window.SALARY_LANG="en" 이면 동적 문구를 전부 영어 테이블(T.en)에서 고른다.
@@ -135,7 +139,7 @@
   }
   function wonRaw(w){return (LANG==="en"?"₩":"")+Math.round(w).toLocaleString()+(LANG==="en"?"":"원");}
   function estTax(man){var P=[[0,0],[2000,12000],[3000,63700],[5000,303600],[7000,600000],[10000,1227800],[15000,2600000]];if(man<=0)return 0;if(man>=15000){var l=P[6],p=P[5];return l[1]+(l[1]-p[1])/(l[0]-p[0])*(man-l[0]);}for(var i=0;i<6;i++){var a=P[i],b=P[i+1];if(man>=a[0]&&man<=b[0])return a[1]+(b[1]-a[1])*(man-a[0])/(b[0]-a[0]);}return 0;}
-  function takeHome(cashMan){var G=cashMan*10000/12,taxable=Math.max(0,G-200000);var np=Math.min(taxable,6370000)*0.045,hi=taxable*0.03545,ltc=hi*0.1295,ei=taxable*0.009,it=estTax(cashMan);return G-(np+hi+ltc+ei+it);}
+  function takeHome(cashMan){var G=cashMan*10000/12,taxable=Math.max(0,G-200000);var np=Math.min(taxable,6370000)*0.0475,hi=taxable*0.03595,ltc=hi*0.1314,ei=taxable*0.009,it=estTax(cashMan);return G-(np+hi+ltc+ei+it);}
   function val(id){return +$(id).value||0;}
   /* 부호를 항상 붙인 퍼센트 문자열. 옆에 오는 서술어(인상/삭감, 오릅니다/내려갑니다)도
      반드시 부호에 맞춰야 한다 — 연봉이 줄어드는 이직 제안이 드물지 않다. */

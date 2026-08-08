@@ -18,6 +18,7 @@ window.GAME = window.GAME || {};
 GAME.UNITS = {
   bayonet: {
     key: 'bayonet', name: '전사', art: 'warrior',
+    voice: 'blade', voicePitch: 1.00,
 lore: '부족의 앞줄에 서기로 한 알. 뒤에 선 동료가 활을 당길 시간을 대신 벌어 준다.',
     desc: '청동 단검과 나무 방패. 싸고 튼튼한 벽.',
     // 2026-07-31 · **공격력 버프** (사용자 지시 5번). damage 28→38 (dps 35.0→47.5).
@@ -42,6 +43,7 @@ lore: '부족의 앞줄에 서기로 한 알. 뒤에 선 동료가 활을 당길
 
   rifleman: {
     key: 'rifleman', name: '궁수', art: 'archer',
+    voice: 'bone', voicePitch: 1.05,
 lore: '숲에서 새알을 노리던 사냥꾼. 화살은 곧게 날아가니 길목을 미리 잡아야 맞는다.',
     desc: '단궁. 논타겟 직선 사격이라 보고 피할 수 있다.',
     cost: 20, pop: 2, hp: 187, armor: 10, speed: 115, range: 330, damage: 51, cooldown: 1300,
@@ -63,6 +65,7 @@ lore: '숲에서 새알을 노리던 사냥꾼. 화살은 곧게 날아가니 �
 
   grenadier: {
     key: 'grenadier', name: '투석꾼', art: 'slinger',
+    voice: 'stone', voicePitch: 1.10,
 lore: '강가의 둥근 돌만 골라 담는 무릿매꾼. 겨눈 자리에 그림자가 지고, 못 피한 것만 부순다.',
     desc: '무릿매로 돌을 날린다. 예고 후 터지는 광역 — 구역을 봉쇄한다.',
     cost: 20, pop: 2, hp: 96, armor: 5, speed: 95, range: 300, damage: 51, cooldown: 2500,
@@ -81,6 +84,7 @@ lore: '강가의 둥근 돌만 골라 담는 무릿매꾼. 겨눈 자리에 그�
 
   sniper: {
     key: 'sniper', name: '투창병', art: 'spearman',
+    voice: 'bone', voicePitch: 0.92,
 lore: '한 번 던지면 반드시 박히는 미늘 작살. 대신 다시 던질 때까지 오래 숨을 고른다.',
     desc: '미늘 작살. 던지면 반드시 맞는다. 비싼 대신 회피 불가.',
     cost: 40, pop: 4, hp: 100, armor: 5, speed: 90, range: 420, damage: 75, cooldown: 3000,
@@ -99,6 +103,7 @@ lore: '한 번 던지면 반드시 박히는 미늘 작살. 대신 다시 던질
   // ── 지원 계열 ──────────────────────────────────────────────
   medic: {
     key: 'medic', name: '약초꾼', art: 'herbalist',
+    voice: 'leather', voicePitch: 1.06,
 lore: '약초를 씹어 상처에 붙이는 손. 스스로는 안 싸우지만 주변의 알들이 잘 안 깨진다.',
     desc: '약초로 주변 아군을 회복시킨다. 같은 연기가 적에게는 상처가 되어 회복을 막는다.',
     cost: 30, pop: 3, hp: 130, armor: 10, speed: 105, range: 0, damage: 0, cooldown: 1000,
@@ -124,6 +129,7 @@ lore: '약초를 씹어 상처에 붙이는 손. 스스로는 안 싸우지만 �
 
   shieldman: {
     key: 'shieldman', name: '방패병', art: 'shieldman',
+    voice: 'wood', voicePitch: 0.86,
 lore: '통나무를 깎아 만든 대방패. 날아오는 것을 대신 받아 뒷줄의 약한 알들을 살린다.',
     desc: '나무 대방패로 아군에게 갈 투사체를 대신 맞는다. 공격력은 낮다.',
     cost: 30, pop: 3, hp: 504, armor: 45, speed: 100, range: 50, damage: 13, cooldown: 1100,
@@ -143,6 +149,7 @@ lore: '통나무를 깎아 만든 대방패. 날아오는 것을 대신 받아 �
 
   sergeant: {
     key: 'sergeant', name: '족장', art: 'chieftain',
+    voice: 'bronze', voicePitch: 1.00,
 lore: '소뿔 투구를 쓰고 앞장서는 우두머리. 그가 보고 있는 동안 부족이 더 세게 친다.',
     desc: '소뿔 투구를 쓴 우두머리. 주변 아군의 공격력을 올린다. 진형의 심장.',
     cost: 30, pop: 3, hp: 146, armor: 20, speed: 110, range: 240, damage: 18, cooldown: 1500,
@@ -162,6 +169,7 @@ lore: '소뿔 투구를 쓰고 앞장서는 우두머리. 그가 보고 있는 �
   // 사거리가 길다고 강해지는 게 아니라 '숨을 곳이 없어지는' 쪽으로 작동한다.
   mgnest: {
     key: 'mgnest', name: '쇠뇌 진지', art: 'ballista',
+    voice: 'iron', voicePitch: 0.90,
 lore: '통나무로 짜 세운 거치 쇠뇌. 한 발도 못 움직이는 대신 골짜기 끝까지 닿는다.',
     desc: '거치식 연발 쇠뇌. 절대 움직이지 않지만 맵 어디든 닿는다.',
     cost: 50, pop: 5, hp: 333, armor: 25, speed: 0, range: 0, rangeSpan: true, damage: 31, cooldown: 420,
@@ -180,6 +188,7 @@ lore: '통나무로 짜 세운 거치 쇠뇌. 한 발도 못 움직이는 대신
 
   chemtrooper: {
     key: 'chemtrooper', name: '늪지기', art: 'bogman',
+    voice: 'goo', voicePitch: 1.00,
 lore: '끈끈한 늪 수액을 단지에 담아 던진다. 맞은 자는 발이 붙어 달아나지 못한다.',
     desc: '끈끈한 수액 단지를 던진다. 맞으면 영웅이 느려진다.',
     // ── 2026-07-31 · **역할 재정의: 뺑뺑이 잡는 유닛** (기여도 실측 근거) ──────
@@ -207,6 +216,7 @@ lore: '끈끈한 늪 수액을 단지에 담아 던진다. 맞은 자는 발이 
 
   mine: {
     key: 'mine', name: '가시덫', art: 'snaretrap',
+    voice: 'wood', voicePitch: 1.22,
 lore: '마른 풀로 덮어둔 뼈 가시 함정. 밟기 전까지는 거기 있는 줄 아무도 모른다.',
     desc: '보이지 않는다. 밟으면 잠깐 뒤 크게 터진다 — 걸어서는 못 벗어난다.',
     cost: 30, pop: 3, hp: 34, armor: 0, speed: 0, range: 0, damage: 0, cooldown: 999999,
@@ -619,6 +629,7 @@ GAME.UNITS.reflector = {
   key: 'reflector', name: '되받이', art: 'reflector',
   lore: '깨진 껍질을 등에 덧대 웅크리는 법을 배운 알. 때린 쪽이 더 아프다.',
   desc: '가끔 웅크린다. 그동안 받는 피해가 줄고, 때린 적이 대신 아프다.',
+  voice: 'stone', voicePitch: 0.94,
   cost: 40, pop: 4, hp: 300, armor: 40, speed: 105, range: 52, damage: 26, cooldown: 1000,
   attack: 'melee', coneDeg: 80, radius: 14, shape: 'shield', weapon: 'shellGuard',
   chase: 200, aggro: 230,
@@ -636,6 +647,7 @@ GAME.UNITS.palisade = {
   key: 'palisade', name: '울짱꾼', art: 'palisade',
   lore: '뾰족하게 깎은 말뚝을 땅에 박는다. 박고 나면 그도 거기서 움직이지 않는다.',
   desc: '움직이지 않는 가시 울짱. 곁에 서 있는 적을 계속 갉는다. 공격은 하지 않는다.',
+  voice: 'wood', voicePitch: 0.94,
   cost: 30, pop: 3, hp: 260, armor: 30, speed: 0, range: 0, damage: 0, cooldown: 1000,
   attack: 'melee', radius: 13, shape: 'square', weapon: 'stakes',
   immobile: true, chase: 0, aggro: 0,
@@ -649,6 +661,7 @@ GAME.UNITS.shellwright = {
   key: 'shellwright', name: '껍질장이', art: 'shellwright',
   lore: '깨진 알껍질을 주워 모아 다듬는다. 남의 등에 덧대 주는 것이 그의 싸움이다.',
   desc: '주변 아군에게 껍질 보호막을 씌운다. 스스로는 싸우지 않는다.',
+  voice: 'shell', voicePitch: 1.00,
   cost: 40, pop: 4, hp: 150, armor: 20, speed: 100, range: 0, damage: 0, cooldown: 1000,
   attack: 'melee', radius: 12, shape: 'round', weapon: 'shellPlate',
   chase: 60, aggro: 0, spacing: 34,
@@ -666,6 +679,7 @@ GAME.UNITS.shellwright = {
 //    던지니 말벌집으로 간다"고 물건을 바꿨는데 이름만 단지(壇)로 남아 있었다 —
 //    손에 벌집을 들고 이름이 단지꾼이면 그림과 이름이 서로 다른 말을 한다.
 GAME.UNITS.hivethrower = { key: 'hivethrower', name: '벌집꾼', art: 'hivethrower',
+  voice: 'clay', voicePitch: 1.04,
   cost: 30, pop: 3, hp: 200, armor: 15, speed: 102, range: 50, damage: 20, cooldown: 1200,
   attack: 'melee', coneDeg: 70, radius: 13, shape: 'round', weapon: 'hive',
   chase: 200, aggro: 210,
@@ -674,6 +688,7 @@ GAME.UNITS.hivethrower = { key: 'hivethrower', name: '벌집꾼', art: 'hivethro
   deathBlast: { radius: 118, dmgMul: 3.2 } };
 
 GAME.UNITS.vinewhip = { key: 'vinewhip', name: '덩굴채', art: 'vinewhip',
+  voice: 'rope', voicePitch: 1.00,
   cost: 40, pop: 4, hp: 230, armor: 25, speed: 96, range: 58, damage: 22, cooldown: 1300,
   attack: 'melee', coneDeg: 75, radius: 13, shape: 'round', weapon: 'vinelash',
   chase: 220, aggro: 240, maxPerFormation: 2,
@@ -684,6 +699,7 @@ GAME.UNITS.vinewhip = { key: 'vinewhip', name: '덩굴채', art: 'vinewhip',
 
 //  ── 확장 3차 (2026-08-08) ─────────────────────────────────────────────────
 GAME.UNITS.ashthrower = { key: 'ashthrower', name: '잿가루꾼', art: 'ashthrower',
+  voice: 'dust', voicePitch: 1.00,
   cost: 40, pop: 4, hp: 190, armor: 20, speed: 100, range: 54, damage: 18, cooldown: 1400,
   attack: 'melee', coneDeg: 70, radius: 13, shape: 'round', weapon: 'ashpouch',
   chase: 190, aggro: 230, maxPerFormation: 2,
@@ -692,6 +708,7 @@ GAME.UNITS.ashthrower = { key: 'ashthrower', name: '잿가루꾼', art: 'ashthro
              radius: 150, cdMul: 1.35, ms: 6000 } };
 
 GAME.UNITS.stonepiler = { key: 'stonepiler', name: '돌쌓이', art: 'stonepiler',
+  voice: 'stone', voicePitch: 0.84,
   cost: 30, pop: 3, hp: 240, armor: 30, speed: 92, range: 52, damage: 24, cooldown: 1500,
   attack: 'melee', coneDeg: 70, radius: 14, shape: 'square', weapon: 'cairn',
   chase: 170, aggro: 200,
@@ -700,6 +717,7 @@ GAME.UNITS.stonepiler = { key: 'stonepiler', name: '돌쌓이', art: 'stonepiler
   stackOnAllyDeath: { hp: 22, armor: 4, max: 8 } };
 
 GAME.UNITS.knotter = { key: 'knotter', name: '매듭지기', art: 'knotter',
+  voice: 'rope', voicePitch: 0.88,
   cost: 40, pop: 4, hp: 210, armor: 25, speed: 98, range: 50, damage: 20, cooldown: 1400,
   attack: 'melee', coneDeg: 70, radius: 13, shape: 'round', weapon: 'knotrope',
   chase: 180, aggro: 210, maxPerFormation: 1,
@@ -709,6 +727,7 @@ GAME.UNITS.knotter = { key: 'knotter', name: '매듭지기', art: 'knotter',
   knotRadius: 120, knotShare: 0.5, knotMax: 3 };
 
 GAME.UNITS.emberthrower = { key: 'emberthrower', name: '불씨꾼', art: 'emberthrower',
+  voice: 'ember', voicePitch: 1.00,
   cost: 40, pop: 4, hp: 180, armor: 15, speed: 100, range: 150, damage: 16, cooldown: 1500,
   attack: 'ranged', projectileSpeed: 320, radius: 12, shape: 'round', weapon: 'firepot',
   chase: 150, aggro: 260, maxPerFormation: 2,
@@ -721,6 +740,7 @@ GAME.UNITS.hammer = {
   key: 'hammer', name: '망치잡이', art: 'hammer',
   lore: '단단한 것을 깨는 데만 쓰는 돌망치. 느리지만 껍질이든 갑옷이든 가리지 않는다.',
   desc: '느리게 치지만 한 방이 크고, 적의 방어를 절반 넘게 뚫는다.',
+  voice: 'stone', voicePitch: 0.74,
   cost: 40, pop: 4, hp: 210, armor: 25, speed: 108, range: 56, damage: 68, cooldown: 1600,
   attack: 'melee', coneDeg: 70, radius: 14, shape: 'square', weapon: 'stoneMaul',
   chase: 250, aggro: 220,

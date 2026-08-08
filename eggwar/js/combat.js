@@ -722,6 +722,11 @@ GAME.Combat = {
         state.telemetry.heroDamageTaken += eff;
         // 내가 맞고 있다는 걸 소리로도 알린다(화면만 보면 놓친다)
         if (GAME.Sound) GAME.Sound.play('heroHurt');
+      } else if (GAME.Sound && GAME.Sound.playFor && !unit.isHero && eff > 0) {
+        //  ⚠ 유닛 피격음은 **아플 때만** 낸다. 스치는 피해까지 소리를 내면
+        //    전장이 계속 지글거려 정작 중요한 소리(영웅 피격)를 덮는다.
+        //    기준은 최대체력 6% — 한두 대로는 안 울리고, 제대로 맞으면 울린다.
+        if (eff >= unit.maxHp * 0.06) GAME.Sound.playFor('hurt', unit.def);
         if (!source.everEngaged) {
           source.everEngaged = true;
           state.telemetry.engagedUnits++;
@@ -768,7 +773,13 @@ GAME.Combat = {
   // 죽음 연출 — 피 대신 노른자. 12세 이용가 톤으로 짧고 귀엽게, 얼룩은 금방 사라진다.
   spawnYolk: function (state, unit) {
     // 죽는 순간 소리 — 노른자가 터지는 '퐁'. Sound 가 없거나 막혀 있어도 조용히 넘어간다.
-    if (GAME.Sound) GAME.Sound.play('yolk');
+    if (GAME.Sound) {
+      GAME.Sound.play('yolk');
+      //  ⚠ '퐁'은 **지운 게 아니라 남겼다.** 저건 이 게임에서 "누가 죽었다"를 뜻하는
+      //    소리라, 종류별 꼬리로 갈아치우면 죽음 자체를 못 알아듣는다.
+      //    재료 소리는 그 뒤에 얹어 "무엇이 죽었는지"만 더한다.
+      if (GAME.Sound.playFor) GAME.Sound.playFor('die', unit.def);
+    }
     if (!state) return;
     var r = unit.def.radius;
     state.effects.push({
@@ -962,6 +973,16 @@ GAME.Combat = {
     if (GAME.Sound && u.isHero) {
       GAME.Sound.play(def.attack === 'melee' ? 'hit'
                       : (def.art === 'hunter' ? 'bow' : 'shoot'));
+    } else if (GAME.Sound && GAME.Sound.playFor && (def.damage || 0) > 0) {
+      //  ── 유닛 공격음 (2026-08-08) ────────────────────────────────────────
+      //  ⚠ 지금까지 **유닛은 아무 소리도 안 냈다**(위 조건이 `u.isHero` 다).
+      //    스무 기가 싸우는데 들리는 건 영웅 하나뿐이라 전장이 이상하게 조용했다.
+      //  ⚠ 재료별 게이트 + 작은 볼륨은 `sound.js` 가 맡는다. 여기서는 부르기만 한다 —
+      //    판정·피해에는 한 줄도 안 닿는다.
+      //  ⚠ **공격력 0 인 유닛은 소리를 내면 안 된다.** 울짱꾼·껍질장이·약초꾼은
+      //    때리는 유닛이 아닌데 공격 루틴은 그대로 돌아서, 안 막으면 아무도 안 맞는데
+      //    계속 휘두르는 소리가 난다(감사에서 잡혔다 — 화면만 보면 절대 모른다).
+      GAME.Sound.playFor('atk', def);
     }
 
     if (def.attack === 'melee') {
@@ -2504,6 +2525,13 @@ GAME.Combat = {
               kind: 'blast', x: u.x, y: u.y, r: br,
               t: 320, total: 320, side: u.side
             });
+            //  ⚠ 가시덫은 **피해로 죽지 않는다**(위에서 isHazard 로 막는다) — 그래서
+            //    다른 유닛과 달리 사망음 경로를 안 탄다. 이 유닛에게 '죽음'은 곧
+            //    **터지는 순간**이므로 여기서 소리를 낸다. 안 넣으면 밟혀도 조용하다.
+            if (GAME.Sound) {
+              GAME.Sound.play('boom');
+              if (GAME.Sound.playFor) GAME.Sound.playFor('die', u.def);
+            }
             u.alive = false;   // 1회용
             this.spawnYolk(state, u);
             if (state.onKill) state.onKill(u, state);

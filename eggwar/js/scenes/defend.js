@@ -183,6 +183,7 @@ GAME.DefendScene.prototype.create = function () {
     //    진형만 세지고 보스는 그대로라, v1.43 재조정 뒤 20층이 11초에 끝났다(실측).
     //    이제 **눈앞의 진형**을 세서 그 비율로 만든다 — 유닛 표를 앞으로 어떻게
     //    다시 잡아도 보스가 자동으로 따라온다.
+    var normalized = false;
     var fEhp = 0, fDps = 0;
     for (var fi = 0; fi < this.state.units.length; fi++) {
       var fu = this.state.units[fi];
@@ -209,9 +210,16 @@ GAME.DefendScene.prototype.create = function () {
       this.hero.maxHp = bd.hp; this.hero.hp = bd.hp;
       this.hero.isBoss = true;
       this.bossKey = bossKey;
-      return;
+      //  ⚠⚠ 여기 예전엔 `return;` 이 있었다 — **`create()` 를 통째로 끝내 버렸다.**
+      //     의도는 "아래 옛 정규화(rh 블록)를 건너뛴다"였는데, 그 아래에는 그것 말고도
+      //     `state.units.push(hero)` · HUD · **피해 숫자 풀(numPool)** 이 전부 있다.
+      //     결과: **보스 층(10·20·30·40)이 통째로 고장** — 적이 아예 안 나와 판이 즉시
+      //     끝나고, `drawNumbers` 가 매 프레임 예외를 던졌다. v1.44 부터 라이브였다.
+      //     실제 판을 굴리는 도구(tools/playtest-audit.js)를 만들고 나서야 잡혔다 —
+      //     헤드리스 전투 도구(defend-curve)는 씬을 안 띄우므로 영원히 못 본다.
+      normalized = true;
     }
-    var rh = GAME.HEROES[heroKey];
+    var rh = normalized ? null : GAME.HEROES[heroKey];
     if (rh) {
       //  ⚠ **층 강화를 기준값에도 태워야 한다.** 보스에는 `heroModsFor` 를 이미
       //    곱해 놓고 기준을 영웅의 *기본* 스탯으로 잡으면 그 배수가 그대로 상쇄되어

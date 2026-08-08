@@ -708,6 +708,15 @@ GAME.UNITS.knotter = { key: 'knotter', name: '매듭지기', art: 'knotter',
   //    답이 되어 근접 영웅의 선택지가 사라진다.
   knotRadius: 120, knotShare: 0.5, knotMax: 3 };
 
+GAME.UNITS.emberthrower = { key: 'emberthrower', name: '불씨꾼', art: 'emberthrower',
+  cost: 40, pop: 4, hp: 180, armor: 15, speed: 100, range: 150, damage: 16, cooldown: 1500,
+  attack: 'ranged', projectileSpeed: 320, radius: 12, shape: 'round', weapon: 'firepot',
+  chase: 150, aggro: 260, maxPerFormation: 2,
+  //  던진 자리에 불이 남는다 — 전장이 시간에 따라 좁아진다.
+  //  ⚠ 심은 쪽은 안 밟는다(아군까지 태우면 진형이 제 불에 녹는다).
+  ability: { type: 'ember', motif: 'ember', cooldown: 9000, telegraph: 650,
+             maxRange: 260, radius: 82, ms: 5000, dps: 26, maxZones: 3 } };
+
 GAME.UNITS.hammer = {
   key: 'hammer', name: '망치잡이', art: 'hammer',
   lore: '단단한 것을 깨는 데만 쓰는 돌망치. 느리지만 껍질이든 갑옷이든 가리지 않는다.',
@@ -722,7 +731,7 @@ GAME.UNIT_ORDER = [
   'bayonet', 'rifleman', 'grenadier', 'sniper',
   'shieldman', 'medic', 'sergeant', 'chemtrooper', 'mgnest', 'mine',
   //  ── 3단계 신규 (2026-08-08) ──
-  'reflector', 'palisade', 'shellwright', 'hammer', 'hivethrower', 'vinewhip', 'ashthrower', 'stonepiler', 'knotter'
+  'reflector', 'palisade', 'shellwright', 'hammer', 'hivethrower', 'vinewhip', 'ashthrower', 'stonepiler', 'knotter', 'emberthrower'
 ];
 
 // 이 유닛의 공격이 **자동명중(회피 불가)** 인가. 지금은 투창병 하나뿐이다.

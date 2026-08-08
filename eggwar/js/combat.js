@@ -12,6 +12,12 @@ GAME.Combat = {
       // 치유 구역(js/healzone.js) — 물약을 대신한다. `towerHealOn` 은 통곡의 탑
       // 전투에서만 battle.js 가 켠다(대전·수성의 탑은 이 기제가 안 돈다).
       healZones: [], healTaken: 0, towerHealOn: false,
+      //  잉걸불 구역(불씨꾼) — 땅에 남아 시간이 지나며 사라진다.
+      //  ⚠ 갱신은 **여기(Combat.update)** 에서 돈다. 치유 구역은 battle.js 가 갱신해서
+      //    헤드리스(sim·회귀·곡선 도구)에서는 아예 안 돈다 — 회복이면 몰라도
+      //    **피해 기제가 측정 도구에 안 보이면 밸런스 숫자가 통째로 거짓말**이 된다.
+      //    battle.js 는 그리기만 한다.
+      emberZones: [],
       numbers: [],          // 떠오르는 피해 숫자 (렌더 전용 데이터)
       elapsed: 0, over: false, winner: null,
       // 전략가가 영웅에게 마지막으로 피해를 준 뒤 흐른 시간 → 교착 압박 계산에 쓴다
@@ -2012,6 +2018,29 @@ GAME.Combat = {
       state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: ab.radius,
                            t: 420, total: 420, side: u.side });
 
+    } else if (ab.type === 'ember') {
+      //  불씨꾼 — 던진 자리에 불을 남긴다. 예고 지점(`abilX/Y`)에 심으므로 이 게임의
+      //  계약("논타겟은 보고 피할 수 있다")은 그대로다: 예고를 보고 비키면 안 맞고,
+      //  대신 **비킨 그 자리를 몇 초간 못 쓴다.**
+      //  ⚠ 동시에 남는 수에 상한을 둔다. 없으면 후반에 바닥이 통째로 불바다가 되어
+      //    영웅이 '피할 곳'을 잃는다 — 그건 난이도가 아니라 고장이다.
+      if (!state.emberZones) state.emberZones = [];
+      var cap = ab.maxZones || 3;
+      var mine2 = 0;
+      for (var mz = 0; mz < state.emberZones.length; mz++) {
+        if (state.emberZones[mz].owner === u) mine2++;
+      }
+      if (mine2 >= cap) {
+        for (var dz = 0; dz < state.emberZones.length; dz++) {
+          if (state.emberZones[dz].owner === u) { state.emberZones.splice(dz, 1); break; }
+        }
+      }
+      state.emberZones.push({ x: u.abilX, y: u.abilY, r: ab.radius,
+                              t: ab.ms || 5000, tick: 0, dps: ab.dps || 26,
+                              side: u.side, owner: u });
+      state.effects.push({ kind: 'ring', x: u.abilX, y: u.abilY, r: ab.radius,
+                           t: 320, total: 320, side: u.side });
+
     } else if (ab.type === 'ashcloud') {
       //  잿가루꾼 — `warcry`(족장)의 **거울**이다: 같은 모양의 태그 버프를 같은 방식으로
       //  밀어넣되, 아군이 아니라 **적**에게 넣고 값이 공격력이 아니라 쿨다운이다.
@@ -2328,6 +2357,30 @@ GAME.Combat = {
     state.noHitFor += dtMs;
 
     var i, u, k;
+
+    //  ── 잉걸불 구역 (2026-08-08 · 불씨꾼) ──────────────────────────────────
+    //  전장이 시간에 따라 좁아진다 — 회피가 '한 번의 반응'이 아니라 '누적된 계획'이 된다.
+    //  ⚠ 심은 쪽은 안 밟는다. 아군까지 태우면 진형이 제 불에 녹아 배치가 뜻을 잃는다
+    //    (벌집꾼은 반대로 아군도 맞는데, 저건 **한 번 터지고 끝**이라 위치를 고를 수
+    //     있고 이건 **몇 초간 남는** 물건이라 고를 수가 없다).
+    if (state.emberZones && state.emberZones.length) {
+      for (var ez = state.emberZones.length - 1; ez >= 0; ez--) {
+        var zn = state.emberZones[ez];
+        zn.t -= dtMs;
+        if (zn.t <= 0) { state.emberZones.splice(ez, 1); continue; }
+        zn.tick = (zn.tick || 0) + dtMs;
+        if (zn.tick < 500) continue;
+        zn.tick -= 500;
+        for (var eu = 0; eu < state.units.length; eu++) {
+          var vic2 = state.units[eu];
+          if (!vic2.alive || vic2.side === zn.side || this.isHazard(vic2)) continue;
+          var edx = vic2.x - zn.x, edy = vic2.y - zn.y;
+          if (edx * edx + edy * edy > zn.r * zn.r) continue;
+          this.applyDamage(vic2, zn.dps * 0.5, zn.owner || null, state,
+                           { noCrit: true, noLs: true });
+        }
+      }
+    }
 
     for (i = 0; i < state.units.length; i++) {
       u = state.units[i];

@@ -435,6 +435,7 @@ var SM = 10;
     ashthrower: { helm: 'ashhood',  gear: 'ashpouch',   back: 'pouch', face: 'open', wide: 0.76, fam: ['stone', 'stoneLite'] },
     stonepiler: { helm: 'cairnhat', gear: 'cairn',      back: null,    face: 'open', wide: 0.84, fam: ['stone', 'bronze'] },
     knotter:    { helm: 'knothood', gear: 'knotrope',   back: null,    face: 'open', wide: 0.78, fam: ['rope', 'leather'] },
+    emberthrower:{ helm: 'sparkcap', gear: 'firepot',  back: 'pouch', face: 'open', wide: 0.76, fam: ['clay', 'bronze'] },
 
     // ── 영웅 3종 ──
     berserker:{ helm: 'onehorn', gear: 'greatsword', back: 'fur',    face: 'open', wide: 0.82, hero: true },
@@ -1514,6 +1515,21 @@ var SM = 10;
         g.lineBetween(sx + lat * r * 0.02, by - r * 0.92, sx + lat * r * 0.22, by - r * 0.50);
       }
 
+    } else if (kind === 'sparkcap') {        // 불씨꾼 — 그을린 가죽 모자 + 불씨 하나
+      //  ⚠ 잿가루꾼(회색 낮은 두건)과 **색으로** 갈린다: 이쪽은 그을린 갈색이고
+      //    이마에 잉걸불 점이 하나 붙는다. 둘 다 '뿌리는 자'라 형태만으론 안 갈린다.
+      g.fillStyle(M.leatherDark, a);
+      g.fillEllipse(sx, by - r * 1.02, r * 1.20, r * 0.86, SM);
+      g.fillRect(sx - r * 0.60, by - r * 1.02, r * 1.20, r * 0.24);
+      g.fillStyle(UI.tint(M.leatherDark, 0.20), a * 0.6);
+      g.fillEllipse(sx - r * 0.24, by - r * 1.14, r * 0.48, r * 0.32, SM);
+      if (!back) {                           // 이마의 불씨 — 이 유닛의 유일한 붉은 점
+        g.fillStyle(0xd8451a, a);
+        g.fillEllipse(sx + lat * r * 0.06, by - r * 0.86, r * 0.22, r * 0.20, 8);
+        g.fillStyle(0xff8c2e, a * 0.9);
+        g.fillEllipse(sx + lat * r * 0.06, by - r * 0.90, r * 0.11, r * 0.10, 8);
+      }
+
     } else if (kind === 'bucket') {          // 방패병 — 통투구
       var bwr = prof ? 0.44 : 0.56;
       g.fillStyle(M.iron, a);
@@ -1824,7 +1840,7 @@ var SM = 10;
     leafstaff: 0.20, towerShield: 0.60, handaxe: 0.30, sapjar: 0.35,
     greatsword: 0.35, hookShield: 0.55, crossbowNest: 0,
     shellGuard: 0.58, stakes: 0.30, shellPlate: 0.34, stoneMaul: 0.42,
-    hive: 0.44, vinelash: 0.86, ashpouch: 0.44, cairn: 0.38, knotrope: 0.36
+    hive: 0.44, vinelash: 0.86, ashpouch: 0.44, cairn: 0.38, knotrope: 0.36, firepot: 0.40
   };
   UI.GEAR_DROP = { sapjar: 0.18, sword: 0.10 };
   //  칼류는 정면일수록 **더 세워 든다** — 옆으로만 밀면 눈앞을 가로지르는 각이 남는다.
@@ -2374,6 +2390,24 @@ var SM = 10;
       g.strokeCircle(krx + r * 0.28, kry + r * 0.14, r * 0.34);
       g.fillStyle(UI.tint(M.rope, -0.26), a);  // 가운데 매듭
       g.fillEllipse(krx + r * 0.02, kry + r * 0.06, r * 0.34, r * 0.30, SM);
+
+    } else if (kind === 'firepot') {         // 불씨꾼 — 불씨를 담은 옹기
+      //  ⚠ 늪지기의 수액 단지와 **아가리**로 갈린다: 저쪽은 막힌 항아리, 이쪽은
+      //    입이 벌어져 있고 그 안이 붉다. 던지는 물건이라는 걸 색이 말한다.
+      var fpx = X(0.84, 0.40), fpy = Y(0.84, 0.40, 0.10);
+      g.fillStyle(M.clay, a);
+      g.fillEllipse(fpx, fpy + r * 0.16, r * 0.94, r * 0.98, SM);
+      g.fillStyle(UI.tint(M.clay, -0.28), a * 0.55);
+      g.fillEllipse(fpx + r * 0.18, fpy + r * 0.20, r * 0.42, r * 0.62, SM);
+      g.fillStyle(UI.tint(M.clay, -0.34), a);   // 벌어진 아가리
+      g.fillEllipse(fpx, fpy - r * 0.34, r * 0.60, r * 0.24, SM);
+      g.fillStyle(0xd8451a, a);                 // 안의 불
+      g.fillEllipse(fpx, fpy - r * 0.36, r * 0.38, r * 0.15, SM);
+      if (r >= 9) {                             // 피어오르는 불꽃
+        g.fillStyle(0xff8c2e, a * 0.95);
+        g.fillTriangle(fpx - r * 0.16, fpy - r * 0.40, fpx + r * 0.16, fpy - r * 0.40,
+                       fpx + r * 0.02, fpy - r * 0.86);
+      }
 
     } else if (kind === 'towerShield') {     // 방패병 — 몸을 가리는 나무 대방패
       // 몸 앞으로 충분히 내밀어야 투구가 방패 위로 보인다(가려버리면 종류를 못 읽는다)

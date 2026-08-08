@@ -983,6 +983,37 @@ GAME.BattleScene.prototype._updateHealZones = function (dt) {
   }
 };
 
+//  ── 잉걸불 구역 (2026-08-08 · 불씨꾼) ───────────────────────────────────────
+//  ⚠ **그리기만** 한다. 갱신·피해는 `Combat.update` 안에 있다 — 씬에 두면 헤드리스
+//    도구(sim·회귀·곡선)에서 이 피해가 안 보여 밸런스 숫자가 거짓말이 된다.
+//  ⚠ 색은 이 세계의 물건 색(잉걸불)이다. 마법 광선·네온은 이 게임에 없다.
+GAME.BattleScene.prototype._drawEmberZones = function (g) {
+  var st = this.state;
+  if (!st || !st.emberZones || !st.emberZones.length) return;
+  var Iso = GAME.Iso;
+  for (var i = 0; i < st.emberZones.length; i++) {
+    var z = st.emberZones[i];
+    var sy = Iso.toScreenY(z.y);
+    //  남은 시간이 짧아질수록 옅어진다 — 언제 꺼지는지를 숫자 없이 알린다.
+    var life = Math.max(0, Math.min(1, z.t / 5000));
+    var a = 0.16 + 0.22 * life;
+    g.fillStyle(0xd8451a, a);
+    g.fillEllipse(z.x, sy, z.r * 2, z.r * 1.1, 24);
+    g.lineStyle(2, 0xff8c2e, 0.30 + 0.35 * life);
+    g.strokeEllipse ? g.strokeEllipse(z.x, sy, z.r * 2, z.r * 1.1, 24)
+                    : g.strokeCircle(z.x, sy, z.r);
+    //  일렁이는 불씨 몇 점 — 정지한 원이면 '바닥 무늬'로 읽힌다.
+    var ph = (st.elapsed || 0) / 220 + i;
+    for (var k = 0; k < 4; k++) {
+      var ang = ph + k * 1.57;
+      var rr = z.r * (0.30 + 0.42 * ((k % 3) / 2));
+      g.fillStyle(k % 2 ? 0xff8c2e : 0xd8451a, 0.35 + 0.35 * life);
+      g.fillEllipse(z.x + Math.cos(ang) * rr, sy + Math.sin(ang) * rr * 0.55,
+                    z.r * 0.15, z.r * 0.11, 8);
+    }
+  }
+};
+
 GAME.BattleScene.prototype._drawHealZones = function (g) {
   var st = this.state;
   if (!st || !st.healZones || !st.healZones.length) return;
@@ -2660,6 +2691,7 @@ GAME.BattleScene.prototype.draw = function () {
   if (this._coins) this._coins.draw(g, this._frameDt());
   this._drawOrbs(g);
   this._drawHealZones(g);
+  this._drawEmberZones(g);
 
   // ── 투사체 ──
   //  "모든 공격은 눈에 보이는 투사체를 갖는다"가 이 게임의 규칙인데, 라이트 테마에서는

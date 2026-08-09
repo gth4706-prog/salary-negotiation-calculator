@@ -1,0 +1,41 @@
+/* 평수 계산기 v0.01 — 도구별 테마.
+   ⚠️ 클래스를 하나씩 덮어쓰지 말고 공유 style.css 를 구동하는 **토큰을 재정의**한다
+      (CLAUDE.md 테마 체계). 그러면 버튼·입력창·FAQ·표까지 자동으로 같은 톤이 된다. */
+:root, :root[data-theme="light"] {
+  --accent: #2E6F9E;          /* 청사진 계열 — room-planner 와 같은 가족으로 묶는다 */
+  --base: #2E6F9E;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --accent: #6FB6E6; --base: #6FB6E6; }
+}
+:root[data-theme="dark"] { --accent: #6FB6E6; --base: #6FB6E6; }
+
+.py-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; }
+.py-tabs button {
+  flex: 1 1 auto; min-width: 110px; padding: 10px 12px; cursor: pointer;
+  border: 1.5px solid var(--line, #d8d2cc); border-radius: 10px;
+  background: transparent; color: inherit; font: inherit; font-weight: 600;
+  white-space: nowrap;
+}
+.py-tabs button.on { border-color: var(--accent); color: var(--accent); }
+
+.py-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.py-row > .field { flex: 1 1 130px; }
+.py-x { padding-bottom: 12px; opacity: .6; }
+
+.py-units { display: flex; gap: 14px; margin: 10px 0 0; font-size: 14px; }
+.py-units label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
+.py-result {
+  margin-top: 18px; padding: 18px; border-radius: 14px;
+  border: 1.5px solid var(--accent);
+}
+.py-big { font-size: 40px; font-weight: 800; line-height: 1.15; color: var(--accent); }
+.py-big small { font-size: 18px; font-weight: 700; margin-left: 4px; }
+.py-sub { margin-top: 6px; opacity: .75; }
+.py-feel { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line, #d8d2cc); }
+.py-feel h3 { margin: 0 0 4px; font-size: 18px; }
+.py-feel ul { margin: 10px 0 0; padding-left: 18px; }
+.py-feel li { margin: 3px 0; }
+
+@media (max-width: 520px) { .py-big { font-size: 34px; } }

@@ -1,0 +1,23 @@
+/* TV 시청거리 계산기 v0.01 — 토큰 재정의로 테마를 잡는다(CLAUDE.md 테마 체계).
+   클래스를 하나씩 덮어쓰면 기본 테라코타가 계속 새어나온다. */
+:root, :root[data-theme="light"] { --accent: #3B4A6B; --base: #3B4A6B; }
+@media (prefers-color-scheme: dark) { :root { --accent: #8FA8DA; --base: #8FA8DA; } }
+:root[data-theme="dark"] { --accent: #8FA8DA; --base: #8FA8DA; }
+
+.tv-tabs { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 14px; }
+.tv-tabs button { flex:1 1 auto; min-width:112px; padding:10px 12px; cursor:pointer;
+  border:1.5px solid var(--line,#d8d2cc); border-radius:10px; background:transparent;
+  color:inherit; font:inherit; font-weight:600; white-space:nowrap; }
+.tv-tabs button.on { border-color:var(--accent); color:var(--accent); }
+
+.tv-row { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+.tv-row > .field { flex:1 1 140px; }
+.tv-q { display:flex; gap:14px; margin:12px 0 0; font-size:14px; flex-wrap:wrap; }
+.tv-q label { display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+
+.tv-result { margin-top:18px; padding:18px; border-radius:14px; border:1.5px solid var(--accent); }
+.tv-big { font-size:38px; font-weight:800; line-height:1.15; color:var(--accent); }
+.tv-big small { font-size:17px; font-weight:700; margin-left:6px; opacity:.85; }
+.tv-result ul { margin:14px 0 0; padding-left:18px; }
+.tv-result li { margin:4px 0; }
+@media (max-width:520px){ .tv-big{ font-size:30px; } }

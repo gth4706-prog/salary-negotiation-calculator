@@ -1,0 +1,15 @@
+/* 야간·연장근로 수당 계산기 v0.01 — 토큰 재정의(CLAUDE.md 테마 체계). */
+:root, :root[data-theme="light"] { --accent:#3D5A98; --base:#3D5A98; }
+@media (prefers-color-scheme: dark){ :root{ --accent:#8FB0E8; --base:#8FB0E8; } }
+:root[data-theme="dark"]{ --accent:#8FB0E8; --base:#8FB0E8; }
+.ot-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; }
+.ot-checks { display:flex; gap:18px; flex-wrap:wrap; margin:14px 0 0; font-size:15px; }
+.ot-checks label { display:inline-flex; align-items:center; gap:7px; cursor:pointer; }
+.ot-warn { margin-top:14px; padding:12px 14px; border-radius:10px;
+  border:1.5px solid var(--accent); font-size:14.5px; }
+.ot-result { margin-top:18px; padding:18px; border-radius:14px; border:1.5px solid var(--accent); }
+.ot-total { font-size:36px; font-weight:800; line-height:1.2; color:var(--accent); }
+.ot-total small { font-size:16px; font-weight:700; margin-left:6px; opacity:.8; }
+.ot-result ul { margin:14px 0 0; padding-left:18px; }
+.ot-result li { margin:4px 0; }
+@media (max-width:520px){ .ot-total{ font-size:28px; } }

@@ -1,0 +1,16 @@
+/* 연차 계산기 v0.01 — 토큰 재정의(CLAUDE.md 테마 체계). 퇴사·퇴직금과 같은 가족. */
+:root, :root[data-theme="light"] { --accent:#1F7A5A; --base:#1F7A5A; }
+@media (prefers-color-scheme: dark){ :root{ --accent:#6FD3AC; --base:#6FD3AC; } }
+:root[data-theme="dark"]{ --accent:#6FD3AC; --base:#6FD3AC; }
+.al-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+.al-opt { margin-top:16px; padding-top:14px; border-top:1px dashed var(--line,#d8d2cc); }
+.al-opt > p { margin:0 0 10px; font-weight:600; }
+.al-result { margin-top:18px; padding:18px; border-radius:14px; border:1.5px solid var(--accent); }
+.al-two { display:flex; gap:22px; flex-wrap:wrap; align-items:flex-end; }
+.al-main { font-size:40px; font-weight:800; line-height:1.1; color:var(--accent); }
+.al-vs { font-size:22px; font-weight:700; opacity:.75; }
+.al-sub { margin-top:4px; opacity:.75; font-size:14px; }
+.al-result ul { margin:14px 0 0; padding-left:18px; }
+.al-result li { margin:4px 0; }
+.al-pay { margin-top:14px; padding-top:12px; border-top:1px dashed var(--line,#d8d2cc); font-weight:700; }
+@media (max-width:520px){ .al-main{ font-size:32px; } }

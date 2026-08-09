@@ -1,0 +1,14 @@
+/* 퇴직금 계산기 v0.01 — 토큰 재정의(CLAUDE.md 테마 체계). 퇴사 타이밍(달력)과 같은 가족. */
+:root, :root[data-theme="light"] { --accent:#B5442E; --base:#B5442E; }
+@media (prefers-color-scheme: dark){ :root{ --accent:#F08A6E; --base:#F08A6E; } }
+:root[data-theme="dark"]{ --accent:#F08A6E; --base:#F08A6E; }
+.sv-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+.sv-opt { margin-top:16px; padding-top:14px; border-top:1px dashed var(--line,#d8d2cc); }
+.sv-opt > p { margin:0 0 10px; font-weight:600; }
+.sv-warn { margin-top:14px; padding:12px 14px; border-radius:10px;
+  border:1.5px solid var(--accent); font-size:14.5px; }
+.sv-result { margin-top:18px; padding:18px; border-radius:14px; border:1.5px solid var(--accent); }
+.sv-amount { font-size:36px; font-weight:800; line-height:1.2; color:var(--accent); }
+.sv-result ul { margin:14px 0 0; padding-left:18px; }
+.sv-result li { margin:4px 0; }
+@media (max-width:520px){ .sv-amount{ font-size:28px; } }

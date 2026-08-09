@@ -1,0 +1,17 @@
+/* 주휴수당 계산기 v0.01 — 토큰 재정의(CLAUDE.md 테마 체계). 급여 계열과 같은 가족. */
+:root, :root[data-theme="light"] { --accent:#0E7C5A; --base:#0E7C5A; }
+@media (prefers-color-scheme: dark){ :root{ --accent:#4FCFA0; --base:#4FCFA0; } }
+:root[data-theme="dark"]{ --accent:#4FCFA0; --base:#4FCFA0; }
+.wg-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+.wg-quick { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 0; }
+.wg-quick button { padding:8px 14px; cursor:pointer; border:1.5px solid var(--line,#d8d2cc);
+  border-radius:999px; background:transparent; color:inherit; font:inherit; font-size:14px; }
+.wg-quick button:hover { border-color:var(--accent); color:var(--accent); }
+.wg-warn { margin-top:14px; padding:12px 14px; border-radius:10px;
+  border:1.5px solid var(--accent); font-size:14.5px; }
+.wg-result { margin-top:18px; padding:18px; border-radius:14px; border:1.5px solid var(--accent); }
+.wg-amount { font-size:36px; font-weight:800; line-height:1.2; color:var(--accent); }
+.wg-amount small { font-size:16px; font-weight:700; margin-left:6px; opacity:.8; }
+.wg-result ul { margin:14px 0 0; padding-left:18px; }
+.wg-result li { margin:4px 0; }
+@media (max-width:520px){ .wg-amount{ font-size:28px; } }

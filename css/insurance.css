@@ -1,0 +1,20 @@
+/* 4대보험 계산기 v0.01 — 토큰 재정의(CLAUDE.md 테마 체계). 급여 계열과 같은 가족. */
+:root, :root[data-theme="light"] { --accent:#0E6B7C; --base:#0E6B7C; }
+@media (prefers-color-scheme: dark){ :root{ --accent:#5CC7DA; --base:#5CC7DA; } }
+:root[data-theme="dark"]{ --accent:#5CC7DA; --base:#5CC7DA; }
+.in-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.in-opt { margin-top:16px; padding-top:14px; border-top:1px dashed var(--line,#d8d2cc); }
+.in-opt > p { margin:0 0 10px; font-weight:600; }
+.in-warn { margin-top:14px; padding:12px 14px; border-radius:10px;
+  border:1.5px solid var(--accent); font-size:14.5px; }
+.in-result { margin-top:18px; padding:18px; border-radius:14px; border:1.5px solid var(--accent); }
+.in-total { font-size:36px; font-weight:800; line-height:1.2; color:var(--accent); }
+.in-total small { font-size:16px; font-weight:700; margin-left:6px; opacity:.8; }
+.in-two { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; margin-top:18px; }
+.in-two h3 { margin:0 0 8px; font-size:16px; }
+.in-two table { margin:0; font-size:14.5px; }
+.in-sum { margin-top:16px; padding-top:14px; border-top:1px dashed var(--line,#d8d2cc);
+  display:flex; gap:22px; flex-wrap:wrap; }
+.in-sum b { display:block; font-size:20px; color:var(--accent); }
+.in-sum span { font-size:13.5px; opacity:.75; }
+@media (max-width:520px){ .in-total{ font-size:28px; } }

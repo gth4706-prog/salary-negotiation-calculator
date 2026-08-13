@@ -1,0 +1,3048 @@
+{
+  "schema": 1,
+  "exportedAt": "2026-08-12",
+  "unitOrder": [
+    "bayonet",
+    "rifleman",
+    "grenadier",
+    "sniper",
+    "shieldman",
+    "medic",
+    "sergeant",
+    "chemtrooper",
+    "mgnest",
+    "mine",
+    "reflector",
+    "palisade",
+    "shellwright",
+    "hammer",
+    "hivethrower",
+    "vinewhip",
+    "ashthrower",
+    "stonepiler",
+    "knotter",
+    "emberthrower"
+  ],
+  "units": {
+    "bayonet": {
+      "key": "bayonet",
+      "name": "전사",
+      "art": "warrior",
+      "voice": "blade",
+      "voicePitch": 1,
+      "lore": "부족의 앞줄에 서기로 한 알. 뒤에 선 동료가 활을 당길 시간을 대신 벌어 준다.",
+      "desc": "청동 단검과 나무 방패. 싸고 튼튼한 벽.",
+      "cost": 10,
+      "pop": 1,
+      "hp": 240,
+      "armor": 30,
+      "speed": 135,
+      "range": 52,
+      "damage": 35,
+      "cooldown": 800,
+      "attack": "melee",
+      "coneDeg": 90,
+      "radius": 13,
+      "shape": "square",
+      "weapon": "bayonet",
+      "chase": 270,
+      "aggro": 210,
+      "ability": {
+        "type": "charge",
+        "motif": "blade",
+        "cooldown": 6600,
+        "telegraph": 450,
+        "minRange": 110,
+        "maxRange": 210,
+        "dist": 210,
+        "damage": 54,
+        "radius": 36,
+        "knockback": 16
+      }
+    },
+    "rifleman": {
+      "key": "rifleman",
+      "name": "궁수",
+      "art": "archer",
+      "voice": "bone",
+      "voicePitch": 1.05,
+      "lore": "숲에서 새알을 노리던 사냥꾼. 화살은 곧게 날아가니 길목을 미리 잡아야 맞는다.",
+      "desc": "단궁. 논타겟 직선 사격이라 보고 피할 수 있다.",
+      "cost": 20,
+      "pop": 2,
+      "hp": 187,
+      "armor": 10,
+      "speed": 115,
+      "range": 330,
+      "damage": 51,
+      "cooldown": 1300,
+      "attack": "projectile",
+      "projectileSpeed": 240,
+      "projectileRadius": 6,
+      "radius": 11,
+      "shape": "triangle",
+      "weapon": "rifle",
+      "chase": 150,
+      "aggro": 360,
+      "spacing": 38,
+      "ability": {
+        "type": "barrage",
+        "motif": "feather",
+        "cooldown": 7200,
+        "telegraph": 640,
+        "minRange": 150,
+        "maxRange": 900,
+        "damage": 104,
+        "radius": 72,
+        "repeat": 1,
+        "aimLead": 0.75
+      }
+    },
+    "grenadier": {
+      "key": "grenadier",
+      "name": "투석꾼",
+      "art": "slinger",
+      "voice": "stone",
+      "voicePitch": 1.1,
+      "lore": "강가의 둥근 돌만 골라 담는 무릿매꾼. 겨눈 자리에 그림자가 지고, 못 피한 것만 부순다.",
+      "desc": "무릿매로 돌을 날린다. 예고 후 터지는 광역 — 구역을 봉쇄한다.",
+      "cost": 20,
+      "pop": 2,
+      "hp": 96,
+      "armor": 5,
+      "speed": 95,
+      "range": 300,
+      "damage": 51,
+      "cooldown": 2500,
+      "attack": "aoe",
+      "aoeRadius": 62,
+      "telegraph": 900,
+      "radius": 12,
+      "shape": "diamond",
+      "weapon": "launcher",
+      "chase": 130,
+      "aggro": 330,
+      "spacing": 41,
+      "ability": {
+        "type": "barrage",
+        "motif": "rock",
+        "cooldown": 7600,
+        "telegraph": 700,
+        "minRange": 120,
+        "maxRange": 900,
+        "damage": 92,
+        "radius": 66,
+        "repeat": 3,
+        "spread": 190,
+        "interval": 380,
+        "aimLead": 0.55
+      }
+    },
+    "sniper": {
+      "key": "sniper",
+      "name": "투창병",
+      "art": "spearman",
+      "voice": "bone",
+      "voicePitch": 0.92,
+      "lore": "한 번 던지면 반드시 박히는 미늘 작살. 대신 다시 던질 때까지 오래 숨을 고른다.",
+      "desc": "미늘 작살. 던지면 반드시 맞는다. 비싼 대신 회피 불가.",
+      "cost": 40,
+      "pop": 4,
+      "hp": 100,
+      "armor": 5,
+      "speed": 90,
+      "range": 420,
+      "damage": 75,
+      "cooldown": 3000,
+      "attack": "targeted",
+      "bulletSpeed": 760,
+      "radius": 11,
+      "shape": "hex",
+      "weapon": "sniperRifle",
+      "chase": 110,
+      "aggro": 440,
+      "spacing": 38,
+      "ability": {
+        "type": "barrage",
+        "motif": "bone",
+        "cooldown": 9000,
+        "telegraph": 900,
+        "minRange": 160,
+        "maxRange": 900,
+        "damage": 188,
+        "radius": 82,
+        "repeat": 1,
+        "aimLead": 0.7
+      }
+    },
+    "shieldman": {
+      "key": "shieldman",
+      "name": "방패병",
+      "art": "shieldman",
+      "voice": "wood",
+      "voicePitch": 0.86,
+      "lore": "통나무를 깎아 만든 대방패. 날아오는 것을 대신 받아 뒷줄의 약한 알들을 살린다.",
+      "desc": "나무 대방패로 아군에게 갈 투사체를 대신 맞는다. 공격력은 낮다.",
+      "cost": 30,
+      "pop": 3,
+      "hp": 504,
+      "armor": 45,
+      "speed": 100,
+      "range": 50,
+      "damage": 13,
+      "cooldown": 1100,
+      "attack": "melee",
+      "coneDeg": 80,
+      "intercept": 46,
+      "radius": 15,
+      "shape": "shield",
+      "weapon": "riotShield",
+      "chase": 200,
+      "aggro": 240,
+      "ability": {
+        "type": "charge",
+        "motif": "shield",
+        "cooldown": 6400,
+        "telegraph": 520,
+        "minRange": 120,
+        "maxRange": 270,
+        "dist": 270,
+        "damage": 66,
+        "radius": 44,
+        "knockback": 24
+      }
+    },
+    "medic": {
+      "key": "medic",
+      "name": "약초꾼",
+      "art": "herbalist",
+      "voice": "leather",
+      "voicePitch": 1.06,
+      "lore": "약초를 씹어 상처에 붙이는 손. 스스로는 안 싸우지만 주변의 알들이 잘 안 깨진다.",
+      "desc": "약초로 주변 아군을 회복시킨다. 같은 연기가 적에게는 상처가 되어 회복을 막는다.",
+      "cost": 30,
+      "pop": 3,
+      "hp": 130,
+      "armor": 10,
+      "speed": 105,
+      "range": 0,
+      "damage": 0,
+      "cooldown": 1000,
+      "attack": "none",
+      "healRadius": 150,
+      "healPerTick": 14,
+      "healInterval": 1000,
+      "radius": 11,
+      "shape": "cross",
+      "weapon": "aidkit",
+      "chase": 140,
+      "aggro": 0,
+      "ability": {
+        "type": "healBurst",
+        "motif": "sand",
+        "cooldown": 14000,
+        "telegraph": 500,
+        "radius": 190,
+        "heal": 130,
+        "enemyHealCut": 0.55,
+        "enemyHealCutMs": 4500
+      }
+    },
+    "sergeant": {
+      "key": "sergeant",
+      "name": "족장",
+      "art": "chieftain",
+      "voice": "bronze",
+      "voicePitch": 1,
+      "lore": "소뿔 투구를 쓰고 앞장서는 우두머리. 그가 보고 있는 동안 부족이 더 세게 친다.",
+      "desc": "소뿔 투구를 쓴 우두머리. 주변 아군의 공격력을 올린다. 진형의 심장.",
+      "cost": 30,
+      "pop": 3,
+      "hp": 146,
+      "armor": 20,
+      "speed": 110,
+      "range": 240,
+      "damage": 18,
+      "cooldown": 1500,
+      "attack": "projectile",
+      "projectileSpeed": 260,
+      "projectileRadius": 5,
+      "buffRadius": 190,
+      "buffDamageMul": 1.3,
+      "radius": 12,
+      "shape": "star",
+      "weapon": "pistol",
+      "chase": 160,
+      "aggro": 300,
+      "spacing": 41,
+      "ability": {
+        "type": "warcry",
+        "motif": "rope",
+        "cooldown": 15000,
+        "telegraph": 600,
+        "radius": 220,
+        "dmgMul": 1.6,
+        "ms": 4000
+      }
+    },
+    "chemtrooper": {
+      "key": "chemtrooper",
+      "name": "늪지기",
+      "art": "bogman",
+      "voice": "goo",
+      "voicePitch": 1,
+      "lore": "끈끈한 늪 수액을 단지에 담아 던진다. 맞은 자는 발이 붙어 달아나지 못한다.",
+      "desc": "끈끈한 수액 단지를 던진다. 맞으면 영웅이 느려진다.",
+      "cost": 40,
+      "pop": 4,
+      "hp": 137,
+      "armor": 10,
+      "speed": 100,
+      "range": 390,
+      "damage": 20,
+      "cooldown": 2200,
+      "attack": "projectile",
+      "projectileSpeed": 210,
+      "projectileRadius": 9,
+      "slowMul": 0.45,
+      "slowMs": 3000,
+      "radius": 12,
+      "shape": "diamond",
+      "weapon": "launcher",
+      "chase": 140,
+      "aggro": 320,
+      "spacing": 41,
+      "ability": {
+        "type": "barrage",
+        "motif": "bog",
+        "cooldown": 8600,
+        "telegraph": 760,
+        "minRange": 120,
+        "maxRange": 900,
+        "damage": 62,
+        "radius": 110,
+        "repeat": 1,
+        "slowMul": 0.5,
+        "slowMs": 2600,
+        "aimLead": 0.85
+      }
+    },
+    "mgnest": {
+      "key": "mgnest",
+      "name": "쇠뇌 진지",
+      "art": "ballista",
+      "voice": "iron",
+      "voicePitch": 0.9,
+      "lore": "통나무로 짜 세운 거치 쇠뇌. 한 발도 못 움직이는 대신 골짜기 끝까지 닿는다.",
+      "desc": "거치식 연발 쇠뇌. 절대 움직이지 않지만 맵 어디든 닿는다.",
+      "cost": 50,
+      "pop": 5,
+      "hp": 333,
+      "armor": 25,
+      "speed": 0,
+      "range": 1436,
+      "rangeSpan": true,
+      "damage": 31,
+      "cooldown": 420,
+      "attack": "projectile",
+      "projectileSpeed": 340,
+      "projectileRadius": 5,
+      "radius": 14,
+      "shape": "bunker",
+      "weapon": "mg",
+      "chase": 0,
+      "aggro": 0,
+      "immobile": true,
+      "ability": {
+        "type": "barrage",
+        "motif": "blade",
+        "cooldown": 8200,
+        "telegraph": 620,
+        "minRange": 100,
+        "maxRange": 900,
+        "damage": 100,
+        "radius": 58,
+        "repeat": 4,
+        "spread": 150,
+        "interval": 300,
+        "aimLead": 0.6
+      }
+    },
+    "mine": {
+      "key": "mine",
+      "name": "가시덫",
+      "art": "snaretrap",
+      "voice": "wood",
+      "voicePitch": 1.22,
+      "lore": "마른 풀로 덮어둔 뼈 가시 함정. 밟기 전까지는 거기 있는 줄 아무도 모른다.",
+      "desc": "보이지 않는다. 밟으면 잠깐 뒤 크게 터진다 — 걸어서는 못 벗어난다.",
+      "cost": 30,
+      "pop": 3,
+      "hp": 34,
+      "armor": 0,
+      "speed": 0,
+      "range": 0,
+      "damage": 0,
+      "cooldown": 999999,
+      "attack": "none",
+      "isMine": true,
+      "triggerRadius": 52,
+      "pctMaxHp": 0.3,
+      "blastRadius": 150,
+      "fuseMs": 450,
+      "radius": 9,
+      "shape": "mine",
+      "chase": 0,
+      "aggro": 0,
+      "immobile": true,
+      "maxPerFormation": 1,
+      "aiExclude": true
+    },
+    "reflector": {
+      "key": "reflector",
+      "name": "되받이",
+      "art": "reflector",
+      "lore": "깨진 껍질을 등에 덧대 웅크리는 법을 배운 알. 때린 쪽이 더 아프다.",
+      "desc": "가끔 웅크린다. 그동안 받는 피해가 줄고, 때린 적이 대신 아프다.",
+      "voice": "stone",
+      "voicePitch": 0.94,
+      "cost": 40,
+      "pop": 4,
+      "hp": 300,
+      "armor": 40,
+      "speed": 105,
+      "range": 52,
+      "damage": 26,
+      "cooldown": 1000,
+      "attack": "melee",
+      "coneDeg": 80,
+      "radius": 14,
+      "shape": "shield",
+      "weapon": "shellGuard",
+      "chase": 200,
+      "aggro": 230,
+      "maxPerFormation": 2,
+      "guard": {
+        "every": 9000,
+        "first": 4000,
+        "warn": 800,
+        "ms": 3000,
+        "cut": 0.45,
+        "reflect": 0.5
+      }
+    },
+    "palisade": {
+      "key": "palisade",
+      "name": "울짱꾼",
+      "art": "palisade",
+      "lore": "뾰족하게 깎은 말뚝을 땅에 박는다. 박고 나면 그도 거기서 움직이지 않는다.",
+      "desc": "움직이지 않는 가시 울짱. 곁에 서 있는 적을 계속 갉는다. 공격은 하지 않는다.",
+      "voice": "wood",
+      "voicePitch": 0.94,
+      "cost": 30,
+      "pop": 3,
+      "hp": 260,
+      "armor": 30,
+      "speed": 0,
+      "range": 0,
+      "damage": 0,
+      "cooldown": 1000,
+      "attack": "melee",
+      "radius": 13,
+      "shape": "square",
+      "weapon": "stakes",
+      "immobile": true,
+      "chase": 0,
+      "aggro": 0,
+      "auraRadius": 74,
+      "auraDps": 15,
+      "auraAlways": true
+    },
+    "shellwright": {
+      "key": "shellwright",
+      "name": "껍질장이",
+      "art": "shellwright",
+      "lore": "깨진 알껍질을 주워 모아 다듬는다. 남의 등에 덧대 주는 것이 그의 싸움이다.",
+      "desc": "주변 아군에게 껍질 보호막을 씌운다. 스스로는 싸우지 않는다.",
+      "voice": "shell",
+      "voicePitch": 1,
+      "cost": 40,
+      "pop": 4,
+      "hp": 150,
+      "armor": 20,
+      "speed": 100,
+      "range": 0,
+      "damage": 0,
+      "cooldown": 1000,
+      "attack": "melee",
+      "radius": 12,
+      "shape": "round",
+      "weapon": "shellPlate",
+      "chase": 60,
+      "aggro": 0,
+      "spacing": 34,
+      "ability": {
+        "type": "healBurst",
+        "motif": "shell",
+        "cooldown": 11000,
+        "telegraph": 500,
+        "radius": 175,
+        "shield": 90,
+        "shieldMs": 7000
+      }
+    },
+    "hammer": {
+      "key": "hammer",
+      "name": "망치잡이",
+      "art": "hammer",
+      "lore": "단단한 것을 깨는 데만 쓰는 돌망치. 느리지만 껍질이든 갑옷이든 가리지 않는다.",
+      "desc": "느리게 치지만 한 방이 크고, 적의 방어를 절반 넘게 뚫는다.",
+      "voice": "stone",
+      "voicePitch": 0.74,
+      "cost": 40,
+      "pop": 4,
+      "hp": 210,
+      "armor": 25,
+      "speed": 108,
+      "range": 56,
+      "damage": 68,
+      "cooldown": 1600,
+      "attack": "melee",
+      "coneDeg": 70,
+      "radius": 14,
+      "shape": "square",
+      "weapon": "stoneMaul",
+      "chase": 250,
+      "aggro": 220,
+      "armorPen": 0.55
+    },
+    "hivethrower": {
+      "key": "hivethrower",
+      "name": "벌집꾼",
+      "art": "hivethrower",
+      "voice": "clay",
+      "voicePitch": 1.04,
+      "cost": 30,
+      "pop": 3,
+      "hp": 200,
+      "armor": 15,
+      "speed": 102,
+      "range": 50,
+      "damage": 20,
+      "cooldown": 1200,
+      "attack": "melee",
+      "coneDeg": 70,
+      "radius": 13,
+      "shape": "round",
+      "weapon": "hive",
+      "chase": 200,
+      "aggro": 210,
+      "deathBlast": {
+        "radius": 118,
+        "dmgMul": 3.2
+      }
+    },
+    "vinewhip": {
+      "key": "vinewhip",
+      "name": "덩굴채",
+      "art": "vinewhip",
+      "voice": "rope",
+      "voicePitch": 1,
+      "cost": 40,
+      "pop": 4,
+      "hp": 230,
+      "armor": 25,
+      "speed": 96,
+      "range": 58,
+      "damage": 22,
+      "cooldown": 1300,
+      "attack": "melee",
+      "coneDeg": 75,
+      "radius": 13,
+      "shape": "round",
+      "weapon": "vinelash",
+      "chase": 220,
+      "aggro": 240,
+      "maxPerFormation": 2,
+      "ability": {
+        "type": "pull",
+        "motif": "rope",
+        "cooldown": 10000,
+        "telegraph": 600,
+        "dist": 205,
+        "coneDeg": 360,
+        "power": 130,
+        "keep": 96,
+        "damage": 18
+      }
+    },
+    "ashthrower": {
+      "key": "ashthrower",
+      "name": "잿가루꾼",
+      "art": "ashthrower",
+      "voice": "dust",
+      "voicePitch": 1,
+      "cost": 40,
+      "pop": 4,
+      "hp": 190,
+      "armor": 20,
+      "speed": 100,
+      "range": 54,
+      "damage": 18,
+      "cooldown": 1400,
+      "attack": "melee",
+      "coneDeg": 70,
+      "radius": 13,
+      "shape": "round",
+      "weapon": "ashpouch",
+      "chase": 190,
+      "aggro": 230,
+      "maxPerFormation": 2,
+      "ability": {
+        "type": "ashcloud",
+        "motif": "sand",
+        "cooldown": 12000,
+        "telegraph": 550,
+        "radius": 150,
+        "cdMul": 1.35,
+        "ms": 6000
+      }
+    },
+    "stonepiler": {
+      "key": "stonepiler",
+      "name": "돌쌓이",
+      "art": "stonepiler",
+      "voice": "stone",
+      "voicePitch": 0.84,
+      "cost": 30,
+      "pop": 3,
+      "hp": 240,
+      "armor": 30,
+      "speed": 92,
+      "range": 52,
+      "damage": 24,
+      "cooldown": 1500,
+      "attack": "melee",
+      "coneDeg": 70,
+      "radius": 14,
+      "shape": "square",
+      "weapon": "cairn",
+      "chase": 170,
+      "aggro": 200,
+      "stackOnAllyDeath": {
+        "hp": 22,
+        "armor": 4,
+        "max": 8
+      }
+    },
+    "knotter": {
+      "key": "knotter",
+      "name": "매듭지기",
+      "art": "knotter",
+      "voice": "rope",
+      "voicePitch": 0.88,
+      "cost": 40,
+      "pop": 4,
+      "hp": 210,
+      "armor": 25,
+      "speed": 98,
+      "range": 50,
+      "damage": 20,
+      "cooldown": 1400,
+      "attack": "melee",
+      "coneDeg": 70,
+      "radius": 13,
+      "shape": "round",
+      "weapon": "knotrope",
+      "chase": 180,
+      "aggro": 210,
+      "maxPerFormation": 1,
+      "knotRadius": 120,
+      "knotShare": 0.5,
+      "knotMax": 3
+    },
+    "emberthrower": {
+      "key": "emberthrower",
+      "name": "불씨꾼",
+      "art": "emberthrower",
+      "voice": "ember",
+      "voicePitch": 1,
+      "cost": 40,
+      "pop": 4,
+      "hp": 180,
+      "armor": 15,
+      "speed": 100,
+      "range": 150,
+      "damage": 16,
+      "cooldown": 1500,
+      "attack": "projectile",
+      "projectileSpeed": 320,
+      "projectileRadius": 6,
+      "radius": 12,
+      "shape": "round",
+      "weapon": "firepot",
+      "chase": 150,
+      "aggro": 260,
+      "maxPerFormation": 2,
+      "ability": {
+        "type": "ember",
+        "motif": "ember",
+        "cooldown": 9000,
+        "telegraph": 650,
+        "maxRange": 260,
+        "radius": 82,
+        "ms": 5000,
+        "dps": 26,
+        "maxZones": 3
+      }
+    },
+    "bossAshSentry": {
+      "key": "bossAshSentry",
+      "name": "재 파수병",
+      "art": "beast:sentry:ash",
+      "isBoss": true,
+      "lore": "탑 위에서 내려온 재를 뒤집어쓴 채 굳어 버린 파수병. 뿔이 돋기 시작했다.",
+      "desc": "재를 뒤집어쓴 파수병. 재가 쌓인 자리를 넓게 짓밟는다.",
+      "cost": 0,
+      "hp": 318,
+      "armor": 30,
+      "speed": 92,
+      "range": 104,
+      "damage": 70,
+      "cooldown": 1250,
+      "guard": {
+        "every": 12500,
+        "warn": 900,
+        "ms": 3800,
+        "cut": 0.15,
+        "reflect": 0.5
+      },
+      "attack": "melee",
+      "coneDeg": 120,
+      "radius": 29,
+      "shape": "star",
+      "weapon": "riotShield",
+      "chase": 460,
+      "aggro": 460,
+      "ability": {
+        "type": "charge",
+        "cooldown": 6000,
+        "telegraph": 560,
+        "minRange": 150,
+        "maxRange": 500,
+        "dist": 500,
+        "damage": 280,
+        "radius": 70,
+        "knockback": 58
+      }
+    },
+    "bossDrakeAsh": {
+      "key": "bossDrakeAsh",
+      "name": "잿날개",
+      "art": "beast:drake:ash",
+      "isBoss": true,
+      "lore": "용이 거느린 것 중 가장 작은 것. 그런데도 부족 하나를 하룻밤에 지웠다.",
+      "desc": "용의 부하. 낮게 날아와 덮치고, 재를 흩뿌린다.",
+      "cost": 0,
+      "hp": 318,
+      "armor": 30,
+      "speed": 118,
+      "range": 112,
+      "damage": 65,
+      "cooldown": 1150,
+      "guard": {
+        "every": 12000,
+        "warn": 900,
+        "ms": 4000,
+        "cut": 0.15,
+        "reflect": 0.5
+      },
+      "attack": "melee",
+      "coneDeg": 110,
+      "radius": 30,
+      "shape": "star",
+      "weapon": "rifle",
+      "chase": 560,
+      "aggro": 560,
+      "ability": {
+        "type": "charge",
+        "cooldown": 5000,
+        "telegraph": 480,
+        "minRange": 170,
+        "maxRange": 640,
+        "dist": 640,
+        "damage": 269,
+        "radius": 78,
+        "knockback": 70
+      }
+    },
+    "bossDrakeFrost": {
+      "key": "bossDrakeFrost",
+      "name": "서리 권속",
+      "art": "beast:drake:frost",
+      "isBoss": true,
+      "lore": "숨을 뱉으면 골짜기가 하얗게 언다. 얼어붙은 것은 다시 움직이지 못한다.",
+      "desc": "서리를 뿌리는 권속. 넓은 자리를 얼려 발을 묶는다.",
+      "cost": 0,
+      "hp": 308,
+      "armor": 34,
+      "speed": 104,
+      "range": 120,
+      "damage": 70,
+      "cooldown": 1250,
+      "guard": {
+        "every": 11800,
+        "warn": 900,
+        "ms": 4100,
+        "cut": 0.15,
+        "reflect": 0.52
+      },
+      "attack": "melee",
+      "coneDeg": 120,
+      "radius": 30,
+      "shape": "star",
+      "weapon": "riotShield",
+      "chase": 560,
+      "aggro": 560,
+      "ability": {
+        "type": "barrage",
+        "cooldown": 6200,
+        "telegraph": 700,
+        "minRange": 0,
+        "maxRange": 4000,
+        "damage": 219,
+        "radius": 130,
+        "repeat": 3,
+        "interval": 400,
+        "spread": 250,
+        "slowMul": 0.45,
+        "slowMs": 2200
+      }
+    },
+    "bossDrakeStorm": {
+      "key": "bossDrakeStorm",
+      "name": "폭풍 권속",
+      "art": "beast:drake:storm",
+      "isBoss": true,
+      "lore": "날개 한 번에 하늘이 갈린다. 용이 오기 전에 길을 여는 것이 이것의 일이다.",
+      "desc": "폭풍을 몰고 오는 권속. 하늘에서 연달아 내리꽂는다.",
+      "cost": 0,
+      "hp": 323,
+      "armor": 34,
+      "speed": 126,
+      "range": 116,
+      "damage": 62,
+      "cooldown": 1100,
+      "guard": {
+        "every": 11500,
+        "warn": 850,
+        "ms": 4200,
+        "cut": 0.14,
+        "reflect": 0.55
+      },
+      "attack": "melee",
+      "coneDeg": 115,
+      "radius": 31,
+      "shape": "star",
+      "weapon": "rifle",
+      "chase": 620,
+      "aggro": 620,
+      "ability": {
+        "type": "barrage",
+        "cooldown": 5400,
+        "telegraph": 560,
+        "minRange": 0,
+        "maxRange": 4000,
+        "damage": 205,
+        "radius": 118,
+        "repeat": 4,
+        "interval": 320,
+        "spread": 300,
+        "knockback": 46
+      }
+    },
+    "bossDragonClaw": {
+      "key": "bossDragonClaw",
+      "name": "용의 손",
+      "art": "beast:claw:ember",
+      "isBoss": true,
+      "lore": "껍질이 깨지자 그것은 곧장 땅속으로 파고들었다. 땅을 뚫고 손이 먼저 올라온다.",
+      "desc": "용의 손. 다섯 손가락이 전장을 통째로 움켜쥔다.",
+      "cost": 0,
+      "hp": 377,
+      "armor": 46,
+      "speed": 0,
+      "range": 200,
+      "damage": 84,
+      "cooldown": 1500,
+      "guard": {
+        "every": 11500,
+        "warn": 850,
+        "ms": 4400,
+        "cut": 0.12,
+        "reflect": 0.6
+      },
+      "attack": "melee",
+      "coneDeg": 160,
+      "radius": 32,
+      "shape": "bunker",
+      "weapon": "riotShield",
+      "chase": 0,
+      "aggro": 0,
+      "immobile": true,
+      "ability": {
+        "type": "barrage",
+        "cooldown": 5600,
+        "telegraph": 800,
+        "minRange": 0,
+        "maxRange": 4000,
+        "damage": 247,
+        "radius": 165,
+        "repeat": 4,
+        "interval": 360,
+        "spread": 340,
+        "knockback": 54
+      }
+    },
+    "bossDragonEgg": {
+      "key": "bossDragonEgg",
+      "name": "용의 알",
+      "art": "beast:egg:ember",
+      "isBoss": true,
+      "lore": "산보다 오래된 알. 겉은 돌처럼 식었는데 안에서 무언가 계속 두근거린다.",
+      "desc": "용의 알. 껍질이 단단해 좀처럼 깨지지 않는다.",
+      "cost": 0,
+      "hp": 285,
+      "armor": 52,
+      "speed": 0,
+      "range": 150,
+      "damage": 84,
+      "cooldown": 1500,
+      "guard": {
+        "every": 11000,
+        "warn": 900,
+        "ms": 4200,
+        "cut": 0.12,
+        "reflect": 0.55
+      },
+      "attack": "melee",
+      "coneDeg": 360,
+      "radius": 38,
+      "shape": "bunker",
+      "weapon": "riotShield",
+      "chase": 0,
+      "aggro": 0,
+      "immobile": true,
+      "abilities": [
+        {
+          "type": "shockwave",
+          "cooldown": 5200,
+          "telegraph": 1000,
+          "damage": 93,
+          "radius": 235
+        },
+        {
+          "type": "barrage",
+          "cooldown": 13000,
+          "telegraph": 2700,
+          "minRange": 0,
+          "maxRange": 4000,
+          "aimLead": 0,
+          "damage": 232,
+          "radius": 160,
+          "repeat": 1,
+          "interval": 0,
+          "spread": 0
+        }
+      ]
+    },
+    "bossDragonEggCracked": {
+      "key": "bossDragonEggCracked",
+      "name": "금 간 알",
+      "art": "beast:eggcrack:ember",
+      "isBoss": true,
+      "lore": "껍질에 금이 갔다. 안쪽은 아직 어둡지만, 열기가 새어 나오기 시작했다.",
+      "desc": "금 간 알. 틈에서 새는 열기가 주변을 지진다.",
+      "cost": 0,
+      "hp": 323,
+      "armor": 46,
+      "speed": 0,
+      "range": 158,
+      "damage": 79,
+      "cooldown": 1400,
+      "guard": {
+        "every": 11000,
+        "warn": 850,
+        "ms": 4400,
+        "cut": 0.12,
+        "reflect": 0.6
+      },
+      "attack": "melee",
+      "coneDeg": 360,
+      "radius": 39,
+      "shape": "bunker",
+      "weapon": "riotShield",
+      "chase": 0,
+      "aggro": 0,
+      "immobile": true,
+      "abilities": [
+        {
+          "type": "shockwave",
+          "cooldown": 4800,
+          "telegraph": 900,
+          "damage": 42,
+          "radius": 258
+        },
+        {
+          "type": "barrage",
+          "cooldown": 12500,
+          "telegraph": 2600,
+          "minRange": 0,
+          "maxRange": 4000,
+          "aimLead": 0,
+          "damage": 112,
+          "radius": 170,
+          "repeat": 1,
+          "interval": 0,
+          "spread": 0
+        }
+      ]
+    },
+    "bossDragonCrack": {
+      "key": "bossDragonCrack",
+      "name": "깨어지는 알",
+      "art": "beast:eggeye:ember",
+      "isBoss": true,
+      "lore": "껍질이 갈라졌다. 그 틈으로 눈 하나가 이쪽을 보고 있다. 아직 눈뿐이다.",
+      "desc": "깨어지는 알. 균열에서 새어 나오는 열기가 전장을 태운다.",
+      "cost": 0,
+      "hp": 360,
+      "armor": 42,
+      "speed": 0,
+      "range": 165,
+      "damage": 73,
+      "cooldown": 1300,
+      "guard": {
+        "every": 10500,
+        "warn": 800,
+        "ms": 4600,
+        "cut": 0.1,
+        "reflect": 0.65
+      },
+      "attack": "melee",
+      "coneDeg": 360,
+      "radius": 40,
+      "shape": "bunker",
+      "weapon": "riotShield",
+      "chase": 0,
+      "aggro": 0,
+      "immobile": true,
+      "abilities": [
+        {
+          "type": "barrage",
+          "cooldown": 4400,
+          "telegraph": 700,
+          "minRange": 0,
+          "maxRange": 4000,
+          "damage": 48,
+          "radius": 195,
+          "repeat": 5,
+          "interval": 300,
+          "spread": 360,
+          "knockback": 38
+        },
+        {
+          "type": "barrage",
+          "cooldown": 12000,
+          "telegraph": 2500,
+          "minRange": 0,
+          "maxRange": 4000,
+          "aimLead": 0,
+          "damage": 138,
+          "radius": 180,
+          "repeat": 1,
+          "interval": 0,
+          "spread": 0
+        }
+      ]
+    },
+    "bossDragonTail": {
+      "key": "bossDragonTail",
+      "name": "용의 꼬리",
+      "art": "beast:tail:ember",
+      "isBoss": true,
+      "lore": "손과 싸운 자리에서 한참 떨어진 곳이었다. 그 사이가 전부 이 짐승의 몸이다.",
+      "desc": "용의 꼬리. 한 번 후려치면 넓은 띠 안의 모든 것이 날아간다.",
+      "cost": 0,
+      "hp": 380,
+      "armor": 50,
+      "speed": 0,
+      "range": 210,
+      "damage": 82,
+      "cooldown": 1450,
+      "guard": {
+        "every": 11000,
+        "warn": 800,
+        "ms": 4600,
+        "cut": 0.12,
+        "reflect": 0.65
+      },
+      "attack": "melee",
+      "coneDeg": 170,
+      "radius": 34,
+      "shape": "bunker",
+      "weapon": "riotShield",
+      "chase": 0,
+      "aggro": 0,
+      "immobile": true,
+      "ability": {
+        "type": "shockwave",
+        "cooldown": 5400,
+        "telegraph": 900,
+        "damage": 295,
+        "radius": 270
+      }
+    },
+    "bossDragonLord": {
+      "key": "bossDragonLord",
+      "name": "태초의 용",
+      "art": "beast:dragon:ember",
+      "isBoss": true,
+      "lore": "계란 부족이 서로를 치는 동안, 그것은 산 아래에서 자고 있었다. 이제 땅을 밀어내고 다 나왔다.",
+      "desc": "태초의 용. 얼굴은 여기서 처음 드러난다.",
+      "cost": 0,
+      "hp": 383,
+      "armor": 54,
+      "speed": 62,
+      "range": 230,
+      "damage": 79,
+      "cooldown": 1400,
+      "guard": {
+        "every": 11000,
+        "warn": 800,
+        "ms": 4600,
+        "cut": 0.12,
+        "reflect": 0.65
+      },
+      "attack": "melee",
+      "coneDeg": 180,
+      "radius": 36,
+      "shape": "star",
+      "weapon": "riotShield",
+      "chase": 420,
+      "aggro": 460,
+      "ability": {
+        "type": "shockwave",
+        "cooldown": 5000,
+        "telegraph": 700,
+        "damage": 245,
+        "radius": 225
+      }
+    },
+    "bossDragonAwakened": {
+      "key": "bossDragonAwakened",
+      "name": "각성한 용",
+      "art": "beast:awakened:ember",
+      "isBoss": true,
+      "lore": "쓰러뜨렸는데 죽지 않았다. 몸속의 불이 껍질을 이기기 시작했다.",
+      "desc": "각성한 용. 이 탑에는 꼭대기가 없다 — 여기서부터 영원히 이것과 싸운다.",
+      "cost": 0,
+      "hp": 368,
+      "armor": 58,
+      "speed": 108,
+      "range": 260,
+      "damage": 70,
+      "cooldown": 1250,
+      "guard": {
+        "every": 10000,
+        "warn": 750,
+        "ms": 5000,
+        "cut": 0.1,
+        "reflect": 0.75
+      },
+      "attack": "melee",
+      "coneDeg": 160,
+      "radius": 42,
+      "shape": "star",
+      "weapon": "riotShield",
+      "chase": 760,
+      "aggro": 760,
+      "ability": {
+        "type": "barrage",
+        "cooldown": 4200,
+        "telegraph": 600,
+        "minRange": 0,
+        "maxRange": 4000,
+        "damage": 196,
+        "radius": 220,
+        "repeat": 7,
+        "interval": 280,
+        "spread": 440
+      }
+    },
+    "bossChief": {
+      "key": "bossChief",
+      "name": "거대 족장",
+      "art": "chieftain",
+      "isBoss": true,
+      "lore": "오래 살아남아 둥지만큼 커진 우두머리. 그가 포효하면 부족 전체가 세게 친다.",
+      "desc": "부족을 이끄는 거대한 알. 주변 아군을 크게 강화하고 직접 후려친다.",
+      "cost": 0,
+      "hp": 312,
+      "armor": 26,
+      "speed": 96,
+      "range": 96,
+      "damage": 73,
+      "cooldown": 1300,
+      "guard": {
+        "every": 13000,
+        "warn": 1100,
+        "ms": 3400,
+        "cut": 0.2,
+        "reflect": 0.35
+      },
+      "attack": "melee",
+      "coneDeg": 110,
+      "buffRadius": 250,
+      "buffDamageMul": 1.45,
+      "radius": 27,
+      "shape": "star",
+      "weapon": "pistol",
+      "chase": 420,
+      "aggro": 420,
+      "ability": {
+        "type": "charge",
+        "cooldown": 6500,
+        "telegraph": 520,
+        "minRange": 150,
+        "maxRange": 460,
+        "dist": 460,
+        "damage": 299,
+        "radius": 62,
+        "knockback": 46
+      }
+    },
+    "bossShell": {
+      "key": "bossShell",
+      "name": "껍질 골렘",
+      "art": "guardian",
+      "isBoss": true,
+      "lore": "버려진 알 껍질을 뒤집어쓴 커다란 것. 느리지만 한 번 스치면 그대로 밀려난다.",
+      "desc": "두꺼운 껍질 덩어리. 느리지만 닿으면 밀려난다.",
+      "cost": 0,
+      "hp": 312,
+      "armor": 26,
+      "speed": 78,
+      "range": 104,
+      "damage": 90,
+      "cooldown": 1600,
+      "guard": {
+        "every": 12000,
+        "warn": 950,
+        "ms": 4000,
+        "cut": 0.15,
+        "reflect": 0.45
+      },
+      "attack": "melee",
+      "coneDeg": 130,
+      "radius": 30,
+      "shape": "shield",
+      "weapon": "riotShield",
+      "chase": 460,
+      "aggro": 460,
+      "ability": {
+        "type": "charge",
+        "cooldown": 5200,
+        "telegraph": 900,
+        "minRange": 160,
+        "maxRange": 580,
+        "dist": 580,
+        "damage": 388,
+        "radius": 76,
+        "knockback": 92
+      }
+    },
+    "bossNest": {
+      "key": "bossNest",
+      "name": "둥지 포탑",
+      "art": "ballista",
+      "isBoss": true,
+      "lore": "산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살을 뿌린다.",
+      "desc": "움직이지 않는 거대 둥지. 맵 전체에 쉬지 않고 쏘아댄다.",
+      "cost": 0,
+      "hp": 322,
+      "armor": 22,
+      "speed": 0,
+      "range": 1436,
+      "rangeSpan": true,
+      "guard": {
+        "every": 12500,
+        "warn": 1000,
+        "ms": 3600,
+        "cut": 0.18,
+        "reflect": 0.4
+      },
+      "damage": 29,
+      "cooldown": 520,
+      "attack": "projectile",
+      "projectileSpeed": 300,
+      "projectileRadius": 8,
+      "radius": 26,
+      "shape": "bunker",
+      "weapon": "mg",
+      "chase": 0,
+      "aggro": 0,
+      "immobile": true,
+      "ability": {
+        "type": "barrage",
+        "cooldown": 6800,
+        "telegraph": 640,
+        "minRange": 0,
+        "maxRange": 4000,
+        "damage": 130,
+        "radius": 104,
+        "repeat": 3,
+        "interval": 430,
+        "spread": 230
+      }
+    }
+  },
+  "heroes": {
+    "vanguard": {
+      "key": "vanguard",
+      "name": "광전사",
+      "art": "berserker",
+      "trait": "돌격형",
+      "desc": "뼈 가시 볏을 세우고 뛰어든다. 양손 대검으로 쓸어담고, 두꺼워서 실수에 관대하다.",
+      "hp": 860,
+      "armor": 35,
+      "damage": 28,
+      "cooldown": 900,
+      "speed": 155,
+      "range": 90,
+      "attack": "melee",
+      "coneDeg": 100,
+      "lifesteal": 0.1,
+      "chargeKnock": 30,
+      "hint": "달려들며 휘두르면 밀어낸다",
+      "radius": 17,
+      "shape": "square",
+      "skillOptions": {
+        "Q": [
+          {
+            "name": "박치기",
+            "type": "dash",
+            "motif": "blade",
+            "dist": 265,
+            "damage": 60,
+            "radius": 64,
+            "cooldown": 7500,
+            "cost": 0
+          },
+          {
+            "name": "대검 돌진",
+            "type": "dash",
+            "motif": "rock",
+            "dist": 175,
+            "damage": 94,
+            "radius": 82,
+            "cooldown": 8250,
+            "cost": 900
+          },
+          {
+            "name": "흙먼지 은신",
+            "type": "dash",
+            "motif": "sand",
+            "dist": 300,
+            "damage": 0,
+            "radius": 0,
+            "cooldown": 6000,
+            "cost": 250
+          },
+          {
+            "name": "폭풍 돌진",
+            "type": "dash",
+            "motif": "rock",
+            "dist": 340,
+            "damage": 70,
+            "radius": 70,
+            "cooldown": 6750,
+            "cost": 3000
+          },
+          {
+            "name": "부딪쳐깨기",
+            "type": "dash",
+            "motif": "blade",
+            "dist": 220,
+            "damage": 120,
+            "radius": 90,
+            "cooldown": 9000,
+            "cost": 9000
+          }
+        ],
+        "W": [
+          {
+            "name": "대검 회전",
+            "type": "aoeSelf",
+            "motif": "blade",
+            "radius": 102,
+            "damage": 70,
+            "cooldown": 10000,
+            "cost": 0
+          },
+          {
+            "name": "후려치기",
+            "type": "pull",
+            "motif": "blade",
+            "coneDeg": 110,
+            "dist": 200,
+            "damage": 78,
+            "cooldown": 9000,
+            "cost": 900
+          },
+          {
+            "name": "모래 뿌리기",
+            "type": "aoeSelf",
+            "motif": "sand",
+            "radius": 130,
+            "damage": 24,
+            "rootMs": 1300,
+            "cooldown": 12000,
+            "cost": 250
+          },
+          {
+            "name": "강타 후려치기",
+            "type": "pull",
+            "motif": "blade",
+            "coneDeg": 130,
+            "dist": 230,
+            "damage": 100,
+            "cooldown": 11000,
+            "cost": 3000
+          },
+          {
+            "name": "광역 휩쓸기",
+            "type": "aoeSelf",
+            "motif": "blade",
+            "radius": 140,
+            "damage": 95,
+            "cooldown": 13000,
+            "cost": 9000
+          }
+        ],
+        "E": [
+          {
+            "name": "가죽 두르기",
+            "type": "buff",
+            "motif": "blade",
+            "armorAdd": 45,
+            "speedMul": 0.85,
+            "duration": 3500,
+            "cooldown": 12000,
+            "cost": 0
+          },
+          {
+            "name": "광폭화",
+            "type": "buff",
+            "motif": "blade",
+            "damageMul": 1.85,
+            "speedMul": 1.2,
+            "duration": 4500,
+            "cooldown": 15000,
+            "cost": 900
+          },
+          {
+            "name": "약초 씹기",
+            "type": "buff",
+            "motif": "blade",
+            "healNow": 260,
+            "shield": 120,
+            "duration": 3000,
+            "cooldown": 13000,
+            "cost": 250
+          },
+          {
+            "name": "전장의 함성",
+            "type": "buff",
+            "motif": "blade",
+            "damageMul": 1.45,
+            "armorAdd": 30,
+            "duration": 4000,
+            "cooldown": 14000,
+            "cost": 3000
+          },
+          {
+            "name": "불굴",
+            "type": "buff",
+            "motif": "shield",
+            "healNow": 400,
+            "shield": 220,
+            "duration": 3200,
+            "cooldown": 16000,
+            "cost": 9000
+          }
+        ],
+        "R": [
+          {
+            "name": "바위 내리치기",
+            "type": "aoeSelf",
+            "motif": "rock",
+            "radius": 172,
+            "damage": 118,
+            "knockback": 110,
+            "cooldown": 37500,
+            "cost": 0
+          },
+          {
+            "name": "가시 함정",
+            "type": "trap",
+            "motif": "blade",
+            "damage": 200,
+            "radius": 104,
+            "rootMs": 1700,
+            "life": 20000,
+            "cooldown": 35000,
+            "cost": 900
+          },
+          {
+            "name": "낙석 유도",
+            "type": "aoeTarget",
+            "motif": "blade",
+            "radius": 140,
+            "damage": 48,
+            "repeat": 3,
+            "interval": 650,
+            "telegraph": 700,
+            "cooldown": 36250,
+            "cost": 250
+          },
+          {
+            "name": "유성 낙하",
+            "type": "aoeTarget",
+            "motif": "blade",
+            "radius": 160,
+            "damage": 65,
+            "repeat": 4,
+            "interval": 600,
+            "telegraph": 750,
+            "cooldown": 38750,
+            "cost": 3000
+          },
+          {
+            "name": "대지 붕괴",
+            "type": "aoeSelf",
+            "motif": "earth",
+            "radius": 200,
+            "damage": 150,
+            "knockback": 130,
+            "cooldown": 40000,
+            "cost": 9000
+          }
+        ]
+      }
+    },
+    "ranger": {
+      "key": "ranger",
+      "name": "사냥꾼",
+      "art": "hunter",
+      "trait": "원거리형",
+      "desc": "장궁으로 거리를 벌리며 싸운다. 빠르지만 얇아서 한 번 물리면 위험하다.",
+      "hp": 840,
+      "armor": 20,
+      "damage": 24,
+      "cooldown": 750,
+      "speed": 158,
+      "range": 340,
+      "attack": "projectile",
+      "projectileSpeed": 420,
+      "projectileRadius": 7,
+      "lifesteal": 0,
+      "radius": 15,
+      "shape": "triangle",
+      "skillOptions": {
+        "Q": [
+          {
+            "name": "관통 화살",
+            "type": "projectile",
+            "motif": "feather",
+            "damage": 54,
+            "speed": 520,
+            "pierce": true,
+            "radius": 9,
+            "cooldown": 6750,
+            "cost": 0
+          },
+          {
+            "name": "연사",
+            "type": "projectile",
+            "motif": "blade",
+            "damage": 27,
+            "speed": 620,
+            "pierce": false,
+            "radius": 7,
+            "burst": 3,
+            "burstDelay": 110,
+            "cooldown": 6000,
+            "cost": 250
+          },
+          {
+            "name": "불화살",
+            "type": "aoeTarget",
+            "motif": "feather",
+            "radius": 95,
+            "damage": 58,
+            "repeat": 1,
+            "telegraph": 500,
+            "cooldown": 8250,
+            "cost": 900
+          },
+          {
+            "name": "연쇄 사격",
+            "type": "projectile",
+            "motif": "feather",
+            "damage": 22,
+            "speed": 650,
+            "pierce": false,
+            "radius": 7,
+            "burst": 5,
+            "burstDelay": 100,
+            "cooldown": 7500,
+            "cost": 3000
+          },
+          {
+            "name": "독화살",
+            "type": "projectile",
+            "motif": "feather",
+            "damage": 70,
+            "speed": 560,
+            "pierce": true,
+            "radius": 8,
+            "cooldown": 9000,
+            "cost": 9000
+          }
+        ],
+        "W": [
+          {
+            "name": "구르기",
+            "type": "dash",
+            "motif": "blade",
+            "dist": 210,
+            "damage": 0,
+            "radius": 0,
+            "cooldown": 9000,
+            "cost": 0
+          },
+          {
+            "name": "도약",
+            "type": "dash",
+            "motif": "blade",
+            "dist": 330,
+            "damage": 0,
+            "radius": 0,
+            "cooldown": 12000,
+            "cost": 250
+          },
+          {
+            "name": "뒷걸음 사격",
+            "type": "dash",
+            "motif": "feather",
+            "dist": 160,
+            "damage": 38,
+            "radius": 60,
+            "cooldown": 10000,
+            "backward": true,
+            "cost": 900
+          },
+          {
+            "name": "회피 사격",
+            "type": "dash",
+            "motif": "feather",
+            "dist": 200,
+            "damage": 55,
+            "radius": 70,
+            "cooldown": 11000,
+            "backward": true,
+            "cost": 3000
+          },
+          {
+            "name": "장거리 도약",
+            "type": "dash",
+            "motif": "blade",
+            "dist": 420,
+            "damage": 0,
+            "radius": 0,
+            "cooldown": 13000,
+            "cost": 9000
+          }
+        ],
+        "E": [
+          {
+            "name": "올가미",
+            "type": "trap",
+            "motif": "rope",
+            "damage": 44,
+            "radius": 55,
+            "rootMs": 1400,
+            "life": 12000,
+            "cooldown": 13000,
+            "cost": 0
+          },
+          {
+            "name": "끈끈이 덫",
+            "type": "trap",
+            "motif": "blade",
+            "damage": 16,
+            "radius": 90,
+            "rootMs": 2400,
+            "life": 14000,
+            "cooldown": 12000,
+            "cost": 250
+          },
+          {
+            "name": "풀숲 위장",
+            "type": "buff",
+            "motif": "blade",
+            "armorAdd": 30,
+            "speedMul": 1.25,
+            "duration": 3000,
+            "cooldown": 14000,
+            "cost": 900
+          },
+          {
+            "name": "그림자 위장",
+            "type": "buff",
+            "motif": "blade",
+            "armorAdd": 20,
+            "speedMul": 1.4,
+            "duration": 3200,
+            "cooldown": 16000,
+            "cost": 3000
+          },
+          {
+            "name": "가시 올가미",
+            "type": "trap",
+            "motif": "rope",
+            "damage": 65,
+            "radius": 70,
+            "rootMs": 1800,
+            "life": 13000,
+            "cooldown": 15000,
+            "cost": 9000
+          }
+        ],
+        "R": [
+          {
+            "name": "화살비",
+            "type": "aoeTarget",
+            "motif": "feather",
+            "radius": 115,
+            "damage": 27,
+            "repeat": 3,
+            "interval": 700,
+            "telegraph": 600,
+            "cooldown": 37500,
+            "cost": 0
+          },
+          {
+            "name": "폭풍 화살",
+            "type": "aoeTarget",
+            "motif": "feather",
+            "radius": 180,
+            "damage": 21,
+            "repeat": 5,
+            "interval": 500,
+            "telegraph": 800,
+            "cooldown": 40000,
+            "cost": 250
+          },
+          {
+            "name": "일격 화살",
+            "type": "projectile",
+            "motif": "feather",
+            "damage": 132,
+            "speed": 800,
+            "pierce": true,
+            "radius": 11,
+            "cooldown": 35000,
+            "cost": 900
+          },
+          {
+            "name": "유성비",
+            "type": "aoeTarget",
+            "motif": "blade",
+            "radius": 140,
+            "damage": 30,
+            "repeat": 4,
+            "interval": 550,
+            "telegraph": 650,
+            "cooldown": 38750,
+            "cost": 3000
+          },
+          {
+            "name": "관통 저격",
+            "type": "projectile",
+            "motif": "feather",
+            "damage": 170,
+            "speed": 850,
+            "pierce": true,
+            "radius": 12,
+            "cooldown": 36250,
+            "cost": 9000
+          }
+        ]
+      }
+    },
+    "warden": {
+      "key": "warden",
+      "name": "파수꾼",
+      "art": "guardian",
+      "trait": "지속형",
+      "desc": "연꼴 방패와 갈고리 창으로 버틴다. 오래 싸워 이기는 쪽.",
+      "hp": 1000,
+      "armor": 34,
+      "damage": 26,
+      "cooldown": 1000,
+      "speed": 142,
+      "range": 84,
+      "attack": "melee",
+      "coneDeg": 90,
+      "lifesteal": 0.15,
+      "radius": 21,
+      "shape": "hex",
+      "trampleKnock": 14,
+      "auraDps": 10,
+      "auraRadius": 96,
+      "hint": "무게로 밀고 주변을 깎는다",
+      "skillOptions": {
+        "Q": [
+          {
+            "name": "갈고리 찍기",
+            "type": "strike",
+            "motif": "rope",
+            "damage": 92,
+            "lifestealMul": 1.9,
+            "cooldown": 6000,
+            "cost": 0
+          },
+          {
+            "name": "방패 밀치기",
+            "type": "aoeSelf",
+            "motif": "shield",
+            "radius": 96,
+            "damage": 58,
+            "knockback": 78,
+            "cooldown": 6750,
+            "cost": 900
+          },
+          {
+            "name": "그물 던지기",
+            "type": "strike",
+            "motif": "blade",
+            "damage": 37,
+            "rootMs": 1800,
+            "lifestealMul": 1,
+            "cooldown": 9000,
+            "cost": 250
+          },
+          {
+            "name": "방패 강타",
+            "type": "aoeSelf",
+            "motif": "shield",
+            "radius": 110,
+            "damage": 75,
+            "knockback": 95,
+            "cooldown": 8250,
+            "cost": 3000
+          },
+          {
+            "name": "강철 갈고리",
+            "type": "strike",
+            "motif": "rope",
+            "damage": 120,
+            "lifestealMul": 2.1,
+            "cooldown": 7500,
+            "cost": 9000
+          }
+        ],
+        "W": [
+          {
+            "name": "방패 세우기",
+            "type": "buff",
+            "motif": "shield",
+            "shield": 300,
+            "duration": 5500,
+            "cooldown": 10000,
+            "cost": 0
+          },
+          {
+            "name": "철벽 자세",
+            "type": "buff",
+            "motif": "shield",
+            "armorAdd": 110,
+            "duration": 5000,
+            "cooldown": 9000,
+            "cost": 900
+          },
+          {
+            "name": "숨 고르기",
+            "type": "buff",
+            "motif": "blade",
+            "healNow": 480,
+            "duration": 1000,
+            "cooldown": 12000,
+            "cost": 250
+          },
+          {
+            "name": "재생의 숨결",
+            "type": "buff",
+            "motif": "ember",
+            "healNow": 620,
+            "duration": 1200,
+            "cooldown": 13000,
+            "cost": 3000
+          },
+          {
+            "name": "불굴의 방패",
+            "type": "buff",
+            "motif": "shield",
+            "shield": 420,
+            "duration": 6000,
+            "cooldown": 11000,
+            "cost": 9000
+          }
+        ],
+        "E": [
+          {
+            "name": "갈고리 당기기",
+            "type": "pull",
+            "motif": "rope",
+            "coneDeg": 120,
+            "dist": 240,
+            "damage": 26,
+            "cooldown": 14000,
+            "cost": 0
+          },
+          {
+            "name": "회전 갈고리",
+            "type": "pull",
+            "motif": "rope",
+            "coneDeg": 360,
+            "dist": 200,
+            "damage": 21,
+            "cooldown": 16000,
+            "cost": 250
+          },
+          {
+            "name": "돌진",
+            "type": "dash",
+            "motif": "rock",
+            "dist": 200,
+            "damage": 32,
+            "radius": 60,
+            "cooldown": 12000,
+            "cost": 900
+          },
+          {
+            "name": "대지 돌진",
+            "type": "dash",
+            "motif": "rock",
+            "dist": 250,
+            "damage": 45,
+            "radius": 70,
+            "cooldown": 13000,
+            "cost": 3000
+          },
+          {
+            "name": "강철 사슬",
+            "type": "pull",
+            "motif": "rope",
+            "coneDeg": 140,
+            "dist": 280,
+            "damage": 38,
+            "cooldown": 15000,
+            "cost": 9000
+          }
+        ],
+        "R": [
+          {
+            "name": "파수 구역",
+            "type": "aura",
+            "motif": "shield",
+            "radius": 152,
+            "dps": 32,
+            "duration": 9000,
+            "cooldown": 37500,
+            "cost": 0
+          },
+          {
+            "name": "경계 화톳불",
+            "type": "aura",
+            "motif": "ember",
+            "radius": 210,
+            "dps": 22,
+            "duration": 12000,
+            "cooldown": 40000,
+            "cost": 250
+          },
+          {
+            "name": "대지 강타",
+            "type": "aoeSelf",
+            "motif": "earth",
+            "radius": 182,
+            "damage": 130,
+            "knockback": 88,
+            "cooldown": 35000,
+            "cost": 900
+          },
+          {
+            "name": "지진 강타",
+            "type": "aoeSelf",
+            "motif": "earth",
+            "radius": 210,
+            "damage": 160,
+            "knockback": 100,
+            "cooldown": 36250,
+            "cost": 3000
+          },
+          {
+            "name": "불굴의 구역",
+            "type": "aura",
+            "motif": "shield",
+            "radius": 170,
+            "dps": 40,
+            "duration": 10000,
+            "cooldown": 38750,
+            "cost": 9000
+          }
+        ]
+      }
+    }
+  },
+  "heroOrder": [
+    "vanguard",
+    "ranger",
+    "warden"
+  ],
+  "config": {
+    "arena": {
+      "x": 20,
+      "y": 20,
+      "w": 1300,
+      "h": 608,
+      "right": 1320,
+      "bottom": 628
+    },
+    "zoneStrategist": {
+      "x": 20,
+      "y": 20,
+      "w": 1300,
+      "h": 182
+    },
+    "zoneController": {
+      "x": 20,
+      "y": 446,
+      "w": 1300,
+      "h": 182
+    },
+    "leash": 115,
+    "worldScale": 0.8945509876554676,
+    "critChance": 0.25,
+    "critMult": 1.5
+  },
+  "lastStand": {
+    "at": 2,
+    "afterMs": 20000,
+    "armorMul": 0.55,
+    "dmgMul": 1.25
+  },
+  "defendTower": {
+    "unlock": {
+      "bayonet": 0,
+      "rifleman": 0,
+      "grenadier": 0,
+      "sergeant": 0,
+      "shieldman": 5,
+      "medic": 8,
+      "sniper": 10,
+      "chemtrooper": 15,
+      "mine": 20,
+      "mgnest": 42,
+      "palisade": 12,
+      "reflector": 18,
+      "shellwright": 25,
+      "hammer": 30,
+      "hivethrower": 22,
+      "vinewhip": 28,
+      "stonepiler": 32,
+      "ashthrower": 35,
+      "knotter": 38,
+      "emberthrower": 40
+    },
+    "entryJump": 140,
+    "heroDiff": {
+      "vanguard": 1,
+      "ranger": 1.5,
+      "warden": 1
+    },
+    "reliefStep": 0.05,
+    "reliefMax": 0.25
+  },
+  "towerCurriculum": [
+    {
+      "floor": 1,
+      "type": "bayonet",
+      "share": 0.55,
+      "lesson": "근거리 유닛이다. 돌진만 조심하자"
+    },
+    {
+      "floor": 3,
+      "type": "rifleman",
+      "share": 0.55,
+      "lesson": "직선으로만 쏜다. 좌우로 움직이며 피하자"
+    },
+    {
+      "floor": 6,
+      "type": "grenadier",
+      "share": 0.45,
+      "lesson": "떨어질 자리가 먼저 보인다. 그 자리만 비키자"
+    },
+    {
+      "floor": 9,
+      "type": "shieldman",
+      "share": 0.35,
+      "lesson": "날아가는 걸 대신 맞아준다. 먼저 지우자"
+    },
+    {
+      "floor": 12,
+      "type": "medic",
+      "share": 0.25,
+      "lesson": "동료를 계속 살린다. 이놈부터 끊자"
+    },
+    {
+      "floor": 15,
+      "type": "sniper",
+      "share": 0.45,
+      "lesson": "이 창은 못 피한다. 보이면 먼저 지우자"
+    },
+    {
+      "floor": 18,
+      "type": "chemtrooper",
+      "share": 0.25,
+      "lesson": "맞으면 느려진다. 멀리 돌지 말고 붙자"
+    },
+    {
+      "floor": 19,
+      "type": "mgnest",
+      "share": 0.55,
+      "lesson": "맵 끝까지 닿는다. 숨지 말고 곧장 붙자"
+    },
+    {
+      "floor": 24,
+      "type": "sergeant",
+      "share": 0.55,
+      "lesson": "살아 있으면 주변이 세진다. 이놈부터 노리자"
+    },
+    {
+      "floor": 28,
+      "type": "mine",
+      "share": 0.35,
+      "lesson": "안 보인다. 붉은 원이 뜨면 이동 스킬로 튀자"
+    },
+    {
+      "floor": 31,
+      "type": "palisade",
+      "share": 0.25,
+      "lesson": "움직이지 않는다. 곁을 지나가지 말고 돌아가자"
+    },
+    {
+      "floor": 34,
+      "type": "hivethrower",
+      "share": 0.28,
+      "lesson": "죽으면 터진다. 붙어서 잡지 말자"
+    },
+    {
+      "floor": 37,
+      "type": "reflector",
+      "share": 0.45,
+      "lesson": "웅크리면 되받아친다. 그때만 손을 떼자"
+    },
+    {
+      "floor": 41,
+      "type": "hammer",
+      "share": 0.45,
+      "lesson": "방어를 뚫는다. 두꺼운 갑옷을 믿지 말자"
+    },
+    {
+      "floor": 44,
+      "type": "shellwright",
+      "share": 0.2,
+      "lesson": "미리 막아 준다. 한 번에 몰아치지 말고 두 박자로 치자"
+    },
+    {
+      "floor": 47,
+      "type": "vinewhip",
+      "share": 0.35,
+      "lesson": "거리를 벌려도 끌어당긴다. 이동 스킬을 아껴 두자"
+    },
+    {
+      "floor": 51,
+      "type": "stonepiler",
+      "share": 0.45,
+      "lesson": "동료가 죽을수록 커진다. 이놈을 먼저 잡자"
+    },
+    {
+      "floor": 54,
+      "type": "knotter",
+      "share": 0.3,
+      "lesson": "피해를 나눠 진다. 하나만 파지 말고 광역으로 치자"
+    },
+    {
+      "floor": 57,
+      "type": "ashthrower",
+      "share": 0.3,
+      "lesson": "스킬이 늦게 돌아온다. 한 번 쓸 때 확실히 쓰자"
+    },
+    {
+      "floor": 61,
+      "type": "emberthrower",
+      "share": 0.35,
+      "lesson": "불이 남는다. 설 자리를 미리 정해 두자"
+    }
+  ],
+  "items": {
+    "weapon": [
+      {
+        "key": "w1",
+        "name": "돌칼",
+        "cost": 15,
+        "damageAdd": 8,
+        "note": "공격력 +8"
+      },
+      {
+        "key": "w2",
+        "name": "청동 도끼",
+        "cost": 30,
+        "damageAdd": 18,
+        "note": "공격력 +18"
+      },
+      {
+        "key": "w3",
+        "name": "흑요석 검",
+        "cost": 50,
+        "damageAdd": 24,
+        "lifestealAdd": 0.06,
+        "note": "공격력 +24, 흡혈 +6%"
+      }
+    ],
+    "armor": [
+      {
+        "key": "a1",
+        "name": "가죽 갑옷",
+        "cost": 15,
+        "hpAdd": 140,
+        "note": "체력 +140"
+      },
+      {
+        "key": "a2",
+        "name": "뼈 갑옷",
+        "cost": 30,
+        "hpAdd": 260,
+        "armorAdd": 12,
+        "note": "체력 +260, 방어력 +12"
+      },
+      {
+        "key": "a3",
+        "name": "거북등 갑옷",
+        "cost": 50,
+        "hpAdd": 360,
+        "armorAdd": 18,
+        "note": "체력 +360, 방어력 +18"
+      }
+    ],
+    "boots": [
+      {
+        "key": "b1",
+        "name": "짚신",
+        "cost": 12,
+        "speedAdd": 25,
+        "note": "이동속도 +25"
+      },
+      {
+        "key": "b2",
+        "name": "가죽 장화",
+        "cost": 25,
+        "speedAdd": 48,
+        "note": "이동속도 +48"
+      },
+      {
+        "key": "b3",
+        "name": "깃털 장화",
+        "cost": 40,
+        "speedAdd": 72,
+        "cdrMul": 0.88,
+        "note": "이동속도 +72, 스킬 쿨 -12%"
+      }
+    ],
+    "potion": [
+      {
+        "key": "p1",
+        "name": "옹달샘 물",
+        "cost": 10,
+        "heal": 220,
+        "charges": 1,
+        "note": "회복 220 · 1회"
+      },
+      {
+        "key": "p2",
+        "name": "말린 열매",
+        "cost": 20,
+        "heal": 400,
+        "charges": 1,
+        "note": "회복 400 · 1회"
+      },
+      {
+        "key": "p3",
+        "name": "약초 주머니",
+        "cost": 35,
+        "heal": 340,
+        "charges": 2,
+        "note": "회복 340 · 2회"
+      }
+    ]
+  },
+  "itemSlots": [
+    {
+      "key": "weapon",
+      "name": "무기"
+    },
+    {
+      "key": "armor",
+      "name": "방어구"
+    },
+    {
+      "key": "boots",
+      "name": "신발"
+    },
+    {
+      "key": "potion",
+      "name": "물약"
+    }
+  ],
+  "skillSlots": [
+    "Q",
+    "W",
+    "E",
+    "R"
+  ],
+  "towerRules": [
+    {
+      "key": "frenzy",
+      "label": "광란",
+      "desc": "시간이 흐를수록 적이 강해진다 — 오래 끌면 진다",
+      "mods": {},
+      "hook": "frenzy",
+      "hookArg": {
+        "per": 15000,
+        "add": 0.1,
+        "max": 0.6
+      },
+      "forbids": "무한 카이팅"
+    },
+    {
+      "key": "ironclad",
+      "label": "철벽",
+      "desc": "두껍지만 무르다 — 약한 공격은 튕기고, 한 방이 잘 든다",
+      "mods": {
+        "armor": 2.2,
+        "hp": 0.78
+      },
+      "forbids": "잔딜 누적"
+    },
+    {
+      "key": "gale",
+      "label": "질풍",
+      "desc": "빠르지만 약하다 — 거리를 벌리는 것으로는 못 막는다",
+      "mods": {
+        "speed": 1.3,
+        "hp": 0.82
+      },
+      "forbids": "거리 유지"
+    },
+    {
+      "key": "bond",
+      "label": "결속",
+      "desc": "한 기가 죽으면 곁의 동료가 세진다 — 순서를 골라야 한다",
+      "mods": {},
+      "hook": "bond",
+      "hookArg": {
+        "radius": 120,
+        "dmg": 0.18,
+        "max": 5
+      },
+      "forbids": "아무 순서로나 처치"
+    },
+    {
+      "key": "nosupply",
+      "label": "무보급",
+      "desc": "이 층에서는 물약을 쓸 수 없다 — 대신 보상이 크다",
+      "mods": {
+        "goldMul": 1.5
+      },
+      "hook": "nosupply",
+      "forbids": "맞고 버티기"
+    },
+    {
+      "key": "tenacious",
+      "label": "끈질김",
+      "desc": "한번 붙으면 끝까지 따라온다 — 끌고 다녀도 떨어지지 않는다",
+      "mods": {},
+      "hook": "tenacious",
+      "hookArg": {
+        "chaseMul": 2.4,
+        "aggroMul": 1.35
+      },
+      "forbids": "끌고 다니기"
+    },
+    {
+      "key": "narrow",
+      "label": "좁은눈",
+      "desc": "늦게 알아채지만 알아채면 아프다 — 한꺼번에 끌어모으면 위험하다",
+      "mods": {
+        "damage": 1.22
+      },
+      "hook": "narrow",
+      "hookArg": {
+        "aggroMul": 0.62
+      },
+      "forbids": "뭉텅이로 끌어모으기"
+    },
+    {
+      "key": "warlord",
+      "label": "정예 · 두령",
+      "desc": "두령 한 기가 주변 아군을 강화한다 — 먼저 끊지 않으면 전부 세다",
+      "mods": {},
+      "hook": "elite",
+      "hookArg": {
+        "kind": "warlord",
+        "radius": 170,
+        "dmg": 0.3,
+        "hp": 1.6,
+        "size": 1.3
+      },
+      "forbids": "앞에서부터 순서대로 처치"
+    },
+    {
+      "key": "bulwarkElite",
+      "label": "정예 · 방패",
+      "desc": "방패 정예가 곁의 아군에게 보호막을 준다 — 뒤를 치려면 먼저 걷어야 한다",
+      "mods": {},
+      "hook": "elite",
+      "hookArg": {
+        "kind": "shield",
+        "radius": 150,
+        "shieldFrac": 0.35,
+        "every": 4000,
+        "hp": 1.8,
+        "size": 1.28
+      },
+      "forbids": "뒷줄만 골라 치기"
+    },
+    {
+      "key": "bomber",
+      "label": "정예 · 폭심",
+      "desc": "폭심이 죽으면 크게 터진다 — 붙어서 잡으면 같이 다친다",
+      "mods": {},
+      "hook": "elite",
+      "hookArg": {
+        "kind": "bomb",
+        "radius": 132,
+        "dmgMul": 1.9,
+        "hp": 1.4,
+        "size": 1.26
+      },
+      "forbids": "붙어서 아무거나 먼저 잡기"
+    }
+  ],
+  "bossOrder": [
+    "bossAshSentry",
+    "bossDrakeAsh",
+    "bossDrakeFrost",
+    "bossDrakeStorm",
+    "bossDragonClaw",
+    "bossDragonEgg",
+    "bossDragonEggCracked",
+    "bossDragonCrack",
+    "bossDragonTail",
+    "bossDragonLord",
+    "bossDragonAwakened",
+    "bossChief",
+    "bossShell",
+    "bossNest"
+  ],
+  "tower": {
+    "baseBudget": 100,
+    "budgetStep": 4,
+    "earlyFloors": 3,
+    "entryJump": 147,
+    "bossEvery": 10,
+    "bossEscort": 1,
+    "bossSchedule": {
+      "10": "bossChief",
+      "20": "bossShell",
+      "30": "bossNest",
+      "40": "bossAshSentry",
+      "50": "bossDragonEgg",
+      "60": "bossDrakeAsh",
+      "70": "bossDrakeFrost",
+      "80": "bossAshSentry",
+      "90": "bossDrakeStorm",
+      "100": "bossDragonEggCracked",
+      "110": "bossDrakeFrost",
+      "120": "bossDrakeStorm",
+      "130": "bossDrakeAsh",
+      "140": "bossDrakeFrost",
+      "150": "bossDragonCrack",
+      "160": "bossDrakeStorm",
+      "170": "bossDrakeFrost",
+      "180": "bossDrakeStorm",
+      "190": "bossDrakeAsh",
+      "200": "bossDragonClaw",
+      "210": "bossDrakeFrost",
+      "220": "bossDrakeStorm",
+      "230": "bossDragonTail",
+      "240": "bossDrakeAsh",
+      "250": "bossAshSentry",
+      "260": "bossDragonLord",
+      "300": "bossDragonAwakened"
+    },
+    "bossLate": [
+      "bossDrakeFrost",
+      "bossDrakeStorm",
+      "bossDrakeAsh",
+      "bossAshSentry"
+    ],
+    "dragonFrom": 300,
+    "dragonEvery": 50,
+    "bossPremium": {
+      "hp": 2.4,
+      "damage": 1.65
+    },
+    "growth": {
+      "hpPerFloor": 0.012,
+      "damagePerFloor": 0.01
+    },
+    "rule": {
+      "fromFloor": 6,
+      "restEvery": 3,
+      "secondFrom": 35,
+      "scaleStep": 0.018,
+      "scaleMax": 1.8
+    },
+    "objective": {
+      "fromFloor": 9,
+      "every": 4,
+      "list": [
+        {
+          "key": "slayLeader",
+          "label": "우두머리 사냥",
+          "desc": "가장 강한 적 한 기만 쓰러뜨리면 이긴다",
+          "hint": "잡졸을 무시하고 뚫고 들어갈 것인가, 안전하게 걷어낼 것인가",
+          "seconds": 0,
+          "failAfter": 0
+        },
+        {
+          "key": "survive",
+          "label": "버티기",
+          "desc": "40초를 버티면 이긴다 — 다 죽일 필요가 없다",
+          "hint": "죽이지 않고 살아남는, 완전히 다른 손놀림",
+          "seconds": 40,
+          "failAfter": 0
+        },
+        {
+          "key": "blitz",
+          "label": "속공",
+          "desc": "35초 안에 전멸시켜야 한다 — 시간을 넘기면 진다",
+          "hint": "안전한 순서를 포기하고 위험을 감수하게 만든다",
+          "seconds": 35,
+          "failAfter": 35000
+        }
+      ]
+    },
+    "dragonBoss": "bossDragonAwakened"
+  },
+  "curriculum": {
+    "maxUnits": {
+      "1": 3,
+      "2": 5,
+      "3": 7,
+      "4": 10,
+      "5": 11,
+      "6": 12,
+      "7": 13,
+      "8": 14,
+      "9": 15,
+      "10": 16
+    },
+    "debutShare": 0.55,
+    "debutBudgetCapAdd": 0.3,
+    "debutBudgetCapMax": 0.85,
+    "themeFromFloor": 6,
+    "themeChance": 0.11
+  },
+  "towerThemes": [
+    {
+      "type": "shieldman",
+      "label": "방패병들이 화가 났습니다",
+      "hint": "전부 방패병입니다. 뚫을 한 방이 필요합니다"
+    },
+    {
+      "type": "chemtrooper",
+      "label": "온통 늪지대가 되었습니다",
+      "hint": "전부 늪지기입니다. 느려지는 걸 각오하세요"
+    },
+    {
+      "type": "rifleman",
+      "label": "궁수 대회가 열렸습니다",
+      "hint": "화살이 사방에서 날아옵니다. 계속 움직이세요"
+    },
+    {
+      "type": "grenadier",
+      "label": "돌 던지기 축제입니다",
+      "hint": "그림자가 보이면 그 자리를 뜨세요"
+    },
+    {
+      "type": "bayonet",
+      "label": "전사들이 우르르 몰려왔습니다",
+      "hint": "수는 많지만 하나하나는 약합니다"
+    },
+    {
+      "type": "medic",
+      "label": "약초꾼들이 소풍을 나왔습니다",
+      "hint": "서로를 계속 살립니다. 한 곳씩 끊으세요"
+    },
+    {
+      "type": "sniper",
+      "label": "투창 시합이 한창입니다",
+      "hint": "피할 수 없는 창입니다. 빨리 붙으세요"
+    },
+    {
+      "type": "mgnest",
+      "label": "쇠뇌 진지를 잔뜩 지었습니다",
+      "hint": "숨을 곳이 없습니다. 곧장 파고드세요"
+    }
+  ],
+  "towerPlans": {
+    "practiceFloors": 3,
+    "list": [
+      {
+        "key": "line",
+        "label": "줄벽",
+        "hint": "가로로 늘어선 벽 — 어느 쪽이든 뚫는 값이 같다"
+      },
+      {
+        "key": "pincer",
+        "label": "집게",
+        "hint": "양 날개에 뭉쳐 있고 가운데가 비었다 — 한쪽을 골라 먼저 부숴야 한다"
+      },
+      {
+        "key": "keep",
+        "label": "요새",
+        "hint": "뒤쪽에 빽빽하게 뭉쳐 있다 — 광역기가 값을 하고, 파고들면 둘러싸인다"
+      },
+      {
+        "key": "scatter",
+        "label": "산개",
+        "hint": "넓게 흩어져 있다 — 광역기가 헛돌고, 하나씩 떼어내야 한다"
+      },
+      {
+        "key": "wedge",
+        "label": "쐐기",
+        "hint": "앞으로 뾰족한 쐐기 — 정면은 두껍고 옆구리는 얇다"
+      },
+      {
+        "key": "ambush",
+        "label": "매복",
+        "hint": "앞에 미끼 몇 기, 본진은 저 뒤에 — 미끼를 물면 끌려간다"
+      },
+      {
+        "key": "doubleWall",
+        "label": "이중벽",
+        "hint": "근접이 두 줄 — 첫 줄을 넘어도 두 번째가 기다린다"
+      },
+      {
+        "key": "echelon",
+        "label": "사선",
+        "hint": "한쪽 날개가 훨씬 앞으로 나와 있다 — 얇은 쪽으로 돌면 길이 열린다"
+      },
+      {
+        "key": "ring",
+        "label": "고리",
+        "hint": "둥글게 둘러싼 진형 — 안으로 들어가면 사방에서 맞는다"
+      }
+    ]
+  },
+  "unitLevel": {
+    "mods": [
+      {
+        "hp": 1,
+        "damage": 1
+      },
+      {
+        "hp": 1.07,
+        "damage": 1.05
+      },
+      {
+        "hp": 1.14,
+        "damage": 1.1
+      },
+      {
+        "hp": 1.21,
+        "damage": 1.15
+      },
+      {
+        "hp": 1.29,
+        "damage": 1.21
+      }
+    ],
+    "max": 5,
+    "aiMax": 12,
+    "hiStep": {
+      "hp": 1.0661157024793388,
+      "damage": 1.0521739130434784
+    },
+    "premium": [
+      0,
+      0,
+      0.124,
+      0.254,
+      0.392,
+      0.561
+    ],
+    "cost": [
+      0,
+      0,
+      45,
+      90,
+      170,
+      320
+    ],
+    "traits": {
+      "charge": {
+        "label": "돌격",
+        "cost": 0.2,
+        "speed": 1.22,
+        "aggro": 1.18,
+        "chase": 1.15,
+        "why": "이동속도를 올려 거리를 좁힌다"
+      },
+      "hardened": {
+        "label": "경화",
+        "cost": 0.24,
+        "hp": 1.12,
+        "armorAdd": 6,
+        "why": "체력·방어를 올려 벽으로 세운다"
+      },
+      "marksman": {
+        "label": "정조준",
+        "cost": 0.26,
+        "cooldown": 0.88,
+        "range": 1.1,
+        "why": "사거리와 발사 속도를 올린다"
+      }
+    }
+  },
+  "autoFormation": {
+    "weights": {
+      "none": {
+        "bayonet": 10,
+        "rifleman": 9,
+        "grenadier": 6,
+        "sniper": 8,
+        "shieldman": 5,
+        "medic": 3,
+        "sergeant": 4,
+        "chemtrooper": 8,
+        "mgnest": 8,
+        "mine": 1
+      },
+      "vanguard": {
+        "bayonet": 16,
+        "rifleman": 9,
+        "grenadier": 18,
+        "sniper": 5,
+        "shieldman": 15,
+        "medic": 3,
+        "sergeant": 8,
+        "chemtrooper": 8,
+        "mgnest": 6,
+        "mine": 14
+      },
+      "ranger": {
+        "bayonet": 5,
+        "rifleman": 15,
+        "grenadier": 6,
+        "sniper": 23,
+        "shieldman": 2,
+        "medic": 3,
+        "sergeant": 4,
+        "chemtrooper": 17,
+        "mgnest": 20,
+        "mine": 1
+      },
+      "warden": {
+        "bayonet": 4,
+        "rifleman": 17,
+        "grenadier": 6,
+        "sniper": 24,
+        "shieldman": 1,
+        "medic": 1,
+        "sergeant": 4,
+        "chemtrooper": 18,
+        "mgnest": 20,
+        "mine": 8
+      }
+    },
+    "heroCounters": {
+      "warden": {
+        "w": {
+          "sniper": 16,
+          "mgnest": 12,
+          "rifleman": 8,
+          "chemtrooper": 10,
+          "mine": 8,
+          "bayonet": -6,
+          "shieldman": -4,
+          "medic": -2
+        },
+        "spread": 1.45,
+        "why": "파수꾼은 흡혈로 버틴다 → 뭉치지 않고 넓게 벌려, 붙기 전에 원거리로 녹인다"
+      },
+      "vanguard": {
+        "w": {
+          "mine": 14,
+          "grenadier": 12,
+          "shieldman": 10,
+          "bayonet": 6,
+          "sergeant": 4,
+          "sniper": -3,
+          "mgnest": -2
+        },
+        "spread": 0.85,
+        "why": "광전사는 파고든다 → 가시덫·투석으로 진입 지점을 응징하고 방패병으로 막는다"
+      },
+      "ranger": {
+        "w": {
+          "sniper": 15,
+          "mgnest": 12,
+          "chemtrooper": 9,
+          "rifleman": 6,
+          "bayonet": -5,
+          "mine": -4,
+          "shieldman": -3
+        },
+        "spread": 1.15,
+        "why": "사냥꾼은 거리를 벌린다 → 유도 투창과 고정 화력으로 도망칠 곳을 없앤다"
+      }
+    },
+    "doctrines": {
+      "swarm": {
+        "label": "물량",
+        "wall": 0.34,
+        "ranged": 0.3,
+        "coreN": 0,
+        "traits": [],
+        "coreBias": 1,
+        "why": "값싼 유닛을 최대한 많이 세워 몸과 화력으로 밀어붙인다"
+      },
+      "spearhead": {
+        "label": "선봉",
+        "wall": 0.32,
+        "ranged": 0.36,
+        "group": "ranged",
+        "coreN": 1,
+        "traits": [],
+        "coreBias": 1.35,
+        "lvCap": 3,
+        "why": "주력 원거리 한 종류만 키워 화력의 중심을 만든다"
+      },
+      "chargeElite": {
+        "label": "돌격 정예",
+        "wall": 0.56,
+        "ranged": 0.22,
+        "group": "melee",
+        "coreN": 2,
+        "traits": [
+          "charge"
+        ],
+        "coreBias": 1.6,
+        "why": "이동속도와 체력을 올린 근접을 소수만 투입해 거리를 지우고 붙는다"
+      },
+      "sharpshooter": {
+        "label": "저격 정예",
+        "wall": 0.28,
+        "ranged": 0.46,
+        "group": "ranged",
+        "coreN": 1,
+        "traits": [
+          "marksman"
+        ],
+        "coreBias": 1.8,
+        "why": "원거리 한 종류만 크게 강화해 붙기 전에 녹인다"
+      },
+      "bulwark": {
+        "label": "방벽",
+        "wall": 0.46,
+        "ranged": 0.32,
+        "group": "melee",
+        "coreN": 1,
+        "traits": [
+          "hardened"
+        ],
+        "coreBias": 1.5,
+        "why": "앞줄 한 종류를 두껍게 만들어 진형이 먼저 무너지지 않게 한다"
+      }
+    },
+    "doctrineWeights": {
+      "none": {
+        "swarm": 30,
+        "spearhead": 26,
+        "chargeElite": 16,
+        "sharpshooter": 16,
+        "bulwark": 12
+      },
+      "vanguard": {
+        "swarm": 44,
+        "spearhead": 26,
+        "chargeElite": 10,
+        "sharpshooter": 16,
+        "bulwark": 28
+      },
+      "ranger": {
+        "swarm": 30,
+        "spearhead": 26,
+        "chargeElite": 34,
+        "sharpshooter": 30,
+        "bulwark": 12
+      },
+      "warden": {
+        "swarm": 30,
+        "spearhead": 36,
+        "chargeElite": 4,
+        "sharpshooter": 42,
+        "bulwark": 12
+      }
+    },
+    "meleePool": [
+      "bayonet",
+      "shieldman"
+    ],
+    "rangedPool": [
+      "rifleman",
+      "sniper",
+      "grenadier",
+      "chemtrooper",
+      "mgnest"
+    ],
+    "bands": {
+      "bayonet": [
+        0.24,
+        0.3
+      ],
+      "rifleman": [
+        0.15,
+        0.23
+      ],
+      "grenadier": [
+        0.11,
+        0.19
+      ],
+      "sniper": [
+        0.04,
+        0.11
+      ],
+      "shieldman": [
+        0.24,
+        0.3
+      ],
+      "medic": [
+        0.04,
+        0.11
+      ],
+      "sergeant": [
+        0.15,
+        0.23
+      ],
+      "chemtrooper": [
+        0.15,
+        0.23
+      ],
+      "mgnest": [
+        0.11,
+        0.19
+      ],
+      "mine": [
+        0.38,
+        0.47
+      ],
+      "reflector": [
+        0.15,
+        0.25
+      ],
+      "palisade": [
+        0.15,
+        0.25
+      ],
+      "shellwright": [
+        0.15,
+        0.25
+      ],
+      "hammer": [
+        0.15,
+        0.25
+      ],
+      "hivethrower": [
+        0.15,
+        0.25
+      ],
+      "vinewhip": [
+        0.15,
+        0.25
+      ],
+      "ashthrower": [
+        0.15,
+        0.25
+      ],
+      "stonepiler": [
+        0.15,
+        0.25
+      ],
+      "knotter": [
+        0.15,
+        0.25
+      ],
+      "emberthrower": [
+        0.15,
+        0.25
+      ]
+    },
+    "bandDefault": [
+      0.15,
+      0.25
+    ],
+    "eliteMinBudget": 150,
+    "tierSteps": [
+      150,
+      200,
+      270,
+      340,
+      420,
+      520,
+      640,
+      800,
+      1000,
+      1250
+    ],
+    "recentKeep": 2,
+    "recentMul": 0.4
+  }
+}

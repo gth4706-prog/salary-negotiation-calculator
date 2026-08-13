@@ -17,7 +17,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%90%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="../css/style.css?v=0.17">
-<link rel="stylesheet" href="../css/pyeong.css?v=0.01">
+<link rel="stylesheet" href="../css/pyeong.css?v=0.02">
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
 <script type="application/ld+json">
 {"@context": "https://schema.org", "@type": "WebApplication", "name": "평수 계산기", "url": "https://joeltool.com/pyeong-calculator/", "applicationCategory": "UtilitiesApplication", "operatingSystem": "All", "inLanguage": "ko", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "KRW"}, "description": "㎡를 평으로, 평을 ㎡로 바로 변환합니다. 가로·세로 길이만 넣어도 평수가 나오고, 그 평수에 어떤 가구가 들어가는지까지 알려드립니다. 1평 = 3.3058㎡."}
@@ -35,7 +35,7 @@
 <body>
 <nav class="nav"><div class="in">
   <a class="brand" href="../"><svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg><span class="n">각잡살림</span></a>
-  <div class="links"><a href="../guides.html">가이드</a><a href="../room-planner/">배치 시뮬레이터</a><a href="../about.html">소개</a><button class="theme-btn" id="theme-btn" type="button">◐</button><span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.01</span></div>
+  <div class="links"><a href="../guides.html">가이드</a><a href="../room-planner/">배치 시뮬레이터</a><a href="../about.html">소개</a><button class="theme-btn" id="theme-btn" type="button">◐</button><span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.02</span></div>
 </div></nav>
 
 <main class="wrap page stack">
@@ -203,7 +203,15 @@
     <h2>평수를 알았다면 배치까지</h2>
     <p>평수는 시작일 뿐입니다. 같은 5평이라도 정사각형이냐 길쭉하냐에 따라 들어가는 가구가 완전히 달라집니다. <a href="../room-planner/">방 가구 배치 시뮬레이터</a>에 평수와 방 모양을 넣고 가구를 놓아보면 통로가 남는지 바로 보입니다.</p>
     <p>함께 읽기: <a href="../room-planner/guide/bed-size-guide.html">침대 사이즈 총정리</a> · <a href="../room-planner/guide/closet-size-guide.html">옷장 깊이는 왜 60cm인가</a> · <a href="../room-planner/guide/desk-size-guide.html">책상 사이즈</a></p>
-    <p class="hint">※ 계산은 전부 브라우저 안에서 이뤄지며 입력한 값은 서버로 전송되지 않습니다. 면적 표기는 계약서·등기부의 공식 수치를 우선하세요.</p>
+        <h2>근거 법령 · 공식 출처</h2>
+    <p>이 계산기의 공식과 기준은 아래 원문을 따릅니다. 제도는 개정되므로 실제 판단 전에 원문을 한 번 더 확인하시는 편이 안전합니다.</p>
+    <ul>
+      <li><a href="https://www.law.go.kr/법령/계량에관한법률" rel="nofollow noopener" target="_blank">계량에 관한 법률 (법정 계량단위)</a></li>
+      <li><a href="https://www.law.go.kr/법령/건축법시행령/제119조" rel="nofollow noopener" target="_blank">건축법 시행령 제119조 (면적 산정방법)</a></li>
+      <li><a href="https://rt.molit.go.kr/" rel="nofollow noopener" target="_blank">국토교통부 실거래가 공개시스템</a></li>
+    </ul>
+    <p>더 자세히: <a href="guide/exclusive-vs-supply-area.html">전용면적과 공급면적의 차이</a></p>
+<p class="hint">※ 계산은 전부 브라우저 안에서 이뤄지며 입력한 값은 서버로 전송되지 않습니다. 면적 표기는 계약서·등기부의 공식 수치를 우선하세요.</p>
   </article>
 </main>
 
@@ -212,7 +220,7 @@
   <div class="cp">참고용 정보이며 실제 계약 시 공식 면적 표기를 확인하세요. © 각잡살림</div>
 </div></footer>
 <script src="../js/site.js"></script>
-<script src="../js/pyeong.js?v=0.01"></script>
+<script src="../js/pyeong.js?v=0.02"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "07ab6490a09d417bbe1bf83ef9780218"}'></script>
 </body>
 </html>

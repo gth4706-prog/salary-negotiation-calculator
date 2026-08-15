@@ -139,7 +139,7 @@ GAME.Account = {
     var r = this.registry()[id];
     if (!r) return '';
     return [
-      '[Egg War — 닉네임 신고]',
+      '[계란들의 전쟁 — 닉네임 신고]',
       '닉네임: ' + r.id,
       '생성: ' + new Date(r.createdAt).toLocaleString('ko-KR'),
       '최근 접속: ' + new Date(r.lastSeen).toLocaleString('ko-KR'),

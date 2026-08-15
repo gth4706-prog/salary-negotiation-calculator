@@ -68,6 +68,9 @@ GAME.BattleScene.prototype.init = function (data) {
 
 GAME.BattleScene.prototype.create = function () {
   if (GAME.Music) GAME.Music.stop();
+  // 보스 등장 스팅어 — 통곡의 탑 보스 층 전투가 시작되는 순간에만 운다.
+  // `this.formation.boss` 는 js/tower.js 가 보스 층 진형에만 심는 키다(일반 층엔 없다).
+  if (this.formation && this.formation.boss && GAME.Sound) GAME.Sound.play('bossRoar');
   var C = GAME.CONFIG.COLORS;
   var self = this;
 
@@ -1411,6 +1414,9 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
           bonusShown = Math.round(floorBonus * GAME.TowerChar.luckGoldMul());
           // 보스 층은 **확정으로** 아이템이나 스킬북을 하나 떨군다(미보유분에서).
           if (GAME.Tower.bossFor(this.tower)) {
+            // 보스 격파 스팅어 — 이겼을 때만(진 판엔 안 운다). 승리 화면으로 넘어가기
+            // 전, 동전 비가 뿌려지는 것과 같은 자리에서 운다.
+            if (GAME.Sound) GAME.Sound.play('bossDown');
             bossDrop = GAME.TowerChar.grantBossDrop();
             // 더 줄 게 없으면(전부 최상급 보유) 골드로 갈음한다 — 확정 보상인데
             // 아무 일도 안 일어나면 "보스를 깼는데 왜 아무것도 없지"가 된다.

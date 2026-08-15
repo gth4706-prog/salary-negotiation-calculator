@@ -75,7 +75,19 @@ GAME.TowerPlan = (function () {
   //  `AutoFormation.bandOf` 의 ny 대역을 역할로 접는다. 원형은 역할만 보고 배치한다 —
   //  유닛 종류가 늘어도 이 파일을 안 고치게 하려는 것이다.
   function roleOf(key) {
-    var b = GAME.AutoFormation.bandOf(key);
+    //  ⚠ **정예 파생 키(`shieldman#2`)를 그대로 넘기면 안 된다.** `bandOf` 의 switch 가
+    //    그 키를 못 맞춰 기본값 [0.15,0.25] 로 떨어지고, 정예 방패병이 'wall'(앞 벽)이
+    //    아니라 'mid' 로 접힌다 — **정예가 붙는 10층 이상에서 앞 벽이 통째로 빈다.**
+    //    v1.69 가 "정예 파생 키는 `baseKeyOf` 로 되돌려 읽어라"로 규율을 세운 자리의
+    //    세 번째 얼굴이다(유니티 이식 중 발견).
+    //  ⚠ `baseKeyOf` 는 def 가 **이미 등록된 뒤에만** 통한다(`GAME.UNITS[key].baseKey`
+    //    를 읽는다). 진형을 짜는 이 시점에는 정예 def 가 아직 없어서 그대로 돌아온다 —
+    //    그래서 접미사를 문자열로 떼어 낸다. 등록돼 있으면 baseKeyOf 가 먼저 답한다.
+    var bk = key;
+    if (GAME.UnitLevel && GAME.UnitLevel.baseKeyOf) bk = GAME.UnitLevel.baseKeyOf(key);
+    var hash = bk.indexOf('#');
+    if (hash > 0) bk = bk.slice(0, hash);
+    var b = GAME.AutoFormation.bandOf(bk);
     if (b[0] >= 0.35) return 'trap';    // 지뢰 — 지나가는 길에 둔다
     if (b[0] >= 0.24) return 'wall';    // 앞 벽 (근접)
     if (b[0] >= 0.11) return 'mid';     // 중거리

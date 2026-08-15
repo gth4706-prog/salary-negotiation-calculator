@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>개인정보처리방침 — 계란들의 전쟁</title>
+<meta name="description" content="모바일 게임 「계란들의 전쟁」의 개인정보처리방침. 계정 없음, 광고 없음, 수집 항목 전체 공개.">
+<meta name="robots" content="index,follow">
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 18px 72px;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    line-height: 1.75; color: #1c1c1e; background: #fff;
+    -webkit-text-size-adjust: 100%;
+  }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -.01em; }
+  h2 { font-size: 1.15rem; margin: 34px 0 10px; padding-top: 14px; border-top: 1px solid #e6e6e9; }
+  .meta { color: #6b6b70; font-size: .9rem; margin: 0 0 8px; }
+  .lead { background: #f5f6f8; border-radius: 10px; padding: 14px 16px; margin: 18px 0 0; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: .94rem; display: block; overflow-x: auto; }
+  th, td { border: 1px solid #e2e2e6; padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f5f6f8; font-weight: 600; white-space: nowrap; }
+  code { background: #f0f0f3; border-radius: 4px; padding: 1px 5px; font-size: .88em; }
+  ul { padding-left: 1.15rem; }
+  li { margin: 4px 0; }
+  a { color: #2b6cb0; }
+  footer { margin-top: 44px; padding-top: 14px; border-top: 1px solid #e6e6e9; color: #6b6b70; font-size: .88rem; }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e8e8ea; background: #16161a; }
+    h2 { border-top-color: #2c2c33; }
+    .meta, footer { color: #9a9aa2; }
+    .lead { background: #1f1f25; }
+    th, td { border-color: #2c2c33; }
+    th { background: #1f1f25; }
+    code { background: #24242b; }
+    a { color: #7fb3ff; }
+    footer { border-top-color: #2c2c33; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<h1>개인정보처리방침</h1>
+<p class="meta">모바일 게임 <strong>「계란들의 전쟁」</strong> (<code>com.joeltool.eggwar</code>) · 최종 갱신 2026-08-09</p>
+
+<p class="lead">
+이 게임은 <strong>계정을 만들지 않습니다.</strong> 실명·이메일·전화번호·생년월일을 묻지 않고,
+<strong>광고가 없으며</strong>, 분석 SDK 를 사용하지 않습니다. 저장되는 것은 <strong>게임 진행도</strong>뿐이고
+그 대부분은 <strong>기기 안에만</strong> 있습니다.
+</p>
+
+<h2>1. 기기 안에만 저장되는 것</h2>
+<table>
+  <tr><th>항목</th><th>내용</th></tr>
+  <tr><td>닉네임</td><td>이용자가 직접 지은 이름. 실명일 필요가 없고 별도로 확인하지 않습니다.</td></tr>
+  <tr><td>진행도</td><td>통곡의 탑 최고 층, 수성의 탑 회차, 골드, 장비, 능력치, 해금 상태</td></tr>
+  <tr><td>배치도</td><td>전략가로 만든 진형(유닛 종류와 좌표)</td></tr>
+  <tr><td>설정</td><td>효과음·배경음 켜짐 여부, 전투 배속</td></tr>
+</table>
+<ul>
+  <li>앱 전용 저장 영역에 JSON 파일로 보관되며, <strong>앱을 삭제하면 함께 지워집니다.</strong></li>
+  <li>사진·다운로드 같은 외부 저장소를 사용하지 않으므로 다른 앱이 읽을 수 없습니다.</li>
+</ul>
+
+<h2>2. 순위 서버로 전송되는 것</h2>
+<p>랭킹 기능을 이용할 때에 한해 아래 값이 순위 서버로 전송됩니다.</p>
+<table>
+  <tr><th>보내는 값</th><th>무엇인가</th></tr>
+  <tr><td><code>id</code></td><td>닉네임</td></tr>
+  <tr><td><code>score</code> · <code>won</code> · <code>role</code></td><td>그 판의 점수, 승패, 역할(전략가/컨트롤러)</td></tr>
+  <tr><td><code>esc</code> · <code>formation</code></td><td>난이도 단계, 상대 진형 이름</td></tr>
+  <tr><td><code>tower</code> · <code>dtower</code> · <code>trophy</code></td><td>통곡의 탑 층, 수성의 탑 회차, 대전 트로피</td></tr>
+  <tr><td><code>hero</code> · <code>gear</code></td><td>그 판에 사용한 영웅·장비의 내부 식별 문자열</td></tr>
+</table>
+<ul>
+  <li>수신처: Cloudflare Workers + KV.</li>
+  <li><strong>비밀번호가 없습니다.</strong> 닉네임만으로 기록이 구분되므로, 같은 닉네임을 쓰면 다른 기기의 기록과 합쳐집니다. 이 랭킹은 <strong>본인 확인을 하지 않는 공개 기록</strong>입니다.</li>
+  <li>랭킹에 오른 닉네임과 기록은 게임 안 랭킹 화면에서 누구나 볼 수 있습니다.</li>
+  <li>닉네임에 실명·학교·연락처 등 신원을 알 수 있는 값을 넣지 마시기 바랍니다.</li>
+</ul>
+
+<h2>3. 수집하지 않는 것</h2>
+<ul>
+  <li>이름·이메일·전화번호·주소·생년월일·성별</li>
+  <li>위치 정보(GPS·네트워크 위치 모두)</li>
+  <li>연락처, 통화 기록, 문자메시지</li>
+  <li>사진·동영상·파일, 카메라, 마이크</li>
+  <li><strong>광고 식별자(AAID)</strong> — 이 게임에는 광고가 없으며, 앱 매니페스트에 광고 식별자 권한이 포함되어 있지 않습니다.</li>
+  <li>기기 고유 식별자(IMEI, 시리얼 번호 등)</li>
+  <li><strong>결제 정보</strong> — 현재 인앱 결제가 없습니다. 향후 추가되면 결제는 Google Play 가 처리하며 카드 정보는 이 앱이 취급하지 않습니다. 그 시점에 이 방침을 먼저 갱신합니다.</li>
+  <li>충돌 보고·성능 지표 — Unity Cloud Diagnostics 를 사용하지 않습니다.</li>
+  <li>분석(Analytics) — Unity Analytics 를 초기화하지 않으므로 수집이 일어나지 않습니다.</li>
+</ul>
+
+<h2>4. 앱이 요구하는 권한 (전부)</h2>
+<table>
+  <tr><th>권한</th><th>왜</th></tr>
+  <tr><td><code>android.permission.INTERNET</code></td><td>순위 서버 통신. 이것 하나뿐입니다.</td></tr>
+  <tr><td><code>…DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION</code></td><td>안드로이드 지원 라이브러리(androidx)가 자체 보호용으로 자동 생성하는 서명 등급 권한입니다. 이 앱 안에서만 유효하며 어떤 정보에도 접근하지 않습니다.</td></tr>
+</table>
+<p>위치·연락처·카메라·마이크·저장소 같은 <strong>위험 권한은 하나도 없습니다.</strong></p>
+
+<h2>5. 제3자 제공</h2>
+<table>
+  <tr><th>누구</th><th>왜</th><th>무엇이 지나가나</th></tr>
+  <tr><td>Cloudflare</td><td>순위 서버 호스팅</td><td>위 2절의 값. 접속 과정에서 <strong>IP 주소</strong>가 통상적인 서버 접속 로그에 남을 수 있습니다.</td></tr>
+  <tr><td>Google Play</td><td>앱 배포·업데이트</td><td>이 앱이 전달하는 값은 없습니다. Play 자체 정책이 별도로 적용됩니다.</td></tr>
+</table>
+<p>광고 네트워크, 분석 업체, 데이터 브로커에는 어떤 값도 제공하지 않습니다.</p>
+
+<h2>6. 보관과 삭제</h2>
+<ul>
+  <li><strong>기기 안 데이터</strong>는 앱 삭제 시 즉시 사라집니다. 게임 안 기록 삭제 기능으로도 지울 수 있습니다.</li>
+  <li><strong>순위 서버 데이터</strong>는 닉네임 단위로 보관됩니다. 삭제를 원하시면 아래 연락처로 <strong>닉네임</strong>을 알려 주시면 해당 기록을 삭제합니다. 비밀번호가 없는 구조라 본인 확인이 불가능하므로, 요청받은 닉네임의 기록을 삭제하는 것 외의 처리는 하지 않습니다.</li>
+</ul>
+
+<h2>7. 아동</h2>
+<p>
+이 게임은 <strong>12세 이용가</strong>를 기준으로 제작되었습니다. 유혈 표현이 없고,
+쓰러진 유닛에서 노른자가 터지는 과장된 묘사만 있습니다. 만 13세 미만 아동을 특정해
+겨냥한 앱이 아니며, 아동으로부터 개인정보를 의도적으로 수집하지 않습니다.
+</p>
+
+<h2>8. 변경 고지</h2>
+<p>
+이 방침이 변경되면 이 페이지의 최종 갱신 날짜를 바꿉니다. 수집 항목이 늘어나는
+변경인 경우 앱 안에서도 안내합니다.
+</p>
+
+<h2>9. 연락처</h2>
+<p>이메일: <a href="mailto:gth4706@gmail.com">gth4706@gmail.com</a></p>
+
+<footer>
+  「계란들의 전쟁」 · com.joeltool.eggwar · 최종 갱신 2026-08-09
+</footer>
+
+</main>
+</body>
+</html>

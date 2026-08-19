@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v2.06';
+GAME.VERSION = 'v2.07';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -173,6 +173,7 @@ window.addEventListener('load', function () {
                  ' spd=' + Math.round(GAME.Combat.effSpeed(sc.hero)) +
                  ' root=' + Math.max(0, Math.round(sc.hero.rootedFor || 0)) +
                  ' stop=' + Math.max(0, Math.round(sc._hitStop || 0)) +
+                 ' armed=' + ((sc.ctrl && sc.ctrl.armedSkill) || '-') +
                  ' pos=' + Math.round(sc.hero.x) + ',' + Math.round(sc.hero.y);
         } catch (e) { return 'err'; }
       })();

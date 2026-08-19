@@ -357,16 +357,20 @@ GAME.TouchPad.prototype._bind = function () {
 
   var release = function (p) {
     if (!self.stick.active || p.id !== self.stick.id) return;
-    self.stick.active = false;
-    self.stick.dx = 0; self.stick.dy = 0;
-    // 손을 떼면 스틱을 원래 홈 자리로 되돌린다(다음에 어디를 눌러야 할지 보이게)
-    self.stick.cx = self.stick.homeX;
-    self.stick.cy = self.stick.homeY;
-    self.stickRing.setPosition(self.stick.homeX, self.stick.homeY);
-    self.stickKnob.setPosition(self.stick.homeX, self.stick.homeY);
+    self._releaseStick();
   };
   this.scene.input.on('pointerup', release);
   this.scene.input.on('pointerupoutside', release);
+};
+
+//  스틱을 홈으로 되돌린다 — pointerup 처리와 감시견(아래)이 같이 쓴다.
+GAME.TouchPad.prototype._releaseStick = function () {
+  this.stick.active = false;
+  this.stick.dx = 0; this.stick.dy = 0;
+  this.stick.cx = this.stick.homeX;
+  this.stick.cy = this.stick.homeY;
+  this.stickRing.setPosition(this.stick.homeX, this.stick.homeY);
+  this.stickKnob.setPosition(this.stick.homeX, this.stick.homeY);
 };
 
 GAME.TouchPad.prototype._moveKnob = function (p) {
@@ -549,6 +553,23 @@ GAME.TouchPad.prototype._find = function (key) {
 // 매 프레임 — 스틱 입력을 영웅 이동으로 바꾼다
 GAME.TouchPad.prototype.update = function (dtMs) {
   this.refresh(dtMs);
+  //  ── 스틱 감시견 (2026-08-20, 실기기 영상 실측) ──────────────────────────
+  //  스킬 버튼(둘째 손가락)과 스틱이 얽히면 WebView 가 pointerup 을 흘리거나
+  //  포인터 id 가 꼬여 **스틱이 벌어진 채 얼어붙는다** — 노브가 5프레임 내내
+  //  같은 자리에 굳고 이동 입력이 죽은 장면이 영상에 그대로 찍혔다(78.1~76.4초,
+  //  그대로 사망). 매 프레임 "그 포인터가 아직 눌려 있는가"를 확인하고,
+  //  죽은 포인터를 붙들고 있으면 즉시 홈으로 되돌린다 — 다음 터치가 바로 먹는다.
+  if (this.stick.active) {
+    var mgr = this.scene.input && this.scene.input.manager;
+    var liveStick = false;
+    if (mgr && mgr.pointers) {
+      for (var pi = 0; pi < mgr.pointers.length; pi++) {
+        var pp = mgr.pointers[pi];
+        if (pp && pp.id === this.stick.id && pp.isDown) { liveStick = true; break; }
+      }
+    } else liveStick = true;   // 매니저를 못 보면 기존 동작 유지
+    if (!liveStick) this._releaseStick();
+  }
   var h = this.hero;
   if (!h.alive || h.rootedFor > 0) return false;
   var dx = this.stick.dx, dy = this.stick.dy;

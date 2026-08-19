@@ -435,7 +435,26 @@ GAME.TouchPad.prototype.refresh = function (dtMs) {
       // 흰 원 위에서는 밝은 글자가 사라진다 — 잉크색으로 뒤집는다.
       b.text.setColor('#2b2418');
       b.circle.setFillStyle(PAD.readyFace, 0.92);
+      //  ── 준비 완료 플래시 (2026-08-20 비주얼 승급) ────────────────────────
+      //  쿨이 끝나는 **그 순간**을 알린다 — 숫자가 사라지는 것만으로는 곁눈으로
+      //  안 읽힌다(실기기 영상에서 쿨 끝난 스킬을 한참 놀리는 장면이 그 증거).
+      //  0.45초 동안 버튼이 살짝 부풀고 테두리가 굵게 빛난 뒤 가라앉는다.
+      //  렌더 전용 — 판정·쿨다운 값에는 손대지 않는다.
+      if (b._wasCooling) { b._flash = 450; b._wasCooling = false; }
+      if (b._flash > 0) {
+        b._flash -= dtMs;
+        var fl = Math.max(0, b._flash / 450);
+        var pop = 1 + 0.18 * fl;
+        b.circle.setScale(pop);
+        b.text.setScale(pop);
+        g.lineStyle(3 + 3 * fl, 0xffd166, 0.5 + 0.45 * fl);
+        g.strokeCircle(b.circle.x, b.circle.y, b.r + 2 + 4 * (1 - fl));
+      } else if (b.circle.scaleX !== 1) {
+        b.circle.setScale(1);
+        b.text.setScale(1);
+      }
     }
+    if (left > 0) b._wasCooling = true;
   }
   var pot = this._find('POTION');
   if (pot) pot._ta = (h.potionCharges > 0 ? 1 : 0.3);

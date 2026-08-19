@@ -739,7 +739,11 @@ var SM = 10;
     barrage: 'aoeTarget',    // 예고 폭격 — 팔을 든 채 유지(유일하게 진짜 예비가 있는 타입)
     shockwave: 'aoeSelf',    // 자기중심 파동 — 눌렸다 펴진다
     healBurst: 'buff',       // 약초꾼 — 웅크렸다 부풀기
-    warcry: 'aura'           // 족장 — 깃대를 땅에 꽂고 버틴다
+    warcry: 'aura',          // 족장 — 깃대를 땅에 꽂고 버틴다
+    //  수성의 탑 신규 유닛 3종 (2026-08-20 — art-motion-audit ⑪-2 가 잡아 둔 누락)
+    pull: 'pull',            // 덩굴채 — 팔을 뻗어 끌어당긴다(영웅 당기기와 같은 그림)
+    ashcloud: 'aoeTarget',   // 잿가루꾼 — 지정 위치에 뿌린다(팔 든 채 유지)
+    ember: 'projectile'      // 불씨꾼 — 던진다(짧고 빠른 무기각)
   };
 
   //  ky 는 이 범위를 벗어나면 안 된다. `eggBody` 가 면적을 보존하느라 가로를 1/ky 로

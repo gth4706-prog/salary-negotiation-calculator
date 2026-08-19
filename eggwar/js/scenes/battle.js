@@ -572,6 +572,23 @@ GAME.BattleScene.prototype.create = function () {
     color: '#ffe9a8', stroke: '#3a2a10', strokeThickness: 4
   }).setOrigin(0, 0.5).setDepth(9200).setScrollFactor(0).setVisible(false);
 
+  //  ── 저체력 경고 비네트 (2026-08-20 비주얼 승급) ──────────────────────────
+  //  실기기 영상에서 체력 860→123 으로 녹는 동안 화면 경고가 전혀 없었다 —
+  //  체력바는 좌상단 구석이라 난전 중엔 아무도 못 본다. 25% 미만(저체력 경고음과
+  //  같은 문턱)이면 화면 가장자리가 붉게 고동친다. 렌더 전용.
+  this._lowHpG = this.add.graphics().setDepth(9100).setScrollFactor(0).setAlpha(0);
+  (function (g, W2, H2) {
+    var th = Math.max(10, Math.min(22, H2 * 0.03));
+    for (var e = 0; e < 4; e++) {
+      g.fillStyle(0xd83a2e, 0.30 - e * 0.062);
+      var o = th * e;
+      g.fillRect(o, o, W2 - o * 2, th);
+      g.fillRect(o, H2 - o - th, W2 - o * 2, th);
+      g.fillRect(o, o + th, th, H2 - (o + th) * 2);
+      g.fillRect(W2 - o - th, o + th, th, H2 - (o + th) * 2);
+    }
+  })(this._lowHpG, GAME.CONFIG.WIDTH, GAME.CONFIG.HEIGHT);
+
   this.numPool = [];
   for (var n = 0; n < 26; n++) {
     var numTxt = this.add.text(0, 0, '', {
@@ -1369,6 +1386,16 @@ GAME.BattleScene.prototype.update = function (time, delta) {
 
   // 라운드 종료를 **씬에서** 3초 붙잡는다. combat.js 는 건드리지 않는다.
   this._endGate(dt);
+
+  //  저체력 비네트 — 내가 모는 영웅이 25% 미만이면 가장자리가 고동친다.
+  //  (방어전에서는 영웅이 적이라 뜻이 뒤집힌다 — 시점 플래그로 접는다)
+  if (this._lowHpG) {
+    var lhHero = ((this._heroIsPlayer === undefined) ? true : this._heroIsPlayer) ? this.hero : null;
+    var lhOn = lhHero && lhHero.alive && lhHero.maxHp && lhHero.hp / lhHero.maxHp < 0.25;
+    this._lowHpG.setAlpha(lhOn
+      ? 0.55 + Math.sin(this.state.elapsed / 210) * 0.30
+      : 0);
+  }
 
   // 동전 — 줍기 판정은 월드 좌표에서만 한다(줌·투영과 무관)
   if (this._coins) {

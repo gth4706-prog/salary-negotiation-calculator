@@ -6,7 +6,11 @@
 <meta name="robots" content="noindex,nofollow">
 <title>블로그 작업대 — 각잡살림 내부용</title>
 <!-- ⚠️ 내부용. noindex,nofollow · sitemap 미등록 · 광고 스크립트 없음.
-     kit/card-news.html 과 같은 취급이다. 검색에 잡히면 안 된다. -->
+     kit/card-news.html 과 같은 취급이다. 검색에 잡히면 안 된다.
+
+     ■ 네이버 옮기기의 핵심은 "서식 유지 복사"다.
+       스마트에디터는 text/html 클립보드를 받으면 소제목·굵게를 그대로 살린다.
+       그래서 ■ 를 손으로 소제목 바꾸는 작업이 통째로 사라진다. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9C%8D%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
@@ -29,7 +33,7 @@
 body{margin:0;background:var(--paper);color:var(--ink);
   font-family:'Pretendard Variable',Pretendard,-apple-system,system-ui,sans-serif;
   font-size:16px;line-height:1.75;word-break:keep-all}
-.wrap{max-width:860px;margin:0 auto;padding:26px 18px 90px}
+.wrap{max-width:900px;margin:0 auto;padding:26px 18px 90px}
 header.top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
 h1{font-size:23px;margin:0;letter-spacing:-.02em}
 .sub{color:var(--muted);font-size:14px;margin:6px 0 20px}
@@ -44,7 +48,7 @@ button.primary:hover{filter:brightness(1.06)}
 button.ghost{font-size:13px;padding:6px 10px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
   box-shadow:var(--shadow);padding:18px 18px 16px;margin-bottom:16px}
-.card.done{opacity:.62}
+.card.done{opacity:.6}
 .card.done .ttl{text-decoration:line-through;text-decoration-color:var(--muted)}
 .head{display:flex;gap:10px;align-items:flex-start}
 .head .grow{flex:1;min-width:0}
@@ -58,14 +62,23 @@ button.ghost{font-size:13px;padding:6px 10px}
 .meta{font-size:13px;color:var(--muted);margin:10px 0 0}
 .meta b{color:var(--ink)}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.imgs{display:flex;gap:10px;flex-wrap:wrap;margin-top:13px}
+.imgs figure{margin:0;width:150px}
+.imgs img{width:100%;border:1px solid var(--line);border-radius:var(--r-sm);display:block;
+  background:#fff;cursor:zoom-in}
+.imgs figcaption{font-size:11.5px;color:var(--muted);margin-top:5px;text-align:center;line-height:1.4}
+.imgs button{width:100%;margin-top:5px;font-size:12px;padding:5px}
 details{margin-top:12px;border-top:1px solid var(--line);padding-top:11px}
 summary{cursor:pointer;font-size:14px;font-weight:700;color:var(--accent-ink);list-style:none}
 summary::-webkit-details-marker{display:none}
 summary:before{content:'▸ ';font-size:12px}
 details[open] summary:before{content:'▾ '}
-pre.body{white-space:pre-wrap;background:var(--surface-2);border:1px solid var(--line);
-  border-radius:var(--r-sm);padding:14px;font-family:inherit;font-size:14.5px;line-height:1.8;
-  margin:11px 0 0;max-height:460px;overflow:auto}
+.prev{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:16px 18px;margin:11px 0 0;max-height:480px;overflow:auto;font-size:15px;line-height:1.85}
+.prev h3{font-size:17px;margin:22px 0 8px;color:var(--accent-ink)}
+.prev h3:first-child{margin-top:0}
+.prev p{margin:0 0 12px}
+.prev .fill{background:rgba(181,68,46,.12);color:var(--warn);padding:1px 5px;border-radius:4px;font-weight:700}
 .tip{background:color-mix(in srgb,var(--accent) 7%,var(--surface-2));
   border:1px solid var(--line);border-left:3px solid var(--accent);
   border-radius:var(--r-sm);padding:11px 13px;font-size:13.5px;color:var(--muted);margin-top:11px}
@@ -73,15 +86,20 @@ pre.body{white-space:pre-wrap;background:var(--surface-2);border:1px solid var(-
 .warn{border-left-color:var(--warn)}
 .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(80px);
   background:var(--ink);color:var(--paper);padding:11px 20px;border-radius:99px;font-size:14px;
-  font-weight:700;opacity:0;transition:.22s;pointer-events:none;z-index:50}
+  font-weight:700;opacity:0;transition:.22s;pointer-events:none;z-index:60}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 .guide{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
   padding:16px 18px;margin-bottom:20px}
 .guide h2{font-size:15.5px;margin:0 0 9px}
 .guide ol{margin:0;padding-left:20px;font-size:14px;color:var(--muted)}
-.guide li{margin:5px 0}
+.guide li{margin:6px 0}
 .guide b{color:var(--ink)}
-@media(max-width:520px){.wrap{padding:20px 13px 80px}h1{font-size:20px}.ttl{font-size:16px}}
+.lb{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;
+  justify-content:center;z-index:70;padding:24px;cursor:zoom-out}
+.lb.on{display:flex}
+.lb img{max-width:100%;max-height:100%;border-radius:8px;background:#fff}
+@media(max-width:520px){.wrap{padding:20px 13px 80px}h1{font-size:20px}.ttl{font-size:16px}
+  .imgs figure{width:calc(50% - 5px)}}
 </style>
 </head>
 <body>
@@ -90,18 +108,21 @@ pre.body{white-space:pre-wrap;background:var(--surface-2);border:1px solid var(-
     <h1>블로그 작업대</h1>
     <button class="ghost" id="theme">◐ 테마</button>
   </header>
-  <p class="sub">네이버 블로그에 올릴 원고입니다. 제목·본문을 복사해서 올리고 <b>업로드함</b>에 체크하세요.
-     체크 상태는 이 브라우저에 저장되니 Claude 와 서로 어디까지 했는지 맞출 수 있습니다.</p>
+  <p class="sub">네이버 블로그에 올릴 원고입니다. <b>서식 유지 복사</b>로 붙여넣으면 소제목·굵게가 그대로 들어갑니다.
+     올린 뒤 <b>업로드함</b>에 체크하면 진행 상황을 저와 맞출 수 있습니다.</p>
 
   <div class="guide">
-    <h2>올리는 순서</h2>
+    <h2>옮기는 순서 (3분)</h2>
     <ol>
-      <li><b>제목 복사</b> → 네이버 블로그 글쓰기의 제목 칸에 붙여넣기</li>
-      <li><b>본문 복사</b> → 본문에 붙여넣기. <b>■ 로 시작하는 줄은 네이버 편집기에서 소제목으로 바꿔주세요</b>(글자 크게 + 굵게). 이게 체류시간을 늘립니다.</li>
-      <li><code>[[경험]]</code> 자리에 <b>직접 겪은 이야기 2~3줄</b>을 채워주세요. 네이버는 실제 경험이 담긴 글을 우대합니다. 이 자리는 제가 대신 쓰지 않습니다.</li>
-      <li><code>[[링크]]</code> 자리에 아래 <b>링크 복사</b> 버튼의 주소를 넣어주세요. <b>글당 외부 링크는 1개만</b> — 많으면 홍보성으로 분류됩니다.</li>
-      <li>이미지를 <b>3장 이상</b> 넣어주세요. 어떤 이미지가 좋은지 각 원고에 적어뒀습니다.</li>
-      <li>태그를 붙여넣고 발행 → 여기 돌아와 <b>업로드함</b> 체크</li>
+      <li><b>제목 복사</b> → 네이버 글쓰기 제목 칸에 붙여넣기</li>
+      <li><b>서식 유지 복사</b> → 본문에 붙여넣기. <b>소제목과 굵게가 그대로 들어갑니다.</b>
+          손으로 바꿀 게 없어요. (혹시 서식이 안 먹으면 옆의 <b>글자만 복사</b>를 쓰세요)</li>
+      <li>붉게 표시된 <b>[[경험1]] [[경험2]] [[경험3]]</b> 자리를 지우고 본인 이야기를 넣어주세요.
+          <b>2~3줄이면 충분합니다.</b> 여긴 제가 대신 쓰지 않습니다 —
+          네이버는 실제 경험이 담긴 글을 우대하고, 지어낸 건 티가 납니다.</li>
+      <li>아래 이미지들을 <b>내려받아</b> 소제목 사이사이에 넣어주세요. 3장 이상이면 좋습니다.</li>
+      <li>맨 끝 <b>[[링크]]</b> 자리에 링크가 이미 들어가 있습니다. <b>글당 외부 링크는 1개만</b> — 많으면 홍보성으로 분류됩니다.</li>
+      <li><b>태그 복사</b> 붙여넣고 발행 → 여기 돌아와 <b>업로드함</b> 체크</li>
     </ol>
   </div>
 
@@ -114,84 +135,149 @@ pre.body{white-space:pre-wrap;background:var(--surface-2);border:1px solid var(-
   <div id="list"></div>
 </div>
 
+<div class="lb" id="lb"><img id="lbimg" alt=""></div>
 <div class="toast" id="toast"></div>
 
-<script src="blog-drafts.js?v=0.01"></script>
+<script src="blog-drafts.js?v=0.02"></script>
+<script src="blog-tables.js?v=0.01"></script>
 <script>
 (function(){
   var KEY='blogdesk.done.v1';
-  var done={};
-  try{ done=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){ done={}; }
+  var done={}; try{ done=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){ done={}; }
   var listEl=document.getElementById('list'), countEl=document.getElementById('count');
   var toastEl=document.getElementById('toast'), toastT=null;
+  var lb=document.getElementById('lb'), lbimg=document.getElementById('lbimg');
+  lb.addEventListener('click',function(){ lb.classList.remove('on'); });
 
-  function toast(msg){
-    toastEl.textContent=msg; toastEl.classList.add('on');
-    clearTimeout(toastT); toastT=setTimeout(function(){ toastEl.classList.remove('on'); },1500);
-  }
+  function toast(m){ toastEl.textContent=m; toastEl.classList.add('on');
+    clearTimeout(toastT); toastT=setTimeout(function(){toastEl.classList.remove('on');},1600); }
   function save(){ try{ localStorage.setItem(KEY,JSON.stringify(done)); }catch(e){} }
   function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  // 클립보드 — https 가 아니거나 권한이 없을 때를 위한 폴백을 둔다
-  function copy(text,label){
-    function fallback(){
-      var ta=document.createElement('textarea');
-      ta.value=text; ta.style.position='fixed'; ta.style.top='-1000px';
-      document.body.appendChild(ta); ta.select();
-      try{ document.execCommand('copy'); toast(label+' 복사됨'); }
-      catch(e){ toast('복사 실패 — 직접 선택해 주세요'); }
-      document.body.removeChild(ta);
-    }
-    if(navigator.clipboard && window.isSecureContext){
-      navigator.clipboard.writeText(text).then(function(){ toast(label+' 복사됨'); }, fallback);
-    } else fallback();
+  /* 원고 텍스트 → 문단 배열. ■ 는 소제목, [[링크]] 는 실제 주소로 */
+  function parse(d){
+    var txt=d.body.replace(/\[\[링크\]\]/g, d.link.text+'('+d.link.url+')');
+    return txt.split(/\n\n+/).map(function(blk){
+      var t=blk.trim(); if(!t) return null;
+      if(t.indexOf('■ ')===0) return {h:t.slice(2).trim()};
+      return {p:t};
+    }).filter(Boolean);
+  }
+  /* **굵게** 를 <b> 로. 나머지는 이스케이프 */
+  function inline(s){
+    return esc(s).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')
+                 .replace(/\[\[(경험\d?)\]\]/g,'<span class="fill">[[$1]]</span>');
+  }
+  function toHTML(d){
+    return parse(d).map(function(b){
+      if(b.h) return '<h3 style="font-size:19px;font-weight:800;margin:26px 0 10px">'+inline(b.h)+'</h3>';
+      return '<p style="margin:0 0 14px;line-height:1.9">'+inline(b.p).replace(/\n/g,'<br>')+'</p>';
+    }).join('');
+  }
+  function toText(d){
+    return parse(d).map(function(b){
+      if(b.h) return b.h;
+      return b.p;
+    }).join('\n\n').replace(/\*\*/g,'');
   }
 
-  function bodyFor(d){
-    // [[링크]] 는 실제 주소로 바꿔서 복사되게 한다 — 붙여넣고 나서 헤매지 않도록
-    return d.body.replace(/\[\[링크\]\]/g, d.link.text+'('+d.link.url+')');
+  function copyText(text,label){
+    function fb(){ var ta=document.createElement('textarea'); ta.value=text;
+      ta.style.position='fixed'; ta.style.top='-1000px'; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); toast(label+' 복사됨'); }catch(e){ toast('복사 실패'); }
+      document.body.removeChild(ta); }
+    if(navigator.clipboard && window.isSecureContext)
+      navigator.clipboard.writeText(text).then(function(){toast(label+' 복사됨');}, fb);
+    else fb();
+  }
+  /* 서식 유지 복사 — 스마트에디터가 text/html 을 받으면 소제목·굵게가 살아난다 */
+  function copyRich(html,plain){
+    if(navigator.clipboard && window.ClipboardItem && window.isSecureContext){
+      var item=new ClipboardItem({
+        'text/html': new Blob([html],{type:'text/html'}),
+        'text/plain': new Blob([plain],{type:'text/plain'})
+      });
+      navigator.clipboard.write([item]).then(function(){ toast('서식 유지 복사됨'); }, function(){ richFallback(html); });
+    } else richFallback(html);
+  }
+  function richFallback(html){
+    // contenteditable 에 넣고 선택 → execCommand('copy') 하면 서식이 함께 복사된다
+    var d=document.createElement('div');
+    d.contentEditable='true'; d.innerHTML=html;
+    d.style.position='fixed'; d.style.left='-9999px'; d.style.top='0'; d.style.whiteSpace='pre-wrap';
+    document.body.appendChild(d);
+    var r=document.createRange(); r.selectNodeContents(d);
+    var s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    try{ document.execCommand('copy'); toast('서식 유지 복사됨'); }
+    catch(e){ toast('복사 실패 — 글자만 복사를 써주세요'); }
+    s.removeAllRanges(); document.body.removeChild(d);
+  }
+
+  function imgSrc(name){
+    if(window.BLOG_TABLES && window.BLOG_TABLES[name]) return window.drawBlogTable(name);
+    return 'img/'+name+'.png';
+  }
+  function imgLabel(name){
+    if(window.BLOG_TABLES && window.BLOG_TABLES[name]) return window.BLOG_TABLES[name].label;
+    return '계산기 실제 화면';
+  }
+  function download(name){
+    var src=imgSrc(name);
+    var a=document.createElement('a'); a.download=name+'.png';
+    if(src.indexOf('data:')===0){ a.href=src; a.click(); toast('내려받는 중'); return; }
+    fetch(src).then(function(r){return r.blob();}).then(function(b){
+      a.href=URL.createObjectURL(b); a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);},4000);
+      toast('내려받는 중');
+    }).catch(function(){ window.open(src,'_blank'); });
   }
 
   function render(){
-    var drafts=window.BLOG_DRAFTS||[];
-    listEl.innerHTML='';
-    var n=0;
+    var drafts=window.BLOG_DRAFTS||[]; listEl.innerHTML=''; var n=0;
     drafts.forEach(function(d){
       if(done[d.id]) n++;
       var c=document.createElement('div');
       c.className='card'+(done[d.id]?' done':'');
+      var imgs=(d.images||[]).map(function(nm){
+        return '<figure><img src="'+imgSrc(nm)+'" alt="" data-zoom="'+nm+'">'+
+               '<figcaption>'+esc(imgLabel(nm))+'</figcaption>'+
+               '<button data-dl="'+nm+'">내려받기</button></figure>';
+      }).join('');
       c.innerHTML=
         '<div class="head"><div class="grow">'+
           '<span class="track">'+esc(d.track)+'</span>'+
-          '<p class="ttl">'+esc(d.title)+'</p>'+
-        '</div>'+
-        '<label class="chk"><input type="checkbox" '+(done[d.id]?'checked':'')+
-          ' data-id="'+d.id+'"> 업로드함</label></div>'+
+          '<p class="ttl">'+esc(d.title)+'</p></div>'+
+        '<label class="chk"><input type="checkbox" '+(done[d.id]?'checked':'')+'> 업로드함</label></div>'+
         '<p class="meta">노리는 검색어 <b>'+esc(d.keywords.join(' · '))+'</b></p>'+
         '<div class="row">'+
-          '<button class="primary" data-copy="title">제목 복사</button>'+
-          '<button class="primary" data-copy="body">본문 복사</button>'+
-          '<button data-copy="tags">태그 복사</button>'+
-          '<button data-copy="link">링크 복사</button>'+
+          '<button class="primary" data-c="title">제목 복사</button>'+
+          '<button class="primary" data-c="rich">서식 유지 복사</button>'+
+          '<button data-c="plain">글자만 복사</button>'+
+          '<button data-c="tags">태그 복사</button>'+
         '</div>'+
-        '<div class="tip"><b>이미지 3장 이상</b> — '+esc(d.images.join(' / '))+'</div>'+
-        '<div class="tip warn"><b>직접 채울 것</b> — <code>[[경험]]</code> 자리에 겪은 이야기 2~3줄. 여기는 제가 대신 쓰지 않습니다.</div>'+
+        (imgs?'<div class="imgs">'+imgs+'</div>':'')+
+        '<div class="tip warn"><b>직접 채울 것</b> — 본문의 <span class="fill">[[경험1~3]]</span> 자리에 겪은 이야기 2~3줄씩. 여기는 제가 대신 쓰지 않습니다.</div>'+
         '<div class="tip"><b>노출 팁</b> — '+esc(d.seo)+'</div>'+
-        '<details><summary>본문 미리보기</summary><pre class="body">'+esc(bodyFor(d))+'</pre></details>';
+        '<details><summary>본문 미리보기 (붙여넣으면 이 모양으로 들어갑니다)</summary>'+
+          '<div class="prev">'+toHTML(d)+'</div></details>';
 
       c.querySelector('input').addEventListener('change',function(e){
-        if(e.target.checked) done[d.id]=new Date().toISOString().slice(0,10);
-        else delete done[d.id];
+        if(e.target.checked) done[d.id]=new Date().toISOString().slice(0,10); else delete done[d.id];
         save(); render();
       });
-      c.querySelectorAll('[data-copy]').forEach(function(b){
+      c.querySelectorAll('[data-c]').forEach(function(b){
         b.addEventListener('click',function(){
-          var k=b.getAttribute('data-copy');
-          if(k==='title') copy(d.title,'제목');
-          else if(k==='body') copy(bodyFor(d),'본문');
-          else if(k==='tags') copy(d.tags.map(function(t){return '#'+t;}).join(' '),'태그');
-          else copy(d.link.url,'링크');
+          var k=b.getAttribute('data-c');
+          if(k==='title') copyText(d.title,'제목');
+          else if(k==='rich') copyRich(toHTML(d), toText(d));
+          else if(k==='plain') copyText(toText(d),'본문');
+          else copyText(d.tags.map(function(t){return '#'+t;}).join(' '),'태그');
         });
+      });
+      c.querySelectorAll('[data-dl]').forEach(function(b){
+        b.addEventListener('click',function(){ download(b.getAttribute('data-dl')); });
+      });
+      c.querySelectorAll('[data-zoom]').forEach(function(im){
+        im.addEventListener('click',function(){ lbimg.src=im.src; lb.classList.add('on'); });
       });
       listEl.appendChild(c);
     });
@@ -199,20 +285,16 @@ pre.body{white-space:pre-wrap;background:var(--surface-2);border:1px solid var(-
   }
 
   document.getElementById('reset').addEventListener('click',function(){
-    if(!confirm('체크를 전부 해제할까요? 원고는 지워지지 않습니다.')) return;
+    if(!confirm('체크를 전부 해제할까요? 원고는 그대로입니다.')) return;
     done={}; save(); render(); toast('해제됨');
   });
-
   document.getElementById('report').addEventListener('click',function(){
     var drafts=window.BLOG_DRAFTS||[];
-    var lines=['[블로그 발행 현황 '+new Date().toISOString().slice(0,10)+']'];
-    drafts.forEach(function(d){
-      lines.push((done[d.id]?'[O] ':'[ ] ')+d.title+(done[d.id]?'  ('+done[d.id]+' 업로드)':''));
-    });
-    lines.push('','올린 것: '+Object.keys(done).length+' / '+drafts.length);
-    copy(lines.join('\n'),'진행 상황');
+    var L=['[블로그 발행 현황 '+new Date().toISOString().slice(0,10)+']'];
+    drafts.forEach(function(d){ L.push((done[d.id]?'[O] ':'[ ] ')+d.title+(done[d.id]?'  ('+done[d.id]+')':'')); });
+    L.push('','올린 것: '+Object.keys(done).length+' / '+drafts.length);
+    copyText(L.join('\n'),'진행 상황');
   });
-
   var t=document.getElementById('theme');
   t.addEventListener('click',function(){
     var cur=document.documentElement.getAttribute('data-theme');

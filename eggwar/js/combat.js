@@ -4,6 +4,25 @@ window.GAME = window.GAME || {};
 // 여기서 나온 좌표를 렌더 단계에서만 기울여 그린다 → 회피 판정의 공정성이 보존된다.
 GAME.Combat = {
 
+  //  ── 시뮬 전용 난수 (록스텝 P2) ─────────────────────────────────────────────
+  //  ⚠ 전역 Math.random 을 시드로 갈아끼우는 방식(회귀·감사 하네스)은 **렌더가
+  //    난수열을 오염시킨다** — 두 클라이언트의 파티클 호출 횟수가 다르면 시뮬
+  //    난수가 갈린다. 그래서 시뮬(combat)은 자기 rng 를 따로 갖는다.
+  //    seedRng(방장이 배포한 시드)를 안 부르면 null → Math.random 으로 떨어져
+  //    기존 모드·하네스는 한 비트도 안 바뀐다(하네스는 전역 스왑을 계속 쓴다).
+  _rng: null,
+  seedRng: function (seed) {
+    var s = seed | 0;
+    this._rng = function () {
+      s = s + 0x6D2B79F5 | 0;
+      var t = Math.imul(s ^ s >>> 15, 1 | s);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  },
+  clearRng: function () { this._rng = null; },
+  rand: function () { return this._rng ? this._rng() : Math.random(); },
+
   createState: function () {
     return {
       units: [], projectiles: [], effects: [], traps: [],
@@ -219,7 +238,11 @@ GAME.Combat = {
       home: { x: x, y: y },
       // 전략가 유닛은 적이 가까우면 배치를 깨고 쫓아나가되, chase 반경을 넘으면 자리로 돌아온다.
       // 무한 돌격을 막아 '배치'가 여전히 의미를 갖게 하는 장치.
-      leash: side === 'strategist' ? (def.chase || GAME.CONFIG.LEASH) : Infinity,
+      //  ⚠ 진영 조건을 뗐다(2026-08-19 실시간 대전 P1) — 예전엔 컨트롤러 진영에
+      //    유닛이 없어서 side 로 걸러도 같았지만, 같은 전장 실시간은 **양쪽 다
+      //    진형을 세운다.** 유닛이면 진영과 무관하게 배치 리시를 갖는다(무한 돌격
+      //    금지는 이 게임의 진형 약속이다). 영웅의 Infinity 는 createHero 가 담당한다.
+      leash: (def.chase || GAME.CONFIG.LEASH),
       stance: 'hold',        // hold | chase | return
       // 한 번 추격을 결심했는가. 서면 복귀·리시를 적용하지 않는다(끝까지 쫓는다).
       committed: false,
@@ -234,7 +257,7 @@ GAME.Combat = {
       everEngaged: false,    // 이 유닛이 한 번이라도 적을 때렸는가 (학습 신호)
       hp: def.hp,
       maxHp: def.hp,
-      cd: Math.random() * 250,
+      cd: GAME.Combat.rand() * 250,
       alive: true,
       order: null,
       manual: false,
@@ -379,7 +402,7 @@ GAME.Combat = {
   isCharging: function (u) {
     if (u._px === undefined) return false;
     var dx = u.x - u._px, dy = u.y - u._py;
-    return (dx * dx + dy * dy) > Math.pow(this.effSpeed(u) * 0.006, 2);
+    return (dx * dx + dy * dy) > (function(v){return v*v;})(this.effSpeed(u) * 0.006);
   },
 
   // 지뢰는 '전투원'이 아니라 지형 위험물이다. 쏘는 게 아니라 피하는 것이므로
@@ -512,7 +535,7 @@ GAME.Combat = {
 
     // 크리티컬 — 모든 공격에 25% 확률로 1.5배
     var crit = false;
-    if (!(opts && opts.noCrit) && Math.random() < GAME.CONFIG.CRIT_CHANCE) {
+    if (!(opts && opts.noCrit) && GAME.Combat.rand() < GAME.CONFIG.CRIT_CHANCE) {
       crit = true;
       dmg *= GAME.CONFIG.CRIT_MULT;
     }
@@ -827,7 +850,7 @@ GAME.Combat = {
     var r = unit.def.radius;
     state.effects.push({
       kind: 'yolk', x: unit.x, y: unit.y, r: r,
-      hero: !!unit.isHero, seed: Math.random() * 6.283,
+      hero: !!unit.isHero, seed: GAME.Combat.rand() * 6.283,
       t: 480, total: 480, side: unit.side
     });
     state.effects.push({
@@ -845,11 +868,11 @@ GAME.Combat = {
     //   (겹침 감사 0건 → 13건). 뜨는 순서대로 세 층에 번갈아 올린다.
     state._numSeq = ((state._numSeq || 0) + 1) % 3;
     state.numbers.push({
-      x: unit.x + (Math.random() - 0.5) * 44,
+      x: unit.x + (GAME.Combat.rand() - 0.5) * 44,
       y: unit.y,
       yOff: state._numSeq * 17,
       // 좌우로 퍼지게 흘려보낸다 — 같은 자리에서 여러 대 맞으면 숫자가 뭉쳐 읽을 수 없다
-      drift: (Math.random() - 0.5) * 46,
+      drift: (GAME.Combat.rand() - 0.5) * 46,
       value: Math.round(amount),
       crit: !!crit,
       // 영웅이 맞은 건지 적이 맞은 건지 색으로 구분
@@ -992,7 +1015,7 @@ GAME.Combat = {
     u.x += (dx / d) * step;
     u.y += (dy / d) * step;
     // 공격이 시선을 잡고 있지 않을 때만 진행 방향을 본다
-    if (!(u.faceLock > 0)) u.facing = Math.atan2(dy, dx);
+    if (!(u.faceLock > 0)) u.facing = GAME.DetMath.atan2(dy, dx);
     this.clampToArena(u);
     return d <= step + 0.5;
   },
@@ -1001,7 +1024,7 @@ GAME.Combat = {
   fire: function (u, tx, ty, target, state) {
     var def = u.def;
     if (def.attack === 'none') return;
-    var ang = Math.atan2(ty - u.y, tx - u.x);
+    var ang = GAME.DetMath.atan2(ty - u.y, tx - u.x);
     this.faceAttack(u, ang);
     var dmg = this.effDamage(u, state);
 
@@ -1049,8 +1072,8 @@ GAME.Combat = {
         var o = state.units[i];
         if (!o.alive || o.side === u.side) continue;
         if (this.dist(u, o) > def.range + o.def.radius) continue;
-        var a = Math.atan2(o.y - u.y, o.x - u.x);
-        var diff = Math.atan2(Math.sin(a - ang), Math.cos(a - ang));
+        var a = GAME.DetMath.atan2(o.y - u.y, o.x - u.x);
+        var diff = GAME.DetMath.atan2(GAME.DetMath.sin(a - ang), GAME.DetMath.cos(a - ang));
         if (Math.abs(diff) <= half) {
           this.applyDamage(o, dmg, u, state, {
             lsScale: meleeHit === 0 ? 1 : GAME.CONFIG.AOE_LIFESTEAL,
@@ -1084,8 +1107,8 @@ GAME.Combat = {
     } else if (def.attack === 'projectile') {
       state.projectiles.push({
         x: u.x, y: u.y,
-        vx: Math.cos(ang) * def.projectileSpeed,
-        vy: Math.sin(ang) * def.projectileSpeed,
+        vx: GAME.DetMath.cos(ang) * def.projectileSpeed,
+        vy: GAME.DetMath.sin(ang) * def.projectileSpeed,
         damage: dmg,
         side: u.side,
         radius: def.projectileRadius,
@@ -1160,7 +1183,7 @@ GAME.Combat = {
     if (!sk) return false;
     var ang = (typeof u.facing === 'number') ? u.facing : 0;
     var reach = this.skillReach(sk) || 120;
-    return this.castSkill(u, slot, u.x + Math.cos(ang) * reach, u.y + Math.sin(ang) * reach, state);
+    return this.castSkill(u, slot, u.x + GAME.DetMath.cos(ang) * reach, u.y + GAME.DetMath.sin(ang) * reach, state);
   },
 
   // 시전이 만든 이펙트에 시전자 표시를 붙인다(색을 나누기 위한 것 — castSkill 주석 참조).
@@ -1260,7 +1283,7 @@ GAME.Combat = {
     }
     if (!sk) return false;
 
-    var ang = Math.atan2(ty - u.y, tx - u.x);
+    var ang = GAME.DetMath.atan2(ty - u.y, tx - u.x);
     u.facing = ang;
     var self = this;
     var i2, o;
@@ -1290,8 +1313,8 @@ GAME.Combat = {
     if (sk.type === 'dash') {
       // backward = 마우스 반대 방향으로 물러나며 쏜다(반동 사격)
       var dir = sk.backward ? ang + Math.PI : ang;
-      var nx = u.x + Math.cos(dir) * sk.dist;
-      var ny = u.y + Math.sin(dir) * sk.dist;
+      var nx = u.x + GAME.DetMath.cos(dir) * sk.dist;
+      var ny = u.y + GAME.DetMath.sin(dir) * sk.dist;
       var fromX = u.x, fromY = u.y;
       u.x = nx; u.y = ny;
       this.clampToArena(u);
@@ -1347,8 +1370,8 @@ GAME.Combat = {
       for (var b2 = 0; b2 < shots; b2++) {
         state.projectiles.push({
           x: u.x, y: u.y,
-          vx: Math.cos(ang) * sk.speed,
-          vy: Math.sin(ang) * sk.speed,
+          vx: GAME.DetMath.cos(ang) * sk.speed,
+          vy: GAME.DetMath.sin(ang) * sk.speed,
           damage: skDmg,
           side: u.side,
           radius: sk.radius,
@@ -1361,8 +1384,8 @@ GAME.Combat = {
           big: true
         });
         var last = state.projectiles[state.projectiles.length - 1];
-        last.x -= Math.cos(ang) * last.delayDist;
-        last.y -= Math.sin(ang) * last.delayDist;
+        last.x -= GAME.DetMath.cos(ang) * last.delayDist;
+        last.y -= GAME.DetMath.sin(ang) * last.delayDist;
       }
 
     } else if (sk.type === 'strike') {
@@ -1402,13 +1425,13 @@ GAME.Combat = {
         if (!o.alive || o.side === u.side) continue;
         var dd = this.dist(u, o);
         if (dd > sk.dist) continue;
-        var aa = Math.atan2(o.y - u.y, o.x - u.x);
-        var df = Math.atan2(Math.sin(aa - ang), Math.cos(aa - ang));
+        var aa = GAME.DetMath.atan2(o.y - u.y, o.x - u.x);
+        var df = GAME.DetMath.atan2(GAME.DetMath.sin(aa - ang), GAME.DetMath.cos(aa - ang));
         if (Math.abs(df) > halfP) continue;
         this.applyDamage(o, skDmg, u, state, { lsScale: this._ls(pullHit++), lsBudget: pullLs });
         // 영웅 쪽으로 끌어당긴다 (leash는 그대로 적용되어 진형이 무너지진 않는다)
         var pullTo = Math.max(0, dd - 120);
-        this.displaceTo(o, u.x + Math.cos(aa) * pullTo, u.y + Math.sin(aa) * pullTo);
+        this.displaceTo(o, u.x + GAME.DetMath.cos(aa) * pullTo, u.y + GAME.DetMath.sin(aa) * pullTo);
         this.clampToArena(o); this.clampToLeash(o, state);
       }
       state.effects.push({
@@ -1900,7 +1923,7 @@ GAME.Combat = {
     if (!ab) return false;
     var dtMs = dt * 1000;
 
-    if (u.abilCd === undefined) { u.abilCd = ab.cooldown * (0.35 + Math.random() * 0.5); u.abilT = 0; }
+    if (u.abilCd === undefined) { u.abilCd = ab.cooldown * (0.35 + GAME.Combat.rand() * 0.5); u.abilT = 0; }
     if (u.abilCd > 0) u.abilCd -= dtMs;
 
     // 시전 중 — 예고가 끝나면 터뜨린다
@@ -1968,7 +1991,7 @@ GAME.Combat = {
         }
       }
     }
-    this.faceAttack(u, Math.atan2(u.abilY - u.y, u.abilX - u.x));
+    this.faceAttack(u, GAME.DetMath.atan2(u.abilY - u.y, u.abilX - u.x));
     state.effects.push({
       //  ⚠ `pull` 도 **제 자리에서** 퍼진다(덩굴채). 여기 안 넣으면 예고 원이
       //    `u.abilX`(=조준점) 에 떠서 "저기서 온다"고 거짓말을 한다.
@@ -2144,22 +2167,22 @@ GAME.Combat = {
       //    안 보이고, 이 게임엔 유닛 충돌이 없어 밀려난 채로 끼어 버린다.
       //  ⚠ 아군은 절대 안 당긴다 — 진형이 제 손으로 무너지면 배치의 뜻이 사라진다.
       var halfA = ((ab.coneDeg || 360) * Math.PI / 180) / 2;
-      var aim = Math.atan2(u.abilY - u.y, u.abilX - u.x);
+      var aim = GAME.DetMath.atan2(u.abilY - u.y, u.abilX - u.x);
       var pulled = 0;
       for (i = 0; i < state.units.length; i++) {
         o = state.units[i];
         if (!o.alive || o.side === u.side || this.isHazard(o)) continue;
         var pd = this.dist(u, o);
         if (pd > ab.dist) continue;
-        var pa = Math.atan2(o.y - u.y, o.x - u.x);
+        var pa = GAME.DetMath.atan2(o.y - u.y, o.x - u.x);
         if (halfA < Math.PI) {
-          var pdf = Math.atan2(Math.sin(pa - aim), Math.cos(pa - aim));
+          var pdf = GAME.DetMath.atan2(GAME.DetMath.sin(pa - aim), GAME.DetMath.cos(pa - aim));
           if (Math.abs(pdf) > halfA) continue;
         }
         if (ab.damage) bite(o);
         var keep = (ab.keep === undefined) ? 96 : ab.keep;
-        this.displaceTo(o, u.x + Math.cos(pa) * Math.max(keep, pd - (ab.power || 130)),
-                           u.y + Math.sin(pa) * Math.max(keep, pd - (ab.power || 130)));
+        this.displaceTo(o, u.x + GAME.DetMath.cos(pa) * Math.max(keep, pd - (ab.power || 130)),
+                           u.y + GAME.DetMath.sin(pa) * Math.max(keep, pd - (ab.power || 130)));
         this.clampToArena(o); this.clampToLeash(o, state);
         pulled++;
       }
@@ -2174,8 +2197,8 @@ GAME.Combat = {
       // 별도 blast 목록을 만들면 규칙이 두 벌이 되므로 영웅 aoeTarget 과 같은 길을 쓴다.
       var reps = ab.repeat || 3;
       for (var r = 0; r < reps; r++) {
-        var sx = u.abilX + (r === 0 ? 0 : (Math.random() - 0.5) * (ab.spread || 200));
-        var sy = u.abilY + (r === 0 ? 0 : (Math.random() - 0.5) * (ab.spread || 200));
+        var sx = u.abilX + (r === 0 ? 0 : (GAME.Combat.rand() - 0.5) * (ab.spread || 200));
+        var sy = u.abilY + (r === 0 ? 0 : (GAME.Combat.rand() - 0.5) * (ab.spread || 200));
         var delay = r * (ab.interval || 420) + 340;
         state.effects.push({ kind: 'telegraph', x: sx, y: sy, r: ab.radius,
                              t: delay, total: delay,
@@ -2283,7 +2306,7 @@ GAME.Combat = {
         if (medic && medD > medic.def.healRadius * 0.75 && medD <= reach) {
           this.moveToward(u, medic.x, medic.y, this.effSpeed(u) * dt * (0.55 + 0.45 * ad2.retreat));
           if (d <= def.range) {
-            this.faceAttack(u, Math.atan2(tgt.y - u.y, tgt.x - u.x));
+            this.faceAttack(u, GAME.DetMath.atan2(tgt.y - u.y, tgt.x - u.x));
             if (u.cd <= 0) { this.fire(u, tgt.x, tgt.y, tgt, state); u.cd = def.cooldown; }
           }
           return;
@@ -2315,7 +2338,7 @@ GAME.Combat = {
           var mixY = (cy / near) * ad2.cohesion + tgt.y * (1 - ad2.cohesion);
           this.moveToward(u, mixX, mixY, this.effSpeed(u) * dt);
           if (d <= def.range && u.cd <= 0) {
-            this.faceAttack(u, Math.atan2(tgt.y - u.y, tgt.x - u.x));
+            this.faceAttack(u, GAME.DetMath.atan2(tgt.y - u.y, tgt.x - u.x));
             this.fire(u, tgt.x, tgt.y, tgt, state); u.cd = def.cooldown;
           }
           return;
@@ -2330,17 +2353,17 @@ GAME.Combat = {
       if (ad2 && ad2.kite > 0.1 && u.side === 'strategist' &&
           def.range > 150 && (tgt.def.range || 0) < 150 && u.hp < u.maxHp * 0.55 &&
           d < def.range * 0.4 && u.rootedFor <= 0) {
-        var away = Math.atan2(u.y - tgt.y, u.x - tgt.x);
-        u.x += Math.cos(away) * this.effSpeed(u) * dt * ad2.kite;
-        u.y += Math.sin(away) * this.effSpeed(u) * dt * ad2.kite;
+        var away = GAME.DetMath.atan2(u.y - tgt.y, u.x - tgt.x);
+        u.x += GAME.DetMath.cos(away) * this.effSpeed(u) * dt * ad2.kite;
+        u.y += GAME.DetMath.sin(away) * this.effSpeed(u) * dt * ad2.kite;
         this.clampToArena(u);
-        this.faceAttack(u, Math.atan2(tgt.y - u.y, tgt.x - u.x));
+        this.faceAttack(u, GAME.DetMath.atan2(tgt.y - u.y, tgt.x - u.x));
         if (u.cd <= 0) { this.fire(u, tgt.x, tgt.y, tgt, state); u.cd = def.cooldown; }
         return;
       }
 
       if (d <= def.range) {
-        this.faceAttack(u, Math.atan2(tgt.y - u.y, tgt.x - u.x));
+        this.faceAttack(u, GAME.DetMath.atan2(tgt.y - u.y, tgt.x - u.x));
         if (u.cd <= 0) {
           this.fire(u, tgt.x, tgt.y, tgt, state);
           u.cd = def.cooldown;
@@ -2908,6 +2931,29 @@ GAME.Combat = {
         state.over = true; state.winner = 'strategist'; state.objectiveFailed = true;
         return;
       }
+    }
+
+    // ── 같은 전장 실시간(pvpRealtime) — **영웅이 죽으면 그쪽이 진다** ────────
+    //  기존 모드의 「컨트롤러=영웅 하나」 전제가 여기서는 안 선다(양쪽 다 진형+영웅).
+    //  그래서 승패 축을 영웅으로 못박는다 — 이 게임의 원래 약속(영웅 사망=패배)을
+    //  양쪽에 대칭으로 적용한 것이다. 시간 초과는 남은 영웅 체력 비율로 가른다.
+    if (state.pvpRealtime) {
+      var hC = null, hS = null;
+      for (i = 0; i < state.units.length; i++) {
+        var hh = state.units[i];
+        if (!hh.isHero) continue;
+        if (hh.side === 'controller') hC = hh; else hS = hh;
+      }
+      var cDead = !hC || !hC.alive, sDead = !hS || !hS.alive;
+      if (cDead && sDead) { state.over = true; state.winner = 'draw'; }
+      else if (sDead) { state.over = true; state.winner = 'controller'; }
+      else if (cDead) { state.over = true; state.winner = 'strategist'; }
+      else if (state.elapsed >= GAME.CONFIG.BATTLE_TIME * 1000) {
+        var rc = hC.hp / hC.maxHp, rs = hS.hp / hS.maxHp;
+        state.over = true;
+        state.winner = rc === rs ? 'draw' : (rc > rs ? 'controller' : 'strategist');
+      }
+      return;
     }
 
     // 승패 판정

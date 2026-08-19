@@ -899,6 +899,21 @@ window.GAME = window.GAME || {};
     var a = alpha === undefined ? 1 : alpha;
     var tt = t || 0;
 
+    //  ── 보스 시트 은행(태현님 생성 그림 — 유니티 검증 자산) 이 최우선이다 ──
+    //  2026-08-19 아트 승급 1단계. 로드 전이면 아래 벡터/용 래스터가 폴백으로
+    //  그린다(화면이 비지 않는 것이 우선 — ensure 가 비동기로 채운다).
+    if (GAME.BossBank) {
+      if (GAME.BossBank.ready(g.scene, def)) {
+        var bbR = r0 * (BA.SCALE[info.kind] || 1.6);
+        g.fillStyle(0x000000, 0.30 * a);
+        g.fillEllipse(sx, sy, bbR * 1.6, bbR * 1.6 * T, 14);
+        if (GAME.BossBank.draw(g.scene, def, sx, sy, r0, a, facing, g.depth))
+          return true;
+      } else if (GAME.BossBank.metaOf(def)) {
+        GAME.BossBank.ensure(g.scene, def);
+      }
+    }
+
     if (RASTER_KINDS[info.kind]) {
       // 래스터 경로 — 그림자만 Graphics 로 찍고, 몸은 GAME.DragonAsset 이
       // **영속 Phaser.Image**(매 프레임 새로 만들지 않는다)로 따로 그린다.

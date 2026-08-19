@@ -195,7 +195,7 @@ GAME.InputController.prototype.update = function (dtMs) {
       GAME.Combat.fire(h, tgt.x, tgt.y, tgt, this.state);
       h.cd = h.def.cooldown;
     } else {
-      h.facing = Math.atan2(dy, dx);
+      h.facing = GAME.DetMath.atan2(dy, dx);
     }
   }
 

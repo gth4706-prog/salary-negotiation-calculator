@@ -92,7 +92,7 @@ GAME.AIHero.prototype.update = function (dtMs) {
         //  ⚠ 여기에도 같은 함정이 있었다(정중앙이면 `dm||1` 로 0 방향이 나온다).
         //    지뢰 위에 정확히 서는 일은 드물어 여태 안 드러났을 뿐이다.
         var ux, uy;
-        if (dm < 1) { ux = Math.cos(h.facing || 0); uy = Math.sin(h.facing || 0); }
+        if (dm < 1) { ux = GAME.DetMath.cos(h.facing || 0); uy = GAME.DetMath.sin(h.facing || 0); }
         else { ux = (h.x - mn.x) / dm; uy = (h.y - mn.y) / dm; }
         h.x += ux * C.effSpeed(h) * dt * dodgePower;
         h.y += uy * C.effSpeed(h) * dt * dodgePower;
@@ -118,7 +118,7 @@ GAME.AIHero.prototype.update = function (dtMs) {
           //    영웅이 불 한가운데 못 박힌 채 타 죽는다(실측: 30프레임 동안 0px 이동).
           //    구역은 던져서 만드는 물건이라 영웅 발밑에 정확히 떨어질 수 있다.
           var zx, zy;
-          if (dz < 1) { zx = Math.cos(h.facing || 0); zy = Math.sin(h.facing || 0); }
+          if (dz < 1) { zx = GAME.DetMath.cos(h.facing || 0); zy = GAME.DetMath.sin(h.facing || 0); }
           else { zx = (h.x - zn.x) / dz; zy = (h.y - zn.y) / dz; }
           h.x += zx * C.effSpeed(h) * dt * zp;
           h.y += zy * C.effSpeed(h) * dt * zp;
@@ -133,7 +133,7 @@ GAME.AIHero.prototype.update = function (dtMs) {
         var da = C.dist(h, au), padA = (au.def.auraRadius || 0) + 26 + 40 * this.adapt.avoidZone;
         if (da < padA) {
           var ax, ay;
-          if (da < 1) { ax = Math.cos(h.facing || 0); ay = Math.sin(h.facing || 0); }
+          if (da < 1) { ax = GAME.DetMath.cos(h.facing || 0); ay = GAME.DetMath.sin(h.facing || 0); }
           else { ax = (h.x - au.x) / da; ay = (h.y - au.y) / da; }
           h.x += ax * C.effSpeed(h) * dt * zp;
           h.y += ay * C.effSpeed(h) * dt * zp;
@@ -150,7 +150,7 @@ GAME.AIHero.prototype.update = function (dtMs) {
       var de = Math.sqrt((h.x - ef.x) * (h.x - ef.x) + (h.y - ef.y) * (h.y - ef.y));
       if (de < ef.r + 20) {
         var ex, ey;
-        if (de < 1) { ex = Math.cos(h.facing || 0); ey = Math.sin(h.facing || 0); }
+        if (de < 1) { ex = GAME.DetMath.cos(h.facing || 0); ey = GAME.DetMath.sin(h.facing || 0); }
         else { ex = (h.x - ef.x) / de; ey = (h.y - ef.y) / de; }
         h.x += ex * C.effSpeed(h) * dt * dodgePower;
         h.y += ey * C.effSpeed(h) * dt * dodgePower;

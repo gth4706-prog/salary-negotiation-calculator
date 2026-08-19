@@ -100,8 +100,17 @@ details[open] summary:before{content:'▾ '}
   justify-content:center;z-index:70;padding:24px;cursor:zoom-out}
 .lb.on{display:flex}
 .lb img{max-width:100%;max-height:100%;border-radius:8px;background:#fff}
-@media(max-width:520px){.wrap{padding:20px 13px 80px}h1{font-size:20px}.ttl{font-size:16px}
-  .imgs figure{width:calc(50% - 5px)}}
+@media(max-width:520px){
+  .wrap{padding:18px 12px 80px}
+  h1{font-size:20px} .ttl{font-size:16.5px}
+  .imgs figure{width:calc(50% - 5px)}
+  /* 터치 대상은 44px 이상이어야 잘못 눌리지 않는다 */
+  .row button{flex:1 1 calc(50% - 4px);min-height:46px;padding:10px 8px}
+  .imgs button{min-height:40px}
+  .chk{font-size:14px} .chk input{width:20px;height:20px}
+  .prev{max-height:360px;font-size:14.5px}
+  .guide ol{padding-left:18px}
+}
 </style>
 </head>
 <body>
@@ -128,6 +137,9 @@ details[open] summary:before{content:'▾ '}
       <li>맨 끝 <b>[[링크]]</b> 자리에 링크가 이미 들어가 있습니다. <b>글당 외부 링크는 1개만</b> — 많으면 홍보성으로 분류됩니다.</li>
       <li><b>태그 복사</b> 붙여넣고 발행 → 여기 돌아와 <b>업로드함</b> 체크</li>
     </ol>
+    <p style="font-size:13px;color:var(--muted);margin:12px 0 0;padding-top:11px;border-top:1px solid var(--line)">
+      <b>휴대폰에서</b> — 이미지는 <b>이미지 저장</b>을 누르면 새 탭에서 열립니다. 거기서 <b>길게 눌러</b> 사진에 저장하세요.
+      서식 유지 복사가 안 먹으면 <b>글자만 복사</b>로 붙여넣고 소제목만 크기 24로 바꿔주세요.</p>
   </div>
 
   <div class="bar">
@@ -241,8 +253,23 @@ details[open] summary:before{content:'▾ '}
     if(window.BLOG_TABLES && window.BLOG_TABLES[name]) return window.BLOG_TABLES[name].label;
     return '계산기 실제 화면';
   }
+  /* ⚠️ 모바일(특히 iOS)에서는 <a download> 가 거의 동작하지 않는다.
+        그래서 터치 기기에서는 이미지를 새 탭으로 열어 **길게 눌러 저장**하게 안내한다.
+        데스크톱에서는 그대로 내려받는다. */
+  var isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   function download(name){
     var src=imgSrc(name);
+    if(isTouch){
+      var w=window.open('','_blank');
+      if(w){ w.document.write('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">'+
+        '<body style="margin:0;background:#111;display:flex;flex-direction:column;align-items:center;'+
+        'justify-content:center;min-height:100vh;font-family:-apple-system,sans-serif">'+
+        '<p style="color:#fff;font-size:15px;padding:14px 18px;margin:0;text-align:center">'+
+        '이미지를 <b>길게 눌러</b> 사진에 저장하세요</p>'+
+        '<img src="'+src+'" style="max-width:100%;height:auto">'); w.document.close(); }
+      else toast('팝업이 막혔어요 — 이미지를 길게 눌러 저장하세요');
+      return;
+    }
     var a=document.createElement('a'); a.download=name+'.png';
     if(src.indexOf('data:')===0){ a.href=src; a.click(); toast('내려받는 중'); return; }
     fetch(src).then(function(r){return r.blob();}).then(function(b){
@@ -260,7 +287,7 @@ details[open] summary:before{content:'▾ '}
       var imgs=(d.images||[]).map(function(nm){
         return '<figure><img src="'+imgSrc(nm)+'" alt="" data-zoom="'+nm+'">'+
                '<figcaption>'+esc(imgLabel(nm))+'</figcaption>'+
-               '<button data-dl="'+nm+'">내려받기</button></figure>';
+               '<button data-dl="'+nm+'">'+(isTouch?'이미지 저장':'내려받기')+'</button></figure>';
       }).join('');
       c.innerHTML=
         '<div class="head"><div class="grow">'+

@@ -26,8 +26,14 @@ GAME.RtLobbyScene.prototype.init = function () {
   this._joined = false;
   this._ready = false;
   this._started = false;
-  this._myFormation = null;
-  this._theirFormation = null;
+  this._myRole = null;
+  this._theirRole = null;
+  this._formation = null;
+  this._heroKey = null;
+  this._picks = null;
+  this._roleBtnS = null;
+  this._roleBtnC = null;
+  this._roleTxt = null;
   this._startMsg = null;
   this._dom = null;
 };
@@ -150,7 +156,9 @@ GAME.RtLobbyScene.prototype._askCode = function () {
   });
 };
 
-// ── 입장 후 상태 갱신 ──
+// ── 입장 후: 역할 선택 → 준비 (2026-08-20 태현님 사양) ──────────────────────
+//  한쪽은 전략가(진형), 한쪽은 컨트롤러(영웅) — 게임 본연의 비대칭 그대로.
+//  준비는 **역할이 서로 다를 때만** 켜진다. 전략가는 저장된 내 전장이 있어야 한다.
 GAME.RtLobbyScene.prototype._onRoom = function () {
   var NR = GAME.NetRoom, UI = GAME.UI, C = GAME.CONFIG.COLORS;
   var self = this;
@@ -160,57 +168,116 @@ GAME.RtLobbyScene.prototype._onRoom = function () {
     this._joined = true;
     this._rows.forEach(function (r) { r.destroy(); });
     this._rows = [];
-    var bw = 300, bh = Math.max(UI.BTN_H || 58, 56);
-    this._readyBtn = UI.button(this, GAME.CONFIG.WIDTH / 2, this._listTop + GAME.CONFIG.HEIGHT * 0.14,
-      bw, bh, '⚔ 준비 완료', function () {
-        self._ready = !self._ready;
-        GAME.NetRoom.setReady(self._ready);
-        self._readyBtn.text.setText(self._ready ? '⌛ 상대를 기다리는 중…' : '⚔ 준비 완료');
-      });
+    var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+    var bh = Math.max(UI.BTN_H || 58, 56);
+    var y0 = this._listTop + H * 0.10;
+    this._roleBtnS = UI.button(this, W / 2 - 170, y0, 320, bh, '🛡 전략가 (진형으로 막는다)',
+      function () { self._pickRole('strategist'); },
+      { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist, fontSize: 14 });
+    this._roleBtnC = UI.button(this, W / 2 + 170, y0, 320, bh, '⚔ 컨트롤러 (영웅으로 뚫는다)',
+      function () { self._pickRole('controller'); },
+      { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, fontSize: 14 });
+    this._readyBtn = UI.button(this, W / 2, y0 + bh + 14, 320, bh, '⚔ 준비 완료',
+      function () { self._toggleReady(); });
+    this._roleTxt = UI.text(this, W / 2, y0 + bh * 2 + 26, '',
+      { size: 'caption', color: C.textDim, origin: 0.5 });
+    this._roleTxt.setAlign('center');
   }
   this._codeTxt.setText('방 코드  ' + NR.code);
   var names = NR.peers.map(function (p) { return p.id + (p.id === NR.host ? ' (방장)' : ''); });
   this._peersTxt.setText(names.join('   vs   ') +
     (NR.peers.length < 2 ? '\n상대를 기다리는 중 — 코드를 알려주세요' :
       (NR.rttMs != null ? '\n왕복 지연 ' + Math.round(NR.rttMs) + 'ms' : '')));
+  this._refreshRoleUi();
   this._setStatus(NR.statusText());
 };
 
-// ── 시작 — 시드 확보 → 내 진형을 보내고 상대 진형을 기다린다 ──
-GAME.RtLobbyScene.prototype._onStart = function (msg) {
-  this._startMsg = msg;
-  var base = GAME.Arena.baseFormation();
-  //  진형이 없어도 서고는 싸울 수 있어야 한다 — 빈 진형(영웅 단독)으로 보낸다.
-  this._myFormation = base ? { name: base.name, units: base.units } : { name: '', units: [] };
-  GAME.NetRoom.relay({ type: 'rtFormation', formation: this._myFormation });
-  this._setStatus('시작! 진형을 교환하는 중…');
-  this._maybeBattle();
+GAME.RtLobbyScene.prototype._pickRole = function (role) {
+  if (this._ready) return;                       // 준비를 풀어야 역할을 바꿀 수 있다
+  this._myRole = (this._myRole === role) ? null : role;
+  GAME.NetRoom.relay({ type: 'rtRole', role: this._myRole });
+  this._refreshRoleUi();
+};
+
+GAME.RtLobbyScene.prototype._roleOk = function () {
+  if (!this._myRole) return '역할을 고르세요';
+  if (this._theirRole && this._theirRole === this._myRole) return '상대와 역할이 겹칩니다 — 한쪽이 바꿔야 합니다';
+  if (this._myRole === 'strategist' && !GAME.Arena.baseFormation())
+    return '전략가는 저장된 내 전장이 필요합니다 (대전 → 내 전장 만들기)';
+  if (GAME.NetRoom.peers.length < 2) return '상대를 기다리는 중';
+  return null;
+};
+
+GAME.RtLobbyScene.prototype._refreshRoleUi = function () {
+  if (!this._roleTxt || !this._roleTxt.scene) return;
+  var mark = function (btn, on) { if (btn && btn.text) btn.text.setAlpha(on ? 1 : 0.55); };
+  mark(this._roleBtnS, this._myRole !== 'controller');
+  mark(this._roleBtnC, this._myRole !== 'strategist');
+  var why = this._roleOk();
+  var mine = this._myRole === 'strategist' ? '나: 🛡 전략가' :
+             this._myRole === 'controller' ? '나: ⚔ 컨트롤러' : '나: (선택 전)';
+  var theirs = this._theirRole === 'strategist' ? '상대: 🛡 전략가' :
+               this._theirRole === 'controller' ? '상대: ⚔ 컨트롤러' : '상대: (선택 전)';
+  this._roleTxt.setText(mine + '   ·   ' + theirs + (why ? ('\n' + why) : '\n준비를 누르면 시작됩니다'));
+};
+
+GAME.RtLobbyScene.prototype._toggleReady = function () {
+  var why = this._roleOk();
+  if (why) { this._setStatus('⚠ ' + why); return; }
+  this._ready = !this._ready;
+  GAME.NetRoom.setReady(this._ready);
+  if (this._ready) this._sendSetup();
+  this._readyBtn.text.setText(this._ready ? '⌛ 상대를 기다리는 중… (다시 누르면 취소)' : '⚔ 준비 완료');
+};
+
+//  내 세팅을 상대에게 보낸다. 전략가=진형 스냅샷 · 컨트롤러=영웅/스킬.
+//  준비를 누를 때마다 다시 보낸다(재접속·유실 대비 — 최신 것이 이긴다).
+GAME.RtLobbyScene.prototype._sendSetup = function () {
+  if (this._myRole === 'strategist') {
+    var base = GAME.Arena.baseFormation();
+    this._formation = { name: base.name || '', units: base.units };
+    GAME.NetRoom.relay({ type: 'rtSetup', role: 'strategist', formation: this._formation });
+  } else {
+    var tc = (GAME.TowerChar && GAME.TowerChar.exists()) ? GAME.TowerChar.get() : null;
+    this._heroKey = (tc && tc.hero) || 'vanguard';
+    this._picks = GAME.defaultSkillPicks();
+    GAME.NetRoom.relay({ type: 'rtSetup', role: 'controller', heroKey: this._heroKey, picks: this._picks });
+  }
 };
 
 GAME.RtLobbyScene.prototype._onRelay = function (from, data) {
   if (!data) return;
-  if (data.type === 'rtFormation') {
-    this._theirFormation = data.formation || { units: [] };
+  if (data.type === 'rtRole') {
+    this._theirRole = data.role || null;
+    this._refreshRoleUi();
+  } else if (data.type === 'rtSetup') {
+    if (data.role === 'strategist') this._formation = data.formation;
+    else { this._heroKey = data.heroKey; this._picks = data.picks; }
     this._maybeBattle();
   }
 };
 
+//  서버 start(seed) — 둘 다 준비를 눌렀다는 뜻. 세팅 두 쪽이 모이면 전투로.
+GAME.RtLobbyScene.prototype._onStart = function (msg) {
+  this._startMsg = msg;
+  this._sendSetup();                              // 유실 대비 한 번 더
+  this._setStatus('시작! 세팅을 교환하는 중…');
+  this._maybeBattle();
+};
+
 GAME.RtLobbyScene.prototype._maybeBattle = function () {
-  if (this._started || !this._startMsg || !this._myFormation || !this._theirFormation) return;
+  if (this._started || !this._startMsg) return;
+  if (!this._formation || !this._heroKey) return;  // 진형(전략가)·영웅(컨트롤러) 둘 다 필요
   this._started = true;
-  //  진영 배정은 **이름 정렬**로 결정한다 — 서버 members 순서는 접속 순서라 둘이 같지만,
-  //  혹시 갈려도 안 되도록 결정적 규칙 하나로 못박는다: 사전순 앞 = controller(아래).
-  var NR = GAME.NetRoom;
-  var ids = NR.peers.map(function (p) { return p.id; }).sort();
-  var mySide = (NR.me === ids[0]) ? 'controller' : 'strategist';
   this.scene.start('Battle', {
     rt: {
       seed: this._startMsg.seed >>> 0,
-      side: mySide,
-      myFormation: this._myFormation,
-      theirFormation: this._theirFormation
+      role: this._myRole,
+      formation: this._formation,
+      heroKey: this._heroKey,
+      picks: this._picks || GAME.defaultSkillPicks()
     },
-    heroKey: GAME.TowerChar && GAME.TowerChar.exists() ? GAME.TowerChar.get().hero : 'vanguard',
+    heroKey: this._heroKey,
     formationId: null
   });
 };

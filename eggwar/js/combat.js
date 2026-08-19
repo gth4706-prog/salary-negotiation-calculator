@@ -2949,12 +2949,28 @@ GAME.Combat = {
         if (!hh.isHero) continue;
         if (hh.side === 'controller') hC = hh; else hS = hh;
       }
-      var cDead = !hC || !hC.alive, sDead = !hS || !hS.alive;
+      //  ⚠ 비대칭 실시간(2026-08-20 확정 사양: 전략가 vs 컨트롤러)에서는 전략가에
+      //    영웅이 없다 — 그쪽은 **전멸 = 패배**다. 영웅이 있으면 영웅 사망 = 패배.
+      var cDead = hC ? !hC.alive : this.aliveCount(state, 'controller') === 0;
+      var sDead = hS ? !hS.alive : this.aliveCount(state, 'strategist') === 0;
       if (cDead && sDead) { state.over = true; state.winner = 'draw'; }
       else if (sDead) { state.over = true; state.winner = 'controller'; }
       else if (cDead) { state.over = true; state.winner = 'strategist'; }
       else if (state.elapsed >= GAME.CONFIG.BATTLE_TIME * 1000) {
-        var rc = hC.hp / hC.maxHp, rs = hS.hp / hS.maxHp;
+        //  시간 초과 — 영웅이 있으면 영웅 체력 비율(기존 규약 유지), 없으면 진영
+        //  전체의 남은 체력 합 비율로 가른다.
+        var ratio = function (hero, side) {
+          if (hero) return hero.hp / hero.maxHp;
+          var hp = 0, mx = 0;
+          for (var k = 0; k < state.units.length; k++) {
+            var uu = state.units[k];
+            if (uu.side !== side) continue;
+            mx += uu.maxHp || uu.def.hp || 0;
+            if (uu.alive) hp += uu.hp;
+          }
+          return mx > 0 ? hp / mx : 0;
+        };
+        var rc = ratio(hC, 'controller'), rs = ratio(hS, 'strategist');
         state.over = true;
         state.winner = rc === rs ? 'draw' : (rc > rs ? 'controller' : 'strategist');
       }

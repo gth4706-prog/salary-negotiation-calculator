@@ -200,6 +200,14 @@ GAME.VersusScene.prototype._createRolePick = function () {
   var mw = Math.max(96, Math.min(140, W * 0.14));
   UI.button(this, mw / 2 + 10, Math.max(mh / 2 + 6, u * 3.4), mw, mh, '← 메뉴',
     function () { self.scene.start('Menu'); }, { fontSize: 14 });
+
+  // ── ⚡ 실시간 대결 (P3, 2026-08-20) — 방을 만들어 코드로 붙는 진짜 실시간 ──
+  if (GAME.NetRoom && GAME.NetRoom.enabled()) {
+    var rw = Math.max(150, Math.min(220, W * 0.2));
+    UI.button(this, W - rw / 2 - 10, Math.max(mh / 2 + 6, u * 3.4), rw, mh,
+      '⚡ 실시간 대결', function () { self.scene.start('RtLobby'); },
+      { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, fontSize: 14 });
+  }
 };
 
 // 매칭 종류 한 줄('사람 진형' / '랜덤매칭' / '찾는 중')을 다시 쓴다.

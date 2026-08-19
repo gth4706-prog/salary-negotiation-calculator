@@ -21,7 +21,15 @@ GAME.BattleScene.prototype.init = function (data) {
   this._prevCd = undefined;
   this._prevHp = null;
 
-  this.formation = GAME.Formations.getById(data.formationId);
+  //  실시간 대전(P3, 2026-08-20) — 진형은 서버 릴레이로 받은 스냅샷이다(저장소에 없음).
+  //  ⚠ 시뮬에 닿는 모든 것(시드·진형·영웅)이 양쪽 클라이언트에서 같아야 한다.
+  this.rt = data.rt || null;
+  if (this.rt) {
+    this.formation = { id: '__rt', name: this.rt.formation.name || '실시간 전장',
+                       units: this.rt.formation.units, author: '', at: 0 };
+  } else {
+    this.formation = GAME.Formations.getById(data.formationId);
+  }
   this.heroKey = data.heroKey;
   this.items = data.items || {};
   this.picks = data.picks || GAME.defaultSkillPicks();
@@ -89,8 +97,15 @@ GAME.BattleScene.prototype.create = function () {
 
   this.state = GAME.Combat.createState();
 
+  //  실시간: 시뮬 난수를 서버 시드로 고정 + 승패 규칙 전환(P1 의 pvpRealtime).
+  //  ⚠ 유닛 생성 **전에** 걸어야 한다 — 생성 순서·초기값까지 결정론에 들어간다.
+  if (this.rt) {
+    GAME.Combat.seedRng(this.rt.seed);
+    this.state.pvpRealtime = true;
+  }
+
   // 난이도 — 탑은 층수로, 일반 대전은 격파 횟수(escalation)로 강해진다
-  var lrec = GAME.Learn.get(this.formation.id);
+  var lrec = this.rt ? { escalation: 0 } : GAME.Learn.get(this.formation.id);
   this.escalation = this.tower ? (this.tower - 1) : (lrec.escalation || 0);
   var mods = this.tower ? GAME.Tower.modsFor(this.tower)
                         : GAME.Learn.escalationMods(this.escalation);
@@ -258,7 +273,8 @@ GAME.BattleScene.prototype.create = function () {
   // 학습형 AI: 이 배치도가 지금까지 배운 적응값을 전투에 적용한다
   // 학습값(배치도별로 쌓인 것) + 층 전술(통곡의 탑 전용). 큰 쪽을 쓴다 —
   // 곱하면 고층에서 두 배로 세져 곡선이 통제 불능이 된다(tower.js mergeTactics 참조).
-  this.state.adapt = GAME.Tower.mergeTactics(
+  //  ⚠ 실시간: 학습 적응값은 기기마다 달라 **시뮬을 가른다** — 반드시 빈 값으로 통일.
+  this.state.adapt = this.rt ? null : GAME.Tower.mergeTactics(
     GAME.Learn.get(this.formation.id).adapt, this.formation.tactics);
   // 탑이 **나를 상대로 배운 것**을 한 겹 더 얹는다(계정별로 쌓인다).
   // 층 전술은 누구에게나 같지만 이건 나에게만 맞춰진 값이다.
@@ -276,7 +292,89 @@ GAME.BattleScene.prototype.create = function () {
     GAME.Combat.aliveCount(this.state, 'strategist');
 
   this.input.mouse.disableContextMenu();
-  this.ctrl = new GAME.InputController(this, this.state, this.hero);
+  //  ── 실시간 대전 배선 (P3-2) ─────────────────────────────────────────────
+  //  입력은 시뮬에 직접 닿지 않는다 — **그림자 영웅**에 쌓고, 프레임마다 변화를
+  //  록스텝 큐로 보낸다. 시뮬 영웅은 양쪽 클라이언트 모두 록스텝 _apply 로만 움직인다.
+  //  전략가는 관전(입력 전송 없음) — 그림자에 쓰여도 버려진다.
+  if (this.rt) {
+    var rtSelf = this;
+    this._rtShadow = {
+      x: this.hero.x, y: this.hero.y, alive: true, isHero: true, side: 'controller',
+      order: null, facing: this.hero.facing,
+      def: this.hero.def, hero: this.hero.hero, skills: this.hero.skills,
+      skillCd: this.hero.skillCd, cdrMul: this.hero.cdrMul,
+      potionCharges: this.hero.potionCharges, buffs: [], auras: [], shield: 0
+    };
+    this._rtSentOrder = null;
+    this.ctrl = new GAME.InputController(this, this.state, this._rtShadow);
+
+    this._rtSession = GAME.Lockstep.create({
+      state: this.state,
+      mySide: this.rt.role,
+      send: function (msg) { GAME.NetRoom.relay({ lk: msg }); },
+      heroOf: function (side) { return side === 'controller' ? rtSelf.hero : null; },
+      onDesync: function (t) {
+        rtSelf.state.over = true; rtSelf.state.winner = null;
+        rtSelf._rtNote = '동기화가 어긋나 판이 무효가 되었습니다';
+      }
+    });
+    //  order.target 은 유닛 참조라 직렬화 불가 — 인덱스로 보내고 여기서 되살린다.
+    var apply0 = this._rtSession._apply.bind(this._rtSession);
+    this._rtSession._apply = function (hero, cmd) {
+      if (cmd.kind === 'order' && cmd.order && cmd.order.ti !== undefined) {
+        var tgt = rtSelf.state.units[cmd.order.ti];
+        cmd = { kind: 'order', order: { type: cmd.order.type, x: cmd.order.x, y: cmd.order.y,
+                                        target: tgt && tgt.alive ? tgt : null } };
+        if (!cmd.order.target && cmd.order.x === undefined) return;   // 대상이 죽었으면 버린다
+      }
+      apply0(hero, cmd);
+    };
+    GAME.NetRoom.on.message = function (from, data) {
+      if (data && data.lk) rtSelf._rtSession.onMessage(data.lk);
+    };
+    GAME.NetRoom.on.close = function (info) {
+      if (!rtSelf.state.over) {
+        rtSelf.state.over = true;
+        //  상대가 나가면 남은 쪽 승리 — 내 역할이 컨트롤러면 컨트롤러 승.
+        rtSelf.state.winner = rtSelf.rt.role;
+        rtSelf._rtNote = '상대의 연결이 끊겼습니다';
+      }
+    };
+    //  씬이 내려가면 콜백·참조를 정리하고 방을 나간다(전투 = 한 판 = 한 방).
+    this.events.once('shutdown', function () {
+      GAME.NetRoom.on.message = null;
+      GAME.NetRoom.on.close = null;
+      GAME.NetRoom.leave(true);
+      rtSelf._rtShadow = null;
+      rtSelf._rtSession = null;
+    });
+    //  스킬·물약 — 그림자를 겨눈 호출만 큐로 돌린다(락스텝 _apply 의 진짜 호출은 통과).
+    if (!GAME.Combat._rtWrapped) {
+      GAME.Combat._rtWrapped = true;
+      var cast0 = GAME.Combat.castSkill.bind(GAME.Combat);
+      GAME.Combat.castSkill = function (u, slot, tx, ty, state) {
+        var sc = GAME.game && GAME.game.scene.getScene('Battle');
+        if (sc && sc._rtShadow && u === sc._rtShadow) {
+          if (sc.rt.role === 'controller' && sc._rtSession)
+            sc._rtSession.queueLocal({ kind: 'skill', slot: slot, x: tx, y: ty });
+          return;
+        }
+        return cast0(u, slot, tx, ty, state);
+      };
+      var pot0 = GAME.Combat.usePotion ? GAME.Combat.usePotion.bind(GAME.Combat) : null;
+      if (pot0) GAME.Combat.usePotion = function (u, state) {
+        var sc = GAME.game && GAME.game.scene.getScene('Battle');
+        if (sc && sc._rtShadow && u === sc._rtShadow) {
+          if (sc.rt.role === 'controller' && sc._rtSession)
+            sc._rtSession.queueLocal({ kind: 'potion' });
+          return;
+        }
+        return pot0(u, state);
+      };
+    }
+  } else {
+    this.ctrl = new GAME.InputController(this, this.state, this.hero);
+  }
 
   // ── HUD ──
   // 레퍼런스(탕탕특공대)의 구조: **타이머를 가장 큰 숫자로 두고 그 아래 진행 바**,
@@ -1208,7 +1306,9 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   this._juice(dt);
 
   // 히트스톱 중에는 시뮬을 진행시키지 않는다 — 화면이 '멎었다가' 터지는 느낌을 만든다
-  if (this._hitStop > 0) {
+  //  ⚠ 실시간에서는 히트스톱으로 시뮬을 멈추면 안 된다 — 내 쪽만 늦어져
+  //    상대까지 스톨로 끌고 간다. 흔들림·플래시는 그대로 두고 멈춤만 끈다.
+  if (this._hitStop > 0 && !this.rt) {
     this._hitStop -= delta;
     this._dt = 0;
     this.draw();
@@ -1219,7 +1319,24 @@ GAME.BattleScene.prototype.update = function (time, delta) {
 
   if (!this.state.over) {
     this.ctrl.update(dt);
-    GAME.Combat.update(this.state, dt);
+    if (this.rt) {
+      //  실시간 — 시뮬은 록스텝 틱으로만 흐른다(가변 dt 금지, P2 규약).
+      var sh = this._rtShadow;
+      if (this.rt.role === 'controller' && sh.order && sh.order !== this._rtSentOrder) {
+        this._rtSentOrder = sh.order;
+        var o = sh.order, so = { type: o.type };
+        if (o.x !== undefined) { so.x = o.x; so.y = o.y; }
+        if (o.target) so.ti = this.state.units.indexOf(o.target);
+        this._rtSession.queueLocal({ kind: 'order', order: so });
+      }
+      var ran = this._rtSession.advance(delta);
+      this._rtStall = (ran === 0);
+      //  그림자는 렌더·조준용 — 시뮬 영웅 위치를 따라간다
+      sh.x = this.hero.x; sh.y = this.hero.y; sh.facing = this.hero.facing;
+      sh.alive = this.hero.alive;
+    } else {
+      GAME.Combat.update(this.state, dt);
+    }
   }
 
   // 라운드 종료를 **씬에서** 3초 붙잡는다. combat.js 는 건드리지 않는다.

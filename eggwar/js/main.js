@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v2.03';
+GAME.VERSION = 'v2.04';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -159,7 +159,23 @@ window.addEventListener('load', function () {
       //  치른 뒤 이 줄을 읽으면, 추측 없이 어디를 깎을지 정할 수 있다.
       //  p95·최악을 같이 내는 이유: 평균은 스톨을 숨긴다(이 저장소가 이미 겪은 것 —
       //  "느린 프레임의 부하 지표가 평균과 같다"였다).
-      'frame   ' + FrameMeter.line();
+      'frame   ' + FrameMeter.line() + '\n' +
+      //  ── 입력 (2026-08-20) ────────────────────────────────────────────────
+      //  "조이스틱은 움직이는데 캐릭터가 안 움직인다"(영상 신고)를 **그 기기에서**
+      //  가르기 위한 줄. 스틱값·이동속도·묶임·히트스톱이 그 순간 무엇이었는지가
+      //  전부 여기 나온다 — 시뮬은 헤드리스 실측으로 결백이 확인된 상태다.
+      'input   ' + (function () {
+        try {
+          var sc = GAME.game && GAME.game.scene && GAME.game.scene.getScene('Battle');
+          if (!sc || !sc.scene.isActive() || !sc.hero) return '-';
+          var p = sc.pad && sc.pad.stick;
+          return 'stick=' + (p ? (p.dx.toFixed(2) + ',' + p.dy.toFixed(2) + (p.active ? '*' : '')) : 'none') +
+                 ' spd=' + Math.round(GAME.Combat.effSpeed(sc.hero)) +
+                 ' root=' + Math.max(0, Math.round(sc.hero.rootedFor || 0)) +
+                 ' stop=' + Math.max(0, Math.round(sc._hitStop || 0)) +
+                 ' pos=' + Math.round(sc.hero.x) + ',' + Math.round(sc.hero.y);
+        } catch (e) { return 'err'; }
+      })();
   }
 
   // ── 프레임 계측기 — `?diag=1` 일 때만 돈다 ────────────────────────────────

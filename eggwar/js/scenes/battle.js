@@ -1449,7 +1449,10 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     //   내가 시험할 때마다 그 전장의 난이도(escalation)가 올라가면, 남이 도전할 때의
     //   난이도가 내 연습 횟수로 정해진다 — 격파율이 통째로 거짓이 된다.
     //   기록을 막는 곳은 넷이다: 배치도 전적 · 점수 · 트로피 · **학습**.
-    var learnRec = this.test
+    //  ⚠ 실시간(rt) 판도 시험과 같은 급으로 **기록 4종을 전부 막는다** — 진형이
+    //    '__rt' 가짜 id 인 데다, 상대가 사람이라 학습·전적·점수 축이 전부 오염된다.
+    var noRec = this.test || !!this.rt;
+    var learnRec = noRec
       ? { lastNotes: [] }
       : GAME.Learn.record(this.formation.id, this.state.winner === 'strategist', {
           medicPlaced: t.medicPlaced, medicHealed: t.medicHealed,
@@ -1462,7 +1465,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     // 이 배치도의 방어 전적 — 진형 선택·준비·결과 화면이 이 값을 읽는다.
     // 여기서 기록하지 않으면 세 화면 모두 영원히 '전적 없음'으로 남는다(실제로 그랬다).
     // 기준은 winRate 와 같은 '전략가(방어) 승률'이다.
-    if (!this.test) {
+    if (!noRec) {
       GAME.Formations.recordResult(this.formation.id,
         this.state.winner === 'strategist' ? 'win'
           : (this.state.winner === 'controller' ? 'loss' : 'draw'));
@@ -1480,7 +1483,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       tower: this.tower
     });
     var id = GAME.Account.current();
-    if (id && score > 0 && !this.test) {
+    if (id && score > 0 && !noRec) {
       GAME.Score.add(id, {
         score: score, won: won, asStrategist: false,
         escalation: this.escalation, formationName: this.formation.name,
@@ -1489,7 +1492,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     }
 
     // 플레이어 성향 누적 — AI 전략가가 다음 배치를 짤 때 쓴다
-    GAME.Profile.record(this.heroKey, t);
+    if (!this.rt) GAME.Profile.record(this.heroKey, t);
 
     // 통곡의 탑 진행 처리
     // ⚠ `bossDrop` 이라는 이름이지만 2026-08-02 부터 **일반 층 드랍도 여기 담긴다.**

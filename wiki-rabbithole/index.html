@@ -14,12 +14,12 @@
 <meta property="og:title" content="위키 토끼굴 — 오프라인에서도 계속 파고들기">
 <meta property="og:description" content="관심사 문서 150편을 미리 받아, 비행기 모드에서도 다음 챕터를 골라가며 읽는 도구.">
 <meta property="og:url" content="https://joeltool.com/wiki-rabbithole/">
-<link rel="manifest" href="manifest.json?v=0.07">
+<link rel="manifest" href="manifest.json?v=0.08">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%95%B3%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&display=swap">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
 <link rel="stylesheet" href="../css/style.css?v=0.17">
-<link rel="stylesheet" href="../css/wikiRabbithole.css?v=0.07">
+<link rel="stylesheet" href="../css/wikiRabbithole.css?v=0.08">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"위키 토끼굴","applicationCategory":"UtilityApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"관심사 문서를 미리 받아 오프라인에서 이어 읽는 무료 도구."}
 </script>
@@ -36,7 +36,7 @@
     <a href="../guides.html">가이드</a>
     <a href="../about.html">소개</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.07</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.08</span>
   </div>
 </div></nav>
 
@@ -119,6 +119,64 @@
     </ul>
   </section>
 
+  <!-- deepen-2026-08-19 -->
+  <section class="card">
+    <h2>무엇을 하는 도구인가</h2>
+    <p>비행기나 지하철처럼 <b>인터넷이 안 되는 곳</b>에서 읽을 거리를 미리 받아두는 도구입니다. 주제를 하나 고르면 한국어 위키백과에서 갈래를 따라 <b>150편</b>을 받아 브라우저에 저장하고, 오프라인에서 문서 끝의 <b>다음 챕터</b>를 골라가며 읽습니다.</p>
+    <p>정해진 목록을 순서대로 읽는 방식이 아닙니다. <b>다음에 뭘 볼지 그때그때 고르는 감각</b>이 이 도구의 핵심입니다. 위키를 읽다 보면 링크를 타고 엉뚱한 데까지 가게 되는데, 그 경험을 오프라인에서 하려고 만들었습니다.</p>
+
+    <h2>어떻게 동작하나</h2>
+    <table>
+      <thead><tr><th>단계</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td>①</td><td>주제를 고르면 그 문서에서 시작해 <b>링크를 따라 넓혀갑니다</b></td></tr>
+        <tr><td>②</td><td>각 문서의 본문과 다음 후보 문서를 함께 받아둡니다</td></tr>
+        <tr><td>③</td><td>받은 내용은 브라우저의 <b>IndexedDB</b>에 저장됩니다</td></tr>
+        <tr><td>④</td><td>오프라인에서 열면 저장된 문서를 읽고, 문서 끝에서 다음 챕터를 고릅니다</td></tr>
+      </tbody>
+    </table>
+    <p class="hint">※ <b>서버를 거치지 않습니다.</b> 브라우저가 위키백과에 직접 요청합니다. 그래서 어떤 문서를 읽었는지 이 사이트가 알지 못합니다.</p>
+
+    <h2>받는 데 걸리는 시간과 용량</h2>
+    <table>
+      <thead><tr><th>항목</th><th>실측치</th></tr></thead>
+      <tbody>
+        <tr><td>문서 1편당 요청</td><td>약 2.4회</td></tr>
+        <tr><td>150편 전체</td><td><b>약 360회 요청 · 6분</b></td></tr>
+        <tr><td>저장 용량</td><td>텍스트만 저장해 수 MB 수준</td></tr>
+      </tbody>
+    </table>
+    <p>처음 만들 때는 문서마다 링크 400여 개를 전부 조회해서 <b>1편에 20초</b>가 걸렸습니다. 실제로 필요한 건 다음 후보 8개뿐이라 <b>충분해지면 멈추도록</b> 고쳐서 지금의 속도가 됐습니다.</p>
+
+    <h2>읽기 전에 알아두면 좋은 것</h2>
+    <ul>
+      <li><b>Wi-Fi 가 있을 때 미리 받아두세요.</b> 받는 동안은 인터넷이 필요합니다.</li>
+      <li>브라우저 데이터를 지우면 <b>저장한 문서도 사라집니다.</b></li>
+      <li>시크릿 모드에서는 저장이 유지되지 않습니다.</li>
+      <li>이미지는 받지 않습니다. <b>텍스트 읽기</b>에 집중한 도구입니다.</li>
+      <li>홈 화면에 추가해두면 주소창 없이 전체 화면으로 읽을 수 있습니다.</li>
+    </ul>
+
+    <h2>저작권</h2>
+    <p>본문은 위키백과의 것이며 <b>CC BY-SA 3.0</b>으로 제공됩니다. 문서마다 원문 링크를 함께 표시합니다. 위키백과는 누구나 편집할 수 있어 <b>받은 시점의 내용</b>이며 이후 바뀔 수 있습니다.</p>
+
+    <h2>자주 묻는 질문</h2>
+    <div class="faq">
+      <details><summary>정말 인터넷 없이 읽히나요</summary>
+        <p>읽힙니다. 받아둔 뒤 비행기 모드로 바꾸고 새로고침해도 페이지와 저장된 문서가 그대로 나옵니다. 다만 <b>받지 않은 문서</b>로 이동하려 하면 그때는 연결이 필요합니다.</p></details>
+      <details><summary>몇 편까지 받을 수 있나요</summary>
+        <p>주제당 <b>150편</b>입니다. 더 늘리면 받는 시간이 길어지고 저장 용량도 커져 이 선에서 멈추도록 했습니다. 다른 주제를 추가로 받는 것은 가능합니다.</p></details>
+      <details><summary>받다가 중간에 끊기면요</summary>
+        <p>받은 데까지는 저장돼 있어 그만큼은 읽을 수 있습니다. 다시 시작하면 이어서 받습니다.</p></details>
+      <details><summary>저장 공간을 얼마나 쓰나요</summary>
+        <p>이미지를 받지 않고 텍스트만 저장해서 수 MB 수준입니다. 브라우저 설정의 저장소 항목에서 확인하고 지울 수 있습니다.</p></details>
+      <details><summary>다른 언어 위키도 되나요</summary>
+        <p>지금은 <b>한국어 위키백과</b>만 지원합니다.</p></details>
+      <details><summary>읽은 기록이 서버에 남나요</summary>
+        <p>남지 않습니다. 브라우저가 위키백과에 <b>직접</b> 요청하고 저장도 브라우저 안에서만 이뤄집니다. 이 사이트의 서버를 거치지 않으므로 어떤 문서를 읽었는지 알 수 없습니다.</p></details>
+    </div>
+  </section>
+
   <p class="more-tools"><a href="../">← 다른 도구도 보기</a></p>
 </main>
 
@@ -130,10 +188,10 @@
 </div></footer>
 
 <script src="../js/site.js?v=0.14"></script>
-<script src="../js/wikiApi.js?v=0.07"></script>
-<script src="../js/wikiStore.js?v=0.07"></script>
-<script src="../js/wikiCrawl.js?v=0.07"></script>
-<script src="../js/wikiRabbithole.js?v=0.07"></script>
+<script src="../js/wikiApi.js?v=0.08"></script>
+<script src="../js/wikiStore.js?v=0.08"></script>
+<script src="../js/wikiCrawl.js?v=0.08"></script>
+<script src="../js/wikiRabbithole.js?v=0.08"></script>
 <!-- Cloudflare Web Analytics — 쿠키를 쓰지 않고 개인을 식별하지 않는다.
      이 토큰은 공개 페이지에 심으라고 만들어진 클라이언트 식별자다(비밀값 아님).
      ⚠️ 자동 설치(auto_install)가 켜져 있었지만 실제로는 비콘이 주입되지 않아

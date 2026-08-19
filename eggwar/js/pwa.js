@@ -195,6 +195,24 @@ GAME.PWA = (function () {
     }
   }
 
+  // ── 첫 터치에서 자동 전체화면 + 방향 잠금 (2026-08-20) ─────────────────────
+  //  태현님: "게임 키자마자 가로화면·전체화면 고정이 잘 안 먹힌다."
+  //  브라우저는 제스처 없이 전체화면에 못 들어간다 — 그래서 **첫 터치**(어차피
+  //  로딩 화면을 탭한다)에 실어서 요청한다. 잠금 방향은 toggleFullscreen 이
+  //  부팅 프로필에 맞춰 정한다(반대로 잠그면 레이아웃이 통째로 어긋난다).
+  //  · 설치본(standalone)은 매니페스트가 fullscreen+landscape 를 이미 보장 → 건너뜀
+  //  · iOS 는 전체화면 API 가 없어 조용히 아무 일도 안 한다(기존 안내 문구가 담당)
+  //  · 실패해도 사용자에게 아무것도 띄우지 않는다(전체화면 계약과 동일)
+  function autoFullscreenOnFirstTouch() {
+    if (!GAME.isTouch || isStandalone() || !canFullscreen()) return;
+    var fire = function () {
+      document.removeEventListener('pointerdown', fire, true);
+      if (isFullscreen()) return;
+      toggleFullscreen(function () {});
+    };
+    document.addEventListener('pointerdown', fire, true);
+  }
+
   // ── '가로로 돌려주세요' 안내의 전체화면 버튼 ──
   // 여기서만은 **가로로 잠그는 게 맞다** — 사용자가 원하는 방향이 가로이기 때문.
   // 안드로이드는 전체화면 진입 후 잠금이 먹혀 화면이 실제로 돌아간다.
@@ -311,6 +329,7 @@ GAME.PWA = (function () {
     document.addEventListener('DOMContentLoaded', wireRotatePrompt);
   } else {
     wireRotatePrompt();
+    autoFullscreenOnFirstTouch();
   }
 
   // ── 아이폰 전용: 전체화면으로 가는 길 안내 ──────────────────────────────────

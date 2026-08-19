@@ -75,8 +75,10 @@ summary:before{content:'▸ ';font-size:12px}
 details[open] summary:before{content:'▾ '}
 .prev{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);
   padding:16px 18px;margin:11px 0 0;max-height:480px;overflow:auto;font-size:15px;line-height:1.85}
-.prev h3{font-size:17px;margin:22px 0 8px;color:var(--accent-ink)}
+.prev h3{font-size:22px;font-weight:800;margin:26px 0 10px;color:var(--ink)}
 .prev h3:first-child{margin-top:0}
+.prev hr{border:none;border-top:1px solid var(--line);margin:22px 0}
+.prev b{font-weight:800}
 .prev p{margin:0 0 12px}
 .prev .fill{background:rgba(181,68,46,.12);color:var(--warn);padding:1px 5px;border-radius:4px;font-weight:700}
 .tip{background:color-mix(in srgb,var(--accent) 7%,var(--surface-2));
@@ -115,8 +117,10 @@ details[open] summary:before{content:'▾ '}
     <h2>옮기는 순서 (3분)</h2>
     <ol>
       <li><b>제목 복사</b> → 네이버 글쓰기 제목 칸에 붙여넣기</li>
-      <li><b>서식 유지 복사</b> → 본문에 붙여넣기. <b>소제목과 굵게가 그대로 들어갑니다.</b>
-          손으로 바꿀 게 없어요. (혹시 서식이 안 먹으면 옆의 <b>글자만 복사</b>를 쓰세요)</li>
+      <li><b>서식 유지 복사</b> → 본문에 붙여넣기. 소제목이 <b>24px 굵게</b>로 들어가고
+          섹션 사이에 <b>구분선</b>이 생깁니다. 손으로 바꿀 게 없어요.
+          <br>붙여넣고 나서 소제목이 본문과 비슷해 보이면, 그 줄을 드래그해서
+          툴바의 <b>글자크기를 24</b>로 한 번만 눌러주세요. (서식이 아예 안 먹으면 <b>글자만 복사</b>)</li>
       <li>붉게 표시된 <b>[[경험1]] [[경험2]] [[경험3]]</b> 자리를 지우고 본인 이야기를 넣어주세요.
           <b>2~3줄이면 충분합니다.</b> 여긴 제가 대신 쓰지 않습니다 —
           네이버는 실제 경험이 담긴 글을 우대하고, 지어낸 건 티가 납니다.</li>
@@ -138,8 +142,8 @@ details[open] summary:before{content:'▾ '}
 <div class="lb" id="lb"><img id="lbimg" alt=""></div>
 <div class="toast" id="toast"></div>
 
-<script src="blog-drafts.js?v=0.02"></script>
-<script src="blog-tables.js?v=0.01"></script>
+<script src="blog-drafts.js?v=0.03"></script>
+<script src="blog-tables.js?v=0.02"></script>
 <script>
 (function(){
   var KEY='blogdesk.done.v1';
@@ -165,14 +169,30 @@ details[open] summary:before{content:'▾ '}
   }
   /* **굵게** 를 <b> 로. 나머지는 이스케이프 */
   function inline(s){
+    // [[경험1 · 안내]] 형태를 붉게 표시한다. 붙여넣은 뒤 눈에 바로 띄어야 지우고 채운다.
     return esc(s).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')
-                 .replace(/\[\[(경험\d?)\]\]/g,'<span class="fill">[[$1]]</span>');
+                 .replace(/\[\[경험[^\]]*\]\]/g,
+                   function(m){ return '<span class="fill">'+m+'</span>'; });
   }
+  /* ⚠️ 네이버 스마트에디터는 <h3> 을 자기 스타일로 갈아끼워서 크기 차이가 거의 안 난다.
+        2026-08-20 실물 확인 — 본문 15px 에 소제목이 19px 로 들어와 눈으로 구분이 안 됐다.
+        그래서 <p><span style="font-size:24px"><b> 형태로 내보낸다.
+        에디터의 글자크기 드롭다운이 이 형태는 그대로 읽어들인다.
+        소제목 앞에 구분선(<hr>)을 넣어 섹션이 눈으로 끊기게 한다. */
   function toHTML(d){
-    return parse(d).map(function(b){
-      if(b.h) return '<h3 style="font-size:19px;font-weight:800;margin:26px 0 10px">'+inline(b.h)+'</h3>';
-      return '<p style="margin:0 0 14px;line-height:1.9">'+inline(b.p).replace(/\n/g,'<br>')+'</p>';
-    }).join('');
+    var out=[], first=true;
+    parse(d).forEach(function(b){
+      if(b.h){
+        if(!first) out.push('<p><br></p><hr style="border:none;border-top:1px solid #e5e5e5"><p><br></p>');
+        out.push('<p style="margin:0 0 10px"><span style="font-size:24px;line-height:1.5"><b>'
+                 +inline(b.h)+'</b></span></p>');
+      } else {
+        out.push('<p style="margin:0 0 16px;line-height:1.9"><span style="font-size:15px">'
+                 +inline(b.p).replace(/\n/g,'<br>')+'</span></p>');
+      }
+      first=false;
+    });
+    return out.join('');
   }
   function toText(d){
     return parse(d).map(function(b){

@@ -340,6 +340,14 @@ GAME.BattleScene.prototype.create = function () {
         rtSelf._rtNote = '상대의 연결이 끊겼습니다';
       }
     };
+    //  실시간 상태 배너 — 스톨("상대 대기")·데싱크·관전 표시. 없으면 화면이 왜
+    //  멈췄는지 아무도 모른다(코드만 있고 표시가 없던 것을 2026-08-20 보완).
+    this._rtTxt = this.add.text(GAME.CONFIG.WIDTH / 2, 86, '', {
+      fontFamily: GAME.CONFIG.FONT, fontSize: (GAME.CONFIG.SMALL ? 13 : 15) + 'px',
+      color: '#fff4d8', backgroundColor: 'rgba(24,20,12,0.62)',
+      padding: { x: 12, y: 6 }
+    }).setOrigin(0.5, 0).setDepth(9300).setScrollFactor(0).setVisible(false);
+
     //  씬이 내려가면 콜백·참조를 정리하고 방을 나간다(전투 = 한 판 = 한 방).
     this.events.once('shutdown', function () {
       GAME.NetRoom.on.message = null;
@@ -1334,6 +1342,14 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       //  그림자는 렌더·조준용 — 시뮬 영웅 위치를 따라간다
       sh.x = this.hero.x; sh.y = this.hero.y; sh.facing = this.hero.facing;
       sh.alive = this.hero.alive;
+      //  상태 배너: 사고 > 스톨 > 관전 순으로 하나만 말한다
+      if (this._rtTxt && this._rtTxt.scene) {
+        var msg = this._rtNote ? ('⚠ ' + this._rtNote)
+          : (this._rtStall && this.state.elapsed > 400 ? '⏳ 상대 연결을 기다리는 중…'
+          : (this.rt.role === 'strategist' ? '👁 관전 — 내 진형이 상대 영웅을 막는 중입니다' : ''));
+        if (msg) { this._rtTxt.setText(msg); this._rtTxt.setVisible(true); }
+        else this._rtTxt.setVisible(false);
+      }
     } else {
       GAME.Combat.update(this.state, dt);
     }
@@ -2469,14 +2485,18 @@ GAME.BattleScene.prototype.draw = function () {
     }
   }
 
-  // 영웅 오라 — 링을 두 겹(잉크 + 진영색)으로 두르고 안쪽 면은 옅게.
+  // 영웅 오라 — 링을 두 겹(잉크 + 색)으로 두르고 안쪽 면은 옅게.
   // 밝은 목초지에서 0.10 알파 면은 아예 안 보였다 → 경계선이 오라를 대신 알려준다.
+  //  ⚠ 색은 진영색이 아니라 **영웅 고유색**(불/바람/대지) — 진영 파랑으로 두면
+  //    선택 링·발밑 링·조준 링과 파란 동심원 4겹이 되어 뜻이 안 갈렸다
+  //    (2026-08-20 태현님 "오라 가독성" 지적의 실측 원인).
+  var auCol = (FX.heroFx && FX.heroFx[this.hero.def.key]) || C.controller;
   for (i = 0; i < this.hero.auras.length; i++) {
     var au = this.hero.auras[i];
-    if (FXS && FXS.drawAura(this.hero, au, C.controller)) continue;
-    g.fillStyle(C.controller, Math.min(0.22, 0.10 * FA));
+    if (FXS && FXS.drawAura(this.hero, au, auCol)) continue;
+    g.fillStyle(auCol, Math.min(0.22, 0.10 * FA));
     GAME.UI.groundCircleFill(g, this.hero.x, this.hero.y, au.radius);
-    ringInk(this.hero.x, this.hero.y, au.radius, 2.5, C.controller, 0.65 * RA);
+    ringInk(this.hero.x, this.hero.y, au.radius, 2.5, auCol, 0.65 * RA);
   }
 
   // ── 유닛: 뒤(위)에서 앞(아래) 순으로 그려 겹침이 자연스럽게 ──

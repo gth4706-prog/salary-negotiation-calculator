@@ -2553,6 +2553,12 @@ var SM = 10;
       var gsGripX = hx - gsDir.x * r * 0.30, gsGripY = hy - gsDir.y * r * 0.30;
       // 자루에 직교하는 축(날밑·날개·톱니가 전부 이 축을 쓴다)
       var gsPx = gsDir.y, gsPy = -gsDir.x;
+      // 생성 이미지 대검(하이브리드) — 준비돼 있으면 이미지가 그리고 벡터는 통째로 생략.
+      // tipLen 은 벡터판 칼끝과 같은 값(0.34r + 날 길이) — 그림과 판정이 어긋나지 않게.
+      if (GAME.GearBank && GAME.GearBank.draw(g, 'greatsword', gsGripX, gsGripY,
+            gsDir.x, gsDir.y, r * 0.34 + r * 2.15 * tLen, a)) {
+        // 이미지가 그렸다
+      } else {
       // 두 손 자루
       g.lineStyle(lw(0.20), M.woodDark, a);
       g.lineBetween(gsGripX - gsDir.x * r * 0.55, gsGripY - gsDir.y * r * 0.55, gsGripX, gsGripY);
@@ -2600,6 +2606,7 @@ var SM = 10;
                          gsTy + gsPy * gsW0 * 0.55 * gs2 + gsDir.y * r * 0.30);
         }
       }
+      }  // (하이브리드 폴백 닫기 — 이미지 준비 전에만 위 벡터 대검이 그려진다)
 
     } else if (kind === 'hookShield') {      // 파수꾼 — 연꼴 방패 + 갈고리 창
       //  휘두르는 무기가 아니라 **찔러 넣었다 당기는** 무기다 → 자기 축으로 늘였다 줄인다.

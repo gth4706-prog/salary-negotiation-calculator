@@ -22,9 +22,9 @@ window.GAME = window.GAME || {};
 GAME.NetRoom = {
 
   // 방 서버 주소. **비어 있으면 실시간 대전 기능 자체가 꺼진다**(조용히).
-  // 배포 전까지는 빈 문자열로 둔다 — 없는 서버를 부르며 콘솔을 더럽히지 않게.
-  // 값은 `wrangler deploy` 또는 대시보드가 알려주는 workers.dev 주소.
-  BASE: '',
+  // 2026-08-19 배포 완료(npx wrangler, DO SQLite 마이그레이션 포함).
+  // 실측: /health ok · welcome/relay/ready→start 왕복 확인 · RTT 177~184ms(LAX 경유).
+  BASE: 'https://arena-room.gth3941.workers.dev',
 
   // ── 상태 ──
   ws: null,

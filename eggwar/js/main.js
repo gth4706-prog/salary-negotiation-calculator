@@ -66,6 +66,7 @@ window.addEventListener('load', function () {
       GAME.DefendScene,
       GAME.DefendTowerScene,
       GAME.VersusScene,
+      GAME.RtLobbyScene,
       GAME.ResultScene,
       GAME.TowerShopScene,
       GAME.TowerLoadingScene,

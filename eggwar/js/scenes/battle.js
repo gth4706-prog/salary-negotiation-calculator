@@ -17,6 +17,7 @@ GAME.BattleScene.prototype.init = function (data) {
   //    이 저장소의 '지연생성 가드' 함정과 같은 계열 — 상태를 씬에 두면 init 에서 되돌린다.
   this._combo = 0;
   this._comboAt = -9999;
+  this._comboTier = -1;      // 색 단계 캐시 — 안 지우면 지난 판의 빨강이 남는다
   this._swings = null;
   this._prevCd = undefined;
   this._prevHp = null;
@@ -1292,6 +1293,17 @@ GAME.BattleScene.prototype.drawNumbers = function () {
       //    `init` 에서 상태를 지우는 것이 근본 수정이고, 이건 두 번째 방어선이다.
       var punch = (since >= 0 && since < 140) ? 1 + (1 - since / 140) * 0.42 : 1;
       punch = Math.max(1, Math.min(1.42, punch));
+      //  단계 색 — 쌓일수록 뜨거워진다(금 → 주황 → 빨강). 숫자만 커지는 것보다
+      //  "지금 잘 되고 있다"가 색 온도로 먼저 읽힌다(2026-08-20 가독성 승급).
+      //  10단위 돌파 순간에는 펀치를 더 준다. 전부 렌더 전용 — 판정 무관.
+      if (this._comboTier !== (this._combo >= 20 ? 2 : this._combo >= 10 ? 1 : 0)) {
+        this._comboTier = this._combo >= 20 ? 2 : this._combo >= 10 ? 1 : 0;
+        this.comboNum.setColor(['#ffd24a', '#ff9038', '#ff5540'][this._comboTier]);
+        this.comboLbl.setColor(['#ffe9a8', '#ffc79a', '#ffb0a0'][this._comboTier]);
+      }
+      if (this._combo >= 10 && this._combo % 10 === 0 && since >= 0 && since < 140) {
+        punch = Math.min(1.75, punch + 0.3);
+      }
       if (this.comboNum.text !== String(this._combo)) this.comboNum.setText(String(this._combo));
       this.comboNum.setVisible(true).setAlpha(fade).setScale(punch);
       this.comboLbl.setVisible(true).setAlpha(fade * 0.9);

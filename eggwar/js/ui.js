@@ -187,15 +187,17 @@ GAME.UI = {
       g.fillRect(R.x, R.y + R.h * t, R.w, R.h / bands + 1);
     }
 
-    // 격자 — y 간격이 압축되어 자연히 원근처럼 보인다.
-    // 소품이 들어오면 바닥이 시끄러워지므로 격자를 0.3 → 0.12 로 낮춘다.
-    g.lineStyle(1, C.arenaLine, B ? 0.12 : 0.3);
-    for (var gx = A.x + 80; gx < A.right; gx += 80) {
-      g.lineBetween(gx, R.y, gx, R.bottom);
-    }
-    for (var gy = A.y + 80; gy < A.bottom; gy += 80) {
-      var sy = Iso.toScreenY(gy);
-      g.lineBetween(A.x, sy, A.right, sy);
+    // ── 격자 제거 (2026-08-20 태현님: "전장 배경에 이상한 격자 보이는데 바꿔줘") ──
+    //  80px 그리드는 원근 보조선이었는데 실기기에서 '모눈종이'로 읽혔다.
+    //  원근은 위의 밴드가 이미 맡고 있으므로 선 대신 **성긴 풀 얼룩**만 남긴다
+    //  (자리 고정 — 위치를 난수로 뽑으면 판마다 바닥이 달라져 어지럽다).
+    g.fillStyle(C.arenaLine, B ? 0.10 : 0.16);
+    for (var tk = 0; tk < 40; tk++) {
+      var tx = A.x + ((tk * 197) % (A.right - A.x - 20)) + 10;
+      var tyW = A.y + ((tk * 311) % (A.bottom - A.y - 20)) + 10;
+      var tsy = Iso.toScreenY(tyW);
+      g.fillEllipse(tx, tsy, 7, 2.6, 6);
+      g.fillEllipse(tx + 4, tsy - 1.4, 4.4, 1.8, 6);
     }
 
     // ── 액자 — 경계가 '선'이 아니라 '물건'이다 (2026-08-04) ────────────────

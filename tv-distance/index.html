@@ -17,7 +17,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%BA%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="../css/style.css?v=0.17">
-<link rel="stylesheet" href="../css/tvdist.css?v=0.02">
+<link rel="stylesheet" href="../css/tvdist.css?v=0.03">
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
 <script type="application/ld+json">
 {"@context": "https://schema.org", "@type": "WebApplication", "name": "TV 시청거리 계산기", "url": "https://joeltool.com/tv-distance/", "applicationCategory": "UtilitiesApplication", "operatingSystem": "All", "inLanguage": "ko", "description": "인치를 넣으면 4K 기준 권장 시청거리가, 거리를 넣으면 맞는 인치가 나옵니다. 놓을 자리 가로만 재도 들어가는 최대 인치를 알려드립니다. 벽걸이 높이까지.", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "KRW"}}
@@ -35,7 +35,7 @@
 <body>
 <nav class="nav"><div class="in">
   <a class="brand" href="../"><svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg><span class="n">각잡살림</span></a>
-  <div class="links"><a href="../guides.html">가이드</a><a href="../room-planner/">배치 시뮬레이터</a><a href="../about.html">소개</a><button class="theme-btn" id="theme-btn" type="button">◐</button><span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.02</span></div>
+  <div class="links"><a href="../guides.html">가이드</a><a href="../room-planner/">배치 시뮬레이터</a><a href="../about.html">소개</a><button class="theme-btn" id="theme-btn" type="button">◐</button><span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.03</span></div>
 </div></nav>
 
 <main class="wrap page stack">
@@ -178,7 +178,31 @@
     <h2>소파 자리부터 정하세요</h2>
     <p>TV 크기는 <strong>소파가 어디에 놓이느냐</strong>가 정합니다. 거리가 먼저이고 인치는 그다음입니다. <a href="../room-planner/guide/sofa-size-guide.html">소파 사이즈</a>에서 폭·깊이 기준을 보고, <a href="../room-planner/">방 가구 배치 시뮬레이터</a>에서 소파와 TV를 놓아보면 실제 거리가 나옵니다.</p>
     <p>함께 읽기: <a href="../room-planner/guide/tv-size-guide.html">TV 크기·시청거리 가이드</a> · <a href="../room-planner/guide/furniture-size-index.html">가구 규격 총정리</a> · <a href="../pyeong-calculator/">평수 계산기</a></p>
-        <h2>근거 법령 · 공식 출처</h2>
+        <!-- deepen2-2026-08-19 -->
+
+    <h2>재는 법</h2>
+    <table>
+      <thead><tr><th>측정</th><th>어디서 어디까지</th></tr></thead>
+      <tbody>
+        <tr><td>시청 거리</td><td><b>앉았을 때 눈</b>에서 <b>화면 표면</b>까지. 벽에서 재면 소파 깊이만큼 과대평가됩니다</td></tr>
+        <tr><td>놓을 자리 폭</td><td>TV장이나 벽면의 <b>실제 가용 폭</b>. 콘센트·몰딩 위치도 확인</td></tr>
+        <tr><td>설치 높이</td><td>바닥에서 <b>앉았을 때 눈높이</b>까지 (소파 기준 100~110cm)</td></tr>
+      </tbody>
+    </table>
+
+    <h2>계산과 실제 제품이 달라지는 경우</h2>
+    <table>
+      <thead><tr><th>원인</th><th>차이</th></tr></thead>
+      <tbody>
+        <tr><td><b>베젤(테두리)</b></td><td>가로 2~5cm, 세로 5~10cm 더 큽니다</td></tr>
+        <tr><td><b>스탠드 다리 간격</b></td><td>화면 폭보다 넓은 제품이 있습니다. TV장 폭은 이 값으로 확인하세요</td></tr>
+        <tr><td>화면 비율</td><td>이 계산은 <b>16:9</b> 기준입니다. 21:9 같은 비율은 계수가 다릅니다</td></tr>
+        <tr><td>벽걸이 브래킷</td><td>벽에서 5~15cm 띄워져 시청 거리가 그만큼 줄어듭니다</td></tr>
+      </tbody>
+    </table>
+    <p class="hint">※ 구매 전 상세페이지의 <b>제품 치수(스탠드 포함)</b>를 확인하세요. 인치만 보고 자리를 재면 스탠드 폭에서 걸리는 경우가 있습니다.</p>
+
+<h2>근거 법령 · 공식 출처</h2>
     <p>이 계산기의 공식과 기준은 아래 원문을 따릅니다. 제도는 개정되므로 실제 판단 전에 원문을 한 번 더 확인하시는 편이 안전합니다.</p>
     <ul>
       <li><a href="https://www.itu.int/rec/R-REC-BT.2022/en" rel="nofollow noopener" target="_blank">ITU-R BT.2022 (UHDTV 시청 환경 권고)</a></li>
@@ -195,7 +219,7 @@
   <div class="cp">참고용 정보이며 구매 전 제품 상세 치수를 확인하세요. © 각잡살림</div>
 </div></footer>
 <script src="../js/site.js"></script>
-<script src="../js/tvdist.js?v=0.02"></script>
+<script src="../js/tvdist.js?v=0.03"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "07ab6490a09d417bbe1bf83ef9780218"}'></script>
 </body>
 </html>

@@ -17,7 +17,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%96%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="../css/style.css?v=0.17">
-<link rel="stylesheet" href="../css/annualleave.css?v=0.02">
+<link rel="stylesheet" href="../css/annualleave.css?v=0.03">
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
 <script type="application/ld+json">
 {"@context": "https://schema.org", "@type": "WebApplication", "name": "연차 계산기", "url": "https://joeltool.com/annual-leave-calculator/", "applicationCategory": "BusinessApplication", "operatingSystem": "All", "inLanguage": "ko", "description": "입사일만 넣으면 지금 발생한 연차 일수가 나옵니다. 입사일 기준과 회계연도 기준을 함께 계산해 어느 쪽이 유리한지 비교하고, 미사용 연차수당까지 알려드립니다.", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "KRW"}}
@@ -35,7 +35,7 @@
 <body>
 <nav class="nav"><div class="in">
   <a class="brand" href="../"><svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg><span class="n">각잡살림</span></a>
-  <div class="links"><a href="../guides.html">가이드</a><a href="../severance-calculator/">퇴직금</a><a href="../resignation-timing/">퇴사 타이밍</a><a href="../about.html">소개</a><button class="theme-btn" id="theme-btn" type="button">◐</button><span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.02</span></div>
+  <div class="links"><a href="../guides.html">가이드</a><a href="../severance-calculator/">퇴직금</a><a href="../resignation-timing/">퇴사 타이밍</a><a href="../about.html">소개</a><button class="theme-btn" id="theme-btn" type="button">◐</button><span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.03</span></div>
 </div></nav>
 
 <main class="wrap page stack">
@@ -172,7 +172,31 @@
     <h2>퇴사를 생각 중이라면</h2>
     <p>연차는 <strong>언제 나가느냐</strong>에 따라 남는 개수가 달라집니다. <a href="../resignation-timing/">퇴사 타이밍 계산기</a>는 다음 연차가 생기는 날짜와 퇴직금 발생일을 함께 계산해 둘 다 챙기는 퇴사일을 알려줍니다.</p>
     <p>함께 보기: <a href="../severance-calculator/">퇴직금 계산기</a> · <a href="../unemployment-benefit/">실업급여 계산기</a> · <a href="../salary-calculator/">연봉 실수령액 계산기</a></p>
-        <h2>근거 법령 · 공식 출처</h2>
+        <!-- deepen2-2026-08-19 -->
+
+    <h2>입력값을 어디서 확인하나요</h2>
+    <table>
+      <thead><tr><th>입력</th><th>어디서</th><th>주의</th></tr></thead>
+      <tbody>
+        <tr><td>입사일</td><td>근로계약서 또는 4대보험 취득일</td><td><b>수습 시작일</b>부터입니다. 정규 전환일이 아닙니다</td></tr>
+        <tr><td>기준 방식</td><td>회사 취업규칙</td><td>입사일 기준이 원칙, 회계연도 기준은 관리 편의를 위한 운영</td></tr>
+        <tr><td>1일 통상임금</td><td>월 통상임금 ÷ 209 × 8</td><td>정기상여금이 있으면 기본급만으로 계산하면 안 됩니다</td></tr>
+      </tbody>
+    </table>
+
+    <h2>결과가 회사 계산과 달라지는 경우</h2>
+    <table>
+      <thead><tr><th>원인</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td><b>기준 방식이 다름</b></td><td>회계연도 기준이면 첫해가 비례 배분되어 값이 다릅니다. 이 계산기는 <b>둘 다</b> 보여줍니다</td></tr>
+        <tr><td>출근율 80% 미만</td><td>15일이 아니라 개근 1개월당 1일로 발생합니다</td></tr>
+        <tr><td>5인 미만 사업장</td><td>연차유급휴가가 <b>적용되지 않습니다</b> (취업규칙에 정한 경우 제외)</td></tr>
+        <tr><td>통상임금 범위</td><td>2024.12 대법원 판결로 재직조건부 정기상여금도 포함 → 수당이 커집니다</td></tr>
+      </tbody>
+    </table>
+    <p class="hint">※ 퇴사할 때 <b>회계연도 기준이 입사일 기준보다 적으면 그 차액을 받아야 합니다.</b> 두 값을 비교해 정산 내역과 대조해보세요.</p>
+
+<h2>근거 법령 · 공식 출처</h2>
     <p>이 계산기의 공식과 기준은 아래 원문을 따릅니다. 제도는 개정되므로 실제 판단 전에 원문을 한 번 더 확인하시는 편이 안전합니다.</p>
     <ul>
       <li><a href="https://www.law.go.kr/법령/근로기준법/제60조" rel="nofollow noopener" target="_blank">근로기준법 제60조 (연차 유급휴가)</a></li>
@@ -189,7 +213,7 @@
   <div class="cp">참고용 정보이며 법적 자문이 아닙니다. © 각잡살림</div>
 </div></footer>
 <script src="../js/site.js"></script>
-<script src="../js/annualleave.js?v=0.02"></script>
+<script src="../js/annualleave.js?v=0.03"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "07ab6490a09d417bbe1bf83ef9780218"}'></script>
 </body>
 </html>

@@ -43,7 +43,7 @@
     <a href="../salary-calculator/">연봉 계산기</a>
     <a href="../about.html">소개</a>
     <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.01</span>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.02</span>
   </div>
 </div></nav>
 
@@ -155,6 +155,33 @@
        상여금이나 연차수당이 3개월 안에 들어 있으면 실제 평균임금은 더 높아질 수 있습니다.</p>
   </section>
 
+  <!-- deepen2-2026-08-19 -->
+  <section class="card">
+    <h2>입력값을 어디서 확인하나요</h2>
+    <table>
+      <thead><tr><th>입력</th><th>어디서</th><th>주의</th></tr></thead>
+      <tbody>
+        <tr><td>퇴사 전 월급</td><td>급여명세서 또는 원천징수영수증</td><td><b>세전</b> 기준. 최근 3개월 평균이면 더 정확합니다</td></tr>
+        <tr><td>나이</td><td>퇴사일 기준 <b>만 나이</b></td><td>만 50세 경계에서 소정급여일수가 30일 갈립니다</td></tr>
+        <tr><td>근속</td><td>고용보험 <b>피보험기간</b></td><td>이전 직장도 통산됩니다. 고용보험 홈페이지에서 조회</td></tr>
+      </tbody>
+    </table>
+    <p class="hint">※ 피보험기간은 재직기간과 다를 수 있습니다. 고용보험 홈페이지·앱의 <b>고용보험 가입이력</b>에서 실제 가입 기간을 확인하세요.</p>
+
+    <h2>결과가 실제 결정액과 달라지는 경우</h2>
+    <p>이 계산기는 월급만 받아 <b>월급 × 3 ÷ 91.25일</b>로 1일 평균임금을 근사합니다. 실제 고용센터는 아래를 반영하므로 차이가 납니다.</p>
+    <table>
+      <thead><tr><th>원인</th><th>방향</th></tr></thead>
+      <tbody>
+        <tr><td>퇴사 전 3개월에 <b>상여금·연차수당</b>이 포함됨</td><td>실제가 <b>더 큼</b></td></tr>
+        <tr><td>3개월 총일수가 89~92일로 달마다 다름</td><td>소폭 차이</td></tr>
+        <tr><td>무급휴직·결근이 있었음</td><td>평균임금 산정에서 제외되는 규정 있음</td></tr>
+        <tr><td>상한·하한에 걸림</td><td><b>차이가 대부분 사라짐</b></td></tr>
+      </tbody>
+    </table>
+    <p>마지막 줄이 중요합니다. 1일 상한 68,100원과 하한 66,048원의 간격이 2,052원뿐이라 <b>대부분의 경우 최종 금액 차이는 작습니다.</b></p>
+  </section>
+
   <section class="card">
     <h2>근거 법령 · 공식 출처</h2>
     <p>이 계산기의 공식과 기준은 아래 원문을 따릅니다. 제도는 개정되므로 실제 판단 전에 원문을 한 번 더 확인하시는 편이 안전합니다.</p>
@@ -185,6 +212,6 @@
 </div></footer>
 
 <script src="../js/site.js?v=0.05"></script>
-<script src="../js/unemployment.js?v=0.01"></script>
+<script src="../js/unemployment.js?v=0.02"></script>
 </body>
 </html>

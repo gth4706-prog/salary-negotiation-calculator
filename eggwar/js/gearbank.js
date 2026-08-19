@@ -17,10 +17,10 @@
   var DATA = {
     //  gripF: 이미지 세로에서 손잡이 중심 위치(0=칼끝, 1=자루끝) — 실측값.
     //  tipF : 칼끝까지의 비율(= gripF). 표시는 grip→tip 길이를 게임 쪽 길이에 맞춘다.
-    greatsword:  { src: 'assets/gear/greatsword.png?v=1.97', gripF: 0.80 },
-    bow:         { src: 'assets/gear/bow.png?v=1.98' },
-    hookspear:   { src: 'assets/gear/hookspear.png?v=1.98' },
-    roundshield: { src: 'assets/gear/roundshield.png?v=1.98' }
+    greatsword:  { src: 'assets/gear/greatsword.png?v=1.99', gripF: 0.80 },
+    bow:         { src: 'assets/gear/bow.png?v=1.99' },
+    hookspear:   { src: 'assets/gear/hookspear.png?v=1.99' },
+    roundshield: { src: 'assets/gear/roundshield.png?v=1.99' }
   };
 
   G.GearBank = {

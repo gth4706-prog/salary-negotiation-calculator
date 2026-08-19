@@ -2129,6 +2129,13 @@ var SM = 10;
         t = -1 + (2 / 6) * k;
         arc.push({ x: cxp + bulge * (1 - t * t), y: cyp + h * t });
       }
+      //  생성 이미지 활(하이브리드) — 사냥꾼만. 이미지가 그리면 활대·감개·장식은 생략하되
+      //  **시위·화살은 계속 절차로 긋는다**(당김 apex 가 사냥꾼의 주 신호 — v0.81 규율).
+      //  이미지 활대는 왼쪽으로 굽어 있으므로 bulge 가 +쪽이면 좌우를 뒤집는다.
+      if (kind === 'longbow' && GAME.GearBank &&
+          GAME.GearBank.drawSpan(g, 'bow', cxp, cyp - h, cxp, cyp + h, a, bulge > 0)) {
+        // 이미지가 활대를 그렸다
+      } else {
       //  활채를 **두 줄**로 긋는다 — 어두운 심 위에 얇고 밝은 겉을 얹으면 둥근 나무봉이
       //  된다. 한 줄짜리 `lineBetween` 은 굵기가 일정해서 언제나 납작한 띠로 보인다
       //  (보스 아트가 `ribbon()` 을 만든 것과 같은 이유 — 여기서는 도형 +1 로 끝낸다).
@@ -2157,6 +2164,7 @@ var SM = 10;
                          arc[bw].x + bulge * 0.16, arc[bw].y + h * 0.30 * bo);
         }
       }
+      }  // (하이브리드 폴백 닫기)
       //  활은 휘두르는 게 아니라 **당겼다 놓는다** — atk<0 시위를 끌고, atk>0 화살이 날아간다.
       var pull = atk < 0 ? -atk : 0, shot = atk > 0 ? atk : 0;
       var apex = cxp - bulge * (0.28 + pull * 0.80 - shot * 0.16);
@@ -2631,6 +2639,13 @@ var SM = 10;
       var sh = (atk > 0 ? atk : 0) * 0.26 + guard;
       var hf = function (d) { return -0.90 + d * ex; };            // f 성분
       var hu = function (d) { return 0.30 + d * ex; };             // up 성분
+      //  생성 이미지 창(하이브리드) — 창끝(이미지 위)→자루 밑동으로 눕힌다.
+      //  찌르기(ex)는 양끝점이 이미 늘어나 있어 이미지가 공짜로 따라간다.
+      if (GAME.GearBank && GAME.GearBank.drawSpan(g, 'hookspear',
+            X(hf(2.50), -0.55), Y(hf(2.50), -0.55, hu(1.12)),
+            X(-0.90, -0.55), Y(-0.90, -0.55, 0.30), a, px < 0)) {
+        // 이미지가 창을 그렸다
+      } else {
       g.lineStyle(lw(0.13), M.wood, a);      // 갈고리 창 (E = 끌어당김)
       g.lineBetween(X(-0.90, -0.55), Y(-0.90, -0.55, 0.30),
                     X(hf(2.45), -0.55), Y(hf(2.45), -0.55, hu(1.05)));
@@ -2638,12 +2653,19 @@ var SM = 10;
       g.fillTriangle(X(hf(2.50), -0.55), Y(hf(2.50), -0.55, hu(1.12)),
                      X(hf(2.10), -0.55), Y(hf(2.10), -0.55, hu(1.22)),
                      X(hf(2.32), -0.55), Y(hf(2.32), -0.55, hu(0.68)));
+      }
 
       // 방패는 몸 옆·앞으로 크게 빼둔다 — 정면에 붙이면 계란이 통째로 사라진다
       // 때릴 때는 들어올리며 바깥으로 내민다(방패 밀치기) — 창과 같이 나가면 안 된다.
       var kx = X(1.14, 0.66 + sh * 0.7), ky = Y(1.14, 0.66 + sh * 0.7, 0.02 + sh);
       // 방패가 등급을 나른다 — 세로로 길어지고(len) 가로로 두꺼워진다(wide).
       var kV = tLen, kH = tWide;
+      //  생성 이미지 방패(하이브리드) — 정면 그림을 세로>가로로 살짝 눌러
+      //  "약간 비껴 든" 느낌을 만든다. 준비 전엔 아래 벡터 연꼴 방패.
+      if (GAME.GearBank && GAME.GearBank.place(g, 'roundshield',
+            kx, ky + r * 0.10, r * 1.50 * kH, r * 1.95 * kV, a)) {
+        // 이미지가 방패를 그렸다 — 연꼴·보스·장식 생략
+      } else {
       var kite = [
         { x: kx - r * 0.56 * kH, y: ky - r * 0.88 * kV },
         { x: kx + r * 0.56 * kH, y: ky - r * 0.88 * kV },
@@ -2677,6 +2699,7 @@ var SM = 10;
                          kx + r * 0.30 * kH * kw, ky - r * 0.88 * kV);
         }
       }
+      }  // (하이브리드 폴백 닫기)
     }
   };
 

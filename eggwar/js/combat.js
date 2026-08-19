@@ -191,6 +191,11 @@ GAME.Combat = {
       projectileRadius: h.projectileRadius,
       radius: h.radius,
       shape: h.shape,
+      // ⚠ 렌더 전용. 이게 빠져 있던 동안 전투의 영웅은 `UI.LEGACY_ART[shape]` 폴백으로
+      //   **일반 유닛 아트**(광전사→전사·사냥꾼→궁수·파수꾼→투창병)로 그려지고 있었다
+      //   (2026-08-20 실측: 파수꾼 그리기 76회가 전부 javelin 분기, hookShield 0회).
+      //   로비·카드 화면은 HEROES def 를 직접 써서 멀쩡했다 — 전투만 조용히 달랐다.
+      art: h.art,
       lifesteal: st.lifesteal,
       // 달려들며 치기 — 영웅 def 는 화이트리스트라 여기 안 적으면 조용히 사라진다.
       chargeKnock: h.chargeKnock, chargeDamageMul: h.chargeDamageMul,

@@ -17,7 +17,10 @@
   var DATA = {
     //  gripF: 이미지 세로에서 손잡이 중심 위치(0=칼끝, 1=자루끝) — 실측값.
     //  tipF : 칼끝까지의 비율(= gripF). 표시는 grip→tip 길이를 게임 쪽 길이에 맞춘다.
-    greatsword: { src: 'assets/gear/greatsword.png?v=1.97', gripF: 0.80 }
+    greatsword:  { src: 'assets/gear/greatsword.png?v=1.97', gripF: 0.80 },
+    bow:         { src: 'assets/gear/bow.png?v=1.98' },
+    hookspear:   { src: 'assets/gear/hookspear.png?v=1.98' },
+    roundshield: { src: 'assets/gear/roundshield.png?v=1.98' }
   };
 
   G.GearBank = {
@@ -26,10 +29,15 @@
     _frame: 0,
     _scene: null,
 
+    //  ⚠ 텍스처는 **전역**(TextureManager)이라 씬이 없어도 존재 여부를 알 수 있다.
+    //  eggart 의 잉크 윤곽 패스는 프록시 Graphics(scene 없음)로 같은 분기를 한 번 더
+    //  도는데, 거기서 false 를 돌려주면 이미지 밑에 벡터 무기의 잉크 실루엣이
+    //  이중으로 깔린다 — 텍스처가 있으면 true 를 주되 그리기는 실제 패스에서만 한다.
     ready: function (key, scene) {
       var d = DATA[key];
       if (!d) return false;
-      if (scene && scene.textures && scene.textures.exists('gear-' + key)) return true;
+      var tm = (scene && scene.textures) || (G.game && G.game.textures);
+      if (tm && tm.exists('gear-' + key)) return true;
       this._ensure(key, scene);
       return false;
     },
@@ -87,6 +95,7 @@
     draw: function (g, key, gripX, gripY, dirX, dirY, tipLen, alpha) {
       var scene = g.scene;
       if (!this.ready(key, scene)) return false;
+      if (!scene || !scene.add) return true;   // 잉크 프록시 패스 — 실루엣 생략
       var d = DATA[key];
       var img = this._acquire(key, scene);
       var tex = scene.textures.get('gear-' + key).getSourceImage();
@@ -97,6 +106,45 @@
          .setPosition(gripX, gripY)
          .setScale(s)
          .setRotation(Math.atan2(dirY, dirX) + Math.PI / 2)
+         .setAlpha(alpha == null ? 1 : alpha)
+         .setDepth(g.depth || 0);
+      return true;
+    },
+
+    /**
+     * 이미지 세로축을 (x0,y0)→(x1,y1) 구간에 눕힌다. x0/y0 = 이미지 **위쪽 끝**
+     * (활 위 고자·창끝), x1/y1 = 아래쪽 끝. flipX 는 좌우 거울(활대 방향 등).
+     */
+    drawSpan: function (g, key, x0, y0, x1, y1, alpha, flipX) {
+      var scene = g.scene;
+      if (!this.ready(key, scene)) return false;
+      if (!scene || !scene.add) return true;   // 잉크 프록시 패스 — 실루엣 생략
+      var img = this._acquire(key, scene);
+      var tex = scene.textures.get('gear-' + key).getSourceImage();
+      var dx = x1 - x0, dy = y1 - y0;
+      var s = Math.sqrt(dx * dx + dy * dy) / tex.height;
+      img.setVisible(true)
+         .setOrigin(0.5, 0)
+         .setPosition(x0, y0)
+         .setScale(flipX ? -s : s, s)
+         .setRotation(Math.atan2(dy, dx) - Math.PI / 2)
+         .setAlpha(alpha == null ? 1 : alpha)
+         .setDepth(g.depth || 0);
+      return true;
+    },
+
+    /** 중심 (x,y) 에 w×h 로 얹는다(방패처럼 축이 없는 물건). */
+    place: function (g, key, x, y, w, h, alpha) {
+      var scene = g.scene;
+      if (!this.ready(key, scene)) return false;
+      if (!scene || !scene.add) return true;   // 잉크 프록시 패스 — 실루엣 생략
+      var img = this._acquire(key, scene);
+      var tex = scene.textures.get('gear-' + key).getSourceImage();
+      img.setVisible(true)
+         .setOrigin(0.5, 0.5)
+         .setPosition(x, y)
+         .setScale(w / tex.width, h / tex.height)
+         .setRotation(0)
          .setAlpha(alpha == null ? 1 : alpha)
          .setDepth(g.depth || 0);
       return true;

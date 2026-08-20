@@ -220,12 +220,27 @@ GAME.PWA = (function () {
   function wireRotatePrompt() {
     var btn = document.getElementById('rotate-fs');
     if (!btn) return;
-    if (!canFullscreen() || isStandalone()) return;   // 설치본은 이미 주소창이 없다
+    //  2026-08-20 태현님: "차라리 여기에 가로화면으로 바꾸기 버튼을 넣자."
+    //  예전엔 전체화면 가능 + 비설치본에서만 보였는데, 그 판정이 기기마다 갈려
+    //  **버튼이 아예 안 뜨는 화면**이 나왔다(스크린샷 실측). 이제 iOS(잠금 API 자체가
+    //  없음)만 빼고 **항상 보여주고**, 누르면 ①전체화면 시도(가능할 때) ②방향 잠금을
+    //  전체화면과 무관하게 한 번 더 건다 — 설치본(standalone)은 전체화면 없이도 잠긴다.
+    if (isIOS()) { btn.hidden = true; return; }       // iOS 는 돌려 잡는 것만 가능
     btn.hidden = false;
     btn.addEventListener('click', function () {
-      toggleFullscreen(function (ok) {
-        if (!ok) btn.hidden = true;                   // 안 되는 기기에서는 조용히 치운다
-      });
+      var lock = function () {
+        try {
+          if (screen.orientation && screen.orientation.lock) {
+            var lp = screen.orientation.lock('landscape');
+            if (lp && lp['catch']) lp['catch'](function () {});
+          }
+        } catch (e) {}
+      };
+      if (canFullscreen() && !isFullscreen()) {
+        toggleFullscreen(function () { lock(); });
+      } else {
+        lock();
+      }
     });
   }
 

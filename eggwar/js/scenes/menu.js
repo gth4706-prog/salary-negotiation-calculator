@@ -285,171 +285,124 @@ GAME.MenuScene.prototype._tail = function () {
 //   · 오른쪽 = 모드 그리드 3줄 + 유틸 한 줄  — 손가락이 가는 곳
 //  버튼 밑 한 줄 설명은 전부 뺐다. 높이 390 에서 그 한 줄이 곧 겹침이었다.
 // ═══════════════════════════════════════════════════════════════════════
+//  ── 폰 가로 로비 (A안, 2026-08-21 태현님 확정) ─────────────────────────────
+//  "영웅이 주인공" — 좌상단 간판+칩, 왼쪽에 걸어다니는 내 영웅(parade 재사용),
+//  하단 한 줄에 모드 카드 3장(대전이 가장 큼), 우상단에 랭킹·설정.
+//  소리/음악/닉네임/전체화면은 ⚙ 설정 팝업(GAME.Modal)으로 한 단계 안으로 —
+//  버튼 일곱 개가 늘어서던 유틸 줄이 사라져 화면이 게임 로비로 읽힌다.
 GAME.MenuScene.prototype._buildPhone = function () {
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var UI = GAME.UI;
   var self = this;
-
   var PAD = 16;
-  var LW = 258;                       // 왼쪽 간판 폭
-  var rx = PAD + LW + 26;             // 오른쪽 그리드 왼쪽 끝
-  var rw = W - PAD - rx;
-  var lcx = PAD + LW / 2;
 
-  // ── 왼쪽 간판 ──
-  var y = 24;
-  var title = this.add.text(lcx, y, '계란들의 전쟁', {
+  // ── 좌상단 간판 ──
+  var title = this.add.text(PAD + 6, 14, '계란들의 전쟁', {
     fontFamily: (GAME.CONFIG.FONT_DISPLAY || GAME.CONFIG.FONT) + ', ' + GAME.CONFIG.FONT,
     fontSize: '30px', color: '#fff6df', stroke: '#3a2c16', strokeThickness: 7
-  }).setOrigin(0.5, 0);
+  }).setOrigin(0, 0);
   title.setShadow(0, 4, 'rgba(46,32,14,0.45)', 5, false, true);
-  y = title.y + title.height + 1;
-  var sub = UI.text(this, lcx, y, '계란 부족 비대칭 실시간 대전',
-    { size: 15, color: C.textDim, origin: 0.5, originY: 0 });
-  y = sub.y + sub.height + 7;
-  UI.titleRule(this, lcx, y, 186);
-  y += 13;
 
   var me = GAME.Account.current();
   var rec = GAME.Score.of(me);
   var rank = GAME.Score.rankOf(me, 'all');
-  var nick = UI.text(this, lcx, y, me,
-    { size: 20, color: C.accent, origin: 0.5, originY: 0, align: 'center', wrap: LW });
-  y = nick.y + nick.height + 2;
-  var statLine = UI.text(this, lcx, y,
+  var arena = GAME.Arena ? GAME.Arena.get() : null;
+  //  칩 한 줄 — 닉네임(강조) + 기록. 값이 길어질 수 있어 한 텍스트로 흘린다.
+  var chipY = title.y + title.height + 6;
+  UI.text(this, PAD + 8, chipY, me,
+    { size: 18, color: C.accent, origin: 0, originY: 0 });
+  UI.text(this, PAD + 8, chipY + 24,
     '누적 ' + rec.total.toLocaleString('ko-KR') + '점  ·  격파 ' + rec.rounds + '회' +
-    (rank ? ('  ·  ' + rank + '위') : ''),
-    { size: 15, color: C.textDim, origin: 0.5, originY: 0, align: 'center', wrap: LW });
-  //  ⚠ 폰 가로는 왼쪽 열이 좁다 — 한 줄로 못 넣으면 아래 안내문을 밀어낸다.
-  //    그래서 짧게 끊어 쓴다(PC 문구와 뜻은 같다).
-  UI.text(this, lcx, statLine.y + statLine.height + 3,
-    '기기 바꿀 땐 통곡의 탑 → 이어하기',
-    { size: 13, color: C.textFaint, origin: 0.5, originY: 0, align: 'center', wrap: LW });
+    (rank ? ('  ·  ' + rank + '위') : '') +
+    (arena ? ('  ·  🏅 ' + arena.trophy) : ''),
+    { size: 13, color: C.textDim, origin: 0, originY: 0 });
   this._carryNotice();
 
-  // 조작 안내는 간판 기둥 **바닥에서 위로** 쌓는다 — 위 문구가 길어져도 안 밀린다.
-  var by = H - 14;
-  var tagline = UI.text(this, lcx, by, '논타겟은 피할 수 있고, 타겟은 피할 수 없다.',
-    { size: 15, color: C.textFaint, origin: 0.5, originY: 1, align: 'center', wrap: LW });
-  // originY=1 이라 tagline.y 는 **아래쪽 끝**이다 — 위로 쌓으려면 높이를 빼야 한다.
-  UI.text(this, lcx, tagline.y - tagline.height - 6,
-    GAME.isTouch ? '한 번 탭 이동+교전 · 두 번 탭 이동만 · 스킬 버튼 시전'
-                 : '우클릭 이동 · 방향키 · QWER 스킬',
-    { size: 15, color: C.textDim, origin: 0.5, originY: 1, align: 'center', wrap: LW });
+  // ── 우상단: 랭킹 · 설정 ──
+  var topH = Math.max(UI.BTN_H_SM || 52, 48), topW = 108;
+  var rkb = UI.button(this, W - PAD - topW / 2, 14 + topH / 2, topW, topH, '랭킹', function () {
+    self.scene.start('Rank', { kind: 'tower', scope: 'all' });
+  }, { fontSize: 16 });
+  if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, rkb, 'banner', 1);
+  UI.button(this, W - PAD - topW - 10 - topW / 2, 14 + topH / 2, topW, topH, '⚙ 설정', function () {
+    self._openSettings();
+  }, { fontSize: 16 });
 
-  // ── 오른쪽 모드 그리드 ──
-  var top = 20, bot = H - 16;
-  var rowH = 80, stripH = 58;
-  var gap = Math.floor((bot - top - rowH * 3 - stripH) / 3);
-  var r1 = top, r2 = r1 + rowH + gap, r3 = r2 + rowH + gap;
-  var sy = bot - stripH;
-  var c2 = GAME.Layout.cols(2, { gap: 12, width: rw, left: rx, pad: 0 });
+  // ── 하단 모드 카드 한 줄 — 대전이 가장 크다 ──
+  var cardH = 96, cy = H - PAD - cardH / 2;
+  var gap = 10;
+  var wBig = Math.round((W - PAD * 2 - gap * 2) * 0.40);
+  var wSm = Math.round((W - PAD * 2 - gap * 2 - wBig) / 2);
+  var x1 = PAD + wSm / 2;
+  var x2 = PAD + wSm + gap + wSm / 2;
+  var x3 = PAD + wSm + gap + wSm + gap + wBig / 2;
 
   var tower = GAME.Tower.get();
   var dtower = GAME.DefendTower.get();
-  var arena = GAME.Arena ? GAME.Arena.get() : null;
   var unseen = GAME.Arena ? GAME.Arena.unseenCount() : 0;
 
-  // 대전이 이 게임의 목적지다 — 한 줄을 통째로 준다.
-  var pbA = UI.button(this, rx + rw / 2, r1 + rowH / 2, rw, rowH,
-    '대전' + (arena ? ('   ' + arena.trophy) : '') + (unseen ? ('   ● ' + unseen) : ''),
-    function () { self.scene.start('Versus'); },
-    { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
-      hover: UI.COL.panelTealHi, color: C.accent, fontSize: 24 });
-  if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, pbA, 'spears', 1);
+  var pbC = UI.button(this, x1, cy, wSm, cardH,
+    '수성의 탑\n' + dtower.floor + '회차' + (dtower.best ? ('  ·  최고 ' + dtower.best) : ''),
+    function () { self.scene.start('DefendTower'); },
+    { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
+      hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: 18 });
+  if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, pbC, 'shield', 1);
 
-  var pbB = UI.button(this, c2[0].cx, r2 + rowH / 2, c2[0].w, rowH,
+  var pbB = UI.button(this, x2, cy, wSm, cardH,
     '통곡의 탑\n' + tower.floor + '층' + (tower.best ? ('  ·  최고 ' + tower.best) : ''),
     function () { self.scene.start('Tower'); },
     { fill: UI.COL.panelAmber, line: UI.COL.focus, hover: UI.COL.panelAmberHi,
-      color: C.warn, fontSize: 19 });
+      color: C.warn, fontSize: 18 });
   if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, pbB, 'tower', 1);
 
-  var pbC = UI.button(this, c2[1].cx, r2 + rowH / 2, c2[1].w, rowH,
-    //  옛 규칙 최고 기록도 곁들인다 — 위 PC 버튼과 같은 이유(고장으로 안 읽히게).
-    '수성의 탑\n' + dtower.floor + '회차' + (dtower.best ? ('  ·  최고 ' + dtower.best) : '')
-      + (((GAME.DefendTower.legacyBest && GAME.DefendTower.legacyBest()) || 0)
-          ? ('  ·  옛 ' + GAME.DefendTower.legacyBest()) : ''),
-    function () { self.scene.start('DefendTower'); },
-    { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
-      hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: 19 });
-  if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, pbC, 'shield', 1);
+  var pbA = UI.button(this, x3, cy, wBig, cardH,
+    '⚔ 대전' + (arena ? ('   ' + arena.trophy) : '') + (unseen ? ('   ● ' + unseen) : '') +
+    '\n실시간 대결 · 사람과 싸운다',
+    function () { self.scene.start('Versus'); },
+    { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
+      hover: UI.COL.panelTealHi, color: C.accent, fontSize: 20 });
+  if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, pbA, 'spears', 1);
 
-  // ⚠ 여기 있던 설명 세 줄을 **지웠다** (2026-08-01, 사용자: "로비화면도 좀 구려").
-  //   "🗼 통곡의 탑은 컨트롤러 연습장 — 영웅 하나로 진형을 뚫는다" 는 바로 위
-  //   버튼 밑에 이미 붙어 있는 말이었다. 같은 말을 두 번 하면 화면이 설명서가 되고,
-  //   글자가 많아질수록 **정작 눌러야 할 버튼이 안 보인다.**
-  //   비운 자리는 걸어다니는 계란들(js/lobbyart.js)이 채운다 — 글보다 그림이 낫다.
-  UI.text(this, rx + rw / 2, r3 + rowH * 0.16,
-    '연습이 끝나면 대전에서 사람과 싸웁니다',
-    { size: 'caption', color: C.textDim, origin: 0.5, originY: 0 });
-
-  // ── 유틸 줄 ──
-  var hasFs = GAME.PWA && GAME.PWA.canFullscreen() && !GAME.PWA.isStandalone();
-  var slots = [];
-  slots.push('rank');
-  slots.push('nick');
-  if (GAME.Sound) slots.push('sound');
-  if (GAME.Music) slots.push('music');
-  // 아이폰은 전체화면 API 가 없어 'fs' 칸이 통째로 빠진다 → 같은 자리에 안내를 넣는다.
-  var iosGuide = !hasFs && GAME.PWA && GAME.PWA.isIOS() && !GAME.PWA.isStandalone();
-  if (hasFs) slots.push('fs');
-  else if (iosGuide) slots.push('iosfs');
-  if (GAME.isAdmin) slots.push('admin');
-  var uc = GAME.Layout.cols(slots.length, { gap: 8, width: rw, left: rx, pad: 0 });
-
-  for (var i = 0; i < slots.length; i++) {
-    (function (kind, col) {
-      if (kind === 'rank') {
-        var rkb2 = UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, '랭킹', function () {
-          self.scene.start('Rank', { kind: 'tower', scope: 'all' });
-        }, { fontSize: 17 });
-        //  ⚠ 폰 가로 유틸 줄은 칸이 좁다 — `markFor` 가 자리를 재서 안 되면 스스로
-        //    안 그린다. 여기서 프로필로 분기하지 않는 이유다(칸 수가 기기마다 다르다).
-        if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, rkb2, 'banner', 1);
-      } else if (kind === 'nick') {
-        UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, '닉네임 변경', function () {
-          GAME.Account.logout();
-          self.scene.start('Login');
-        }, { fontSize: 16 });
-      } else if (kind === 'music') {
-        var musLbl = function () { return GAME.Music.enabled ? '음악 켜짐' : '음악 꺼짐'; };
-        var mb = UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, musLbl(), function () {
-          GAME.Music.toggle();
-          mb.text.setText(musLbl());
-        }, { fontSize: 16 });
-        if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, mb, 'drum', 1);
-      } else if (kind === 'sound') {
-        var sndLbl = function () { return GAME.Sound.enabled ? '소리 켜짐' : '소리 꺼짐'; };
-        var sb = UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, sndLbl(), function () {
-          GAME.Sound.toggle();
-          sb.text.setText(sndLbl());
-        }, { fontSize: 16 });
-        if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, sb, 'horn', 1);
-      } else if (kind === 'iosfs') {
-        UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, '⛶ 전체화면 방법',
-          function () { GAME.PWA.showHomeScreenGuide(); }, { fontSize: 14 });
-      } else if (kind === 'fs') {
-        var fsLbl = function () { return GAME.PWA.isFullscreen() ? '⤡ 해제' : '⛶ 전체화면'; };
-        var fb = UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, fsLbl(), function () {
-          GAME.PWA.toggleFullscreen(function (ok) {
-            if (!fb.text || !fb.text.scene) return;
-            if (!ok && !fb._everOn) { fb.rect.destroy(); fb.text.destroy(); return; }
-            fb._everOn = fb._everOn || ok;
-            fb.text.setText(fsLbl());
-          });
-        }, { fontSize: 16 });
-      } else if (kind === 'admin') {
-        UI.button(self, col.cx, sy + stripH / 2, col.w, stripH, '닉네임 관리', function () {
-          self.scene.start('Admin', { page: 0 });
-        }, { fontSize: 16, line: UI.COL.focus, color: C.warn });
-      }
-    })(slots[i], uc[i]);
-  }
+  //  조작 안내 한 줄 — 카드 위에 작게. (설명 문구는 이 한 줄만 남긴다)
+  UI.text(this, W / 2, cy - cardH / 2 - 8,
+    GAME.isTouch ? '한 번 탭 이동+교전 · 두 번 탭 이동만 · 스킬 버튼 시전'
+                 : '우클릭 이동 · 방향키 · QWER 스킬',
+    { size: 13, color: C.textFaint, origin: 0.5, originY: 1 });
 };
 
-// 로비 행렬을 굴린다. 씬이 바뀌면 `_parade` 가 없어져 조용히 멈춘다.
+//  ⚙ 설정 팝업 — 유틸 줄을 대체한다(A안). Modal 은 고르면 닫히므로 토글은
+//  현재 상태를 이름에 적어 "누르면 반대로 된다"가 읽히게 한다.
+GAME.MenuScene.prototype._openSettings = function () {
+  var self = this;
+  if (!GAME.Modal) return;
+  var items = [];
+  if (GAME.Sound) items.push({ key: 'sound',
+    name: GAME.Sound.enabled ? '🔊 소리 끄기' : '🔈 소리 켜기' });
+  if (GAME.Music) items.push({ key: 'music',
+    name: GAME.Music.enabled ? '🥁 음악 끄기' : '🥁 음악 켜기' });
+  items.push({ key: 'nick', name: '✏ 닉네임 변경' });
+  var hasFs = GAME.PWA && GAME.PWA.canFullscreen() && !GAME.PWA.isStandalone();
+  if (hasFs) items.push({ key: 'fs',
+    name: GAME.PWA.isFullscreen() ? '⤡ 전체화면 해제' : '⛶ 전체화면' });
+  else if (GAME.PWA && GAME.PWA.isIOS() && !GAME.PWA.isStandalone())
+    items.push({ key: 'iosfs', name: '⛶ 전체화면 방법(홈 화면 추가)' });
+  if (GAME.isAdmin) items.push({ key: 'admin', name: '관리자' });
+
+  GAME.Modal.open(this, {
+    title: '설정',
+    items: items,
+    onPick: function (it) {
+      if (it.key === 'sound') GAME.Sound.toggle();
+      else if (it.key === 'music') GAME.Music.toggle();
+      else if (it.key === 'nick') { GAME.Account.logout(); self.scene.start('Login'); }
+      else if (it.key === 'fs') GAME.PWA.toggleFullscreen(function () {});
+      else if (it.key === 'iosfs') GAME.PWA.showHomeScreenGuide();
+      else if (it.key === 'admin') self.scene.start('Admin');
+    }
+  });
+};
+
 GAME.MenuScene.prototype.update = function (time, delta) {
   if (this._parade && GAME.LobbyArt) GAME.LobbyArt.update(this._parade, delta);
 };

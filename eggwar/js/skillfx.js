@@ -215,17 +215,18 @@ window.GAME = window.GAME || {};
     var a = e.t / e.total, p = 1 - a;
     var M = S.MAT, sd = seedOf(e.x1, e.y1);
     var dx = e.x2 - e.x1, dy = e.y2 - e.y1;
+    var gm = 1 + ((e.grade || 1) - 1) * 0.14;   // 급 — 먼지 크기·링 굵기만(경로 불변)
 
     // 경로에 남은 먼지 — 출발 쪽이 크고 오래 남는다("여기서 튀어나갔다")
     for (var k = 0; k < 5; k++) {
       var f = k / 4;
       var jx = Math.cos(sd + k * 2.1) * 6, jy = Math.sin(sd + k * 2.1) * 4;
       dust(e.x1 + dx * f + jx, e.y1 + dy * f + jy,
-        11 + (1 - f) * 13 + p * 11, a * (0.55 + 0.45 * (1 - f)));
+        (11 + (1 - f) * 13 + p * 11) * gm, a * (0.55 + 0.45 * (1 - f)));
     }
     // 출발 자국 · 도착 자국 — 두 개의 링이 '거리'를 말한다
-    gink(e.x1, e.y1, 14 + p * 20, 2.5, M.clay, a * 0.75 * S.RA);
-    gink(e.x2, e.y2, 9 + p * 15, 3, M.clay, a * 0.95 * S.RA);
+    gink(e.x1, e.y1, 14 + p * 20, 2.5 * gm, M.clay, a * 0.75 * S.RA);
+    gink(e.x2, e.y2, 9 + p * 15, 3 * gm, M.clay, a * 0.95 * S.RA);
     // 경로 뒤로 흩날리는 흙덩이 — 어느 쪽에서 어느 쪽으로 갔는지가 물건으로 읽힌다
     var pl = Math.sqrt(dx * dx + dy * dy) || 1;
     var pux = dx / pl, puy = dy / pl;
@@ -659,11 +660,12 @@ window.GAME = window.GAME || {};
   function buffA(e, col) {
     var a = e.t / e.total, p = 1 - a;
     var M = S.MAT;
+    var gm = 1 + ((e.grade || 1) - 1) * 0.14;   // 급 — 링 굵기만(반경 불변)
     // 몸을 감싸며 올라오는 빛 — 터지는 순간에 한 번 크게
     var burst = Math.max(0, 1 - p / 0.45);
     if (burst > 0) {
       gfill(e.x, e.y, e.r * (0.5 + p * 1.1), col, 0.30 * burst * burst * S.FA);
-      gink(e.x, e.y, e.r * (0.6 + p * 1.0), 3 + 4 * burst, col, 0.95 * burst * S.RA);
+      gink(e.x, e.y, e.r * (0.6 + p * 1.0), (3 + 4 * burst) * gm, col, 0.95 * burst * S.RA);
     }
     //  ── 큰 방패 (2026-08-04 사용자 요청: "파수꾼은 방패모양이 크게 나타났으면") ──
     //  파수꾼의 정체성은 '버틴다'인데 버프 이펙트가 잎사귀·링이라 **무엇으로 버티는지**

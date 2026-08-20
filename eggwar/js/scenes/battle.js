@@ -343,6 +343,16 @@ GAME.BattleScene.prototype.create = function () {
     };
     //  실시간 상태 배너 — 스톨("상대 대기")·데싱크·관전 표시. 없으면 화면이 왜
     //  멈췄는지 아무도 모른다(코드만 있고 표시가 없던 것을 2026-08-20 보완).
+    //  시작 카운트다운 — 두 클라이언트가 거의 동시에 3초를 세고 출발한다.
+    //  정확히 같을 필요는 없다: 한쪽이 먼저 출발해도 록스텝이 상대 확정 틱까지만
+    //  달리므로(스톨) 시뮬은 어긋나지 않는다. 렌더 전용 지연이다.
+    this._rtCountdown = 3000;
+    this._rtCdTxt = this.add.text(GAME.CONFIG.WIDTH / 2, GAME.CONFIG.HEIGHT * 0.38, '', {
+      fontFamily: (GAME.CONFIG.FONT_DISPLAY || GAME.CONFIG.FONT) + ', ' + GAME.CONFIG.FONT,
+      fontSize: (GAME.CONFIG.SMALL ? 64 : 84) + 'px', color: '#ffd24a',
+      stroke: '#3a2a10', strokeThickness: 10
+    }).setOrigin(0.5).setDepth(9400).setScrollFactor(0);
+
     this._rtTxt = this.add.text(GAME.CONFIG.WIDTH / 2, 86, '', {
       fontFamily: GAME.CONFIG.FONT, fontSize: (GAME.CONFIG.SMALL ? 13 : 15) + 'px',
       color: '#fff4d8', backgroundColor: 'rgba(24,20,12,0.62)',
@@ -1365,6 +1375,18 @@ GAME.BattleScene.prototype.update = function (time, delta) {
         if (o.x !== undefined) { so.x = o.x; so.y = o.y; }
         if (o.target) so.ti = this.state.units.indexOf(o.target);
         this._rtSession.queueLocal({ kind: 'order', order: so });
+      }
+      if (this._rtCountdown > 0) {
+        this._rtCountdown -= delta;
+        if (this._rtCdTxt && this._rtCdTxt.scene) {
+          var cdN = Math.ceil(this._rtCountdown / 1000);
+          this._rtCdTxt.setText(this._rtCountdown > 0 ? String(Math.max(1, cdN)) : '');
+          var cdF = (this._rtCountdown % 1000) / 1000;
+          this._rtCdTxt.setScale(1 + cdF * 0.25).setAlpha(0.45 + cdF * 0.55);
+          if (this._rtCountdown <= 0) this._rtCdTxt.setVisible(false);
+        }
+        this.draw(); this.drawNumbers(); this.updateHud();
+        return;
       }
       var ran = this._rtSession.advance(delta);
       this._rtStall = (ran === 0);

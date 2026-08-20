@@ -379,12 +379,16 @@ window.GAME = window.GAME || {};
   function telegraphA(e) {
     var prog = 1 - e.t / e.total; if (prog < 0) prog = 0;
     var M = S.MAT, FX = S.FX;
+    //  급(grade 1~5, combat 이 스킬 가격에서 태깅) — **반경은 절대 안 건드린다**
+    //  (예고 반경 = 판정 약속). 굵기·조임돌 수만 급을 따라간다(2026-08-20 급 축).
+    var gm = 1 + ((e.grade || 1) - 1) * 0.14;
     // 그림자가 짙어진다 — 위에서 뭔가 떨어지고 있다
     gfill(e.x, e.y, e.r, S.INKA > 0 ? S.INK : 0x000000, (0.05 + prog * 0.15) * S.FA);
-    gink(e.x, e.y, e.r, 2.5, FX.telegraph, (0.45 + prog * 0.55) * S.RA);
+    gink(e.x, e.y, e.r, 2.5 * gm, FX.telegraph, (0.45 + prog * 0.55) * S.RA);
     // **돌이 바깥에서 중심으로 조여든다.** 시계가 아니라 물건이 시간을 센다 —
     // 조각이 가운데 모이는 순간 터진다는 게 설명 없이 읽힌다.
-    var n = 8, sd = seedOf(e.x, e.y), cy = syy(e.y);
+    var n = 8 + ((e.grade || 1) >= 4 ? 4 : (e.grade || 1) >= 3 ? 2 : 0);
+    var sd = seedOf(e.x, e.y), cy = syy(e.y);
     for (var k = 0; k < n; k++) {
       var ang = sd + (Math.PI * 2 / n) * k;
       var d = e.r * (1.30 - prog * 1.10);
@@ -435,17 +439,18 @@ window.GAME = window.GAME || {};
     var M = S.MAT, FX = S.FX;
     var r = e.r * (1 + p * 0.20);
     var BC = col || FX.blast;
+    var gm = 1 + ((e.grade || 1) - 1) * 0.14;   // 급 — 굵기·튀는 돌 수만(반경 불변)
     // 파헤쳐진 흙
     gfill(e.x, e.y, r * 0.92, M.clay, (0.30 * b) * S.FA);
     // 터지는 순간 — 안에서 밖으로 확 퍼진다
     var bburst = Math.max(0, 1 - p / 0.50);
     if (bburst > 0) {
       gfill(e.x, e.y, r * (0.35 + p * 1.6), BC, 0.40 * bburst * bburst * S.FA);
-      gink(e.x, e.y, r * (0.40 + p * 1.4), 3 + 4 * bburst, BC, bburst * S.RA);
+      gink(e.x, e.y, r * (0.40 + p * 1.4), (3 + 4 * bburst) * gm, BC, bburst * S.RA);
       //  백열 코어 — 3층 구조의 마지막 층(2026-08-04). 착탄 순간에만 짧게.
       core(e.x, e.y, r * 0.85, bburst * bburst, e.heroKey);
     }
-    gink(e.x, e.y, r, 4, BC, b * 1.05 * S.RA);
+    gink(e.x, e.y, r, 4 * gm, BC, b * 1.05 * S.RA);
     // 흙기둥 — 지면에서 위로 솟는다. 착탄이 '아래에서 위로' 읽힌다.
     var cy = syy(e.y), h = r * (0.55 + p * 0.55);
     S.g.fillStyle(M.clay, 0.55 * b);
@@ -454,8 +459,9 @@ window.GAME = window.GAME || {};
     S.g.fillEllipse(e.x, cy - h * 0.85, r * 0.32, h * 0.5, 8);
     // 사방으로 튀는 흙·돌
     var sd = seedOf(e.x, e.y);
-    for (var k = 0; k < 7; k++) {
-      var ang = sd + (Math.PI * 2 / 7) * k;
+    var bn = 7 + ((e.grade || 1) >= 4 ? 4 : (e.grade || 1) >= 3 ? 2 : 0);
+    for (var k = 0; k < bn; k++) {
+      var ang = sd + (Math.PI * 2 / bn) * k;
       var d = r * (0.55 + p * 0.75);
       shard(e.x + Math.cos(ang) * d, cy + Math.sin(ang) * d * S.T - p * r * 0.5,
         1.6 + r * 0.035 * b, k % 2 ? M.stone : M.clay, b * 0.95);

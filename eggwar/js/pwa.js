@@ -205,7 +205,12 @@ GAME.PWA = (function () {
   //  · 실패해도 사용자에게 아무것도 띄우지 않는다(전체화면 계약과 동일)
   function autoFullscreenOnFirstTouch() {
     if (!GAME.isTouch || isStandalone() || !canFullscreen()) return;
-    var fire = function () {
+    var fire = function (ev) {
+      //  세로 안내 화면 위 터치는 「가로화면으로 바꾸기」 버튼이 담당한다 —
+      //  여기서 같은 제스처에 전체화면을 또 걸면 두 요청이 충돌해 둘 다 무반응이
+      //  된다(2026-08-20 실기기 신고의 유력 원인). 리스너는 남겨 다음 터치를 기다린다.
+      var t = ev && ev.target;
+      if (t && t.closest && t.closest('#rotate')) return;
       document.removeEventListener('pointerdown', fire, true);
       if (isFullscreen()) return;
       toggleFullscreen(function () {});
@@ -227,20 +232,41 @@ GAME.PWA = (function () {
     //  전체화면과 무관하게 한 번 더 건다 — 설치본(standalone)은 전체화면 없이도 잠긴다.
     if (isIOS()) { btn.hidden = true; return; }       // iOS 는 돌려 잡는 것만 가능
     btn.hidden = false;
-    btn.addEventListener('click', function () {
-      var lock = function () {
-        try {
-          if (screen.orientation && screen.orientation.lock) {
-            var lp = screen.orientation.lock('landscape');
-            if (lp && lp['catch']) lp['catch'](function () {});
-          }
-        } catch (e) {}
+    //  결과를 **말한다** — 이 버튼만은 침묵 계약의 예외다(2026-08-20 "눌러도 무반응"
+    //  신고). 잠금이 왜 안 됐는지 기기에서 직접 읽을 수 있어야 다음 수가 나온다.
+    var note = document.createElement('p');
+    note.style.cssText = 'margin:10px 0 0;font-size:13px;color:#8a7a5c;min-height:1.2em;';
+    btn.parentNode.appendChild(note);
+    var say = function (msg) { note.textContent = msg || ''; };
+    var tryLock = function (after) {
+      var done = false;
+      var fail = function (e) {
+        if (done) return; done = true;
+        after(false, e && (e.message || e.name) || '잠금 거부');
       };
-      if (canFullscreen() && !isFullscreen()) {
-        toggleFullscreen(function () { lock(); });
-      } else {
-        lock();
-      }
+      try {
+        if (!screen.orientation || !screen.orientation.lock) { fail({ message: '이 브라우저에 잠금 API 없음' }); return; }
+        var lp = screen.orientation.lock('landscape');
+        if (lp && lp.then) lp.then(function () { if (!done) { done = true; after(true); } }, fail);
+        else { done = true; after(true); }
+      } catch (e) { fail(e); }
+    };
+    btn.addEventListener('click', function () {
+      say('가로로 바꾸는 중…');
+      //  ① 지금 상태에서 잠금 → ② 안 되면 전체화면 진입 후 다시 잠금(크롬 요구사항)
+      tryLock(function (ok, why) {
+        if (ok) { say(''); return; }
+        if (canFullscreen() && !isFullscreen()) {
+          toggleFullscreen(function (fsOk) {
+            tryLock(function (ok2, why2) {
+              if (ok2) { say(''); return; }
+              say('자동 전환이 막혔습니다(' + (why2 || why) + '). 휴대폰의 자동 회전을 켜고 기기를 돌려주세요.');
+            });
+          });
+        } else {
+          say('자동 전환이 막혔습니다(' + why + '). 휴대폰의 자동 회전을 켜고 기기를 돌려주세요.');
+        }
+      });
     });
   }
 

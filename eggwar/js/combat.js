@@ -1192,11 +1192,17 @@ GAME.Combat = {
   },
 
   // 시전이 만든 이펙트에 시전자 표시를 붙인다(색을 나누기 위한 것 — castSkill 주석 참조).
-  _tagSkillFx: function (state, from, u) {
+  _tagSkillFx: function (state, from, u, sk) {
     if (!state || !state.effects || from < 0) return;
     var key = (u && u.isHero) ? (u.type || (u.def && u.def.key)) : null;
+    //  급(grade) — 스킬 가격에서 5단으로 접는다. **렌더 전용 태그**다(굵기·알파·장식
+    //  가짓수만 바꾸고 반경은 절대 안 바꾼다 — 예고 반경은 판정 약속이다).
+    //  유니티 배정표(기본형×속성×급)의 '급' 축을 웹에 들여오는 자리(2026-08-20).
+    var cost = (sk && sk.cost) || 0;
+    var grade = cost <= 0 ? 1 : cost <= 300 ? 2 : cost <= 900 ? 3 : cost <= 3000 ? 4 : 5;
     for (var i = from; i < state.effects.length; i++) {
       if (state.effects[i].heroKey === undefined) state.effects[i].heroKey = key;
+      if (state.effects[i].grade === undefined) state.effects[i].grade = grade;
     }
   },
 
@@ -1474,7 +1480,7 @@ GAME.Combat = {
     u.skillCd[slot] = sk.cooldown * (u.cdrMul || 1) * _cdb;
 
     // 이 시전이 만든 이펙트 전부에 시전자를 표시한다(위 `_fxMark` 주석 참조).
-    this._tagSkillFx(state, _fxMark, u);
+    this._tagSkillFx(state, _fxMark, u, sk);
 
     // ── 축복 훅 — 스킬 시전 (towerboon.js) ────────────────────────────────
     var bk = state && state.boons;

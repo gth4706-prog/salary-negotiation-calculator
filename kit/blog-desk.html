@@ -100,6 +100,23 @@ details[open] summary:before{content:'▾ '}
   justify-content:center;z-index:70;padding:24px;cursor:zoom-out}
 .lb.on{display:flex}
 .lb img{max-width:100%;max-height:100%;border-radius:8px;background:#fff}
+/* 단계 모드 */
+.steps{margin-top:13px;border-top:1px solid var(--line);padding-top:13px}
+.prog{display:flex;gap:4px;margin-bottom:12px}
+.prog i{flex:1;height:5px;border-radius:99px;background:var(--surface-2)}
+.prog i.on{background:var(--accent)}
+.step{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:14px}
+.step .no{font-size:12px;font-weight:800;color:var(--accent-ink);letter-spacing:.02em}
+.step .lb2{font-size:16.5px;font-weight:800;margin:3px 0 10px}
+.step .txt{background:var(--surface);border:1px solid var(--line);border-radius:7px;
+  padding:12px 13px;font-size:14.5px;line-height:1.8;max-height:230px;overflow:auto;margin-bottom:11px}
+.step .txt p{margin:0 0 12px}
+.step .acts{display:flex;gap:8px;flex-wrap:wrap}
+.step .acts button{flex:1 1 auto;min-height:44px}
+.step .nav2{display:flex;justify-content:space-between;align-items:center;margin-top:11px;
+  font-size:13px;color:var(--muted)}
+.step img.shot{max-width:190px;border:1px solid var(--line);border-radius:7px;display:block;margin-bottom:10px}
+.done-all{text-align:center;padding:18px;color:var(--accent-ink);font-weight:800}
 @media(max-width:520px){
   .wrap{padding:18px 12px 80px}
   h1{font-size:20px} .ttl{font-size:16.5px}
@@ -123,23 +140,20 @@ details[open] summary:before{content:'▾ '}
      올린 뒤 <b>업로드함</b>에 체크하면 진행 상황을 저와 맞출 수 있습니다.</p>
 
   <div class="guide">
-    <h2>옮기는 순서 (3분)</h2>
+    <h2>두 가지 방법이 있습니다</h2>
     <ol>
-      <li><b>제목 복사</b> → 네이버 글쓰기 제목 칸에 붙여넣기</li>
-      <li><b>서식 유지 복사</b> → 본문에 붙여넣기. 소제목이 <b>24px 굵게</b>로 들어가고
-          섹션 사이에 <b>구분선</b>이 생깁니다. 손으로 바꿀 게 없어요.
-          <br>붙여넣고 나서 소제목이 본문과 비슷해 보이면, 그 줄을 드래그해서
-          툴바의 <b>글자크기를 24</b>로 한 번만 눌러주세요. (서식이 아예 안 먹으면 <b>글자만 복사</b>)</li>
-      <li>붉게 표시된 <b>[[경험1]] [[경험2]] [[경험3]]</b> 자리를 지우고 본인 이야기를 넣어주세요.
-          <b>2~3줄이면 충분합니다.</b> 여긴 제가 대신 쓰지 않습니다 —
-          네이버는 실제 경험이 담긴 글을 우대하고, 지어낸 건 티가 납니다.</li>
-      <li>아래 이미지들을 <b>내려받아</b> 소제목 사이사이에 넣어주세요. 3장 이상이면 좋습니다.</li>
-      <li>맨 끝 <b>[[링크]]</b> 자리에 링크가 이미 들어가 있습니다. <b>글당 외부 링크는 1개만</b> — 많으면 홍보성으로 분류됩니다.</li>
-      <li><b>태그 복사</b> 붙여넣고 발행 → 여기 돌아와 <b>업로드함</b> 체크</li>
+      <li><b>단계별로 따라가기</b> (권장) — 원고 카드를 펼치면 나옵니다.
+          제목 → 첫 덩어리 → 사진 → 다음 덩어리… 순서대로 하나씩 나오고,
+          <b>어디에 어떤 사진이 들어가는지</b>도 그 자리에서 알려줍니다.
+          중간에 나갔다 와도 <b>하던 데서 이어집니다.</b></li>
+      <li><b>한 번에 복사</b> — 위쪽 <b>서식 유지 복사</b>로 본문 전체를 한 번에.
+          빠르지만 사진 위치는 <b>전체 미리보기</b>의 점선 표시를 보고 직접 찾아야 합니다.</li>
     </ol>
     <p style="font-size:13px;color:var(--muted);margin:12px 0 0;padding-top:11px;border-top:1px solid var(--line)">
-      <b>휴대폰에서</b> — 이미지는 <b>이미지 저장</b>을 누르면 새 탭에서 열립니다. 거기서 <b>길게 눌러</b> 사진에 저장하세요.
-      서식 유지 복사가 안 먹으면 <b>글자만 복사</b>로 붙여넣고 소제목만 크기 24로 바꿔주세요.</p>
+      <b>공통</b> — 소제목은 24px 굵게로 들어갑니다. 붙여넣고 크기가 본문과 비슷해 보이면
+      그 줄만 드래그해서 툴바 <b>글자크기 24</b>를 한 번 눌러주세요.
+      외부 링크는 맨 끝에 하나만 들어가 있습니다 (많으면 네이버가 홍보성으로 봅니다).
+      <br><b>휴대폰</b> — 이미지는 <b>이미지 저장</b>을 누르면 새 탭에서 열립니다. 길게 눌러 사진에 저장하세요.</p>
   </div>
 
   <div class="bar">
@@ -154,7 +168,7 @@ details[open] summary:before{content:'▾ '}
 <div class="lb" id="lb"><img id="lbimg" alt=""></div>
 <div class="toast" id="toast"></div>
 
-<script src="blog-drafts.js?v=0.03"></script>
+<script src="blog-drafts.js?v=0.04"></script>
 <script src="blog-tables.js?v=0.02"></script>
 <script>
 (function(){
@@ -176,8 +190,41 @@ details[open] summary:before{content:'▾ '}
     return txt.split(/\n\n+/).map(function(blk){
       var t=blk.trim(); if(!t) return null;
       if(t.indexOf('■ ')===0) return {h:t.slice(2).trim()};
+      var im=t.match(/^\[\[사진:([a-z0-9-]+)\]\]$/);
+      if(im) return {img:im[1]};
       return {p:t};
     }).filter(Boolean);
+  }
+
+  /* 단계 나누기 — 소제목 하나 + 그 아래 문단들을 한 덩어리로 묶는다.
+     사진 마커를 만나면 거기서 끊고 "사진 넣기" 단계를 따로 만든다.
+     한 번에 복붙하는 것보다 손이 많이 가지만, 사진 위치를 헤매지 않는다. */
+  function steps(d){
+    var out=[{kind:'title', label:'제목', text:d.title}];
+    var buf=[];
+    function flush(){
+      if(!buf.length) return;
+      var head=buf.find(function(b){return b.h;});
+      out.push({kind:'body', label: head?head.h:'도입부', blocks:buf.slice()});
+      buf=[];
+    }
+    parse(d).forEach(function(b){
+      if(b.img){ flush(); out.push({kind:'img', label:'사진 넣기', name:b.img}); return; }
+      if(b.h && buf.length) flush();
+      buf.push(b);
+    });
+    flush();
+    out.push({kind:'tags', label:'태그', text:d.tags.map(function(t){return '#'+t;}).join(' ')});
+    return out;
+  }
+  function blocksHTML(blocks){
+    return blocks.map(function(b){
+      if(b.h) return '<p style="margin:0 0 10px"><span style="font-size:24px;line-height:1.5"><b>'+inline(b.h)+'</b></span></p>';
+      return '<p style="margin:0 0 16px;line-height:1.9"><span style="font-size:15px">'+inline(b.p).replace(/\n/g,'<br>')+'</span></p>';
+    }).join('');
+  }
+  function blocksText(blocks){
+    return blocks.map(function(b){ return b.h?b.h:b.p; }).join('\n\n').replace(/\*\*/g,'');
   }
   /* **굵게** 를 <b> 로. 나머지는 이스케이프 */
   function inline(s){
@@ -194,6 +241,11 @@ details[open] summary:before{content:'▾ '}
   function toHTML(d){
     var out=[], first=true;
     parse(d).forEach(function(b){
+      if(b.img){
+        out.push('<p style="margin:14px 0;padding:9px 12px;border:1px dashed #bbb;border-radius:6px;'+
+                 'color:#888;font-size:13px">[ 여기에 사진: '+esc(imgLabel(b.img))+' ]</p>');
+        return;
+      }
       if(b.h){
         if(!first) out.push('<p><br></p><hr style="border:none;border-top:1px solid #e5e5e5"><p><br></p>');
         out.push('<p style="margin:0 0 10px"><span style="font-size:24px;line-height:1.5"><b>'
@@ -278,6 +330,65 @@ details[open] summary:before{content:'▾ '}
     }).catch(function(){ window.open(src,'_blank'); });
   }
 
+  /* ── 단계 모드 ──
+     한 덩어리씩 복사 → 붙여넣기 → 완료. 어디에 어떤 사진이 들어가는지도 순서대로 나온다.
+     진행 위치는 원고별로 localStorage 에 남아서 중간에 나갔다 와도 이어진다. */
+  var SKEY='blogdesk.step.v1';
+  var stepAt={}; try{ stepAt=JSON.parse(localStorage.getItem(SKEY)||'{}'); }catch(e){ stepAt={}; }
+  function saveStep(){ try{ localStorage.setItem(SKEY,JSON.stringify(stepAt)); }catch(e){} }
+
+  function renderSteps(box,d){
+    var S=steps(d), i=Math.min(stepAt[d.id]||0, S.length);
+    var prog='<div class="prog">'+S.map(function(_,k){
+      return '<i class="'+(k<i?'on':'')+'"></i>';}).join('')+'</div>';
+
+    if(i>=S.length){
+      box.innerHTML=prog+'<div class="done-all">이 글은 다 옮겼습니다 ✓</div>'+
+        '<div class="step nav2" style="border:none;background:none;padding:0">'+
+        '<button class="ghost" data-s="reset">처음부터 다시</button></div>';
+    } else {
+      var st=S[i], inner='';
+      if(st.kind==='img'){
+        inner='<img class="shot" src="'+imgSrc(st.name)+'" alt="">'+
+          '<div class="txt" style="max-height:none">여기에 <b>'+esc(imgLabel(st.name))+'</b>을 넣어주세요.<br>'+
+          (isTouch?'아래 버튼을 누르면 새 탭에서 열립니다. 길게 눌러 사진에 저장한 뒤 네이버에서 삽입하세요.'
+                 :'내려받아서 네이버 에디터의 사진 버튼으로 넣으면 됩니다.')+'</div>'+
+          '<div class="acts"><button class="primary" data-s="img">'+(isTouch?'이미지 저장':'내려받기')+'</button>'+
+          '<button class="primary" data-s="next">넣었어요 →</button></div>';
+      } else if(st.kind==='title'){
+        inner='<div class="txt" style="max-height:none"><b>'+esc(st.text)+'</b></div>'+
+          '<div class="acts"><button class="primary" data-s="copytext">제목 복사</button>'+
+          '<button class="primary" data-s="next">붙여넣었어요 →</button></div>';
+      } else if(st.kind==='tags'){
+        inner='<div class="txt" style="max-height:none">'+esc(st.text)+'</div>'+
+          '<div class="acts"><button class="primary" data-s="copytext">태그 복사</button>'+
+          '<button class="primary" data-s="next">붙여넣었어요 →</button></div>';
+      } else {
+        inner='<div class="txt">'+blocksHTML(st.blocks)+'</div>'+
+          '<div class="acts"><button class="primary" data-s="copyrich">이 덩어리 복사</button>'+
+          '<button data-s="copyplain">글자만</button>'+
+          '<button class="primary" data-s="next">붙여넣었어요 →</button></div>';
+      }
+      box.innerHTML=prog+'<div class="step"><div class="no">'+(i+1)+' / '+S.length+'</div>'+
+        '<div class="lb2">'+esc(st.label)+'</div>'+inner+
+        '<div class="nav2"><button class="ghost" data-s="prev" '+(i?'':'disabled')+'>← 이전</button>'+
+        '<button class="ghost" data-s="reset">처음부터</button></div></div>';
+    }
+
+    box.querySelectorAll('[data-s]').forEach(function(b){
+      b.addEventListener('click',function(){
+        var k=b.getAttribute('data-s'), st=S[i];
+        if(k==='next'){ stepAt[d.id]=i+1; saveStep(); renderSteps(box,d); }
+        else if(k==='prev'){ stepAt[d.id]=Math.max(0,i-1); saveStep(); renderSteps(box,d); }
+        else if(k==='reset'){ stepAt[d.id]=0; saveStep(); renderSteps(box,d); }
+        else if(k==='copytext') copyText(st.text, st.kind==='title'?'제목':'태그');
+        else if(k==='copyrich') copyRich(blocksHTML(st.blocks), blocksText(st.blocks));
+        else if(k==='copyplain') copyText(blocksText(st.blocks),'글자');
+        else if(k==='img') download(st.name);
+      });
+    });
+  }
+
   function render(){
     var drafts=window.BLOG_DRAFTS||[]; listEl.innerHTML=''; var n=0;
     drafts.forEach(function(d){
@@ -302,9 +413,10 @@ details[open] summary:before{content:'▾ '}
           '<button data-c="tags">태그 복사</button>'+
         '</div>'+
         (imgs?'<div class="imgs">'+imgs+'</div>':'')+
-        '<div class="tip warn"><b>직접 채울 것</b> — 본문의 <span class="fill">[[경험1~3]]</span> 자리에 겪은 이야기 2~3줄씩. 여기는 제가 대신 쓰지 않습니다.</div>'+
         '<div class="tip"><b>노출 팁</b> — '+esc(d.seo)+'</div>'+
-        '<details><summary>본문 미리보기 (붙여넣으면 이 모양으로 들어갑니다)</summary>'+
+        '<details class="stepbox"><summary>단계별로 따라가기 (사진 위치까지 알려줍니다)</summary>'+
+          '<div class="steps" data-steps="'+d.id+'"></div></details>'+
+        '<details><summary>전체 미리보기</summary>'+
           '<div class="prev">'+toHTML(d)+'</div></details>';
 
       c.querySelector('input').addEventListener('change',function(e){
@@ -326,6 +438,8 @@ details[open] summary:before{content:'▾ '}
       c.querySelectorAll('[data-zoom]').forEach(function(im){
         im.addEventListener('click',function(){ lbimg.src=im.src; lb.classList.add('on'); });
       });
+      var box=c.querySelector('[data-steps]');
+      if(box) renderSteps(box,d);
       listEl.appendChild(c);
     });
     countEl.innerHTML='원고 <b>'+drafts.length+'</b>편 중 <b>'+n+'</b>편 업로드함';

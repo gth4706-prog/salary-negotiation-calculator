@@ -60,6 +60,8 @@ GAME.Lockstep = (function () {
     //  상대 입력이 **확정된** 마지막 틱. 시작 시 DELAY-1 — 양쪽 다 0..DELAY-1 을
     //  빈 입력으로 미리 채우는 대칭 규약이라, 첫 DELAY 틱은 신호 없이도 돈다.
     this.remoteTick = this.delay - 1;
+    this._sq = 0;                 // 내 입력 패킷 일련번호
+    this._pq = {};                // 틱별 최근 수신 일련번호 — 늦게 온 옛 패킷을 버린다
     this.myDigests = {};           // tick → digest (내 것)
     this.theirDigests = {};        // tick → digest (상대 것)
     this.desynced = false;
@@ -81,7 +83,7 @@ GAME.Lockstep = (function () {
     var q = this.cmdsBySide[this.mySide];
     if (!q[at]) q[at] = [];
     q[at].push(cmd);
-    this.send({ type: 'input', t: at, side: this.mySide, cmds: q[at] });
+    this.send({ type: 'input', t: at, side: this.mySide, cmds: q[at], q: ++this._sq });
   };
 
   //  상대(또는 릴레이) 메시지 수신.
@@ -92,6 +94,12 @@ GAME.Lockstep = (function () {
       //  ⚠ 입력 패킷은 remoteTick 을 **올리지 않는다** — 그 틱에 입력이 더 올 수
       //    있다(확정은 inputsFinal 만 한다). 패킷만 보고 달리면 늦게 온 추가 입력을
       //    빼먹은 채 실행해 desync 가 된다.
+      //  전송 경로(P2P↔WS 폴백)가 바뀌는 순간 같은 틱의 누적본이 역순으로 올 수
+      //  있다 — 일련번호가 낮은(옛) 패킷은 버린다. 없으면 옛 목록이 새 것을 덮는다.
+      if (msg.q !== undefined) {
+        if (this._pq[msg.t] !== undefined && msg.q < this._pq[msg.t]) return;
+        this._pq[msg.t] = msg.q;
+      }
       this.cmdsBySide[msg.side][msg.t] = msg.cmds || [];
     } else if (msg.type === 'inputsFinal') {
       //  "내 입력은 msg.upto 틱까지 확정" — 보낸 쪽이 틱 t 를 **실행한 순간**

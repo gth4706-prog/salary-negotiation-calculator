@@ -148,12 +148,14 @@ GAME.NetRoom = {
         this.peers = msg.peers || [];
         this._emit('open', msg);
         this._emit('peers', this.peers);
+        if (GAME.NetRtc) GAME.NetRtc.maybeStart();   // 2명 모이면 P2P 직결 시도
         break;
 
       case 'peer':
         this.peers = msg.peers || this.peers;
         if (msg.host) this.host = msg.host;
         this._emit('peers', this.peers, msg);
+        if (GAME.NetRtc) GAME.NetRtc.maybeStart();
         break;
 
       case 'pong': {
@@ -179,6 +181,11 @@ GAME.NetRoom = {
         break;
 
       case 'relay':
+        //  P2P 시그널(offer/answer/ICE)은 씬에 보이면 안 된다 — 여기서 가로챈다.
+        if (msg.data && msg.data.rtc) {
+          if (GAME.NetRtc) GAME.NetRtc.onSignal(msg.from, msg.data.rtc);
+          break;
+        }
         this._emit('message', msg.from, msg.data);
         break;
 
@@ -199,7 +206,19 @@ GAME.NetRoom = {
   },
 
   // 방 안의 상대에게 아무 데이터나 보낸다. 서버는 내용을 해석하지 않는다.
-  relay: function (data) { return this.send({ t: 'relay', data: data }); },
+  //  P2P 직결이 열려 있으면 그쪽으로(왕복 ~10ms), 아니면 WS 릴레이(LAX 경유 ~500ms).
+  //  받는 쪽 이벤트는 동일하다 — 씬·록스텝은 경로를 모른다.
+  relay: function (data) {
+    if (GAME.NetRtc && GAME.NetRtc.send(data)) return true;
+    return this.send({ t: 'relay', data: data });
+  },
+
+  //  록스텝 입력 지연 산정용 — 실제로 메시지가 다닐 경로의 왕복지연.
+  bestRtt: function () {
+    var rc = GAME.NetRtc;
+    if (rc && rc.ready() && rc.rttMs != null) return rc.rttMs;
+    return this.rttMs;
+  },
 
   setReady: function (v) { return this.send({ t: 'ready', ready: v !== false }); },
 
@@ -246,6 +265,7 @@ GAME.NetRoom = {
 
   leave: function (silent) {
     this.closedByUser = true;
+    if (GAME.NetRtc) GAME.NetRtc.reset();
     this._stopHeartbeat();
     if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }
     if (this.ws) {

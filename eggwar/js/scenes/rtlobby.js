@@ -274,7 +274,7 @@ GAME.RtLobbyScene.prototype._commitSetup = function (setup) {
   //  rtt 는 여기서 한 번만 얼린다. 지연은 양쪽이 (내 rtt, 상대 rtt) 의 max 로
   //  **같은 값**을 계산해야 한다 — 재전송 때 값이 바뀌면 세션 지연이 갈라져 desync 다.
   if (this._myRttSent == null)
-    this._myRttSent = Math.round(GAME.NetRoom.rttMs || 180);
+    this._myRttSent = Math.round(GAME.NetRoom.bestRtt() || 180);
   setup.rtt = this._myRttSent;
   this._mySetup = setup;
   this._ready = true;
@@ -318,8 +318,14 @@ GAME.RtLobbyScene.prototype._maybeBattle = function () {
   var meTeam = (NR.me === NR.host) ? 'controller' : 'strategist';
   //  적응 입력 지연 — 두 rtt 의 max 에서 유도. 양쪽 입력이 같으므로 결과도 같다.
   //  틱 33.4ms: delay ≈ ceil(rtt·0.7/33.4)+2, 6~18틱(200~600ms) 사이로 가둔다.
-  var maxRtt = Math.max(this._mySetup.rtt || 180, this._theirSetup.rtt || 180);
-  var delay = Math.max(6, Math.min(18, Math.ceil(maxRtt * 0.7 / 33.4) + 2));
+  //  입력 편도 지연 추정 = (내 rtt + 상대 rtt) / 2.
+  //  · WS 릴레이: 편도 = 나→DO + DO→상대 ≈ 내rtt/2 + 상대rtt/2 — 정확히 이 식이다.
+  //    (⚠ max(rtt)·0.7 이던 옛 식은 릴레이 편도를 절반으로 잘못 봐 만성 스톨감이었다)
+  //  · P2P 직결: 편도 = rtt/2 라 이 식은 2배 보수적 — 그래도 3~4틱이라 충분히 낮다.
+  //  하한 3틱(100ms): P2P 에서 6틱(200ms)은 아깝다. 양쪽이 같은 rtt 쌍으로 같은
+  //  값을 내므로 갈라질 수 없다.
+  var oneWay = ((this._mySetup.rtt || 180) + (this._theirSetup.rtt || 180)) / 2;
+  var delay = Math.max(3, Math.min(24, Math.ceil(oneWay * 1.15 / 33.4) + 2));
   var heroKey = this._mySetup.heroKey || this._theirSetup.heroKey || 'vanguard';
   this.scene.start('Battle', {
     rt: {

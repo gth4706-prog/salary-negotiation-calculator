@@ -2220,6 +2220,8 @@ GAME.BattleScene.prototype.draw = function () {
   var i;
 
   g.clear();
+  //  무기 이미지 유령 스윕은 매 프레임 다시 그리는 이 화면에서만 무장한다(gearbank 주석).
+  if (GAME.GearBank) GAME.GearBank.begin();
   // 층 분위기 — 통곡의 탑/수성의 탑은 층수로, 층이 없는 모드는 등급으로 바닥이 갈린다.
   // 대전(비동기 PvP)만 중립(밴드 1 풀숲)이다 — 남의 기지를 치는 것이지 탑이 아니다.
   //

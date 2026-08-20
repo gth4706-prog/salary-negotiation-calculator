@@ -205,6 +205,13 @@ GAME.Combat = {
 
     var u = this._baseUnit(this.scaleDef(def), x, y, side, heroKey);
     u.isHero = true;
+    //  ⚠⚠ 영웅은 목줄이 없다 (2026-08-21 실사용 신고 "위쪽 구석으로 못 간다"의 진범).
+    //  P1(2026-08-19)이 실시간 대칭 전장을 위해 `_baseUnit` 의 leash 진영 조건을
+    //  없애면서 영웅에게도 leash 가 붙었고, update 말미의 전 유닛 clampToLeash 가
+    //  **매 프레임 출발점 쪽으로 되끌었다** — 목줄 반경 경계에서 이동 속도와 정확히
+    //  상쇄되어 "그 선을 넘어 못 걷는" 보이지 않는 원이 생겼다(내 재현 x=714 정지의
+    //  실체 — 전장 경계로 오진했었다). clampToLeash 첫 줄이 Infinity 를 면제한다.
+    u.leash = Infinity;
     u.hero = h;
     // QWER 슬롯마다 고른 선택지로 실제 스킬 세트를 구성한다
     u.skills = GAME.buildSkills(heroKey, skillPicks || GAME.defaultSkillPicks());

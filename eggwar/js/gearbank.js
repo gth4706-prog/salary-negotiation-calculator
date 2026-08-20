@@ -63,17 +63,35 @@
       return img;
     },
 
+    //  ── 스윕은 **begin() 을 부르는 씬(전투)에서만** 돈다 (2026-08-21) ──────────
+    //  캐릭터 선택 같은 정적 화면은 한 번만 그린다 — 거기서 스윕이 돌면 이미지가
+    //  다음 프레임에 사라지고, 벡터 폴백은 이미 생략돼 **무기가 통째로 실종**된다
+    //  (실기기 신고: 카드에 무기가 안 뜸). 유령(죽은 유닛의 무기)은 매 프레임
+    //  다시 그리는 전투에서만 생기는 문제라, 전투 draw() 가 begin() 으로 무장할
+    //  때만 스윕한다. 정적 화면의 이미지는 씬 shutdown 정리로 충분하다.
+    _sweepArmed: false,
+    begin: function () { this._sweepArmed = true; },
+
+    //  부팅 때 전부 선적재 — 카드 화면이 텍스처보다 먼저 그려져 옛 벡터로 박제되는
+    //  문제를 근본에서 없앤다(용량 수백 KB, SW 캐시가 흡수).
+    preload: function (scene) {
+      for (var k in DATA) this._ensure(k, scene);
+    },
+
     //  postupdate 스윕 — 이번 프레임에 안 쓰인 이미지를 숨긴다. 씬마다 한 번만 건다.
     _hook: function (scene) {
       if (this._scene === scene) return;
       this._scene = scene;
       var self = this;
       scene.events.on('postupdate', function () {
-        for (var k in self._pool) {
-          var list = self._pool[k];
-          for (var i = 0; i < list.length; i++) {
-            if (list[i].stamp !== self._frame) list[i].img.setVisible(false);
+        if (self._sweepArmed) {
+          for (var k in self._pool) {
+            var list = self._pool[k];
+            for (var i = 0; i < list.length; i++) {
+              if (list[i].stamp !== self._frame) list[i].img.setVisible(false);
+            }
           }
+          self._sweepArmed = false;
         }
         self._frame++;
       });

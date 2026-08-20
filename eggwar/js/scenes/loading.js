@@ -37,6 +37,9 @@ GAME.LoadingScene.TIPS = [
 ];
 
 GAME.LoadingScene.prototype.create = function () {
+  //  무기 이미지 선적재 — 캐릭터 카드가 텍스처보다 먼저 그려져 옛 벡터로 박제되는
+  //  것을 막는다(2026-08-21 실기기 신고). 수백 KB, 서비스워커 캐시가 흡수한다.
+  if (GAME.GearBank) GAME.GearBank.preload(this);
   // 지시는 "**인트로부터** 로비"였다 — 메뉴에서 시작하면 첫인상을 통째로 놓친다.
   //  ⚠ 여기서 튼다고 이 순간 소리가 나는 건 아니다. 브라우저 자동재생 정책 때문에
   //    오디오는 첫 입력 전까지 열리지 않는다. 그래도 지금 걸어 두는 것이 맞다 —

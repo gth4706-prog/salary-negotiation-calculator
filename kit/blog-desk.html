@@ -117,6 +117,11 @@ details[open] summary:before{content:'▾ '}
   font-size:13px;color:var(--muted)}
 .step img.shot{max-width:190px;border:1px solid var(--line);border-radius:7px;display:block;margin-bottom:10px}
 .done-all{text-align:center;padding:18px;color:var(--accent-ink);font-weight:800}
+.heads{background:color-mix(in srgb,var(--warn) 8%,var(--surface));border:1px solid var(--line);
+  border-left:3px solid var(--warn);border-radius:7px;padding:11px 13px;margin-bottom:11px;font-size:13.5px;color:var(--muted)}
+.heads b{color:var(--ink)}
+.heads ol{margin:7px 0 0;padding-left:20px}
+.heads li{margin:3px 0;color:var(--ink);font-weight:700}
 @media(max-width:520px){
   .wrap{padding:18px 12px 80px}
   h1{font-size:20px} .ttl{font-size:16.5px}
@@ -140,20 +145,14 @@ details[open] summary:before{content:'▾ '}
      올린 뒤 <b>업로드함</b>에 체크하면 진행 상황을 저와 맞출 수 있습니다.</p>
 
   <div class="guide">
-    <h2>두 가지 방법이 있습니다</h2>
+    <h2>붙여넣는 방법</h2>
     <ol>
       <li><b>단계별로 따라가기</b> (권장) — 원고 카드를 펼치면 나옵니다.
-          제목 → 첫 덩어리 → 사진 → 다음 덩어리… 순서대로 하나씩 나오고,
-          <b>어디에 어떤 사진이 들어가는지</b>도 그 자리에서 알려줍니다.
-          중간에 나갔다 와도 <b>하던 데서 이어집니다.</b></li>
-      <li><b>한 번에 복사</b> — 위쪽 <b>서식 유지 복사</b>로 본문 전체를 한 번에.
-          빠르지만 사진 위치는 <b>전체 미리보기</b>의 점선 표시를 보고 직접 찾아야 합니다.</li>
+          <b>사진이 끼는 자리에서만</b> 끊기니까 한 번에 붙일 수 있는 건 한 번에 붙습니다.
+          사진 차례가 오면 그 자리에 이미지가 뜹니다.</li>
+      <li><b>한 번에 전부</b> — 위쪽 <b>서식 유지 복사</b>. 사진 위치는 <b>전체 미리보기</b>의 점선 표시를 보세요.</li>
     </ol>
-    <p style="font-size:13px;color:var(--muted);margin:12px 0 0;padding-top:11px;border-top:1px solid var(--line)">
-      <b>공통</b> — 소제목은 24px 굵게로 들어갑니다. 붙여넣고 크기가 본문과 비슷해 보이면
-      그 줄만 드래그해서 툴바 <b>글자크기 24</b>를 한 번 눌러주세요.
-      외부 링크는 맨 끝에 하나만 들어가 있습니다 (많으면 네이버가 홍보성으로 봅니다).
-      <br><b>휴대폰</b> — 이미지는 <b>이미지 저장</b>을 누르면 새 탭에서 열립니다. 길게 눌러 사진에 저장하세요.</p>
+    <p id="envtip" style="font-size:13px;color:var(--muted);margin:12px 0 0;padding-top:11px;border-top:1px solid var(--line)"></p>
   </div>
 
   <div class="bar">
@@ -199,18 +198,22 @@ details[open] summary:before{content:'▾ '}
   /* 단계 나누기 — 소제목 하나 + 그 아래 문단들을 한 덩어리로 묶는다.
      사진 마커를 만나면 거기서 끊고 "사진 넣기" 단계를 따로 만든다.
      한 번에 복붙하는 것보다 손이 많이 가지만, 사진 위치를 헤매지 않는다. */
+  /* ⚠️ 2026-08-20 수정 — 처음엔 소제목마다 끊어서 11단계가 됐다. 과했다.
+        **사진이 끼는 자리에서만 끊는다.** 사진 사이의 문단은 소제목이 몇 개든 한 번에 붙여넣는다.
+        → 7단계 안팎으로 줄어든다. */
   function steps(d){
     var out=[{kind:'title', label:'제목', text:d.title}];
-    var buf=[];
+    var buf=[], seq=0;
     function flush(){
       if(!buf.length) return;
-      var head=buf.find(function(b){return b.h;});
-      out.push({kind:'body', label: head?head.h:'도입부', blocks:buf.slice()});
+      seq++;
+      var hs=buf.filter(function(b){return b.h;}).map(function(b){return b.h;});
+      out.push({kind:'body', label:'본문 '+seq+(hs.length?' ('+hs.length+'개 소제목)':''),
+                blocks:buf.slice(), heads:hs});
       buf=[];
     }
     parse(d).forEach(function(b){
       if(b.img){ flush(); out.push({kind:'img', label:'사진 넣기', name:b.img}); return; }
-      if(b.h && buf.length) flush();
       buf.push(b);
     });
     flush();
@@ -364,10 +367,24 @@ details[open] summary:before{content:'▾ '}
           '<div class="acts"><button class="primary" data-s="copytext">태그 복사</button>'+
           '<button class="primary" data-s="next">붙여넣었어요 →</button></div>';
       } else {
-        inner='<div class="txt">'+blocksHTML(st.blocks)+'</div>'+
-          '<div class="acts"><button class="primary" data-s="copyrich">이 덩어리 복사</button>'+
-          '<button data-s="copyplain">글자만</button>'+
-          '<button class="primary" data-s="next">붙여넣었어요 →</button></div>';
+        /* ⚠️ 네이버 모바일 에디터는 PC 스마트에디터와 다른 물건이라 HTML 붙여넣기가 거의 안 먹는다.
+              그래서 모바일에서는 **글자만 복사를 기본**으로 하고,
+              대신 "이 줄들을 소제목으로 바꾸세요" 목록을 그 자리에 띄운다.
+              1번 붙여넣고 3번 탭하는 게, 소제목마다 끊어 붙이는 것보다 훨씬 빠르다. */
+        var headList = (st.heads&&st.heads.length)
+          ? '<div class="heads"><b>붙여넣은 뒤 이 줄들을 소제목으로</b>'+
+            (isTouch?' <span style="opacity:.75">(줄 선택 → 하단 <b>Aa</b> → 크기 24 또는 굵게)</span>'
+                   :' <span style="opacity:.75">(줄 드래그 → 툴바 글자크기 24)</span>')+
+            '<ol>'+st.heads.map(function(h){return '<li>'+esc(h)+'</li>';}).join('')+'</ol></div>'
+          : '';
+        inner='<div class="txt">'+blocksHTML(st.blocks)+'</div>'+ headList +
+          '<div class="acts">'+
+            (isTouch
+              ? '<button class="primary" data-s="copyplain">이 덩어리 복사</button>'+
+                '<button data-s="copyrich">서식까지 시도</button>'
+              : '<button class="primary" data-s="copyrich">이 덩어리 복사 (서식 유지)</button>'+
+                '<button data-s="copyplain">글자만</button>')+
+            '<button class="primary" data-s="next">붙여넣었어요 →</button></div>';
       }
       box.innerHTML=prog+'<div class="step"><div class="no">'+(i+1)+' / '+S.length+'</div>'+
         '<div class="lb2">'+esc(st.label)+'</div>'+inner+
@@ -465,6 +482,18 @@ details[open] summary:before{content:'▾ '}
   });
   try{ var s=localStorage.getItem('blogdesk.theme'); if(s) document.documentElement.setAttribute('data-theme',s); }catch(e){}
 
+  var envtip=document.getElementById('envtip');
+  if(envtip){
+    envtip.innerHTML = isTouch
+      ? '<b>휴대폰에서 보고 계세요.</b> 네이버 모바일 글쓰기는 PC와 다른 에디터라 '+
+        '<b>서식이 붙여넣기로 안 넘어갑니다.</b> 그래서 글자만 복사되고, 대신 각 단계에 '+
+        '<b>어느 줄을 소제목으로 바꿀지</b> 목록으로 띄웁니다. 붙여넣은 뒤 그 줄을 선택하고 '+
+        '하단 <b>Aa</b> 에서 크기를 키우거나 굵게 하시면 됩니다. '+
+        '이미지는 <b>이미지 저장</b> → 새 탭에서 <b>길게 눌러</b> 저장.'
+      : '<b>PC에서 보고 계세요.</b> 서식 유지 복사가 동작합니다 — 소제목이 24px 굵게로, '+
+        '섹션 사이에 구분선이 들어갑니다. 혹시 크기가 본문과 비슷하면 그 줄만 드래그해서 '+
+        '툴바 <b>글자크기 24</b>를 한 번 눌러주세요.';
+  }
   render();
 })();
 </script>

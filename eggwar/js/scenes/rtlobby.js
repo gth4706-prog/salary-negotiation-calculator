@@ -28,9 +28,9 @@ GAME.RtLobbyScene.prototype.init = function () {
   this._started = false;
   this._myRole = null;
   this._theirRole = null;
-  this._formation = null;
-  this._heroKey = null;
-  this._picks = null;
+  this._mySetup = null;         // { role, formation | heroKey+picks, rtt }
+  this._theirSetup = null;
+  this._myRttSent = null;       // ⚠ 첫 전송 때 얼린다 — 재전송마다 갱신하면 양쪽 지연 계산이 갈라진다
   this._roleBtnS = null;
   this._roleBtnC = null;
   this._roleTxt = null;
@@ -200,10 +200,13 @@ GAME.RtLobbyScene.prototype._pickRole = function (role) {
 };
 
 GAME.RtLobbyScene.prototype._roleOk = function () {
+  //  2026-08-21 태현님: 컨트롤러끼리도, 전략가가 손님이어도 싸울 수 있어야 한다.
+  //  전략가 vs 전략가만 아직 막는다 — 영웅 없는 화면(HUD·시점)이 준비되지 않았다.
   if (!this._myRole) return '역할을 고르세요';
-  if (this._theirRole && this._theirRole === this._myRole) return '상대와 역할이 겹칩니다 — 한쪽이 바꿔야 합니다';
-  if (this._myRole === 'strategist' && !GAME.Arena.baseFormation())
-    return '전략가는 저장된 내 전장이 필요합니다 (대전 → 내 전장 만들기)';
+  if (this._theirRole === 'strategist' && this._myRole === 'strategist')
+    return '전략가끼리의 대전은 다음 업데이트에서 — 한쪽은 컨트롤러로';
+  if (this._myRole === 'strategist' && !GAME.Formations.loadSaved().length)
+    return '전략가는 저장된 배치가 필요합니다 (대전 → 내 전장 만들기)';
   if (GAME.NetRoom.peers.length < 2) return '상대를 기다리는 중';
   return null;
 };
@@ -224,25 +227,66 @@ GAME.RtLobbyScene.prototype._refreshRoleUi = function () {
 GAME.RtLobbyScene.prototype._toggleReady = function () {
   var why = this._roleOk();
   if (why) { this._setStatus('⚠ ' + why); return; }
-  this._ready = !this._ready;
-  GAME.NetRoom.setReady(this._ready);
-  if (this._ready) this._sendSetup();
-  this._readyBtn.text.setText(this._ready ? '⌛ 상대를 기다리는 중… (다시 누르면 취소)' : '⚔ 준비 완료');
+  if (this._ready) {                              // 취소
+    this._ready = false;
+    GAME.NetRoom.setReady(false);
+    this._readyBtn.text.setText('⚔ 준비 완료');
+    return;
+  }
+  //  3번 사양(2026-08-21): 들어가서 **고른다** — 전략가는 배치, 컨트롤러는 영웅.
+  this._openSetupPick();
 };
 
-//  내 세팅을 상대에게 보낸다. 전략가=진형 스냅샷 · 컨트롤러=영웅/스킬.
-//  준비를 누를 때마다 다시 보낸다(재접속·유실 대비 — 최신 것이 이긴다).
-GAME.RtLobbyScene.prototype._sendSetup = function () {
+//  세팅 선택 — 고르는 순간 준비가 걸리고 세팅이 상대에게 간다.
+GAME.RtLobbyScene.prototype._openSetupPick = function () {
+  var self = this;
   if (this._myRole === 'strategist') {
-    var base = GAME.Arena.baseFormation();
-    this._formation = { name: base.name || '', units: base.units };
-    GAME.NetRoom.relay({ type: 'rtSetup', role: 'strategist', formation: this._formation });
+    var list = GAME.Formations.loadSaved();
+    GAME.Modal.open(this, {
+      title: '🛡 어느 배치로 싸울까요?',
+      items: list.map(function (f) {
+        return { key: f.id, name: f.name || '(이름 없음)',
+                 note: (f.units ? f.units.length : 0) + '기' };
+      }),
+      onPick: function (it) {
+        var f = GAME.Formations.getById(it.key);
+        if (!f) return;
+        self._commitSetup({ role: 'strategist',
+          formation: { name: f.name || '', units: f.units } });
+      }
+    });
   } else {
-    var tc = (GAME.TowerChar && GAME.TowerChar.exists()) ? GAME.TowerChar.get() : null;
-    this._heroKey = (tc && tc.hero) || 'vanguard';
-    this._picks = GAME.defaultSkillPicks();
-    GAME.NetRoom.relay({ type: 'rtSetup', role: 'controller', heroKey: this._heroKey, picks: this._picks });
+    GAME.Modal.open(this, {
+      title: '⚔ 어느 영웅으로 싸울까요?',
+      items: GAME.HERO_ORDER.map(function (k) {
+        var h = GAME.HEROES[k];
+        return { key: k, name: h.name, note: h.trait || '' };
+      }),
+      onPick: function (it) {
+        self._commitSetup({ role: 'controller', heroKey: it.key,
+          picks: GAME.defaultSkillPicks() });
+      }
+    });
   }
+};
+
+GAME.RtLobbyScene.prototype._commitSetup = function (setup) {
+  //  rtt 는 여기서 한 번만 얼린다. 지연은 양쪽이 (내 rtt, 상대 rtt) 의 max 로
+  //  **같은 값**을 계산해야 한다 — 재전송 때 값이 바뀌면 세션 지연이 갈라져 desync 다.
+  if (this._myRttSent == null)
+    this._myRttSent = Math.round(GAME.NetRoom.rttMs || 180);
+  setup.rtt = this._myRttSent;
+  this._mySetup = setup;
+  this._ready = true;
+  GAME.NetRoom.setReady(true);
+  GAME.NetRoom.relay({ type: 'rtSetup', setup: setup });
+  this._readyBtn.text.setText('⌛ 상대를 기다리는 중… (다시 누르면 취소)');
+  this._maybeBattle();
+};
+
+//  유실 대비 재전송 — 이미 확정한 세팅을 그대로 다시 보낸다(rtt 포함, 값 불변).
+GAME.RtLobbyScene.prototype._sendSetup = function () {
+  if (this._mySetup) GAME.NetRoom.relay({ type: 'rtSetup', setup: this._mySetup });
 };
 
 GAME.RtLobbyScene.prototype._onRelay = function (from, data) {
@@ -250,9 +294,8 @@ GAME.RtLobbyScene.prototype._onRelay = function (from, data) {
   if (data.type === 'rtRole') {
     this._theirRole = data.role || null;
     this._refreshRoleUi();
-  } else if (data.type === 'rtSetup') {
-    if (data.role === 'strategist') this._formation = data.formation;
-    else { this._heroKey = data.heroKey; this._picks = data.picks; }
+  } else if (data.type === 'rtSetup' && data.setup) {
+    this._theirSetup = data.setup;
     this._maybeBattle();
   }
 };
@@ -267,17 +310,26 @@ GAME.RtLobbyScene.prototype._onStart = function (msg) {
 
 GAME.RtLobbyScene.prototype._maybeBattle = function () {
   if (this._started || !this._startMsg) return;
-  if (!this._formation || !this._heroKey) return;  // 진형(전략가)·영웅(컨트롤러) 둘 다 필요
+  if (!this._mySetup || !this._theirSetup) return;
   this._started = true;
+  var NR = GAME.NetRoom;
+  //  팀 라벨: 방장 = 'controller' 팀(아래) · 손님 = 'strategist' 팀(위).
+  //  역할과 무관한 **자리 이름**이다 — 양쪽이 (me===host) 로 같은 결론을 낸다.
+  var meTeam = (NR.me === NR.host) ? 'controller' : 'strategist';
+  //  적응 입력 지연 — 두 rtt 의 max 에서 유도. 양쪽 입력이 같으므로 결과도 같다.
+  //  틱 33.4ms: delay ≈ ceil(rtt·0.7/33.4)+2, 6~18틱(200~600ms) 사이로 가둔다.
+  var maxRtt = Math.max(this._mySetup.rtt || 180, this._theirSetup.rtt || 180);
+  var delay = Math.max(6, Math.min(18, Math.ceil(maxRtt * 0.7 / 33.4) + 2));
+  var heroKey = this._mySetup.heroKey || this._theirSetup.heroKey || 'vanguard';
   this.scene.start('Battle', {
     rt: {
       seed: this._startMsg.seed >>> 0,
-      role: this._myRole,
-      formation: this._formation,
-      heroKey: this._heroKey,
-      picks: this._picks || GAME.defaultSkillPicks()
+      meTeam: meTeam,
+      delay: delay,
+      my: this._mySetup,
+      their: this._theirSetup
     },
-    heroKey: this._heroKey,
+    heroKey: heroKey,
     formationId: null
   });
 };

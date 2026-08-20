@@ -1796,7 +1796,10 @@ GAME.Combat = {
   // 중요: stance 가 **이동을 실제로 통제**해야 한다. 예전 구현은 stance 와 무관하게
   // 항상 가장 가까운 적을 향해 걸어가서, leash 가 되돌리는 진자운동이 생겼다.
   updateStance: function (u, state, dt) {
-    if (u.side !== 'strategist') return true;
+    //  ⚠ 영웅은 stance(hold/chase/return) 대상이 아니다 — 실시간 대전에서 손님
+    //  영웅이 'strategist' 팀 라벨을 달게 되면서(2026-08-21) 교전 전 "자리 지키기"에
+    //  붙잡혀 이동 명령이 통째로 무시됐다(실측: 스폰 좌표에서 한 발도 못 움직임).
+    if (u.side !== 'strategist' || u.isHero) return true;
 
     // 지루함 누적/해제 — 사거리 안에 적이 있으면(=싸울 수 있으면) 논 게 아니다.
     // 고정물(쇠뇌 진지·지뢰)도 사거리로 판단한다: 못 쏘고 있으면 지루한 게 맞지만
@@ -2231,6 +2234,9 @@ GAME.Combat = {
 
   runAI: function (u, state, dt) {
     var def = u.def;
+    //  실시간 대전(2026-08-21 태현님): 영웅은 **명령이 있을 때만** 움직이고 때린다.
+    //  자동 교전은 전략가 유닛의 것이다. 양쪽 클라이언트가 같은 규칙 = 결정론 유지.
+    if (state.pvpRealtime && u.isHero && !u.order) return;
     // 능력이 이번 프레임을 가져갔으면 이동·공격은 건너뛴다(예고와 실제가 어긋나면 못 피한다)
     // ⚠ `abilities`(복수)만 가진 유닛도 여기를 통과해야 한다 — 이 가드가
     //   `def.ability` 만 보고 있어서 알 보스가 **스킬을 한 번도 안 썼다**(실측:

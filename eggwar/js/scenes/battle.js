@@ -26,8 +26,9 @@ GAME.BattleScene.prototype.init = function (data) {
   //  ⚠ 시뮬에 닿는 모든 것(시드·진형·영웅)이 양쪽 클라이언트에서 같아야 한다.
   this.rt = data.rt || null;
   if (this.rt) {
-    this.formation = { id: '__rt', name: this.rt.formation.name || '실시간 전장',
-                       units: this.rt.formation.units, author: '', at: 0 };
+    //  스폰은 _rtCompose 가 양측 세팅(rt.my/rt.their)으로 직접 한다 — 표준 진형
+    //  루프는 빈 스텁으로 무력화(2026-08-21 개편: 역할 조합 자유).
+    this.formation = { id: '__rt', name: '실시간 전장', units: [], author: '', at: 0 };
   } else {
     this.formation = GAME.Formations.getById(data.formationId);
   }
@@ -103,6 +104,7 @@ GAME.BattleScene.prototype.create = function () {
   if (this.rt) {
     GAME.Combat.seedRng(this.rt.seed);
     this.state.pvpRealtime = true;
+    this._rtCompose();
   }
 
   // 난이도 — 탑은 층수로, 일반 대전은 격파 횟수(escalation)로 강해진다
@@ -177,8 +179,10 @@ GAME.BattleScene.prototype.create = function () {
   //    스탯 레벨업과 같은 방식으로 **직접 def 에 더한다**(대전의 ArenaBuild.statBonus
   //    와 완전히 같은 패턴 — CLAUDE.md: "두 곳이 갈라지면 강화가 모드마다 다른 값이 된다").
   var towerItems = this.tower ? {} : this.items;
-  this.hero = GAME.Combat.createHero(
-    this.heroKey, this.startPos.x, this.startPos.y, 'controller', towerItems, this.picks);
+  if (!this.rt) {
+    this.hero = GAME.Combat.createHero(
+      this.heroKey, this.startPos.x, this.startPos.y, 'controller', towerItems, this.picks);
+  }
 
   if (this.tower && GAME.TowerChar && GAME.TowerChar.exists()) {
     var tc = GAME.TowerChar.get();
@@ -249,7 +253,7 @@ GAME.BattleScene.prototype.create = function () {
     //   표에 적힌 값 그대로다(사용자 지시: "모든 스킬은 유사한 밸런스를 가진다").
   }
 
-  this.state.units.push(this.hero);
+  if (!this.rt) this.state.units.push(this.hero);
   // 처치 보상 골드 — **영웅까지 units 에 들어간 뒤에** 훅을 건다.
   // 훅을 걸었는데 한 번도 안 불리면 towerrun.js 가 경고를 내고 옛 방식(층 총액)으로 돌아간다.
   // ⚠ `TowerRun.attachKillGold`/`goldGainFor` 는 **순수 계산**이라 `TowerRun.get()` 이
@@ -297,10 +301,11 @@ GAME.BattleScene.prototype.create = function () {
   //  입력은 시뮬에 직접 닿지 않는다 — **그림자 영웅**에 쌓고, 프레임마다 변화를
   //  록스텝 큐로 보낸다. 시뮬 영웅은 양쪽 클라이언트 모두 록스텝 _apply 로만 움직인다.
   //  전략가는 관전(입력 전송 없음) — 그림자에 쓰여도 버려진다.
-  if (this.rt) {
+  if (this.rt && this._heroIsPlayer) {
     var rtSelf = this;
     this._rtShadow = {
-      x: this.hero.x, y: this.hero.y, alive: true, isHero: true, side: 'controller',
+      //  side 는 내 영웅의 팀을 따른다 — 손님(위쪽 팀) 컨트롤러면 'strategist' 다.
+      x: this.hero.x, y: this.hero.y, alive: true, isHero: true, side: this.hero.side,
       order: null, facing: this.hero.facing,
       def: this.hero.def, hero: this.hero.hero, skills: this.hero.skills,
       skillCd: this.hero.skillCd, cdrMul: this.hero.cdrMul,
@@ -311,9 +316,11 @@ GAME.BattleScene.prototype.create = function () {
 
     this._rtSession = GAME.Lockstep.create({
       state: this.state,
-      mySide: this.rt.role,
+      mySide: this.rt.meTeam,
+      delay: this.rt.delay,
       send: function (msg) { GAME.NetRoom.relay({ lk: msg }); },
-      heroOf: function (side) { return side === 'controller' ? rtSelf.hero : null; },
+      //  팀 라벨(controller/strategist)마다 그 팀의 영웅 — 없으면 null(진형만인 팀).
+      heroOf: function (side) { return (rtSelf._rtHeroes && rtSelf._rtHeroes[side]) || null; },
       onDesync: function (t) {
         rtSelf.state.over = true; rtSelf.state.winner = null;
         rtSelf._rtNote = '동기화가 어긋나 판이 무효가 되었습니다';
@@ -336,8 +343,8 @@ GAME.BattleScene.prototype.create = function () {
     GAME.NetRoom.on.close = function (info) {
       if (!rtSelf.state.over) {
         rtSelf.state.over = true;
-        //  상대가 나가면 남은 쪽 승리 — 내 역할이 컨트롤러면 컨트롤러 승.
-        rtSelf.state.winner = rtSelf.rt.role;
+        //  상대가 나가면 남은 쪽(내 팀) 승리.
+        rtSelf.state.winner = rtSelf.rt.meTeam;
         rtSelf._rtNote = '상대의 연결이 끊겼습니다';
       }
     };
@@ -374,7 +381,7 @@ GAME.BattleScene.prototype.create = function () {
       GAME.Combat.castSkill = function (u, slot, tx, ty, state) {
         var sc = GAME.game && GAME.game.scene.getScene('Battle');
         if (sc && sc._rtShadow && u === sc._rtShadow) {
-          if (sc.rt.role === 'controller' && sc._rtSession)
+          if (sc._heroIsPlayer && sc._rtSession)
             sc._rtSession.queueLocal({ kind: 'skill', slot: slot, x: tx, y: ty });
           return;
         }
@@ -384,13 +391,54 @@ GAME.BattleScene.prototype.create = function () {
       if (pot0) GAME.Combat.usePotion = function (u, state) {
         var sc = GAME.game && GAME.game.scene.getScene('Battle');
         if (sc && sc._rtShadow && u === sc._rtShadow) {
-          if (sc.rt.role === 'controller' && sc._rtSession)
+          if (sc._heroIsPlayer && sc._rtSession)
             sc._rtSession.queueLocal({ kind: 'potion' });
           return;
         }
         return pot0(u, state);
       };
     }
+  } else if (this.rt) {
+    //  관전(전략가 시점) — 입력은 없지만 **세션은 있어야** 시뮬이 록스텝으로 돈다.
+    var rtSelf2 = this;
+    this.ctrl = null;
+    this._rtSession = GAME.Lockstep.create({
+      state: this.state,
+      mySide: this.rt.meTeam,
+      delay: this.rt.delay,
+      send: function (msg) { GAME.NetRoom.relay({ lk: msg }); },
+      heroOf: function (side) { return (rtSelf2._rtHeroes && rtSelf2._rtHeroes[side]) || null; },
+      onDesync: function () {
+        rtSelf2.state.over = true; rtSelf2.state.winner = null;
+        rtSelf2._rtNote = '동기화가 어긋나 판이 무효가 되었습니다';
+      }
+    });
+    GAME.NetRoom.on.message = function (from, data) {
+      if (data && data.lk) rtSelf2._rtSession.onMessage(data.lk);
+    };
+    GAME.NetRoom.on.close = function () {
+      if (!rtSelf2.state.over) {
+        rtSelf2.state.over = true;
+        rtSelf2.state.winner = rtSelf2.rt.meTeam;
+        rtSelf2._rtNote = '상대의 연결이 끊겼습니다';
+      }
+    };
+    this._rtTxt = this.add.text(GAME.CONFIG.WIDTH / 2, 86, '', {
+      fontFamily: GAME.CONFIG.FONT, fontSize: (GAME.CONFIG.SMALL ? 13 : 15) + 'px',
+      color: '#fff4d8', backgroundColor: 'rgba(24,20,12,0.62)', padding: { x: 12, y: 6 }
+    }).setOrigin(0.5, 0).setDepth(9300).setScrollFactor(0).setVisible(false);
+    this._rtCountdown = 3000;
+    this._rtCdTxt = this.add.text(GAME.CONFIG.WIDTH / 2, GAME.CONFIG.HEIGHT * 0.38, '', {
+      fontFamily: (GAME.CONFIG.FONT_DISPLAY || GAME.CONFIG.FONT) + ', ' + GAME.CONFIG.FONT,
+      fontSize: (GAME.CONFIG.SMALL ? 64 : 84) + 'px', color: '#ffd24a',
+      stroke: '#3a2a10', strokeThickness: 10
+    }).setOrigin(0.5).setDepth(9400).setScrollFactor(0);
+    this.events.once('shutdown', function () {
+      GAME.NetRoom.on.message = null;
+      GAME.NetRoom.on.close = null;
+      GAME.NetRoom.leave(true);
+      rtSelf2._rtSession = null;
+    });
   } else {
     this.ctrl = new GAME.InputController(this, this.state, this.hero);
   }
@@ -559,7 +607,8 @@ GAME.BattleScene.prototype.create = function () {
   this.numTakenFill = numLight ? '#7A6A58' : '#9a8f8c';
   // 이 화면에서 '영웅'이 곧 플레이어인가. 수성의 탑/방어전은 플레이어가 전략가라
   // 영웅이 적이다 → 강조 대상이 뒤집힌다(defend.js 가 false 로 덮어쓴다).
-  this._heroIsPlayer = true;
+  // ⚠ 실시간은 _rtCompose 가 위에서 이미 정했다(전략가 시점=false) — 덮으면 안 된다.
+  if (!this.rt) this._heroIsPlayer = true;
   //  타격 파티클 — `worldLayer` 가 만들어진 뒤라야 거기 담을 수 있다(전장과 같이 움직인다).
   if (GAME.HitFX) GAME.HitFX.init(this);
 
@@ -1379,11 +1428,11 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   }
 
   if (!this.state.over) {
-    this.ctrl.update(dt);
+    if (this.ctrl) this.ctrl.update(dt);
     if (this.rt) {
       //  실시간 — 시뮬은 록스텝 틱으로만 흐른다(가변 dt 금지, P2 규약).
       var sh = this._rtShadow;
-      if (this.rt.role === 'controller' && sh.order && sh.order !== this._rtSentOrder) {
+      if (sh && this._heroIsPlayer && sh.order && sh.order !== this._rtSentOrder) {
         this._rtSentOrder = sh.order;
         var o = sh.order, so = { type: o.type };
         if (o.x !== undefined) { so.x = o.x; so.y = o.y; }
@@ -1405,13 +1454,15 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       var ran = this._rtSession.advance(delta);
       this._rtStall = (ran === 0);
       //  그림자는 렌더·조준용 — 시뮬 영웅 위치를 따라간다
-      sh.x = this.hero.x; sh.y = this.hero.y; sh.facing = this.hero.facing;
-      sh.alive = this.hero.alive;
+      if (sh && this.hero) {
+        sh.x = this.hero.x; sh.y = this.hero.y; sh.facing = this.hero.facing;
+        sh.alive = this.hero.alive;
+      }
       //  상태 배너: 사고 > 스톨 > 관전 순으로 하나만 말한다
       if (this._rtTxt && this._rtTxt.scene) {
         var msg = this._rtNote ? ('⚠ ' + this._rtNote)
           : (this._rtStall && this.state.elapsed > 400 ? '⏳ 상대 연결을 기다리는 중…'
-          : (this.rt.role === 'strategist' ? '👁 관전 — 내 진형이 상대 영웅을 막는 중입니다' : ''));
+          : (!this._heroIsPlayer ? '👁 관전 — 내 진형이 싸우는 중입니다 (내 영웅 시점 아님)' : ''));
         if (msg) { this._rtTxt.setText(msg); this._rtTxt.setVisible(true); }
         else this._rtTxt.setVisible(false);
       }
@@ -3048,4 +3099,44 @@ GAME.BattleScene.prototype.draw = function () {
     g.fillStyle(0x000000, 0.45);
     g.fillRect(0, 0, GAME.CONFIG.WIDTH, GAME.CONFIG.HEIGHT);
   }
+};
+
+
+//  ── 실시간 편성 (2026-08-21) — 역할 조합 자유(혼합·컨vs컨; 전vs전은 다음 증분) ──
+//  결정적 생성 순서: 팀 고정 순서(controller→strategist) × [진형 유닛들 → 영웅].
+//  양쪽 클라이언트가 같은 rt.my/their 를 받아 같은 순서로 만들면 비트가 같다.
+GAME.BattleScene.prototype._rtCompose = function () {
+  var rt = this.rt;
+  var A = GAME.CONFIG.ARENA;
+  var setups = {};
+  setups[rt.meTeam] = rt.my;
+  setups[rt.meTeam === 'controller' ? 'strategist' : 'controller'] = rt.their;
+  this._rtHeroes = {};
+  var order = ['controller', 'strategist'];
+  for (var si = 0; si < 2; si++) {
+    var team = order[si], su = setups[team] || {};
+    var top = team === 'strategist';              // strategist 팀 라벨 = 위쪽 진영
+    if (su.role === 'strategist') {
+      var units = (su.formation && su.formation.units) || [];
+      for (var i = 0; i < units.length; i++) {
+        var e = units[i];
+        if (!GAME.UNITS[e.type]) continue;
+        var w = GAME.Formations.toWorld(e);
+        //  저장 배치는 위쪽 기준 — 아래 팀이면 세로로 거울.
+        var wy = top ? w.y : (A.y + A.bottom - w.y);
+        this.state.units.push(GAME.Combat.createUnit(e.type, w.x, wy, team));
+      }
+    } else {
+      var sy = top ? (A.y + 62) : this.startPos.y;
+      var hu = GAME.Combat.createHero(su.heroKey || 'vanguard',
+        this.startPos.x, sy, team, {}, su.picks || GAME.defaultSkillPicks());
+      if (top) hu.facing = Math.PI / 2;
+      this._rtHeroes[team] = hu;
+      this.state.units.push(hu);
+    }
+  }
+  //  내 시점 영웅: 내 팀 영웅 > 상대 영웅(관전). (전vs전은 아직 입구에서 막는다)
+  var myHero = this._rtHeroes[rt.meTeam] || null;
+  this.hero = myHero || this._rtHeroes[rt.meTeam === 'controller' ? 'strategist' : 'controller'];
+  this._heroIsPlayer = !!myHero;
 };

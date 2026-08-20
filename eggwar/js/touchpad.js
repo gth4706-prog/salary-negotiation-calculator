@@ -583,6 +583,9 @@ GAME.TouchPad.prototype.update = function (dtMs) {
   h.y += (dy / len) * GAME.Combat.effSpeed(h) * dt;
   GAME.Combat.clampToArena(h);
 
+  //  실시간 대전에서는 걷기 자동 발사 금지 — ① 태현님 지시(영웅 자동공격 제거)
+  //  ② 이 fire 는 내 클라이언트에서만 터져 **즉시 desync** 가 된다(록스텝 밖 직접 호출).
+  if (this.scene && this.scene.rt) return true;
   // 걷는 중에도 사거리 안의 적은 자동으로 친다 (키보드 조작과 같은 감각)
   var tgt = GAME.Combat.nearestEnemy(h, this.ctrl.state.units);
   if (tgt && h.cd <= 0 && GAME.Combat.dist(h, tgt) <= h.def.range) {

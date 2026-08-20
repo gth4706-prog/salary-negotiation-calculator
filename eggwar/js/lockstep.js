@@ -44,7 +44,10 @@ GAME.Lockstep = (function () {
   }
 
   function Session(opts) {
-    //  opts: { state, mySide, send(msg), onDesync(tick), heroOf(side) }
+    //  opts: { state, mySide, send(msg), onDesync(tick), heroOf(side), delay }
+    //  delay — 입력 지연 틱. **양쪽이 같은 값**이어야 한다(각자 계산하면 desync).
+    //  실측 RTT 에서 유도한다(모바일 300ms+ 에서 고정 6틱은 스톨 연발이었다).
+    this.delay = Math.max(2, Math.min(24, (opts.delay | 0) || DELAY));
     this.state = opts.state;
     this.mySide = opts.mySide;
     this.send = opts.send;
@@ -56,7 +59,7 @@ GAME.Lockstep = (function () {
     this.cmdsBySide = { controller: {}, strategist: {} };   // tick → cmds[]
     //  상대 입력이 **확정된** 마지막 틱. 시작 시 DELAY-1 — 양쪽 다 0..DELAY-1 을
     //  빈 입력으로 미리 채우는 대칭 규약이라, 첫 DELAY 틱은 신호 없이도 돈다.
-    this.remoteTick = DELAY - 1;
+    this.remoteTick = this.delay - 1;
     this.myDigests = {};           // tick → digest (내 것)
     this.theirDigests = {};        // tick → digest (상대 것)
     this.desynced = false;
@@ -64,7 +67,7 @@ GAME.Lockstep = (function () {
 
     //  시작 직후 DELAY 틱 동안 상대 입력이 원천적으로 없다 — 양쪽 다 0..DELAY-1 틱을
     //  빈 입력으로 미리 채워 같은 출발선을 만든다.
-    for (var t = 0; t < DELAY; t++) {
+    for (var t = 0; t < this.delay; t++) {
       this.cmdsBySide.controller[t] = [];
       this.cmdsBySide.strategist[t] = [];
     }
@@ -74,7 +77,7 @@ GAME.Lockstep = (function () {
   //  ⚠ 같은 틱에 여러 번 불릴 수 있다(이동+스킬). 배열로 쌓는다.
   Session.prototype.queueLocal = function (cmd) {
     if (this.desynced) return;
-    var at = this.tick + DELAY;
+    var at = this.tick + this.delay;
     var q = this.cmdsBySide[this.mySide];
     if (!q[at]) q[at] = [];
     q[at].push(cmd);
@@ -134,7 +137,7 @@ GAME.Lockstep = (function () {
     //  틱 t 를 실행했으므로 내 입력 스케줄은 t+DELAY 까지 확정이다(이후 입력은
     //  전부 t+1+DELAY 이상에 실린다). 상대는 이 신호로 t+DELAY 까지 달릴 수 있다.
     //  (매 틱 1개 — 수십 바이트. 실사용 3명 규모에서 비용 없음.)
-    this.send({ type: 'inputsFinal', upto: t + DELAY, side: this.mySide });
+    this.send({ type: 'inputsFinal', upto: t + this.delay, side: this.mySide });
 
     if (t > 0 && t % CHECK_EVERY === 0) {
       var d = digest(state);

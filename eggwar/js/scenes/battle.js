@@ -2910,6 +2910,9 @@ GAME.BattleScene.prototype.draw = function () {
   for (i = 0; i < s.projectiles.length; i++) {
     var p = s.projectiles[i];
     var pcol = p.side === 'controller' ? FX.projController : FX.projStrategist;
+    //  적 투사체 = 위험 신호 (2026-08-21 태현님 "적 투사체 가시성"). 따뜻한 배경에
+    //  주황 계열이 묻힌다 — 잉크 링 + 흰 심 + 진한 글로우로 실루엣을 세운다.
+    var danger = p.side !== 'controller';
     // 스킬 투사체(big)만 시안이 가져간다 — 유닛 평타 화살은 예전 그림 그대로다.
     if (FXS && FXS.drawProjectile(p, pcol)) continue;
     var psx = p.x, psy = Iso.toScreenY(p.y) - 12;
@@ -2937,8 +2940,16 @@ GAME.BattleScene.prototype.draw = function () {
       g.fillCircle(psx - ux * sp * gs[2], psy - uy * sp * gs[2], Math.max(1.2, (rr + 1) * gs[0]));
     }
 
-    g.fillStyle(pcol, 0.28);
+    if (danger) {
+      g.lineStyle(2.4, INKA > 0 ? INK : 0x1c1410, 0.85);
+      g.strokeCircle(psx, psy, rr + 7);
+    }
+    g.fillStyle(pcol, danger ? 0.50 : 0.28);
     g.fillCircle(psx, psy, rr + 6);
+    if (danger) {
+      g.fillStyle(0xffffff, 0.9);
+      g.fillCircle(psx, psy, Math.max(1.6, rr * 0.55));
+    }
 
     //  ── 화살촉 · 깃 (2026-08-04) ────────────────────────────────────────────
     //  예전에는 **색 점 하나**였다. 이 게임의 규율이 "모든 공격은 눈에 보이는

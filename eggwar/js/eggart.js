@@ -2136,7 +2136,9 @@ var SM = 10;
       //  생성 이미지 활(하이브리드) — 사냥꾼만. 이미지가 그리면 활대·감개·장식은 생략하되
       //  **시위·화살은 계속 절차로 긋는다**(당김 apex 가 사냥꾼의 주 신호 — v0.81 규율).
       //  이미지 활대는 왼쪽으로 굽어 있으므로 bulge 가 +쪽이면 좌우를 뒤집는다.
-      if (kind === 'longbow' && GAME.GearBank &&
+      //  유닛 궁수(bow)도 같은 이미지 활을 쓴다(2026-08-21 유닛 승급 1차 — 크기는
+      //  h 가 유닛 반지름 기준이라 자동으로 작아진다).
+      if (GAME.GearBank &&
           GAME.GearBank.drawSpan(g, 'bow', cxp, cyp - h, cxp, cyp + h, a, bulge > 0)) {
         // 이미지가 활대를 그렸다
       } else {
@@ -2447,6 +2449,12 @@ var SM = 10;
     } else if (kind === 'towerShield') {     // 방패병 — 몸을 가리는 나무 대방패
       // 몸 앞으로 충분히 내밀어야 투구가 방패 위로 보인다(가려버리면 종류를 못 읽는다)
       var cx2 = X(1.02, 0.42), cy2 = Y(1.02, 0.42, 0.02);
+      //  생성 이미지 방패(2026-08-21 유닛 승급 1차) — 원형 방패를 세로로 살짝 늘려
+      //  대방패 실루엣 유지. 준비 전엔 아래 벡터.
+      if (GAME.GearBank && GAME.GearBank.place(g, 'roundshield',
+            cx2, cy2, r * 1.30, r * 2.10, a)) {
+        // 이미지가 그렸다
+      } else {
       g.fillStyle(M.wood, a);
       g.fillRoundedRect(cx2 - r * 0.58, cy2 - r * 1.05, r * 1.16, r * 2.20, r * 0.26);
       //  판자 세 장의 **밝기를 다르게** — 광원이 좌상단이므로 왼쪽 판자가 가장 밝다.
@@ -2470,6 +2478,7 @@ var SM = 10;
       g.fillEllipse(cx2, cy2, (r * 0.28) * 2, (r * 0.28) * 2, SM);
       g.fillStyle(UI.lit(M.bronze), a);
       g.fillEllipse(cx2 - r * 0.08, cy2 - r * 0.08, (r * 0.10) * 2, (r * 0.10) * 2, SM);
+      }  // (하이브리드 폴백 닫기)
 
     } else if (kind === 'handaxe') {         // 족장 — 던지는 손도끼 + 깃대
       var pxp = X(0.05, -0.85);

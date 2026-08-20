@@ -2576,8 +2576,11 @@ var SM = 10;
       var gsPx = gsDir.y, gsPy = -gsDir.x;
       // 생성 이미지 대검(하이브리드) — 준비돼 있으면 이미지가 그리고 벡터는 통째로 생략.
       // tipLen 은 벡터판 칼끝과 같은 값(0.34r + 날 길이) — 그림과 판정이 어긋나지 않게.
+      //  등급 색을 이미지에도 싣는다 — M.blade 는 이미 등급 재질(청동·흑요석…)이다.
+      //  흰색과 절반 섞어 원본 질감을 남기며 물들인다(순색 틴트는 손잡이까지 죽인다).
       if (GAME.GearBank && GAME.GearBank.draw(g, 'greatsword', gsGripX, gsGripY,
-            gsDir.x, gsDir.y, r * 0.34 + r * 2.15 * tLen, a)) {
+            gsDir.x, gsDir.y, r * 0.34 + r * 2.15 * tLen, a,
+            (tGrd > 1 || tOrn > 0) ? UI.mix(0xffffff, M.blade, 0.62) : 0)) {
         // 이미지가 그렸다
       } else {
       // 두 손 자루

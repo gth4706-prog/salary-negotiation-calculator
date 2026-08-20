@@ -49,6 +49,16 @@
       scene.load.start();
     },
 
+    //  g 가 컨테이너 안이면 이미지도 같은 컨테이너로 — 상점 미리보기(패널 컨테이너)와
+    //  PC 전투 줌(worldLayer)에서 좌표가 어긋나던 원인(2026-08-21 "무기 사니까 안 보여").
+    _mount: function (img, g) {
+      var pc = g.parentContainer || null;
+      if (img.parentContainer !== pc) {
+        if (img.parentContainer) img.parentContainer.remove(img);
+        if (pc) pc.add(img);
+      }
+    },
+
     _acquire: function (key, scene) {
       var list = this._pool[key] || (this._pool[key] = []);
       for (var i = 0; i < list.length; i++) {
@@ -110,12 +120,14 @@
      *                그림이 어긋나지 않게 한다(파수꾼 tipCap 사고의 교훈).
      * @param alpha
      */
-    draw: function (g, key, gripX, gripY, dirX, dirY, tipLen, alpha) {
+    draw: function (g, key, gripX, gripY, dirX, dirY, tipLen, alpha, tint) {
       var scene = g.scene;
       if (!this.ready(key, scene)) return false;
       if (!scene || !scene.add) return true;   // 잉크 프록시 패스 — 실루엣 생략
       var d = DATA[key];
       var img = this._acquire(key, scene);
+      this._mount(img, g);
+      if (tint) img.setTint(tint); else img.clearTint();
       var tex = scene.textures.get('gear-' + key).getSourceImage();
       var gripPx = tex.height * d.gripF;               // 이미지에서 grip→칼끝 픽셀
       var s = tipLen / gripPx;
@@ -138,6 +150,7 @@
       if (!this.ready(key, scene)) return false;
       if (!scene || !scene.add) return true;   // 잉크 프록시 패스 — 실루엣 생략
       var img = this._acquire(key, scene);
+      this._mount(img, g);
       var tex = scene.textures.get('gear-' + key).getSourceImage();
       var dx = x1 - x0, dy = y1 - y0;
       var s = Math.sqrt(dx * dx + dy * dy) / tex.height;
@@ -157,6 +170,7 @@
       if (!this.ready(key, scene)) return false;
       if (!scene || !scene.add) return true;   // 잉크 프록시 패스 — 실루엣 생략
       var img = this._acquire(key, scene);
+      this._mount(img, g);
       var tex = scene.textures.get('gear-' + key).getSourceImage();
       img.setVisible(true)
          .setOrigin(0.5, 0.5)

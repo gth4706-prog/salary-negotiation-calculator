@@ -364,11 +364,8 @@ GAME.MenuScene.prototype._buildPhone = function () {
       hover: UI.COL.panelTealHi, color: C.accent, fontSize: 20 });
   if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, pbA, 'spears', 1);
 
-  //  조작 안내 한 줄 — 카드 위에 작게. (설명 문구는 이 한 줄만 남긴다)
-  UI.text(this, W / 2, cy - cardH / 2 - 8,
-    GAME.isTouch ? '한 번 탭 이동+교전 · 두 번 탭 이동만 · 스킬 버튼 시전'
-                 : '우클릭 이동 · 방향키 · QWER 스킬',
-    { size: 13, color: C.textFaint, origin: 0.5, originY: 1 });
+  //  조작 안내는 로비에서 뺐다(A안 — 온보딩·전투 화면이 이미 가르친다).
+  //  퍼레이드가 지나는 들판을 글자가 가로지르던 것도 함께 해결된다.
 };
 
 //  ⚙ 설정 팝업 — 유틸 줄을 대체한다(A안). Modal 은 고르면 닫히므로 토글은

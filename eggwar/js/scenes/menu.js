@@ -34,7 +34,14 @@ GAME.MenuScene.prototype.create = function () {
 
   var u = H / 100;
 
-  var titleTx = GAME.UI.label(this, W / 2, u * 12, 'EGG WAR', P ? 28 : 50, C.text, 0.5);
+  //  로고 — 화면 이름 정책은 「계란들의 전쟁」 하나다(스토어·타이틀과 통일, 2026-08-21).
+  //  간판체: 굵은 잉크 테두리 + 낙하 그림자. UI.label 은 스트로크가 없어 직접 만든다.
+  var titleTx = this.add.text(W / 2, u * 12, '계란들의 전쟁', {
+    fontFamily: (GAME.CONFIG.FONT_DISPLAY || GAME.CONFIG.FONT) + ', ' + GAME.CONFIG.FONT,
+    fontSize: (P ? 30 : 52) + 'px', color: '#fff6df',
+    stroke: '#3a2c16', strokeThickness: P ? 7 : 10
+  }).setOrigin(0.5);
+  titleTx.setShadow(0, P ? 4 : 6, 'rgba(46,32,14,0.45)', 6, false, true);
   //  타이틀 옆 계란 — 이모지(🥚) 대신 이 게임의 재료로 그린다.
   if (GAME.LobbyArt) {
     var tg = this.add.graphics().setDepth((titleTx.depth || 0) + 1);
@@ -292,8 +299,11 @@ GAME.MenuScene.prototype._buildPhone = function () {
 
   // ── 왼쪽 간판 ──
   var y = 24;
-  var title = UI.text(this, lcx, y, 'EGG WAR',
-    { size: 34, color: C.text, origin: 0.5, originY: 0 });
+  var title = this.add.text(lcx, y, '계란들의 전쟁', {
+    fontFamily: (GAME.CONFIG.FONT_DISPLAY || GAME.CONFIG.FONT) + ', ' + GAME.CONFIG.FONT,
+    fontSize: '30px', color: '#fff6df', stroke: '#3a2c16', strokeThickness: 7
+  }).setOrigin(0.5, 0);
+  title.setShadow(0, 4, 'rgba(46,32,14,0.45)', 5, false, true);
   y = title.y + title.height + 1;
   var sub = UI.text(this, lcx, y, '계란 부족 비대칭 실시간 대전',
     { size: 15, color: C.textDim, origin: 0.5, originY: 0 });

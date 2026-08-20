@@ -417,7 +417,7 @@ GAME.LoadingScene.prototype._buildFallback = function () {
   this.yolks = [];
   this.clashed = false;
 
-  this.title = GAME.UI.label(this, W / 2, this.stageY + (P ? 92 : 118), 'EGG WAR',
+  this.title = GAME.UI.label(this, W / 2, this.stageY + (P ? 92 : 118), '계란들의 전쟁',
     P ? 34 : 52, C.text, 0.5).setOrigin(0.5, 0).setAlpha(0);
   this.sub = GAME.UI.label(this, W / 2, this.title.y + (P ? 44 : 62),
     '계란 부족 비대칭 실시간 대전', P ? 15 : 18, C.textDim, 0.5).setOrigin(0.5, 0).setAlpha(0);

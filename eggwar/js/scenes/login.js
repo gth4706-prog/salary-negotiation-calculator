@@ -25,7 +25,7 @@ GAME.LoginScene.prototype.create = function () {
   //   11px 겹친다(실측). 세로 리듬(u = H/100)도 900px 기준이라 같이 어긋난다.
   //   → 화면이 작으면(SMALL) 제목을 줄이고 부제를 한 칸 내린다.
   var S = GAME.CONFIG.SMALL;
-  GAME.UI.label(this, W / 2, u * 15, '🥚 EGG WAR',
+  GAME.UI.label(this, W / 2, u * 15, '🥚 계란들의 전쟁',
     P ? 'display' : (S ? 30 : 50), C.text, 0.5);
   GAME.UI.label(this, W / 2, u * (S ? 24 : 22), '계란 부족 비대칭 실시간 대전',
     P ? 'caption' : (S ? 14 : 18), C.textDim, 0.5);

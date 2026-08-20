@@ -90,6 +90,13 @@ html, body {
 }
 
 html.touch:not(.allow-portrait) #rotate { display: none; }
+
+/* rot90 — 세로로 들고 있어도 게임을 90° 눕혀 가로로 보여준다(js/rot90.js).
+   잠금 API 가 거부되는 기기(삼성 인터넷 실측)의 유일한 길이다. 이 클래스가 붙으면
+   세로 안내 대신 게임이 보인다. */
+html.rot90 #game { display: block !important; }
+html.rot90 #rotate { display: none !important; }
+html.rot90 #ver { display: none; }
 @media (orientation: portrait) {
   html.touch:not(.allow-portrait) #game,
   html.touch:not(.allow-portrait) #ver { display: none; }

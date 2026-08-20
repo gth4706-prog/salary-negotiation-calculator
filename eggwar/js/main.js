@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v2.10';
+GAME.VERSION = 'v2.11';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -242,8 +242,12 @@ window.addEventListener('load', function () {
     var vv = window.visualViewport;
     var w = vv ? Math.round(vv.width) : window.innerWidth;
     var h = vv ? Math.round(vv.height) : window.innerHeight;
-    g.style.width = w + 'px';
-    g.style.height = h + 'px';
+    //  rot90(세로에서 게임을 90° 눕힘, js/rot90.js) — 레이아웃 상자는 가로세로를
+    //  **바꿔** 잡아야 회전 후 화면을 꽉 채운다. 여기서 안 바꾸면 이 함수가
+    //  rot90 의 크기를 매 리핏마다 도로 덮어쓴다(실제 충돌 지점).
+    var rot = document.documentElement.classList.contains('rot90');
+    g.style.width = (rot ? h : w) + 'px';
+    g.style.height = (rot ? w : h) + 'px';
   }
   function refit() {
     pinGame();
@@ -325,6 +329,7 @@ window.addEventListener('load', function () {
     document.body.appendChild(smallBar);
   }
 
+  window.__eggRefit = refit;   // rot90.js 가 회전 전환 직후 부른다
   window.addEventListener('resize', refit);
   window.addEventListener('orientationchange', function () { refit(); setTimeout(refit, 300); });
   window.addEventListener('pageshow', refit);

@@ -395,6 +395,20 @@ GAME.BattleScene.prototype.create = function () {
     this.ctrl = new GAME.InputController(this, this.state, this.hero);
   }
 
+  //  ── 첫 전투 온보딩 코치 (2026-08-21 태현님 지시 "온보딩 넣어줘") ─────────────
+  //  통곡의 탑 첫 판(계정당 1회)에만 3단계: 이동 → 스킬 → 회피.
+  //  각 단계는 **실제로 그 행동을 하면** 넘어간다 — 읽는 온보딩은 안 남는다(구슬의 교훈).
+  //  렌더 전용: 시뮬·판정에 한 줄도 안 닿는다. 실시간(rt)에는 안 띄운다(상대가 기다린다).
+  this._coach = null;
+  if (this.tower && !this.rt && GAME.Onboard &&
+      GAME.Onboard.seen().indexOf('battle-coach-v1') < 0) {
+    this._coach = { step: 0, x0: this.hero.x, y0: this.hero.y, t: 0 };
+    this._coachTxt = this.add.text(GAME.CONFIG.WIDTH / 2, GAME.CONFIG.HEIGHT * 0.20, '', {
+      fontFamily: GAME.CONFIG.FONT, fontSize: (GAME.CONFIG.SMALL ? 16 : 19) + 'px',
+      color: '#fff6df', backgroundColor: 'rgba(30,24,12,0.72)', padding: { x: 14, y: 8 }
+    }).setOrigin(0.5, 0).setDepth(9350).setScrollFactor(0);
+  }
+
   // ── HUD ──
   // 레퍼런스(탕탕특공대)의 구조: **타이머를 가장 큰 숫자로 두고 그 아래 진행 바**,
   // 체력은 글자가 아니라 칸막이 게이지로 읽는다. 보스가 있으면 전용 바가 하나 더 붙어
@@ -1408,6 +1422,36 @@ GAME.BattleScene.prototype.update = function (time, delta) {
 
   // 라운드 종료를 **씬에서** 3초 붙잡는다. combat.js 는 건드리지 않는다.
   this._endGate(dt);
+
+  //  온보딩 코치 진행 — 행동을 감지해 다음 단계로
+  if (this._coach && this._coachTxt && this._coachTxt.scene) {
+    var ch = this._coach, hh2 = this.hero;
+    ch.t += dt;
+    if (ch.step === 0) {
+      this._coachTxt.setText(GAME.isTouch
+        ? '① 왼쪽 스틱을 끌어 움직여 보세요'
+        : '① 우클릭 또는 방향키로 움직여 보세요');
+      var mv = Math.abs(hh2.x - ch.x0) + Math.abs(hh2.y - ch.y0);
+      if (mv > 70) { ch.step = 1; ch.t = 0; }
+    } else if (ch.step === 1) {
+      this._coachTxt.setText(GAME.isTouch
+        ? '② 오른쪽 스킬 버튼을 눌러 보세요'
+        : '② Q W E R 로 스킬을 써 보세요');
+      var used = false;
+      for (var ck in hh2.skillCd) if (hh2.skillCd[ck] > 0) used = true;
+      if (used) { ch.step = 2; ch.t = 0; }
+    } else if (ch.step === 2) {
+      this._coachTxt.setText('③ 빨간 예고 원은 밖으로 걸어 나가면 안 맞습니다!');
+      if (ch.t > 5000) {
+        ch.step = 3;
+        this._coachTxt.setText('준비 끝 — 영웅이 죽지 않게 탑을 오르세요!');
+        if (GAME.Onboard) GAME.Onboard.markSeen('battle-coach-v1');
+      }
+    } else if (ch.step === 3 && ch.t > 2600) {
+      this._coachTxt.setVisible(false);
+      this._coach = null;
+    }
+  }
 
   //  저체력 비네트 — 내가 모는 영웅이 25% 미만이면 가장자리가 고동친다.
   //  (방어전에서는 영웅이 적이라 뜻이 뒤집힌다 — 시점 플래그로 접는다)
@@ -2940,15 +2984,20 @@ GAME.BattleScene.prototype.draw = function () {
       g.fillCircle(psx - ux * sp * gs[2], psy - uy * sp * gs[2], Math.max(1.2, (rr + 1) * gs[0]));
     }
 
-    if (danger) {
-      g.lineStyle(2.4, INKA > 0 ? INK : 0x1c1410, 0.85);
-      g.strokeCircle(psx, psy, rr + 7);
-    }
-    g.fillStyle(pcol, danger ? 0.50 : 0.28);
-    g.fillCircle(psx, psy, rr + 6);
-    if (danger) {
-      g.fillStyle(0xffffff, 0.9);
-      g.fillCircle(psx, psy, Math.max(1.6, rr * 0.55));
+    //  화살(비추적 투사체)에는 원형 글로우를 씌우지 않는다 — 2026-08-21 태현님
+    //  "원형 모양 없애줘, 괜히 못생겼네". 촉·대·깃 실루엣이 이미 정체를 말한다.
+    //  예광탄(tracer)은 점 그림이 정체성이라 그대로 둔다.
+    if (p.tracer) {
+      if (danger) {
+        g.lineStyle(2.4, INKA > 0 ? INK : 0x1c1410, 0.85);
+        g.strokeCircle(psx, psy, rr + 7);
+      }
+      g.fillStyle(pcol, danger ? 0.50 : 0.28);
+      g.fillCircle(psx, psy, rr + 6);
+      if (danger) {
+        g.fillStyle(0xffffff, 0.9);
+        g.fillCircle(psx, psy, Math.max(1.6, rr * 0.55));
+      }
     }
 
     //  ── 화살촉 · 깃 (2026-08-04) ────────────────────────────────────────────

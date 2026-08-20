@@ -17,24 +17,24 @@
 <meta property="og:title" content="계란들의 전쟁 — 계란 부족 비대칭 실시간 대전">
 <meta property="og:description" content="계란 전사들의 전쟁. 진형을 짜는 사람과 영웅을 모는 사람이 같은 판에서 싸운다.">
 <meta property="og:type" content="website">
-<link rel="stylesheet" href="css/style.css?v=2.17">
+<link rel="stylesheet" href="css/style.css?v=2.18">
 
 <!-- 설치(PWA). 홈 화면에서 열면 주소창이 사라져 뷰포트가 흔들리지 않는다 —
      기종별 레이아웃 사고의 원인을 제거하는 것이 목적이다.
      viewport-fit=cover 는 일부러 넣지 않는다: 노치 아래로 캔버스가 파고들면
      letterbox 계산이 또 어긋난다. standalone 만으로 주소창 문제는 해결된다. -->
-<link rel="manifest" href="manifest.json?v=2.17">
+<link rel="manifest" href="manifest.json?v=2.18">
 <meta name="theme-color" content="#123f96">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="계란들의 전쟁">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2.17">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=2.17">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2.18">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=2.18">
 </head>
 <body>
 <div id="game"></div>
-<div id="ver">v2.17</div>
+<div id="ver">v2.18</div>
 <div id="rotate">
   <div>
     <div id="rotate-icon">📱</div>
@@ -59,107 +59,107 @@
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- Phaser 의 타원 그리기가 호출마다 만들던 쓰레기를 없앤다(2026-08-05).
      ⚠ Phaser **바로 뒤**여야 한다 — 프로토타입을 갈아끼우므로 어떤 씬보다 먼저 돌아야 한다. -->
-<script src="js/gfxpool.js?v=2.17"></script>
+<script src="js/gfxpool.js?v=2.18"></script>
 <!-- 세로에서 게임을 90도 눕혀 가로로 — 잠금 API 없는 기기의 정답(js/rot90.js 주석) -->
-<script src="js/rot90.js?v=2.17"></script>
-<script src="js/config.js?v=2.17"></script>
-<script src="js/store.js?v=2.17"></script>
-<script src="js/pwa.js?v=2.17"></script>
-<script src="js/sound.js?v=2.17"></script>
-<script src="js/music.js?v=2.17"></script>
-<script src="js/api.js?v=2.17"></script>
-<script src="js/account.js?v=2.17"></script>
-<script src="js/score.js?v=2.17"></script>
-<script src="js/iso.js?v=2.17"></script>
-<script src="js/layout.js?v=2.17"></script>
-<script src="js/learn.js?v=2.17"></script>
-<script src="js/profile.js?v=2.17"></script>
-<script src="js/autoformation.js?v=2.17"></script>
-<script src="js/tower.js?v=2.17"></script>
-<script src="js/towerlearn.js?v=2.17"></script>
-<script src="js/defendtower.js?v=2.17"></script>
-<script src="js/towerrun.js?v=2.17"></script>
+<script src="js/rot90.js?v=2.18"></script>
+<script src="js/config.js?v=2.18"></script>
+<script src="js/store.js?v=2.18"></script>
+<script src="js/pwa.js?v=2.18"></script>
+<script src="js/sound.js?v=2.18"></script>
+<script src="js/music.js?v=2.18"></script>
+<script src="js/api.js?v=2.18"></script>
+<script src="js/account.js?v=2.18"></script>
+<script src="js/score.js?v=2.18"></script>
+<script src="js/iso.js?v=2.18"></script>
+<script src="js/layout.js?v=2.18"></script>
+<script src="js/learn.js?v=2.18"></script>
+<script src="js/profile.js?v=2.18"></script>
+<script src="js/autoformation.js?v=2.18"></script>
+<script src="js/tower.js?v=2.18"></script>
+<script src="js/towerlearn.js?v=2.18"></script>
+<script src="js/defendtower.js?v=2.18"></script>
+<script src="js/towerrun.js?v=2.18"></script>
 <!-- 영구 캐릭터(2026-08-01) — 탑이 더는 towerrun.js 의 도전(run) 개념을 안 쓴다.
      towerrun.js 는 대전(arenabuild.js)이 가격표를 빌려 쓰므로 그대로 둔다. -->
-<script src="js/towerchar.js?v=2.17"></script>
-<script src="js/droppopup.js?v=2.17"></script>
-<script src="js/towershopitems.js?v=2.17"></script>
+<script src="js/towerchar.js?v=2.18"></script>
+<script src="js/droppopup.js?v=2.18"></script>
+<script src="js/towershopitems.js?v=2.18"></script>
 <!-- 통곡의 탑 대개편 — 층 배치 원형 / 층 조건.
      towerrun.js 뒤에 둔다: 둘 다 `TowerRun.get().seed` 를 읽어 원형·조건을 정한다. -->
-<script src="js/towercurriculum.js?v=2.17"></script>
-<script src="js/towerplan.js?v=2.17"></script>
-<script src="js/towerrule.js?v=2.17"></script>
+<script src="js/towercurriculum.js?v=2.18"></script>
+<script src="js/towerplan.js?v=2.18"></script>
+<script src="js/towerrule.js?v=2.18"></script>
 <!-- 대개편 2단계 — 구슬 효과표(내 쪽 행동) / 층 목표(이기는 길).
      두 갈래 문은 제거했다(2026-07-31). towerboon.js 는 이제 **효과 정의만** 담당하고,
      얻는 방법은 js/orb.js 가 쥔다. towerobjective 는 순서 자유이나 함께 둔다. -->
-<script src="js/towerboon.js?v=2.17"></script>
-<script src="js/towerobjective.js?v=2.17"></script>
-<script src="js/unitlevel.js?v=2.17"></script>
-<script src="js/arena.js?v=2.17"></script>
-<script src="js/arenabuild.js?v=2.17"></script>
-<script src="js/units.js?v=2.17"></script>
-<script src="js/heroes.js?v=2.17"></script>
-<script src="js/items.js?v=2.17"></script>
-<script src="js/formations.js?v=2.17"></script>
+<script src="js/towerboon.js?v=2.18"></script>
+<script src="js/towerobjective.js?v=2.18"></script>
+<script src="js/unitlevel.js?v=2.18"></script>
+<script src="js/arena.js?v=2.18"></script>
+<script src="js/arenabuild.js?v=2.18"></script>
+<script src="js/units.js?v=2.18"></script>
+<script src="js/heroes.js?v=2.18"></script>
+<script src="js/items.js?v=2.18"></script>
+<script src="js/formations.js?v=2.18"></script>
 <!-- 실시간 대전 통신층(P3) — BASE 가 살아 있으면 켜진다. 호출부는 versus 계열 씬. -->
-<script src="js/netroom.js?v=2.17"></script>
-<script src="js/lockstep.js?v=2.17"></script>
-<script src="js/detmath.js?v=2.17"></script>
-<script src="js/combat.js?v=2.17"></script>
-<script src="js/input.js?v=2.17"></script>
-<script src="js/touchpad.js?v=2.17"></script>
-<script src="js/aihero.js?v=2.17"></script>
-<script src="js/ui.js?v=2.17"></script>
-<script src="js/ui-theme.js?v=2.17"></script>
-<script src="js/ui-hud.js?v=2.17"></script>
-<script src="js/theme-a.js?v=2.17"></script>
-<script src="js/theme-b.js?v=2.17"></script>
-<script src="js/theme-c.js?v=2.17"></script>
-<script src="js/theme-switch.js?v=2.17"></script>
-<script src="js/modal.js?v=2.17"></script>
-<script src="js/eggart.js?v=2.17"></script>
-<script src="js/lobbyart.js?v=2.17"></script>
-<script src="js/bossbank.js?v=2.17"></script>
-<script src="js/gearbank.js?v=2.17"></script>
-<script src="js/bossart.js?v=2.17"></script>
-<script src="js/dragonasset.js?v=2.17"></script>
-<script src="js/itemart.js?v=2.17"></script>
-<script src="js/coin.js?v=2.17"></script>
+<script src="js/netroom.js?v=2.18"></script>
+<script src="js/lockstep.js?v=2.18"></script>
+<script src="js/detmath.js?v=2.18"></script>
+<script src="js/combat.js?v=2.18"></script>
+<script src="js/input.js?v=2.18"></script>
+<script src="js/touchpad.js?v=2.18"></script>
+<script src="js/aihero.js?v=2.18"></script>
+<script src="js/ui.js?v=2.18"></script>
+<script src="js/ui-theme.js?v=2.18"></script>
+<script src="js/ui-hud.js?v=2.18"></script>
+<script src="js/theme-a.js?v=2.18"></script>
+<script src="js/theme-b.js?v=2.18"></script>
+<script src="js/theme-c.js?v=2.18"></script>
+<script src="js/theme-switch.js?v=2.18"></script>
+<script src="js/modal.js?v=2.18"></script>
+<script src="js/eggart.js?v=2.18"></script>
+<script src="js/lobbyart.js?v=2.18"></script>
+<script src="js/bossbank.js?v=2.18"></script>
+<script src="js/gearbank.js?v=2.18"></script>
+<script src="js/bossart.js?v=2.18"></script>
+<script src="js/dragonasset.js?v=2.18"></script>
+<script src="js/itemart.js?v=2.18"></script>
+<script src="js/coin.js?v=2.18"></script>
 <!-- 구슬 — 적을 잡으면 확률로 떨어지는 능력 구슬. coin.js 와 같은 문법이라 뒤에 둔다. -->
-<script src="js/orb.js?v=2.17"></script>
+<script src="js/orb.js?v=2.18"></script>
 <!-- 치유 구역(2026-08-01) — 물약을 대신한다. orb.js 와 같은 문법. -->
-<script src="js/healzone.js?v=2.17"></script>
+<script src="js/healzone.js?v=2.18"></script>
 <!-- 타격 파티클(2026-08-04) — 텍스처를 런타임에 구워 자산 0KB 를 지킨다. -->
-<script src="js/hitfx.js?v=2.17"></script>
-<script src="js/skillfx.js?v=2.17"></script>
-<script src="js/scenes/loading.js?v=2.17"></script>
-<script src="js/scenes/login.js?v=2.17"></script>
-<script src="js/scenes/menu.js?v=2.17"></script>
-<script src="js/scenes/select.js?v=2.17"></script>
-<script src="js/scenes/build.js?v=2.17"></script>
-<script src="js/scenes/draft.js?v=2.17"></script>
-<script src="js/scenes/draft-mobile.js?v=2.17"></script>
-<script src="js/scenes/battle.js?v=2.17"></script>
-<script src="js/scenes/defend.js?v=2.17"></script>
-<script src="js/scenes/defend-tower.js?v=2.17"></script>
-<script src="js/scenes/versus.js?v=2.17"></script>
-<script src="js/scenes/rtlobby.js?v=2.17"></script>
-<script src="js/scenes/result.js?v=2.17"></script>
+<script src="js/hitfx.js?v=2.18"></script>
+<script src="js/skillfx.js?v=2.18"></script>
+<script src="js/scenes/loading.js?v=2.18"></script>
+<script src="js/scenes/login.js?v=2.18"></script>
+<script src="js/scenes/menu.js?v=2.18"></script>
+<script src="js/scenes/select.js?v=2.18"></script>
+<script src="js/scenes/build.js?v=2.18"></script>
+<script src="js/scenes/draft.js?v=2.18"></script>
+<script src="js/scenes/draft-mobile.js?v=2.18"></script>
+<script src="js/scenes/battle.js?v=2.18"></script>
+<script src="js/scenes/defend.js?v=2.18"></script>
+<script src="js/scenes/defend-tower.js?v=2.18"></script>
+<script src="js/scenes/versus.js?v=2.18"></script>
+<script src="js/scenes/rtlobby.js?v=2.18"></script>
+<script src="js/scenes/result.js?v=2.18"></script>
 <!-- 이어하기(2026-08-05) — 계정이 없어 캐릭터가 기기에 갇히는 구멍을 메운다.
      Store/Account 뒤, 씬보다 앞. -->
 <!-- 닉네임+PIN(2026-08-05). ⚠ 서버(/auth/*)가 아직 없을 수 있다 —
      js/auth.js 가 404 를 만나면 예전처럼 PIN 없이 동작한다. -->
-<script src="js/auth.js?v=2.17"></script>
-<script src="js/pinui.js?v=2.17"></script>
-<script src="js/transfer.js?v=2.17"></script>
-<script src="js/transferui.js?v=2.17"></script>
-<script src="js/scenes/tower.js?v=2.17"></script>
+<script src="js/auth.js?v=2.18"></script>
+<script src="js/pinui.js?v=2.18"></script>
+<script src="js/transfer.js?v=2.18"></script>
+<script src="js/transferui.js?v=2.18"></script>
+<script src="js/scenes/tower.js?v=2.18"></script>
 <!-- 영구 캐릭터 대개편(2026-08-01) — 상점(아이템/스킬/능력치 탭) + 도전 진입 로딩. -->
-<script src="js/scenes/towershop.js?v=2.17"></script>
-<script src="js/scenes/towerloading.js?v=2.17"></script>
-<script src="js/onboard.js?v=2.17"></script>
-<script src="js/scenes/rank.js?v=2.17"></script>
-<script src="js/scenes/admin.js?v=2.17"></script>
-<script src="js/main.js?v=2.17"></script>
+<script src="js/scenes/towershop.js?v=2.18"></script>
+<script src="js/scenes/towerloading.js?v=2.18"></script>
+<script src="js/onboard.js?v=2.18"></script>
+<script src="js/scenes/rank.js?v=2.18"></script>
+<script src="js/scenes/admin.js?v=2.18"></script>
+<script src="js/main.js?v=2.18"></script>
 </body>
 </html>

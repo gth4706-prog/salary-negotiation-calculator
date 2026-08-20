@@ -65,6 +65,7 @@ GAME.MenuScene.prototype.create = function () {
   GAME.UI.label(this, W / 2, u * 28,
     '기기를 바꾸려면  통곡의 탑 → 이어하기', P ? 13 : 13, C.textFaint, 0.5);
   this._carryNotice();
+  this._dailyReward();
 
   var bw = Math.min(W - 60, 440);
 
@@ -318,6 +319,7 @@ GAME.MenuScene.prototype._buildPhone = function () {
     (arena ? ('  ·  🏅 ' + arena.trophy) : ''),
     { size: 13, color: C.textDim, origin: 0, originY: 0 });
   this._carryNotice();
+  this._dailyReward();
 
   // ── 우상단: 랭킹 · 설정 ──
   var topH = Math.max(UI.BTN_H_SM || 52, 48), topW = 108;
@@ -370,6 +372,36 @@ GAME.MenuScene.prototype._buildPhone = function () {
 
 //  ⚙ 설정 팝업 — 유틸 줄을 대체한다(A안). Modal 은 고르면 닫히므로 토글은
 //  현재 상태를 이름에 적어 "누르면 반대로 된다"가 읽히게 한다.
+//  🎁 일일 보상 — 하루 첫 접속에 골드 60 (2026-08-21 태현님 지시).
+//  잔존 장치의 최소 단위다: 받는 행동(버튼)을 시켜야 보상이 몸에 남는다(구슬의 교훈).
+//  날짜는 기기 로컬 기준(KST 사용자 전제) · 계정별로 따로 센다.
+GAME.MenuScene.prototype._dailyReward = function () {
+  if (!GAME.TowerChar || !GAME.TowerChar.exists || !GAME.TowerChar.exists()) return;
+  if (!GAME.Modal) return;
+  var me = GAME.Account.current();
+  if (!me) return;
+  var d = new Date();
+  var stamp = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+  var key = 'eggwar.daily.' + me;
+  try { if (GAME.Store.get(key, '') === stamp) return; } catch (e) { return; }
+  var AMT = 60;
+  var self = this;
+  //  씬이 그려진 뒤에 띄운다(_carryNotice 와 같은 이유). 이어하기 안내와 겹치면
+  //  Modal.open 이 기존 것을 닫고 열므로 순서 충돌은 없다.
+  this.time.delayedCall(600, function () {
+    if (!self.scene.isActive() || GAME.Modal.isOpen()) return;
+    GAME.Modal.open(self, {
+      title: '🎁 오늘의 접속 보상',
+      items: [{ key: 'take', name: '💰 골드 +' + AMT + ' 받기' }],
+      onPick: function () {
+        try { GAME.Store.set(key, stamp); } catch (e) {}
+        GAME.TowerChar.addGold(AMT);
+        if (GAME.Sound) GAME.Sound.play('coin');
+      }
+    });
+  });
+};
+
 GAME.MenuScene.prototype._openSettings = function () {
   var self = this;
   if (!GAME.Modal) return;

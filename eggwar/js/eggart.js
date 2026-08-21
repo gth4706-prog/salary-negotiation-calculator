@@ -418,7 +418,9 @@ var SM = 10;
     shieldman:{ helm: 'bucket',  gear: 'towerShield',back: null,     face: 'slit', wide: 0.86, fam: ['iron', 'blade'] },
     chieftain:{ helm: 'horns',   gear: 'handaxe',    back: 'cape',   face: 'open', wide: 0.78, fam: ['bronze', 'blade'] },
     bogman:   { helm: 'sedge',   gear: 'sapjar',     back: null,     face: 'open', wide: 0.78, fam: ['stone', 'stoneLite'] },
-    ballista: { helm: 'pot',     gear: 'crossbowNest', back: null,   face: 'open', wide: 0.80, squat: true, fam: ['iron', 'blade'] },
+    //  투구 이미지 분화(2026-08-21): 전사와 키를 공유하던 'pot' 을 갈랐다 — 이미지는
+    //  전사=청동 냄비, 쇠뇌=철 냄비(pot2). 벡터 폴백은 아래에서 pot 으로 되돌린다.
+    ballista: { helm: 'pot2',    gear: 'crossbowNest', back: null,   face: 'open', wide: 0.80, squat: true, fam: ['iron', 'blade'] },
     snaretrap:{ ground: 'spiketrap' },
 
     // ── 수성의 탑 확장 4종 (2026-08-08) ──────────────────────────────────────
@@ -1284,21 +1286,46 @@ var SM = 10;
     //    감싸는 깊은 구조)이라 몸통=얼굴인 계란에서 얼굴이 파묻혔다. 구멍 확장
     //    가공도 실패(그늘 침식이 가시 틈까지 번져 누더기). 벡터 볏 투구를 유지하고
     //    3차 요청(계란 규격: 아래가 넓게 열린 얕은 캡형)으로 재생성한다.
+    //  ── 착용감 규칙 (2026-08-21 태현님 "계란이 착용한 느낌이어야") ─────────────
+    //  두 방식: holeY = 구멍을 눈에 정렬(두건·가면), bot = **캡 하단을 계란 정수리
+    //  아래에 겹치고**(곡면 감쌈) 하단에 **접촉 그림자 호**를 깔아 닿았음을 만든다.
+    //  캡 폭은 계란 폭보다 살짝 넓게 — 좁으면 왕관처럼 뜬다. 치수는 전부 실측 후 조정값.
     var HELM_IMG = {
       wolf:    { key: 'helmRanger',   w: 2.25, h: 1.90, holeY: 0.65 },
-      crest:   { key: 'helmWarden',   w: 1.60, h: 1.38, holeY: 0.43 }
+      crest:   { key: 'helmWarden',   w: 1.60, h: 1.38, holeY: 0.43 },
+      onehorn: { key: 'helmVanguard', w: 1.34, h: 1.74, bot: 0.52 },
+      pot:     { key: 'helmPot',      w: 1.78, h: 1.66, bot: 0.50 },
+      band:    { key: 'helmBand',     w: 1.80, h: 1.68, bot: 0.52 },
+      cap:     { key: 'helmCap',      w: 1.86, h: 1.52, bot: 0.50 },
+      hood:    { key: 'helmHood',     w: 1.86, h: 1.82, bot: 0.34 },
+      leaf:    { key: 'helmLeaf',     w: 1.80, h: 1.58, bot: 0.52 },
+      bucket:  { key: 'helmBucket',   w: 1.78, h: 1.76, bot: 0.36 },
+      horns:   { key: 'helmHorns',    w: 2.35, h: 1.46, bot: 0.55 },
+      sedge:   { key: 'helmSedge',    w: 2.40, h: 1.32, bot: 0.58 },
+      pot2:    { key: 'helmPot2',     w: 1.80, h: 1.24, bot: 0.56 }
     };
     var hSpec = HELM_IMG[kind];
-    if (hSpec && GAME.GearBank) {
+    if (hSpec && GAME.GearBank && GAME.GearBank.ready(hSpec.key, g.scene)) {
       var hw = r * hSpec.w * (D.profile ? 0.84 : 1) * (D.back ? 0.96 : 1);
       var hh = r * hSpec.h;
-      var eyeY = by - r * 0.45;                    // 계란 눈높이(얼굴 중심)
-      var topY = eyeY - hh * hSpec.holeY;          // 구멍이 눈에 오도록 위 좌표 역산
-      if (GAME.GearBank.place(g, hSpec.key, sx + (D.lat || 0) * r * 0.06, topY + hh / 2,
-                              hw, hh, a)) {
+      var hcx = sx + (D.lat || 0) * r * 0.06;
+      var hcy;
+      if (hSpec.holeY !== undefined) {
+        var eyeY = by - r * 0.45;                  // 계란 눈높이(얼굴 중심)
+        hcy = eyeY - hh * hSpec.holeY + hh / 2;    // 구멍이 눈에 오도록 역산
+      } else {
+        var botY = by - r * hSpec.bot;             // 캡 하단이 계란 이 높이에 닿는다
+        //  접촉 그림자 — 캡이 계란에 드리우는 얇은 호. "얹힘"과 "씀"의 차이가 이것이다.
+        g.fillStyle(0x2a2114, 0.15 * a);
+        g.fillEllipse(hcx, botY + r * 0.06, hw * 0.66, r * 0.20, SM);
+        hcy = botY - hh / 2 + hh * 0.04;           // 하단 여백(윤곽 두께) 보정
+      }
+      if (GAME.GearBank.place(g, hSpec.key, hcx, hcy, hw, hh, a)) {
         return;
       }
     }
+    //  이미지 실패 시 벡터 폴백 — pot2(쇠뇌 철냄비)는 벡터가 없으니 pot 으로 되돌린다.
+    if (kind === 'pot2') kind = 'pot';
     var lw = Math.max(1, r * 0.1);
     var lat = D.lat, prof = D.profile, back = D.back;
     var sgn = lat || 1;

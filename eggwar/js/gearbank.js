@@ -45,7 +45,16 @@
     furimg:      { src: 'assets/gear/furimg.png?v=2.30' },
     packimg:     { src: 'assets/gear/packimg.png?v=2.30' },
     //  영웅 투구 3종 (2026-08-21 시트 1차분 — 정면 단독컷)
-    helmVanguard: { src: 'assets/helm/vanguard.png?v=2.29' },
+    helmVanguard: { src: 'assets/helm/vanguard2.png?v=2.32' },
+    helmPot:    { src: 'assets/helm/pot.png?v=2.32' },
+    helmBand:   { src: 'assets/helm/band.png?v=2.32' },
+    helmCap:    { src: 'assets/helm/cap.png?v=2.32' },
+    helmHood:   { src: 'assets/helm/hood.png?v=2.32' },
+    helmLeaf:   { src: 'assets/helm/leaf.png?v=2.32' },
+    helmBucket: { src: 'assets/helm/bucket.png?v=2.32' },
+    helmHorns:  { src: 'assets/helm/horns.png?v=2.32' },
+    helmSedge:  { src: 'assets/helm/sedge.png?v=2.32' },
+    helmPot2:   { src: 'assets/helm/pot2.png?v=2.32' },
     helmRanger:   { src: 'assets/helm/ranger.png?v=2.29' },
     helmWarden:   { src: 'assets/helm/warden.png?v=2.29' },
     //  이펙트 (흰색 원본 — 코드가 틴트·블렌드로 색을 입힌다)

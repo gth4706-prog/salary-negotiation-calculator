@@ -166,8 +166,8 @@
       return true;
     },
 
-    /** 중심 (x,y) 에 w×h 로 얹는다(방패처럼 축이 없는 물건). */
-    place: function (g, key, x, y, w, h, alpha) {
+    /** 중심 (x,y) 에 w×h 로 얹는다(방패처럼 축이 없는 물건). tint 는 등급색. */
+    place: function (g, key, x, y, w, h, alpha, tint) {
       var scene = g.scene;
       if (!this.ready(key, scene)) return false;
       if (!scene || !scene.add) return true;   // 잉크 프록시 패스 — 실루엣 생략
@@ -181,6 +181,8 @@
          .setRotation(0)
          .setAlpha(alpha == null ? 1 : alpha)
          .setDepth(g.depth || 0);
+      //  ⚠ 풀 재사용 — 안 지우면 다른 자리(전투 방패 등)가 이전 틴트로 물든다.
+      if (tint != null) img.setTint(tint); else img.clearTint();
       return true;
     }
   };

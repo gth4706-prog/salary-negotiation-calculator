@@ -1182,7 +1182,7 @@ GAME.DraftScene.prototype.redraw = function () {
 
     // 아이콘은 카드 위(this.g, depth 0)에 그린다 — 카드 사각형은 depth -1 이다.
     if (GAME.UI.drawItem) {
-      GAME.UI.drawItem(g, cell.slot, cell.item.key, cell.ix, cell.iy, cell.isz);
+      GAME.UI.drawItem(g, cell.slot, cell.item.key, cell.ix, cell.iy, cell.isz, this.heroKey);
     }
     if (!afford) {
       // 살 수 없는 칸은 통째로 흐리게 — 아이콘까지 함께 덮어야 '못 산다'가 읽힌다.

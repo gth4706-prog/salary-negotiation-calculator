@@ -1272,6 +1272,24 @@ GAME.UI = GAME.UI || {};
     //    그리고 사다리 중간에 끼운 무기(w9·w10)는 손그림이 없으므로, 영웅을 몰라도
     //    **상자로 떨어지지 않게** 기본 형태로 보낸다.
     if (slotKey === 'weapon') {
+      //  ── 생성 이미지 무기 (2026-08-21 태현님: "상점에 모두 적용 안 됐다") ──────
+      //  전투·카드는 이미지인데 상점 아이콘만 옛 손그림이라 같은 무기가 화면마다
+      //  다르게 생겼었다. 영웅을 아는 자리는 이미지로, 등급은 틴트로(battle 대검과
+      //  같은 방식 — 금속색을 흰색 62% 로 눌러 원본 명암을 살린다).
+      //  파수꾼 무기 이름은 '○○ 방패'다 — 아이콘도 방패(옛 손그림 wpShield 와 동일 판단).
+      var HERO_GEAR = { vanguard: 'greatsword', ranger: 'bow', warden: 'roundshield' };
+      var gk = HERO_GEAR[heroKey];
+      if (gk && GAME.GearBank && g.scene) {
+        var P2 = tierPal(UI.gearTierOf ? UI.gearTierOf(itemKey) : 0);
+        //  아이콘은 작아서 battle(62%)보다 진하게 눌러야 등급색이 읽힌다.
+        var tint = UI.mix ? UI.mix(P2.blade, 0xffffff, 0.40) : null;
+        var texKey = 'gear-' + gk;
+        var srcTex = g.scene.textures && g.scene.textures.exists(texKey)
+          ? g.scene.textures.get(texKey).getSourceImage() : null;
+        var ratio = srcTex ? (srcTex.width / srcTex.height) : 0.5;
+        var ih = U * 0.98, iw = Math.min(U * 0.9, ih * ratio);
+        if (GAME.GearBank.place(g, gk, cx, cy, iw, ih, 1, tint)) return;
+      }
       var form = HERO_FORM[heroKey] || (DRAW[itemKey] ? null : wpSword);
       if (form) {
         var P = tierPal(UI.gearTierOf ? UI.gearTierOf(itemKey) : 0);

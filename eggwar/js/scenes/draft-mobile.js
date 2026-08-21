@@ -844,7 +844,7 @@ GAME.DraftScene.prototype._redrawPhone = function () {
       var afford = picked || (cell.item.cost <= left);
       cell.rect.setStrokeStyle(picked ? 2 : 1, picked ? C.controller : COL.border);
       cell.rect.setFillStyle(picked ? COL.panelTeal : (afford ? COL.surfaceAlt : COL.bg));
-      if (UI.drawItem) UI.drawItem(g, cell.slot, cell.item.key, cell.ix, cell.iy, cell.isz);
+      if (UI.drawItem) UI.drawItem(g, cell.slot, cell.item.key, cell.ix, cell.iy, cell.isz, this.heroKey);
       if (!afford) {
         g.fillStyle(COL.bg, 0.58);
         g.fillRoundedRect(cell.x + 1, cell.y + 1, cell.w - 2, cell.h - 2, 6);

@@ -21,6 +21,8 @@ GAME.FitScene.prototype.init = function () {
   this._cur = null;        // { key, img }
   this._view = 0;          // 0 정면 · 1 옆 · 2 뒤
   this._rows = [];
+  this._erase = false;     // 지우개 모드
+  this._brush = 26;        // 브러시 반지름(px, 원본 이미지 기준)
 };
 
 GAME.FitScene.prototype.create = function () {
@@ -71,6 +73,42 @@ GAME.FitScene.prototype.create = function () {
     backgroundColor: '#a5622e', padding: { x: 16, y: 7 }
   }).setDepth(50).setInteractive({ useHandCursor: true });
   save.on('pointerdown', function () { self._save(); });
+  this._eraseBtn = this.add.text(W * 0.42, H - 110, '🧽 지우개 켜기', {
+    fontFamily: 'sans-serif', fontSize: '16px', color: '#f3ecd8',
+    backgroundColor: '#7a3a5a', padding: { x: 12, y: 7 }
+  }).setDepth(50).setInteractive({ useHandCursor: true });
+  this._eraseBtn.on('pointerdown', function () {
+    self._erase = !self._erase;
+    self._eraseBtn.setText(self._erase ? '🧽 지우개 끄기 (드래그=지움 · 휠=브러시)' : '🧽 지우개 켜기');
+    self._eraseBtn.setBackgroundColor(self._erase ? '#a5262e' : '#7a3a5a');
+  });
+  var undoE = this.add.text(W * 0.42 + 330, H - 110, '↩ 지우기 취소', {
+    fontFamily: 'sans-serif', fontSize: '14px', color: '#f3ecd8',
+    backgroundColor: '#6b5537', padding: { x: 10, y: 8 }
+  }).setDepth(50).setInteractive({ useHandCursor: true });
+  undoE.on('pointerdown', function () {
+    if (!self._cur) return;
+    var key = self._cur.key;
+    var src = self.textures.get('gear-' + key).getSourceImage();
+    var ct = self.textures.get('edit-' + key);
+    ct.context.clearRect(0, 0, ct.width, ct.height);
+    ct.context.drawImage(src, 0, 0);
+    ct.refresh();
+  });
+  var dl = this.add.text(W * 0.42 + 470, H - 110, '⬇ 지운 이미지 저장', {
+    fontFamily: 'sans-serif', fontSize: '14px', color: '#f3ecd8',
+    backgroundColor: '#2e6b4a', padding: { x: 10, y: 8 }
+  }).setDepth(50).setInteractive({ useHandCursor: true });
+  dl.on('pointerdown', function () {
+    if (!self._cur) return;
+    var ct = self.textures.get('edit-' + self._cur.key);
+    var a2 = document.createElement('a');
+    a2.href = ct.canvas.toDataURL('image/png');
+    a2.download = self._cur.key + '-edited.png';
+    document.body.appendChild(a2); a2.click(); a2.remove();
+    self._info.setText('⬇ ' + self._cur.key + '-edited.png 다운로드됨 — 다 되면 채팅으로 알려 주세요');
+  });
+
   var exp = this.add.text(W - 330, 12, '📋 결과 복사', {
     fontFamily: 'sans-serif', fontSize: '16px', color: '#f3ecd8',
     backgroundColor: '#4a5a7a', padding: { x: 12, y: 7 }
@@ -103,12 +141,21 @@ GAME.FitScene.prototype.create = function () {
   this.input.on('pointermove', function (p) {
     if (!self._cur || !p.isDown) return;
     if (p.x < W * 0.36) return;                  // 목록 영역 클릭은 무시
+    if (self._erase) { self._eraseAt(p.x, p.y); return; }
     self._cur.img.x = p.x;
     self._cur.img.y = p.y;
     self._refresh();
   });
+  this.input.on('pointerdown', function (p) {
+    if (self._erase && self._cur && p.x >= W * 0.36) self._eraseAt(p.x, p.y);
+  });
   this.input.on('wheel', function (p, objs, dx, dy) {
     if (!self._cur) return;
+    if (self._erase) {                           // 지우개 모드: 휠 = 브러시 크기
+      self._brush = Math.max(6, Math.min(120, self._brush * (dy > 0 ? 0.88 : 1.14)));
+      self._info.setText('브러시 ' + Math.round(self._brush) + 'px');
+      return;
+    }
     var f = dy > 0 ? 0.94 : 1.06;
     var ev = self.input.activePointer.event;
     if (ev && ev.shiftKey) {
@@ -140,7 +187,14 @@ GAME.FitScene.prototype._pick = function (key) {
   var texKey = 'gear-' + key;
   if (!this.textures.exists(texKey)) { this._info.setText(key + ' — 텍스처 없음'); return; }
   if (this._cur) { this._cur.img.destroy(); this._cur = null; }
-  var img = this.add.image(this.EX, this.EY - this.R, texKey).setDepth(30);
+  //  편집용 캔버스 사본 — 지우개는 여기에만 닿는다(원본 텍스처 보존).
+  var editKey = 'edit-' + key;
+  var src = this.textures.get(texKey).getSourceImage();
+  if (this.textures.exists(editKey)) this.textures.remove(editKey);
+  var ct = this.textures.createCanvas(editKey, src.width, src.height);
+  ct.context.drawImage(src, 0, 0);
+  ct.refresh();
+  var img = this.add.image(this.EX, this.EY - this.R, editKey).setDepth(30);
   //  이미 저장된 값이 있으면 그 자리에서 시작한다
   var all = this._store();
   var rec = all[key] && all[key][this._view];
@@ -155,6 +209,24 @@ GAME.FitScene.prototype._pick = function (key) {
   }
   this._cur = { key: key, img: img };
   this._refresh();
+};
+
+//  화면 좌표를 원본 픽셀로 되돌려 원형으로 지운다(destination-out).
+GAME.FitScene.prototype._eraseAt = function (px, py) {
+  var im = this._cur.img;
+  var ct = this.textures.get('edit-' + this._cur.key);
+  if (!ct) return;
+  var lx = (px - (im.x - im.displayWidth / 2)) / im.displayWidth * ct.width;
+  var ly = (py - (im.y - im.displayHeight / 2)) / im.displayHeight * ct.height;
+  var r2 = this._brush;
+  var c = ct.context;
+  c.save();
+  c.globalCompositeOperation = 'destination-out';
+  c.beginPath();
+  c.arc(lx, ly, r2, 0, Math.PI * 2);
+  c.fill();
+  c.restore();
+  ct.refresh();
 };
 
 GAME.FitScene.prototype._store = function () {

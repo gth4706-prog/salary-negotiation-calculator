@@ -208,8 +208,10 @@
       return true;
     },
 
-    /** 중심 (x,y) 에 w×h 로 얹는다(방패처럼 축이 없는 물건). tint 는 등급색. */
-    place: function (g, key, x, y, w, h, alpha, tint, add) {
+    /** 중심 (x,y) 에 w×h 로 얹는다(방패처럼 축이 없는 물건). tint 는 등급색.
+     *  behind: 몸(Graphics)보다 반 단계 아래 — 망토·화살통이 정면에서 등 뒤로 가는 길.
+     *  벡터 시절엔 "먼저 그려서" 가려졌지만 이미지는 별도 객체라 순서가 안 통한다. */
+    place: function (g, key, x, y, w, h, alpha, tint, add, behind) {
       var scene = g.scene;
       if (!this.ready(key, scene)) return false;
       if (!scene || !scene.add) return true;   // 잉크 프록시 패스 — 실루엣 생략
@@ -222,7 +224,7 @@
          .setScale(w / tex.width, h / tex.height)
          .setRotation(0)
          .setAlpha(alpha == null ? 1 : alpha)
-         .setDepth(g.depth || 0);
+         .setDepth((g.depth || 0) - (behind ? 0.5 : 0));
       //  ⚠ 풀 재사용 — 틴트·블렌드를 안 지우면 다른 자리가 이전 상태로 물든다.
       if (tint != null) img.setTint(tint); else img.clearTint();
       img.setBlendMode(add ? Phaser.BlendModes.ADD : Phaser.BlendModes.NORMAL);

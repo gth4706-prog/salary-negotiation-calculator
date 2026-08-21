@@ -444,12 +444,12 @@ var SM = 10;
   };
   //  피팅 값을 방향에 맞게 얹는다 — 옆 기준 화면 배치를 그대로 쓰고, 왼쪽을 볼 때만
   //  dx 미러. place 형(각도 없는 착용물) 전용.
-  UI.fitPlace = function (g, key, sx, by, r, D, a, tint) {
+  UI.fitPlace = function (g, key, sx, by, r, D, a, tint, behind) {
     var f = UI.FIT[key];
     if (!f || !GAME.GearBank) return false;
     var mir = (D && D.lat < 0) ? -1 : 1;
     return GAME.GearBank.place(g, key, sx + f.dx * r * mir, by + f.dy * r,
-                               f.w * r, f.h * r, a, tint || null);
+                               f.w * r, f.h * r, a, tint || null, false, behind);
   };
 
   UI.ART = {
@@ -1345,10 +1345,8 @@ var SM = 10;
     if (hFit && GAME.GearBank && GAME.GearBank.ready(hKey, g.scene)) {
       var hMir = (D.lat < 0) ? -1 : 1;
       var hf = (!D.profile && !D.back && hFit.front) ? hFit.front : hFit;
-      //  접촉 그림자 — 캡 하단이 계란에 닿는 자리. "얹힘"과 "씀"의 차이.
-      g.fillStyle(0x2a2114, 0.14 * a);
-      g.fillEllipse(sx + hf.dx * r * hMir, by + (hf.dy + hf.h * 0.5) * r - r * 0.04,
-                    hf.w * r * 0.60, r * 0.18, SM);
+      //  요소별 접촉 그림자는 안 깐다(2026-08-21 태현님: "억지스러운 그림자" —
+      //  그림자는 유닛 전체 발밑 한 벌(eggBody 접지 2겹)만 남긴다).
       if (GAME.GearBank.place(g, hKey, sx + hf.dx * r * hMir, by + hf.dy * r,
                               hf.w * r, hf.h * r, a)) {
         return;
@@ -1854,7 +1852,7 @@ var SM = 10;
       // 정배면일 때 정중앙에 오면 두건 자락과 겹치므로 옆으로 조금 비켜 멘다
       var qx = sx + ox + D.px * r * 0.20, qy = by + oy - r * 0.10;
       //  태현님 피팅 값(2026-08-21) — UI.FIT.quiverimg.
-      if (UI.fitPlace(g, 'quiverimg', sx, by, r, D, a)) return;
+      if (UI.fitPlace(g, 'quiverimg', sx, by, r, D, a, null, !back)) return;
       // 멜빵에 진영색을 섞는다 — 사냥꾼(quiver)은 진영색 천이 아예 없었다(2026-07-30).
       // 가죽 재질감은 남기려고 원색이 아니라 절반만 섞는다.
       g.lineStyle(Math.max(2, r * 0.30),
@@ -1871,7 +1869,7 @@ var SM = 10;
     } else if (kind === 'cape') {            // 망토 — 뒤를 보이면 펼쳐지되 계란을 다 덮진 않는다
       //  생성 이미지 망토 — 회갈색 원본에 진영색을 절반 물들인다(정체성 유지).
       //  태현님 피팅 값(2026-08-21) — 진영색 물들임 유지.
-      if (UI.fitPlace(g, 'capeimg', sx, by, r, D, a, UI.mix(0xffffff, color, 0.45))) return;
+      if (UI.fitPlace(g, 'capeimg', sx, by, r, D, a, UI.mix(0xffffff, color, 0.45), !back)) return;
       var cw = back ? 1.16 : (prof ? 0.88 : 1.0);
       var cxo = back ? 0 : -lat * r * 0.10;
       // 정배면에서는 몸통 위에 그려지므로 어깨 아래에서 시작해 계란 실루엣을 살려둔다
@@ -1896,7 +1894,7 @@ var SM = 10;
       //  생성 이미지 모피 — **뒤·옆모습에서만**. 정면은 모피가 등 뒤라 어깨 타원
       //  (벡터)만 보이는 게 맞다 — 이미지를 정면에 얹었더니 얼굴을 통째로 덮었다(실측).
       //  태현님 피팅 값(2026-08-21).
-      if (UI.fitPlace(g, 'furimg', sx, by, r, D, a, UI.mix(0xffffff, color, 0.28))) return;
+      if (UI.fitPlace(g, 'furimg', sx, by, r, D, a, UI.mix(0xffffff, color, 0.28), !back)) return;
       // ⚠ 여기는 **진영색을 써야 하는 자리다** (2026-07-30).
       //   등 장비 중 진영색을 쓰는 것은 `cape` 하나뿐이었고 그건 파수꾼·족장만 멘다.
       //   광전사(fur)와 사냥꾼(quiver)은 진영색 천이 **아예 없었다** — 컨트롤러가 가장
@@ -1917,7 +1915,7 @@ var SM = 10;
 
     } else if (kind === 'pack') {            // 등짐
       //  태현님 피팅 값(2026-08-21).
-      if (UI.fitPlace(g, 'packimg', sx, by, r, D, a)) return;
+      if (UI.fitPlace(g, 'packimg', sx, by, r, D, a, null, !back)) return;
       g.fillStyle(M.leatherDark, a);
       g.fillRoundedRect(sx + ox * 1.72 - r * 0.34, by + oy * 1.20 - r * 0.26, r * 0.68, r * 0.86, r * 0.14);
       g.fillStyle(M.leather, a);
@@ -2262,9 +2260,8 @@ var SM = 10;
       //  더 밀어 몸 밖에 세운다 — 옆모습은 f 가, 정면·배면은 spread(p) 가 민다.
       var cxp = X(0.95, 0.34), cyp = Y(0.95, 0.34, 0.10);
       // 등급이 오르면 활채가 길어지고(len) 굵어지며(wide) 더 깊게 휜다.
-      //  1.05 → 0.80 (2026-08-21): 이미지 활은 벡터 선 두 줄과 달리 **면이 있는 검은
-      //  물체**라 스팬 2.7r 이면 계란(2r)보다 커져 어느 앵커에서도 몸을 짓누른다.
-      var h = r * 0.80 * big * tLen, bulge = r * 0.46 * big * side * (1 + (tLen - 1) * 0.6);
+      //  크기는 태현님 피팅 값(2026-08-21, FIT.bow.h = 스팬 전체) — 각도·앵커는 코드가 맡는다.
+      var h = r * (UI.FIT.bow.h * 0.5) * big * tLen, bulge = r * 0.46 * big * side * (1 + (tLen - 1) * 0.6);
       var arc = [], k, t;
       for (k = 0; k <= 6; k++) {
         t = -1 + (2 / 6) * k;
@@ -2381,9 +2378,12 @@ var SM = 10;
       g.fillStyle(M.stoneLite, a);
       g.fillEllipse(lxp + ss * r * 0.66, lyp - r * 0.04, (r * 0.09) * 2, (r * 0.09) * 2, SM);
 
-    } else if (kind === 'javelin') {         // 투창병 — 몸의 두 배짜리 긴 작살
-      var t0x = X(-1.00, 0.34), t0y = Y(-1.00, 0.34, 0.58);
-      var t1x = X(1.72, 0.34), t1y = Y(1.72, 0.34, 0.30);
+    } else if (kind === 'javelin') {         // 투창병 — 긴 작살
+      //  길이는 태현님 피팅 값(2026-08-21, FIT.javelin.h) 기준 — 예전 3.3r 스팬을
+      //  손 근처(f 0.30)를 축으로 줄였다. 각도(앞으로 비껴 든 대각)는 코드 유지.
+      var jvS = (UI.FIT.javelin.h + 0.35) / 3.34;   // 촉·꼬리 연장 포함 실스팬 비율
+      var t0x = X(0.30 - 1.30 * jvS, 0.34), t0y = Y(0.30 - 1.30 * jvS, 0.34, 0.58);
+      var t1x = X(0.30 + 1.42 * jvS, 0.34), t1y = Y(0.30 + 1.42 * jvS, 0.34, 0.30);
       var dxn = t1x - t0x, dyn = t1y - t0y, dl = Math.sqrt(dxn * dxn + dyn * dyn) || 1;
       dxn /= dl; dyn /= dl;
       var jnx = -dyn, jny = dxn;             // 자루에 직교하는 축
@@ -2726,18 +2726,9 @@ var SM = 10;
       }
 
     } else if (kind === 'crossbowNest') {    // 쇠뇌 진지 — 통나무 방벽 + 거치 쇠뇌
-      //  생성 이미지 쇠뇌 (2026-08-21) — 구조물이라 **접지 그림자를 먼저** 깐다.
-      //  그림자 없이 이미지만 얹으면 공중에 뜬 스티커가 된다(태현님 광원 질문의 답:
-      //  전역 광원보다 이런 접지가 자연스러움을 만든다).
-      //  태현님 피팅 값(2026-08-21) — 접지 그림자는 유지(구조물).
-      if (GAME.GearBank && GAME.GearBank.ready('ballistaimg', g.scene)) {
-        var fB = UI.FIT.ballistaimg;
-        var mirB = (D.lat < 0) ? -1 : 1;
-        g.fillStyle(0x2a2114, a * 0.22);
-        g.fillEllipse(sx + fB.dx * r * mirB, by + (fB.dy + fB.h / 2) * r - r * 0.06,
-                      fB.w * r * 0.92, r * 0.5, SM);
-        if (UI.fitPlace(g, 'ballistaimg', sx, by, r, D, a)) return;
-      }
+      //  요소별 접지 그림자 제거(2026-08-21 태현님) — 유닛 발밑 한 벌만 남긴다.
+      //  태현님 피팅 값(2026-08-21).
+      if (UI.fitPlace(g, 'ballistaimg', sx, by, r, D, a)) return;
       g.lineStyle(lw(0.17), M.woodDark, a);
       g.lineBetween(X(-0.55, 0), Y(-0.55, 0, 0.55), X(1.55, 0), Y(1.55, 0, 0.55));
       g.lineStyle(lw(0.13), M.woodDark, a);  // 활대 (정면 수직)

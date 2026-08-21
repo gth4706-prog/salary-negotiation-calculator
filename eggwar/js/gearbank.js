@@ -145,7 +145,9 @@
      * 이미지 세로축을 (x0,y0)→(x1,y1) 구간에 눕힌다. x0/y0 = 이미지 **위쪽 끝**
      * (활 위 고자·창끝), x1/y1 = 아래쪽 끝. flipX 는 좌우 거울(활대 방향 등).
      */
-    drawSpan: function (g, key, x0, y0, x1, y1, alpha, flipX) {
+    //  behind: 뒤를 보는 방향에서는 이미지를 Graphics(몸)보다 반 단계 아래에 둔다 —
+    //  벡터 시절엔 "먼저 그려서" 가려졌지만 이미지는 별도 객체라 순서가 안 통한다.
+    drawSpan: function (g, key, x0, y0, x1, y1, alpha, flipX, behind) {
       var scene = g.scene;
       if (!this.ready(key, scene)) return false;
       if (!scene || !scene.add) return true;   // 잉크 프록시 패스 — 실루엣 생략
@@ -160,7 +162,7 @@
          .setScale(flipX ? -s : s, s)
          .setRotation(Math.atan2(dy, dx) - Math.PI / 2)
          .setAlpha(alpha == null ? 1 : alpha)
-         .setDepth(g.depth || 0);
+         .setDepth((g.depth || 0) - (behind ? 0.5 : 0));
       return true;
     },
 

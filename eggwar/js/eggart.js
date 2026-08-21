@@ -2125,9 +2125,14 @@ var SM = 10;
 
     } else if (kind === 'bow' || kind === 'longbow') {   // 궁수/사냥꾼 — 세로 C
       var big = kind === 'longbow' ? 1.30 : 1.0;
-      var cxp = X(0.72, 0.10), cyp = Y(0.72, 0.10, 0.10);
+      //  이미지 활은 벡터 곡선보다 폭이 넓고 진해서 같은 앵커면 **얼굴을 덮는다**
+      //  (2026-08-21 실측 시트: 0/45/135/180/-135도에서 몸 정중앙). 앞(f)·옆(p)으로
+      //  더 밀어 몸 밖에 세운다 — 옆모습은 f 가, 정면·배면은 spread(p) 가 민다.
+      var cxp = X(0.95, 0.34), cyp = Y(0.95, 0.34, 0.10);
       // 등급이 오르면 활채가 길어지고(len) 굵어지며(wide) 더 깊게 휜다.
-      var h = r * 1.05 * big * tLen, bulge = r * 0.46 * big * side * (1 + (tLen - 1) * 0.6);
+      //  1.05 → 0.80 (2026-08-21): 이미지 활은 벡터 선 두 줄과 달리 **면이 있는 검은
+      //  물체**라 스팬 2.7r 이면 계란(2r)보다 커져 어느 앵커에서도 몸을 짓누른다.
+      var h = r * 0.80 * big * tLen, bulge = r * 0.46 * big * side * (1 + (tLen - 1) * 0.6);
       var arc = [], k, t;
       for (k = 0; k <= 6; k++) {
         t = -1 + (2 / 6) * k;
@@ -2139,7 +2144,7 @@ var SM = 10;
       //  유닛 궁수(bow)도 같은 이미지 활을 쓴다(2026-08-21 유닛 승급 1차 — 크기는
       //  h 가 유닛 반지름 기준이라 자동으로 작아진다).
       if (GAME.GearBank &&
-          GAME.GearBank.drawSpan(g, 'bow', cxp, cyp - h, cxp, cyp + h, a, bulge > 0)) {
+          GAME.GearBank.drawSpan(g, 'bow', cxp, cyp - h, cxp, cyp + h, a, bulge > 0, D.back)) {
         // 이미지가 활대를 그렸다
       } else {
       //  활채를 **두 줄**로 긋는다 — 어두운 심 위에 얇고 밝은 겉을 얹으면 둥근 나무봉이
@@ -2178,19 +2183,22 @@ var SM = 10;
       g.lineBetween(arc[0].x, arc[0].y, apex, cyp);
       g.lineBetween(apex, cyp, arc[6].x, arc[6].y);
       var alen = Math.max(0.8, r * 0.06);
+      //  ⚠ 화살은 **조준 방향(전방축)** 을 따른다 (2026-08-21 실측 수정).
+      //    예전엔 양끝 y 가 cyp 로 같아 **어느 방향을 봐도 화면 수평 막대**였다 —
+      //    위를 쏘는데 화살이 옆으로 누워 "몸을 관통하는 막대"로 읽혔다(신고의 정체).
       if (shot > 0.02) {
         // 날아가는 화살. ⚠ 진행도는 shot 이 아니라 **1-shot** 이다 —
         //   k 는 놓은 순간 +1 에서 0 으로 되돌아오므로 shot 을 그대로 쓰면 화살이 뒤로 간다.
         var fly = (1 - shot) * 1.6;
-        var fn = cxp + bulge * (0.30 + fly);
+        var f0x = cxp + fx * r * (0.30 + fly), f0y = cyp + fy * r * (0.30 + fly);
         g.lineStyle(alen, M.bone, a * Math.min(1, shot * 2.5));
-        g.lineBetween(fn, cyp, fn + bulge * 2.34, cyp);
+        g.lineBetween(f0x, f0y, f0x + fx * r * 1.10, f0y + fy * r * 1.10);
       }
       var na = (0.35 - shot) / 0.35;                                // 메긴 화살
       if (na > 0) {
-        var nock = cxp - bulge * (0.34 + pull * 0.80);
+        var nockX = cxp - bulge * (0.34 + pull * 0.80);
         g.lineStyle(alen, M.bone, a * Math.min(1, na));
-        g.lineBetween(nock, cyp, nock + bulge * 2.34, cyp);
+        g.lineBetween(nockX, cyp, nockX + fx * r * 1.10, cyp + fy * r * 1.10);
       }
 
     } else if (kind === 'sling') {           // 투석꾼 — 머리 위에서 도는 무릿매

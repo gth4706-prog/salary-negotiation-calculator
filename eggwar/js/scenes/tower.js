@@ -15,6 +15,11 @@ GAME.TowerScene.prototype = Object.create(Phaser.Scene.prototype);
 GAME.TowerScene.prototype.constructor = GAME.TowerScene;
 
 GAME.TowerScene.prototype.create = function (data) {
+  //  모드 첫 진입 튜토리얼 카드 (2026-08-21) — 본 사람에게는 안 뜬다.
+  var _tutSelf = this;
+  this.time.delayedCall(400, function () {
+    if (_tutSelf.scene.isActive() && GAME.Tutorial) GAME.Tutorial.show(_tutSelf, 'tower');
+  });
   if (GAME.Music) GAME.Music.play('tower');
   var C = GAME.CONFIG.COLORS;
 

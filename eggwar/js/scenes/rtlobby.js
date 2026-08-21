@@ -102,6 +102,10 @@ GAME.RtLobbyScene.prototype.create = function () {
   this._peersTxt.setAlign('center');
 
   this._setStatus(GAME.NetRoom.enabled() ? '방을 만들거나 코드로 입장하세요' : '실시간 대전 준비 중');
+
+  this.time.delayedCall(400, function () {
+    if (self.scene.isActive() && GAME.Tutorial) GAME.Tutorial.show(self, 'rt');
+  });
 };
 
 GAME.RtLobbyScene.prototype._setStatus = function (s) {

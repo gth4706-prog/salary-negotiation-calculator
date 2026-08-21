@@ -148,6 +148,11 @@ GAME.VersusScene.prototype._createRolePick = function () {
 
   this._kickRemote();      // 서버에서 남의 전장을 받아온다(기다리지 않는다)
 
+  var _tutSelf = this;
+  this.time.delayedCall(400, function () {
+    if (_tutSelf.scene.isActive() && GAME.Tutorial) GAME.Tutorial.show(_tutSelf, 'siege');
+  });
+
   UI.text(this, W / 2, u * 3, '🏰 공성전  —  전장 목록',
     { size: PH ? 'subhead' : 'title', color: C.accent, origin: 0.5, originY: 0 });
 

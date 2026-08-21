@@ -361,6 +361,40 @@ GAME.BuildScene.prototype.create = function () {
   // 등급에 쓴 만큼 배치에 쓸 돈이 줄어드는 것이 이 모드의 선택이다 —
   // 적은 수를 세게 굴릴 것인가, 많은 수를 그대로 세울 것인가.
   if (this.arena) GAME.ArenaBuild.setPlacedCost(0);   // 판을 그리기 전이라 0 에서 시작한다
+
+  //  ── 수성의 탑 첫 배치 코치 (2026-08-21) — 행동하면 넘어간다(읽는 안내는 안 남는다) ──
+  //  렌더 전용: 상단 한 줄 + 500ms 폴링으로 배치 수만 본다. 시뮬에 닿지 않는다.
+  if (this.defendTower && GAME.Onboard &&
+      GAME.Onboard.seen().indexOf('build-coach-v1') < 0) {
+    var _cSelf = this;
+    //  y 0.20H — 0.16 은 상단 바(0..60) 요소와 간헐적으로 스쳤다(감사 실측 1회).
+    var _coachTxt = this.add.text(GAME.CONFIG.WIDTH / 2, GAME.CONFIG.HEIGHT * 0.20,
+      '① 아래 유닛을 골라 전장에 놓아 보세요', {
+        fontFamily: GAME.CONFIG.FONT, fontSize: (GAME.CONFIG.SMALL ? 15 : 18) + 'px',
+        color: '#fff6df', backgroundColor: 'rgba(30,24,12,0.72)', padding: { x: 12, y: 7 }
+      }).setOrigin(0.5, 0).setDepth(2500).setScrollFactor(0);
+    var _coachStep = 0;
+    var _coachEv = this.time.addEvent({ delay: 500, loop: true, callback: function () {
+      if (!_coachTxt.scene) { _coachEv.remove(); return; }
+      if (_coachStep === 0 && _cSelf.placed && _cSelf.placed.length > 0) {
+        _coachStep = 1;
+        _coachTxt.setText('② 좋아요! 다 놓았으면 [방어전 시작]');
+      } else if (_coachStep === 1 && _cSelf.placed && _cSelf.placed.length >= 3) {
+        _coachStep = 2;
+        _coachTxt.setText('막으면 다음 회차 — 져도 성장은 남습니다');
+        GAME.Onboard.markSeen('build-coach-v1');
+        _cSelf.time.delayedCall(4000, function () {
+          if (_coachTxt.scene) _coachTxt.destroy();
+          _coachEv.remove();
+        });
+      }
+    } });
+    this.events.once('shutdown', function () {
+      if (_coachEv) _coachEv.remove();
+      if (GAME.Onboard.seen().indexOf('build-coach-v1') < 0)
+        GAME.Onboard.markSeen('build-coach-v1');   // 나가면 그만 잔소리한다
+    });
+  }
   this.budget = this.arena
     ? Math.max(0, GAME.Arena.BUDGET - GAME.ArenaBuild.unitLvSpent(GAME.ArenaBuild.get()))
     : (this.defendTower

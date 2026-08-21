@@ -55,6 +55,10 @@ GAME.DefendTowerScene.prototype.init = function (data) {
 };
 
 GAME.DefendTowerScene.prototype.create = function () {
+  var _tutSelf = this;
+  this.time.delayedCall(400, function () {
+    if (_tutSelf.scene.isActive() && GAME.Tutorial) GAME.Tutorial.show(_tutSelf, 'dtower');
+  });
   if (GAME.Music) GAME.Music.play('defend');
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;

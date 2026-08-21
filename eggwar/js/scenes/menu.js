@@ -155,7 +155,7 @@ GAME.MenuScene.prototype.create = function () {
   });
   by += (P ? 22 : 26);
 
-  var rc = GAME.Layout.cols(GAME.isAdmin ? 3 : 2, {
+  var rc = GAME.Layout.cols(GAME.isAdmin ? 4 : 3, {
     gap: 10, width: bw, left: (W - bw) / 2, pad: 0
   });
   var smallH = GAME.UI.BTN_H_SM || 52;
@@ -170,6 +170,9 @@ GAME.MenuScene.prototype.create = function () {
   GAME.UI.button(this, rc[1].cx, ry, rc[1].w, smallH, '닉네임 변경', function () {
     GAME.Account.logout();
     self.scene.start('Login');
+  }, { fontSize: P ? 15 : 14 });
+  GAME.UI.button(this, rc[2].cx, ry, rc[2].w, smallH, '❓ 안내', function () {
+    if (GAME.Tutorial) GAME.Tutorial.openPicker(self);
   }, { fontSize: P ? 15 : 14 });
 
   // 사운드 켜기/끄기 + 전체화면. 버튼 줄 아래에 작게 둔다(주요 동선을 밀어내지 않게).
@@ -344,6 +347,10 @@ GAME.MenuScene.prototype._buildPhone = function () {
   UI.button(this, W - PAD - topW - 10 - topW / 2, 14 + topH / 2, topW, topH, '⚙ 설정', function () {
     self._openSettings();
   }, { fontSize: 16 });
+  //  ❓ 게임 안내 다시 보기 (2026-08-21 태현님: "메인화면에 버튼 추가")
+  UI.button(this, W - PAD - topW * 2 - 20 - 30, 14 + topH / 2, 60, topH, '❓', function () {
+    if (GAME.Tutorial) GAME.Tutorial.openPicker(self);
+  }, { fontSize: 18 });
 
   // ── 하단 모드 카드 한 줄 — 대전이 가장 크다 ──
   var cardH = 96, cy = H - PAD - cardH / 2;

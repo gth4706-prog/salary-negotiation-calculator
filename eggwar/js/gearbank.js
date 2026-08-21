@@ -18,9 +18,26 @@
     //  gripF: 이미지 세로에서 손잡이 중심 위치(0=칼끝, 1=자루끝) — 실측값.
     //  tipF : 칼끝까지의 비율(= gripF). 표시는 grip→tip 길이를 게임 쪽 길이에 맞춘다.
     greatsword:  { src: 'assets/gear/greatsword.png?v=1.99', gripF: 0.80 },
-    bow:         { src: 'assets/gear/bow.png?v=1.99' },
+    //  bow 는 2026-08-21 재생성분(bow2)으로 갈아탔다 — 옛 활은 시위·음영이 검은
+    //  면으로 뭉쳐 있었다(태현님 신고). 새 활은 **오른쪽으로 굽는다**(옛 활은 왼쪽).
+    bow:         { src: 'assets/gear/bow2.png?v=2.27' },
     hookspear:   { src: 'assets/gear/hookspear.png?v=1.99' },
-    roundshield: { src: 'assets/gear/roundshield.png?v=1.99' }
+    roundshield: { src: 'assets/gear/roundshield.png?v=1.99' },
+    //  유닛 무기 (2026-08-21 시트 1차분) — 전사·족장·투창병·방패병
+    stonesword:  { src: 'assets/gear/stonesword.png?v=2.27', gripF: 0.72 },
+    handaxe:     { src: 'assets/gear/handaxe.png?v=2.27', gripF: 0.86 },
+    javelin:     { src: 'assets/gear/javelin.png?v=2.27' },
+    towershield: { src: 'assets/gear/towershield.png?v=2.27' },
+    //  상점 아이콘 3종 (등급색은 place 의 tint)
+    armor:       { src: 'assets/gear/armor.png?v=2.27' },
+    boots:       { src: 'assets/gear/boots.png?v=2.27' },
+    amulet:      { src: 'assets/gear/amulet.png?v=2.27' },
+    //  이펙트 (흰색 원본 — 코드가 틴트·블렌드로 색을 입힌다)
+    flame:       { src: 'assets/fx/flame.png?v=2.27' },
+    glow:        { src: 'assets/fx/glow.png?v=2.27' },
+    slash:       { src: 'assets/fx/slash.png?v=2.27' },
+    impact:      { src: 'assets/fx/impact.png?v=2.27' },
+    ring:        { src: 'assets/fx/ring.png?v=2.27' }
   };
 
   G.GearBank = {
@@ -167,7 +184,7 @@
     },
 
     /** 중심 (x,y) 에 w×h 로 얹는다(방패처럼 축이 없는 물건). tint 는 등급색. */
-    place: function (g, key, x, y, w, h, alpha, tint) {
+    place: function (g, key, x, y, w, h, alpha, tint, add) {
       var scene = g.scene;
       if (!this.ready(key, scene)) return false;
       if (!scene || !scene.add) return true;   // 잉크 프록시 패스 — 실루엣 생략
@@ -181,8 +198,9 @@
          .setRotation(0)
          .setAlpha(alpha == null ? 1 : alpha)
          .setDepth(g.depth || 0);
-      //  ⚠ 풀 재사용 — 안 지우면 다른 자리(전투 방패 등)가 이전 틴트로 물든다.
+      //  ⚠ 풀 재사용 — 틴트·블렌드를 안 지우면 다른 자리가 이전 상태로 물든다.
       if (tint != null) img.setTint(tint); else img.clearTint();
+      img.setBlendMode(add ? Phaser.BlendModes.ADD : Phaser.BlendModes.NORMAL);
       return true;
     }
   };

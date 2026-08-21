@@ -2035,21 +2035,41 @@ var SM = 10;
     }
 
     if (TI && TI.spark) {
-      // ⚠ **채워진 광휘 원은 못 쓴다.** 두 번 시도해서 두 번 다 실패했다:
-      //   0.95r 은 계란 몸을 통째로 덮었고, 0.46r 로 줄여도 라이트 테마의 잉크 윤곽
-      //   (`UI.inkLayer`)이 그 원에도 테두리를 둘러 **회갈색 얼룩**으로 보였다
-      //   (사냥꾼 T6~T8 이 활 위에 때가 묻은 것처럼 나왔다 — 실측 스크린샷).
-      //   그래서 면이 아니라 **점**으로만 말한다. 작은 점은 윤곽이 둘려도 구슬로 읽힌다.
+      //  ── 고등급 무기 오라 (2026-08-21 태현님 생성 이미지판) ─────────────────
+      //  fx-flame/fx-glow 를 가산 블렌드로 얹는다 — 흰 원본에 등급색 틴트라
+      //  흑철은 한기, 용골은 금염이 된다. 시간(Date.now)으로 일렁인다(렌더 전용,
+      //  결정론과 무관 — 시뮬은 state.rng, 렌더는 자유).
       var gox = hx - sx, goy = hy - by;
       var gol = Math.sqrt(gox * gox + goy * goy) || 1;
       var gcx = hx + (gox / gol) * r * 0.30, gcy = hy + (goy / gol) * r * 0.30 - r * 0.16;
-      // 반짝이 — 시간이 아니라 **위치**로 흩는다(렌더 전용이라 상태를 안 만든다).
       var sd = (sx * 0.7 + by * 1.3);
-      for (var si = 0; si < TI.spark; si++) {
-        var sa = sd * 0.05 + si * (Math.PI * 2 / TI.spark);
-        var srr = r * (0.42 + 0.20 * ((si % 2) ? 1 : 0.35));
-        g.fillStyle(TI.glow, (0.78 + 0.18 * (si % 2)) * a);
-        g.fillEllipse(gcx + Math.cos(sa) * srr, gcy + Math.sin(sa) * srr * 0.8, (Math.max(0.8, r * 0.062)) * 2, (Math.max(0.8, r * 0.062)) * 2, SM);
+      var auraDrawn = false;
+      if (GAME.GearBank) {
+        var tNow = Date.now() * 0.001;
+        var glowP = 0.6 + 0.4 * Math.sin(tNow * 2.3 + sd * 0.05);
+        auraDrawn = GAME.GearBank.place(g, 'glow', gcx, gcy,
+          r * (1.5 + 0.3 * glowP), r * (1.3 + 0.26 * glowP),
+          (0.16 + 0.12 * glowP) * a, TI.glow, true);
+        if (auraDrawn) {
+          for (var fi2 = 0; fi2 < TI.spark; fi2++) {
+            var fp = tNow * (1.9 + 0.7 * (fi2 % 2)) + fi2 * 2.4 + sd * 0.05;
+            var fl2 = 0.5 + 0.5 * Math.sin(fp);
+            GAME.GearBank.place(g, 'flame',
+              gcx + Math.cos(sd * 0.05 + fi2 * (Math.PI * 2 / TI.spark)) * r * 0.40,
+              gcy - r * 0.10 - fl2 * r * 0.22,
+              r * (0.24 + 0.10 * fl2), r * (0.52 + 0.26 * fl2),
+              (0.35 + 0.45 * fl2) * a, TI.glow, true);
+          }
+        }
+      }
+      if (!auraDrawn) {
+        // 이미지 준비 전 폴백 — 예전 점 반짝이(윤곽이 둘려도 구슬로 읽힌다).
+        for (var si = 0; si < TI.spark; si++) {
+          var sa = sd * 0.05 + si * (Math.PI * 2 / TI.spark);
+          var srr = r * (0.42 + 0.20 * ((si % 2) ? 1 : 0.35));
+          g.fillStyle(TI.glow, (0.78 + 0.18 * (si % 2)) * a);
+          g.fillEllipse(gcx + Math.cos(sa) * srr, gcy + Math.sin(sa) * srr * 0.8, (Math.max(0.8, r * 0.062)) * 2, (Math.max(0.8, r * 0.062)) * 2, SM);
+        }
       }
     }
 
@@ -2112,6 +2132,12 @@ var SM = 10;
       // 자루 — 손 아래로 짧게
       //  atk 가 각도를 바꾼다: -1 머리 위로 치켜듦 → +1 옆으로 후려침
       var swDir = bladeDir(0.95 - atk * 0.85);
+      //  생성 이미지 돌검 (2026-08-21 시트 1차분) — 각도 채널(swDir)은 그대로 쓴다.
+      if (GAME.GearBank &&
+          GAME.GearBank.draw(g, 'stonesword', hx, hy, swDir.x, swDir.y, r * 1.55, a,
+                             TI ? UI.mix(M.blade, 0xffffff, 0.62) : null)) {
+        // 이미지가 검을 그렸다 — 버클러(위)는 벡터 그대로.
+      } else {
       g.lineStyle(lw(0.17), M.woodDark, a);
       g.lineBetween(hx - swDir.x * r * 0.34, hy - swDir.y * r * 0.34, hx, hy);
       // 날 — 손에서 앞·위로. 예전엔 지면축으로만 뻗어 정면에서 사라졌다.
@@ -2122,6 +2148,7 @@ var SM = 10;
                     hx - swDir.y * r * 0.34, hy + swDir.x * r * 0.34);
       g.fillStyle(M.bronze, a);              // 자루 끝 구슬
       g.fillEllipse(hx - swDir.x * r * 0.38, hy - swDir.y * r * 0.38, (Math.max(1, r * 0.11)) * 2, (Math.max(1, r * 0.11)) * 2, SM);
+      }  // (하이브리드 폴백 닫기)
 
     } else if (kind === 'bow' || kind === 'longbow') {   // 궁수/사냥꾼 — 세로 C
       var big = kind === 'longbow' ? 1.30 : 1.0;
@@ -2144,7 +2171,7 @@ var SM = 10;
       //  유닛 궁수(bow)도 같은 이미지 활을 쓴다(2026-08-21 유닛 승급 1차 — 크기는
       //  h 가 유닛 반지름 기준이라 자동으로 작아진다).
       if (GAME.GearBank &&
-          GAME.GearBank.drawSpan(g, 'bow', cxp, cyp - h, cxp, cyp + h, a, bulge > 0, D.back)) {
+          GAME.GearBank.drawSpan(g, 'bow', cxp, cyp - h, cxp, cyp + h, a, bulge < 0, D.back)) {
         // 이미지가 활대를 그렸다
       } else {
       //  활채를 **두 줄**로 긋는다 — 어두운 심 위에 얇고 밝은 겉을 얹으면 둥근 나무봉이
@@ -2227,6 +2254,13 @@ var SM = 10;
       var dxn = t1x - t0x, dyn = t1y - t0y, dl = Math.sqrt(dxn * dxn + dyn * dyn) || 1;
       dxn /= dl; dyn /= dl;
       var jnx = -dyn, jny = dxn;             // 자루에 직교하는 축
+      //  생성 이미지 투창 (2026-08-21) — 이미지 위쪽이 촉이다: (x0,y0)=촉끝 → 꼬리로 편다.
+      if (GAME.GearBank &&
+          GAME.GearBank.drawSpan(g, 'javelin',
+            t1x + dxn * r * 0.42, t1y + dyn * r * 0.42,
+            t0x - dxn * r * 0.20, t0y - dyn * r * 0.20, a, false)) {
+        // 이미지가 통째로 그렸다 — 아래 벡터(자루·촉·미늘)는 건너뛴다.
+      } else {
       //  자루를 **두 줄**로 — 아래 어두운 선 + 위 밝은 선. 한 줄이면 원통이 아니라 막대다.
       //  (이 무기는 몸의 두 배라 화면에서 가장 긴 직선이고, 그래서 가장 납작해 보였다.)
       g.lineStyle(lw(0.19), M.woodDark, a);
@@ -2249,6 +2283,8 @@ var SM = 10;
                        t1x - dxn * r * 0.62 - dyn * r * 0.22, t1y - dyn * r * 0.62 + dxn * r * 0.22,
                        t1x - dxn * r * 0.62, t1y - dyn * r * 0.62);
       }
+
+      }  // (투창 하이브리드 폴백 닫기)
 
     } else if (kind === 'leafstaff') {       // 약초꾼 — 약초 다발 지팡이
       var stx = X(0.30, 0.66);
@@ -2459,9 +2495,9 @@ var SM = 10;
       var cx2 = X(1.02, 0.42), cy2 = Y(1.02, 0.42, 0.02);
       //  생성 이미지 방패(2026-08-21 유닛 승급 1차) — 원형 방패를 세로로 살짝 늘려
       //  대방패 실루엣 유지. 준비 전엔 아래 벡터.
-      if (GAME.GearBank && GAME.GearBank.place(g, 'roundshield',
-            cx2, cy2, r * 1.30, r * 2.10, a)) {
-        // 이미지가 그렸다
+      if (GAME.GearBank && GAME.GearBank.place(g, 'towershield',
+            cx2, cy2, r * 1.34, r * 2.30, a)) {
+        // 이미지가 그렸다 (2026-08-21 — 원형 방패 임시 대체를 진짜 대방패로)
       } else {
       g.fillStyle(M.wood, a);
       g.fillRoundedRect(cx2 - r * 0.58, cy2 - r * 1.05, r * 1.16, r * 2.20, r * 0.26);
@@ -2495,6 +2531,18 @@ var SM = 10;
       g.fillStyle(M.quill, a);
       g.fillTriangle(pxp, Y(0.05, -0.85, 2.10), pxp - r * 0.34, Y(0.05, -0.85, 1.45), pxp + r * 0.34, Y(0.05, -0.85, 1.45));
 
+      //  생성 이미지 손도끼 (2026-08-21) — 자루 방향은 기존 앵커에서 계산한다.
+      var axTx = X(1.55, 0.30), axTy = Y(1.55, 0.30, 0.05);
+      var axDx = axTx - hx, axDy = axTy - hy;
+      var axL = Math.sqrt(axDx * axDx + axDy * axDy) || 1;
+      //  ⚠ 정면·정배면에서 앞축이 눌려 axL 이 0 에 가까워진다 — 이미지 도끼가
+      //    통째로 나사만 해졌다(실측). 화면 길이에 하한을 둔다(벡터 검 swDir 방식과
+      //    달리 이 분기는 지면축 앵커라 눌림을 직접 막아야 한다).
+      var axLen = Math.max(axL * 1.10, r * 1.30);
+      if (GAME.GearBank &&
+          GAME.GearBank.draw(g, 'handaxe', hx, hy, axDx / axL, axDy / axL, axLen, a)) {
+        return;   // 이미지가 도끼를 그렸다 — 깃대는 위에서 이미 그렸다.
+      }
       g.lineStyle(lw(0.14), M.woodDark, a);
       g.lineBetween(hx, hy, X(1.55, 0.30), Y(1.55, 0.30, 0.05));
       g.lineStyle(Math.max(0.8, r * 0.055), M.wood, a);

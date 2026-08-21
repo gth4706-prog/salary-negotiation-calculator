@@ -1271,6 +1271,20 @@ GAME.UI = GAME.UI || {};
     //    보여 주고, 영웅이 없는 자리는 예전 손그림을 그대로 쓴다.
     //    그리고 사다리 중간에 끼운 무기(w9·w10)는 손그림이 없으므로, 영웅을 몰라도
     //    **상자로 떨어지지 않게** 기본 형태로 보낸다.
+    //  방어구·신발·장신구 아이콘 (2026-08-21 시트 1차분) — 무기와 같은 방식.
+    var SLOT_GEAR = { armor: 'armor', boots: 'boots', accessory: 'amulet' };
+    var sg = SLOT_GEAR[slotKey];
+    if (sg && GAME.GearBank && g.scene) {
+      var P3 = tierPal(UI.gearTierOf ? UI.gearTierOf(itemKey) : 0);
+      var tint3 = UI.mix ? UI.mix(P3.blade, 0xffffff, 0.40) : null;
+      var tk3 = 'gear-' + sg;
+      var st3 = g.scene.textures && g.scene.textures.exists(tk3)
+        ? g.scene.textures.get(tk3).getSourceImage() : null;
+      var ratio3 = st3 ? (st3.width / st3.height) : 1;
+      var ih3 = U * 0.94, iw3 = Math.min(U * 0.94, ih3 * ratio3);
+      if (iw3 < U * 0.94) ih3 = iw3 / ratio3 * 1;
+      if (GAME.GearBank.place(g, sg, cx, cy, Math.min(U * 0.94, ih3 * ratio3), ih3, 1, tint3)) return;
+    }
     if (slotKey === 'weapon') {
       //  ── 생성 이미지 무기 (2026-08-21 태현님: "상점에 모두 적용 안 됐다") ──────
       //  전투·카드는 이미지인데 상점 아이콘만 옛 손그림이라 같은 무기가 화면마다

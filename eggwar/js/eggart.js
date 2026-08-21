@@ -1796,10 +1796,16 @@ var SM = 10;
     if (kind === 'quiver') {                 // 화살통 — 등 뒤 대각선 + 화살깃 3개
       // 정배면일 때 정중앙에 오면 두건 자락과 겹치므로 옆으로 조금 비켜 멘다
       var qx = sx + ox + D.px * r * 0.20, qy = by + oy - r * 0.10;
-      //  생성 이미지 화살통 (2026-08-21) — 이미지가 이미 비스듬히 멘 각도다.
-      if (GAME.GearBank &&
-          GAME.GearBank.place(g, 'quiverimg', qx, qy - r * 0.35, r * 1.30, r * 1.55, a)) {
-        return;
+      //  생성 이미지 화살통 — 등 물건이다: 정면에서는 **어깨 위로 깃만 빼꼼**
+      //  (중앙 뒤·작게). 가슴 옆에 크게 두면 떠다닌다(실측). 옆·뒤는 제 크기.
+      if (GAME.GearBank) {
+        var qFront = !D.back && !D.profile;
+        var qw = (qFront ? 1.00 : 1.24) * r, qh = (qFront ? 1.18 : 1.48) * r;
+        var qxx = qFront ? sx + D.px * r * 0.30 : qx;
+        var qyy = qFront ? by - r * 0.62 : qy - r * 0.35;
+        if (GAME.GearBank.place(g, 'quiverimg', qxx, qyy, qw, qh, a)) {
+          return;
+        }
       }
       // 멜빵에 진영색을 섞는다 — 사냥꾼(quiver)은 진영색 천이 아예 없었다(2026-07-30).
       // 가죽 재질감은 남기려고 원색이 아니라 절반만 섞는다.
@@ -1817,11 +1823,12 @@ var SM = 10;
     } else if (kind === 'cape') {            // 망토 — 뒤를 보이면 펼쳐지되 계란을 다 덮진 않는다
       //  생성 이미지 망토 — 회갈색 원본에 진영색을 절반 물들인다(정체성 유지).
       if (GAME.GearBank) {
-        var cwI = (back ? 1.62 : (prof ? 1.10 : 1.30)) * r;
-        //  정면에서는 몸 뒤 정중앙(어깨 사이) — 옆 치우침을 없앤다(실측).
-        var cxI = back ? sx : (prof ? sx + ox * 0.55 : sx);
-        if (GAME.GearBank.place(g, 'capeimg', cxI, by + oy * 0.6 + r * 0.30,
-              cwI, r * 1.72, a, UI.mix(0xffffff, color, 0.45))) {
+        //  옆모습은 폭을 확 줄이고 몸에 붙인다 — 1.10r 는 몸 옆에 수건처럼
+        //  걸렸다(실측). 정면·정배면은 정중앙.
+        var cwI = (back ? 1.58 : (prof ? 0.78 : 1.26)) * r;
+        var cxI = back ? sx : (prof ? sx + ox * 0.34 : sx);
+        if (GAME.GearBank.place(g, 'capeimg', cxI, by + oy * 0.6 + r * 0.26,
+              cwI, r * 1.62, a, UI.mix(0xffffff, color, 0.45))) {
           return;
         }
       }
@@ -1848,9 +1855,10 @@ var SM = 10;
     } else if (kind === 'fur') {             // 어깨 털가죽
       //  생성 이미지 모피 — **뒤·옆모습에서만**. 정면은 모피가 등 뒤라 어깨 타원
       //  (벡터)만 보이는 게 맞다 — 이미지를 정면에 얹었더니 얼굴을 통째로 덮었다(실측).
+      //  크기를 어깨선까지만 — 1.30r 높이는 몸통을 이불처럼 덮었다(실측).
       if ((back || prof) && GAME.GearBank &&
-          GAME.GearBank.place(g, 'furimg', sx + ox * 0.5, by + oy * 0.5 - r * 0.30,
-            r * 1.52, r * 1.30, a, UI.mix(0xffffff, color, 0.28))) {
+          GAME.GearBank.place(g, 'furimg', sx + ox * 0.5, by + oy * 0.5 - r * 0.44,
+            r * 1.34, r * 0.98, a, UI.mix(0xffffff, color, 0.28))) {
         return;
       }
       // ⚠ 여기는 **진영색을 써야 하는 자리다** (2026-07-30).
@@ -2312,11 +2320,16 @@ var SM = 10;
       }
 
     } else if (kind === 'sling') {           // 투석꾼 — 머리 위에서 도는 무릿매
-      //  생성 이미지 무릿매 — "던지기 전 늘어진" 컷이라 손 아래로 드리운다.
-      if (GAME.GearBank &&
-          GAME.GearBank.place(g, 'slingimg', hx + px * r * 0.10, hy + r * 0.72,
-            r * 0.94, r * 1.70, a)) {
-        return;
+      //  생성 이미지 무릿매 — 손 **바로 아래**에 드리우고, 손→이미지 상단을
+      //  가죽끈(벡터)으로 잇는다. 연결이 없으면 몸 옆에 떠다닌다(실측).
+      if (GAME.GearBank && GAME.GearBank.ready('slingimg', g.scene)) {
+        var slTop = hy + r * 0.10;
+        g.lineStyle(Math.max(1, r * 0.07), M.leatherDark, a);
+        g.lineBetween(hx, hy, hx, slTop + r * 0.06);
+        if (GAME.GearBank.place(g, 'slingimg', hx, slTop + r * 0.66,
+              r * 0.80, r * 1.36, a)) {
+          return;
+        }
       }
       //  고리는 머리 위라 얼굴을 안 가리지만 **끈이 얼굴을 대각으로 가로질렀다**(실측).
       //  고리도 같이 벌리고, 끈을 손과 같은 쪽에 매 얼굴 앞을 지나지 않게 한다.
@@ -2376,10 +2389,11 @@ var SM = 10;
       }  // (투창 하이브리드 폴백 닫기)
 
     } else if (kind === 'leafstaff') {       // 약초꾼 — 약초 다발 지팡이
-      //  생성 이미지 지팡이 — 세로로 든다.
+      //  생성 이미지 지팡이 — **손이 잡고 있어야** 한다: 그립(0.62)이 손 위치를
+      //  지나도록 draw 로 세운다(place 로 옆에 두면 떠다닌다 — 실측).
+      //  옆으로 0.26r 밀어 약초 다발이 얼굴을 안 가리게 한다(정면 실측).
       if (GAME.GearBank &&
-          GAME.GearBank.place(g, 'leafstaffimg', X(0.30, 0.66), Y(0.30, 0.66, 0.50),
-            r * 0.86, r * 2.30, a)) {
+          GAME.GearBank.draw(g, 'leafstaffimg', hx + D.px * r * 0.26, hy, 0, -1, r * 1.55, a)) {
         return;
       }
       var stx = X(0.30, 0.66);
@@ -2663,9 +2677,11 @@ var SM = 10;
 
     } else if (kind === 'sapjar') {          // 늪지기 — 끈끈한 수액 단지
       var jx = X(0.86, 0.16), jy = Y(0.86, 0.16, 0.05);
-      //  생성 이미지 단지.
+      //  생성 이미지 단지 — **끌어안은 높이**(배)로 내려 몸과 겹친다.
+      //  얼굴 옆 공중에 두면 떠다닌다(실측).
       if (GAME.GearBank &&
-          GAME.GearBank.place(g, 'sapjarimg', jx, jy, r * 1.30, r * 1.16, a)) {
+          GAME.GearBank.place(g, 'sapjarimg', X(0.62, 0.12), Y(0.62, 0.12, -0.28),
+            r * 1.14, r * 1.02, a)) {
         return;
       }
       //  ⚠ 예전엔 `UI.tint(M.clay, -0.30)` — 흑백 축으로만 밀어 그늘이 **회색 진흙**이 됐다.

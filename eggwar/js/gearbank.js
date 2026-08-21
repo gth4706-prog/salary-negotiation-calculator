@@ -37,7 +37,7 @@
     arrow2:      { src: 'assets/gear/arrow2.png?v=2.30' },
     arrowbundle: { src: 'assets/gear/arrowbundle.png?v=2.30' },
     slingimg:    { src: 'assets/gear/slingimg.png?v=2.30' },
-    leafstaffimg:{ src: 'assets/gear/leafstaff.png?v=2.30' },
+    leafstaffimg:{ src: 'assets/gear/leafstaff.png?v=2.30', gripF: 0.62 },
     sapjarimg:   { src: 'assets/gear/sapjar.png?v=2.30' },
     ballistaimg: { src: 'assets/gear/ballista.png?v=2.30' },
     quiverimg:   { src: 'assets/gear/quiverimg.png?v=2.30' },

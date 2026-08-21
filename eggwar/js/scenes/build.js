@@ -367,8 +367,9 @@ GAME.BuildScene.prototype.create = function () {
   if (this.defendTower && GAME.Onboard &&
       GAME.Onboard.seen().indexOf('build-coach-v1') < 0) {
     var _cSelf = this;
-    //  y 0.20H — 0.16 은 상단 바(0..60) 요소와 간헐적으로 스쳤다(감사 실측 1회).
-    var _coachTxt = this.add.text(GAME.CONFIG.WIDTH / 2, GAME.CONFIG.HEIGHT * 0.20,
+    //  y 0.27H — 0.16 은 상단 바(0..60), 0.20 은 유닛 정보줄('전사 · 인구 …', y~70)과
+    //  스쳤다(감사 실측 각 1회). 상단 글줄 전부의 아래로 내린다.
+    var _coachTxt = this.add.text(GAME.CONFIG.WIDTH / 2, GAME.CONFIG.HEIGHT * 0.27,
       '① 아래 유닛을 골라 전장에 놓아 보세요', {
         fontFamily: GAME.CONFIG.FONT, fontSize: (GAME.CONFIG.SMALL ? 15 : 18) + 'px',
         color: '#fff6df', backgroundColor: 'rgba(30,24,12,0.72)', padding: { x: 12, y: 7 }

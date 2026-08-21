@@ -152,6 +152,39 @@ GAME.TOWER_SKILL_PLAN = {
   strike: '{n}{은} 한 놈을 확실히 지우는 데 쓴다 — 위에 적힌 표적에 써라.'
 };
 
+// ── 적 스킬 설명 (2026-08-22 태현님: "로딩화면은 적 유닛의 스킬설명 위주로") ──
+//  형식: 유닛 · 스킬이 하는 일 — 대처. 한 줄에 셋이 다 있어야 3초 로딩에 읽힌다.
+//  ⚠ 새 유닛을 넣으면 여기도 채운다 — 없으면 그 유닛은 로딩에서 스킬을 안 알려준다.
+GAME.TOWER_SKILL_DESC = {
+  bayonet: '전사의 달려들기 — 짧은 예고 뒤 돌진해 밀쳐낸다. 예고가 보이면 옆으로 비켜라.',
+  rifleman: '궁수의 정조준 — 서 있는 자리에 그림자를 겨눈다. 계속 움직이면 안 맞는다.',
+  grenadier: '투석꾼의 돌무더기 — 예고 원 세 개를 흩어 떨어뜨린다. 원 밖으로만 걸으면 된다.',
+  sniper: '투창병의 작살 — 평타는 피할 수 없고, 스킬은 예고가 보이는 큰 한 방이다. 먼저 끊어라.',
+  medic: '약초꾼의 광역 회복 — 깎아 둔 체력을 통째로 되돌린다. 무엇보다 먼저 지워라.',
+  shieldman: '방패병의 밀치기 — 날아오는 공격도 대신 맞아준다. 밀어내거나 넘어가야 뒤가 뚫린다.',
+  sergeant: '족장의 포효 — 주변 전체의 공격이 세진다. 족장부터 끊으면 나머지가 순해진다.',
+  chemtrooper: '늪지기의 늪 — 맞으면 느려져 다음 공격까지 못 피한다. 둔화부터 없애라.',
+  mgnest: '쇠뇌 진지의 집중사격 — 전 맵 사거리 4연발. 숨을 곳은 없다, 곧장 붙어 지워라.',
+  mine: '가시덫 — 밟으면 붉은 원이 뜨고 터진다. 걸어서는 못 벗어나니 이동 스킬을 아껴 둬라.',
+  palisade: '울짱꾼의 가시 울타리 — 곁에 서 있으면 계속 갉힌다. 그 길은 돌아가라.',
+  hivethrower: '벌집꾼 — 죽는 자리에서 터진다. 어디서 죽일지 고르는 것이 대처다.',
+  reflector: '되받이의 웅크림 — 그동안 때린 피해를 그대로 돌려받는다. 웅크리면 잠깐 손을 떼라.',
+  hammer: '망치잡이의 돌망치 — 방어를 뚫고 때린다. 갑옷을 믿지 말고 거리를 벌려라.',
+  shellwright: '껍질장이의 보호막 — 아군의 첫 한 방을 통째로 먹는다. 두 박자로 나눠 쳐라.',
+  vinewhip: '덩굴채의 덩굴 — 거리를 벌려도 끌어당긴다. 예고 원이 뜨면 반경 밖으로 나가라.',
+  stonepiler: '돌쌓이의 돌탑 — 동료가 죽을 때마다 세진다. 이놈부터 잡아야 싸게 먹힌다.',
+  knotter: '매듭지기의 매듭 — 묶인 적끼리 피해를 나눈다. 한 놈만 파지 말고 광역으로 쳐라.',
+  ashthrower: '잿가루꾼의 잿가루 — 맞으면 스킬이 늦게 돌아온다. 한 번 쓸 때 확실히 써라.',
+  emberthrower: '불씨꾼의 불씨 — 떨어진 자리에 불이 남는다. 설 자리를 미리 정해 둬라.'
+};
+//  스킬 설명을 띄우는 우선순위 — 위협 순서(THREAT_ORDER)에 확장 유닛을 끼워 넣은 것.
+//  회복·강화·성장형이 앞이다: 늦게 알수록 손해가 커지는 순서다.
+GAME.TOWER_SKILL_PRIORITY = [
+  'medic', 'shellwright', 'sergeant', 'stonepiler', 'knotter', 'sniper', 'mgnest',
+  'reflector', 'vinewhip', 'chemtrooper', 'ashthrower', 'hammer', 'grenadier',
+  'emberthrower', 'rifleman', 'hivethrower', 'shieldman', 'palisade', 'mine', 'bayonet'
+];
+
 //  이 층 + 내 스킬 → 공략 두 줄. 못 만들면 빈 배열(호출부가 알아서 건너뛴다).
 GAME.towerAdvice = function (formation, heroKey) {
   var out = [];
@@ -172,13 +205,16 @@ GAME.towerAdvice = function (formation, heroKey) {
     var k = base(u.type);
     present[k] = (present[k] || 0) + 1;
   });
-  var order = GAME.TOWER_THREAT_ORDER;
-  for (var i = 0; i < order.length; i++) {
-    if (present[order[i]] && GAME.TOWER_THREAT_PLAN[order[i]]) {
-      //  ⚠ 🎯 는 쓰지 않는다 — 이 화면에서 **층 목표**가 이미 그 아이콘을 쓴다.
-      //    같은 기호를 두 번 쓰면 '이겨야 하는 조건'과 '조언'이 한 덩어리로 읽힌다.
-      out.push('⚔ ' + GAME.TOWER_THREAT_PLAN[order[i]]);
-      break;
+  //  ① 적 스킬 설명 — 최대 2줄 (2026-08-22 태현님: "적 유닛의 스킬설명 위주로").
+  //  예전 ⚔(먼저 죽일 것) 한 줄을 대체한다 — 우선순위 1번의 설명에 이미 '먼저
+  //  끊어라'가 들어 있어 두 정보가 한 줄에 산다. 보스 층은 ☠ 줄이 있으니 1줄만.
+  //  ⚠ 🎯 는 쓰지 않는다 — 이 화면에서 **층 목표**가 이미 그 아이콘을 쓴다.
+  var order = GAME.TOWER_SKILL_PRIORITY || GAME.TOWER_THREAT_ORDER;
+  var wantSkill = (formation && formation.boss) ? 1 : 2;
+  for (var i = 0; i < order.length && wantSkill > 0; i++) {
+    if (present[order[i]] && GAME.TOWER_SKILL_DESC[order[i]]) {
+      out.push('🗡 ' + GAME.TOWER_SKILL_DESC[order[i]]);
+      wantSkill--;
     }
   }
 
@@ -314,15 +350,14 @@ GAME.TowerLoadingScene.prototype.create = function () {
     if (formation && formation.themeLabel) {
       lines.push('🎪 ' + formation.themeLabel + ' — ' + (formation.themeHint || ''));
     }
-    // 탑이 나를 어떻게 읽었는지. 이게 이 모드의 정체성이다.
-    if (formation && formation.readNote) lines.push(formation.readNote);
-    if (formation && formation.planLabel) lines.push('◈ ' + formation.planLabel + ' — ' + formation.planHint);
+    // 층 조건은 답을 바꾸는 규칙이라 적 설명보다 먼저 온다.
     if (formation && formation.ruleLabel) lines.push('⚠ ' + formation.ruleLabel + ' — ' + formation.ruleDesc);
 
-    //  ── 공략 (2026-08-05 사용자 지시) ────────────────────────────────────────
-    //  > "어떻게해야 깰수있을지 플레이방법을 토대로 공략을 제안해주기만 하자"
-    //  '이 유닛은 이런 놈이다'(사실)에서 **'이 판은 이렇게 깨라'(순서)** 로 바꾼다.
-    //  두 줄: 먼저 죽일 것 + 내가 낀 스킬로 그걸 어떻게 하나.
+    //  ── 공략 (2026-08-22 태현님 개편) ────────────────────────────────────────
+    //  > "로딩화면은 적 유닛의 스킬설명 위주로 해줘. 배치와 AI 학습 내용도 꼭
+    //  >  들어가되 1~2줄만 하고 적에 대한 설명과 팁이 더 중요해."
+    //  구성: 🗡 적 스킬 설명(최대 2) + ▸ 내 스킬 팁(1) 이 먼저,
+    //        ◈ 배치 원형 · AI 학습(readNote)은 **맨 뒤 1~2줄**.
     var adv = GAME.towerAdvice ? GAME.towerAdvice(formation, self.heroKey) : [];
     if (adv.length) {
       adv.forEach(function (s) { lines.push(s); });
@@ -344,6 +379,13 @@ GAME.TowerLoadingScene.prototype.create = function () {
         lines.push('💡 ' + tips[Math.floor(Math.random() * tips.length)]);
       }
     }
+
+    //  ── 배치 + AI 학습 — 맨 뒤 1~2줄 (2026-08-22 태현님: "꼭 들어가되 1~2줄만") ──
+    if (formation && formation.planLabel) lines.push('◈ ' + formation.planLabel + ' — ' + formation.planHint);
+    if (formation && formation.readNote) lines.push(formation.readNote);
+    //  줄이 넘치면 **뒤에서부터** 자른다 — 뒤가 배치·학습이라 태현님이 정한
+    //  중요도(적 설명 > 배치·학습) 그대로 잘린다. 7줄이 폰 가로 그림 띠의 하한이다.
+    if (lines.length > 7) lines.length = 7;
   }
   lines = lines.filter(function (s) { return s; });
 

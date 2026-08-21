@@ -194,6 +194,19 @@ GAME.BattleScene.prototype.create = function () {
     d.speed += bonus.speed + ib.speed;
     d.lifesteal = (d.lifesteal || 0) + ib.lifesteal;
     this.hero.cdrMul = (this.hero.cdrMul || 1) * ib.cdrMul;
+    //  공격속도 — **평타 간격만** 줄인다(스킬 쿨은 cdrMul 축이 따로 있다).
+    //  하한 250ms: 넘어가면 타격음·모션이 뭉개져 연타가 아니라 소음이 된다.
+    if (bonus.atkspeed > 0) {
+      d.cooldown = Math.max(250, Math.round(d.cooldown / (1 + bonus.atkspeed / 100)));
+    }
+    //  치명타 — 기본(전 유닛 25%·×1.5) 위에 얹는다. 확률 50% 상한, 넘치면 피해로
+    //  전환(TowerChar.critOf). **탑에서만** 붙는다 — 실시간 대전은 이 분기를 안 지나
+    //  critChance 가 없고, combat 은 없으면 CONFIG 기본값으로 구른다.
+    if (bonus.crit > 0 && GAME.TowerChar.critOf) {
+      var critEff = GAME.TowerChar.critOf(bonus.crit);
+      this.hero.critChance = critEff.chance / 100;
+      this.hero.critMul = critEff.mul;
+    }
     var hpBonus = bonus.hp + ib.hp;
     if (hpBonus) {
       d.hp += hpBonus;

@@ -49,14 +49,16 @@ GAME.TowerShopScene.SOURCES = {
     back: function (sc) { sc.scene.start('Tower', { step: 'challenge' }); },
     rec: function () { return GAME.TowerChar.get(); },
     purse: function (rec) { return rec.gold; },
-    // 교체하면 옛 것이 70% 로 자동 판매되어 차액만 낸다(TowerChar.buyItem 의 계약).
-    priceOf: function (rec, slot, it) {
+    //  가격은 언제나 **정가**다 (2026-08-22 태현님: 낀 것에 따라 상위 아이템 값이
+    //  흔들리면 안 된다). 교체하면 낀 것이 70% 로 자동 판매된다(buyItem 의 계약) —
+    //  그 환급은 afford 가 세고, 카드의 가격표에는 섞지 않는다.
+    priceOf: function (rec, slot, it) { return it.cost; },
+    afford: function (rec, price, slot) {
       var CAT = GAME.TowerShopItems;
-      var cur = rec.items[slot] ? CAT.find(slot, rec.items[slot]) : null;
+      var cur = (slot && rec.items[slot]) ? CAT.find(slot, rec.items[slot]) : null;
       var credit = cur ? Math.floor(cur.cost * GAME.TowerChar.SELL_RATE) : 0;
-      return Math.max(0, it.cost - credit);
+      return rec.gold + credit >= price;
     },
-    afford: function (rec, price, slot) { return rec.gold >= price; },
     buy: function (slot, key) { return !!GAME.TowerChar.buyItem(slot, key); },
     canSell: true,
     sellBack: function (it) { return Math.floor(it.cost * GAME.TowerChar.SELL_RATE); },
@@ -804,10 +806,14 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
     var bw2 = P ? 108 : 150;
     // 대전은 '판매'가 아니라 '벗기'다 — 통화가 아니라 예산이라 값이 그대로 돌아온다.
     var offWord = arena ? '벗기' : '판매';
+    //  교체 시 낀 것의 70% 환급을 여기서 말한다 — 가격표(정가)에 섞으면 상위
+    //  아이템 값이 낀 것에 따라 흔들린다(2026-08-22 태현님 지시로 정가 고정).
+    var pTrade = (!pEquipped && !arena && cur)
+      ? ('  (낀 것 되팔기 +' + self.src.sellBack(cur) + ')') : '';
     this._body.push(GAME.UI.label(this, leftX + 12, barY + barH / 2,
       pick.name + '  ·  ' + (pEquipped ? (arena ? ('벗으면 ' + pBack + ' 돌려받음')
                                                  : ('판매가 ' + pBack + '골드'))
-                                       : (pPrice === 0 ? '무료 교체' : (pPrice + (arena ? '' : '골드')))),
+                                       : (pPrice === 0 ? '무료 교체' : (pPrice + (arena ? '' : '골드') + pTrade))),
       P ? 12 : 15, pEquipped ? C.accent : (pAfford ? C.text : C.textDim), 0)
       .setOrigin(0, 0.5).setWordWrapWidth(leftW - bw2 - 30));
 
@@ -1181,11 +1187,24 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
   var top = this._bodyTop;
   var PAD = GAME.CONFIG.SMALL ? 14 : 24;
   var P = GAME.CONFIG.PHONE;
+  //  ⚠ 스탯이 7종이 되면서(공격속도·치명타 신설, 2026-08-22) 폰 가로(높이 390)는
+  //    예전 행 높이(50)로 못 쌓는다(7×55 = 385 > 몸통 290). 2열로 펴 봤더니 셀이
+  //    좁아져 설명 줄이 버튼을 밟았다(겹침 감사 6건) — **행 높이를 줄여** 한 열을
+  //    유지한다. 남는 가로폭이 설명 줄의 생명선이다.
+  var cols = 1;
+  var colGap = 10;
   var colW = Math.min(W - PAD * 2, 620);
   var leftX = (W - colW) / 2;
+  var cellW = colW;
 
   var rowH = P ? 50 : 62;
   var gap = P ? 5 : 9;
+  if (P) {
+    var availH = GAME.CONFIG.HEIGHT - top - 8;
+    rowH = Math.max(34, Math.floor(availH / GAME.TowerChar.STAT_DEFS.length) - gap);
+  }
+  //  압축 행(폰 7행)에서는 큰 값 글자도 줄여야 다음 행 이름과 안 겹친다.
+  var valFs = P ? (rowH < 44 ? 14 : 18) : 26;
   // ⚠ 아이템 보정까지 **반드시 합친다.** 능력치만 더하면 이 탭은 "공격력 20", 아이템
   //   탭 하단 바는 "+135" 라고 말해 같은 캐릭터를 두 숫자로 부르게 된다(실측으로 발견).
   //   플레이어에게 '현재 능력치'는 언제나 전투에 실제로 들어가는 총합이다.
@@ -1193,7 +1212,8 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
   var itemBonus = GAME.TowerChar.itemBonus(this.char);
 
   GAME.TowerChar.STAT_DEFS.forEach(function (d, i) {
-    var ry = top + i * (rowH + gap);
+    var cx = leftX + (i % cols) * (cellW + colGap);
+    var ry = top + Math.floor(i / cols) * (rowH + gap);
     var lv = self.char.stats[d.key] || 0;
     // ⚠ 2026-08-01 — **상한이 없어졌다**(사용자 지시). '최대' 상태 자체가 사라진다.
     //   살 수 있느냐는 이제 골드가 있느냐만 본다.
@@ -1207,18 +1227,18 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
     var g = self.add.graphics();
     self._body.push(g);
     g.fillStyle(GAME.UI.COL.surfaceAlt, 1);
-    g.fillRoundedRect(leftX, ry, colW, rowH, 10);
+    g.fillRoundedRect(cx, ry, cellW, rowH, 10);
     g.lineStyle(1, GAME.UI.COL.border, 1);
-    g.strokeRoundedRect(leftX, ry, colW, rowH, 10);
+    g.strokeRoundedRect(cx, ry, cellW, rowH, 10);
 
     // 이름(작게) + 현재값(크게) — 이 행에서 가장 먼저 읽혀야 하는 것이 현재값이다.
     // ⚠ 값의 y 를 손으로 박았더니 폰 가로에서 이름 상자와 5px 겹쳤다(겹침 감사가 5건
     //   전부 잡았다). 이름의 **실측 높이** 아래에 붙인다.
-    var nmLbl = GAME.UI.label(self, leftX + 14, ry + (P ? 4 : 9), d.name,
+    var nmLbl = GAME.UI.label(self, cx + 14, ry + (P ? 4 : 9), d.name,
       P ? 10 : 13, C.textDim, 0);
     self._body.push(nmLbl);
-    self._body.push(GAME.UI.label(self, leftX + 14, nmLbl.y + nmLbl.height + (P ? 0 : 2),
-      String(total), P ? 18 : 26, C.text, 0));
+    self._body.push(GAME.UI.label(self, cx + 14, nmLbl.y + nmLbl.height + (P ? 0 : 2),
+      String(total), valFs, C.text, 0));
 
     //  ── 이동속도만 되팔 수 있다 (2026-08-03 사용자 지시) ──────────────────────
     //  > "너무빠르면 컨트롤이 어렵네"
@@ -1228,21 +1248,35 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
     var canSell = GAME.TowerChar.canSellStat && GAME.TowerChar.canSellStat(d.key);
     var sellW = canSell ? (P ? 82 : 104) : 0;
     // 상한 대비 막대 — 하단 스탯바와 **같은 분모**(statCeil)를 써야 두 화면이 같은 말을 한다.
-    var barX = leftX + (P ? 78 : 96);
-    var barW = colW - (P ? 78 : 96) - (P ? 116 : 150) - 14 - (sellW ? sellW + 8 : 0);
+    var barX = cx + (P ? 78 : 96);
+    var barW = cellW - (P ? 78 : 96) - (P ? 116 : 150) - 14 - (sellW ? sellW + 8 : 0);
     var ceil = GAME.TowerChar.statCeil(d.key, total);   // 분모가 총합을 따라 자란다
     var m = GAME.UI.meter(self, barX, ry + rowH / 2 - (P ? 6 : 7), barW, P ? 12 : 14, {
       color: C.controller, frac: Math.max(0, Math.min(1, total / ceil))
     });
     self._body.push({ destroy: function () { m.destroy(); } });
     // 총합 중 얼마가 장비 몫인지 같이 적는다 — 안 적으면 "능력치를 안 샀는데 왜 135 지"가 된다.
+    //  ── 설명 줄 (2026-08-22 태현님: 행운 설명 보강 + 신설 스탯) ────────────────
+    //  행운·치명타·공격속도는 숫자만으론 뜻을 모른다 — 굴림 범위 대신 **효과**를 적는다.
+    //  치명타는 현재 점수의 실효값(확률·배수)을 그 자리에서 계산해 보여준다.
+    //  ⚠ 폰 2열은 설명 자리(막대~버튼)가 약 190px 뿐 — 긴 문장은 버튼을 침범한다(겹침 감사).
+    var smallTxt;
+    if (d.key === 'crit') {
+      var ce = GAME.TowerChar.critOf(total);
+      smallTxt = '확률 ' + ce.chance + '%' + (ce.chance >= 50 ? ' (최대)' : '') + ' · 피해 ×' + ce.mul;
+    } else if (d.key === 'atkspeed') {
+      smallTxt = '평타 간격 ' + Math.round((1 - 1 / (1 + total / 100)) * 100) + '% 감소';
+    } else if (d.key === 'luck') {
+      smallTxt = '골드 +2% · 회복구역 +3% · 드랍 +2.5% /Lv';
+    } else {
+      smallTxt = '굴림 범위  +' + rangeLo + ' ~ +' + rangeHi;
+    }
     self._body.push(GAME.UI.label(self, barX, ry + rowH / 2 + (P ? 8 : 10),
-      ('굴림 범위  +' + rangeLo + ' ~ +' + rangeHi) +
-      (fromItem ? ('    (장비 +' + fromItem + ' 포함)') : ''),
+      smallTxt + (fromItem ? ('  (장비 +' + fromItem + ' 포함)') : ''),
       P ? 10 : 11, C.textDim, 0));
 
     var bw = P ? 110 : 144;
-    var b = GAME.UI.button(self, leftX + colW - 14 - bw / 2, ry + rowH / 2, bw, rowH - (P ? 12 : 16),
+    var b = GAME.UI.button(self, cx + cellW - 14 - bw / 2, ry + rowH / 2, bw, rowH - (P ? 12 : 16),
       '🎲 ' + cost + '골드', function () {
         var res = GAME.TowerChar.levelUp(d.key);
         if (!res) return;
@@ -1259,7 +1293,7 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
     //    미세 조정하는 손잡이라, 한 칸 내릴 때마다 창이 뜨면 쓸 수가 없다.
     if (canSell) {
       var back = GAME.TowerChar.sellStatBack(d.key);
-      var sb = GAME.UI.button(self, leftX + colW - 14 - bw - 8 - sellW / 2, ry + rowH / 2,
+      var sb = GAME.UI.button(self, cx + cellW - 14 - bw - 8 - sellW / 2, ry + rowH / 2,
         sellW, rowH - (P ? 12 : 16), '↩ ' + back + '골드', function () {
           if (!GAME.TowerChar.levelDown(d.key)) return;
           self._buildBody(true);
@@ -1295,7 +1329,7 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
   // 스킬 탭이 그 일을 맡는다. 세 곳에 같은 UI 를 두면 어디가 진짜인지 알 수 없어진다.
   // 안내 한 줄 — 폰 가로(390px)는 5행을 쌓고 나면 이 줄이 화면 밖으로 나간다
   // (겹침 감사의 '잘림' 항목이 잡았다). 들어갈 자리가 있을 때만 띄운다.
-  var footY = top + 5 * (rowH + gap) + (P ? 2 : 10);
+  var footY = top + Math.ceil(GAME.TowerChar.STAT_DEFS.length / cols) * (rowH + gap) + (P ? 2 : 10);
   if (footY + 16 <= GAME.CONFIG.HEIGHT - 4) {
     self._body.push(GAME.UI.label(self, W / 2, footY,
       P ? '🎲 범위 안에서 무작위로 오릅니다 · 꽝 없음'

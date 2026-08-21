@@ -545,11 +545,16 @@ GAME.Combat = {
       }
     }
 
-    // 크리티컬 — 모든 공격에 25% 확률로 1.5배
+    // 크리티컬 — 기본은 모든 공격에 25% 확률로 1.5배.
+    // 치명타 능력치(통곡의 탑, 2026-08-22)를 산 영웅은 자기 값을 갖고 온다
+    // (`critChance`/`critMul`, battle.js 탑 분기에서만 심는다 — 없으면 기본값 그대로라
+    //  대전·수성탑·실시간은 한 톨도 안 바뀐다).
     var crit = false;
-    if (!(opts && opts.noCrit) && GAME.Combat.rand() < GAME.CONFIG.CRIT_CHANCE) {
+    var critCh = (source && source.critChance) || GAME.CONFIG.CRIT_CHANCE;
+    var critMu = (source && source.critMul) || GAME.CONFIG.CRIT_MULT;
+    if (!(opts && opts.noCrit) && GAME.Combat.rand() < critCh) {
       crit = true;
-      dmg *= GAME.CONFIG.CRIT_MULT;
+      dmg *= critMu;
     }
 
     // 방어력은 '비율' 경감이다. 정액 차감으로 하면 방어력 높은 영웅에게

@@ -35,12 +35,33 @@ GAME.TowerChar = {
     // ⚠ `max` 는 이제 **상한이 아니라 막대의 기준선**이다(2026-08-01 상한 폐지).
     //   구매를 막는 데는 안 쓰이고, 진행 막대의 분모로만 쓴다. 그 선을 넘어서면
     //   `statCeil` 이 분모를 함께 늘려 막대가 꽉 찬 채 멈추지 않게 한다.
+    //  `desc` 는 능력치 탭 행의 설명 줄이다(2026-08-22 태현님: 행운 설명 보강 +
+    //  공격속도·치명타 신설). 없는 스탯은 굴림 범위를 대신 보여준다.
     { key: 'damage', name: '공격력',   add: 2,  cost: 8,  step: 3, max: 60 },
     { key: 'hp',     name: '체력',     add: 45, cost: 8,  step: 3, max: 60 },
     { key: 'armor',  name: '방어력',   add: 3,  cost: 9,  step: 4, max: 50 },
     { key: 'speed',  name: '이동속도', add: 5,  cost: 9,  step: 4, max: 40 },
-    { key: 'luck',   name: '행운',     add: 1,  cost: 14, step: 6, max: 30 }
+    //  공격속도 — **평타 간격**만 줄인다(스킬 쿨은 장신구 cdrMul 축이 따로 있다.
+    //  같은 축을 두 곳에서 깎으면 상한(CDR_FLOOR)이 무의미해진다).
+    { key: 'atkspeed', name: '공격속도', add: 2, cost: 10, step: 4, max: 40,
+      desc: '평타가 빨라진다 — 쌓인 % 만큼 공격 간격이 줄어든다' },
+    //  치명타 — 확률은 50%까지, 그 위로는 치명타 피해로 전환(2026-08-22 태현님 설계).
+    { key: 'crit',   name: '치명타',   add: 2,  cost: 12, step: 5, max: 50 },
+    { key: 'luck',   name: '행운',     add: 1,  cost: 14, step: 6, max: 30,
+      desc: '레벨당: 골드 +2% · 회복 구역 등장 +3% · 아이템 드랍 +2.5%' }
   ],
+
+  //  치명타 점수 → 실효값. 기본은 전 유닛 공통 크리(CONFIG 25%·×1.5)이고,
+  //  점수는 그 위에 얹힌다: 확률은 **50%에서 멈추고**, 멈춘 뒤 남는 점수는
+  //  1점당 치명타 피해 +2%p 로 바뀐다(태현님: "치명타확률은 최대 50%까지이고
+  //  그다음부턴 치명타데미지가 늘어나는 방식").
+  critOf: function (pts) {
+    var baseCh = Math.round((GAME.CONFIG.CRIT_CHANCE || 0.25) * 100);
+    var baseMul = GAME.CONFIG.CRIT_MULT || 1.5;
+    var ch = Math.min(50, baseCh + (pts || 0));
+    var over = Math.max(0, (pts || 0) - (50 - baseCh));
+    return { chance: ch, mul: Math.round((baseMul + over * 0.02) * 100) / 100 };
+  },
 
   // 아이템 판매 환급률 (요청 14: "되팔면 70% 가격으로")
   SELL_RATE: 0.70,
@@ -352,9 +373,13 @@ GAME.TowerChar = {
     if (!it) return null;
     var cur = rec.items[slotKey] ? CAT.find(slotKey, rec.items[slotKey]) : null;
     var credit = cur ? Math.floor(cur.cost * this.SELL_RATE) : 0;
-    var price = Math.max(0, it.cost - credit);
-    if (rec.gold < price) return null;
-    rec.gold -= price;
+    //  ── 가격은 언제나 **정가**다 (2026-08-22 태현님: "하위 아이템을 산다고 상위
+    //  아이템 값이 변하면 안 된다"). 예전엔 `정가 − 낀 것의 70%` 차액을 청구해서,
+    //  뭘 끼고 있느냐에 따라 같은 아이템의 표시 가격이 흔들렸다. 지금은 정가를
+    //  내고 **낀 것은 70% 에 자동으로 되판다** — 순수지출은 예전과 동일하고,
+    //  화면의 가격표만 흔들리지 않게 된다.
+    if (rec.gold + credit < it.cost) return null;
+    rec.gold = rec.gold - it.cost + credit;
     rec.items[slotKey] = itemKey;
     this._save(rec);
     return rec;

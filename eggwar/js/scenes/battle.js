@@ -961,6 +961,68 @@ GAME.BattleScene.prototype._updateOrbs = function (dt) {
   }
 };
 
+// ── 영웅 발견 연출 (2026-08-22 태현님 지시) ─────────────────────────────────
+//  combat 은 판정만 남긴다(state.spots) — 여기서 소비해 ① 빨간 느낌표(발견한 유닛
+//  전부) ② 말풍선(GAME.Banter 가 쿨다운·확률로 거른 한 줄, 닉네임 언급)을 띄운다.
+//  ⚠ worldLayer 에 담는다 — PC 줌·폰 확대에서 전장과 같이 움직여야 한다(피해 숫자 규율).
+GAME.BattleScene.prototype._updateSpots = function () {
+  var st = this.state;
+  if (!st || !st.spots || !st.spots.length) return;
+  for (var i = 0; i < st.spots.length; i++) this._spawnSpotFx(st.spots[i]);
+  st.spots.length = 0;
+};
+
+GAME.BattleScene.prototype._spawnSpotFx = function (u) {
+  if (!u || !u.alive) return;
+  var Iso = GAME.Iso, C = GAME.CONFIG;
+  var sx = u.x, sy = Iso.toScreenY(u.y);
+  var self = this;
+
+  // ① 빨간 느낌표 — 짧게 튀어올랐다 사라진다(0.8초). 발견한 유닛 전부에 뜬다.
+  var ex = this.add.text(sx, sy - (C.PHONE ? 34 : 46), '!', {
+    fontFamily: C.FONT, fontSize: (C.PHONE ? 22 : 30) + 'px', fontStyle: 'bold',
+    color: '#ff3030', stroke: '#4a0808', strokeThickness: 4
+  }).setOrigin(0.5, 1);
+  if (this.worldLayer) this.worldLayer.add(ex);
+  ex.setScale(0.2);
+  this.tweens.add({ targets: ex, scale: 1.15, duration: 140, ease: 'Back.easeOut' });
+  this.tweens.add({ targets: ex, y: ex.y - 10, alpha: 0, delay: 420, duration: 360,
+                    onComplete: function () { ex.destroy(); } });
+
+  // ② 말풍선 — 한 번에 하나만, Banter 가 상황(층·보스·체력·유닛 종류)을 보고 고른다.
+  if (!GAME.Banter || (this._bubble && this._bubble.scene)) return;
+  var base = (GAME.UnitLevel && GAME.UnitLevel.baseKeyOf)
+             ? GAME.UnitLevel.baseKeyOf(u.def.key || '') : (u.def.key || '');
+  var line = GAME.Banter.pick({
+    nick: (GAME.Account && GAME.Account.current && GAME.Account.current()) || '',
+    unitKey: base,
+    floor: this.tower || 0,
+    boss: !!(this.tower && GAME.Tower && GAME.Tower.isBossFloor &&
+             GAME.Tower.isBossFloor(this.tower)),
+    heroKey: this.heroKey,
+    heroHpFrac: (this.hero && this.hero.maxHp) ? this.hero.hp / this.hero.maxHp : undefined,
+    selfHpFrac: u.maxHp ? u.hp / u.maxHp : undefined
+  });
+  if (!line) return;
+  var bub = this.add.text(sx, sy - (C.PHONE ? 42 : 56), line, {
+    fontFamily: C.FONT, fontSize: (C.PHONE ? 11 : 13) + 'px',
+    color: '#fff6df', backgroundColor: 'rgba(24,18,10,0.86)',
+    padding: { x: 8, y: 5 }, align: 'center',
+    wordWrap: { width: C.PHONE ? 190 : 240 }
+  }).setOrigin(0.5, 1);
+  //  전장 밖으로 나가지 않게 가로만 가둔다 — 위쪽 유닛의 긴 대사가 잘리는 것을 막는다.
+  var hw = bub.width / 2;
+  bub.x = Math.max(hw + 6, Math.min(C.WIDTH - hw - 6, bub.x));
+  if (bub.y - bub.height < 4) bub.y = 4 + bub.height;
+  if (this.worldLayer) this.worldLayer.add(bub);
+  this._bubble = bub;
+  bub.setAlpha(0);
+  this.tweens.add({ targets: bub, alpha: 1, duration: 160 });
+  this.tweens.add({ targets: bub, y: bub.y - 8, delay: 300, duration: 1900 });
+  this.tweens.add({ targets: bub, alpha: 0, delay: 2200, duration: 380,
+                    onComplete: function () { bub.destroy(); if (self._bubble === bub) self._bubble = null; } });
+};
+
 //  주웠을 때 뜨는 한 줄. 사용자 예시 형식 그대로:
 //    "회피의 구슬 — 이동 중 받는 피해 18% 감소!"
 //  ⚠ **전장 안쪽 아래**에 띄운다(2026-07-31 사용자 지시: "필드 바깥에서 뜨니까 글자를
@@ -1534,6 +1596,8 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   }
   // 구슬 줍기 — 동전과 **같은 문법**이다(지나가면 줍는다). 플레이어가 새로 배울 것이 없다.
   this._updateOrbs(dt);
+  // 영웅 발견 연출 — combat 이 남긴 state.spots 를 소비한다(느낌표 + 말풍선).
+  this._updateSpots();
   // 치유 구역 — 통곡의 탑 전투에서만 존재한다(state.towerHealOn).
   this._updateHealZones(dt);
   //  ── 궁극기 배너 — 엔진이 남긴 신호를 씬이 읽어 띄운다 ────────────────────

@@ -226,6 +226,10 @@ GAME.TowerShopScene.prototype._clearBody = function () {
 // `_refreshRun` 과 같은 관용, 디자인 검토 #7: 이 화면만 그 연출이 빠져 있었다).
 GAME.TowerShopScene.prototype._buildBody = function (bump) {
   this._clearBody();
+  //  풀 이미지 전부 숨김 — 이 화면은 스윕이 안 돌아서, 탭을 갈아엎을 때 옛 탭의
+  //  아이콘·무기 이미지가 유령으로 남는다(gearbank._order 도입으로 이미지가 패널
+  //  위로 올라오면서 눈에 보이게 됐다). 이번 탭이 다시 그리는 것만 되살아난다.
+  if (GAME.GearBank && GAME.GearBank.hideAll) GAME.GearBank.hideAll();
   this.char = this.src.rec();           // 구매 직후 최신 상태로 다시 읽는다
   this.hero = GAME.HEROES[this.char.heroKey] || this.hero;
   var C = GAME.CONFIG.COLORS;

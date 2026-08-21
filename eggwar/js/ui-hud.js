@@ -76,17 +76,19 @@ window.GAME = window.GAME || {};
     if (kind === 'i')   return has ? '이' : '가';
     if (kind === 'gwa') return has ? '과' : '와';
     if (kind === 'ro')  return (!has || jong === 8) ? '로' : '으로';
+    if (kind === 'ya')  return has ? '아' : '야';   // 호격 — '태현아' / '베론아'... '누리야'
     return has ? '은' : '는';
   };
 
-  //  '{n}' 에 이름을 넣고 '{은}{를}{가}{로}' 를 그 이름에 맞는 조사로 바꾼다.
+  //  '{n}' 에 이름을 넣고 '{은}{를}{가}{로}{야}' 를 그 이름에 맞는 조사로 바꾼다.
   UI.fillName = function (tpl, name) {
     return String(tpl)
       .replace(/\{n\}/g, name)
       .replace(/\{은\}/g, UI.josa(name, 'eun'))
       .replace(/\{를\}/g, UI.josa(name, 'eul'))
       .replace(/\{가\}/g, UI.josa(name, 'i'))
-      .replace(/\{로\}/g, UI.josa(name, 'ro'));
+      .replace(/\{로\}/g, UI.josa(name, 'ro'))
+      .replace(/\{야\}/g, UI.josa(name, 'ya'));
   };
 
   // ───────────────────────────────────────────────────────────────────────

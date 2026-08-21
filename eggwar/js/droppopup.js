@@ -71,17 +71,42 @@ GAME.DropPopup = {
       .setStrokeStyle(2, C.accent).setDepth(4001);
     els.push(panel);
 
-    // ① 축하 — 소리 + 반짝임 + 튕김. 셋 다 없으면 그냥 안내문이 된다.
-    if (GAME.Sound) { try { GAME.Sound.play('win'); } catch (e) {} }
-    // 반짝임은 **패널 뒤**에 둔다(장막과 같은 깊이, 나중에 추가되어 위로 온다).
+    // ① 축하 — 빵빠레 + 빛살 + 색종이 + 반짝임 + 튕김 (2026-08-22 태현님:
+    //    "좀 더 축하하는 느낌의 이펙트나 빵빠레"). 소리는 나팔식 팡파레로 승격.
+    if (GAME.Sound) { try { GAME.Sound.play('fanfare'); } catch (e) {} }
+    // 반짝임·빛살·색종이는 **패널 뒤**에 둔다(장막과 같은 깊이, 나중에 추가되어 위로 온다).
     // 패널 위에 두면 글자 위에 얼룩이 앉아 읽기를 방해한다.
     var spark = scene.add.graphics().setDepth(4000);
     els.push(spark);
+    //  색종이 40장 — 패널 상단 양끝에서 포물선으로 튀어 오르며 팔랑거린다.
+    //  Graphics 한 장으로 매 틱 다시 그린다(개별 GameObject 40개는 낭비 — gfxpool 규율).
+    var confetti = [];
+    var CCOL = [0xf0a500, 0xe8455f, 0x5aa9e6, 0x7bc96f, 0xffffff, 0xc77dff];
+    for (var ci = 0; ci < 40; ci++) {
+      var side = ci % 2 ? 1 : -1;
+      confetti.push({
+        x: cx + side * pw * 0.42, y: top + 30,
+        vx: -side * (40 + Math.random() * 170), vy: -(240 + Math.random() * 260),
+        w: 5 + Math.random() * 5, h: 3 + Math.random() * 4,
+        rot: Math.random() * Math.PI, vr: (Math.random() * 2 - 1) * 9,
+        c: CCOL[ci % CCOL.length], delay: Math.random() * 250
+      });
+    }
     var t0 = 0;
     var sparkEvt = scene.time.addEvent({
       delay: 33, loop: true, callback: function () {
         t0 += 33;
         spark.clear();
+        //  빛살 — 패널 중심에서 도는 12줄기(경사진 긴 삼각형). 개대박 연출의 정석.
+        var rayA = t0 / 2400;
+        for (var ri = 0; ri < 12; ri++) {
+          var ra = rayA + (ri / 12) * Math.PI * 2;
+          var rl = pw * 0.95;
+          spark.fillStyle(ri % 2 ? 0xffd35c : 0xfff3c4, 0.10);
+          spark.fillTriangle(cx, cy,
+            cx + Math.cos(ra) * rl, cy + Math.sin(ra - 0.09) * rl * 0.7,
+            cx + Math.cos(ra + 0.14) * rl, cy + Math.sin(ra + 0.05) * rl * 0.7);
+        }
         for (var i = 0; i < 14; i++) {
           var a = (i / 14) * Math.PI * 2 + t0 / 900;
           var ph2 = ((t0 / 1200) + i * 0.07) % 1;
@@ -89,6 +114,26 @@ GAME.DropPopup = {
           spark.fillStyle(i % 3 ? 0xffd35c : 0xffffff, (1 - ph2) * 0.6);
           spark.fillCircle(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.62,
                            2 + (1 - ph2) * 4);
+        }
+        //  색종이 — 간단한 중력 + 팔랑임(가로 진동). 2.6초면 화면 밖으로 다 진다.
+        for (var cj = 0; cj < confetti.length; cj++) {
+          var p = confetti[cj];
+          if (t0 < p.delay) continue;
+          var dt2 = 0.033;
+          p.vy += 560 * dt2;
+          p.x += (p.vx + Math.sin((t0 - p.delay) / 130 + cj) * 46) * dt2;
+          p.y += p.vy * dt2;
+          p.rot += p.vr * dt2;
+          if (p.y > H + 20) continue;
+          spark.fillStyle(p.c, 0.92);
+          //  회전한 직사각형 — save/rotate 대신 좌표 4점 직접 계산(호출 40회뿐).
+          var cw2 = p.w / 2, ch2 = p.h / 2, cs = Math.cos(p.rot), sn = Math.sin(p.rot);
+          spark.fillPoints([
+            { x: p.x - cw2 * cs + ch2 * sn, y: p.y - cw2 * sn - ch2 * cs },
+            { x: p.x + cw2 * cs + ch2 * sn, y: p.y + cw2 * sn - ch2 * cs },
+            { x: p.x + cw2 * cs - ch2 * sn, y: p.y + cw2 * sn + ch2 * cs },
+            { x: p.x - cw2 * cs - ch2 * sn, y: p.y - cw2 * sn + ch2 * cs }
+          ], true);
         }
       }
     });

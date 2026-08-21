@@ -2516,6 +2516,28 @@ GAME.Combat = {
       }
     }
 
+    //  ── 영웅 발견 (2026-08-22 태현님: "빨간 느낌표 + 말풍선") ────────────────
+    //  전략가 유닛이 영웅을 자기 반응 범위(effAggro) 안에서 **처음** 본 순간만 기록한다.
+    //  여기는 판정·기록뿐 — 느낌표·대사는 렌더(battle.js)가 `state.spots` 를 소비해
+    //  그린다. 헤드리스 시뮬·밸런스에는 한 톨도 안 들어간다(난수도 안 쓴다).
+    (function (C2) {
+      var sh = null, si;
+      for (si = 0; si < state.units.length; si++) {
+        var cu = state.units[si];
+        if (cu.isHero && cu.alive && cu.side === 'controller') { sh = cu; break; }
+      }
+      if (!sh) return;
+      for (si = 0; si < state.units.length; si++) {
+        var su = state.units[si];
+        if (!su.alive || su.side !== 'strategist' || su._spotAt !== undefined ||
+            C2.isHazard(su)) continue;
+        if (C2.dist(su, sh) <= C2.effAggro(su, state)) {
+          su._spotAt = state.elapsed;
+          (state.spots || (state.spots = [])).push(su);
+        }
+      }
+    })(this);
+
     //  ── 잉걸불 구역 (2026-08-08 · 불씨꾼) ──────────────────────────────────
     //  전장이 시간에 따라 좁아진다 — 회피가 '한 번의 반응'이 아니라 '누적된 계획'이 된다.
     //  ⚠ 심은 쪽은 안 밟는다. 아군까지 태우면 진형이 제 불에 녹아 배치가 뜻을 잃는다

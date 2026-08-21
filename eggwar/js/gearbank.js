@@ -101,6 +101,38 @@
       }
     },
 
+    //  ── 이미지를 자기 Graphics 의 "바로 위 / 바로 아래"에 세운다 (2026-08-22) ──
+    //  왜 depth 로 못 하나: ① **컨테이너(전투 worldLayer)는 자식 depth 를 무시**하고
+    //  add 순서로 그린다 ② 씬 직속(상점·로비)은 depth 동률이면 생성 순서인데, 풀에서
+    //  **재사용된 이미지는 옛날에 만들어진 것**이라 나중에 만든 패널 배경 밑에 깔린다
+    //  (사냥꾼 상점 미리보기에서 활이 통째로 사라진 실제 사고 — 태현님 신고).
+    //  ⚠ 이미 옳은 쪽에 있으면 건드리지 않는다 — 매 프레임 전부 옮기면 같은 쪽
+    //    이미지들끼리의 그리기 순서(투구가 무기 위)가 뒤집힌다.
+    _order: function (img, g, behind) {
+      var pc = img.parentContainer;
+      if (pc) {
+        var gi = pc.getIndex(g), ii = pc.getIndex(img);
+        if (gi < 0 || ii < 0) return;
+        if (behind) { if (ii > gi) pc.moveTo(img, gi); }
+        else if (ii < gi) pc.moveTo(img, gi);
+      } else if (img.scene) {
+        img.setDepth(g.depth || 0);
+        var dl = img.scene.children;
+        if (dl.getIndex(g) < 0) return;
+        if (behind) { if (dl.getIndex(img) > dl.getIndex(g)) dl.moveBelow(img, g); }
+        else if (dl.getIndex(img) < dl.getIndex(g)) dl.moveAbove(img, g);
+      }
+    },
+
+    //  정적 화면(상점 등)이 화면을 통째로 다시 지을 때 부른다 — 스윕이 안 도는
+    //  화면에서는 이걸 안 부르면 옛 탭의 아이콘이 유령으로 남는다.
+    hideAll: function () {
+      for (var k in this._pool) {
+        var list = this._pool[k];
+        for (var i = 0; i < list.length; i++) list[i].img.setVisible(false);
+      }
+    },
+
     _acquire: function (key, scene) {
       var list = this._pool[key] || (this._pool[key] = []);
       for (var i = 0; i < list.length; i++) {
@@ -178,8 +210,8 @@
          .setPosition(gripX, gripY)
          .setScale(s)
          .setRotation(Math.atan2(dirY, dirX) + Math.PI / 2)
-         .setAlpha(alpha == null ? 1 : alpha)
-         .setDepth(g.depth || 0);
+         .setAlpha(alpha == null ? 1 : alpha);
+      this._order(img, g, false);
       return true;
     },
 
@@ -203,8 +235,8 @@
          .setPosition(x0, y0)
          .setScale(flipX ? -s : s, s)
          .setRotation(Math.atan2(dy, dx) - Math.PI / 2)
-         .setAlpha(alpha == null ? 1 : alpha)
-         .setDepth((g.depth || 0) - (behind ? 0.5 : 0));
+         .setAlpha(alpha == null ? 1 : alpha);
+      this._order(img, g, !!behind);
       return true;
     },
 
@@ -223,8 +255,8 @@
          .setPosition(x, y)
          .setScale(w / tex.width, h / tex.height)
          .setRotation(0)
-         .setAlpha(alpha == null ? 1 : alpha)
-         .setDepth((g.depth || 0) - (behind ? 0.5 : 0));
+         .setAlpha(alpha == null ? 1 : alpha);
+      this._order(img, g, !!behind);
       //  ⚠ 풀 재사용 — 틴트·블렌드를 안 지우면 다른 자리가 이전 상태로 물든다.
       if (tint != null) img.setTint(tint); else img.clearTint();
       img.setBlendMode(add ? Phaser.BlendModes.ADD : Phaser.BlendModes.NORMAL);

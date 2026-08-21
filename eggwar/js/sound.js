@@ -276,6 +276,24 @@ GAME.Sound = {
           this._later(0.13, function (s) { s._tone({ type: 'triangle', f0: 659, dur: 0.16, vol: 0.22 }); });
           this._later(0.27, function (s) { s._tone({ type: 'triangle', f0: 784, dur: 0.30, vol: 0.24 }); });
           break;
+        //  ── 빵빠레 (2026-08-22 태현님: "드랍 얻으면 좀 더 축하하는 느낌") ──────────
+        //  `win`(상행 3음)보다 길고 화려한 나팔식 팡파레: 따-따-따-딴~ + 화음 마무리.
+        //  나팔 흉내는 sawtooth(배음 풍부) + 살짝 어긋난 옥타브 겹침이 만든다.
+        //  ⚠ 1.1초로 끊는다 — 팝업 애니메이션(튕김 0.42s + 색종이)과 같이 끝나야
+        //    "축하가 끝났는데 소리만 남는" 어색함이 없다.
+        case 'fanfare':
+          if (!this._gate('fanfare', 900)) return;
+          this._tone({ type: 'sawtooth', f0: 523, dur: 0.11, vol: 0.15 });
+          this._later(0.12, function (s) { s._tone({ type: 'sawtooth', f0: 523, dur: 0.09, vol: 0.13 }); });
+          this._later(0.24, function (s) { s._tone({ type: 'sawtooth', f0: 659, dur: 0.11, vol: 0.15 }); });
+          this._later(0.38, function (s) {
+            //  마무리 화음(C-E-G) — 세 음을 동시에, 옥타브 위 반짝이 한 톨.
+            s._tone({ type: 'sawtooth', f0: 523, dur: 0.55, vol: 0.12 });
+            s._tone({ type: 'sawtooth', f0: 659, dur: 0.55, vol: 0.10 });
+            s._tone({ type: 'sawtooth', f0: 784, dur: 0.55, vol: 0.12 });
+            s._tone({ type: 'triangle', f0: 1568, dur: 0.40, vol: 0.08 });
+          });
+          break;
         case 'lose':         // 패배 — 하행 2음
           this._tone({ type: 'triangle', f0: 392, dur: 0.22, vol: 0.20 });
           this._later(0.18, function (s) { s._tone({ type: 'triangle', f0: 262, dur: 0.40, vol: 0.20 }); });

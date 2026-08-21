@@ -81,6 +81,8 @@ GAME.FitScene.prototype.create = function () {
     self._erase = !self._erase;
     self._eraseBtn.setText(self._erase ? '🧽 지우개 끄기 (드래그=지움 · 휠=브러시)' : '🧽 지우개 켜기');
     self._eraseBtn.setBackgroundColor(self._erase ? '#a5262e' : '#7a3a5a');
+    var ap = self.input.activePointer;
+    self._drawBrushCursor(ap.x, ap.y);
   });
   var undoE = this.add.text(W * 0.42 + 330, H - 110, '↩ 지우기 취소', {
     fontFamily: 'sans-serif', fontSize: '14px', color: '#f3ecd8',
@@ -152,8 +154,9 @@ GAME.FitScene.prototype.create = function () {
   this.input.on('wheel', function (p, objs, dx, dy) {
     if (!self._cur) return;
     if (self._erase) {                           // 지우개 모드: 휠 = 브러시 크기
-      self._brush = Math.max(6, Math.min(120, self._brush * (dy > 0 ? 0.88 : 1.14)));
+      self._brush = Math.max(6, Math.min(160, self._brush * (dy > 0 ? 0.88 : 1.14)));
       self._info.setText('브러시 ' + Math.round(self._brush) + 'px');
+      self._drawBrushCursor(p.x, p.y);
       return;
     }
     var f = dy > 0 ? 0.94 : 1.06;
@@ -167,7 +170,30 @@ GAME.FitScene.prototype.create = function () {
     self._refresh();
   });
 
+  //  지우개 커서 — 지우개 모드에서 포인터를 따라다니는 브러시 원(2026-08-21 요청).
+  this._brushG = this.add.graphics().setDepth(90);
+  this.input.on('pointermove', function (p) { self._drawBrushCursor(p.x, p.y); });
+
   this._loadSavedCount();
+};
+
+//  브러시 원은 **화면 크기**로 보여야 한다 — 브러시 값은 원본 픽셀 기준이라
+//  이미지 축소 배율을 곱해 실제로 지워질 크기 그대로 그린다.
+GAME.FitScene.prototype._drawBrushCursor = function (px, py) {
+  var g = this._brushG;
+  if (!g) return;
+  g.clear();
+  if (!this._erase || !this._cur) return;
+  var im = this._cur.img;
+  var ct = this.textures.get('edit-' + this._cur.key);
+  var scale = ct ? (im.displayWidth / ct.width) : 1;
+  var rr = this._brush * scale;
+  g.lineStyle(2, 0xd8323c, 0.9);
+  g.strokeCircle(px, py, rr);
+  g.lineStyle(1, 0xffffff, 0.8);
+  g.strokeCircle(px, py, rr + 1.5);
+  g.lineBetween(px - 5, py, px + 5, py);
+  g.lineBetween(px, py - 5, px, py + 5);
 };
 
 GAME.FitScene.prototype._drawEgg = function () {
@@ -266,7 +292,30 @@ GAME.FitScene.prototype._clearCur = function () {
   var all = this._store();
   delete all[this._cur.key];
   localStorage.setItem('eggwar.fit', JSON.stringify(all));
+  //  지우개 커서 — 지우개 모드에서 포인터를 따라다니는 브러시 원(2026-08-21 요청).
+  this._brushG = this.add.graphics().setDepth(90);
+  this.input.on('pointermove', function (p) { self._drawBrushCursor(p.x, p.y); });
+
   this._loadSavedCount();
+};
+
+//  브러시 원은 **화면 크기**로 보여야 한다 — 브러시 값은 원본 픽셀 기준이라
+//  이미지 축소 배율을 곱해 실제로 지워질 크기 그대로 그린다.
+GAME.FitScene.prototype._drawBrushCursor = function (px, py) {
+  var g = this._brushG;
+  if (!g) return;
+  g.clear();
+  if (!this._erase || !this._cur) return;
+  var im = this._cur.img;
+  var ct = this.textures.get('edit-' + this._cur.key);
+  var scale = ct ? (im.displayWidth / ct.width) : 1;
+  var rr = this._brush * scale;
+  g.lineStyle(2, 0xd8323c, 0.9);
+  g.strokeCircle(px, py, rr);
+  g.lineStyle(1, 0xffffff, 0.8);
+  g.strokeCircle(px, py, rr + 1.5);
+  g.lineBetween(px - 5, py, px + 5, py);
+  g.lineBetween(px, py - 5, px, py + 5);
 };
 
 GAME.FitScene.prototype._loadSavedCount = function () {

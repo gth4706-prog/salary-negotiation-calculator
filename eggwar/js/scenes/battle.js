@@ -1173,6 +1173,14 @@ GAME.BattleScene.prototype._ultBanner = function (name) {
 //  ⚠ `DefendScene` 은 자기 `init` 을 따로 갖는다 → 여기서 **게으르게 초기화**한다
 //    (프로토타입을 빌려 쓰는 씬이 undefined 를 만나 터지는 사고가 이미 있었다).
 GAME.BattleScene.prototype.TOAST_MAX = 4;
+//  획득 알람 (2026-08-22 태현님: "전투중에는 알람만") — 구슬 토스트와 같은 자리·문법.
+//  팝업·빵빠레는 여기서 절대 안 연다. 큐에 넣어 두면 등반이 멈추는 화면이 연다.
+GAME.BattleScene.prototype._dropAlert = function (drop) {
+  if (GAME.DropPopup) GAME.DropPopup.enqueue(drop);
+  this._orbToast((drop.kind === 'item' ? '🎁 ' : '📖 ') + drop.name + ' 획득!');
+  if (GAME.Sound) { try { GAME.Sound.play('coin'); } catch (e) {} }
+};
+
 GAME.BattleScene.prototype._orbToast = function (text) {
   if (!text) return;
   if (!this._toastQ) this._toastQ = [];
@@ -1787,6 +1795,7 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
             // 전, 동전 비가 뿌려지는 것과 같은 자리에서 운다.
             if (GAME.Sound) GAME.Sound.play('bossDown');
             bossDrop = GAME.TowerChar.grantBossDrop();
+            if (bossDrop) this._dropAlert(bossDrop);
             // 더 줄 게 없으면(전부 최상급 보유) 골드로 갈음한다 — 확정 보상인데
             // 아무 일도 안 일어나면 "보스를 깼는데 왜 아무것도 없지"가 된다.
             if (!bossDrop) {
@@ -1800,7 +1809,7 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
             // 확률·후보 규칙은 전부 `TowerChar` 안에 있다. 여기서 숫자를 또 쓰면
             // 두 벌이 되어 조용히 갈라진다(이 폴더가 반복해서 겪은 실패).
             bossDrop = GAME.TowerChar.rollFloorDrop();
-            if (bossDrop) runRec = GAME.TowerChar.get();
+            if (bossDrop) { runRec = GAME.TowerChar.get(); this._dropAlert(bossDrop); }
           }
         } else {
           // ── 져도 **주운 동전은 내 것이다** (2026-08-01 사용자 신고) ──────────

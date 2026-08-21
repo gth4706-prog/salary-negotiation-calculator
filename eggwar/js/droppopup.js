@@ -28,6 +28,21 @@ window.GAME = window.GAME || {};
 GAME.DropPopup = {
   active: null,
 
+  //  ── 큐 (2026-08-22 태현님: "빵빠레는 전투중에 나오면 안돼") ────────────────
+  //  층 클리어는 Result 를 건너뛰고 곧장 다음 층 도전 화면으로 가는 흐름이라,
+  //  거기서 팝업을 열면 등반 루프 한복판을 끊는다. 그래서 전투가 준 드랍은
+  //  ① 전투 화면에서 토스트 알람만(battle.js) ② 여기 큐에 쌓았다가
+  //  ③ 등반이 **실제로 멈추는 화면**(진짜 Result·탑 랜딩)에서 빵빠레와 함께 연다.
+  //  세션 메모리다 — 게임을 끄면 사라지지만 아이템은 이미 장착됐고 토스트로 알렸다.
+  queue: [],
+  enqueue: function (drop) { if (drop) this.queue.push(drop); },
+  flush: function (scene, onDone) {
+    var self = this;
+    if (!this.queue.length) { if (onDone) onDone(); return; }
+    var d = this.queue.shift();
+    this.open(scene, d, function () { self.flush(scene, onDone); });
+  },
+
   isOpen: function () { return !!this.active; },
 
   //  drop = { kind:'item'|'skill', name, slotName, tier, total, gain:[], desc, prevName, from }

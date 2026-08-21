@@ -90,6 +90,7 @@ GAME.TowerScene.prototype.create = function (data) {
   }
 
   var step = (data && data.step) || 'landing';
+  this.step = step;   // 획득 팝업 큐가 "등반 루프인가(challenge)"를 가른다(_refresh)
   // Phaser 의 `Systems.start(data)` 는 data 가 없으면 **이전 settings.data 를 그대로 둔다.**
   // 그래서 `restart({step:'challenge'})` 뒤에 메뉴를 거쳐 인자 없는 `scene.start('Tower')`
   // 로 돌아오면 step 이 'challenge' 로 남아 랜딩(탑 일러스트·세계관 문단)을 건너뛴다(실측).
@@ -1294,14 +1295,13 @@ GAME.TowerScene.prototype._refresh = function () {
   // 클리어 직후 첫 그리기에서는 골드 숫자를 튕겨준다 — 결과 화면의 보상 연출을 대신한다.
   if (this.char) { this._refreshRun(!!this._cleared); }
 
-  // ── 획득 팝업 (2026-08-02 사용자 지시) ────────────────────────────────────
-  //  아래 힌트 줄에도 한 줄로 적히지만, **그 줄은 못 보고 지나간다**(구슬·축복이
-  //  두 번 죽은 이유가 그것이다). 화면을 멈춰 세우고 무엇을 얼마나 얻었는지 알린다.
-  //  ⚠ `_dropShown` 으로 한 번만 띄운다. `_refresh` 는 탭 전환·되돌아오기마다
-  //    다시 불리므로 가드가 없으면 상점을 다녀올 때마다 축하 팝업이 뜬다.
-  if (this._cleared && this._cleared.drop && !this._dropShown && GAME.DropPopup) {
+  // ── 획득 팝업 (2026-08-22 태현님 개편: "전투중에 나오면 안돼") ────────────
+  //  등반 루프(도전 화면 step 'challenge')에서는 절대 안 연다 — 힌트 줄만.
+  //  탑 **랜딩**(등반을 멈추고 나온 화면)에서만 큐를 연다. 진짜 Result 도 연다.
+  if (this.step !== 'challenge' && GAME.DropPopup && GAME.DropPopup.queue.length &&
+      !this._dropShown) {
     this._dropShown = true;
-    GAME.DropPopup.open(this, this._cleared.drop);
+    GAME.DropPopup.flush(this);
   }
 
   this.heroBtns.forEach(function (h) {

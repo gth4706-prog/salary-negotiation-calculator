@@ -411,6 +411,50 @@ var SM = 10;
   //  ── 태현님 피팅 값 (2026-08-21, ?fit=1 도구 실측 — 옆모습 기준·발밑 원점·r 배수) ──
   //  {dx, dy, w, h} = 이미지 **중심**. 반대쪽을 볼 때는 dx 를 미러한다.
   //  ⚠ 이 값은 태현님이 직접 맞춘 것 — 코드에서 임의로 고치지 말고 도구로 다시 잰다.
+  //  ── 활 리그 (2026-08-22 태현님: "활·시위·화살이 따로 논다 — 따로 조립해서
+  //  실제 활처럼 만든 다음 가져와라") ─────────────────────────────────────────
+  //  bow2.png 실측(93×360): 활고자(위·아래 끝)가 **폭의 0.871**, 그립이 0.194 에 있다.
+  //  drawSpan 은 이미지 가로 중심(0.5)을 스팬 축에 놓으므로, 시위·화살을 그 축에
+  //  걸면 활고자에서 dispW×0.37 만큼 떨어져 허공에 뜬다 — 그게 "따로 논다"의 원인.
+  //  여기서는 활고자·그립의 **실좌표**를 계산해 건다. 게임과 실험실(bow-lab)이
+  //  이 함수 하나를 같이 쓴다 — 실험실에서 맞춘 그대로 게임에 나온다.
+  UI.BOW_GEOM = { tipF: 0.871, gripF: 0.194, aspect: 93 / 360 };
+  //  mir: 화살이 나는 방향(+1 오른쪽 / −1 왼쪽) · pull: 시위 당김 0..1 ·
+  //  shot: 발사 직후 0..1 (화살이 날아가고 시위가 튕겨 돌아온다)
+  UI.drawBowRig = function (g, cx, cy, hs, mir, pull, shot, a, behind) {
+    var GB = GAME.GearBank;
+    if (!GB || !GB.ready('bow', g.scene)) return false;
+    var dispW = (hs * 2) * UI.BOW_GEOM.aspect;
+    //  안 뒤집은 이미지는 C 가 오른쪽으로 열려(활고자 +x) 화살이 왼쪽으로 난다.
+    //  mir=+1(오른쪽 발사)이면 뒤집는다.
+    var flip = mir > 0;
+    if (!GB.drawSpan(g, 'bow', cx, cy - hs, cx, cy + hs, a, flip, behind)) return false;
+    var fx = function (f) { return cx + ((flip ? 1 - f : f) - 0.5) * dispW; };
+    var tx = fx(UI.BOW_GEOM.tipF);              // 활고자 x — 시위가 실제로 걸리는 곳
+    var t0y = cy - hs, t1y = cy + hs;
+    //  시위 apex — 쉬면 활고자 일직선(팽팽한 시위), 당기면 뒤로 물러나고,
+    //  쏘면 반동으로 살짝 앞으로 나갔다 돌아온다.
+    var ax = tx - mir * (pull * hs * 0.52 - shot * hs * 0.08);
+    var s1 = GB.drawSpan(g, 'bowstring', tx, t0y, ax, cy, a, false, behind);
+    if (s1) GB.drawSpan(g, 'bowstring', ax, cy, tx, t1y, a, false, behind);
+    else {                                       // 시위 이미지가 없으면 선으로
+      g.lineStyle(Math.max(1, hs * 0.035), 0x8a7355, a * 0.9);
+      g.lineBetween(tx, t0y, ax, cy);
+      g.lineBetween(ax, cy, tx, t1y);
+    }
+    var L = hs * 1.08;                           // 화살 길이 — 반스팬보다 약간 길게
+    //  메긴 화살 — 오늬가 apex, 촉이 그립 너머 앞으로. 쏘는 순간 사라진다.
+    var na = a * Math.max(0, (0.35 - shot) / 0.35);
+    if (na > 0.02) GB.drawSpan(g, 'arrow2', ax + mir * L, cy, ax, cy, na, false, behind);
+    //  나는 화살 — 발사 직후에만, 앞으로 뻗어 나가며 사라진다.
+    if (shot > 0.02) {
+      var fly = (1 - shot) * 2.2;
+      var fx0 = tx + mir * (L * 0.4 + fly * hs * 2.4);
+      GB.drawSpan(g, 'arrow2', fx0 + mir * L, cy, fx0, cy, a * Math.min(1, shot * 2.5), false, behind);
+    }
+    return { nockX: ax, nockY: cy, tipX: tx };
+  };
+
   UI.FIT = {
     helmVanguard: { dx: -0.01, dy: -0.73, w: 1.56, h: 1.60, front: { dx: -0.01, dy: -0.73, w: 1.56, h: 1.60 } },
     helmRanger:   { dx: 0.01, dy: -0.19, w: 2.16, h: 2.66 },
@@ -2267,15 +2311,20 @@ var SM = 10;
         t = -1 + (2 / 6) * k;
         arc.push({ x: cxp + bulge * (1 - t * t), y: cyp + h * t });
       }
-      //  생성 이미지 활(하이브리드) — 사냥꾼만. 이미지가 그리면 활대·감개·장식은 생략하되
-      //  **시위·화살은 계속 절차로 긋는다**(당김 apex 가 사냥꾼의 주 신호 — v0.81 규율).
-      //  이미지 활대는 왼쪽으로 굽어 있으므로 bulge 가 +쪽이면 좌우를 뒤집는다.
-      //  유닛 궁수(bow)도 같은 이미지 활을 쓴다(2026-08-21 유닛 승급 1차 — 크기는
-      //  h 가 유닛 반지름 기준이라 자동으로 작아진다).
-      if (GAME.GearBank &&
-          GAME.GearBank.drawSpan(g, 'bow', cxp, cyp - h, cxp, cyp + h, a, bulge < 0, D.back)) {
-        // 이미지가 활대를 그렸다
-      } else {
+      //  ── 이미지 리그 (2026-08-22 태현님: "활·시위·화살이 따로 논다") ────────
+      //  UI.drawBowRig 가 활고자 **실좌표**에 시위를 걸고 화살까지 통째로 조립한다
+      //  (실험실 scratchpad/bow-lab.js 에서 맞춘 그대로). 그리면 여기서 끝 —
+      //  아래 arc 기반 시위·화살(이미지 중심축에 걸려 따로 놀던 원인)은 벡터 폴백 전용.
+      //  mir — 화살은 **몸에서 바깥쪽**으로 난다. side(바라보는 좌우)로 했더니
+      //  정면 미리보기(활이 몸 왼쪽)에서 화살이 제 얼굴을 겨눴다(실측 스크린샷).
+      //  활 앵커가 몸의 어느 쪽에 섰는지가 곧 쏘는 방향이다 — 옆모습도 이 규칙과
+      //  일치한다(활은 언제나 바라보는 앞쪽에 서므로 바깥 = 전방).
+      if (UI.drawBowRig) {
+        var pullR = atk < 0 ? -atk : 0, shotR = atk > 0 ? atk : 0;
+        var mirB = cxp >= sx ? 1 : -1;
+        if (UI.drawBowRig(g, cxp, cyp, h, mirB, pullR, shotR, a, D.back)) return;
+      }
+      {
       //  활채를 **두 줄**로 긋는다 — 어두운 심 위에 얇고 밝은 겉을 얹으면 둥근 나무봉이
       //  된다. 한 줄짜리 `lineBetween` 은 굵기가 일정해서 언제나 납작한 띠로 보인다
       //  (보스 아트가 `ribbon()` 을 만든 것과 같은 이유 — 여기서는 도형 +1 로 끝낸다).

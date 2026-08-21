@@ -2117,6 +2117,10 @@ var SM = 10;
 
     if (kind === 'sword') {                  // 전사 — 짧은 청동검 + 나무 버클러
       var bx = X(0.52, -0.62), byy = Y(0.52, -0.62, 0.02);
+      //  버클러도 생성 이미지(파수꾼 원방패 재사용 — 작게 얹으면 버클러다, 2026-08-21).
+      if (GAME.GearBank && GAME.GearBank.place(g, 'roundshield', bx, byy, r * 1.06, r * 1.06, a)) {
+        // 이미지가 그렸다
+      } else {
       g.fillStyle(M.wood, a); g.fillEllipse(bx, byy, (r * 0.50) * 2, (r * 0.50) * 2, SM);
       //  나무 결 두 줄 — 매끈한 껍질 옆에 거친 나무를 세우는 것이 이 게임의 대비축이다
       //  ("매끈함(껍질) vs 거침(뼈·돌)" — docs/proposals/2026-08-04-art-direction.md).
@@ -2128,6 +2132,7 @@ var SM = 10;
       g.lineStyle(lw(0.09), M.woodDark, a); g.strokeEllipse(bx, byy, (r * 0.50) * 2, (r * 0.50) * 2, SM);
       if (r >= 9) UI.sheen(g, bx, byy, r * 0.44, r * 0.34, 0.28 * a, UI.lit(M.wood));
       g.fillStyle(M.bronze, a); g.fillEllipse(bx, byy, (r * 0.17) * 2, (r * 0.17) * 2, SM);
+      }  // (버클러 하이브리드 폴백 닫기)
 
       // 자루 — 손 아래로 짧게
       //  atk 가 각도를 바꾼다: -1 머리 위로 치켜듦 → +1 옆으로 후려침
@@ -2206,7 +2211,12 @@ var SM = 10;
       //  활은 휘두르는 게 아니라 **당겼다 놓는다** — atk<0 시위를 끌고, atk>0 화살이 날아간다.
       var pull = atk < 0 ? -atk : 0, shot = atk > 0 ? atk : 0;
       var apex = cxp - bulge * (0.28 + pull * 0.80 - shot * 0.16);
-      g.lineStyle(Math.max(0.8, r * 0.05), M.rope, a * 0.9);        // 시위
+      //  시위 2겹 — 어두운 심 위에 가는 밝은 줄(한 줄이면 '벡터 선'으로 읽힌다).
+      //  이미지 시위(gear-bowstring, 2차 요청분)가 오면 drawSpan 2회로 교체 예정.
+      g.lineStyle(Math.max(1.0, r * 0.07), UI.shade(M.leatherDark), a * 0.9);
+      g.lineBetween(arc[0].x, arc[0].y, apex, cyp);
+      g.lineBetween(apex, cyp, arc[6].x, arc[6].y);
+      g.lineStyle(Math.max(0.6, r * 0.03), M.rope, a * 0.8);
       g.lineBetween(arc[0].x, arc[0].y, apex, cyp);
       g.lineBetween(apex, cyp, arc[6].x, arc[6].y);
       var alen = Math.max(0.8, r * 0.06);

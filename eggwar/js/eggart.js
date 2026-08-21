@@ -408,6 +408,50 @@ var SM = 10;
   //            "종류는 실루엣이 전담한다"는 제1원칙이 무너졌다. 유닛마다 자기 재료를 준다.
   //          ⚠ 전부 중립 재질색이다. `leaf`(초록)는 **못 쓴다** — 진영색 민트(165°)·
   //            녹청(168°)과 색역이 겹친다(설계 경계 5번).
+  //  ── 태현님 피팅 값 (2026-08-21, ?fit=1 도구 실측 — 옆모습 기준·발밑 원점·r 배수) ──
+  //  {dx, dy, w, h} = 이미지 **중심**. 반대쪽을 볼 때는 dx 를 미러한다.
+  //  ⚠ 이 값은 태현님이 직접 맞춘 것 — 코드에서 임의로 고치지 말고 도구로 다시 잰다.
+  UI.FIT = {
+    helmVanguard: { dx: -0.01, dy: -0.73, w: 1.56, h: 1.60, front: { dx: -0.01, dy: -0.73, w: 1.56, h: 1.60 } },
+    helmRanger:   { dx: 0.01, dy: -0.19, w: 2.16, h: 2.66 },
+    helmWarden:   { dx: 0.01, dy: -0.05, w: 1.48, h: 1.75 },
+    helmPot:      { dx: 0.01, dy: -0.44, w: 1.91, h: 1.78 },
+    helmBand:     { dx: -0.17, dy: -0.69, w: 2.01, h: 1.68 },
+    helmCap:      { dx: -0.10, dy: -0.66, w: 2.16, h: 1.78 },
+    helmHood:     { dx: -0.06, dy: -0.24, w: 2.32, h: 2.14 },
+    helmLeaf:     { dx: -0.01, dy: -0.48, w: 2.04, h: 1.80 },
+    helmBucket:   { dx: 0.00, dy: -0.38, w: 2.15, h: 2.02 },
+    helmHorns:    { dx: 0.01, dy: -0.48, w: 2.90, h: 1.70 },
+    helmSedge:    { dx: 0.06, dy: -0.45, w: 3.26, h: 1.80 },
+    helmPot2:     { dx: -0.01, dy: -0.66, w: 1.89, h: 1.24 },
+    roundshield:  { dx: 0.69, dy: 0.54, w: 1.39, h: 1.41 },
+    towershield:  { dx: 0.53, dy: 0.43, w: 0.87, h: 1.79 },
+    slingimg:     { dx: 0.55, dy: 0.53, w: 0.62, h: 1.22 },
+    leafstaffimg: { dx: -0.87, dy: -0.24, w: 0.96, h: 2.55 },
+    sapjarimg:    { dx: -0.83, dy: 0.56, w: 0.98, h: 1.10 },
+    ballistaimg:  { dx: -0.43, dy: 0.37, w: 2.45, h: 1.93 },
+    quiverimg:    { dx: 0.59, dy: 0.32, w: 1.12, h: 1.33 },
+    capeimg:      { dx: 0.09, dy: 0.85, w: 2.27, h: 2.22 },
+    furimg:       { dx: 0.52, dy: 0.11, w: 0.81, h: 1.60 },
+    packimg:      { dx: 0.65, dy: 0.62, w: 0.97, h: 1.10 },
+    //  모션 무기 — 크기·손 앵커 참고값(각도 채널은 코드가 유지)
+    greatsword:   { dx: 0.85, dy: -0.35, w: 0.72, h: 2.55 },
+    bow:          { dx: -0.71, dy: 0.00, w: 0.58, h: 2.25 },
+    hookspear:    { dx: 0.89, dy: -0.31, w: 0.82, h: 2.87 },
+    stonesword:   { dx: 0.71, dy: 0.13, w: 0.49, h: 1.58 },
+    handaxe:      { dx: -0.82, dy: 0.24, w: 0.76, h: 1.58 },
+    javelin:      { dx: -0.80, dy: 0.15, w: 0.17, h: 1.33 }
+  };
+  //  피팅 값을 방향에 맞게 얹는다 — 옆 기준 화면 배치를 그대로 쓰고, 왼쪽을 볼 때만
+  //  dx 미러. place 형(각도 없는 착용물) 전용.
+  UI.fitPlace = function (g, key, sx, by, r, D, a, tint) {
+    var f = UI.FIT[key];
+    if (!f || !GAME.GearBank) return false;
+    var mir = (D && D.lat < 0) ? -1 : 1;
+    return GAME.GearBank.place(g, key, sx + f.dx * r * mir, by + f.dy * r,
+                               f.w * r, f.h * r, a, tint || null);
+  };
+
   UI.ART = {
     // ── 전략가 유닛 10종 ──
     warrior:  { helm: 'pot',     gear: 'sword',      back: null,     face: 'open', wide: 0.80, fam: ['bronze', 'blade'] },
@@ -1290,37 +1334,23 @@ var SM = 10;
     //  두 방식: holeY = 구멍을 눈에 정렬(두건·가면), bot = **캡 하단을 계란 정수리
     //  아래에 겹치고**(곡면 감쌈) 하단에 **접촉 그림자 호**를 깔아 닿았음을 만든다.
     //  캡 폭은 계란 폭보다 살짝 넓게 — 좁으면 왕관처럼 뜬다. 치수는 전부 실측 후 조정값.
-    var HELM_IMG = {
-      wolf:    { key: 'helmRanger',   w: 2.25, h: 1.90, holeY: 0.65 },
-      crest:   { key: 'helmWarden',   w: 1.60, h: 1.38, holeY: 0.43 },
-      onehorn: { key: 'helmVanguard', w: 1.34, h: 1.74, bot: 0.52 },
-      pot:     { key: 'helmPot',      w: 1.78, h: 1.66, bot: 0.50 },
-      band:    { key: 'helmBand',     w: 1.80, h: 1.68, bot: 0.52 },
-      cap:     { key: 'helmCap',      w: 1.86, h: 1.52, bot: 0.50 },
-      hood:    { key: 'helmHood',     w: 1.86, h: 1.82, bot: 0.34 },
-      leaf:    { key: 'helmLeaf',     w: 1.80, h: 1.58, bot: 0.52 },
-      bucket:  { key: 'helmBucket',   w: 1.78, h: 1.76, bot: 0.36 },
-      horns:   { key: 'helmHorns',    w: 2.35, h: 1.46, bot: 0.55 },
-      sedge:   { key: 'helmSedge',    w: 2.40, h: 1.32, bot: 0.58 },
-      pot2:    { key: 'helmPot2',     w: 1.80, h: 1.24, bot: 0.56 }
+    var HELM_KEY = {
+      onehorn: 'helmVanguard', wolf: 'helmRanger', crest: 'helmWarden',
+      pot: 'helmPot', band: 'helmBand', cap: 'helmCap', hood: 'helmHood',
+      leaf: 'helmLeaf', bucket: 'helmBucket', horns: 'helmHorns',
+      sedge: 'helmSedge', pot2: 'helmPot2'
     };
-    var hSpec = HELM_IMG[kind];
-    if (hSpec && GAME.GearBank && GAME.GearBank.ready(hSpec.key, g.scene)) {
-      var hw = r * hSpec.w * (D.profile ? 0.84 : 1) * (D.back ? 0.96 : 1);
-      var hh = r * hSpec.h;
-      var hcx = sx + (D.lat || 0) * r * 0.06;
-      var hcy;
-      if (hSpec.holeY !== undefined) {
-        var eyeY = by - r * 0.45;                  // 계란 눈높이(얼굴 중심)
-        hcy = eyeY - hh * hSpec.holeY + hh / 2;    // 구멍이 눈에 오도록 역산
-      } else {
-        var botY = by - r * hSpec.bot;             // 캡 하단이 계란 이 높이에 닿는다
-        //  접촉 그림자 — 캡이 계란에 드리우는 얇은 호. "얹힘"과 "씀"의 차이가 이것이다.
-        g.fillStyle(0x2a2114, 0.15 * a);
-        g.fillEllipse(hcx, botY + r * 0.06, hw * 0.66, r * 0.20, SM);
-        hcy = botY - hh / 2 + hh * 0.04;           // 하단 여백(윤곽 두께) 보정
-      }
-      if (GAME.GearBank.place(g, hSpec.key, hcx, hcy, hw, hh, a)) {
+    var hKey = HELM_KEY[kind];
+    var hFit = hKey && UI.FIT[hKey];
+    if (hFit && GAME.GearBank && GAME.GearBank.ready(hKey, g.scene)) {
+      var hMir = (D.lat < 0) ? -1 : 1;
+      var hf = (!D.profile && !D.back && hFit.front) ? hFit.front : hFit;
+      //  접촉 그림자 — 캡 하단이 계란에 닿는 자리. "얹힘"과 "씀"의 차이.
+      g.fillStyle(0x2a2114, 0.14 * a);
+      g.fillEllipse(sx + hf.dx * r * hMir, by + (hf.dy + hf.h * 0.5) * r - r * 0.04,
+                    hf.w * r * 0.60, r * 0.18, SM);
+      if (GAME.GearBank.place(g, hKey, sx + hf.dx * r * hMir, by + hf.dy * r,
+                              hf.w * r, hf.h * r, a)) {
         return;
       }
     }
@@ -1823,17 +1853,8 @@ var SM = 10;
     if (kind === 'quiver') {                 // 화살통 — 등 뒤 대각선 + 화살깃 3개
       // 정배면일 때 정중앙에 오면 두건 자락과 겹치므로 옆으로 조금 비켜 멘다
       var qx = sx + ox + D.px * r * 0.20, qy = by + oy - r * 0.10;
-      //  생성 이미지 화살통 — 등 물건이다: 정면에서는 **어깨 위로 깃만 빼꼼**
-      //  (중앙 뒤·작게). 가슴 옆에 크게 두면 떠다닌다(실측). 옆·뒤는 제 크기.
-      if (GAME.GearBank) {
-        var qFront = !D.back && !D.profile;
-        var qw = (qFront ? 1.00 : 1.24) * r, qh = (qFront ? 1.18 : 1.48) * r;
-        var qxx = qFront ? sx + D.px * r * 0.30 : qx;
-        var qyy = qFront ? by - r * 0.62 : qy - r * 0.35;
-        if (GAME.GearBank.place(g, 'quiverimg', qxx, qyy, qw, qh, a)) {
-          return;
-        }
-      }
+      //  태현님 피팅 값(2026-08-21) — UI.FIT.quiverimg.
+      if (UI.fitPlace(g, 'quiverimg', sx, by, r, D, a)) return;
       // 멜빵에 진영색을 섞는다 — 사냥꾼(quiver)은 진영색 천이 아예 없었다(2026-07-30).
       // 가죽 재질감은 남기려고 원색이 아니라 절반만 섞는다.
       g.lineStyle(Math.max(2, r * 0.30),
@@ -1849,16 +1870,8 @@ var SM = 10;
 
     } else if (kind === 'cape') {            // 망토 — 뒤를 보이면 펼쳐지되 계란을 다 덮진 않는다
       //  생성 이미지 망토 — 회갈색 원본에 진영색을 절반 물들인다(정체성 유지).
-      if (GAME.GearBank) {
-        //  옆모습은 폭을 확 줄이고 몸에 붙인다 — 1.10r 는 몸 옆에 수건처럼
-        //  걸렸다(실측). 정면·정배면은 정중앙.
-        var cwI = (back ? 1.58 : (prof ? 0.78 : 1.26)) * r;
-        var cxI = back ? sx : (prof ? sx + ox * 0.34 : sx);
-        if (GAME.GearBank.place(g, 'capeimg', cxI, by + oy * 0.6 + r * 0.26,
-              cwI, r * 1.62, a, UI.mix(0xffffff, color, 0.45))) {
-          return;
-        }
-      }
+      //  태현님 피팅 값(2026-08-21) — 진영색 물들임 유지.
+      if (UI.fitPlace(g, 'capeimg', sx, by, r, D, a, UI.mix(0xffffff, color, 0.45))) return;
       var cw = back ? 1.16 : (prof ? 0.88 : 1.0);
       var cxo = back ? 0 : -lat * r * 0.10;
       // 정배면에서는 몸통 위에 그려지므로 어깨 아래에서 시작해 계란 실루엣을 살려둔다
@@ -1882,12 +1895,8 @@ var SM = 10;
     } else if (kind === 'fur') {             // 어깨 털가죽
       //  생성 이미지 모피 — **뒤·옆모습에서만**. 정면은 모피가 등 뒤라 어깨 타원
       //  (벡터)만 보이는 게 맞다 — 이미지를 정면에 얹었더니 얼굴을 통째로 덮었다(실측).
-      //  크기를 어깨선까지만 — 1.30r 높이는 몸통을 이불처럼 덮었다(실측).
-      if ((back || prof) && GAME.GearBank &&
-          GAME.GearBank.place(g, 'furimg', sx + ox * 0.5, by + oy * 0.5 - r * 0.44,
-            r * 1.34, r * 0.98, a, UI.mix(0xffffff, color, 0.28))) {
-        return;
-      }
+      //  태현님 피팅 값(2026-08-21).
+      if (UI.fitPlace(g, 'furimg', sx, by, r, D, a, UI.mix(0xffffff, color, 0.28))) return;
       // ⚠ 여기는 **진영색을 써야 하는 자리다** (2026-07-30).
       //   등 장비 중 진영색을 쓰는 것은 `cape` 하나뿐이었고 그건 파수꾼·족장만 멘다.
       //   광전사(fur)와 사냥꾼(quiver)은 진영색 천이 **아예 없었다** — 컨트롤러가 가장
@@ -1907,12 +1916,8 @@ var SM = 10;
       }
 
     } else if (kind === 'pack') {            // 등짐
-      //  생성 이미지 약초 등짐 바구니.
-      if (GAME.GearBank &&
-          GAME.GearBank.place(g, 'packimg', sx + ox * 1.55, by + oy * 1.10 - r * 0.10,
-            r * 1.08, r * 1.22, a)) {
-        return;
-      }
+      //  태현님 피팅 값(2026-08-21).
+      if (UI.fitPlace(g, 'packimg', sx, by, r, D, a)) return;
       g.fillStyle(M.leatherDark, a);
       g.fillRoundedRect(sx + ox * 1.72 - r * 0.34, by + oy * 1.20 - r * 0.26, r * 0.68, r * 0.86, r * 0.14);
       g.fillStyle(M.leather, a);
@@ -2233,7 +2238,8 @@ var SM = 10;
       var swDir = bladeDir(0.95 - atk * 0.85);
       //  생성 이미지 돌검 (2026-08-21 시트 1차분) — 각도 채널(swDir)은 그대로 쓴다.
       if (GAME.GearBank &&
-          GAME.GearBank.draw(g, 'stonesword', hx, hy, swDir.x, swDir.y, r * 1.55, a,
+          GAME.GearBank.draw(g, 'stonesword', hx, hy, swDir.x, swDir.y,
+                             r * (UI.FIT.stonesword.h * 0.72), a,
                              TI ? UI.mix(M.blade, 0xffffff, 0.62) : null)) {
         // 이미지가 검을 그렸다 — 버클러(위)는 벡터 그대로.
       } else {
@@ -2347,16 +2353,14 @@ var SM = 10;
       }
 
     } else if (kind === 'sling') {           // 투석꾼 — 머리 위에서 도는 무릿매
-      //  생성 이미지 무릿매 — 손 **바로 아래**에 드리우고, 손→이미지 상단을
-      //  가죽끈(벡터)으로 잇는다. 연결이 없으면 몸 옆에 떠다닌다(실측).
+      //  태현님 피팅 값(2026-08-21) — 손→이미지 상단 가죽끈은 유지(연결감).
       if (GAME.GearBank && GAME.GearBank.ready('slingimg', g.scene)) {
-        var slTop = hy + r * 0.10;
+        var fS = UI.FIT.slingimg;
+        var mirS = (D.lat < 0) ? -1 : 1;
+        var sTopX = sx + fS.dx * r * mirS, sTopY = by + (fS.dy - fS.h / 2) * r;
         g.lineStyle(Math.max(1, r * 0.07), M.leatherDark, a);
-        g.lineBetween(hx, hy, hx, slTop + r * 0.06);
-        if (GAME.GearBank.place(g, 'slingimg', hx, slTop + r * 0.66,
-              r * 0.80, r * 1.36, a)) {
-          return;
-        }
+        g.lineBetween(hx, hy, sTopX, sTopY + r * 0.06);
+        if (UI.fitPlace(g, 'slingimg', sx, by, r, D, a)) return;
       }
       //  고리는 머리 위라 얼굴을 안 가리지만 **끈이 얼굴을 대각으로 가로질렀다**(실측).
       //  고리도 같이 벌리고, 끈을 손과 같은 쪽에 매 얼굴 앞을 지나지 않게 한다.
@@ -2418,11 +2422,8 @@ var SM = 10;
     } else if (kind === 'leafstaff') {       // 약초꾼 — 약초 다발 지팡이
       //  생성 이미지 지팡이 — **손이 잡고 있어야** 한다: 그립(0.62)이 손 위치를
       //  지나도록 draw 로 세운다(place 로 옆에 두면 떠다닌다 — 실측).
-      //  옆으로 0.26r 밀어 약초 다발이 얼굴을 안 가리게 한다(정면 실측).
-      if (GAME.GearBank &&
-          GAME.GearBank.draw(g, 'leafstaffimg', hx + D.px * r * 0.26, hy, 0, -1, r * 1.55, a)) {
-        return;
-      }
+      //  태현님 피팅 값(2026-08-21).
+      if (UI.fitPlace(g, 'leafstaffimg', sx, by, r, D, a)) return;
       var stx = X(0.30, 0.66);
       g.lineStyle(lw(0.13), M.woodDark, a);
       g.lineBetween(stx, Y(0.30, 0.66, -0.55), stx, Y(0.30, 0.66, 1.55));
@@ -2631,8 +2632,7 @@ var SM = 10;
       var cx2 = X(1.02, 0.42), cy2 = Y(1.02, 0.42, 0.02);
       //  생성 이미지 방패(2026-08-21 유닛 승급 1차) — 원형 방패를 세로로 살짝 늘려
       //  대방패 실루엣 유지. 준비 전엔 아래 벡터.
-      if (GAME.GearBank && GAME.GearBank.place(g, 'towershield',
-            cx2, cy2, r * 1.34, r * 2.30, a)) {
+      if (UI.fitPlace(g, 'towershield', sx, by, r, D, a)) {
         // 이미지가 그렸다 (2026-08-21 — 원형 방패 임시 대체를 진짜 대방패로)
       } else {
       g.fillStyle(M.wood, a);
@@ -2674,7 +2674,7 @@ var SM = 10;
       //  ⚠ 정면·정배면에서 앞축이 눌려 axL 이 0 에 가까워진다 — 이미지 도끼가
       //    통째로 나사만 해졌다(실측). 화면 길이에 하한을 둔다(벡터 검 swDir 방식과
       //    달리 이 분기는 지면축 앵커라 눌림을 직접 막아야 한다).
-      var axLen = Math.max(axL * 1.10, r * 1.30);
+      var axLen = Math.max(axL * 1.10, r * (UI.FIT.handaxe.h * 0.86));
       if (GAME.GearBank &&
           GAME.GearBank.draw(g, 'handaxe', hx, hy, axDx / axL, axDy / axL, axLen, a)) {
         return;   // 이미지가 도끼를 그렸다 — 깃대는 위에서 이미 그렸다.
@@ -2704,13 +2704,8 @@ var SM = 10;
 
     } else if (kind === 'sapjar') {          // 늪지기 — 끈끈한 수액 단지
       var jx = X(0.86, 0.16), jy = Y(0.86, 0.16, 0.05);
-      //  생성 이미지 단지 — **끌어안은 높이**(배)로 내려 몸과 겹친다.
-      //  얼굴 옆 공중에 두면 떠다닌다(실측).
-      if (GAME.GearBank &&
-          GAME.GearBank.place(g, 'sapjarimg', X(0.62, 0.12), Y(0.62, 0.12, -0.28),
-            r * 1.14, r * 1.02, a)) {
-        return;
-      }
+      //  태현님 피팅 값(2026-08-21).
+      if (UI.fitPlace(g, 'sapjarimg', sx, by, r, D, a)) return;
       //  ⚠ 예전엔 `UI.tint(M.clay, -0.30)` — 흑백 축으로만 밀어 그늘이 **회색 진흙**이 됐다.
       //    이 파일이 `deriveMatTones` 에 스스로 적어 둔 경고를 유닛 쪽에서 그대로 어기고
       //    있었다. 3단(clayDark / clay / clayLite)으로 바꾼다.
@@ -2734,15 +2729,14 @@ var SM = 10;
       //  생성 이미지 쇠뇌 (2026-08-21) — 구조물이라 **접지 그림자를 먼저** 깐다.
       //  그림자 없이 이미지만 얹으면 공중에 뜬 스티커가 된다(태현님 광원 질문의 답:
       //  전역 광원보다 이런 접지가 자연스러움을 만든다).
-      //  ⚠ 크기·높이를 낮춰 계란 머리가 구조물 위로 보이게 한다("반쯤 숨은 계란"
-      //    실루엣 유지 — 처음 2.85r 는 유닛을 통째로 삼켰다, 실측).
+      //  태현님 피팅 값(2026-08-21) — 접지 그림자는 유지(구조물).
       if (GAME.GearBank && GAME.GearBank.ready('ballistaimg', g.scene)) {
+        var fB = UI.FIT.ballistaimg;
+        var mirB = (D.lat < 0) ? -1 : 1;
         g.fillStyle(0x2a2114, a * 0.22);
-        g.fillEllipse(sx + fx * r * 0.2, by + r * 1.02, r * 2.3, r * 0.56, SM);
-        if (GAME.GearBank.place(g, 'ballistaimg', sx + fx * r * 0.2, by + r * 0.24,
-              r * 2.30, r * 1.78, a)) {
-          return;
-        }
+        g.fillEllipse(sx + fB.dx * r * mirB, by + (fB.dy + fB.h / 2) * r - r * 0.06,
+                      fB.w * r * 0.92, r * 0.5, SM);
+        if (UI.fitPlace(g, 'ballistaimg', sx, by, r, D, a)) return;
       }
       g.lineStyle(lw(0.17), M.woodDark, a);
       g.lineBetween(X(-0.55, 0), Y(-0.55, 0, 0.55), X(1.55, 0), Y(1.55, 0, 0.55));
@@ -2791,7 +2785,7 @@ var SM = 10;
       //  등급 색을 이미지에도 싣는다 — M.blade 는 이미 등급 재질(청동·흑요석…)이다.
       //  흰색과 절반 섞어 원본 질감을 남기며 물들인다(순색 틴트는 손잡이까지 죽인다).
       if (GAME.GearBank && GAME.GearBank.draw(g, 'greatsword', gsGripX, gsGripY,
-            gsDir.x, gsDir.y, r * 0.34 + r * 2.15 * tLen, a,
+            gsDir.x, gsDir.y, r * (UI.FIT.greatsword.h * 0.80) * tLen, a,
             (tGrd > 1 || tOrn > 0) ? UI.mix(0xffffff, M.blade, 0.62) : 0)) {
         // 이미지가 그렸다
       } else {
@@ -2890,8 +2884,7 @@ var SM = 10;
       var kV = tLen, kH = tWide;
       //  생성 이미지 방패(하이브리드) — 정면 그림을 세로>가로로 살짝 눌러
       //  "약간 비껴 든" 느낌을 만든다. 준비 전엔 아래 벡터 연꼴 방패.
-      if (GAME.GearBank && GAME.GearBank.place(g, 'roundshield',
-            kx, ky + r * 0.10, r * 1.50 * kH, r * 1.95 * kV, a)) {
+      if (UI.fitPlace(g, 'roundshield', sx, by, r, D, a)) {
         // 이미지가 방패를 그렸다 — 연꼴·보스·장식 생략
       } else {
       var kite = [

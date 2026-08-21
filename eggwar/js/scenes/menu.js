@@ -141,6 +141,20 @@ GAME.MenuScene.prototype.create = function () {
     { size: P ? 'micro' : 'caption', color: C.textDim, origin: 0.5, originY: 0 });
   by = guideY + (P ? 30 : 36);
 
+  //  왕좌 한 줄 (2026-08-21 태현님) — 각 모드의 전체 1위. 서버 응답이 오면 채워진다.
+  var crownTxt = GAME.UI.text(this, W / 2, by - (P ? 8 : 10), '',
+    { size: P ? 'micro' : 'caption', color: C.warn, origin: 0.5, originY: 0 });
+  this._loadRankers(function (map) {
+    if (!self.scene || !self.scene.isActive() || !crownTxt.scene) return;
+    if (!map) return;
+    var parts = [];
+    if (map.tower) parts.push('통곡 👑 ' + String(map.tower.id).slice(0, 7) + ' ' + map.tower.value + '층');
+    if (map.dtower) parts.push('수성 👑 ' + String(map.dtower.id).slice(0, 7) + ' ' + map.dtower.value + '회차');
+    if (map.arena) parts.push('공성 👑 ' + String(map.arena.id).slice(0, 7) + ' ' + map.arena.value + '점');
+    if (parts.length) crownTxt.setText(parts.join('   ·   '));
+  });
+  by += (P ? 22 : 26);
+
   var rc = GAME.Layout.cols(GAME.isAdmin ? 3 : 2, {
     gap: 10, width: bw, left: (W - bw) / 2, pad: 0
   });
@@ -368,6 +382,43 @@ GAME.MenuScene.prototype._buildPhone = function () {
 
   //  조작 안내는 로비에서 뺐다(A안 — 온보딩·전투 화면이 이미 가르친다).
   //  퍼레이드가 지나는 들판을 글자가 가로지르던 것도 함께 해결된다.
+
+  //  ── 왕좌 줄 (2026-08-21 태현님: "각 랭커들을 보여줘서 점수 올리라는 자극") ──
+  //  카드 바로 위에 그 모드의 **전체 1위**를 적는다. 서버 응답이 오면 채워진다 —
+  //  화면은 기다리지 않는다(서버가 죽어 있으면 그냥 빈 줄이다).
+  var ry = cy - cardH / 2 - 6;
+  var mkCrown = function (x, w) {
+    return UI.text(self, x, ry, '', { size: 12, color: C.warn, origin: 0.5, originY: 1 });
+  };
+  var crowns = { dtower: mkCrown(x1, wSm), tower: mkCrown(x2, wSm), arena: mkCrown(x3, wBig) };
+  this._loadRankers(function (map) {
+    if (!self.scene || !self.scene.isActive()) return;
+    var unitOf = { tower: '층', dtower: '회차', arena: '점' };
+    ['tower', 'dtower', 'arena'].forEach(function (k) {
+      var top = map && map[k];
+      var t = crowns[k];
+      if (!top || !t || !t.scene) return;
+      var nick = String(top.id || '').slice(0, 7);
+      t.setText('👑 ' + (top.id === me ? '나 — 왕좌 방어 중' : (nick + ' ' + top.value + unitOf[k])));
+      if (top.id === me) t.setColor(C.accent);
+    });
+  });
+};
+
+//  각 분야 전체 1위 — 5분 캐시(메뉴 재진입이 잦다). 실패한 분야는 그냥 빈다.
+GAME.MenuScene.prototype._loadRankers = function (cb) {
+  var cache = GAME.__rankers;
+  if (cache && Date.now() - cache.t < 300e3) { cb(cache.map); return; }
+  if (!GAME.Api || !GAME.Api.enabled || !GAME.Api.enabled()) { cb(null); return; }
+  var kinds = ['tower', 'dtower', 'arena'];
+  var map = {}, left = kinds.length;
+  kinds.forEach(function (k) {
+    GAME.Api.board(k, 'all').then(function (res) {
+      if (res && res.rows && res.rows.length) map[k] = res.rows[0];
+    })['catch'](function () { return null; }).then(function () {
+      if (--left === 0) { GAME.__rankers = { t: Date.now(), map: map }; cb(map); }
+    });
+  });
 };
 
 //  ⚙ 설정 팝업 — 유틸 줄을 대체한다(A안). Modal 은 고르면 닫히므로 토글은

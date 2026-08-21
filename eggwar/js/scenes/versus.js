@@ -186,14 +186,26 @@ GAME.VersusScene.prototype._createRolePick = function () {
     opps.forEach(function (o, i2) {
       var f = o.formation;
       var ry = listTop + i2 * (rowH + gap);
+      //  이미 깬 기지는 24시간 재도전 금지(2026-08-21) — 줄은 남겨 두되(투명성)
+      //  흐리게 하고 남은 시간을 적는다. 숨기면 "왜 상대가 줄었지"가 된다.
+      var cdMs = f.remote ? GAME.Arena.siegeCdLeft(f.author, f.slot) : 0;
       var b = UI.button(self, W / 2, ry + rowH / 2, rowW, rowH, '', function () {
+        if (cdMs > 0) return;
         // 전장을 고르면 **컨트롤러로 도전**한다(한쪽은 반드시 전략가다).
         GAME.Arena.pendingOpponent = { formationId: f.id, trophy: o.trophy };
         GAME.ArenaBuild.setRole('controller');
         self.scene.start('TowerShop', { mode: 'arena', formationId: f.id });
       }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
            hover: UI.COL.panelTealHi, color: C.accent, fontSize: PH ? 13 : 15 });
-      b.text.setText(self._fieldLines(f, o));
+      if (cdMs > 0) {
+        var hLeft = Math.max(1, Math.ceil(cdMs / 3600e3));
+        b.text.setText('✅ 격파한 기지 — ' + hLeft + '시간 후 재도전\n' +
+          (f.author || '') + '의 전장' + (f.name ? ('  ·  ' + f.name) : ''));
+        if (b.rect && b.rect.setAlpha) b.rect.setAlpha(0.45);
+        b.text.setAlpha(0.6);
+      } else {
+        b.text.setText(self._fieldLines(f, o));
+      }
       b.text.setAlign('center');
     });
   }

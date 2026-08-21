@@ -1778,6 +1778,8 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
       if (GAME.Api && GAME.Api.siegeResult && this.formation.remote && this.formation.author) {
         GAME.Api.siegeResult(GAME.Account.current(), this.formation.author,
                              this.formation.slot || 1, won);
+        //  깨는 데 성공하면 이 기지는 24시간 재도전 금지(어뷰징 차단 — 서버도 같은 규칙).
+        if (won) GAME.Arena.recordSiegeWin(this.formation.author, this.formation.slot || 1);
       }
       GAME.Arena.pendingOpponent = null;
     }

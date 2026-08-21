@@ -400,6 +400,39 @@ GAME.Arena = {
     return GAME.Api.postBase(this._key(), base, this.get().trophy, 1);
   },
 
+  // ── 공성 재도전 쿨다운 (2026-08-21 태현님) ─────────────────────────────────
+  //  같은 기지를 **깨는 데 성공하면** 24시간 재도전 금지 — 약한 기지 하나로 트로피를
+  //  무한 수급하는 어뷰징 차단. 실패 후 재도전(복수전)은 허용 — 도전자가 점수를
+  //  거는 쪽이라 어뷰징이 아니다. 서버(/siegeresult)도 같은 규칙으로 이중 차단한다.
+  SIEGE_CD_MS: 24 * 3600e3,
+  CDKEY: 'eggwar.siegecd',
+  _cdAll: function () { return GAME.Store.get(this.CDKEY, {}); },
+  _cdMap: function () {
+    var all = this._cdAll();
+    var m = all[this._key()] || {};
+    //  지난 것은 청소한다 — 안 하면 계정당 무한히 쌓인다.
+    var now = Date.now(), dirty = false;
+    for (var k in m) {
+      if (m.hasOwnProperty(k) && now - m[k] > this.SIEGE_CD_MS) { delete m[k]; dirty = true; }
+    }
+    if (dirty) { all[this._key()] = m; GAME.Store.set(this.CDKEY, all); }
+    return m;
+  },
+  recordSiegeWin: function (author, slot) {
+    if (!author) return;
+    var all = this._cdAll();
+    var m = all[this._key()] || {};
+    m[author + '#' + (slot === 2 ? 2 : 1)] = Date.now();
+    all[this._key()] = m;
+    GAME.Store.set(this.CDKEY, all);
+  },
+  siegeCdLeft: function (author, slot) {
+    if (!author) return 0;
+    var t = this._cdMap()[author + '#' + (slot === 2 ? 2 : 1)];
+    if (!t) return 0;
+    return Math.max(0, this.SIEGE_CD_MS - (Date.now() - t));
+  },
+
   // ── 공격 결과 ────────────────────────────────────────────────────────────
   recordAttack: function (opponent, won, detail) {
     var rec = this.get();

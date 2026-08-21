@@ -1271,18 +1271,30 @@ var SM = 10;
     //  ── 생성 이미지 투구 (2026-08-21 영웅 3종 파일럿) ────────────────────────
     //  정면 단독컷 한 장을 전 방향에 쓴다 — 옆모습은 폭을 눌러(0.82) 돌아본 느낌만
     //  낸다(캐주얼 게임 관례). 실측 합격이면 유닛 투구 10종을 같은 방식으로 간다.
-    //  치수는 투구마다 따로 잰다 — 철가면(warden)은 세로가 길어 같은 배율이면
-    //  몸 절반을 덮었다(실측). w/h = r 배수, dy = 앵커에서 위로.
+    //  ── "쓰고 있는" 정렬 (2026-08-21 태현님 "어울린다고 생각해?" — 아니었다) ──
+    //  1차 시도는 투구를 이마 **위에** 얹었다 — 투구 이미지가 가진 자기 얼굴 구멍이
+    //  허공을 보고 있어 붙임딱지처럼 떴다. 정답은 **구멍을 계란 얼굴에 정렬**하는
+    //  것이다: 이미지 안 구멍 중심의 세로 위치(holeY, 이미지 높이 비율)를 재고,
+    //  그 지점이 계란 눈높이(by - r*0.45)에 오도록 투구를 내려 쓴다. 크기도 구멍이
+    //  얼굴 폭을 감싸게 키운다. 철가면(crest)은 구멍이 없는 가면이라 얼굴을 통째로
+    //  덮는 게 맞다(원래 face:'slit' — 눈이 안 보이는 캐릭터다).
+    //  holeY 는 짐작이 아니라 **이미지에서 잰 값**이다(내부 투명 영역 무게중심 —
+    //  vanguard 0.79 · ranger 0.65 / warden 은 구멍이 아니라 눈구멍 0.43).
+    //  ⚠ 광전사(onehorn)는 **이미지에서 뺐다** — 생성된 투구가 사람 머리용(얼굴을
+    //    감싸는 깊은 구조)이라 몸통=얼굴인 계란에서 얼굴이 파묻혔다. 구멍 확장
+    //    가공도 실패(그늘 침식이 가시 틈까지 번져 누더기). 벡터 볏 투구를 유지하고
+    //    3차 요청(계란 규격: 아래가 넓게 열린 얕은 캡형)으로 재생성한다.
     var HELM_IMG = {
-      onehorn: { key: 'helmVanguard', w: 1.72, h: 1.46, dy: 0.86 },
-      wolf:    { key: 'helmRanger',   w: 1.72, h: 1.46, dy: 0.86 },
-      crest:   { key: 'helmWarden',   w: 1.38, h: 1.18, dy: 0.72 }
+      wolf:    { key: 'helmRanger',   w: 2.25, h: 1.90, holeY: 0.65 },
+      crest:   { key: 'helmWarden',   w: 1.60, h: 1.38, holeY: 0.43 }
     };
     var hSpec = HELM_IMG[kind];
     if (hSpec && GAME.GearBank) {
-      var hw = r * hSpec.w * (D.profile ? 0.82 : 1) * (D.back ? 0.96 : 1);
+      var hw = r * hSpec.w * (D.profile ? 0.84 : 1) * (D.back ? 0.96 : 1);
       var hh = r * hSpec.h;
-      if (GAME.GearBank.place(g, hSpec.key, sx + (D.lat || 0) * r * 0.06, by - r * hSpec.dy,
+      var eyeY = by - r * 0.45;                    // 계란 눈높이(얼굴 중심)
+      var topY = eyeY - hh * hSpec.holeY;          // 구멍이 눈에 오도록 위 좌표 역산
+      if (GAME.GearBank.place(g, hSpec.key, sx + (D.lat || 0) * r * 0.06, topY + hh / 2,
                               hw, hh, a)) {
         return;
       }
@@ -1784,6 +1796,11 @@ var SM = 10;
     if (kind === 'quiver') {                 // 화살통 — 등 뒤 대각선 + 화살깃 3개
       // 정배면일 때 정중앙에 오면 두건 자락과 겹치므로 옆으로 조금 비켜 멘다
       var qx = sx + ox + D.px * r * 0.20, qy = by + oy - r * 0.10;
+      //  생성 이미지 화살통 (2026-08-21) — 이미지가 이미 비스듬히 멘 각도다.
+      if (GAME.GearBank &&
+          GAME.GearBank.place(g, 'quiverimg', qx, qy - r * 0.35, r * 1.30, r * 1.55, a)) {
+        return;
+      }
       // 멜빵에 진영색을 섞는다 — 사냥꾼(quiver)은 진영색 천이 아예 없었다(2026-07-30).
       // 가죽 재질감은 남기려고 원색이 아니라 절반만 섞는다.
       g.lineStyle(Math.max(2, r * 0.30),
@@ -1798,6 +1815,16 @@ var SM = 10;
       }
 
     } else if (kind === 'cape') {            // 망토 — 뒤를 보이면 펼쳐지되 계란을 다 덮진 않는다
+      //  생성 이미지 망토 — 회갈색 원본에 진영색을 절반 물들인다(정체성 유지).
+      if (GAME.GearBank) {
+        var cwI = (back ? 1.62 : (prof ? 1.10 : 1.30)) * r;
+        //  정면에서는 몸 뒤 정중앙(어깨 사이) — 옆 치우침을 없앤다(실측).
+        var cxI = back ? sx : (prof ? sx + ox * 0.55 : sx);
+        if (GAME.GearBank.place(g, 'capeimg', cxI, by + oy * 0.6 + r * 0.30,
+              cwI, r * 1.72, a, UI.mix(0xffffff, color, 0.45))) {
+          return;
+        }
+      }
       var cw = back ? 1.16 : (prof ? 0.88 : 1.0);
       var cxo = back ? 0 : -lat * r * 0.10;
       // 정배면에서는 몸통 위에 그려지므로 어깨 아래에서 시작해 계란 실루엣을 살려둔다
@@ -1819,6 +1846,13 @@ var SM = 10;
       }
 
     } else if (kind === 'fur') {             // 어깨 털가죽
+      //  생성 이미지 모피 — **뒤·옆모습에서만**. 정면은 모피가 등 뒤라 어깨 타원
+      //  (벡터)만 보이는 게 맞다 — 이미지를 정면에 얹었더니 얼굴을 통째로 덮었다(실측).
+      if ((back || prof) && GAME.GearBank &&
+          GAME.GearBank.place(g, 'furimg', sx + ox * 0.5, by + oy * 0.5 - r * 0.30,
+            r * 1.52, r * 1.30, a, UI.mix(0xffffff, color, 0.28))) {
+        return;
+      }
       // ⚠ 여기는 **진영색을 써야 하는 자리다** (2026-07-30).
       //   등 장비 중 진영색을 쓰는 것은 `cape` 하나뿐이었고 그건 파수꾼·족장만 멘다.
       //   광전사(fur)와 사냥꾼(quiver)은 진영색 천이 **아예 없었다** — 컨트롤러가 가장
@@ -1838,6 +1872,12 @@ var SM = 10;
       }
 
     } else if (kind === 'pack') {            // 등짐
+      //  생성 이미지 약초 등짐 바구니.
+      if (GAME.GearBank &&
+          GAME.GearBank.place(g, 'packimg', sx + ox * 1.55, by + oy * 1.10 - r * 0.10,
+            r * 1.08, r * 1.22, a)) {
+        return;
+      }
       g.fillStyle(M.leatherDark, a);
       g.fillRoundedRect(sx + ox * 1.72 - r * 0.34, by + oy * 1.20 - r * 0.26, r * 0.68, r * 0.86, r * 0.14);
       g.fillStyle(M.leather, a);
@@ -2230,34 +2270,54 @@ var SM = 10;
       //  활은 휘두르는 게 아니라 **당겼다 놓는다** — atk<0 시위를 끌고, atk>0 화살이 날아간다.
       var pull = atk < 0 ? -atk : 0, shot = atk > 0 ? atk : 0;
       var apex = cxp - bulge * (0.28 + pull * 0.80 - shot * 0.16);
-      //  시위 2겹 — 어두운 심 위에 가는 밝은 줄(한 줄이면 '벡터 선'으로 읽힌다).
-      //  이미지 시위(gear-bowstring, 2차 요청분)가 오면 drawSpan 2회로 교체 예정.
-      g.lineStyle(Math.max(1.0, r * 0.07), UI.shade(M.leatherDark), a * 0.9);
-      g.lineBetween(arc[0].x, arc[0].y, apex, cyp);
-      g.lineBetween(apex, cyp, arc[6].x, arc[6].y);
-      g.lineStyle(Math.max(0.6, r * 0.03), M.rope, a * 0.8);
-      g.lineBetween(arc[0].x, arc[0].y, apex, cyp);
-      g.lineBetween(apex, cyp, arc[6].x, arc[6].y);
+      //  시위 — 생성 이미지 줄을 두 토막으로 편다(위 팔끝→apex→아래 팔끝).
+      //  당김(pull)이 apex 를 옮기면 두 토막이 V 자로 꺾인다 — 질감은 이미지,
+      //  변형은 코드(2026-08-21 시트 2차분).
+      //  drawSpan 은 풀에서 이미지 하나를 쓴다 — 같은 키 두 번은 두 번째 _acquire 가
+      //  새 이미지를 내주므로 그대로 두 번 부르면 두 토막이 된다.
+      var str1 = GAME.GearBank &&
+        GAME.GearBank.drawSpan(g, 'bowstring', arc[0].x, arc[0].y, apex, cyp, a);
+      var str2 = str1 &&
+        GAME.GearBank.drawSpan(g, 'bowstring', apex, cyp, arc[6].x, arc[6].y, a);
+      if (!str2) {
+        g.lineStyle(Math.max(1.0, r * 0.07), UI.shade(M.leatherDark), a * 0.9);
+        g.lineBetween(arc[0].x, arc[0].y, apex, cyp);
+        g.lineBetween(apex, cyp, arc[6].x, arc[6].y);
+        g.lineStyle(Math.max(0.6, r * 0.03), M.rope, a * 0.8);
+        g.lineBetween(arc[0].x, arc[0].y, apex, cyp);
+        g.lineBetween(apex, cyp, arc[6].x, arc[6].y);
+      }
       var alen = Math.max(0.8, r * 0.06);
-      //  ⚠ 화살은 **조준 방향(전방축)** 을 따른다 (2026-08-21 실측 수정).
-      //    예전엔 양끝 y 가 cyp 로 같아 **어느 방향을 봐도 화면 수평 막대**였다 —
-      //    위를 쏘는데 화살이 옆으로 누워 "몸을 관통하는 막대"로 읽혔다(신고의 정체).
+      //  화살 — 생성 이미지(arrow2, 촉이 이미지 위). 방향은 전방축(2026-08-21 규칙 유지:
+      //  옛 수평 고정은 "몸 관통 막대" 신고의 원인이었다). drawSpan 은 (x0,y0)=촉.
       if (shot > 0.02) {
-        // 날아가는 화살. ⚠ 진행도는 shot 이 아니라 **1-shot** 이다 —
-        //   k 는 놓은 순간 +1 에서 0 으로 되돌아오므로 shot 을 그대로 쓰면 화살이 뒤로 간다.
         var fly = (1 - shot) * 1.6;
         var f0x = cxp + fx * r * (0.30 + fly), f0y = cyp + fy * r * (0.30 + fly);
-        g.lineStyle(alen, M.bone, a * Math.min(1, shot * 2.5));
-        g.lineBetween(f0x, f0y, f0x + fx * r * 1.10, f0y + fy * r * 1.10);
+        var fa2 = a * Math.min(1, shot * 2.5);
+        if (!(GAME.GearBank && GAME.GearBank.drawSpan(g, 'arrow2',
+              f0x + fx * r * 1.10, f0y + fy * r * 1.10, f0x, f0y, fa2))) {
+          g.lineStyle(alen, M.bone, fa2);
+          g.lineBetween(f0x, f0y, f0x + fx * r * 1.10, f0y + fy * r * 1.10);
+        }
       }
       var na = (0.35 - shot) / 0.35;                                // 메긴 화살
       if (na > 0) {
         var nockX = cxp - bulge * (0.34 + pull * 0.80);
-        g.lineStyle(alen, M.bone, a * Math.min(1, na));
-        g.lineBetween(nockX, cyp, nockX + fx * r * 1.10, cyp + fy * r * 1.10);
+        var na2 = a * Math.min(1, na);
+        if (!(GAME.GearBank && GAME.GearBank.drawSpan(g, 'arrow2',
+              nockX + fx * r * 1.10, cyp + fy * r * 1.10, nockX, cyp, na2))) {
+          g.lineStyle(alen, M.bone, na2);
+          g.lineBetween(nockX, cyp, nockX + fx * r * 1.10, cyp + fy * r * 1.10);
+        }
       }
 
     } else if (kind === 'sling') {           // 투석꾼 — 머리 위에서 도는 무릿매
+      //  생성 이미지 무릿매 — "던지기 전 늘어진" 컷이라 손 아래로 드리운다.
+      if (GAME.GearBank &&
+          GAME.GearBank.place(g, 'slingimg', hx + px * r * 0.10, hy + r * 0.72,
+            r * 0.94, r * 1.70, a)) {
+        return;
+      }
       //  고리는 머리 위라 얼굴을 안 가리지만 **끈이 얼굴을 대각으로 가로질렀다**(실측).
       //  고리도 같이 벌리고, 끈을 손과 같은 쪽에 매 얼굴 앞을 지나지 않게 한다.
       var lxp = sx + fx * r * 0.18 + px * r * sprd, lyp = by - r * 1.38 + fy * r * 0.10 + py * r * sprd;
@@ -2316,6 +2376,12 @@ var SM = 10;
       }  // (투창 하이브리드 폴백 닫기)
 
     } else if (kind === 'leafstaff') {       // 약초꾼 — 약초 다발 지팡이
+      //  생성 이미지 지팡이 — 세로로 든다.
+      if (GAME.GearBank &&
+          GAME.GearBank.place(g, 'leafstaffimg', X(0.30, 0.66), Y(0.30, 0.66, 0.50),
+            r * 0.86, r * 2.30, a)) {
+        return;
+      }
       var stx = X(0.30, 0.66);
       g.lineStyle(lw(0.13), M.woodDark, a);
       g.lineBetween(stx, Y(0.30, 0.66, -0.55), stx, Y(0.30, 0.66, 1.55));
@@ -2597,6 +2663,11 @@ var SM = 10;
 
     } else if (kind === 'sapjar') {          // 늪지기 — 끈끈한 수액 단지
       var jx = X(0.86, 0.16), jy = Y(0.86, 0.16, 0.05);
+      //  생성 이미지 단지.
+      if (GAME.GearBank &&
+          GAME.GearBank.place(g, 'sapjarimg', jx, jy, r * 1.30, r * 1.16, a)) {
+        return;
+      }
       //  ⚠ 예전엔 `UI.tint(M.clay, -0.30)` — 흑백 축으로만 밀어 그늘이 **회색 진흙**이 됐다.
       //    이 파일이 `deriveMatTones` 에 스스로 적어 둔 경고를 유닛 쪽에서 그대로 어기고
       //    있었다. 3단(clayDark / clay / clayLite)으로 바꾼다.
@@ -2617,6 +2688,19 @@ var SM = 10;
       }
 
     } else if (kind === 'crossbowNest') {    // 쇠뇌 진지 — 통나무 방벽 + 거치 쇠뇌
+      //  생성 이미지 쇠뇌 (2026-08-21) — 구조물이라 **접지 그림자를 먼저** 깐다.
+      //  그림자 없이 이미지만 얹으면 공중에 뜬 스티커가 된다(태현님 광원 질문의 답:
+      //  전역 광원보다 이런 접지가 자연스러움을 만든다).
+      //  ⚠ 크기·높이를 낮춰 계란 머리가 구조물 위로 보이게 한다("반쯤 숨은 계란"
+      //    실루엣 유지 — 처음 2.85r 는 유닛을 통째로 삼켰다, 실측).
+      if (GAME.GearBank && GAME.GearBank.ready('ballistaimg', g.scene)) {
+        g.fillStyle(0x2a2114, a * 0.22);
+        g.fillEllipse(sx + fx * r * 0.2, by + r * 1.02, r * 2.3, r * 0.56, SM);
+        if (GAME.GearBank.place(g, 'ballistaimg', sx + fx * r * 0.2, by + r * 0.24,
+              r * 2.30, r * 1.78, a)) {
+          return;
+        }
+      }
       g.lineStyle(lw(0.17), M.woodDark, a);
       g.lineBetween(X(-0.55, 0), Y(-0.55, 0, 0.55), X(1.55, 0), Y(1.55, 0, 0.55));
       g.lineStyle(lw(0.13), M.woodDark, a);  // 활대 (정면 수직)

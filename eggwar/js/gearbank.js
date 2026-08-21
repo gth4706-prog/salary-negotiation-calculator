@@ -32,6 +32,18 @@
     armor:       { src: 'assets/gear/armor.png?v=2.27' },
     boots:       { src: 'assets/gear/boots.png?v=2.27' },
     amulet:      { src: 'assets/gear/amulet.png?v=2.27' },
+    //  활 마감·유닛 도구·등짐 (2026-08-21 시트 2차분)
+    bowstring:   { src: 'assets/gear/bowstring.png?v=2.30' },
+    arrow2:      { src: 'assets/gear/arrow2.png?v=2.30' },
+    arrowbundle: { src: 'assets/gear/arrowbundle.png?v=2.30' },
+    slingimg:    { src: 'assets/gear/slingimg.png?v=2.30' },
+    leafstaffimg:{ src: 'assets/gear/leafstaff.png?v=2.30' },
+    sapjarimg:   { src: 'assets/gear/sapjar.png?v=2.30' },
+    ballistaimg: { src: 'assets/gear/ballista.png?v=2.30' },
+    quiverimg:   { src: 'assets/gear/quiverimg.png?v=2.30' },
+    capeimg:     { src: 'assets/gear/capeimg.png?v=2.30' },
+    furimg:      { src: 'assets/gear/furimg.png?v=2.30' },
+    packimg:     { src: 'assets/gear/packimg.png?v=2.30' },
     //  영웅 투구 3종 (2026-08-21 시트 1차분 — 정면 단독컷)
     helmVanguard: { src: 'assets/helm/vanguard.png?v=2.29' },
     helmRanger:   { src: 'assets/helm/ranger.png?v=2.29' },

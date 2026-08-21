@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v2.32';
+GAME.VERSION = 'v2.33';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -71,7 +71,8 @@ window.addEventListener('load', function () {
       GAME.TowerShopScene,
       GAME.TowerLoadingScene,
       GAME.RankScene,
-      GAME.AdminScene
+      GAME.AdminScene,
+      GAME.FitScene            // 피팅 도구 — ?fit=1 로만 진입(2026-08-21)
     ]
   });
 

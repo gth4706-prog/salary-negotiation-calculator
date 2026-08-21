@@ -268,6 +268,7 @@ GAME.LoadingScene.prototype._go = function () {
   this._teardownVideo();
   this.cameras.main.fadeOut(200, 0, 0, 0);
   this.cameras.main.once('camerafadeoutcomplete', function () {
+    if (location.search.indexOf('fit=1') >= 0) { self.scene.start('Fit'); return; }
     self.scene.start('Menu');
   });
 };
@@ -385,7 +386,10 @@ GAME.LoadingScene.prototype._askNickname = function () {
     self.done = true;
     self._teardownVideo();
     self.cameras.main.fadeOut(200, 0, 0, 0);
-    self.cameras.main.once('camerafadeoutcomplete', function () { self.scene.start('Menu'); });
+    self.cameras.main.once('camerafadeoutcomplete', function () {
+      if (location.search.indexOf('fit=1') >= 0) { self.scene.start('Fit'); return; }
+      self.scene.start('Menu');
+    });
   }
 
   enter.addEventListener('click', function () { submit(input.value); });

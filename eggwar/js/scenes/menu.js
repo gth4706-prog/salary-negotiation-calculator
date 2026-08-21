@@ -7,6 +7,8 @@ GAME.MenuScene.prototype = Object.create(Phaser.Scene.prototype);
 GAME.MenuScene.prototype.constructor = GAME.MenuScene;
 
 GAME.MenuScene.prototype.create = function () {
+  //  피팅 도구(?fit=1) — 로그인 검사보다 먼저(도구는 계정이 필요없다).
+  if (location.search.indexOf('fit=1') >= 0) { this.scene.start('Fit'); return; }
   if (GAME.Music) GAME.Music.play('lobby');
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;

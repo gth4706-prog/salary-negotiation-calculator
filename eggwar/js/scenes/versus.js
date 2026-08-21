@@ -25,13 +25,12 @@ GAME.VersusScene.prototype.init = function (data) {
   this._refreshed = false;
   this._note = null;
   this._noteW = 0;
-  // 역할을 이미 골랐는가. 대전에 들어오면 **먼저 묻는다**(2026-07-30 사용자 지시).
-  // 'controller' 로 들어오면 상대 진형을 고르는 목록이, 'strategist' 면 내 진형을
-  // 짜는 길이 열린다. `back:true` 로 돌아오면 다시 묻는 화면부터 시작한다.
-  this.role = (data && data.role) || null;
+  // 대전 이원화(2026-08-21 태현님): mode 없음 = 실시간/공성 **선택 화면**,
+  // 'siege' = 공성전(기존 전장 목록 화면).
+  this.mode = (data && data.mode) || null;
   // ⚠ Phaser 는 data 를 주지 않으면 **이전 settings.data 를 그대로 둔다.**
-  //   읽었으면 비운다 — 안 그러면 메뉴를 거쳐 다시 들어와도 역할이 남아
-  //   물어보는 화면을 영원히 건너뛴다(tower.js 가 같은 함정을 겪었다).
+  //   읽었으면 비운다 — 안 그러면 메뉴를 거쳐 다시 들어와도 모드가 남아
+  //   선택 화면을 영원히 건너뛴다(tower.js 가 같은 함정을 겪었다).
   if (this.scene && this.scene.settings) this.scene.settings.data = {};
 };
 
@@ -90,6 +89,56 @@ GAME.VersusScene.prototype._emptyNote = function () {
   return '';
 };
 
+// ── 모드 선택 (2026-08-21) — ⚡ 실시간 대전 / 🏰 공성전 ─────────────────────────
+//  카드마다 그 모드의 **자기 점수**를 적는다 — 두 점수는 서로 다른 축이다
+//  (실시간 = RtScore, 공성 = Arena 트로피·리그).
+GAME.VersusScene.prototype._createModePick = function () {
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var PH = GAME.CONFIG.PHONE;
+  var self = this;
+  var u = H / 100;
+
+  UI.text(this, W / 2, u * 5, '⚔ 대전',
+    { size: PH ? 'subhead' : 'title', color: C.accent, origin: 0.5, originY: 0 });
+
+  var rec = GAME.Arena.get();
+  var lg = GAME.Arena.leagueOf(rec.trophy);
+  var rt = GAME.RtScore ? GAME.RtScore.get() : { score: 0, wins: 0, losses: 0 };
+
+  var cw = Math.min(W * 0.42, PH ? 340 : 400);
+  var ch = Math.max((UI.BTN_H || 58) * 2, u * (PH ? 42 : 30));
+  var cy = H * 0.46;
+  var rtOn = GAME.NetRoom && GAME.NetRoom.enabled();
+
+  var b1 = UI.button(this, W / 2 - cw / 2 - 12, cy, cw, ch,
+    '⚡ 실시간 대전\n방을 만들어 지금 붙는다\n실시간 점수 ' + rt.score +
+      '  ·  ' + rt.wins + '승 ' + rt.losses + '패',
+    function () {
+      if (!rtOn) return;
+      self.scene.start('RtLobby');
+    },
+    { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
+      hover: UI.COL.panelTealHi, color: C.accent, fontSize: PH ? 14 : 16 });
+  b1.text.setAlign('center');
+
+  var b2 = UI.button(this, W / 2 + cw / 2 + 12, cy, cw, ch,
+    '🏰 공성전\n올려 둔 기지에 도전이 온다\n트로피 ' + rec.trophy + '  ·  ' + lg.name,
+    function () { self.scene.start('Versus', { mode: 'siege' }); },
+    { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
+      hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: PH ? 14 : 16 });
+  b2.text.setAlign('center');
+
+  UI.text(this, W / 2, cy + ch / 2 + u * 4,
+    '두 점수는 따로 갑니다 — 실시간에서 잃어도 공성 트로피는 그대로입니다',
+    { size: 'micro', color: C.textDim, origin: 0.5 });
+
+  var mh = Math.max(UI.BTN_H_SM || 52, u * 7);
+  var mw = Math.max(96, Math.min(140, W * 0.14));
+  UI.button(this, mw / 2 + 10, Math.max(mh / 2 + 6, u * 3.4), mw, mh, '← 메뉴',
+    function () { self.scene.start('Menu'); }, { fontSize: 14 });
+};
+
 GAME.VersusScene.prototype._createRolePick = function () {
   var C = GAME.CONFIG.COLORS, UI = GAME.UI;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
@@ -99,7 +148,7 @@ GAME.VersusScene.prototype._createRolePick = function () {
 
   this._kickRemote();      // 서버에서 남의 전장을 받아온다(기다리지 않는다)
 
-  UI.text(this, W / 2, u * 3, '⚔ 대전  —  전장 목록',
+  UI.text(this, W / 2, u * 3, '🏰 공성전  —  전장 목록',
     { size: PH ? 'subhead' : 'title', color: C.accent, origin: 0.5, originY: 0 });
 
   var opps = GAME.Arena.findOpponents(PH ? 3 : 5);
@@ -149,12 +198,16 @@ GAME.VersusScene.prototype._createRolePick = function () {
     });
   }
 
-  // ── 내 전장 (전략가 입구) ──
+  // ── 내 기지 2슬롯 (2026-08-21 태현님: "사람당 최대 2개") ────────────────────
+  //  기지 1 = 기존 배치 편집 흐름(Build). 기지 2 = 저장 배치 중에서 지정(Modal).
+  //  두 기지 모두 서버에 올라가 남의 도전 대상이 된다(깨지면 트로피를 잃는다).
   var base = GAME.Arena.baseFormation();
+  var base2 = GAME.Arena.baseFormation2();
   var bh = myBtnH;
   var byB = H - u * (PH ? 13 : 11);
-  UI.button(this, W / 2, byB, Math.min(W - 30, 460), bh,
-    (base ? '🛡 내 전장 고치기' : '🛡 내 전장 만들기') +
+  var slotW = Math.min((W - 46) / 2, 300);
+  UI.button(this, W / 2 - slotW / 2 - 6, byB, slotW, bh,
+    (base ? '🛡 기지 1 고치기' : '🛡 기지 1 만들기') +
       // 시각이 없으면(v0.61 이전 저장) 구분자까지 같이 뺀다 — "5기 · 시각 모름" 방지.
       '\n' + (base ? (base.units.length + '기' +
                       (self._fmtAgo(base.at) ? (' · ' + self._fmtAgo(base.at)) : ''))
@@ -164,7 +217,15 @@ GAME.VersusScene.prototype._createRolePick = function () {
       self.scene.start('Build', { pickBase: true, arena: true });
     },
     { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
-      hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: PH ? 13 : 16 }
+      hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: PH ? 12 : 14 }
+  ).text.setAlign('center');
+  UI.button(this, W / 2 + slotW / 2 + 6, byB, slotW, bh,
+    (base2 ? '🏰 기지 2 바꾸기' : '🏰 기지 2 지정하기') +
+      '\n' + (base2 ? (base2.name || '(이름 없음)') + ' · ' + base2.units.length + '기'
+                    : '저장한 배치 중에서 고릅니다'),
+    function () { self._pickBase2(); },
+    { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
+      hover: UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: PH ? 12 : 14 }
   ).text.setAlign('center');
 
   // ── 아래에서 위로 쌓는다 ────────────────────────────────────────────────────
@@ -173,7 +234,7 @@ GAME.VersusScene.prototype._createRolePick = function () {
   //   읽어 그 위에 다음 것을 얹는다(이 저장소가 반복해 배운 규칙: 좌표를 손으로 박지 말 것).
   //   아래에 두면 화면 밖으로 나가므로 방향은 위쪽뿐이다.
   var hint = UI.text(this, W / 2, byB - bh * 0.5 - u * 1.0,
-    '양쪽 예산은 ' + GAME.Arena.BUDGET + '으로 같습니다  ·  격파율이 낮은 전장이 위',
+    '예산 ' + GAME.Arena.BUDGET + ' 동일  ·  기지는 최대 2개  ·  내 기지가 깨지면 트로피를 잃습니다',
     { size: 'micro', color: C.textDim, origin: 0.5, originY: 1 });
 
   // ── 내 전장 시험 (2026-07-30, 사용자 지시 3번) ─────────────────────────────
@@ -196,18 +257,36 @@ GAME.VersusScene.prototype._createRolePick = function () {
   // ⚠ 버튼의 y 는 **중심**이다. `u * 3.4`(폰 가로에서 13px)를 주면 높이 52 의 절반이
   //   위로 삐져나가 화면 밖으로 잘린다 — 실기기 스크린샷에서 모서리가 잘려 있었다.
   //   '반높이 + 여백'을 하한으로 잡아 화면 크기가 바뀌어도 안 잘리게 한다.
+  //  ← 는 모드 선택 화면으로 — 실시간 입구는 그쪽에 있다(2026-08-21 이원화).
   var mh = Math.max(UI.BTN_H_SM || 52, u * 7);
   var mw = Math.max(96, Math.min(140, W * 0.14));
-  UI.button(this, mw / 2 + 10, Math.max(mh / 2 + 6, u * 3.4), mw, mh, '← 메뉴',
-    function () { self.scene.start('Menu'); }, { fontSize: 14 });
+  UI.button(this, mw / 2 + 10, Math.max(mh / 2 + 6, u * 3.4), mw, mh, '← 대전',
+    function () { self.scene.start('Versus'); }, { fontSize: 14 });
+};
 
-  // ── ⚡ 실시간 대결 (P3, 2026-08-20) — 방을 만들어 코드로 붙는 진짜 실시간 ──
-  if (GAME.NetRoom && GAME.NetRoom.enabled()) {
-    var rw = Math.max(150, Math.min(220, W * 0.2));
-    UI.button(this, W - rw / 2 - 10, Math.max(mh / 2 + 6, u * 3.4), rw, mh,
-      '⚡ 실시간 대결', function () { self.scene.start('RtLobby'); },
-      { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, fontSize: 14 });
+//  기지 2 지정 — 저장한 배치 중에서 고른다. 기지 1(baseId)과 같은 것은 뺀다
+//  (같은 배치 둘을 올리면 슬롯 2개의 뜻이 없다).
+GAME.VersusScene.prototype._pickBase2 = function () {
+  var self = this;
+  var baseId = GAME.Arena.get().baseId;
+  var list = GAME.Formations.loadSaved().filter(function (f) { return f.id !== baseId; });
+  if (!list.length) {
+    if (this._note && this._note.scene)
+      this._note.setText('기지 2로 쓸 저장 배치가 없습니다 — 기지 1 만들기에서 새로 저장하세요');
+    return;
   }
+  GAME.Modal.open(this, {
+    title: '🏰 기지 2로 올릴 배치',
+    items: list.map(function (f) {
+      return { key: f.id, name: f.name || '(이름 없음)',
+               note: (f.units ? f.units.length : 0) + '기' };
+    }),
+    onPick: function (it) {
+      GAME.Arena.setBase2(it.key);
+      GAME.Arena.syncBase(true);
+      self.scene.restart({ mode: 'siege' });
+    }
+  });
 };
 
 // 매칭 종류 한 줄('사람 진형' / '랜덤매칭' / '찾는 중')을 다시 쓴다.
@@ -260,9 +339,10 @@ GAME.VersusScene.prototype.create = function () {
   this.cameras.main.setBackgroundColor(C.bg);
   GAME.Iso.setMode('default');
 
-  // ── 대전의 첫 화면은 **전장 목록**이다 (2026-07-30 지시 2번) ────────────────
-  // 예전에는 트로피·리그·방어기록을 쌓아 놓은 로비였고 상대 목록은 그 아래 셋이었다.
-  // 이제 목록이 주인공이다 — 전장을 누르면 컨트롤러로 도전, 아래 버튼이면 전략가.
+  // ── 대전 이원화 (2026-08-21 태현님) ────────────────────────────────────────
+  // 첫 화면은 **실시간 대전 / 공성전 선택**. 두 모드의 점수가 서로 다른 축이라는
+  // 것을 여기서부터 보여 준다(각 카드에 자기 점수를 적는다).
+  if (this.mode !== 'siege') return this._createModePick();
   return this._createRolePick();
   //  ⚠ 여기서 끝난다. 예전에는 아래로 **옛 로비 화면**(트로피·리그·방어기록을
   //    쌓아 올리고 상대 목록은 그 아래 셋이던 구조)이 수백 줄 더 있었는데,

@@ -221,13 +221,14 @@ GAME.Api = {
   // 잡아서 **랜덤매칭**으로 내려간다. 즉 서버가 옛 버전이어도 게임은 그대로 돈다.
 
   // 내 기지를 올린다. 실패해도 게임 진행에는 영향이 없다(로컬 기지는 그대로).
-  postBase: function (id, formation, trophy) {
+  postBase: function (id, formation, trophy, slot) {
     var self = this;
     if (!this.enabled() || !id || !formation || !formation.units || !formation.units.length) {
       return Promise.resolve(null);
     }
     var body = {
       id: id,
+      slot: slot === 2 ? 2 : 1,
       trophy: trophy || 0,
       // 대전 전략가가 예산으로 산 유닛 등급. 이걸 안 보내면 남이 내 진형을 칠 때
       // 전부 Lv.1 로 싸운다 — 내가 낸 돈이 상대 화면에서는 없는 것이 된다.
@@ -258,6 +259,18 @@ GAME.Api = {
   // 방어 결과 보고 — 격파율의 근거를 서버에 모은다.
   // **실패해도 조용히 넘어간다.** 이건 통계이지 게임 진행이 아니라, 여기서 막히면
   // 전투가 끝나지 않는 것처럼 보이는 쪽이 더 나쁘다.
+  //  공성 결과 (2026-08-21) — defresult 의 후속. 방어자 점수는 **서버가** 정산한다
+  //  (깨지면 -18 · 막으면 +12, 서버 고정 — 클라이언트 델타는 안 믿는다).
+  //  실패해도 조용히 넘어간다(통계·정산이지 게임 진행이 아니다).
+  siegeResult: function (attackerId, targetId, slot, won) {
+    if (!this.enabled() || !attackerId || !targetId) return Promise.resolve(null);
+    return this._fetch('/siegeresult', {
+      method: 'POST',
+      body: JSON.stringify({ attacker: attackerId, target: targetId,
+                             slot: slot === 2 ? 2 : 1, won: !!won })
+    })['catch'](function () { return null; });
+  },
+
   defResult: function (targetId, defended) {
     if (!this.enabled() || !targetId) return Promise.resolve(null);
     return this._fetch('/defresult', {

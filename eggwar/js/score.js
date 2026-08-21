@@ -29,8 +29,10 @@ GAME.Score = {
       desc: '영웅 하나로 몇 층까지 올랐는가' },
     { k: 'dtower', n: '수성의 탑', short: '수성의 탑', unit: '층',
       desc: '진형 하나로 영웅을 몇 번 막았는가' },
-    { k: 'arena',  n: '대전',      short: '대전',      unit: '점',
-      desc: '비동기 대전 트로피 점수' }
+    { k: 'arena',  n: '공성전',    short: '공성전',    unit: '점',
+      desc: '공성전 트로피 — 기지를 깨거나 지키며 오르내린다' },
+    { k: 'rt',     n: '실시간',    short: '실시간',    unit: '점',
+      desc: '실시간 대전 점수 — 공성 트로피와 다른 축' }
   ],
   SCOPES: [
     { k: 'week', n: '7일' },
@@ -199,7 +201,7 @@ GAME.Score = {
     var r = all[id];
     if (!r) { r = this._blank(id); all[id] = r; }
     // 옛 모양이 섞여 들어와도 깨지지 않게 칸을 채운다
-    var ks = ['tower', 'dtower', 'arena'];
+    var ks = ['tower', 'dtower', 'arena', 'rt'];
     for (var i = 0; i < ks.length; i++) {
       if (!r[ks[i]]) r[ks[i]] = { best: 0, at: 0, ev: [] };
       if (!r[ks[i]].ev) r[ks[i]].ev = [];
@@ -279,6 +281,30 @@ GAME.Score = {
   // 대전 트로피는 '판마다 생기는 기록'이 아니라 **오르내리는 값**이다.
   // 그래서 판별 대신 표본을 찍는다 — 화면에 들어올 때와 판이 끝날 때.
   // (arena.js 를 감싸지 않는다: 그 파일은 내 담당이 아니고, 감싸면 로드 순서에 매인다.)
+  //  실시간 점수도 같은 방식으로 찍는다(랭킹 화면 진입 때) — 원본은 RtScore.
+  sampleRt: function (id, now) {
+    if (!GAME.RtScore) return 0;
+    var cur = GAME.Account && GAME.Account.current ? GAME.Account.current() : null;
+    if (!cur || (id && id !== cur)) return 0;
+    var rec;
+    try { rec = GAME.RtScore.get(); } catch (e) { return 0; }
+    //  판을 한 번도 안 치렀으면 랭킹에 안 올린다(시작값 600 이 줄지어 서면 무의미).
+    if (!rec || !((rec.wins || 0) + (rec.losses || 0))) return 0;
+    now = now || Date.now();
+    var all = this._ranks();
+    var r = this._rec(all, cur);
+    var b = r.rt;
+    var last = b.ev.length ? b.ev[b.ev.length - 1] : null;
+    if (!last || last.v !== rec.score) {
+      b.ev.push({ t: now, v: rec.score });
+      this._prune(b, now);
+      b.best = Math.max(b.best || 0, rec.best || rec.score);
+      if (b.best === (rec.best || rec.score)) b.at = now;
+      GAME.Store.set(this.RKEY, all);
+    }
+    return rec.score;
+  },
+
   sampleArena: function (id, now) {
     if (!GAME.Arena || !GAME.Arena.get) return 0;
     var cur = GAME.Account && GAME.Account.current ? GAME.Account.current() : null;
@@ -311,6 +337,9 @@ GAME.Score = {
   // 이 기능이 생기기 전에 세운 기록도 전체 랭킹에 그대로 뜬다.
   _legacyBests: function (kind) {
     var out = {};
+    //  ⚠ 'rt'(실시간)는 옛 저장소가 없다 — 여기로 흘러들면 else 갈래가 Arena 저장소를
+    //    읽어 **공성 트로피가 실시간 랭킹에 섞인다.** 두 점수는 다른 축이다(2026-08-21).
+    if (kind === 'rt') return out;
     var src = kind === 'tower'  ? (GAME.Tower && GAME.Tower.KEY)
             : kind === 'dtower' ? (GAME.DefendTower && GAME.DefendTower.KEY)
             : (GAME.Arena && GAME.Arena.KEY);
@@ -423,21 +452,23 @@ GAME.Score = {
       var mine = {
         tower: localBest('tower'),
         dtower: localBest('dtower'),
-        arena: Math.max(localBest('arena'), self.sampleArena(me, Date.now()) || 0)
+        arena: Math.max(localBest('arena'), self.sampleArena(me, Date.now()) || 0),
+        rt: Math.max(localBest('rt'), self.sampleRt(me, Date.now()) || 0)
       };
       //  ⚠ **실제로 더 높은 칸만** 싣는다. 특히 트로피는 서버가 `agg.trophy = tr` 로
       //    덮어쓰므로(최고값만 max 병합) 낮은 기기가 현재 트로피를 끌어내리면 안 된다.
       var send = {
         tower: mine.tower > (a.towerBest || 0) ? mine.tower : 0,
         dtower: mine.dtower > (a.dtowerBest || 0) ? mine.dtower : 0,
-        trophy: mine.arena > (a.trophyBest || 0) ? mine.arena : 0
+        trophy: mine.arena > (a.trophyBest || 0) ? mine.arena : 0,
+        rt: mine.rt > (a.rtBest || 0) ? mine.rt : 0
       };
-      if (!(send.tower || send.dtower || send.trophy)) {
+      if (!(send.tower || send.dtower || send.trophy || send.rt)) {
         return { sent: false, mode: 'none', reason: '서버가 이미 최신' };
       }
       return GAME.Api.postScore({
         id: me, score: 0, won: false, role: 'C', esc: 0, formation: '',
-        tower: send.tower, dtower: send.dtower, trophy: send.trophy, hero: '', gear: ''
+        tower: send.tower, dtower: send.dtower, trophy: send.trophy, rt: send.rt, hero: '', gear: ''
       }).then(function () { return { sent: true, mode: 'best', sentFields: send }; });
     }).catch(function (e) {
       self._resynced = false;
@@ -450,6 +481,7 @@ GAME.Score = {
   kindBoard: function (kind, scope) {
     kind = this.kindDef(kind).k;
     this.sampleArena(null, Date.now());          // 화면에 들어올 때 트로피를 한 번 찍는다
+    this.sampleRt(null, Date.now());
     var all = this._ranks();
     var now = Date.now();
     var week = (scope !== 'all');

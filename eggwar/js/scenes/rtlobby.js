@@ -276,6 +276,8 @@ GAME.RtLobbyScene.prototype._commitSetup = function (setup) {
   if (this._myRttSent == null)
     this._myRttSent = Math.round(GAME.NetRoom.bestRtt() || 180);
   setup.rtt = this._myRttSent;
+  //  실시간 점수 교환 — 상대 점수를 알아야 승패 정산(gain/loss)이 상대 실력을 반영한다.
+  setup.rtScore = GAME.RtScore ? GAME.RtScore.get().score : 0;
   this._mySetup = setup;
   this._ready = true;
   GAME.NetRoom.setReady(true);

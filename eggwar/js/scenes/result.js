@@ -26,6 +26,7 @@ GAME.ResultScene.prototype.init = function (data) {
   this.bossDrop = data.bossDrop || null;       // 보스 확정 드랍 { kind, name, note }
   this.versus = !!data.versus;                // 대전(비동기 PvP) 공격이었는가
   this.arenaResult = data.arenaResult || null;// { delta, trophy, league }
+  this.rtResult = data.rtResult || null;      // { won, delta, score } | { invalid }
 };
 
 // ── 통곡의 탑 · 층 클리어는 이 화면을 **건너뛴다** (2026-07-29, 사용자 지시) ─────────
@@ -162,6 +163,20 @@ GAME.ResultScene.prototype.create = function () {
     } else {
       title = '시험 — 내 전장이 막았습니다'; color = C.accent;
       sub = '내 전장이 버텼습니다. 점수·트로피·격파율에 반영되지 않습니다.';
+    }
+  } else if (this.rtResult) {
+    //  실시간 대전 — 승패보다 **실시간 점수가 얼마나 움직였는지**가 결과다.
+    //  공성 트로피와 다른 축이라는 것이 문구에서도 읽혀야 한다.
+    var rr = this.rtResult;
+    if (rr.invalid) {
+      title = '판 무효'; color = C.warn;
+      sub = '동기화가 어긋나 이 판은 기록되지 않았습니다. 점수 변동 없음.';
+    } else if (rr.won) {
+      title = '실시간 대전 승리'; color = C.accent;
+      sub = '실시간 점수 +' + rr.delta + ' → ' + rr.score;
+    } else {
+      title = '실시간 대전 패배'; color = C.accentAlt;
+      sub = '실시간 점수 ' + rr.delta + ' → ' + rr.score + '. 다시 도전해 보세요.';
     }
   } else if (this.versus && this.arenaResult) {
     // 대전(비동기 PvP) — 승패보다 **트로피가 얼마나 움직였는지**가 결과다

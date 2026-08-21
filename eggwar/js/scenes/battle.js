@@ -1752,6 +1752,20 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
       }
     }
 
+    //  실시간 대전 — 점수를 정산한다(공성 트로피와 **다른 축**, 2026-08-21).
+    //  데싱크(승자 null)는 판 무효 = 무정산. 상대 점수는 로비 세팅 교환값.
+    var rtResult = null;
+    if (this.rt && !this.test && GAME.RtScore && !this._rtScored) {
+      this._rtScored = true;
+      if (this.state.winner === null) {
+        rtResult = { invalid: true };
+      } else {
+        var rtWon = this.state.winner === this.rt.meTeam;
+        var rr = GAME.RtScore.record(rtWon, (this.rt.their && this.rt.their.rtScore) || 0);
+        rtResult = { won: rtWon, delta: rr.delta, score: rr.score };
+      }
+    }
+
     // 대전(비동기 PvP) — 트로피를 정산한다
     var arenaResult = null;
     if (this.versus && !this.test && GAME.Arena) {
@@ -1759,8 +1773,11 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
       // 격파율의 근거를 서버에 남긴다 — **그 진형의 주인 닉네임**으로 보고한다.
       // 내 기기 기록만으로는 남의 진형이 대부분 '기록 없음'으로 남아 정렬이 의미를 잃는다.
       // 원격 배치도의 author 가 곧 그 사람의 닉네임이다(formations.fromRemote 참조).
-      if (GAME.Api && GAME.Api.defResult && this.formation.remote && this.formation.author) {
-        GAME.Api.defResult(this.formation.author, !won);
+      //  2026-08-21: /siegeresult 로 갈아탐 — 격파율에 더해 **방어자 점수를 서버가
+      //  정산**한다(깨지면 방어자 -18 · 막으면 +12). 옛 /defresult 는 서버에 남아 있다.
+      if (GAME.Api && GAME.Api.siegeResult && this.formation.remote && this.formation.author) {
+        GAME.Api.siegeResult(GAME.Account.current(), this.formation.author,
+                             this.formation.slot || 1, won);
       }
       GAME.Arena.pendingOpponent = null;
     }
@@ -1801,6 +1818,7 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         versus: self.versus,
         test: self.test,
         arenaResult: arenaResult,
+        rtResult: rtResult,
         //  ── 탑에서는 학습 문구를 안 보여 준다 (2026-08-05 사용자 신고) ────────
         //  > "못깨고나서 7단계 올라갔다는 표현이보여서"
         //

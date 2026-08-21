@@ -390,12 +390,23 @@ GAME.MenuScene.prototype._dailyReward = function () {
   //  Modal.open 이 기존 것을 닫고 열므로 순서 충돌은 없다.
   this.time.delayedCall(600, function () {
     if (!self.scene.isActive() || GAME.Modal.isOpen()) return;
+    //  2026-08-21 태현님: "어느 쪽으로 들어가는지 알아야 하고 선택해서 받는 게 좋다."
+    //  예전엔 말없이 통곡의 탑 지갑으로만 들어갔다. 두 지갑은 경제가 분리돼 있어
+    //  (통곡=TowerChar.gold, 수성=DefendTower.gold) 받는 쪽을 고르게 한다.
+    //  금액은 양쪽 같게 둔다 — 초반 몇 판 어치라는 체감이 양쪽에서 비슷하다
+    //  (통곡 초반 판당 11~30골드, 수성 판당 34+층당 6골드).
     GAME.Modal.open(self, {
-      title: '🎁 오늘의 접속 보상',
-      items: [{ key: 'take', name: '💰 골드 +' + AMT + ' 받기' }],
-      onPick: function () {
+      title: '🎁 오늘의 접속 보상 — 받을 곳을 고르세요',
+      items: [
+        { key: 'tower', name: '⚔ 통곡의 탑 골드 +' + AMT },
+        { key: 'dtower', name: '🛡 수성의 탑 골드 +' + AMT }
+      ],
+      onPick: function (it) {
         try { GAME.Store.set(key, stamp); } catch (e) {}
-        GAME.TowerChar.addGold(AMT);
+        if (it.key === 'dtower' && GAME.DefendTower && GAME.DefendTower.addGold)
+          GAME.DefendTower.addGold(AMT);
+        else
+          GAME.TowerChar.addGold(AMT);
         if (GAME.Sound) GAME.Sound.play('coin');
       }
     });

@@ -68,6 +68,19 @@ GAME.Arena = {
     var rec = this.get();
     rec.baseId = formationId;
     this._save(rec);
+    this.syncedAt = 0;                 // 다음 syncBase 가 즉시 올리게
+  },
+
+  //  ── 공성 2번째 기지 (2026-08-21 태현님: "사람당 최대 2개") ────────────────
+  setBase2: function (formationId) {
+    var rec = this.get();
+    rec.baseId2 = formationId;
+    this._save(rec);
+    this.syncedAt = 0;
+  },
+  baseFormation2: function () {
+    var id = this.get().baseId2;
+    return id ? GAME.Formations.getById(id) : null;
     // 기지를 정한 그 순간이 서버에 올릴 시점이다 — 여기서 안 올리면
     // 남의 상대 목록에 내가 영영 안 나타난다. 실패해도 로컬 기지는 그대로다.
     try { this.syncBase(true); } catch (e) { /* 서버 없이도 게임은 돈다 */ }
@@ -379,7 +392,12 @@ GAME.Arena = {
     if (!base || !base.units || !base.units.length) return Promise.resolve(null);
     if (base.remote) return Promise.resolve(null);     // 남의 기지를 되올리지 않는다
     this.syncedAt = now;
-    return GAME.Api.postBase(this._key(), base, this.get().trophy);
+    //  슬롯 2 도 지정돼 있으면 같이 올린다(실패해도 슬롯 1 과 독립).
+    var b2 = this.baseFormation2();
+    if (b2 && b2.units && b2.units.length && !b2.remote) {
+      GAME.Api.postBase(this._key(), b2, this.get().trophy, 2)['catch'](function () { return null; });
+    }
+    return GAME.Api.postBase(this._key(), base, this.get().trophy, 1);
   },
 
   // ── 공격 결과 ────────────────────────────────────────────────────────────

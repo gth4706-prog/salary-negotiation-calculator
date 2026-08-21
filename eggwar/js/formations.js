@@ -182,7 +182,10 @@ GAME.Formations = {
     }
     if (!units.length) return null;
     return {
-      id: this.REMOTE_PREFIX + row.id,
+      //  공성 2슬롯(2026-08-21): 같은 사람의 두 기지가 **다른 id** 를 가져야 한다 —
+      //  안 그러면 getById 가 어느 쪽인지 구분 못 해 도전 대상이 뒤바뀐다.
+      id: this.REMOTE_PREFIX + row.id + (row.slot === 2 ? '#2' : ''),
+      slot: row.slot === 2 ? 2 : 1,
       name: String(row.name || row.id).slice(0, 20),
       author: String(row.id),
       isAI: false, remote: true, v: 2,

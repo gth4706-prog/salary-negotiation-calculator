@@ -183,7 +183,7 @@ GAME.RankScene.prototype.create = function () {
   var th = 56;
   var tw = Math.min(W - 24, P ? 396 : 640);
   var tcy = (P ? 66 : 86) + th / 2;
-  var tc = GAME.Layout.cols(3, { gap: 8, width: tw, left: (W - tw) / 2, pad: 0 });
+  var tc = GAME.Layout.cols(kinds.length, { gap: 8, width: tw, left: (W - tw) / 2, pad: 0 });
   for (var i = 0; i < kinds.length; i++) {
     this._kindTab(kinds[i].k, kinds[i].n, tc[i].cx, tcy, tc[i].w, th, P ? 16 : 17);
   }
@@ -243,13 +243,17 @@ GAME.RankScene.prototype._buildPhone = function () {
 
   UI.label(this, PAD, 6, '랭킹', 22, C.text, 0).setOrigin(0, 0);
 
-  // 1단계 — 분류 3개를 세로로 쌓는다
+  // 1단계 — 분류 탭. 4개가 되면서(실시간 신설, 2026-08-21) 세로 한 줄로는
+  // 레일 바닥 버튼이 화면(390) 밖으로 밀린다(실측 잘림) → **2×2 격자**로 접는다.
   var kinds = GAME.Score.KINDS;
   var y = 36;
+  var ktw = Math.floor((RAILW - 6) / 2);
   for (var i = 0; i < kinds.length; i++) {
-    this._kindTab(kinds[i].k, kinds[i].n, PAD + RAILW / 2, y + TH / 2, RAILW, TH, 17);
-    y += TH + 5;
+    var kc = i % 2, kr = Math.floor(i / 2);
+    this._kindTab(kinds[i].k, kinds[i].n,
+      PAD + ktw / 2 + kc * (ktw + 6), y + kr * (TH + 5) + TH / 2, ktw, TH, 13);
   }
+  y += Math.ceil(kinds.length / 2) * (TH + 5);
 
   // 2단계 — 기간. 레일 안에서 알약 두 개.
   UI.label(this, PAD, y + 3, '기간', 'micro', C.textFaint || C.textDim, 0).setOrigin(0, 0);

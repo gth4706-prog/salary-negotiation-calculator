@@ -1187,157 +1187,213 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
 GAME.TowerShopScene.prototype._buildStatsTab = function () {
   var C = GAME.CONFIG.COLORS;
   var self = this;
-  var W = GAME.CONFIG.WIDTH;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var top = this._bodyTop;
   var PAD = GAME.CONFIG.SMALL ? 14 : 24;
   var P = GAME.CONFIG.PHONE;
-  //  ⚠ 스탯이 7종이 되면서(공격속도·치명타 신설, 2026-08-22) 폰 가로(높이 390)는
-  //    예전 행 높이(50)로 못 쌓는다(7×55 = 385 > 몸통 290). 2열로 펴 봤더니 셀이
-  //    좁아져 설명 줄이 버튼을 밟았다(겹침 감사 6건) — **행 높이를 줄여** 한 열을
-  //    유지한다. 남는 가로폭이 설명 줄의 생명선이다.
-  var cols = 1;
-  var colGap = 10;
-  var colW = Math.min(W - PAD * 2, 620);
-  var leftX = (W - colW) / 2;
-  var cellW = colW;
 
-  var rowH = P ? 50 : 62;
-  var gap = P ? 5 : 9;
-  if (P) {
-    var availH = GAME.CONFIG.HEIGHT - top - 8;
-    rowH = Math.max(34, Math.floor(availH / GAME.TowerChar.STAT_DEFS.length) - gap);
-  }
-  //  압축 행(폰 7행)에서는 큰 값 글자도 줄여야 다음 행 이름과 안 겹친다.
-  var valFs = P ? (rowH < 44 ? 14 : 18) : 26;
-  // ⚠ 아이템 보정까지 **반드시 합친다.** 능력치만 더하면 이 탭은 "공격력 20", 아이템
-  //   탭 하단 바는 "+135" 라고 말해 같은 캐릭터를 두 숫자로 부르게 된다(실측으로 발견).
-  //   플레이어에게 '현재 능력치'는 언제나 전투에 실제로 들어가는 총합이다.
+  //  ── 뽑기 카드 재설계 (2026-08-22 태현님: "총 능력치는 위에 보여주고, 구매는
+  //  직사각형 카드에 각 파트 어울리는 그림으로 뽑기하는 것처럼") ────────────────
+  //  구성: 위 = 총 능력치 요약 한 줄(7종) / 아래 = 스탯마다 세로 카드 한 장
+  //  (그림 + 이름 + 총합 + 🎲 가격). 카드의 🎲 를 누르는 것이 곧 뽑기다.
   var totalBonus = GAME.TowerChar.statBonus(this.char);
   var itemBonus = GAME.TowerChar.itemBonus(this.char);
+  function totalOf(d) {
+    if (d.key === 'luck') return GAME.TowerChar.luckLevel(self.char);
+    return (totalBonus[d.key] || 0) + (itemBonus[d.key] || 0);
+  }
 
-  GAME.TowerChar.STAT_DEFS.forEach(function (d, i) {
-    var cx = leftX + (i % cols) * (cellW + colGap);
-    var ry = top + Math.floor(i / cols) * (rowH + gap);
+  var DEFS = GAME.TowerChar.STAT_DEFS;
+  var n = DEFS.length;
+  var contW = W - PAD * 2;
+  var leftX = PAD;
+
+  //  ① 요약 줄 — 7칸 균등. "현재 내 몸"이 먼저 읽혀야 카드의 + 가 뜻을 가진다.
+  var sumH = P ? 30 : 40;
+  var sg = this.add.graphics();
+  this._body.push(sg);
+  sg.fillStyle(GAME.UI.COL.surfaceAlt, 1);
+  sg.fillRoundedRect(leftX, top, contW, sumH, 8);
+  sg.lineStyle(1, GAME.UI.COL.border, 1);
+  sg.strokeRoundedRect(leftX, top, contW, sumH, 8);
+  var sumCols = GAME.Layout.cols(n, { gap: 4, width: contW - 12, left: leftX + 6, pad: 0 });
+  DEFS.forEach(function (d, i) {
+    var cxm = sumCols[i].x + sumCols[i].w / 2;
+    var tv = totalOf(d);
+    var vTxt = d.key === 'atkspeed' ? tv + '%' : String(Math.round(tv * 10) / 10);
+    var snm = GAME.UI.label(self, cxm, top + (P ? 2 : 4), d.name,
+      P ? 9 : 11, C.textDim, 0.5).setOrigin(0.5, 0);
+    self._body.push(snm);
+    //  값은 이름의 **실측 높이** 아래에 — 고정 오프셋은 최대 수치(36700)에서 겹쳤다.
+    self._body.push(GAME.UI.label(self, cxm, snm.y + snm.height + 1, vTxt,
+      P ? 12 : 15, C.text, 0.5).setOrigin(0.5, 0));
+  });
+
+  //  ② 카드 줄 — 한 줄 7장. 폰 가로도 816/7 ≈ 112px 로 선다.
+  var cardTop = top + sumH + (P ? 6 : 12);
+  var cardH = Math.min(P ? 240 : 460, H - cardTop - (P ? 6 : 16));
+  var cc = GAME.Layout.cols(n, { gap: P ? 6 : 10, width: contW, left: leftX, pad: 0 });
+
+  //  스탯별 그림 — 벡터로 그린다(자산 0KB 원칙 + 파트 정체성).
+  var ICON = {
+    damage: function (g, x, y, r) {              // 돌검
+      g.fillStyle(0xcfd6de, 1);
+      g.fillTriangle(x, y - r, x - r * 0.28, y + r * 0.35, x + r * 0.28, y + r * 0.35);
+      g.fillStyle(0x8a6b4a, 1);
+      g.fillRect(x - r * 0.42, y + r * 0.35, r * 0.84, r * 0.16);
+      g.fillRect(x - r * 0.09, y + r * 0.5, r * 0.18, r * 0.5);
+    },
+    hp: function (g, x, y, r) {                  // 계란 + 심장박동
+      g.fillStyle(0xf4ecd8, 1);
+      g.fillEllipse(x, y, r * 1.3, r * 1.7);
+      g.lineStyle(Math.max(2, r * 0.14), 0xe8455f, 1);
+      g.beginPath();
+      g.moveTo(x - r * 0.6, y);
+      g.lineTo(x - r * 0.2, y);
+      g.lineTo(x - r * 0.05, y - r * 0.4);
+      g.lineTo(x + r * 0.12, y + r * 0.4);
+      g.lineTo(x + r * 0.25, y);
+      g.lineTo(x + r * 0.6, y);
+      g.strokePath();
+    },
+    armor: function (g, x, y, r) {               // 방패
+      g.fillStyle(0x7d8894, 1);
+      g.fillPoints([
+        { x: x - r * 0.7, y: y - r * 0.75 }, { x: x + r * 0.7, y: y - r * 0.75 },
+        { x: x + r * 0.62, y: y + r * 0.25 }, { x: x, y: y + r * 0.9 },
+        { x: x - r * 0.62, y: y + r * 0.25 }
+      ], true);
+      g.fillStyle(0xb9c2cc, 1);
+      g.fillCircle(x, y - r * 0.1, r * 0.22);
+    },
+    speed: function (g, x, y, r) {               // 질주 바람
+      g.lineStyle(Math.max(2, r * 0.16), 0x76c7e0, 1);
+      g.lineBetween(x - r * 0.8, y - r * 0.45, x + r * 0.5, y - r * 0.45);
+      g.lineBetween(x - r * 0.55, y, x + r * 0.75, y);
+      g.lineBetween(x - r * 0.8, y + r * 0.45, x + r * 0.4, y + r * 0.45);
+      g.fillStyle(0x76c7e0, 1);
+      g.fillTriangle(x + r * 0.5, y - r * 0.7, x + r * 0.95, y, x + r * 0.5, y + r * 0.7);
+    },
+    atkspeed: function (g, x, y, r) {            // 번개
+      g.fillStyle(0xf0c33c, 1);
+      g.fillPoints([
+        { x: x + r * 0.25, y: y - r * 0.95 }, { x: x - r * 0.45, y: y + r * 0.1 },
+        { x: x - r * 0.05, y: y + r * 0.1 }, { x: x - r * 0.25, y: y + r * 0.95 },
+        { x: x + r * 0.5, y: y - r * 0.15 }, { x: x + r * 0.08, y: y - r * 0.15 }
+      ], true);
+    },
+    crit: function (g, x, y, r) {                // 폭발 별
+      g.fillStyle(0xe8455f, 1);
+      for (var i = 0; i < 8; i++) {
+        var a1 = (i / 8) * Math.PI * 2, a2 = a1 + Math.PI / 8;
+        var ro = i % 2 ? r * 0.55 : r, ri2 = r * 0.3;
+        g.fillTriangle(x, y,
+          x + Math.cos(a1) * ro, y + Math.sin(a1) * ro,
+          x + Math.cos(a2) * ri2, y + Math.sin(a2) * ri2);
+      }
+      g.fillStyle(0xffd35c, 1);
+      g.fillCircle(x, y, r * 0.28);
+    },
+    luck: function (g, x, y, r) {                // 네잎클로버
+      g.fillStyle(0x5da457, 1);
+      g.fillEllipse(x - r * 0.32, y - r * 0.32, r * 0.62, r * 0.62);
+      g.fillEllipse(x + r * 0.32, y - r * 0.32, r * 0.62, r * 0.62);
+      g.fillEllipse(x - r * 0.32, y + r * 0.32, r * 0.62, r * 0.62);
+      g.fillEllipse(x + r * 0.32, y + r * 0.32, r * 0.62, r * 0.62);
+      g.lineStyle(Math.max(1.5, r * 0.1), 0x3e7a3a, 1);
+      g.lineBetween(x, y + r * 0.2, x + r * 0.25, y + r * 0.95);
+    }
+  };
+
+  DEFS.forEach(function (d, i) {
+    var cx0 = cc[i].x, cw = cc[i].w;
     var lv = self.char.stats[d.key] || 0;
-    // ⚠ 2026-08-01 — **상한이 없어졌다**(사용자 지시). '최대' 상태 자체가 사라진다.
-    //   살 수 있느냐는 이제 골드가 있느냐만 본다.
     var cost = GAME.TowerChar.costOf(d.key, lv);
     var can = self.char.gold >= cost;
-    var total = d.key === 'luck' ? GAME.TowerChar.luckLevel(self.char)
-                                 : ((totalBonus[d.key] || 0) + (itemBonus[d.key] || 0));
-    var fromItem = d.key === 'luck' ? (itemBonus.luck || 0) : (itemBonus[d.key] || 0);
-    var rangeLo = Math.max(1, Math.round(d.add * 0.6)), rangeHi = Math.round(d.add * 1.4);
+    var total = totalOf(d);
 
     var g = self.add.graphics();
     self._body.push(g);
     g.fillStyle(GAME.UI.COL.surfaceAlt, 1);
-    g.fillRoundedRect(cx, ry, cellW, rowH, 10);
-    g.lineStyle(1, GAME.UI.COL.border, 1);
-    g.strokeRoundedRect(cx, ry, cellW, rowH, 10);
+    g.fillRoundedRect(cx0, cardTop, cw, cardH, 10);
+    g.lineStyle(can ? 2 : 1, can ? C.controller : GAME.UI.COL.border, 1);
+    g.strokeRoundedRect(cx0, cardTop, cw, cardH, 10);
 
-    // 이름(작게) + 현재값(크게) — 이 행에서 가장 먼저 읽혀야 하는 것이 현재값이다.
-    // ⚠ 값의 y 를 손으로 박았더니 폰 가로에서 이름 상자와 5px 겹쳤다(겹침 감사가 5건
-    //   전부 잡았다). 이름의 **실측 높이** 아래에 붙인다.
-    var nmLbl = GAME.UI.label(self, cx + 14, ry + (P ? 4 : 9), d.name,
-      P ? 10 : 13, C.textDim, 0);
-    self._body.push(nmLbl);
-    self._body.push(GAME.UI.label(self, cx + 14, nmLbl.y + nmLbl.height + (P ? 0 : 2),
-      String(total), valFs, C.text, 0));
+    //  그림 — 카드 상단. 파트의 얼굴이다.
+    var icR = Math.min(cw * 0.26, P ? 20 : 34);
+    var icY = cardTop + (P ? 30 : 56);
+    if (ICON[d.key]) ICON[d.key](g, cx0 + cw / 2, icY, icR);
 
-    //  ── 이동속도만 되팔 수 있다 (2026-08-03 사용자 지시) ──────────────────────
-    //  > "너무빠르면 컨트롤이 어렵네"
-    //  올려서 손해 보는 축은 이것뿐이라(빠르면 적을 지나쳐 조준·회피가 흔들린다)
-    //  되돌리기도 이 한 행에만 연다. ⚠ 자리는 **이 행의 막대를 줄여서** 낸다 —
-    //  오른쪽 여백은 레벨업 버튼이 이미 거의 다 쓰고 있어(6px) 그냥 놓으면 겹친다.
-    var canSell = GAME.TowerChar.canSellStat && GAME.TowerChar.canSellStat(d.key);
-    var sellW = canSell ? (P ? 82 : 104) : 0;
-    // 상한 대비 막대 — 하단 스탯바와 **같은 분모**(statCeil)를 써야 두 화면이 같은 말을 한다.
-    var barX = cx + (P ? 78 : 96);
-    var barW = cellW - (P ? 78 : 96) - (P ? 116 : 150) - 14 - (sellW ? sellW + 8 : 0);
-    var ceil = GAME.TowerChar.statCeil(d.key, total);   // 분모가 총합을 따라 자란다
-    var m = GAME.UI.meter(self, barX, ry + rowH / 2 - (P ? 6 : 7), barW, P ? 12 : 14, {
-      color: C.controller, frac: Math.max(0, Math.min(1, total / ceil))
-    });
-    self._body.push({ destroy: function () { m.destroy(); } });
-    // 총합 중 얼마가 장비 몫인지 같이 적는다 — 안 적으면 "능력치를 안 샀는데 왜 135 지"가 된다.
-    //  ── 설명 줄 (2026-08-22 태현님: 행운 설명 보강 + 신설 스탯) ────────────────
-    //  행운·치명타·공격속도는 숫자만으론 뜻을 모른다 — 굴림 범위 대신 **효과**를 적는다.
-    //  치명타는 현재 점수의 실효값(확률·배수)을 그 자리에서 계산해 보여준다.
-    //  ⚠ 폰 2열은 설명 자리(막대~버튼)가 약 190px 뿐 — 긴 문장은 버튼을 침범한다(겹침 감사).
+    //  이름 + 현재 총합
+    var nmY = icY + icR + (P ? 8 : 16);
+    var cnm = GAME.UI.label(self, cx0 + cw / 2, nmY, d.name,
+      P ? 11 : 14, C.textDim, 0.5).setOrigin(0.5, 0);
+    self._body.push(cnm);
+    var tvTxt = d.key === 'atkspeed' ? total + '%' : String(Math.round(total * 10) / 10);
+    //  값·설명은 이름의 **실측 높이**에서 이어 내린다 — 고정 오프셋은 겹침 감사가 잡았다.
+    var tvLbl = GAME.UI.label(self, cx0 + cw / 2, cnm.y + cnm.height + 2, tvTxt,
+      P ? 16 : 24, C.text, 0.5).setOrigin(0.5, 0);
+    self._body.push(tvLbl);
+
+    //  설명 한 줄 — 치명타는 실효값(확률·배수)을 그 자리에서 계산해 보여준다.
     var smallTxt;
     if (d.key === 'crit') {
       var ce = GAME.TowerChar.critOf(total);
-      smallTxt = '확률 ' + ce.chance + '%' + (ce.chance >= 50 ? ' (최대)' : '') + ' · 피해 ×' + ce.mul;
+      smallTxt = ce.chance + '%' + (ce.chance >= 50 ? '(최대)' : '') + ' ×' + ce.mul;
     } else if (d.key === 'atkspeed') {
-      smallTxt = '평타 간격 ' + Math.round((1 - 1 / (1 + total / 100)) * 100) + '% 감소';
+      smallTxt = '간격 -' + Math.round((1 - 1 / (1 + total / 100)) * 100) + '%';
     } else if (d.key === 'luck') {
-      smallTxt = '골드 +2% · 회복구역 +3% · 드랍 +2.5% /Lv';
+      smallTxt = P ? '골드·드랍↑' : '골드 +2%·드랍 +2.5%/Lv';
     } else {
-      smallTxt = '굴림 범위  +' + rangeLo + ' ~ +' + rangeHi;
+      var rl = Math.max(1, Math.round(d.add * 0.6)), rh = Math.round(d.add * 1.4);
+      smallTxt = '+' + rl + '~+' + rh;
     }
-    self._body.push(GAME.UI.label(self, barX, ry + rowH / 2 + (P ? 8 : 10),
-      smallTxt + (fromItem ? ('  (장비 +' + fromItem + ' 포함)') : ''),
-      P ? 10 : 11, C.textDim, 0));
+    self._body.push(GAME.UI.label(self, cx0 + cw / 2, tvLbl.y + tvLbl.height + 2, smallTxt,
+      P ? 9 : 11, C.textDim, 0.5).setOrigin(0.5, 0).setWordWrapWidth(cw - 8).setAlign('center'));
 
-    var bw = P ? 110 : 144;
-    var b = GAME.UI.button(self, cx + cellW - 14 - bw / 2, ry + rowH / 2, bw, rowH - (P ? 12 : 16),
-      '🎲 ' + cost + '골드', function () {
+    //  🎲 뽑기 버튼 — 카드 바닥. 결과 배지는 카드 위(그림 자리)에 튄다.
+    var canSell = GAME.TowerChar.canSellStat && GAME.TowerChar.canSellStat(d.key);
+    var bh = P ? 30 : 44;
+    var by2 = cardTop + cardH - 10 - bh / 2 - (canSell ? (P ? 24 : 30) : 0);
+    var b = GAME.UI.button(self, cx0 + cw / 2, by2, cw - 12, bh,
+      '🎲 ' + cost, function () {
         var res = GAME.TowerChar.levelUp(d.key);
         if (!res) return;
-        // 결과를 **다시 그리기 전에** 기억해 둔다 — _buildBody 가 화면을 통째로 새로 만든다.
         self._lastRoll = { key: d.key, gain: res.gain, at: Date.now() };
         self._buildBody(true);
-      }, { fontSize: P ? 13 : 15 });
+      }, { fontSize: P ? 12 : 15 });
     b.text.setColor(can ? C.accent : C.textDim);
     b.rect.setStrokeStyle(can ? 2 : 1, can ? C.controller : GAME.UI.COL.borderUi);
     self._body.push(b);
 
-    //  되팔기 — 한 번 누르면 한 단계 내려가고 치른 값의 70% 가 돌아온다.
-    //  ⚠ 아이템 판매와 달리 **묻지 않는다.** 이건 "빠르면 조준이 흔들린다"를 그 자리에서
-    //    미세 조정하는 손잡이라, 한 칸 내릴 때마다 창이 뜨면 쓸 수가 없다.
+    //  이동속도 되팔기 — 이 스탯만(빠르면 조준이 흔들린다 — 2026-08-03 결정 유지).
     if (canSell) {
       var back = GAME.TowerChar.sellStatBack(d.key);
-      var sb = GAME.UI.button(self, cx + cellW - 14 - bw - 8 - sellW / 2, ry + rowH / 2,
-        sellW, rowH - (P ? 12 : 16), '↩ ' + back + '골드', function () {
+      var sb = GAME.UI.button(self, cx0 + cw / 2, cardTop + cardH - 10 - (P ? 11 : 14),
+        cw - 12, P ? 20 : 26, '↩ ' + back, function () {
           if (!GAME.TowerChar.levelDown(d.key)) return;
           self._buildBody(true);
-        }, { fontSize: P ? 12 : 14 });
+        }, { fontSize: P ? 10 : 12 });
       sb.text.setColor(C.textDim);
       sb.rect.setStrokeStyle(1, GAME.UI.COL.borderUi);
       self._body.push(sb);
     }
 
-    // ② 방금 이 스탯을 굴렸으면 결과 배지를 띄운다(3초). "얼마 올랐나"와 "그게 잘 나온
-    //    건가"를 한 덩어리로 — 수치만 있으면 12 가 큰지 작은지 알 수 없다.
+    //  방금 굴린 카드에는 결과 배지 — 등급색으로 3초.
     if (self._lastRoll && self._lastRoll.key === d.key && Date.now() - self._lastRoll.at < 3000) {
       var gr = GAME.TowerChar.gradeOf(d.key, self._lastRoll.gain);
       var bg = self.add.graphics().setDepth(30);
       self._body.push(bg);
-      // ⚠ 배지를 행 **위쪽**(ry - badgeH)에 띄웠더니 바로 윗 행의 구매 버튼을 덮었다
-      //   (실측 스크린샷). 자기 행 안, 막대 위에 얹는다 — 3초짜리 연출이라 막대를 잠깐
-      //   가리는 것은 괜찮지만 **다른 능력치의 버튼을 가리면 오조작이 난다.**
-      var badgeW = Math.min(P ? 168 : 230, barW), badgeH = P ? 26 : 32;
-      var bx = barX + (barW - badgeW) / 2, by = ry + (rowH - badgeH) / 2;
+      var badgeW = cw - 8, badgeH = P ? 30 : 40;
+      var bx = cx0 + 4, byB = icY - badgeH / 2;
       bg.fillStyle(gr.color, 1);
-      bg.fillRoundedRect(bx, by, badgeW, badgeH, 8);
-      var lbl = GAME.UI.label(self, bx + badgeW / 2, by + badgeH / 2,
-        gr.name + '!  ' + gr.flavor + '  +' + self._lastRoll.gain,
-        P ? 13 : 15, '#ffffff', 0.5).setOrigin(0.5).setDepth(31);
+      bg.fillRoundedRect(bx, byB, badgeW, badgeH, 8);
+      var lbl = GAME.UI.label(self, bx + badgeW / 2, byB + badgeH / 2,
+        gr.name + '! +' + self._lastRoll.gain,
+        P ? 11 : 14, '#ffffff', 0.5).setOrigin(0.5).setDepth(31);
       self._body.push(lbl);
-      self.tweens.add({ targets: [lbl], scale: { from: 1.35, to: 1 }, duration: 300, ease: 'Back.easeOut' });
+      self.tweens.add({ targets: [lbl], scale: { from: 1.4, to: 1 }, duration: 300, ease: 'Back.easeOut' });
       self.tweens.add({ targets: [lbl, bg], alpha: 0, delay: 2200, duration: 700 });
     }
   });
-
-  // 스킬 장착은 이 탭에서 **뺐다** — 도전 진입 팝업(tower.js `_equipSkillsThenBattle`)과
-  // 스킬 탭이 그 일을 맡는다. 세 곳에 같은 UI 를 두면 어디가 진짜인지 알 수 없어진다.
-  // 안내 한 줄 — 폰 가로(390px)는 5행을 쌓고 나면 이 줄이 화면 밖으로 나간다
-  // (겹침 감사의 '잘림' 항목이 잡았다). 들어갈 자리가 있을 때만 띄운다.
-  var footY = top + Math.ceil(GAME.TowerChar.STAT_DEFS.length / cols) * (rowH + gap) + (P ? 2 : 10);
-  if (footY + 16 <= GAME.CONFIG.HEIGHT - 4) {
-    self._body.push(GAME.UI.label(self, W / 2, footY,
-      P ? '🎲 범위 안에서 무작위로 오릅니다 · 꽝 없음'
-        : '🎲 능력치는 굴림입니다 — 범위 안에서 무작위로 오르고, 꽝(0)은 없습니다.',
-      P ? 10 : 12, C.textDim, 0.5).setOrigin(0.5, 0));
-  }
 };

@@ -166,6 +166,20 @@ GAME.BattleScene.prototype.create = function () {
       // 전부다 그렇지않게해줘 … 결국 사용자입장에서 변칙적이어야해"). 평균은
       // `mods`(균일 modsFor)와 같아서 예산·곡선 실측은 그대로 유효하다.
       uMods = GAME.Tower.unitModsFor(this.tower, i);
+      //  질 배수 (2026-08-22 태현님: "유닛 수가 많아지기만 한다") — 머릿수 상한으로
+      //  줄어든 수(n0→n)만큼 유닛을 세게 만든다. 총력은 란체스터식(Σdps×Σehp ∝ n²hd)
+      //  이라 √분배로는 n² 손실을 못 메운다(실측: R-1 이 12층 42% 로 터졌다) —
+      //  지수 합이 2 여야 총력이 보존된다. 체력에 1.25·공격에 0.75 를 주는 이유:
+      //  공격에 절반(1.0)을 다 주면 저층에서 한 방이 너무 매워진다(4층 q≈2.7).
+      //  보스는 제외 — 자기 곡선이 이미 캡과 무관하다.
+      var qM = this.formation.qualityMul > 1 ? this.formation.qualityMul : 1;
+      if (qM > 1) {
+        var qm2 = {};                        // 규칙 훅이 얹은 다른 키를 잃지 않는다
+        for (var qk in uMods) qm2[qk] = uMods[qk];
+        qm2.hp = (qm2.hp || 1) * Math.pow(qM, 1.25);
+        qm2.damage = (qm2.damage || 1) * Math.pow(qM, 0.75);
+        uMods = qm2;
+      }
     }
     this.state.units.push(GAME.Combat.createUnit(e.type, wx, w.y, 'strategist', uMods));
   }
@@ -195,15 +209,18 @@ GAME.BattleScene.prototype.create = function () {
     d.lifesteal = (d.lifesteal || 0) + ib.lifesteal;
     this.hero.cdrMul = (this.hero.cdrMul || 1) * ib.cdrMul;
     //  공격속도 — **평타 간격만** 줄인다(스킬 쿨은 cdrMul 축이 따로 있다).
+    //  능력치 + 아이템(atkspeedAdd)이 한 축으로 합산된다(2026-08-22 아이템 확장).
     //  하한 250ms: 넘어가면 타격음·모션이 뭉개져 연타가 아니라 소음이 된다.
-    if (bonus.atkspeed > 0) {
-      d.cooldown = Math.max(250, Math.round(d.cooldown / (1 + bonus.atkspeed / 100)));
+    var asTotal = (bonus.atkspeed || 0) + (ib.atkspeed || 0);
+    if (asTotal > 0) {
+      d.cooldown = Math.max(250, Math.round(d.cooldown / (1 + asTotal / 100)));
     }
     //  치명타 — 기본(전 유닛 25%·×1.5) 위에 얹는다. 확률 50% 상한, 넘치면 피해로
     //  전환(TowerChar.critOf). **탑에서만** 붙는다 — 실시간 대전은 이 분기를 안 지나
     //  critChance 가 없고, combat 은 없으면 CONFIG 기본값으로 구른다.
-    if (bonus.crit > 0 && GAME.TowerChar.critOf) {
-      var critEff = GAME.TowerChar.critOf(bonus.crit);
+    var critTotal = (bonus.crit || 0) + (ib.crit || 0);
+    if (critTotal > 0 && GAME.TowerChar.critOf) {
+      var critEff = GAME.TowerChar.critOf(critTotal);
       this.hero.critChance = critEff.chance / 100;
       this.hero.critMul = critEff.mul;
     }
@@ -967,33 +984,40 @@ GAME.BattleScene.prototype._updateOrbs = function (dt) {
 //  ⚠ worldLayer 에 담는다 — PC 줌·폰 확대에서 전장과 같이 움직여야 한다(피해 숫자 규율).
 GAME.BattleScene.prototype._updateSpots = function () {
   var st = this.state;
-  if (!st || !st.spots || !st.spots.length) return;
-  for (var i = 0; i < st.spots.length; i++) this._spawnSpotFx(st.spots[i]);
-  st.spots.length = 0;
+  if (!st || !st.banterEv || !st.banterEv.length) return;
+  for (var i = 0; i < st.banterEv.length; i++) {
+    this._spawnSpotFx(st.banterEv[i].u, st.banterEv[i].ev);
+  }
+  st.banterEv.length = 0;
 };
 
-GAME.BattleScene.prototype._spawnSpotFx = function (u) {
-  if (!u || !u.alive) return;
+GAME.BattleScene.prototype._spawnSpotFx = function (u, ev) {
+  //  죽는 유닛의 유언(ev 'death')은 alive 검사를 건너뛴다 — 죽어서 말하는 대사다.
+  if (!u || (!u.alive && ev !== 'death')) return;
   var Iso = GAME.Iso, C = GAME.CONFIG;
   var sx = u.x, sy = Iso.toScreenY(u.y);
   var self = this;
 
-  // ① 빨간 느낌표 — 짧게 튀어올랐다 사라진다(0.8초). 발견한 유닛 전부에 뜬다.
+  // ① 빨간 느낌표 — **발견(첫 공격 개시)에만** 뜬다(태님 2차: 감지→공격 시작 시).
+  if (ev === 'spot') {
   var ex = this.add.text(sx, sy - (C.PHONE ? 34 : 46), '!', {
     fontFamily: C.FONT, fontSize: (C.PHONE ? 22 : 30) + 'px', fontStyle: 'bold',
     color: '#ff3030', stroke: '#4a0808', strokeThickness: 4
   }).setOrigin(0.5, 1);
+  ex.__floating = true;   // 0.8초짜리 연출 — 겹침 감사 제외(피해 숫자와 같은 규칙)
   if (this.worldLayer) this.worldLayer.add(ex);
   ex.setScale(0.2);
   this.tweens.add({ targets: ex, scale: 1.15, duration: 140, ease: 'Back.easeOut' });
   this.tweens.add({ targets: ex, y: ex.y - 10, alpha: 0, delay: 420, duration: 360,
                     onComplete: function () { ex.destroy(); } });
+  }
 
-  // ② 말풍선 — 한 번에 하나만, Banter 가 상황(층·보스·체력·유닛 종류)을 보고 고른다.
+  // ② 말풍선 — 한 번에 하나만, Banter 가 상황(이벤트·층·보스·체력·유닛)을 보고 고른다.
   if (!GAME.Banter || (this._bubble && this._bubble.scene)) return;
   var base = (GAME.UnitLevel && GAME.UnitLevel.baseKeyOf)
              ? GAME.UnitLevel.baseKeyOf(u.def.key || '') : (u.def.key || '');
   var line = GAME.Banter.pick({
+    ev: ev,
     nick: (GAME.Account && GAME.Account.current && GAME.Account.current()) || '',
     unitKey: base,
     floor: this.tower || 0,
@@ -1010,6 +1034,7 @@ GAME.BattleScene.prototype._spawnSpotFx = function (u) {
     padding: { x: 8, y: 5 }, align: 'center',
     wordWrap: { width: C.PHONE ? 190 : 240 }
   }).setOrigin(0.5, 1);
+  bub.__floating = true;  // 2.5초짜리 연출 — 겹침 감사 제외
   //  전장 밖으로 나가지 않게 가로만 가둔다 — 위쪽 유닛의 긴 대사가 잘리는 것을 막는다.
   var hw = bub.width / 2;
   bub.x = Math.max(hw + 6, Math.min(C.WIDTH - hw - 6, bub.x));
@@ -1681,6 +1706,29 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     this.resetZoom();
     var self = this;
 
+    //  ── 타임 오버 연출 (2026-08-22 태현님: "왜 졌는지는 알아야지") ────────────
+    //  시간을 다 써서 진 판만 — 영웅이 죽은 판은 이미 죽음 연출이 사유를 말한다.
+    //  모래시계 + 큰 글자, 결과 화면 전환(holdMs) 동안 화면 중앙에 박힌다.
+    if (this.state.timeUp && this.state.winner !== 'controller' && !this.rt) {
+      var toW = GAME.CONFIG.WIDTH, toH = GAME.CONFIG.HEIGHT;
+      var toVeil = this.add.rectangle(toW / 2, toH / 2, toW, toH, 0x1a0808, 0.42).setDepth(3000);
+      var toTxt = this.add.text(toW / 2, toH * 0.38, '⏳ 타임 오버', {
+        fontFamily: GAME.CONFIG.FONT, fontSize: (GAME.CONFIG.SMALL ? 40 : 56) + 'px',
+        fontStyle: 'bold', color: '#ff5a4e', stroke: '#3d0a05',
+        strokeThickness: GAME.CONFIG.SMALL ? 6 : 8
+      }).setOrigin(0.5).setDepth(3001);
+      var toSub = this.add.text(toW / 2, toTxt.y + toTxt.height * 0.5 + 14,
+        '제한 시간 안에 진형을 뚫지 못했습니다', {
+          fontFamily: GAME.CONFIG.FONT, fontSize: (GAME.CONFIG.SMALL ? 14 : 17) + 'px',
+          color: '#ffd9c9'
+        }).setOrigin(0.5, 0).setDepth(3001);
+      toTxt.setScale(2.4).setAlpha(0);
+      this.tweens.add({ targets: toTxt, scale: 1, alpha: 1, duration: 380, ease: 'Back.easeOut' });
+      this.tweens.add({ targets: [toVeil, toSub], alpha: { from: 0, to: 1 }, duration: 300 });
+      this.cameras.main.shake(220, 0.004);
+      if (GAME.Sound) { try { GAME.Sound.play('heroLowHp'); } catch (e) {} }
+    }
+
     // 학습형 AI: 이 판의 관측치를 배치도에 기록한다.
     // '전략가가 이겼는가' 기준이므로 컨트롤러 승리는 진형의 패배다.
     var t = this.state.telemetry;
@@ -1874,6 +1922,8 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
     // ⚠ `forfeit()` 은 위에서 이미 불렸다 — 그건 `list`(주울 동전)만 비우고
     //   `rainList`(연출 전용)는 안 건드리므로 순서가 안전하다.
     var holdMs = 1100;
+    //  타임 오버 배너는 읽을 시간이 필요하다 — 지는 판이라 동전 비도 없다.
+    if (this.state.timeUp && this.state.winner !== 'controller' && !this.rt) holdMs = Math.max(holdMs, 2400);
     if (bonusShown > 0 && this._coins && this.hero) {
       this._coins.rain(this.hero.x, this.hero.y, bonusShown);
       holdMs = 2300;                 // 떨어지고 튀고 사라지는 데 필요한 시간
@@ -1907,6 +1957,7 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         test: self.test,
         arenaResult: arenaResult,
         rtResult: rtResult,
+        timeUp: !!this.state.timeUp,
         //  ── 탑에서는 학습 문구를 안 보여 준다 (2026-08-05 사용자 신고) ────────
         //  > "못깨고나서 7단계 올라갔다는 표현이보여서"
         //

@@ -457,6 +457,13 @@ GAME.Combat = {
 
   // ── 피해 / 회복 ──────────────────────────────────────────────
   // opts: { noCrit: true } 면 크리티컬 판정을 건너뛴다(지속피해 등)
+  //  ── 전장 연출 이벤트 (2026-08-22 태현님) — 판정·기록만, 그리기는 battle.js ──
+  //  ev: 'spot'(영웅에게 첫 공격 개시 — 빨간 느낌표+대사) · 'skill'(스킬 시전) ·
+  //      'death'(전사) · 'giveup'(영웅 추격 포기). 난수 없음 — 록스텝 안전.
+  _banterEv: function (state, u, ev) {
+    (state.banterEv || (state.banterEv = [])).push({ u: u, ev: ev });
+  },
+
   applyDamage: function (unit, dmg, source, state, opts) {
     if (!unit.alive) return 0;
     // 지뢰는 피해로 제거할 수 없다. 밟아서 터뜨리거나, 피해서 지나가는 수밖에.
@@ -735,6 +742,10 @@ GAME.Combat = {
         if (bk2.siphon) this.heal(source, source.maxHp * (bk2.siphon.frac || 0.08));
       }
       // state.onKill 이 있으면 호출한다. 렌더/경제 계층이 여기에 붙는다(골드 보상 등).
+      //  전사 대사 후보 (2026-08-22 태현님: "죽을 때도 대사") — 위험물은 제외.
+      if (state && unit.side === 'strategist' && !this.isHazard(unit)) {
+        this._banterEv(state, unit, 'death');
+      }
       // 구슬 — 전략가 유닛을 잡았을 때만. 위험물(가시덫)은 '잡았다'로 안 친다.
       if (state && GAME.Orb && unit.side === 'strategist' && !this.isHazard(unit)) {
         GAME.Orb.maybeDrop(state, unit.x, unit.y);
@@ -1041,6 +1052,13 @@ GAME.Combat = {
   fire: function (u, tx, ty, target, state) {
     var def = u.def;
     if (def.attack === 'none') return;
+    //  영웅 발견 — 사거리 진입이 아니라 **처음 공격을 시작하는 순간**이다
+    //  (2026-08-22 태현님: "감지해서 공격을 시작할 때 띄워줘").
+    if (u.side === 'strategist' && target && target.isHero &&
+        u._spotAt === undefined && state) {
+      u._spotAt = state.elapsed;
+      this._banterEv(state, u, 'spot');
+    }
     var ang = GAME.DetMath.atan2(ty - u.y, tx - u.x);
     this.faceAttack(u, ang);
     var dmg = this.effDamage(u, state);
@@ -1866,7 +1884,15 @@ GAME.Combat = {
     // ⚠ CLAUDE.md 경고("chase 를 늘리면 뭉텅이 돌격이 되어 영웅이 6초에 녹는다")는
     //   여전히 유효하다. 다만 그 경고는 **진입 조건**을 넓히는 경우의 이야기이고,
     //   여기서 푸는 것은 **이탈 조건**이다. 진입은 그대로 좁다.
-    if (!u.committed && fromHome >= chase) { u.stance = 'return'; return false; }
+    if (!u.committed && fromHome >= chase) {
+      //  영웅을 쫓다 여기서 접는다 — '못 잡겠다' 대사 후보(한 유닛당 한 번만).
+      if (u.side === 'strategist' && u._spotAt !== undefined && !u._gaveUp &&
+          tgt && tgt.isHero) {
+        u._gaveUp = true;
+        this._banterEv(state, u, 'giveup');
+      }
+      u.stance = 'return'; return false;
+    }
 
     // '집에서 갈 수 있는 거리 안에 있는 적'만 쫓는다.
     // 닿을 수 없는 적을 쫓으면 나갔다 돌아오기를 반복할 뿐이다.
@@ -1975,6 +2001,14 @@ GAME.Combat = {
 
     u.abilCd = ab.cooldown;
     u.abilT = ab.telegraph;
+    //  스킬 시전도 사건이다 — 첫 시전이 영웅을 향하면 그게 곧 발견이고,
+    //  이미 발견한 뒤라면 '스킬 쓴다' 대사 후보가 된다(battle.js 가 소비).
+    if (u.side === 'strategist' && state) {
+      if (tgt.isHero && u._spotAt === undefined) {
+        u._spotAt = state.elapsed;
+        this._banterEv(state, u, 'spot');
+      } else this._banterEv(state, u, 'skill');
+    }
     // 이번 시전이 어느 스킬이었는지 붙잡아 두고(예고↔폭발 일치), 다음은 그 다음 것.
     if (u.def.abilities && u.def.abilities.length) {
       u._abilCur = ab;
@@ -2516,28 +2550,6 @@ GAME.Combat = {
       }
     }
 
-    //  ── 영웅 발견 (2026-08-22 태현님: "빨간 느낌표 + 말풍선") ────────────────
-    //  전략가 유닛이 영웅을 자기 반응 범위(effAggro) 안에서 **처음** 본 순간만 기록한다.
-    //  여기는 판정·기록뿐 — 느낌표·대사는 렌더(battle.js)가 `state.spots` 를 소비해
-    //  그린다. 헤드리스 시뮬·밸런스에는 한 톨도 안 들어간다(난수도 안 쓴다).
-    (function (C2) {
-      var sh = null, si;
-      for (si = 0; si < state.units.length; si++) {
-        var cu = state.units[si];
-        if (cu.isHero && cu.alive && cu.side === 'controller') { sh = cu; break; }
-      }
-      if (!sh) return;
-      for (si = 0; si < state.units.length; si++) {
-        var su = state.units[si];
-        if (!su.alive || su.side !== 'strategist' || su._spotAt !== undefined ||
-            C2.isHazard(su)) continue;
-        if (C2.dist(su, sh) <= C2.effAggro(su, state)) {
-          su._spotAt = state.elapsed;
-          (state.spots || (state.spots = [])).push(su);
-        }
-      }
-    })(this);
-
     //  ── 잉걸불 구역 (2026-08-08 · 불씨꾼) ──────────────────────────────────
     //  전장이 시간에 따라 좁아진다 — 회피가 '한 번의 반응'이 아니라 '누적된 계획'이 된다.
     //  ⚠ 심은 쪽은 안 밟는다. 아군까지 태우면 진형이 제 불에 녹아 배치가 뜻을 잃는다
@@ -3018,6 +3030,7 @@ GAME.Combat = {
         };
         var rc = ratio(hC, 'controller'), rs = ratio(hS, 'strategist');
         state.over = true;
+        state.timeUp = true;   // 렌더가 '타임 오버'를 띄운다 (2026-08-22 태현님)
         state.winner = rc === rs ? 'draw' : (rc > rs ? 'controller' : 'strategist');
       }
       return;
@@ -3034,6 +3047,7 @@ GAME.Combat = {
       state.over = true; state.winner = 'strategist';
     } else if (state.elapsed >= GAME.CONFIG.BATTLE_TIME * 1000) {
       state.over = true; state.winner = 'draw';
+      state.timeUp = true;   // 렌더가 '타임 오버'를 띄운다 (2026-08-22 태현님)
     }
   }
 };

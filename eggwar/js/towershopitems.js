@@ -61,8 +61,18 @@ GAME.TowerShopItems = (function () {
       { key: 'w9', name: '이빨 박은 몽둥이', cost: 190, vsCost: 62, damageAdd: 38, note: '공격력 +38' },
       { key: 'w4', name: '뼈창',        cost: 380,   vsCost: 80,  damageAdd: 60,   note: '공격력 +60' },
       { key: 'w10', name: '들소뿔 갈래창',   cost: 700, vsCost: 100, damageAdd: 88, lifestealAdd: 0.04, note: '공격력 +88, 흡혈 +4%' },
+      //  ── 취향 분기 (2026-08-22 태현님: "비싸지는 구간에선 각자 취향에 맞게 방향
+      //  잡아 선택 — 좀 저렴해도 공격속도가 높아서 그걸 쓴다던가") ──────────────
+      //  같은 값대에 세 갈래를 둔다: 순수 공격력 / 공속(저렴·잦은 타격) / 치명(도박수).
+      //  atkspeedAdd = 평타 간격 감소 %p · critAdd = 치명타 점수(확률, 50% 넘게 쌓으면
+      //  피해 전환 — towerchar.critOf 와 같은 규칙 하나를 쓴다).
+      { key: 'w11', name: '질풍 찌르개', cost: 1150,  vsCost: 110, damageAdd: 92,  atkspeedAdd: 14 },
+      { key: 'w12', name: '맹수 발톱',   cost: 1250,  vsCost: 115, damageAdd: 88,  critAdd: 12 },
       { key: 'w5', name: '강철 손도끼', cost: 1400,  vsCost: 120, damageAdd: 130, lifestealAdd: 0.10, note: '공격력 +130, 흡혈 +10%' },
+      { key: 'w13', name: '바람의 송곳니', cost: 4200, vsCost: 160, damageAdd: 190, atkspeedAdd: 24 },
+      { key: 'w14', name: '사냥신의 눈', cost: 4500, vsCost: 165, damageAdd: 175, critAdd: 22, lifestealAdd: 0.06 },
       { key: 'w6', name: '흑철 대검',   cost: 4800,  vsCost: 170, damageAdd: 290,  note: '공격력 +290' },
+      { key: 'w15', name: '번개 이빨',   cost: 13500, vsCost: 225, damageAdd: 420, atkspeedAdd: 32, critAdd: 10 },
       { key: 'w7', name: '용골 단검',   cost: 15000, vsCost: 230, damageAdd: 620, lifestealAdd: 0.18, cdrMul: 0.90, note: '공격력 +620, 흡혈 +18%, 스킬 쿨 -10%' },
       { key: 'w8', name: '여명의 창',   cost: 42000, vsCost: 300, damageAdd: 1350, lifestealAdd: 0.26, note: '공격력 +1350, 흡혈 +26%' }
     ],
@@ -101,7 +111,9 @@ GAME.TowerShopItems = (function () {
       { key: 'c9', name: '멧돼지 송곳니 팔찌', cost: 230,  vsCost: 88,  lifestealAdd: 0.10, luckAdd: 2, note: '흡혈 +10%, 행운 +2' },
       { key: 'c4', name: '곰 발톱 부적',      cost: 450,   vsCost: 110, armorAdd: 30, damageAdd: 28, note: '방어력 +30, 공격력 +28' },
       { key: 'c10', name: '조상의 뼈 고리',   cost: 850,   vsCost: 135, armorAdd: 50, damageAdd: 55, luckAdd: 2, note: '방어력 +50, 공격력 +55, 행운 +2' },
+      { key: 'c11', name: '벼락 부싯돌',      cost: 1450,  vsCost: 150, atkspeedAdd: 12, critAdd: 8 },
       { key: 'c5', name: '심장 조각',         cost: 1600,  vsCost: 160, hpAdd: 1400, luckAdd: 3, note: '체력 +1400, 행운 +3' },
+      { key: 'c12', name: '맹금의 눈알',      cost: 5200,  vsCost: 210, critAdd: 20, damageAdd: 90, luckAdd: 2 },
       { key: 'c6', name: '그림자 반지',       cost: 5500,  vsCost: 220, cdrMul: 0.80, speedAdd: 70, damageAdd: 120, note: '스킬 쿨 -20%, 이동속도 +70, 공격력 +120' },
       { key: 'c7', name: '늪지 정수병',       cost: 17000, vsCost: 280, lifestealAdd: 0.22, damageAdd: 320, luckAdd: 6, note: '흡혈 +22%, 공격력 +320, 행운 +6' },
       { key: 'c8', name: '여명의 인장',       cost: 48000, vsCost: 360, hpAdd: 9000, armorAdd: 120, damageAdd: 700, luckAdd: 12, note: '체력 +9000, 방어력 +120, 공격력 +700, 행운 +12' }
@@ -132,11 +144,17 @@ GAME.TowerShopItems = (function () {
     //    **단계를 늘릴 때 이 세 줄을 같이 늘릴 것.**
     WEAPON_NAMES: {
       vanguard: ['돌 대검', '청동 대검', '흑요석 대검', '이빨 대검', '뼈 대검',
-                 '들소뿔 대검', '강철 대검', '흑철 대검', '용골 대검', '여명의 대검'],
+                 '들소뿔 대검', '질풍 대검', '맹수 대검', '강철 대검',
+                 '바람의 대검', '사냥신의 대검', '흑철 대검', '번개 대검',
+                 '용골 대검', '여명의 대검'],
       ranger:   ['나무 활', '청동 활', '흑요석 활', '이빨 활', '뼈 활',
-                 '들소뿔 활', '강철 활', '흑철 활', '용골 활', '여명의 활'],
+                 '들소뿔 활', '질풍 활', '맹수 활', '강철 활',
+                 '바람의 활', '사냥신의 활', '흑철 활', '번개 활',
+                 '용골 활', '여명의 활'],
       warden:   ['나무 방패', '청동 방패', '흑요석 방패', '이빨 방패', '뼈 방패',
-                 '들소뿔 방패', '강철 방패', '흑철 방패', '용골 방패', '여명의 방패']
+                 '들소뿔 방패', '질풍 방패', '맹수 방패', '강철 방패',
+                 '바람의 방패', '사냥신의 방패', '흑철 방패', '번개 방패',
+                 '용골 방패', '여명의 방패']
     },
 
     // 이 영웅이 들었을 때 이 아이템의 이름. 무기가 아니면 원래 이름 그대로.
@@ -181,16 +199,17 @@ GAME.TowerShopItems = (function () {
       //   카드를 11px 넘쳤다(실측). 4개 이상일 때만 1자 라벨로 줄인다 —
       //   흔한 1~3효과 아이템의 가독성은 그대로 두고 예외만 조인다.
       var n4 = 0;
-      ['damageAdd', 'hpAdd', 'armorAdd', 'speedAdd', 'lifestealAdd', 'luckAdd'].forEach(function (k) {
+      ['damageAdd', 'hpAdd', 'armorAdd', 'speedAdd', 'lifestealAdd', 'luckAdd',
+       'atkspeedAdd', 'critAdd'].forEach(function (k) {
         if (it[k]) n4++;
       });
       if (it.cdrMul && it.cdrMul !== 1) n4++;
       var tight = compact && n4 >= 4;
       var L = tight
-        ? { dmg: '공', hp: '체', arm: '방', spd: '속', ls: '흡', cd: '쿨', lk: '운' }
+        ? { dmg: '공', hp: '체', arm: '방', spd: '속', ls: '흡', cd: '쿨', lk: '운', as2: '공속', cr: '치명' }
         : (compact
-            ? { dmg: '공격', hp: '체력', arm: '방어', spd: '속도', ls: '흡혈', cd: '쿨', lk: '행운' }
-            : { dmg: '공격력', hp: '체력', arm: '방어력', spd: '이동속도', ls: '흡혈', cd: '스킬 쿨', lk: '행운' });
+            ? { dmg: '공격', hp: '체력', arm: '방어', spd: '속도', ls: '흡혈', cd: '쿨', lk: '행운', as2: '공속', cr: '치명' }
+            : { dmg: '공격력', hp: '체력', arm: '방어력', spd: '이동속도', ls: '흡혈', cd: '스킬 쿨', lk: '행운', as2: '공격속도', cr: '치명타' });
       // 압축 모드는 라벨과 값 사이 공백도 뺀다 — 실측으로 이 한 칸이 줄바꿈을 갈랐다.
       //   4효과 장신구 기준: "공격 +700  체력 +9k …"(2줄) → "공격+700 체력+9k …"(1줄)
       var sp = compact ? '' : ' ';
@@ -202,6 +221,8 @@ GAME.TowerShopItems = (function () {
       if (it.lifestealAdd) p.push(L.ls + sp + '+' + Math.round(it.lifestealAdd * 100) + '%');
       if (it.cdrMul && it.cdrMul !== 1) p.push(L.cd + sp + '-' + Math.round((1 - it.cdrMul) * 100) + '%');
       if (it.luckAdd) p.push(L.lk + sp + '+' + it.luckAdd);
+      if (it.atkspeedAdd) p.push(L.as2 + sp + '+' + it.atkspeedAdd + '%');
+      if (it.critAdd) p.push(L.cr + sp + '+' + it.critAdd);
       return p.join(compact ? ' ' : ', ');
     }
   };

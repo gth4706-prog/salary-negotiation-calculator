@@ -222,6 +222,14 @@ GAME.Tower = {
     return Math.max(1, Math.min(this.BUDGET_MUL_CAP, m));
   },
 
+  //  층별 머릿수 상한 (2026-08-22 태현님: "9층인데 10마리 이상은 많다, 6~7이어야").
+  //  9층 ≈ 6기에서 시작해 아주 완만히 는다 — 예산 성장분은 머릿수가 아니라
+  //  **유닛 레벨**로 간다(autoformation 의 capUnits 가 태운다). 수치 감각:
+  //  1~9층 6 · 20층 7 · 40층 9 · 60층 10 · 100층 13. 상한 24(배치 원형 좌표 한계).
+  unitCapFor: function (floor) {
+    return Math.min(24, Math.round(5.5 + floor * 0.075));
+  },
+
   budgetFor: function (floor, skipPower) {
     var mul = skipPower ? 1 : this.budgetMul();
     var early = this.BASE_BUDGET + (Math.min(floor, this.EARLY_FLOORS) - 1) * this.BUDGET_STEP;
@@ -602,6 +610,10 @@ GAME.Tower = {
       // 몰려 오히려 더 빽빽해진다(towercurriculum.js 의 MAX_UNITS 주석 참조).
       maxUnits = GAME.TowerCurriculum.maxUnitsFor(floor);
     }
+    //  ── 층별 머릿수 상한 (2026-08-22 태현님: "9층에 10마리는 많다") ───────────
+    //  9층 ≈ 6, 이후 아주 완만히 는다. 예산 초과분은 generate 가 레벨로 태운다.
+    var unitCap = GAME.Tower.unitCapFor(floor);
+    if (!maxUnits || maxUnits > unitCap) maxUnits = unitCap;
     var f = GAME.AutoFormation.generate(budget, useProfile ? prof : null, {
       id: 'tower-' + floor,
       name: floor + '층',
@@ -609,6 +621,7 @@ GAME.Tower = {
       heroKey: runActive ? null : (heroKey || null),
       allowTypes: allowTypes,
       maxUnits: maxUnits,
+      capUnits: unitCap,
       // 층이 오를수록 **더 세게 읽는다**(js/autoformation.js 의 readMul 주석).
       // 3층에서 1.0 으로 시작해 층당 +8%, 상한 3.5배(≈35층). 예산은 '많아진다'를,
       // 이 값은 '읽힌다'를 담당한다 — 둘이 갈라져 있어야 후자가 느껴진다.
@@ -629,7 +642,7 @@ GAME.Tower = {
       var theme = GAME.TowerCurriculum.themeFor(floor, seedNow, allowTypes);
       var tDef = theme && GAME.UNITS[theme.type];
       if (tDef && tDef.cost > 0) {
-        var n = Math.max(3, Math.min(24, Math.floor(budget / tDef.cost)));
+        var n = Math.max(3, Math.min(unitCap, Math.floor(budget / tDef.cost)));
         var tu = [];
         for (var ti = 0; ti < n; ti++) {
           // 좌표는 임시다(원형이 다시 놓는다). 그래도 원형이 없을 때를 대비해
@@ -790,6 +803,22 @@ GAME.Tower = {
       var mine = GAME.TowerLearn.summary();
       if (mine) f.rationale = (f.rationale ? f.rationale + '\n' : '') + mine;
     }
+
+    //  ── 질 배수 (2026-08-22 태현님: "유닛 수가 많아지기만 한다, 9층에 10마리는
+    //  많다") — 머릿수 상한(unitCapFor) 때문에 못 쓴 예산을 **숨은 스탯 배수**로
+    //  태운다. 전투가치 = hp×dmg 이므로 양쪽에 √배수를 나눠 곱하면 총 위협이
+    //  상한 이전과 같다(레벨 배지로 태우는 안은 프리미엄이 싸서 전 층이 L12 로
+    //  평탄해지는 사고가 났다 — 배지는 사다리(v1.12)가 정한 대로 두고 이 축은 숨긴다).
+    //  ⚠ 테마·데뷔 재구성 **뒤**에 실지출로 계산한다 — 경로마다 따로 달면 갈라진다.
+    //  ⚠ 상한 5: 유닛 3기짜리 극단 테마 층에서 배수가 폭주하지 않게.
+    (function () {
+      var spent2 = 0;
+      (f.units || []).forEach(function (u) {
+        var d2 = GAME.UNITS[u.type];
+        if (d2 && d2.cost) spent2 += d2.cost;
+      });
+      f.qualityMul = Math.max(1, Math.min(5, budget / Math.max(1, spent2)));
+    })();
     return f;
   },
 

@@ -511,6 +511,7 @@ GAME.AutoFormation = {
       take('bayonet', 'bayonet');
     }
 
+
     // 좌우 배치 — 상대가 자주 들어오는 쪽을 더 촘촘히
     var bias = profile ? (profile.side || 0) : 0;
     var units = [];

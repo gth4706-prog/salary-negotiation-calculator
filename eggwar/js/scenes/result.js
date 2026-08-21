@@ -24,6 +24,7 @@ GAME.ResultScene.prototype.init = function (data) {
   this.runRec = data.runRec || null;          // 통곡의 탑 도전 상태(골드·레벨)
   this.goldGained = data.goldGained || 0;
   this.bossDrop = data.bossDrop || null;       // 보스 확정 드랍 { kind, name, note }
+  this.timeUp = !!data.timeUp;                 // 시간 초과로 끝났는가(패배 사유 표시)
   this.versus = !!data.versus;                // 대전(비동기 PvP) 공격이었는가
   this.arenaResult = data.arenaResult || null;// { delta, trophy, league }
   this.rtResult = data.rtResult || null;      // { won, delta, score } | { invalid }
@@ -107,8 +108,14 @@ GAME.ResultScene.prototype.create = function () {
     } else {
       // 2026-08-01 — 패배해도 층이 안 돌아간다(캐릭터가 영구화됐다). "1층부터"
       //  문구를 없애고 같은 층 재도전을 안내한다.
-      title = this.tower + '층에서 탈락'; color = C.accentAlt;
-      sub = '같은 층에서 다시 도전할 수 있습니다 — 캐릭터와 성장은 그대로 남습니다.' +
+      //  패배 **사유**를 제목이 말한다 (2026-08-22 태현님: "왜 졌는지는 알아야지") —
+      //  시간을 다 쓴 판과 영웅이 쓰러진 판은 다음에 고칠 것이 다르다.
+      title = this.timeUp ? '⏳ 타임 오버 — ' + this.tower + '층'
+                          : this.tower + '층에서 탈락';
+      color = C.accentAlt;
+      sub = (this.timeUp ? '제한 시간 안에 진형을 뚫지 못했습니다. 화력을 올리거나 회복·강화 유닛부터 끊어 보세요. '
+                         : '영웅이 쓰러졌습니다. ') +
+            '같은 층에서 다시 도전할 수 있습니다 — 캐릭터와 성장은 그대로 남습니다.' +
             (this.towerRec ? ' 최고 기록 ' + (this.towerRec.best || 0) + '층.' : '');
     }
   } else if (this.defendTower) {

@@ -308,7 +308,8 @@ GAME.TowerChar = {
     total += hb;
     var CAT = GAME.TowerShopItems;
     if (CAT) {
-      var field = { damage: 'damageAdd', hp: 'hpAdd', armor: 'armorAdd', speed: 'speedAdd', luck: 'luckAdd' }[key];
+      var field = { damage: 'damageAdd', hp: 'hpAdd', armor: 'armorAdd', speed: 'speedAdd',
+                    luck: 'luckAdd', atkspeed: 'atkspeedAdd', crit: 'critAdd' }[key];
       for (var i = 0; i < CAT.SLOTS.length; i++) {
         var list = CAT.CATALOG[CAT.SLOTS[i].key] || [], best = 0;
         for (var j = 0; j < list.length; j++) if (list[j][field]) best = Math.max(best, list[j][field]);
@@ -401,7 +402,8 @@ GAME.TowerChar = {
   // 쓰되(공유 파싱 로직은 없다 — 카탈로그가 별개다), 카탈로그를 직접 순회한다.
   itemBonus: function (rec) {
     rec = rec || this.get();
-    var out = { hp: 0, armor: 0, damage: 0, speed: 0, lifesteal: 0, cdrMul: 1, luck: 0 };
+    var out = { hp: 0, armor: 0, damage: 0, speed: 0, lifesteal: 0, cdrMul: 1, luck: 0,
+                atkspeed: 0, crit: 0 };
     if (!rec || !GAME.TowerShopItems) return out;
     var slots = GAME.TowerShopItems.SLOTS;
     for (var i = 0; i < slots.length; i++) {
@@ -415,6 +417,10 @@ GAME.TowerChar = {
       if (it.lifestealAdd) out.lifesteal += it.lifestealAdd;
       if (it.cdrMul) out.cdrMul *= it.cdrMul;   // 곱연산 — 아래에서 상한을 건다
       if (it.luckAdd) out.luck += it.luckAdd;
+      //  공속·치명 (2026-08-22) — 능력치와 **같은 축**으로 합산된다(battle.js 가
+      //  bonus + itemBonus 를 더해 critOf/평타 간격에 넣는다).
+      if (it.atkspeedAdd) out.atkspeed += it.atkspeedAdd;
+      if (it.critAdd) out.crit += it.critAdd;
     }
     //  ── 쿨감 상한 (2026-08-03 사용자 신고) ────────────────────────────────
     //  "궁극기 쿨은 10초정도였고 … 25초정도는 넘었어야해"

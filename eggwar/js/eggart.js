@@ -1268,6 +1268,25 @@ var SM = 10;
   UI.eggHelm = function (g, kind, sx, by, r, color, a, D) {
     if (!kind) return;
     D = UI.asDir(D);
+    //  ── 생성 이미지 투구 (2026-08-21 영웅 3종 파일럿) ────────────────────────
+    //  정면 단독컷 한 장을 전 방향에 쓴다 — 옆모습은 폭을 눌러(0.82) 돌아본 느낌만
+    //  낸다(캐주얼 게임 관례). 실측 합격이면 유닛 투구 10종을 같은 방식으로 간다.
+    //  치수는 투구마다 따로 잰다 — 철가면(warden)은 세로가 길어 같은 배율이면
+    //  몸 절반을 덮었다(실측). w/h = r 배수, dy = 앵커에서 위로.
+    var HELM_IMG = {
+      onehorn: { key: 'helmVanguard', w: 1.72, h: 1.46, dy: 0.86 },
+      wolf:    { key: 'helmRanger',   w: 1.72, h: 1.46, dy: 0.86 },
+      crest:   { key: 'helmWarden',   w: 1.38, h: 1.18, dy: 0.72 }
+    };
+    var hSpec = HELM_IMG[kind];
+    if (hSpec && GAME.GearBank) {
+      var hw = r * hSpec.w * (D.profile ? 0.82 : 1) * (D.back ? 0.96 : 1);
+      var hh = r * hSpec.h;
+      if (GAME.GearBank.place(g, hSpec.key, sx + (D.lat || 0) * r * 0.06, by - r * hSpec.dy,
+                              hw, hh, a)) {
+        return;
+      }
+    }
     var lw = Math.max(1, r * 0.1);
     var lat = D.lat, prof = D.profile, back = D.back;
     var sgn = lat || 1;

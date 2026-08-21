@@ -32,6 +32,10 @@
     armor:       { src: 'assets/gear/armor.png?v=2.27' },
     boots:       { src: 'assets/gear/boots.png?v=2.27' },
     amulet:      { src: 'assets/gear/amulet.png?v=2.27' },
+    //  영웅 투구 3종 (2026-08-21 시트 1차분 — 정면 단독컷)
+    helmVanguard: { src: 'assets/helm/vanguard.png?v=2.29' },
+    helmRanger:   { src: 'assets/helm/ranger.png?v=2.29' },
+    helmWarden:   { src: 'assets/helm/warden.png?v=2.29' },
     //  이펙트 (흰색 원본 — 코드가 틴트·블렌드로 색을 입힌다)
     flame:       { src: 'assets/fx/flame.png?v=2.27' },
     glow:        { src: 'assets/fx/glow.png?v=2.27' },

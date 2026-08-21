@@ -484,6 +484,17 @@ GAME.MenuScene.prototype._openSettings = function () {
     title: '설정',
     items: items,
     onPick: function (it) {
+      if (it.key === 'padflip') {
+        GAME.TouchPad.setCfg({ flip: !GAME.TouchPad.cfg().flip });
+        self._openSettings();                    // 바뀐 문구로 다시 연다
+        return;
+      }
+      if (it.key === 'padscale') {
+        var cur = GAME.TouchPad.cfg().scale;
+        GAME.TouchPad.setCfg({ scale: cur === 1 ? 1.18 : (cur === 1.18 ? 0.85 : 1) });
+        self._openSettings();
+        return;
+      }
       if (it.key === 'sound') GAME.Sound.toggle();
       else if (it.key === 'music') GAME.Music.toggle();
       else if (it.key === 'nick') { GAME.Account.logout(); self.scene.start('Login'); }

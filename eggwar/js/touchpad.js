@@ -76,11 +76,37 @@ GAME.TouchPad.SIZES = function () {
   };
 };
 
+//  ── 조작 설정 (2026-08-21 태현님: "조이스틱, 버튼 위치 변경") ─────────────────
+//  기기 전역 설정이다(계정 무관 — 손잡이·손 크기는 사람/기기 특성이다).
+//  flip: 스틱↔버튼 좌우 반전(왼손잡이) · scale: 조작부 크기 배율.
+//  ⚠ 전투 중에는 반영 안 된다 — 조작부는 전투 시작 때 한 번 지어진다(다음 판부터).
+GAME.TouchPad.cfg = function () {
+  var c = GAME.Store.get('eggwar.pad', {}) || {};
+  return {
+    flip: !!c.flip,
+    scale: (c.scale === 0.85 || c.scale === 1.18) ? c.scale : 1
+  };
+};
+GAME.TouchPad.setCfg = function (patch) {
+  var c = GAME.Store.get('eggwar.pad', {}) || {};
+  for (var k in patch) if (patch.hasOwnProperty(k)) c[k] = patch[k];
+  GAME.Store.set('eggwar.pad', c);
+};
+
 GAME.TouchPad.prototype._build = function () {
   var scene = this.scene, self = this;
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var S = GAME.TouchPad.SIZES();
+  var CFG = GAME.TouchPad.cfg();
+  if (CFG.scale !== 1) {
+    S = { stickR: Math.round(S.stickR * CFG.scale), knobR: Math.round(S.knobR * CFG.scale),
+          mainR: Math.round(S.mainR * CFG.scale), skillR: Math.round(S.skillR * CFG.scale),
+          potionR: Math.round(S.potionR * CFG.scale) };
+  }
+  //  좌우 반전 — 최종 x 만 거울로 뒤집는다. 호 방향·간격 계산은 그대로 두고
+  //  놓는 순간에만 미러해야 한 곳만 고치면 된다(각 계산을 뒤집으면 전부 갈라진다).
+  var mx = CFG.flip ? function (x) { return W - x; } : function (x) { return x; };
   var PAD = GAME.TouchPad.palette();
 
   // 조작부는 전장 **위에 겹쳐** 놓는다(전장을 화면 거의 전체로 쓰기 위함).
@@ -90,8 +116,8 @@ GAME.TouchPad.prototype._build = function () {
   var bottomGap = (GAME.CONFIG.PORTRAIT && GAME.Iso.BOTTOM_GAP) ? GAME.Iso.BOTTOM_GAP * 0.55 : 0;
   var baseY = H - S.stickR - margin - bottomGap;
 
-  // ── 왼쪽: 가상 스틱 ──
-  var sx = S.stickR + margin;
+  // ── 왼쪽(반전이면 오른쪽): 가상 스틱 ──
+  var sx = mx(S.stickR + margin);
   this.stick.cx = sx;
   this.stick.cy = baseY;
   this.stick.homeX = sx;      // 손을 떼면 돌아올 자리
@@ -137,8 +163,9 @@ GAME.TouchPad.prototype._build = function () {
   var zoneTop = PHONE ? Math.max(0, H - Math.round(S.stickR * 2.6))
                       : Math.min(baseY - S.stickR * 1.7, H - S.stickR * 3.2);
   var zoneH = H - zoneTop;
-  this.stickZoneRect = { x: 0, y: zoneTop, w: zoneW, h: zoneH };
-  this.stickZone = scene.add.rectangle(zoneW / 2, zoneTop + zoneH / 2, zoneW, zoneH, 0xffffff, 0.001)
+  var zoneX = CFG.flip ? (W - zoneW) : 0;
+  this.stickZoneRect = { x: zoneX, y: zoneTop, w: zoneW, h: zoneH };
+  this.stickZone = scene.add.rectangle(zoneX + zoneW / 2, zoneTop + zoneH / 2, zoneW, zoneH, 0xffffff, 0.001)
     .setDepth(899).setScrollFactor(0);
   this.stickZone.setInteractive();
   this.objects.push(this.stickZone);
@@ -151,7 +178,7 @@ GAME.TouchPad.prototype._build = function () {
   // ── 오른쪽: 액션 버튼 ──
   // 스틱과 공격 버튼은 반지름이 다르다 → 같은 baseY 를 쓰면 오른쪽만 40px 떠 보인다.
   // 각자 **화면 아래에서** 자기 반지름만큼 띄운다.
-  var cx = W - S.mainR - margin;
+  var cx = mx(W - S.mainR - margin);
   var cy = PHONE ? (H - S.mainR - margin) : baseY;
 
   // ── 기본공격 버튼을 없앴다 (2026-07-29, 사용자 지시) ─────────────────────
@@ -180,7 +207,7 @@ GAME.TouchPad.prototype._build = function () {
   );
   GAME.SKILL_SLOTS.forEach(function (slot, i) {
     var a = (startDeg * Math.PI / 180) + stepRad * i;
-    self._addButton(slot, cx - Math.cos(a) * arcR, cy - Math.sin(a) * arcR,
+    self._addButton(slot, cx + (CFG.flip ? 1 : -1) * Math.cos(a) * arcR, cy - Math.sin(a) * arcR,
       S.skillR, self._slotLabel(slot), GAME.CONFIG.COLORS.strategist,
       function () { self._skill(slot); });
   });

@@ -753,10 +753,36 @@ GAME.Tower = {
       });
       // 남은 예산은 데뷔 유닛으로 마저 쓴다 — 안 그러면 층이 원래보다 얇아진다
       // (1층은 전사밖에 없어서 `others` 가 비고, 이 줄이 없으면 3기가 2기가 된다).
-      while (out.length < capUnits && spent + dDef.cost <= budget) {
+      //  ⚠⚠ 이 루프도 종류 상한을 지켜야 한다 (2026-08-23 태현님 2차 신고: "아직도
+      //    여러 개가 터져"). v2.59 는 위의 k 만 묶었는데, 바로 이 잔여 예산 루프가
+      //    상한을 무시하고 가시덫을 도로 채워 28층이 다시 7기가 됐다(실측 재현).
+      var dCount = 0;
+      for (var dc = 0; dc < out.length; dc++) if (out[dc].type === debutHere.type) dCount++;
+      while (out.length < capUnits && spent + dDef.cost <= budget &&
+             (!dDef.maxPerFormation || dCount < dDef.maxPerFormation)) {
         out.push({ type: debutHere.type, nx: slots[out.length % slots.length].nx,
                    ny: slots[out.length % slots.length].ny });
-        spent += dDef.cost;
+        spent += dDef.cost; dCount++;
+      }
+      //  상한에 막혀 예산이 남으면 **다른 종류를 돌려가며** 채운다 — 안 채우면 그 층만
+      //  얇아져 조작 없이 뚫린다(데뷔 취지가 '소개'지 '쉬운 층'이 아니다). others 는
+      //  AutoFormation 이 짠 원래 구성이라 섞임이 유지되고, 각 종류의 상한도 지킨다.
+      if (dDef.maxPerFormation && others.length) {
+        var cnt = {};
+        for (var ci = 0; ci < out.length; ci++) cnt[out[ci].type] = (cnt[out[ci].type] || 0) + 1;
+        var oi = 0, sinceAdd = 0;
+        while (out.length < capUnits && sinceAdd < others.length) {
+          var ot = others[oi % others.length].type;
+          var od = GAME.UNITS[ot] || {};
+          var oc = od.cost || 0;
+          if (oc > 0 && spent + oc <= budget &&
+              (!od.maxPerFormation || (cnt[ot] || 0) < od.maxPerFormation)) {
+            out.push({ type: ot, nx: slots[out.length % slots.length].nx,
+                       ny: slots[out.length % slots.length].ny });
+            spent += oc; cnt[ot] = (cnt[ot] || 0) + 1; sinceAdd = 0;
+          } else sinceAdd++;
+          oi++;
+        }
       }
       f.units = out;
       f.debutType = debutHere.type;

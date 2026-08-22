@@ -432,6 +432,30 @@ GAME.LobbyArt = {
     return g;
   },
 
+  //  markFor 의 **이미지판** — A-2 아이콘 시트(assets/icon)를 버튼 왼쪽 여백에 얹는다.
+  //  기하·자리 검사는 markFor 와 같다(자리가 없으면 안 그린다). 텍스처가 아직 없으면
+  //  (콜드 캐시 첫 부팅 등) fallbackKind 의 벡터 표식으로 대신한다 — 이미지가 그리기의
+  //  전제조건이 되면 로드 타이밍에 따라 표식이 통째로 사라진다.
+  //  반환: Phaser Image(이미지가 섰을 때) / Graphics(벡터 폴백) / null(자리 없음).
+  iconFor: function (scene, btn, iconKey, fallbackKind) {
+    if (!btn || !btn.text) return null;
+    var t = btn.text;
+    var s = (parseInt(t.style && t.style.fontSize, 10) || 18) * 1.5;
+    var cx = t.x - t.width / 2 - s * 0.62;
+    var r = btn.rect;
+    if (r && r.width) {
+      if (cx - s * 0.5 < r.x - r.width / 2 + s * 0.35) return null;
+    }
+    var ready = GAME.GearBank && GAME.GearBank.ready(iconKey, scene);
+    if (ready) {
+      var img = scene.add.image(cx, t.y, 'gear-' + iconKey);
+      var sc = s / Math.max(1, Math.max(img.width, img.height));
+      img.setScale(sc).setDepth((t.depth || 0) + 1);
+      return img;
+    }
+    return fallbackKind ? this.markFor(scene, btn, fallbackKind, 1) : null;
+  },
+
   // ── 로비 배경 (2026-08-04 사용자: "이 로비배경부터 진행해") ──────────────────
   //  로비는 크림색 단색이었다. 오늘 전장에 넣은 세계의 물건(원경 안개·능선·부족
   //  목책)이 정작 **처음 보는 화면**에는 하나도 없었다 — 게임이 무슨 세계인지

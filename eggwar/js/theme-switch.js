@@ -233,6 +233,17 @@ GAME.UI = GAME.UI || {};
   }
   UI.cssToHex = cssToHex;
 
+  // ── 야간 모드 토글 (2026-08-23 정식 도입) ─────────────────────────────────
+  //  태현님이 "야간모드 느낌"(=stock 어두운 남색)을 좋게 봐서 사용자 선택으로 노출한다.
+  //  주간 = 기본 테마(A 크림 양피지) · 야간 = stock. 저장은 applyTheme 이 알아서 한다.
+  UI.isDarkTheme = function () {
+    var t = UI.THEMES[UI.currentTheme()];
+    return !(t && t.dark === false);
+  };
+  UI.toggleNight = function () {
+    return UI.applyTheme(UI.isDarkTheme() ? UI.DEFAULT_THEME : 'stock');
+  };
+
   // 저장된 선택을 부팅 시 한 번 적용 (씬 재시작 없이 — 아직 씬이 없다)
   UI.bootTheme = function () {
     var k = UI.currentTheme();

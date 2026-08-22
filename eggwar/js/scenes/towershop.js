@@ -982,7 +982,8 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
     var act, fn;
     if (locked) {
       // 앞 단계를 아직 안 산 상태 — 값을 보여주되 누를 수 없다는 걸 자물쇠로 말한다.
-      act = '🔒 잠김'; fn = function () {};
+      //  자물쇠 그림은 아래에서 A-2 아이콘(iconLock)으로 얹고, 못 서면 🔒 이모지로 되돌린다.
+      act = '잠김'; fn = function () {};
     } else if (!owned) { act = afford ? ('💰 ' + (o.cost || 0)) : ('💰 ' + (o.cost || 0)); fn = function () {
       if (self.src.skillBuy(slot, idx)) self._buildBody(true);
     }; }
@@ -997,6 +998,11 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
     ab.rect.setStrokeStyle((owned && !equipped) || (!owned && afford) ? 2 : 1,
       (owned && !equipped) ? C.controller : GAME.UI.COL.borderUi);
     self._body.push(ab);
+    if (locked) {
+      var lk = GAME.LobbyArt && GAME.LobbyArt.iconFor(self, ab, 'iconLock');
+      if (lk) { lk.setAlpha(0.8); self._body.push(lk); }
+      else ab.setLabel('🔒 잠김');
+    }
   });
 
   // ── 미리보기 창 — 넓어진 폭을 실제로 쓴다 ──

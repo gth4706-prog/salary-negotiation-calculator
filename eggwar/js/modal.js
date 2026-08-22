@@ -33,10 +33,23 @@ GAME.Modal = {
     var panelW = Math.min(W - pad * 2, 520);
     var titleH = P ? 44 : 48;
     var closeH = UI.BTN_H || 52;
-    var listH = items.length * rowH + (items.length - 1) * gap;
+    //  ── 세로로 안 들어가면 **2열로 접는다** (2026-08-23) ────────────────────────
+    //  폰 가로(높이 390)에서 설정 항목이 5개가 되자 '닫기'가 화면 밖으로 밀렸다
+    //  (겹침 감사 '잘림'이 잡음). 행 높이를 깎는 길은 터치 타깃 44px 를 깨므로
+    //  높이 대신 **폭**을 쓴다 — 폰 가로는 옆이 남는 화면이다.
+    var cols = 1;
+    var rows = items.length;
+    var fitH = function (r) { return titleH + r * rowH + (r - 1) * gap + closeH + 34 <= H - 24; };
+    if (items.length > 1 && !fitH(rows)) {
+      cols = 2;
+      rows = Math.ceil(items.length / 2);
+      panelW = Math.min(W - pad * 2, 820);
+    }
+    var listH = rows * rowH + (rows - 1) * gap;
     var panelH = titleH + listH + closeH + 34;
-    var panelY = Math.max(20, (H - panelH) / 2);
+    var panelY = Math.max(12, (H - panelH) / 2);
     var px = (W - panelW) / 2;
+    var colW = (panelW - 24 - (cols - 1) * 10) / cols;
 
     // 배경 — 뒤 화면을 눌러도 팝업이 먹는다(오조작 방지)
     var veil = scene.add.rectangle(W / 2, H / 2, W, H, 0x05050a, 0.78).setDepth(1000);
@@ -53,10 +66,14 @@ GAME.Modal = {
 
     var y = panelY + titleH;
     items.forEach(function (it, i) {
-      var ry = y + i * (rowH + gap);
+      //  2열이면 읽는 순서대로 좌→우, 위→아래로 놓는다.
+      var ci = i % cols, rI = Math.floor(i / cols);
+      var cellW = cols === 1 ? panelW - 24 : colW;
+      var cx = cols === 1 ? W / 2 : px + 12 + ci * (colW + 10) + colW / 2;
+      var ry = y + rI * (rowH + gap);
       var fill = it.selected ? UI.COL.panelTeal : UI.COL.surfaceAlt;
       var line = it.selected ? C.controller : UI.COL.borderUi;
-      var row = scene.add.rectangle(W / 2, ry + rowH / 2, panelW - 24, rowH, fill)
+      var row = scene.add.rectangle(cx, ry + rowH / 2, cellW, rowH, fill)
         .setStrokeStyle(it.selected ? 2 : 1, line).setDepth(1002);
       if (it.disabled) row.setAlpha(0.4);
       else {
@@ -69,15 +86,15 @@ GAME.Modal = {
       }
       objs.push(row);
 
-      var lx = px + 24;
+      var lx = cx - cellW / 2 + (cols === 1 ? 12 : 14);
       objs.push(UI.label(scene, lx, ry + (it.note ? 8 : rowH / 2 - 12), it.name,
         'subhead', it.disabled ? C.textDim : C.text, 0).setDepth(1003));
       if (it.note) {
         objs.push(UI.label(scene, lx, ry + rowH - 26, it.note, 'caption', C.textDim, 0)
-          .setDepth(1003).setWordWrapWidth(panelW - 120));
+          .setDepth(1003).setWordWrapWidth(cellW - 96));
       }
       if (it.cost !== undefined && it.cost !== null) {
-        objs.push(UI.label(scene, px + panelW - 24, ry + rowH / 2, String(it.cost),
+        objs.push(UI.label(scene, cx + cellW / 2 - 12, ry + rowH / 2, String(it.cost),
           'num', it.disabled ? C.textDim : C.accent, 1).setOrigin(1, 0.5).setDepth(1003));
       }
     });

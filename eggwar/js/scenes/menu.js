@@ -168,7 +168,7 @@ GAME.MenuScene.prototype.create = function () {
     self.scene.start('Rank', { kind: 'tower', scope: 'all' });
   }, { fontSize: P ? 15 : 15 });
   //  깃발 꽂힌 뼈 기둥 — 이긴 자가 꽂는 것이다(옛 🏅 을 대신한다).
-  if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, rkb, 'banner', 1);
+  if (GAME.LobbyArt) GAME.LobbyArt.iconFor(self, rkb, 'iconFlag', 'banner');
   GAME.UI.button(this, rc[1].cx, ry, rc[1].w, smallH, '닉네임 변경', function () {
     GAME.Account.logout();
     self.scene.start('Login');
@@ -197,8 +197,9 @@ GAME.MenuScene.prototype.create = function () {
   var uslots = [];
   if (GAME.Sound) uslots.push('sound');
   if (GAME.Music) uslots.push('music');
+  if (GAME.UI.toggleNight) uslots.push('theme');
   if (hasFs || iosGuide) uslots.push('fs');
-  var utilW = Math.min(W - 40, [200, 320, 430][Math.min(uslots.length, 3) - 1] || 200);
+  var utilW = Math.min(W - 40, [200, 320, 430, 540][Math.min(uslots.length, 4) - 1] || 200);
   var uc = GAME.Layout.cols(Math.max(1, uslots.length),
     { gap: 10, width: utilW, left: (W - utilW) / 2, pad: 0 });
   var uAt = function (k) { var i = uslots.indexOf(k); return i < 0 ? null : uc[i]; };
@@ -210,10 +211,26 @@ GAME.MenuScene.prototype.create = function () {
     var sb = GAME.UI.button(this, scol.cx, utilY, scol.w, utilH, sndLbl(), function () {
       GAME.Sound.toggle();
       sb.text.setText(sndLbl());
+      syncSndIc();
     }, { fontSize: P ? 13 : 13 });
-    //  뿔피리 — 옛 🔊(현대 스피커)을 대신한다. 켜짐/꺼짐은 **글자가 계속 말한다**
+    //  스피커/음소거 아이콘(A-2 시트)이 상태를 그림으로도 말한다 — 글자는 계속 말한다
     //  (표식만으로 상태를 나타내면 두 갈래가 똑같아진다 — 이모지를 걷다가 이미 겪었다).
-    if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, sb, 'horn', 1);
+    //  둘 중 하나라도 못 서면(자리 없음·텍스처 미로드) 옛 벡터 뿔피리로 되돌린다 —
+    //  한쪽만 뜨면 아이콘이 상태에 대해 거짓말을 하게 된다.
+    var sIcOn = GAME.LobbyArt ? GAME.LobbyArt.iconFor(self, sb, 'iconSound') : null;
+    var sIcOff = GAME.LobbyArt ? GAME.LobbyArt.iconFor(self, sb, 'iconMute') : null;
+    if (!sIcOn || !sIcOff) {
+      if (sIcOn && sIcOn.destroy) sIcOn.destroy();
+      if (sIcOff && sIcOff.destroy) sIcOff.destroy();
+      sIcOn = sIcOff = null;
+      if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, sb, 'horn', 1);
+    }
+    var syncSndIc = function () {
+      if (!sIcOn || !sIcOff) return;
+      sIcOn.setVisible(GAME.Sound.enabled);
+      sIcOff.setVisible(!GAME.Sound.enabled);
+    };
+    syncSndIc();
     this._soundBtnBottom = utilY + utilH / 2;
   }
 
@@ -224,8 +241,21 @@ GAME.MenuScene.prototype.create = function () {
       GAME.Music.toggle();
       mb.text.setText(musLbl());
     }, { fontSize: P ? 13 : 13 });
-    //  북 — 이 게임의 음악은 북에서 시작한다(옛 🎵 을 대신한다).
-    if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, mb, 'drum', 1);
+    //  음표 아이콘(A-2 시트) — 못 서면 옛 벡터 북으로(이 게임의 음악은 북에서 시작한다).
+    if (GAME.LobbyArt) GAME.LobbyArt.iconFor(self, mb, 'iconMusic', 'drum');
+    this._soundBtnBottom = utilY + utilH / 2;
+  }
+
+  //  🌙 야간 모드 — stock(어두운 남색) 테마를 정식 선택지로 (2026-08-23 태현님 채택).
+  //  라벨은 "누르면 이렇게 된다"를 말한다 — applyTheme 이 씬을 다시 시작해 라벨도 새로 선다.
+  if (GAME.UI.toggleNight) {
+    var tcol = uAt('theme');
+    var thLbl = GAME.UI.isDarkTheme()
+      ? (P ? '☀ 주간' : '☀ 주간 모드')
+      : (P ? '🌙 야간' : '🌙 야간 모드');
+    GAME.UI.button(this, tcol.cx, utilY, tcol.w, utilH, thLbl, function () {
+      GAME.UI.toggleNight();
+    }, { fontSize: P ? 13 : 13 });
     this._soundBtnBottom = utilY + utilH / 2;
   }
 
@@ -345,10 +375,12 @@ GAME.MenuScene.prototype._buildPhone = function () {
   var rkb = UI.button(this, W - PAD - topW / 2, 14 + topH / 2, topW, topH, '랭킹', function () {
     self.scene.start('Rank', { kind: 'tower', scope: 'all' });
   }, { fontSize: 16 });
-  if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, rkb, 'banner', 1);
-  UI.button(this, W - PAD - topW - 10 - topW / 2, 14 + topH / 2, topW, topH, '⚙ 설정', function () {
+  if (GAME.LobbyArt) GAME.LobbyArt.iconFor(self, rkb, 'iconFlag', 'banner');
+  //  톱니 아이콘(A-2 시트) — 못 서면 옛 ⚙ 이모지 라벨로 되돌린다.
+  var stb = UI.button(this, W - PAD - topW - 10 - topW / 2, 14 + topH / 2, topW, topH, '설정', function () {
     self._openSettings();
   }, { fontSize: 16 });
+  if (!(GAME.LobbyArt && GAME.LobbyArt.iconFor(self, stb, 'iconGear'))) stb.setLabel('⚙ 설정');
   //  ❓ 게임 안내 다시 보기 (2026-08-21 태현님: "메인화면에 버튼 추가")
   UI.button(this, W - PAD - topW * 2 - 20 - 30, 14 + topH / 2, 60, topH, '❓', function () {
     if (GAME.Tutorial) GAME.Tutorial.openPicker(self);
@@ -481,6 +513,8 @@ GAME.MenuScene.prototype._openSettings = function () {
     name: GAME.Sound.enabled ? '🔊 소리 끄기' : '🔈 소리 켜기' });
   if (GAME.Music) items.push({ key: 'music',
     name: GAME.Music.enabled ? '🥁 음악 끄기' : '🥁 음악 켜기' });
+  if (GAME.UI.toggleNight) items.push({ key: 'theme',
+    name: GAME.UI.isDarkTheme() ? '☀ 주간 모드로 전환' : '🌙 야간 모드로 전환' });
   items.push({ key: 'nick', name: '✏ 닉네임 변경' });
   var hasFs = GAME.PWA && GAME.PWA.canFullscreen() && !GAME.PWA.isStandalone();
   if (hasFs) items.push({ key: 'fs',
@@ -506,6 +540,7 @@ GAME.MenuScene.prototype._openSettings = function () {
       }
       if (it.key === 'sound') GAME.Sound.toggle();
       else if (it.key === 'music') GAME.Music.toggle();
+      else if (it.key === 'theme') GAME.UI.toggleNight();   // 씬을 다시 시작한다
       else if (it.key === 'nick') { GAME.Account.logout(); self.scene.start('Login'); }
       else if (it.key === 'fs') GAME.PWA.toggleFullscreen(function () {});
       else if (it.key === 'iosfs') GAME.PWA.showHomeScreenGuide();

@@ -221,9 +221,11 @@ GAME.RankScene.prototype.create = function () {
 
   var bw = Math.min(W - 24, 420);
   var bc = GAME.Layout.cols(2, { gap: 10, width: bw, left: (W - bw) / 2, pad: 0 });
-  GAME.UI.button(this, bc[0].cx, btnCy, bc[0].w, btnH0, '← 메뉴', function () {
+  //  ← 화살표는 아이콘(A-2 iconBack)이 대신한다 — 못 서면 글자 화살표로 되돌린다.
+  var backBtn = GAME.UI.button(this, bc[0].cx, btnCy, bc[0].w, btnH0, '메뉴', function () {
     self.scene.start('Menu');
   }, { fontSize: P ? 17 : 16 });
+  if (!(GAME.LobbyArt && GAME.LobbyArt.iconFor(self, backBtn, 'iconBack'))) backBtn.setLabel('← 메뉴');
   GAME.UI.button(this, bc[1].cx, btnCy, bc[1].w, btnH0, '닉네임 바꾸기', function () {
     GAME.Account.logout();
     self.scene.start('Login');
@@ -265,10 +267,11 @@ GAME.RankScene.prototype._buildPhone = function () {
   }
   y += TH + 8;
 
-  // 레일 바닥 — 메뉴 / 닉네임
-  UI.button(this, PAD + pw / 2, y + TH / 2, pw, TH, '← 메뉴', function () {
+  // 레일 바닥 — 메뉴 / 닉네임 (← 는 아이콘이 대신, 못 서면 글자 화살표)
+  var backBtn = UI.button(this, PAD + pw / 2, y + TH / 2, pw, TH, '메뉴', function () {
     self.scene.start('Menu');
   }, { fontSize: 16 });
+  if (!(GAME.LobbyArt && GAME.LobbyArt.iconFor(self, backBtn, 'iconBack'))) backBtn.setLabel('← 메뉴');
   UI.button(this, PAD + pw + 8 + pw / 2, y + TH / 2, pw, TH, '닉네임', function () {
     GAME.Account.logout();
     self.scene.start('Login');

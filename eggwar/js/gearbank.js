@@ -70,6 +70,14 @@
     iconLuck:    { src: 'assets/icon/iconLuck.png?v=2.45' },
     iconFfwd:    { src: 'assets/icon/iconFfwd.png?v=2.45' },
     iconGold:    { src: 'assets/icon/iconGold.png?v=2.45' },
+    //  A-2 시트 잔여 7종 배선 (2026-08-23 — 로비·설정·잠금·뒤로 표식)
+    iconSound:   { src: 'assets/icon/iconSound.png?v=2.61' },
+    iconMute:    { src: 'assets/icon/iconMute.png?v=2.61' },
+    iconMusic:   { src: 'assets/icon/iconMusic.png?v=2.61' },
+    iconFlag:    { src: 'assets/icon/iconFlag.png?v=2.61' },
+    iconGear:    { src: 'assets/icon/iconGear.png?v=2.61' },
+    iconLock:    { src: 'assets/icon/iconLock.png?v=2.61' },
+    iconBack:    { src: 'assets/icon/iconBack.png?v=2.61' },
     //  이펙트 (흰색 원본 — 코드가 틴트·블렌드로 색을 입힌다)
     flame:       { src: 'assets/fx/flame.png?v=2.27' },
     glow:        { src: 'assets/fx/glow.png?v=2.27' },

@@ -17,20 +17,22 @@ window.GAME = window.GAME || {};
 GAME.BossBank = (function () {
   'use strict';
   var DATA = {
-    "bossAshSentry": {"art":"beast:sentry:ash","tileW":1216,"tileH":651,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.7849},
+    //  pivotY: 바닥 효과(먼지·흙판)를 시트에서 지우며 실측한 **새 접지선**(px).
+    //  안 주면 타일 바닥 — 지운 시트는 바닥에 투명 띠가 남아 발이 떠 보인다.
+    "bossAshSentry": {"art":"beast:sentry:ash","tileW":1216,"tileH":651,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.7849,"pivotY":609},
     "bossChief": {"art":"chieftain","tileW":1096,"tileH":863,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":5.0174},
     "bossDragonAwakened": {"art":"beast:awakened:ember","tileW":1324,"tileH":711,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.1337},
     "bossDragonClaw": {"art":"beast:claw:ember","tileW":1212,"tileH":670,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.8953},
     "bossDragonCrack": {"art":"beast:eggeye:ember","tileW":949,"tileH":801,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.657},
     "bossDragonEgg": {"art":"beast:egg:ember","tileW":1098,"tileH":790,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.593},
     "bossDragonEggCracked": {"art":"beast:eggcrack:ember","tileW":1096,"tileH":865,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":5.0291},
-    "bossDragonLord": {"art":"beast:dragon:ember","tileW":1322,"tileH":713,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.1453},
+    "bossDragonLord": {"art":"beast:dragon:ember","tileW":1322,"tileH":713,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.1453,"sizeMul":1.4},
     "bossDragonTail": {"art":"beast:tail:ember","tileW":1383,"tileH":481,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":2.7965},
-    "bossDrakeAsh": {"art":"beast:drake:ash","tileW":1438,"tileH":654,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.8023},
-    "bossDrakeFrost": {"art":"beast:drake:frost","tileW":1412,"tileH":642,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.7326},
-    "bossDrakeStorm": {"art":"beast:drake:storm","tileW":1411,"tileH":671,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.9012},
+    "bossDrakeAsh": {"art":"beast:drake:ash","tileW":1438,"tileH":654,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.8023,"pivotY":612},
+    "bossDrakeFrost": {"art":"beast:drake:frost","tileW":1412,"tileH":642,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.7326,"pivotY":628},
+    "bossDrakeStorm": {"art":"beast:drake:storm","tileW":1411,"tileH":671,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.9012,"pivotY":658},
     "bossNest": {"art":"ballista","tileW":1298,"tileH":734,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.2674},
-    "bossShell": {"art":"guardian","tileW":1055,"tileH":874,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":5.0814}
+    "bossShell": {"art":"guardian","tileW":1055,"tileH":874,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":5.0814,"pivotY":858}
   };
 
   var B = {
@@ -86,6 +88,12 @@ GAME.BossBank = (function () {
               rim.setVisible(false);
           }
         }
+        //  발사 이펙트 그래픽도 — 죽은 보스의 불티가 남으면 유령.
+        for (var fk in self._fxg) {
+          var fg = self._fxg[fk] && self._fxg[fk].g;
+          if (fg && fg.visible && fg._bbStamp !== undefined && fr - fg._bbStamp > 1)
+            fg.setVisible(false);
+        }
       });
       scene.events.once('shutdown', function () { scene._bossbankSweep = false; });
     },
@@ -94,22 +102,43 @@ GAME.BossBank = (function () {
     //  ── 공격 신호 (2026-08-22 생동화) — 시뮬 상태를 **읽기만** 해서 모션 위상을 만든다.
     //  wind: 예고 중 0→1 (몸을 젖힌다) · strike: 발사 직후 1→0 (내리꽂는 임펄스) ·
     //  threat: 날갯짓 가속용 합성값. 전부 렌더 전용 — 유닛에 남기는 필드도 렌더 캐시다.
-    _atkOf: function (scene, u) {
-      if (!u) return { wind: 0, strike: 0, threat: 0 };
-      var st = u._bbAtk || (u._bbAtk = { prevAbil: 0, prevCd: 0, strikeAt: -1e9 });
+    //  공격 타입 → 모션 스타일. 같은 젖힘이라도 어느 부위가 주역인지가 갈린다.
+    _STYLE_OF_TYPE: { barrage: 'breath', shockwave: 'slam', charge: 'slam',
+                      healBurst: 'spread', warcry: 'spread' },
+    _styleOf: function (def) {
+      var ab = (def && def.ability) || (def && def.abilities && def.abilities[0]) || null;
+      return (ab && this._STYLE_OF_TYPE[ab.type]) || null;
+    },
+
+    _atkOf: function (scene, u, def) {
+      if (!u) return { wind: 0, strike: 0, threat: 0, walk: 0, moving: 0, intro: 1, struck: false };
       var now = scene.time.now;
+      var st = u._bbAtk || (u._bbAtk = { prevAbil: 0, prevCd: 0, strikeAt: -1e9,
+        px: u.x, py: u.y, walk: 0, mv: 0, introAt: now });
       var abilT = u.abilT || 0;
       //  예고 총 길이 — def 에서 읽는다(복수 스킬이면 붙잡힌 현재 스킬).
       var ab = u._abilCur || (u.def && u.def.ability) || null;
       var tel = (ab && ab.telegraph) || 600;
       var wind = abilT > 0 ? Math.max(0, Math.min(1, 1 - abilT / tel)) : 0;
-      if (st.prevAbil > 0 && abilT <= 0) st.strikeAt = now;          // 스킬 발사 순간
-      if ((u.cd || 0) > st.prevCd + 200) st.strikeAt = now;          // 평타 발사 순간
+      var struck = false;
+      if (st.prevAbil > 0 && abilT <= 0) { st.strikeAt = now; struck = true; }   // 스킬 발사 순간
+      if ((u.cd || 0) > st.prevCd + 200) { st.strikeAt = now; struck = true; }   // 평타 발사 순간
       st.prevAbil = abilT;
       st.prevCd = u.cd || 0;
       var strike = Math.max(0, 1 - (now - st.strikeAt) / 420);
+      //  걷기 위상 — 시뮬 좌표의 **이동량**만 읽는다(렌더 전용). 멈추면 다리가
+      //  중립으로 돌아오도록 이동 게이트(mv)를 부드럽게 붙였다 뗀다.
+      var dx = (u.x || 0) - st.px, dy = (u.y || 0) - st.py;
+      st.px = u.x; st.py = u.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 0.05 && dist < 200) st.walk += dist * 0.055;      // 200+ 는 순간이동(스폰)
+      st.mv += ((dist > 0.05 && dist < 200 ? 1 : 0) - st.mv) * 0.22;
+      //  등장 연출 — 처음 그려진 순간부터 1.1초.
+      var intro = Math.max(0, Math.min(1, (now - st.introAt) / 1100));
       return { wind: wind, strike: strike,
-               threat: Math.min(1, wind * 0.7 + strike) };
+               threat: Math.min(1, wind * 0.7 + strike),
+               walk: st.walk, moving: st.mv, intro: intro, struck: struck,
+               style: this._styleOf(def || u.def) };
     },
 
     //  그린다 — 준비돼 있으면 true(호출부는 벡터를 건너뛴다), 아니면 false.
@@ -122,18 +151,23 @@ GAME.BossBank = (function () {
 
       var m = e.m;
       var base = (GAME.UNITS && GAME.UNITS[e.key] && GAME.UNITS[e.key].radius) || rScaled;
-      var k = (rScaled / base) / m.drawScale;
+      //  sizeMul: 표시 전용 확대(태초의 용 1.4 — 태현님: "화면에 잘려도 된다").
+      //  판정 반지름은 안 건드린다.
+      var k = (rScaled / base) / m.drawScale * (m.sizeMul || 1);
       var w = m.tileW * k, h = m.tileH * k;
       var px = m.pivotX !== undefined ? m.pivotX / m.tileW : 0.5;
       var py = m.pivotY !== undefined ? m.pivotY / m.tileH : 1.0;
       var flip = facing !== undefined && Math.cos(facing) < 0;
       var a = alpha === undefined ? 1 : alpha;
-      var atk = this._atkOf(scene, unit);
+      var atk = this._atkOf(scene, unit, def);
       this._hookSweep(scene);
 
-      //  화면 위 넘침 보정(렌더 전용) — 리그·단일 공통.
+      //  화면 위 넘침 보정(렌더 전용) — 확대 보스는 잘리는 것이 의도라 안 민다.
       var top0 = sy - h * py;
-      var yFix = top0 < 4 ? (4 - top0) : 0;
+      var yFix = (top0 < 4 && !m.sizeMul) ? (4 - top0) : 0;
+
+      //  발사 순간 이펙트(불티·먼지) — 리그/단일 공통, 렌더 전용.
+      this._strikeFx(scene, e.key, def, sx, sy + yFix, w, h, py, flip, depth || 0, atk);
 
       //  ── 관절 리깅 보스(태초의 용 등) — 부위 층으로 그린다 ──────────────────
       if (GAME.BossRig && GAME.BossRig.has(e.key)) {
@@ -164,6 +198,8 @@ GAME.BossBank = (function () {
       var seed = (e.key.charCodeAt(4) || 0) * 0.7;       // 보스마다 위상이 다르게
       var isEgg = /Egg|Crack/.test(e.key);
       var isTurret = e.key === 'bossNest';
+      //  등장 팝 — 처음 1.1초 동안 0.92 → 1.0 (포탑은 구조물이라 제외).
+      var introPop = isTurret ? 1 : (0.92 + 0.08 * (1 - Math.pow(1 - atk.intro, 2)));
       var ky, kx, rot;
       if (isTurret) {
         //  둥지 포탑은 고정 구조물 — 숨쉬지 않는다(태현님: "안 움직이는 게 맞고").
@@ -187,7 +223,7 @@ GAME.BossBank = (function () {
         kx = 1 - br * 0.016 * 0.55 + atk.wind * 0.015;
         rot = Math.sin(t * 0.9 + seed) * 0.010 + (atk.strike * 0.025 - atk.wind * 0.015);
       }
-      img.setDisplaySize(w * kx, h * ky);
+      img.setDisplaySize(w * kx * introPop, h * ky * introPop);
       img.setRotation(rot * (flip ? -1 : 1));
       var lunge = isTurret ? 0 :
         (atk.strike * 0.05 - atk.wind * 0.022) * w * (flip ? -1 : 1);
@@ -198,6 +234,67 @@ GAME.BossBank = (function () {
       return true;
     },
 
+    //  ── 발사 순간 이펙트 (2026-08-23 3차: "이펙트 동기화") ────────────────────
+    //  렌더 전용 파티클 — strike 전이 프레임에 입가에서 불티, slam 스타일은 바닥
+    //  먼지. Math.random 을 써도 되는 곳이다(시뮬 무접촉·digest 무관).
+    _fxg: {},           // key → { g: Graphics, ps: [...] }
+    _strikeFx: function (scene, key, def, sx, syG, w, h, py, flip, depth, atk) {
+      var fx = this._fxg[key];
+      if (!fx || !fx.g || !fx.g.scene || fx.g.scene !== scene) {
+        if (fx && fx.g && fx.g.destroy) { try { fx.g.destroy(); } catch (e) {} }
+        fx = this._fxg[key] = { g: scene.add.graphics(), ps: [] };
+      }
+      var g = fx.g;
+      g.setDepth(depth + 0.62);
+      g.setVisible(true);
+      g._bbStamp = scene.game.loop.frame;
+      var now = scene.time.now;
+      if (atk.struck) {
+        var dir = flip ? -1 : 1;
+        var isEgg = /Egg|Crack/.test(key);
+        //  입(머리 쪽) 위치 근사 — 시트가 전부 오른쪽을 보므로 앞쪽 1/3 지점.
+        var mx = sx + dir * w * 0.34, my = syG - h * py + h * 0.34;
+        if (isEgg) { mx = sx; my = syG - h * py + h * 0.5; }
+        var glow = 0xffa243;
+        try {
+          if (GAME.BossArt && GAME.BossArt.TONE && def && def.art) {
+            var kind = def.art.split(':')[2];
+            if (GAME.BossArt.TONE[kind] && GAME.BossArt.TONE[kind].glow)
+              glow = GAME.BossArt.TONE[kind].glow;
+          }
+        } catch (e2) {}
+        for (var i = 0; i < 10; i++) {
+          var an = (Math.random() - 0.5) * 1.6 + (dir > 0 ? 0 : Math.PI);
+          var sp = 60 + Math.random() * 160;
+          fx.ps.push({ x: mx, y: my, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp - 40,
+                       t0: now, life: 380 + Math.random() * 240, r: 2 + Math.random() * 3, col: glow });
+        }
+        //  내리찍기형은 바닥 먼지도 — 발치에서 옆으로 퍼진다.
+        if (atk.style === 'slam') {
+          for (var d2 = 0; d2 < 8; d2++) {
+            var side = d2 % 2 ? 1 : -1;
+            fx.ps.push({ x: sx + side * (10 + Math.random() * w * 0.2), y: syG - 4,
+                         vx: side * (40 + Math.random() * 90), vy: -(20 + Math.random() * 50),
+                         t0: now, life: 460 + Math.random() * 200, r: 3 + Math.random() * 4, col: 0x9b8f7c });
+          }
+        }
+      }
+      g.clear();
+      if (!fx.ps.length) return;
+      var keep = [];
+      for (var j = 0; j < fx.ps.length; j++) {
+        var p = fx.ps[j];
+        var age = (now - p.t0) / p.life;
+        if (age >= 1) continue;
+        keep.push(p);
+        var dt2 = (now - p.t0) / 1000;
+        var x2 = p.x + p.vx * dt2, y2 = p.y + p.vy * dt2 + 90 * dt2 * dt2;
+        g.fillStyle(p.col, 0.85 * (1 - age));
+        g.fillCircle(x2, y2, p.r * (1 - age * 0.5));
+      }
+      fx.ps = keep;
+    },
+
     //  씬이 바뀔 때 잔상 정리(씬 인스턴스 캐시 함정 — init 에서 부른다).
     reset: function () {
       for (var k in this._img) {
@@ -205,6 +302,11 @@ GAME.BossBank = (function () {
         if (im && im.destroy) { try { im.destroy(); } catch (err) {} }
       }
       this._img = {};
+      for (var k2 in this._fxg) {
+        var f2 = this._fxg[k2];
+        if (f2 && f2.g && f2.g.destroy) { try { f2.g.destroy(); } catch (err2) {} }
+      }
+      this._fxg = {};
       if (GAME.BossRig) GAME.BossRig.reset();
     }
   };

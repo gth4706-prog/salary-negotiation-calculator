@@ -212,7 +212,7 @@ GAME.towerAdvice = function (formation, heroKey) {
   //  끊어라'가 들어 있어 두 정보가 한 줄에 산다. 보스 층은 ☠ 줄이 있으니 1줄만.
   //  ⚠ 🎯 는 쓰지 않는다 — 이 화면에서 **층 목표**가 이미 그 아이콘을 쓴다.
   var order = GAME.TOWER_SKILL_PRIORITY || GAME.TOWER_THREAT_ORDER;
-  var wantSkill = (formation && formation.boss) ? 1 : 2;
+  var wantSkill = 1;   //  2026-08-23 태현님: "글자 너무 과다" — 층 불문 1줄
   for (var i = 0; i < order.length && wantSkill > 0; i++) {
     if (present[order[i]] && GAME.TOWER_SKILL_DESC[order[i]]) {
       out.push('🗡 ' + GAME.TOWER_SKILL_DESC[order[i]]);
@@ -387,7 +387,8 @@ GAME.TowerLoadingScene.prototype.create = function () {
     if (formation && formation.readNote) lines.push(formation.readNote);
     //  줄이 넘치면 **뒤에서부터** 자른다 — 뒤가 배치·학습이라 태현님이 정한
     //  중요도(적 설명 > 배치·학습) 그대로 잘린다. 7줄이 폰 가로 그림 띠의 하한이다.
-    if (lines.length > 7) lines.length = 7;
+    //  2026-08-23 태현님: "글자 너무 과다" — 상한 7 → 4줄.
+    if (lines.length > 4) lines.length = 4;
   }
   lines = lines.filter(function (s) { return s; });
 

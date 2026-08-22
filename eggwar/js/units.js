@@ -87,7 +87,9 @@ lore: '강가의 둥근 돌만 골라 담는 무릿매꾼. 겨눈 자리에 그�
     voice: 'bone', voicePitch: 0.92,
 lore: '한 번 던지면 반드시 박히는 미늘 작살. 대신 다시 던질 때까지 오래 숨을 고른다.',
     desc: '미늘 작살. 던지면 반드시 맞는다. 비싼 대신 회피 불가.',
-    cost: 40, pop: 4, hp: 100, armor: 5, speed: 90, range: 420, damage: 75, cooldown: 3000,
+    //  damage 75 → 38 (2026-08-23 태현님: "투창병 데미지 너무 쎄, 2배 낮춰줘" —
+    //  자동명중이라 PACE ×1.5 와 겹치면 회피 불가 피해가 판을 지배했다)
+    cost: 40, pop: 4, hp: 100, armor: 5, speed: 90, range: 420, damage: 38, cooldown: 3000,
     attack: 'targeted', bulletSpeed: 760,
     radius: 11, shape: 'hex', weapon: 'sniperRifle',
     chase: 110, aggro: 440, spacing: 38,

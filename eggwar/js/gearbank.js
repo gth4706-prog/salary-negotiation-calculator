@@ -49,7 +49,7 @@
     helmPot:    { src: 'assets/helm/pot.png?v=2.38' },
     helmBand:   { src: 'assets/helm/band.png?v=2.38' },
     helmCap:    { src: 'assets/helm/cap.png?v=2.38' },
-    helmHood:   { src: 'assets/helm/hood.png?v=2.38' },
+    helmHood:   { src: 'assets/helm/hood.png?v=2.57' },   //  개구부 투명화(2026-08-23)
     helmLeaf:   { src: 'assets/helm/leaf.png?v=2.38' },
     helmBucket: { src: 'assets/helm/bucket.png?v=2.38' },
     helmHorns:  { src: 'assets/helm/horns.png?v=2.38' },

@@ -118,9 +118,12 @@ GAME.Profile = {
     var dodgeNote = p.dodge > 0.65
       ? '  회피가 좋아 피할 수 없는 공격의 비중을 올렸습니다.'
       : (p.dodge < 0.35 ? '  회피가 약해 광역 공격을 늘렸습니다.' : '');
+    //  2026-08-23 태현님: "로딩화면 글자 너무 과다" — 3줄 → **1줄**로 압축.
+    //  무엇을 늘렸는지(counter)는 뺀다 — 간파의 존재와 강도만 알리면 충분하다.
+    //  (counter/dodgeNote 계산은 위에 남긴다 — 되돌릴 때 문구가 그대로 살아난다.)
+    void counter; void dodgeNote;
     return '👁 탑이 당신을 읽었습니다 — ' + p.styleLabel + ' · ' + p.dodgeLabel +
-           '\n' + counter + '.' + dodgeNote +
-           '\n(관측 ' + p.battles + '판 · 간파 강도 ' + mul.toFixed(1) + '배)';
+           ' (간파 ' + mul.toFixed(1) + '배)';
   },
 
   reset: function () {

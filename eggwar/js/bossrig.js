@@ -48,7 +48,7 @@ GAME.BossRig = (function () {
         { name: 'legFront', behind: false, joint: [700, 580], eraseR: 90,
           anim: 'leg', phase: 3.14, amp: 0.10, speed: 1,
           poly: [[620, 540], [790, 555], [790, 713], [620, 713]] },
-        { name: 'head', behind: false, joint: [905, 452], eraseR: 175,
+        { name: 'head', behind: false, joint: [940, 462], eraseR: 150,
           anim: 'head', phase: 0.4, amp: 0.035, speed: 1.7,
           poly: [[858, 295], [1010, 268], [1130, 320], [1230, 396], [1258, 470], [1226, 575], [1090, 648], [948, 606], [872, 522], [856, 415]] }
       ]
@@ -268,6 +268,20 @@ GAME.BossRig = (function () {
         }
         pctx.drawImage(src, 0, 0);
         pctx.restore();
+        if (p._half) {
+          //  분할선 쪽 가장자리를 60px 선형 페이드 — 손목이 부모 날개에 녹아들어
+          //  추가 회전 때 직선 이음새가 안 보인다(부모가 아래에서 이어 준다).
+          var h3 = p._half;
+          var lg = pctx.createLinearGradient(h3.x, h3.y,
+                                             h3.x + h3.ux * 60, h3.y + h3.uy * 60);
+          lg.addColorStop(0, 'rgba(0,0,0,0)');
+          lg.addColorStop(1, 'rgba(0,0,0,1)');
+          pctx.save();
+          pctx.globalCompositeOperation = 'destination-in';
+          pctx.fillStyle = lg;
+          pctx.fillRect(0, 0, W, H);
+          pctx.restore();
+        }
         pc.refresh();
       }
 
@@ -283,14 +297,29 @@ GAME.BossRig = (function () {
         pathPoly(ctx, q.poly);
         ctx.fill();
         ctx.restore();
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(q.joint[0], q.joint[1], q.eraseR, 0, Math.PI * 2);
-        ctx.clip();
-        pathPoly(ctx, q.poly);
-        ctx.clip();
-        ctx.drawImage(src, 0, 0);
-        ctx.restore();
+        //  뿌리 복원 — 디스크 가장자리를 방사형 페이드로 깎는다. 경계가 또렷하면
+        //  부위가 크게 돌 때 정지 사본이 '두 번째 머리'로 보인다(용 머리 실측).
+        var tmp = document.createElement('canvas');
+        tmp.width = W; tmp.height = H;
+        var tctx = tmp.getContext('2d');
+        tctx.save();
+        tctx.beginPath();
+        tctx.arc(q.joint[0], q.joint[1], q.eraseR, 0, Math.PI * 2);
+        tctx.clip();
+        pathPoly(tctx, q.poly);
+        tctx.clip();
+        tctx.drawImage(src, 0, 0);
+        tctx.restore();
+        var grad = tctx.createRadialGradient(q.joint[0], q.joint[1], q.eraseR * 0.55,
+                                             q.joint[0], q.joint[1], q.eraseR);
+        grad.addColorStop(0, 'rgba(0,0,0,1)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        tctx.save();
+        tctx.globalCompositeOperation = 'destination-in';
+        tctx.fillStyle = grad;
+        tctx.fillRect(0, 0, W, H);
+        tctx.restore();
+        ctx.drawImage(tmp, 0, 0);
       }
       bc.refresh();
 
@@ -310,6 +339,10 @@ GAME.BossRig = (function () {
       var fctx = fc.getContext();
       for (var j2 = 0; j2 < parts.length; j2++) {
         if (parts[j2].parent) continue;
+        //  ⚠ 크게 도는 앞층 부위(머리·팔)는 필러에서 뺀다 — 정지 사본이 회전한
+        //  부위 뒤로 비쳐 **잔상**이 된다(태초의 용 머리 실측). 이 부위들의 몸 쪽
+        //  뿌리는 eraseR 디스크가 base 에 남겨 두므로 구멍도 안 생긴다.
+        if (parts[j2].anim === 'head' || parts[j2].anim === 'arm') continue;
         fctx.save();
         pathPoly(fctx, parts[j2].poly);
         fctx.clip();
@@ -328,7 +361,7 @@ GAME.BossRig = (function () {
 
     //  스타일 배수 — 공격 타입이 어느 부위를 크게 쓰는가.
     _STYLE: {
-      breath: { headWind: 0.26, headStrike: 0.38, armWind: 0.07, armStrike: 0.12, wingThreat: 0.9, fingerWind: 0.06 },
+      breath: { headWind: 0.17, headStrike: 0.24, armWind: 0.07, armStrike: 0.12, wingThreat: 0.9, fingerWind: 0.06 },
       slam:   { headWind: 0.10, headStrike: 0.16, armWind: 0.11, armStrike: 0.19, wingThreat: 0.9, fingerWind: 0.10 },
       spread: { headWind: 0.16, headStrike: 0.24, armWind: 0.07, armStrike: 0.12, wingThreat: 1.7, fingerWind: 0.06 }
     },

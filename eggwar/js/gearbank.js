@@ -58,13 +58,11 @@
     helmRanger:   { src: 'assets/helm/ranger.png?v=2.38' },
     helmWarden:   { src: 'assets/helm/warden.png?v=2.29' },
     //  스킬 이펙트·아이콘 (2026-08-22 시트 이식 — 다운로드 폴더 미사용분)
-    arrowfire:   { src: 'assets/fx/arrowfire.png?v=2.45' },
-    arrowskill:  { src: 'assets/fx/arrowskill.png?v=2.45' },
-    arrowmulti:  { src: 'assets/fx/arrowmulti.png?v=2.45' },
-    slash2:      { src: 'assets/fx/slash2.png?v=2.45' },
-    shieldaura:  { src: 'assets/fx/shieldaura.png?v=2.45' },
+    //  ⚠ Gemini 시트의 마법진·금속 낫·리얼풍 화살 5종(arrowfire/arrowskill/
+    //    arrowmulti/slash2/shieldaura→orbmagic 포함)은 **등록 해제**했다(태현님:
+    //    "어울리는 것만 남기고 재생성"). 파일은 assets/fx 에 남아 있다 —
+    //    a-3 붓질 화풍으로 재생성해 오면 여기 한 줄씩 되살리면 된다.
     trapimg:     { src: 'assets/fx/trapimg.png?v=2.45' },
-    orbmagic:    { src: 'assets/fx/orbmagic.png?v=2.45' },
     iconHp:      { src: 'assets/icon/iconHp.png?v=2.45' },
     iconAtk:     { src: 'assets/icon/iconAtk.png?v=2.45' },
     iconArmor:   { src: 'assets/icon/iconArmor.png?v=2.45' },

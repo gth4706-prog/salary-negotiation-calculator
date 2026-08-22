@@ -478,7 +478,9 @@ GAME.Combat = {
     //  PACE.DMG — 피해의 단일 관문(config.js). **유닛이 내는 피해만** 배속한다
     //  (영웅 제외 — 영웅은 유닛 체력이 절반이라 이미 두 배 빨리 잡는다). 파생
     //  피해(매듭 분배·반사)는 이미 배율이 실린 값이라 noPace 로 이중 적용을 막는다.
-    if (GAME.Combat.paceOn && !(opts && opts.noPace) && !(source && source.isHero)) dmg *= GAME.CONFIG.PACE.DMG;
+    if (GAME.Combat.paceOn && !(opts && opts.noPace)) {
+      dmg *= (source && source.isHero) ? GAME.CONFIG.PACE.HERO_DMG : GAME.CONFIG.PACE.DMG;
+    }
     // 지뢰는 피해로 제거할 수 없다. 밟아서 터뜨리거나, 피해서 지나가는 수밖에.
     if (this.isHazard(unit)) return 0;
 

@@ -272,8 +272,11 @@ GAME.Combat = {
       faceLock: 0,
       everEngaged: false,    // 이 유닛이 한 번이라도 적을 때렸는가 (학습 신호)
       //  PACE.HP — 판의 호흡(config.js). **유닛만** 줄인다(영웅 제외 — 근거는 config).
-      hp: Math.max(1, Math.round(def.hp * (!GAME.Combat.paceOn || (GAME.HEROES && GAME.HEROES[typeKey]) ? 1 : GAME.CONFIG.PACE.HP))),
-      maxHp: Math.max(1, Math.round(def.hp * (!GAME.Combat.paceOn || (GAME.HEROES && GAME.HEROES[typeKey]) ? 1 : GAME.CONFIG.PACE.HP))),
+      //  ⚠ 보스는 체력 반감에서 **제외** — 보스 격파시간은 boss-invariance 가
+      //    지수(POWER_POW_BOSS=1.0)로 상수로 맞춰 둔 값이라, 반 토막 내면 보스층이
+      //    이웃 일반층보다 쉬워진다(rep=96 실측: 10층 53% vs 11층 20%, R-3 붕괴).
+      hp: Math.max(1, Math.round(def.hp * (!GAME.Combat.paceOn || def.isBoss || (GAME.HEROES && GAME.HEROES[typeKey]) ? 1 : GAME.CONFIG.PACE.HP))),
+      maxHp: Math.max(1, Math.round(def.hp * (!GAME.Combat.paceOn || def.isBoss || (GAME.HEROES && GAME.HEROES[typeKey]) ? 1 : GAME.CONFIG.PACE.HP))),
       cd: GAME.Combat.rand() * 250,
       alive: true,
       order: null,

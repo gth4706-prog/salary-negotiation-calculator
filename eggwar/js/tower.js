@@ -579,7 +579,19 @@ GAME.Tower = {
     x ^= x << 13; x ^= x >>> 17; x ^= x << 5; x |= 0;
     var r = ((x >>> 8) % 10000) / 10000;
     if (r >= this.BONUS_CHANCE) return null;
-    return ((x >>> 3) & 1) ? 'guard' : 'break';
+    //  종류는 운이 아니라 **교대**다 (2026-08-23 태현님: "알지키기가 안 나와" —
+    //  50/50 은 초반 표본이 작아 한쪽만 걸릴 수 있다). 이 층 아래의 보너스 층
+    //  수를 세서 홀짝으로 가른다 — 같은 등반에서 반드시 번갈아 나온다.
+    var nBelow = 0;
+    for (var bf = 4; bf < floor; bf++) {
+      if (this.isBossFloor(bf)) continue;
+      if (GAME.TowerObjective && GAME.TowerObjective.objectiveFor &&
+          GAME.TowerObjective.objectiveFor(bf)) continue;
+      var bx = (seed ^ (bf * 0x9E3779B1)) | 0;
+      bx ^= bx << 13; bx ^= bx >>> 17; bx ^= bx << 5; bx |= 0;
+      if (((bx >>> 8) % 10000) / 10000 < this.BONUS_CHANCE) nBelow++;
+    }
+    return (nBelow & 1) ? 'guard' : 'break';
   },
 
   bossKeyFor: function (floor) {
@@ -710,6 +722,9 @@ GAME.Tower = {
       var k = Math.ceil(n0 * dShare);
       k = Math.min(k, Math.floor(budget * GAME.TowerCurriculum.debutBudgetCap(dShare) / dDef.cost));
       k = Math.max(1, Math.min(k, capUnits));
+      //  종류 상한(maxPerFormation)은 데뷔 강제 배치도 지킨다 (2026-08-23 태현님:
+      //  "가시덫은 1판에 1개만") — 28층 가시덫 데뷔가 share 로 여러 기를 심고 있었다.
+      if (dDef.maxPerFormation) k = Math.min(k, dDef.maxPerFormation);
 
       // 좌표는 원래 진형 것을 그대로 물려받는다(아래 `TowerPlan.apply` 가 다시 놓지만,
       // 원형이 없는 경우를 대비해 흩어진 상태를 유지한다).

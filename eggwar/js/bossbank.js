@@ -163,15 +163,34 @@ GAME.BossBank = (function () {
       var t = scene.time.now / 1000;
       var seed = (e.key.charCodeAt(4) || 0) * 0.7;       // 보스마다 위상이 다르게
       var isEgg = /Egg|Crack/.test(e.key);
-      var brA = isEgg ? 0.035 : 0.016;
-      var brS = isEgg ? 2.8 : 1.8;
-      var br = Math.sin(t * brS + seed);
-      var ky = 1 + br * brA + atk.strike * 0.03 - atk.wind * 0.02;
-      var kx = 1 - br * brA * 0.55 + atk.wind * 0.015;
+      var isTurret = e.key === 'bossNest';
+      var ky, kx, rot;
+      if (isTurret) {
+        //  둥지 포탑은 고정 구조물 — 숨쉬지 않는다(태현님: "안 움직이는 게 맞고").
+        //  살아있는 건 발사 반동뿐이다(아래 lunge/strike 항만 남는다).
+        ky = 1 + atk.strike * 0.02;
+        kx = 1;
+        rot = 0;
+      } else if (isEgg) {
+        //  알 3종 — 좌우로 '늘어나는' 게 아니라 **심장이 친다**: sin 을 5제곱해
+        //  두근-쉼-두근의 뾰족한 박동파를 만들고, 박동 순간에만 위로 부푼다.
+        //  껍질이 흔들리는 미세 락킹(저주파 회전)이 "안에서 뭔가 민다"를 만든다.
+        var raw = Math.sin(t * 3.1 + seed);
+        var th = Math.max(0, raw); th = th * th * th * th * th;
+        ky = 1 + th * 0.055 + atk.strike * 0.02;
+        kx = 1 - th * 0.028;
+        rot = Math.sin(t * 1.15 + seed) * 0.014 + th * 0.006;
+      } else {
+        //  그 외(리깅 없는 예비 자산 폴백) — 호흡 + 스웨이.
+        var br = Math.sin(t * 1.8 + seed);
+        ky = 1 + br * 0.016 + atk.strike * 0.03 - atk.wind * 0.02;
+        kx = 1 - br * 0.016 * 0.55 + atk.wind * 0.015;
+        rot = Math.sin(t * 0.9 + seed) * 0.010 + (atk.strike * 0.025 - atk.wind * 0.015);
+      }
       img.setDisplaySize(w * kx, h * ky);
-      img.setRotation((Math.sin(t * 0.9 + seed) * 0.010 +
-                       (atk.strike * 0.025 - atk.wind * 0.015)) * (flip ? -1 : 1));
-      var lunge = (atk.strike * 0.05 - atk.wind * 0.022) * w * (flip ? -1 : 1);
+      img.setRotation(rot * (flip ? -1 : 1));
+      var lunge = isTurret ? 0 :
+        (atk.strike * 0.05 - atk.wind * 0.022) * w * (flip ? -1 : 1);
       img.setPosition(sx + lunge, sy + yFix);
       img.setFlipX(flip);
       img.setAlpha(a);

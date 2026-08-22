@@ -2601,6 +2601,11 @@ GAME.BattleScene.prototype.draw = function () {
       g.fillStyle(FX.sparkCore, 0.60 * b2 * b2);
       GAME.UI.groundCircleFill(g, e.x, e.y, e.r * 0.34 * b2);
       ringInk(e.x, e.y, e.r * bx, 3.5, FX.blast, Math.min(1, b2 * 1.1 * RA));
+      //  이미지 임팩트(a-3 시트) — 벡터 판정 그림 위에 얹는 질감 한 겹(2026-08-22).
+      if (GAME.GearBank) {
+        GAME.GearBank.place(g, 'impact', e.x, Iso.toScreenY(e.y),
+          e.r * 2.0 * bx, e.r * 2.0 * bx, Math.min(0.85, b2 * 1.1), FX.blast, true);
+      }
       // 사방으로 뻗는 짧은 불티 — 정지 화면에서도 '터짐'의 방향성이 생긴다
       g.lineStyle(2.5, FX.blast, b2 * 0.8);
       var bsy = Iso.toScreenY(e.y);
@@ -2614,6 +2619,12 @@ GAME.BattleScene.prototype.draw = function () {
     } else if (e.kind === 'ring') {
       var r2 = e.t / e.total;
       ringInk(e.x, e.y, e.r * (1.15 - r2 * 0.15), 4, col, r2 * RA);
+      //  이미지 링(a-3 시트) — 지면에 눕혀(TILT) 가산으로 얹는다(2026-08-22).
+      if (GAME.GearBank) {
+        var rw2 = e.r * 2.35 * (1.15 - r2 * 0.15);
+        GAME.GearBank.place(g, 'ring', e.x, Iso.toScreenY(e.y),
+          rw2, rw2 * Iso.TILT, Math.min(0.7, r2 * 0.9), col, true);
+      }
 
     } else if (e.kind === 'slash') {
       // 근접 부채꼴.
@@ -2709,6 +2720,16 @@ GAME.BattleScene.prototype.draw = function () {
       var wr = e.range * 0.55;
       var wa0 = e.angle + Math.PI - wspan, wa1 = e.angle + Math.PI + wspan;
       var wAlpha = (1 - wp);
+      //  이미지 참격(a-3·스킬 시트) — 진행 방향에 직교로 눕힌 흰 검기 아크(2026-08-22).
+      //  강타(charged)는 낫형(slash2), 평타 검기는 부드러운 아크(slash).
+      if (GAME.GearBank) {
+        var swL = e.range * (e.charged ? 1.5 : 1.2);
+        var swdx = -Math.sin(e.angle) * swL / 2;
+        var swdy = Math.cos(e.angle) * swL / 2 * Iso.TILT;
+        GAME.GearBank.drawSpan(g, e.charged ? 'slash2' : 'slash',
+          wx + swdx, wy + swdy, wx - swdx, wy - swdy,
+          Math.min(0.9, wAlpha), false);
+      }
       if (INKA > 0) {
         g.lineStyle(6, INK, wAlpha * 0.45 * INKA);
         g.beginPath(); g.arc(wx, wy, wr, wa0, wa1, false); g.strokePath();
@@ -2815,6 +2836,12 @@ GAME.BattleScene.prototype.draw = function () {
     g.fillStyle(auCol, Math.min(0.22, 0.10 * FA));
     GAME.UI.groundCircleFill(g, this.hero.x, this.hero.y, au.radius);
     ringInk(this.hero.x, this.hero.y, au.radius, 2.5, auCol, 0.65 * RA);
+    //  마법진 이미지(스킬 시트, 2026-08-22) — 지면에 눕힌 가산 한 겹. 판정 원(벡터)
+    //  위에 질감만 얹는다 — 반경은 벡터와 같아야 회피 문법이 안 깨진다.
+    if (GAME.GearBank) {
+      GAME.GearBank.place(g, 'shieldaura', this.hero.x, Iso.toScreenY(this.hero.y),
+        au.radius * 2.05, au.radius * 2.05 * Iso.TILT, 0.55, auCol, true);
+    }
   }
 
   // ── 유닛: 뒤(위)에서 앞(아래) 순으로 그려 겹침이 자연스럽게 ──
@@ -3215,6 +3242,18 @@ GAME.BattleScene.prototype.draw = function () {
     //  ⚠ 저격 예광탄(`tracer`)은 유도라 **곡선**으로 난다 — 방향이 계속 바뀌므로
     //    각진 촉을 붙이면 꺾여 보인다. 예광탄은 예전 점 그림 그대로 둔다.
     if (!p.tracer) {
+      //  고등급 사냥꾼(무기 7단 이상)의 화살은 불화살 이미지로(2026-08-22 시트).
+      //  실패하면(로드 전) 아래 벡터 촉·깃 그대로 — 화면이 비면 안 된다.
+      if (p.side === 'controller' && this.hero && this.hero.def &&
+          this.hero.def.key === 'ranger' && (this.hero._gearTier || 0) >= 7 &&
+          GAME.GearBank) {
+        var faL = (rr + 5) * 5.6;
+        if (GAME.GearBank.drawSpan(g, 'arrowfire',
+              psx + ux * faL * 0.55, psy + uy * faL * 0.55,
+              psx - ux * faL * 0.45, psy - uy * faL * 0.45, 0.96)) {
+          continue;
+        }
+      }
       var M2 = GAME.UI.MAT;
       var nx2 = -uy, ny2 = ux;
       var hl = rr + 5, hw = rr * 0.72 + 1.4;

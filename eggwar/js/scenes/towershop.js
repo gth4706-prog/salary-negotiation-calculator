@@ -1319,10 +1319,17 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
     g.lineStyle(can ? 2 : 1, can ? C.controller : GAME.UI.COL.border, 1);
     g.strokeRoundedRect(cx0, cardTop, cw, cardH, 10);
 
-    //  그림 — 카드 상단. 파트의 얼굴이다.
+    //  그림 — 카드 상단. 파트의 얼굴이다. A-2 아이콘 시트(2026-08-22 이식)가
+    //  있으면 그걸 쓰고, 없으면(로드 전) 벡터 폴백. 치명타만 시트에 없어 벡터다.
     var icR = Math.min(cw * 0.26, P ? 20 : 34);
     var icY = cardTop + (P ? 30 : 56);
-    if (ICON[d.key]) ICON[d.key](g, cx0 + cw / 2, icY, icR);
+    var IMG_ICON = { damage: 'iconAtk', hp: 'iconHp', armor: 'iconArmor',
+                     speed: 'iconSpeed', atkspeed: 'iconFfwd', luck: 'iconLuck' };
+    var icImg = IMG_ICON[d.key];
+    if (!(icImg && GAME.GearBank &&
+          GAME.GearBank.place(g, icImg, cx0 + cw / 2, icY, icR * 2.5, icR * 2.5, 1))) {
+      if (ICON[d.key]) ICON[d.key](g, cx0 + cw / 2, icY, icR);
+    }
 
     //  이름 + 현재 총합
     var nmY = icY + icR + (P ? 8 : 16);

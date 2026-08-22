@@ -3006,6 +3006,11 @@ var SM = 10;
   UI.drawGroundArt = function (g, art, sx, sy, r, color, a) {
     var Iso = GAME.Iso, T = Iso ? Iso.TILT : 1;
     if (art.ground === 'spiketrap') {        // 가시덫 — 나무 이빨 덫
+      //  생성 이미지 덫(2026-08-22 시트) — 지면에 눕힌 비율(원본 228×105)로 얹는다.
+      if (GAME.GearBank &&
+          GAME.GearBank.place(g, 'trapimg', sx, sy, r * 2.9, r * 2.9 * (105 / 228) * (T / 0.55 > 1 ? 1 : T / 0.55), a)) {
+        return;
+      }
       g.fillStyle(M.woodDark, a);
       g.fillEllipse(sx, sy, r * 2.30, r * 2.30 * T, SM);
       g.fillStyle(0x241d16, a);

@@ -1211,7 +1211,10 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
   var leftX = PAD;
 
   //  ① 요약 줄 — 7칸 균등. "현재 내 몸"이 먼저 읽혀야 카드의 + 가 뜻을 가진다.
-  var sumH = P ? 30 : 40;
+  //  (2026-08-23 태현님: "숫자는 감이 없다, 바 형태로") — 숫자 대신 **막대**가
+  //  주인공이다. 분모는 `statCeil`(자기 확장형 상한 — 상한에 다가가면 분모가 같이
+  //  늘어 막대가 꽉 찬 채 멈추지 않는다). 작은 숫자는 막대 오른쪽에 보조로만 남긴다.
+  var sumH = P ? 34 : 46;
   var sg = this.add.graphics();
   this._body.push(sg);
   sg.fillStyle(GAME.UI.COL.surfaceAlt, 1);
@@ -1219,16 +1222,39 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
   sg.lineStyle(1, GAME.UI.COL.border, 1);
   sg.strokeRoundedRect(leftX, top, contW, sumH, 8);
   var sumCols = GAME.Layout.cols(n, { gap: 4, width: contW - 12, left: leftX + 6, pad: 0 });
+  var BARCOL = { damage: 0xe0685f, hp: 0x6fbf73, armor: 0x8f9aa8, speed: 0x76c7e0,
+                 luck: 0xd9b24a, atkspeed: 0xe09a4f, crit: 0xc06fd0 };
+  var barG = this.add.graphics();
+  this._body.push(barG);
   DEFS.forEach(function (d, i) {
-    var cxm = sumCols[i].x + sumCols[i].w / 2;
+    var col = sumCols[i];
+    var cxm = col.x + col.w / 2;
     var tv = totalOf(d);
     var vTxt = d.key === 'atkspeed' ? tv + '%' : String(Math.round(tv * 10) / 10);
     var snm = GAME.UI.label(self, cxm, top + (P ? 2 : 4), d.name,
       P ? 9 : 11, C.textDim, 0.5).setOrigin(0.5, 0);
     self._body.push(snm);
-    //  값은 이름의 **실측 높이** 아래에 — 고정 오프셋은 최대 수치(36700)에서 겹쳤다.
-    self._body.push(GAME.UI.label(self, cxm, snm.y + snm.height + 1, vTxt,
-      P ? 12 : 15, C.text, 0.5).setOrigin(0.5, 0));
+    //  막대 — 이름의 실측 높이 아래(고정 오프셋은 최대 수치에서 겹쳤던 전례).
+    var bw = col.w - (P ? 8 : 12);
+    //  막대 두께가 보조 숫자를 **품어야** 한다 — 얇으면 숫자 절반이 위로 삐져나가
+    //  이름과 3px 겹친다(overlap-audit 실측 4건).
+    var bh = P ? 12 : 15;
+    var bx = cxm - bw / 2;
+    var by = snm.y + snm.height + (P ? 3 : 4);
+    var ceil = GAME.TowerChar.statCeil ? GAME.TowerChar.statCeil(d.key, tv) : Math.max(1, tv);
+    var ratio = Math.max(0, Math.min(1, ceil > 0 ? tv / ceil : 0));
+    //  홈이 옅으면 배경에 묻혀 '게이지'가 아니라 '떠 있는 알약'으로 읽힌다(실측).
+    barG.fillStyle(0x000000, 0.42);
+    barG.fillRoundedRect(bx, by, bw, bh, bh / 2);
+    barG.lineStyle(1, 0x000000, 0.35);
+    barG.strokeRoundedRect(bx, by, bw, bh, bh / 2);
+    if (ratio > 0.02) {
+      barG.fillStyle(BARCOL[d.key] || 0xcccccc, 1);
+      barG.fillRoundedRect(bx, by, Math.max(bh, bw * ratio), bh, bh / 2);
+    }
+    //  보조 숫자 — 막대 안 오른쪽 끝. 막대가 감을, 숫자가 정확함을 준다.
+    self._body.push(GAME.UI.label(self, bx + bw - 2, by + bh / 2, vTxt,
+      P ? 8 : 10, C.text, 0.5).setOrigin(1, 0.5));
   });
 
   //  ② 카드 줄 — 한 줄 7장. 폰 가로도 816/7 ≈ 112px 로 선다.

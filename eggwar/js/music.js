@@ -49,6 +49,18 @@ GAME.Music = {
   LOOKAHEAD: 0.12,    // 미리 예약해 두는 길이(초)
   FADE: 0.45,         // 곡을 바꿀 때 겹쳐 넘기는 시간(초)
 
+  //  ── 파일 곡 (2026-08-23 태현님: 수노로 만든 통곡의 탑 곡을 넣어라) ─────────
+  //  "자산 0KB" 정책의 **명시적 예외**다 — 태현님이 수노로 직접 만든 곡은
+  //  절차 합성으로 대체할 수 없는 자산이라 파일로 얹는다.
+  //  · HTMLAudio 로 **스트리밍** 재생(7MB 를 다 받기 전에 소리가 난다)
+  //  · MediaElementSource 로 기존 bus 에 물린다 — 페이드·음량·끄기 전부 공용
+  //  · 파일이 못 열리면(404·코덱) 같은 key 의 합성곡(SONGS)으로 폴백한다
+  FILES: { tower: 'assets/bgm/tower.mp3' },
+  _el: null,          // 재사용하는 오디오 엘리먼트(MediaElementSource 는 1회만 생성 가능)
+  _elNode: null,
+  _fileKey: null,     // 파일 모드로 울리는 중인 곡 key
+  _fileBroken: {},    // key → true (로드 실패 — 합성 폴백 고정)
+
   // ── 수명 주기 ─────────────────────────────────────────────────────────────
   init: function () {
     try {
@@ -133,14 +145,52 @@ GAME.Music = {
     this.cur = key;
     this._step = 0;
     this._nextT = 0;                 // `_tick` 이 컨텍스트 시각을 보고 다시 잡는다
+    this._fileStop();                // 곡이 바뀌면 파일 재생부터 끊는다
     if (this._ready && this.enabled) this._ramp(this.volume, 0.5);
     this._run();
   },
 
   stop: function () {
     this.cur = null; this._want = null;
+    this._fileStop();
     this._ramp(0, 0.35);
     if (this._timer) { clearInterval(this._timer); this._timer = null; }
+  },
+
+  //  ── 파일 곡 재생부 ────────────────────────────────────────────────────────
+  _fileStop: function () {
+    if (this._el && this._fileKey) { try { this._el.pause(); } catch (e) {} }
+    this._fileKey = null;
+  },
+  //  true = 파일이 담당한다(스케줄러는 쉬어라) / false = 합성으로 가라
+  _fileTick: function (key) {
+    if (!this.FILES[key] || this._fileBroken[key]) return false;
+    if (this._fileKey === key) return true;         // 이미 울리는 중
+    var self = this;
+    try {
+      if (!this._el) {
+        this._el = new Audio();
+        this._el.loop = true;
+        this._el.crossOrigin = 'anonymous';
+        this._el.addEventListener('error', function () {
+          //  로드 실패 — 이 곡은 합성으로 폴백하고 다시는 파일을 시도하지 않는다.
+          if (self._fileKey) self._fileBroken[self._fileKey] = true;
+          self._fileKey = null;
+        });
+        //  bus 에 물리면 페이드·음량·끄기가 합성곡과 완전히 같은 길을 탄다.
+        this._elNode = this.ctx.createMediaElementSource(this._el);
+        this._elNode.connect(this.bus);
+      }
+      var want = this.FILES[key] + '?v=' + ((GAME.VERSION || '').replace('v', ''));
+      if (!this._el.src || this._el.src.indexOf(this.FILES[key]) < 0) this._el.src = want;
+      var p = this._el.play();
+      if (p && p.catch) p.catch(function () { /* 제스처 전 — 다음 틱에 재시도 */ });
+      this._fileKey = key;
+      return true;
+    } catch (e) {
+      this._fileBroken[key] = true;
+      return false;
+    }
   },
 
   _run: function () {
@@ -154,6 +204,8 @@ GAME.Music = {
   _tick: function () {
     if (!this.cur || !this.enabled) return;
     if (!this._attach()) return;      // 아직 첫 입력 전 — 계속 기다린다
+    //  파일 곡이 있는 key 는 파일이 담당한다 — 성공 시 스케줄러는 이번 틱을 쉰다.
+    if (this._fileTick(this.cur)) return;
     var song = this.SONGS[this.cur];
     if (!song) return;
     this._prep(song);

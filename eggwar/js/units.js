@@ -134,6 +134,11 @@ lore: '통나무를 깎아 만든 대방패. 날아오는 것을 대신 받아 �
     desc: '나무 대방패로 아군에게 갈 투사체를 대신 맞는다. 공격력은 낮다.',
     cost: 30, pop: 3, hp: 504, armor: 45, speed: 100, range: 50, damage: 13, cooldown: 1100,
     attack: 'melee', coneDeg: 80,
+    //  ── 방패는 정면만 (2026-08-23 태현님) ────────────────────────────────
+    //  방어 45는 전방 140° 원호에서 온 피해에만 듣는다. 옆·뒤는 방어 0 에
+    //  약점 배수 1.3 — "1대도 안 맞고 3기를 90초 동안 못 잡는" 9층 교착의 답.
+    //  shieldWear: 피격마다 방어 -2(영구) — 정면으로만 맞아도 언젠간 뚫린다.
+    shieldArc: 140, shieldBackMul: 1.3, shieldWear: 2,
     intercept: 46,          // 이 반경 안을 지나는 적 투사체를 대신 맞는다
     radius: 15, shape: 'shield', weapon: 'riotShield',
     chase: 200, aggro: 240,

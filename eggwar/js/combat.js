@@ -290,6 +290,8 @@ GAME.Combat = {
   effArmor: function (u) {
     var a = u.def.armor || 0;
     for (var i = 0; i < u.buffs.length; i++) if (u.buffs[i].armorAdd) a += u.buffs[i].armorAdd;
+    //  방패 내구도 — 맞은 만큼 영구히 깎인다(applyDamage 가 누적).
+    if (u._shieldWear) a = Math.max(0, a - u._shieldWear);
     //  ── 최후 저항 (2026-08-08, 사용자 신고) ────────────────────────────────
     //  "항상 방패병만 마지막에 남고 남은 20초 동안 방패병만 때리다가 끝나는 게 지루하다."
     //  구조적인 결과다: AI 도 사람도 **체력 낮은 적부터** 지우므로, 방어 45·체력 큰
@@ -572,8 +574,29 @@ GAME.Combat = {
     //    아니다 — 무시로 두면 방어 몰빵 빌드가 통째로 죽어 선택지가 사라진다.
     //  ⚠ 비율 경감(100/(100+armor))은 이 게임의 핵심 규율이라 식 자체는 안 건드린다.
     var _pen = (source && source.def && source.def.armorPen) || 0;
-    var _arm = this.effArmor(unit) * (1 - Math.min(0.8, _pen));
+    //  ── 방패는 정면만 (2026-08-23 태현님: "정면이 아닌 경우 약점이 되길") ──────
+    //  `shieldArc` 가 있는 유닛은 **정면 원호에서 온 피해만** 방어로 받는다.
+    //  옆·뒤에서 맞으면 방어 0 + 약점 배수(shieldBackMul) — 돌아 들어가면 뚫린다.
+    //  9층 방패병 3기 교착(유효체력 1,460 × 3 vs 제한 90초 = 필패) 신고의 답이다.
+    //  ⚠ opt-in 필드 — 없는 유닛은 한 톨도 안 바뀐다(armorPen 과 같은 패턴).
+    //  ⚠ facing 은 시뮬이 DetMath 로 굴리는 결정론 값이라 록스텝 안전.
+    var _flank = false;
+    if (unit.def.shieldArc && source && typeof source.x === 'number') {
+      var _fang = (typeof unit.facing === 'number') ? unit.facing :
+        (unit.side === 'strategist' ? Math.PI / 2 : -Math.PI / 2);
+      var _iang = GAME.DetMath.atan2(source.y - unit.y, source.x - unit.x);
+      var _dAng = Math.abs(((_iang - _fang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+      if (_dAng > (unit.def.shieldArc * Math.PI / 180) / 2) _flank = true;
+    }
+    if (_flank) dmg *= (unit.def.shieldBackMul || 1.25);
+    var _arm = _flank ? 0 : this.effArmor(unit) * (1 - Math.min(0.8, _pen));
     var eff = Math.max(1, dmg * (100 / (100 + _arm)));
+    //  ── 방패 내구도 (2026-08-23 태현님) ─────────────────────────────────────
+    //  맞을수록 방패가 상해 방어가 깎인다(영구, 하한 0) — 컨트롤을 못 해도
+    //  교착이 수학적으로 불가능해지는 안전망. effArmor 가 누적치를 뺀다.
+    if (unit.def.shieldWear && eff > 0) {
+      unit._shieldWear = (unit._shieldWear || 0) + unit.def.shieldWear;
+    }
 
     //  ── 보호막이 먼저 깎인다 (2026-08-08 · 껍질장이) ──────────────────────────
     //  ⚠ **방어력 뒤에 온다.** 방어는 비율이고 보호막은 정액이라, 순서를 바꾸면

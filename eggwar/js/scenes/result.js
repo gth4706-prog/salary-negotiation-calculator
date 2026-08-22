@@ -90,8 +90,10 @@ GAME.ResultScene.prototype.create = function () {
   if (GAME.Sound) GAME.Sound.play(good ? 'win' : 'lose');
   //  등반 중 쌓인 획득 팝업 — 여기가 "게임 끝난 다음"이다(2026-08-22 태현님).
   //  결과음과 겹치지 않게 반 박자 늦춘다.
+  //  ⚠ 700ms 지연 동안 [다음 층]을 누르면 flush 가 증발해 **다음 판 결과에서**
+  //    떴다(2026-08-23 태현님 신고). 지연을 줄이고, 놓친 큐는 상점 진입이 받는다.
   if (GAME.DropPopup && GAME.DropPopup.queue.length) {
-    this.time.delayedCall(700, function () { GAME.DropPopup.flush(self); });
+    this.time.delayedCall(250, function () { GAME.DropPopup.flush(self); });
   }
   // 결과 화면에는 배경음악을 깔지 않는다 — 스팅어가 이 화면의 주인공이다.
   if (GAME.Music) { GAME.Music.stop(); GAME.Music.sting(good ? 'win' : 'lose'); }

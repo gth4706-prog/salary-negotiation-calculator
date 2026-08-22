@@ -232,6 +232,12 @@ GAME.TowerShopScene.prototype._buildBody = function (bump) {
   //  아이콘·무기 이미지가 유령으로 남는다(gearbank._order 도입으로 이미지가 패널
   //  위로 올라오면서 눈에 보이게 됐다). 이번 탭이 다시 그리는 것만 되살아난다.
   if (GAME.GearBank && GAME.GearBank.hideAll) GAME.GearBank.hideAll();
+  //  결과 화면에서 못 연 획득 팝업(빠른 탭으로 flush 를 스친 경우)의 안전망 —
+  //  상점은 멈춘 화면이라 팝업이 등반을 방해하지 않는다.
+  if (GAME.DropPopup && GAME.DropPopup.queue.length) {
+    var dpSelf = this;
+    this.time.delayedCall(350, function () { GAME.DropPopup.flush(dpSelf); });
+  }
   this.char = this.src.rec();           // 구매 직후 최신 상태로 다시 읽는다
   this.hero = GAME.HEROES[this.char.heroKey] || this.hero;
   var C = GAME.CONFIG.COLORS;

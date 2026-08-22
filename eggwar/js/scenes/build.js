@@ -1771,6 +1771,11 @@ GAME.BuildScene.prototype.redraw = function () {
   var B = this.board;
   var i, def;
   g.clear();
+  //  ── 투구·장비 이미지 유령 방지 (2026-08-23 태현님: "전부 지우기 하면 모자만
+  //  남는다") — Graphics 는 g.clear() 로 지워지지만 GearBank 의 영속 이미지는
+  //  스스로 안 사라진다. 매 redraw 첫머리에 전부 숨기고, 아래에서 다시 그려지는
+  //  유닛만 제 것을 켠다(정적 화면 유령 방지 규율 — towershop 과 같은 문법).
+  if (GAME.GearBank && GAME.GearBank.hideAll) GAME.GearBank.hideAll();
 
   // 수성의 탑에서 들어왔으면 그 층의 분위기로 배치한다(싸울 자리를 미리 본다).
   // 그 외 배치는 중립(밴드 1 풀숲).

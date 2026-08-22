@@ -562,6 +562,26 @@ GAME.Tower = {
   DRAGON_FROM: 300,
   DRAGON_EVERY: 50,
 
+  //  ── 보너스 판 (2026-08-23 태현님: "20% 확률로 보너스 판 — 알지키기·알깨기") ──
+  //  결정적 난수(climbSeed+층)라 재도전해도 같은 층은 같은 판이다(외워지는 건
+  //  층이 아니라 시도라 무해 — towerplan 시드 규율과 동일). 보스·연습(≤3)·목표 층 제외.
+  BONUS_CHANCE: 0.20,
+  bonusFor: function (floor) {
+    if (!floor || floor <= 3 || this.isBossFloor(floor)) return null;
+    if (GAME.TowerObjective && GAME.TowerObjective.objectiveFor &&
+        GAME.TowerObjective.objectiveFor(floor)) return null;
+    var seed = 1;
+    try {
+      var rec = GAME.TowerChar && GAME.TowerChar.get && GAME.TowerChar.get();
+      if (rec && typeof rec.climbSeed === 'number') seed = rec.climbSeed;
+    } catch (e) {}
+    var x = (seed ^ (floor * 0x9E3779B1)) | 0;
+    x ^= x << 13; x ^= x >>> 17; x ^= x << 5; x |= 0;
+    var r = ((x >>> 8) % 10000) / 10000;
+    if (r >= this.BONUS_CHANCE) return null;
+    return ((x >>> 3) & 1) ? 'guard' : 'break';
+  },
+
   bossKeyFor: function (floor) {
     if (!this.isBossFloor(floor)) return null;
     if (floor >= this.DRAGON_FROM && (floor - this.DRAGON_FROM) % this.DRAGON_EVERY === 0) {

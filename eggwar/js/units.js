@@ -756,6 +756,24 @@ GAME.UNITS.hammer = {
   armorPen: 0.55
 };
 
+//  ── 보너스 판 황금알 (2026-08-23 태현님: "20% 확률 보너스 판") ────────────────
+//  UNIT_ORDER 에 없다 — 배치·뽑기 불가, 통곡의 탑 보너스 판 전용.
+//  아트는 보스 알(bossDragonEgg)을 금색으로 리컬러한 시트(bossGoldEgg.png).
+GAME.UNITS.bonusEggGuard = {
+  key: 'bonusEggGuard', name: '황금알', art: 'beast:egg:bonus',
+  desc: '판이 끝날 때까지 지켜내면 큰 보상을 쏟아낸다.',
+  cost: 0, pop: 0, hp: 900, armor: 12, speed: 0, immobile: true,
+  range: 0, damage: 0, cooldown: 99999, attack: 'melee', radius: 30,
+  chase: 0, aggro: 0, noCount: true
+};
+GAME.UNITS.bonusEggBreak = {
+  key: 'bonusEggBreak', name: '황금알', art: 'beast:egg:bonus',
+  desc: '때린 피해만큼 골드가 쏟아진다. 마음껏 부숴라!',
+  cost: 0, pop: 0, hp: 1000, armor: 0, speed: 0, immobile: true,
+  range: 0, damage: 0, cooldown: 99999, attack: 'melee', radius: 34,
+  chase: 0, aggro: 0
+};
+
 GAME.UNIT_ORDER = [
   'bayonet', 'rifleman', 'grenadier', 'sniper',
   'shieldman', 'medic', 'sergeant', 'chemtrooper', 'mgnest', 'mine',

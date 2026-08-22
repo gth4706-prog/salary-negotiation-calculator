@@ -100,6 +100,8 @@ GAME.BattleScene.prototype.create = function () {
   }
 
   this.state = GAME.Combat.createState();
+  //  전투 속도(PACE)는 통곡의 탑 전용 — createState 가 끄고, 여기서만 켠다.
+  GAME.Combat.paceOn = !!this.tower;
 
   //  실시간: 시뮬 난수를 서버 시드로 고정 + 승패 규칙 전환(P1 의 pvpRealtime).
   //  ⚠ 유닛 생성 **전에** 걸어야 한다 — 생성 순서·초기값까지 결정론에 들어간다.
@@ -114,6 +116,13 @@ GAME.BattleScene.prototype.create = function () {
   this.escalation = this.tower ? (this.tower - 1) : (lrec.escalation || 0);
   var mods = this.tower ? GAME.Tower.modsFor(this.tower)
                         : GAME.Learn.escalationMods(this.escalation);
+
+  //  ── 보너스 판 (2026-08-23 태현님) — 20% 확률, 알지키기('guard')/알깨기('break') ──
+  //  결정은 tower.js `bonusFor`(결정적 난수)가 한다. 여기서는 판을 꾸밀 뿐이다.
+  this.towerBonus = this.tower ? GAME.Tower.bonusFor(this.tower) : null;
+  if (this.towerBonus && GAME.BossBank) {
+    GAME.BossBank.ensure(this, GAME.UNITS.bonusEggBreak);   // 황금알 시트 선로딩
+  }
 
   // ── 층 조건 훅을 state 에 싣는다 (2026-07-30 대개편) ─────────────────────
   //  배수로 표현되는 조건(철벽·질풍·좁은눈)은 위 `mods` 에 이미 곱해져 있고,
@@ -142,6 +151,8 @@ GAME.BattleScene.prototype.create = function () {
       ? GAME.ArenaBuild.get().unitLv : null) || {};
 
   for (var i = 0; i < this.formation.units.length; i++) {
+    //  알깨기 판은 적 유닛이 없다 — 진형은 만들어졌지만 스폰하지 않는다.
+    if (this.towerBonus === 'break') break;
     var e = this.formation.units[i];
     if (!GAME.UNITS[e.type]) continue;
     var w = GAME.Formations.toWorld(e);
@@ -286,6 +297,46 @@ GAME.BattleScene.prototype.create = function () {
   }
 
   if (!this.rt) this.state.units.push(this.hero);
+  //  ── 황금알 스폰 (2026-08-23 보너스 판) ────────────────────────────────────
+  //  알깨기: 적 없는 전장 한가운데(전략가 진형 자리). 알지키기: 영웅 진영 쪽.
+  //  체력은 층 배수(mods)를 태워 성장을 따라간다 — TTK 가 층과 무관하게 비슷해진다.
+  if (this.towerBonus) {
+    var A = GAME.CONFIG.ARENA;
+    var eggKey = this.towerBonus === 'break' ? 'bonusEggBreak' : 'bonusEggGuard';
+    var zs = GAME.CONFIG.ZONE_STRATEGIST, zc = GAME.CONFIG.ZONE_CONTROLLER;
+    var ex = A.x + A.w / 2;
+    var ey = this.towerBonus === 'break' ? (zs.y + zs.h * 0.72)
+                                         : (zc.y + zc.h * 0.34);
+    var eggSide = this.towerBonus === 'break' ? 'strategist' : 'controller';
+    this._egg = GAME.Combat.createUnit(eggKey, ex, ey, eggSide, mods);
+    this.state.units.push(this._egg);
+    //  알깨기 골드 풀 — "때린 피해만큼": 총액 = 층 골드의 3배(태현님: "후하게").
+    //  12조각으로 나눠 피해 진행률을 따라 동전으로 떨어뜨린다(coin.js 파이프라인 재사용).
+    if (this.towerBonus === 'break' && GAME.TowerRun) {
+      this._eggPool = Math.round(GAME.TowerRun.goldFor(this.tower) * 3);
+      this._eggChunks = 0;
+    }
+    //  시작 배너 — 타임 오버 배너와 같은 문법(2.2초 뒤 스스로 사라진다).
+    var bnW = GAME.CONFIG.WIDTH, bnH = GAME.CONFIG.HEIGHT;
+    var bnTxt = this.add.text(bnW / 2, bnH * 0.30,
+      this.towerBonus === 'break' ? '🥚 보너스! 황금알을 깨라!' : '🥚 보너스! 황금알을 지켜라!', {
+        fontFamily: GAME.CONFIG.FONT, fontSize: (GAME.CONFIG.SMALL ? 30 : 44) + 'px',
+        fontStyle: 'bold', color: '#ffd54a', stroke: '#4d3305',
+        strokeThickness: GAME.CONFIG.SMALL ? 5 : 7
+      }).setOrigin(0.5).setDepth(3001);
+    var bnSub = this.add.text(bnW / 2, bnTxt.y + bnTxt.height * 0.5 + 10,
+      this.towerBonus === 'break' ? '때린 피해만큼 골드가 쏟아진다'
+                                  : '판이 끝날 때까지 살아 있으면 큰 보상!', {
+        fontFamily: GAME.CONFIG.FONT, fontSize: (GAME.CONFIG.SMALL ? 13 : 16) + 'px',
+        color: '#ffedb8'
+      }).setOrigin(0.5, 0).setDepth(3001);
+    bnTxt.setScale(1.8).setAlpha(0);
+    this.tweens.add({ targets: bnTxt, scale: 1, alpha: 1, duration: 340, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: bnSub, alpha: { from: 0, to: 1 }, duration: 300 });
+    this.tweens.add({ targets: [bnTxt, bnSub], alpha: 0, delay: 2200, duration: 400,
+      onComplete: function () { bnTxt.destroy(); bnSub.destroy(); } });
+  }
+
   // 처치 보상 골드 — **영웅까지 units 에 들어간 뒤에** 훅을 건다.
   // 훅을 걸었는데 한 번도 안 불리면 towerrun.js 가 경고를 내고 옛 방식(층 총액)으로 돌아간다.
   // ⚠ `TowerRun.attachKillGold`/`goldGainFor` 는 **순수 계산**이라 `TowerRun.get()` 이
@@ -300,7 +351,8 @@ GAME.BattleScene.prototype.create = function () {
     GAME.TowerObjective.attach(this.state, this.tower);
   }
   // 탑 전용 정예 — 조건이 `elite` 훅을 켰으면 적 한 기를 승격한다.
-  if (this.tower && GAME.TowerElite) {
+  if (this.tower && GAME.TowerElite && this.towerBonus !== 'break') {
+    //  알깨기 판은 전략가 쪽에 황금알뿐이라 정예 승격이 알을 잡는다 — 잠근다.
     GAME.TowerElite.attach(this.state, this.towerRule);
   }
   // 내가 모는 유닛 — 머리 위 표식과 발밑 링의 대상이고, y 정렬에서도 빼 맨 위에 그린다.
@@ -1535,6 +1587,22 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   // 전투 판정·밸런스가 전혀 움직이지 않는다(이 프로젝트의 렌더/로직 분리 원칙).
   this._juice(dt);
 
+  //  ── 알깨기 골드 적립 (2026-08-23) — 때린 피해 진행률만큼 동전을 떨군다.
+  //  coin.js 파이프라인(killGoldEvents → 동전 → killGold = 주운 골드)을 그대로 탄다.
+  if (this.towerBonus === 'break' && this._egg && this._eggPool &&
+      this.state.killGoldEvents) {
+    var eggDone = 1 - Math.max(0, this._egg.hp) / this._egg.maxHp;
+    var owed = Math.floor(eggDone * 12);
+    while (this._eggChunks < owed) {
+      this._eggChunks++;
+      var give = Math.round(this._eggPool / 12);
+      this.state.killGold = (this.state.killGold || 0) + give;
+      this.state.killGoldEvents.push({
+        x: this._egg.x + (Math.random() - 0.5) * 40,
+        y: this._egg.y + (Math.random() - 0.5) * 24, gold: give, boss: false });
+    }
+  }
+
   // 히트스톱 중에는 시뮬을 진행시키지 않는다 — 화면이 '멎었다가' 터지는 느낌을 만든다
   //  ⚠ 실시간에서는 히트스톱으로 시뮬을 멈추면 안 된다 — 내 쪽만 늦어져
   //    상대까지 스톨로 끌고 간다. 흔들림·플래시는 그대로 두고 멈춤만 끈다.
@@ -1871,6 +1939,24 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
           // 그 사이 화면이 두 번 바뀌어 인과가 끊긴다 — 받은 순간이 손에 남아야 한다.
           // ⚠ 회계와 무관한 **순수 연출**이다(js/coin.js 의 `rain` 주석 참조).
           bonusShown = Math.round(floorBonus * GAME.TowerChar.luckGoldMul());
+          //  ── 알지키기 성공 보상 (2026-08-23) — 층 골드 2배 + 확정 드랍 ─────────
+          //  "지켜내면 무수한 보상": 골드 소나기(동전 비 연출 합산) + 보스와 같은
+          //  경로의 확정 드랍(줄 게 없으면 골드 갈음 — grantBossDrop 규칙 재사용).
+          if (this.towerBonus === 'guard' && this._egg && this._egg.alive) {
+            var guardGold = Math.round(GAME.TowerRun.goldFor(this.tower) * 2 *
+                                       GAME.TowerChar.luckGoldMul());
+            goldGained += guardGold;
+            GAME.TowerChar.addGold(guardGold);
+            bonusShown += guardGold;
+            var guardDrop = GAME.TowerChar.grantBossDrop();
+            if (guardDrop) this._dropAlert(guardDrop);
+            else {
+              var gSolace = 60 + this.tower * 4;
+              goldGained += gSolace;
+              GAME.TowerChar.addGold(gSolace);
+            }
+            runRec = GAME.TowerChar.get();
+          }
           // 보스 층은 **확정으로** 아이템이나 스킬북을 하나 떨군다(미보유분에서).
           if (GAME.Tower.bossFor(this.tower)) {
             // 보스 격파 스팅어 — 이겼을 때만(진 판엔 안 운다). 승리 화면으로 넘어가기

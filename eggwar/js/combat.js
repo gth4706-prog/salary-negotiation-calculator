@@ -24,6 +24,10 @@ GAME.Combat = {
   rand: function () { return this._rng ? this._rng() : Math.random(); },
 
   createState: function () {
+    //  PACE 는 **통곡의 탑 전투에서만** 켠다(battle.js·sim 이 상태 생성 직후 세운다).
+    //  기본 false — 수성·대전·실시간은 기존 속도 그대로다(수성 무배치 곡선 실측으로
+    //  확인: 전역 적용 시 SC-4 가 4층 33%·6층 50% 로 무너졌다).
+    GAME.Combat.paceOn = false;
     return {
       units: [], projectiles: [], effects: [], traps: [],
       // 구슬(js/orb.js) — 적을 잡으면 확률로 떨어진다. 씬이 그리고 줍는다.
@@ -267,8 +271,9 @@ GAME.Combat = {
       // 시선 잠금 — 이번 프레임에 공격으로 시선을 정했으면 이동이 덮어쓰지 못한다.
       faceLock: 0,
       everEngaged: false,    // 이 유닛이 한 번이라도 적을 때렸는가 (학습 신호)
-      hp: def.hp,
-      maxHp: def.hp,
+      //  PACE.HP — 판의 호흡(config.js). **유닛만** 줄인다(영웅 제외 — 근거는 config).
+      hp: Math.max(1, Math.round(def.hp * (!GAME.Combat.paceOn || (GAME.HEROES && GAME.HEROES[typeKey]) ? 1 : GAME.CONFIG.PACE.HP))),
+      maxHp: Math.max(1, Math.round(def.hp * (!GAME.Combat.paceOn || (GAME.HEROES && GAME.HEROES[typeKey]) ? 1 : GAME.CONFIG.PACE.HP))),
       cd: GAME.Combat.rand() * 250,
       alive: true,
       order: null,
@@ -430,7 +435,9 @@ GAME.Combat = {
     var n = 0;
     for (var i = 0; i < state.units.length; i++) {
       var u = state.units[i];
-      if (u.alive && u.side === side && !this.isHazard(u)) n++;
+      //  noCount(알지키기 황금알): 승패 머릿수에서 뺀다 — 영웅이 죽으면 알이
+      //  살아 있어도 져야 한다("영웅 사망 = 패배" 약속).
+      if (u.alive && u.side === side && !this.isHazard(u) && !(u.def && u.def.noCount)) n++;
     }
     return n;
   },
@@ -468,6 +475,10 @@ GAME.Combat = {
 
   applyDamage: function (unit, dmg, source, state, opts) {
     if (!unit.alive) return 0;
+    //  PACE.DMG — 피해의 단일 관문(config.js). **유닛이 내는 피해만** 배속한다
+    //  (영웅 제외 — 영웅은 유닛 체력이 절반이라 이미 두 배 빨리 잡는다). 파생
+    //  피해(매듭 분배·반사)는 이미 배율이 실린 값이라 noPace 로 이중 적용을 막는다.
+    if (GAME.Combat.paceOn && !(opts && opts.noPace) && !(source && source.isHero)) dmg *= GAME.CONFIG.PACE.DMG;
     // 지뢰는 피해로 제거할 수 없다. 밟아서 터뜨리거나, 피해서 지나가는 수밖에.
     if (this.isHazard(unit)) return 0;
 
@@ -500,7 +511,7 @@ GAME.Combat = {
           var _each = (dmg * _share) / _link.length;
           for (var _kk = 0; _kk < _link.length; _kk++) {
             this.applyDamage(_link[_kk], _each, source, state,
-                             { noCrit: true, noKnot: true, noLs: true });
+                             { noCrit: true, noKnot: true, noLs: true, noPace: true });
           }
           dmg = dmg * (1 - _share);
         }
@@ -642,7 +653,7 @@ GAME.Combat = {
         var srcArmor = this.effArmor(source);
         var back = Math.max(1, Math.round(attempted * gd.reflect * (100 + srcArmor) / 100));
         this.applyDamage(source, back, unit, state,
-                         { noReflect: true, noCrit: true, abil: true });
+                         { noReflect: true, noCrit: true, abil: true, noPace: true });
         //  battle.js 가 이 숫자가 늘어난 것을 보고 "공격반사!" 를 띄운다.
         //  (전투 엔진이 화면 문구를 직접 만들지 않는다 — 씬이 읽어 간다.)
         state.reflectPing = (state.reflectPing || 0) + 1;
@@ -948,6 +959,9 @@ GAME.Combat = {
   //  ⚠ 이 함수는 **전략가·영웅 양쪽이 다 쓴다.** 진형이 되돌린 양만 세려면
   //    편을 봐야 한다 — 안 보면 영웅의 흡혈까지 진형 회복으로 잡힌다.
   heal: function (u, amount, state) {
+    //  PACE.HEAL — 회복의 단일 관문(config.js). 유닛 체력 통이 절반이 됐으므로
+    //  유닛 회복도 절반이어야 비중이 예전과 같다(영웅 회복은 그대로).
+    if (GAME.Combat.paceOn && !(u && u.isHero)) amount *= GAME.CONFIG.PACE.HEAL;
     if (state && state.telemetry && u && u.side === 'strategist' && amount > 0) {
       state.telemetry.strategistHealed += Math.min(amount, Math.max(0, u.maxHp - u.hp));
     }

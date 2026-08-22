@@ -222,12 +222,16 @@ GAME.Tower = {
     return Math.max(1, Math.min(this.BUDGET_MUL_CAP, m));
   },
 
-  //  층별 머릿수 상한 (2026-08-22 태현님: "9층인데 10마리 이상은 많다, 6~7이어야").
-  //  9층 ≈ 6기에서 시작해 아주 완만히 는다 — 예산 성장분은 머릿수가 아니라
-  //  **유닛 레벨**로 간다(autoformation 의 capUnits 가 태운다). 수치 감각:
-  //  1~9층 6 · 20층 7 · 40층 9 · 60층 10 · 100층 13. 상한 24(배치 원형 좌표 한계).
+  //  층별 머릿수 상한 (2026-08-22 태현님 2차 교정: "9층에 15마리가 많다는 거지
+  //  모든 곳을 6~7로 고정하는 건 절대 아니야. 10층까지는 초보자 취급, 300층에
+  //  어떻게 변화를 줄지 고민해라").
+  //  → 초보 구간(≤10층)만 5~7기로 누르고, 그 뒤는 층당 +0.11 로 꾸준히 자라
+  //    난이도 성장이 **눈에도 보이게** 한다. 수치 감각:
+  //    1층 5 · 9층 7 · 20층 8 · 40층 10 · 60층 13 · 100층 17 · 165층부터 24(좌표 한계).
+  //  못 쓴 예산은 qualityMul(숨은 질 배수)이 태우므로 총 위협은 층 예산 그대로다.
   unitCapFor: function (floor) {
-    return Math.min(24, Math.round(5.5 + floor * 0.075));
+    if (floor <= 10) return Math.max(4, Math.round(4.6 + floor * 0.26));
+    return Math.min(24, Math.round(7 + (floor - 10) * 0.11));
   },
 
   budgetFor: function (floor, skipPower) {
@@ -812,12 +816,22 @@ GAME.Tower = {
     //  ⚠ 테마·데뷔 재구성 **뒤**에 실지출로 계산한다 — 경로마다 따로 달면 갈라진다.
     //  ⚠ 상한 5: 유닛 3기짜리 극단 테마 층에서 배수가 폭주하지 않게.
     (function () {
+      //  ⚠ 연습 구간(교육 과정의 maxUnits 가 건 층)은 **보상하지 않는다** — 그 상한은
+      //    일부러 약하게 두는 장치라, 질로 되채우면 1층 전사 3기가 3.3배짜리 정예가
+      //    되어 "1~3층 무조작 89%+" 약속이 깨진다(실측으로 잡음).
+      var pCap = (GAME.TowerCurriculum && floor <= GAME.TowerCurriculum.fullFloor())
+        ? GAME.TowerCurriculum.maxUnitsFor(floor) : 0;
+      if (pCap && pCap <= GAME.Tower.unitCapFor(floor)) { f.qualityMul = 1; return; }
       var spent2 = 0;
       (f.units || []).forEach(function (u) {
         var d2 = GAME.UNITS[u.type];
         if (d2 && d2.cost) spent2 += d2.cost;
       });
-      f.qualityMul = Math.max(1, Math.min(5, budget / Math.max(1, spent2)));
+      //  초보 구간(≤10층)은 보상 상한을 낮게(1.6) — 교육 과정이 싼 유닛만 허용해
+      //  잔액이 커지는 구간이라, 다 보상하면 5층이 ×4.4 정예가 되어 벽이 된다(실측:
+      //  R-3 이 10층 0%p 로 무너졌다). "10층까지는 초보자 취급"(태현님)과도 맞다.
+      var qCap = floor <= 10 ? 1.6 : 5;
+      f.qualityMul = Math.max(1, Math.min(qCap, budget / Math.max(1, spent2)));
     })();
     return f;
   },

@@ -1029,7 +1029,7 @@ GAME.BattleScene.prototype._spawnSpotFx = function (u, ev) {
   });
   if (!line) return;
   var bub = this.add.text(sx, sy - (C.PHONE ? 42 : 56), line, {
-    fontFamily: C.FONT, fontSize: (C.PHONE ? 11 : 13) + 'px',
+    fontFamily: C.FONT, fontSize: (C.PHONE ? 12 : 14) + 'px',
     color: '#fff6df', backgroundColor: 'rgba(24,18,10,0.86)',
     padding: { x: 8, y: 5 }, align: 'center',
     wordWrap: { width: C.PHONE ? 190 : 240 }

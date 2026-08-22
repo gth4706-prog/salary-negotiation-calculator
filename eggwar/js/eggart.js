@@ -442,16 +442,9 @@ var SM = 10;
       g.lineBetween(tx, t0y, ax, cy);
       g.lineBetween(ax, cy, tx, t1y);
     }
-    var L = hs * 1.08;                           // 화살 길이 — 반스팬보다 약간 길게
-    //  메긴 화살 — 오늬가 apex, 촉이 그립 너머 앞으로. 쏘는 순간 사라진다.
-    var na = a * Math.max(0, (0.35 - shot) / 0.35);
-    if (na > 0.02) GB.drawSpan(g, 'arrow2', ax + mir * L, cy, ax, cy, na, false, behind);
-    //  나는 화살 — 발사 직후에만, 앞으로 뻗어 나가며 사라진다.
-    if (shot > 0.02) {
-      var fly = (1 - shot) * 2.2;
-      var fx0 = tx + mir * (L * 0.4 + fly * hs * 2.4);
-      GB.drawSpan(g, 'arrow2', fx0 + mir * L, cy, fx0, cy, a * Math.min(1, shot * 2.5), false, behind);
-    }
+    //  화살은 **안 그린다** (2026-08-22 태현님: "투사체가 실제로 날아가니 화살은
+    //  안 보여도 돼, 중복으로 보여"). 활+시위의 당김·반동이 쏘는 시늉을 다 하고,
+    //  진짜 화살은 전투 투사체 계층이 그린다.
     return { nockX: ax, nockY: cy, tipX: tx };
   };
 

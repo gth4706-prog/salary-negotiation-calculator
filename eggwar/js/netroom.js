@@ -106,7 +106,8 @@ GAME.NetRoom = {
     var base = this.BASE.replace(/^http/, 'ws');
     var name = id || (GAME.Account && GAME.Account.currentId && GAME.Account.currentId()) || '손님';
     var url = base + '/ws?code=' + encodeURIComponent(this.code) +
-              '&id=' + encodeURIComponent(name);
+              '&id=' + encodeURIComponent(name) +
+              '&v=' + encodeURIComponent(GAME.VERSION || '');   //  버전 악수(록스텝 보호)
     var ws;
     try { ws = new WebSocket(url); }
     catch (e) { this._scheduleRetry(id); return; }
@@ -132,12 +133,19 @@ GAME.NetRoom = {
       self.connected = false;
       self._stopHeartbeat();
       self._emit('close', { code: ev && ev.code, byUser: self.closedByUser });
-      if (!self.closedByUser) self._scheduleRetry(id);
+      //  4009 = 서버의 의도적 거절(버전 불일치) — 재시도해도 같은 답이다.
+      if (!self.closedByUser && !(ev && ev.code === 4009)) self._scheduleRetry(id);
     };
   },
 
   _onMessage: function (msg) {
     switch (msg.t) {
+      case 'err':
+        //  서버가 참가를 거절한 사유(버전 불일치 등) — 화면이 읽어 보여준다.
+        this.lastError = msg.msg || '접속이 거절되었습니다.';
+        this._emit('error', this.lastError);   //  로비 on.error 는 문자열을 기대한다
+        this.closedByUser = true;         //  재시도 금지 — 사유가 해결돼야 의미가 있다
+        break;
       case 'hb':
         // 하트비트 자동응답. 서버(Durable Object)를 깨우지 않고 런타임이 답한다.
         break;

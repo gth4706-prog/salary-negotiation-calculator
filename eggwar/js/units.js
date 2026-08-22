@@ -760,14 +760,14 @@ GAME.UNITS.hammer = {
 //  UNIT_ORDER 에 없다 — 배치·뽑기 불가, 통곡의 탑 보너스 판 전용.
 //  아트는 보스 알(bossDragonEgg)을 금색으로 리컬러한 시트(bossGoldEgg.png).
 GAME.UNITS.bonusEggGuard = {
-  key: 'bonusEggGuard', name: '황금알', art: 'beast:egg:bonus',
+  key: 'bonusEggGuard', name: '황금알', art: 'goldegg', noHpBar: true,
   desc: '판이 끝날 때까지 지켜내면 큰 보상을 쏟아낸다.',
   cost: 0, pop: 0, hp: 900, armor: 12, speed: 0, immobile: true,
   range: 0, damage: 0, cooldown: 99999, attack: 'melee', radius: 30,
   chase: 0, aggro: 0, noCount: true
 };
 GAME.UNITS.bonusEggBreak = {
-  key: 'bonusEggBreak', name: '황금알', art: 'beast:egg:bonus',
+  key: 'bonusEggBreak', name: '황금알', art: 'goldegg', noHpBar: true,
   desc: '때린 피해만큼 골드가 쏟아진다. 마음껏 부숴라!',
   cost: 0, pop: 0, hp: 1000, armor: 0, speed: 0, immobile: true,
   range: 0, damage: 0, cooldown: 99999, attack: 'melee', radius: 34,

@@ -3402,6 +3402,11 @@ var SM = 10;
     //    `pos`가 `undefined`라 그 줄에서 매 프레임 예외가 났다. 지면 고정물(`art.ground`)과
     //    같은 계약으로 맞춘다: 배틀 화면이 실제로 이 값을 쓰는 스크린샷 검증
     //    (`scratchpad/boss-shot.js`)에서 처음 잡혔다.
+    //  황금알(보너스 판) — 전용 벡터. 계약은 보스 분기와 동일({sx,sy,by}).
+    if (def.art === 'goldegg' && GAME.GoldEgg) {
+      GAME.GoldEgg.draw(g, sx, sy, r, a, idle || (GAME.Iso && GAME.Iso.now) || 0, opts && opts.unit);
+      return { sx: sx, sy: sy, by: sy };
+    }
     if (GAME.BossArt && GAME.BossArt.draw(g, def, sx, sy, r, a, idle || (GAME.Iso && GAME.Iso.now) || 0, facing, opts && opts.unit)) {
       return { sx: sx, sy: sy, by: sy };
     }

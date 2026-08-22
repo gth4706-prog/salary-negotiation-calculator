@@ -120,9 +120,6 @@ GAME.BattleScene.prototype.create = function () {
   //  ── 보너스 판 (2026-08-23 태현님) — 20% 확률, 알지키기('guard')/알깨기('break') ──
   //  결정은 tower.js `bonusFor`(결정적 난수)가 한다. 여기서는 판을 꾸밀 뿐이다.
   this.towerBonus = this.tower ? GAME.Tower.bonusFor(this.tower) : null;
-  if (this.towerBonus && GAME.BossBank) {
-    GAME.BossBank.ensure(this, GAME.UNITS.bonusEggBreak);   // 황금알 시트 선로딩
-  }
 
   // ── 층 조건 훅을 state 에 싣는다 (2026-07-30 대개편) ─────────────────────
   //  배수로 표현되는 조건(철벽·질풍·좁은눈)은 위 `mods` 에 이미 곱해져 있고,
@@ -3156,7 +3153,7 @@ GAME.BattleScene.prototype.draw = function () {
     //   원인은 이름이 "조준 대상이 아니다"로 읽히는 것이었고, 그래서 그 함수는 뜻대로
     //   `GAME.isAutoHit` 으로 뒤집어 이름을 바꿨다(units.js 주석 참조).
     //   금이 필요 없는 것은 '체력 개념이 없는 지면 고정물'이므로 아트로 판정한다.
-    if (pos && GAME.UI.eggDamage && !GAME.UI.artOf(u.def).ground) {
+    if (pos && GAME.UI.eggDamage && !GAME.UI.artOf(u.def).ground && u.def.art !== 'goldegg') {
       if (u.__crackSeed === undefined) u.__crackSeed = Math.floor(Math.random() * 997);
       GAME.UI.eggDamage(g, pos.sx, pos.by,
         u.def.radius * (GAME.UI.UNIT_DRAW_SCALE || 1),
@@ -3241,6 +3238,8 @@ GAME.BattleScene.prototype.draw = function () {
       ground: GAME.UI.artOf(u.def).ground,
       bw: u.isHero ? 64 : Math.max(22, u.def.radius * 2.3),
       barH: u.isHero ? 7 : 4,
+      //  황금알(noHpBar): 체력바 대신 균열 5단계가 상태를 말한다(태현님 지시).
+      noBar: !!u.def.noHpBar,
       ratio: u.hp / u.maxHp,
       shield: u.shield > 0 ? Math.min(1, u.shield / u.maxHp) : 0
     });
@@ -3280,6 +3279,7 @@ GAME.BattleScene.prototype.draw = function () {
   //  라이트 테마에서는 크림 캡슐 + 잉크 테두리로 그려진다
   //  (초록 채움이 초록 들판과 대비 1.02:1 이라 그냥은 보이지 않는다 — ui.js 참고)
   for (i = 0; i < marks.length; i++) {
+    if (marks[i].noBar) continue;   // 황금알 — 균열 5단계가 체력바를 대신한다
     GAME.UI.fieldHpBar(g, marks[i].sx - marks[i].bw / 2, marks[i].by,
                        marks[i].bw, marks[i].barH, marks[i].ratio,
                        { shield: marks[i].shield });

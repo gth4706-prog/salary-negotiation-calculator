@@ -971,3 +971,98 @@ window.GAME = window.GAME || {};
     return true;
   };
 })();
+
+
+// ============================================================================
+//  황금알 (2026-08-23 태현님 F안 채택) — 보너스 판 전용 벡터.
+//  · 이중 후광 + 흰 반짝이(맥동: 작아졌다 커졌다) + 심장 박동 스쿼시
+//  · 체력바 대신 **5단계 균열**(hp 비율 → 0~4단계, def.noHpBar 와 짝)
+//  · 시트(bossGoldEgg.png) 리컬러는 폐기 — "디자인이 구려서 벡터로" 지시.
+// ============================================================================
+GAME.GoldEgg = (function () {
+  'use strict';
+  function eggPts(cx, cy, r, wMul) {
+    var pts = [];
+    for (var i = 0; i <= 40; i++) {
+      var t = i / 40 * Math.PI * 2;
+      var s2 = Math.sin(t), c2 = Math.cos(t);
+      var w = r * (wMul || 1.0) * (1.02 - 0.14 * c2);
+      var h = r * (1.14 + 0.30 * Math.max(0, c2));
+      pts.push({ x: cx + s2 * w, y: cy - c2 * h });
+    }
+    return pts;
+  }
+  return {
+    //  unit: 균열 단계(hp 비율)와 박동 위상에 쓴다. 없으면 멀쩡한 알.
+    draw: function (g, sx, sy, r0, alpha, t, unit) {
+      var a = alpha === undefined ? 1 : alpha;
+      var R = r0 * 1.3;                       //  40% 축소 지시 반영(시트 172px → ~104px)
+      var cy = sy - R * 1.14;                 //  바닥 접지(아랫점이 sy)
+      var T = (GAME.Iso && GAME.Iso.TILT) || 0.72;
+      //  심장 박동 — 뾰족한 두근 파형(sin^5), 부피 보존 역맥동.
+      var raw = Math.sin(t * 3.1);
+      var th = Math.max(0, raw); th = th * th * th * th * th;
+      var ky = 1 + th * 0.05, kx = 1 - th * 0.026;
+      //  접지 그림자
+      g.fillStyle(0x000000, 0.25 * a);
+      g.fillEllipse(sx, sy, R * 2.3 * kx, R * 0.62 * T);
+      //  이중 후광 — 숨쉬듯 아주 천천히 부푼다.
+      var halo = 1 + Math.sin(t * 1.4) * 0.03;
+      for (var i = 5; i >= 1; i--) {
+        g.fillStyle(i % 2 ? 0xffe27a : 0xfff6c9, 0.09 * a);
+        g.fillPoints(eggPts(sx, cy, R * (1 + i * 0.12) * halo, 1.14 * kx), true);
+      }
+      //  몸통 3톤
+      g.fillStyle(0xb17a20, a); g.fillPoints(eggPts(sx, cy, R * ky, kx), true);
+      g.fillStyle(0xeab63f, a); g.fillPoints(eggPts(sx, cy - R * 0.06, R * 0.94 * ky, kx * 0.98), true);
+      g.fillStyle(0xffe58c, a); g.fillPoints(eggPts(sx - R * 0.10, cy - R * 0.16, R * 0.74 * ky, kx), true);
+      //  스페큘러(좌상단 광원)
+      g.fillStyle(0xfff7d9, 0.9 * a);
+      g.fillEllipse(sx - R * 0.38, cy - R * 0.62, R * 0.42, R * 0.66);
+      g.fillStyle(0xffffff, 0.85 * a);
+      g.fillEllipse(sx - R * 0.44, cy - R * 0.74, R * 0.18, R * 0.28);
+      //  ── 균열 5단계 (0=멀쩡 … 4=만신창이) — 체력바를 대신한다 ────────────
+      var stage = 0;
+      if (unit && unit.maxHp) {
+        stage = Math.min(4, Math.floor((1 - Math.max(0, unit.hp) / unit.maxHp) * 5));
+      }
+      if (stage >= 1) {
+        g.lineStyle(Math.max(2, R * 0.05), 0x6e430c, 0.9);
+        g.lineBetween(sx + R * 0.18, cy - R * 0.9, sx + R * 0.36, cy - R * 0.55);
+        g.lineBetween(sx + R * 0.36, cy - R * 0.55, sx + R * 0.2, cy - R * 0.32);
+      }
+      if (stage >= 2) {
+        g.lineBetween(sx + R * 0.2, cy - R * 0.32, sx + R * 0.5, cy - R * 0.05);
+        g.lineBetween(sx - R * 0.5, cy - R * 0.45, sx - R * 0.24, cy - R * 0.2);
+      }
+      if (stage >= 3) {
+        g.lineBetween(sx - R * 0.24, cy - R * 0.2, sx - R * 0.44, cy + R * 0.15);
+        g.lineBetween(sx + R * 0.5, cy - R * 0.05, sx + R * 0.3, cy + R * 0.35);
+        g.lineBetween(sx - R * 0.1, cy - R * 0.6, sx + R * 0.05, cy - R * 0.25);
+      }
+      if (stage >= 4) {
+        g.lineBetween(sx + R * 0.05, cy - R * 0.25, sx - R * 0.15, cy + R * 0.5);
+        g.lineBetween(sx - R * 0.44, cy + R * 0.15, sx - R * 0.2, cy + R * 0.55);
+        g.lineBetween(sx + R * 0.3, cy + R * 0.35, sx + R * 0.5, cy + R * 0.6);
+        //  껍질 조각 — 떨어져 나가기 직전
+        g.fillStyle(0x6e430c, 0.55);
+        g.fillTriangle(sx + R * 0.33, cy - R * 0.5, sx + R * 0.42, cy - R * 0.42,
+                       sx + R * 0.3, cy - R * 0.36);
+      }
+      //  ── 반짝이 3개 — **맥동**(작아졌다 커졌다, 위상 제각각) ───────────────
+      var SP = [[0.52, -0.9, 0.16, 0], [-0.62, 0.1, 0.11, 2.1], [0.3, 0.62, 0.09, 4.2]];
+      for (var si = 0; si < SP.length; si++) {
+        var p2 = SP[si];
+        var pulse = 0.55 + 0.5 * (0.5 + 0.5 * Math.sin(t * 3.0 + p2[3]));
+        var sr = p2[2] * R * pulse;
+        var sx2 = sx + p2[0] * R, sy2 = cy + p2[1] * R;
+        g.fillStyle(0xffffff, (0.55 + 0.45 * pulse) * a);
+        g.fillTriangle(sx2 - sr, sy2, sx2, sy2 - sr * 3, sx2 + sr, sy2);
+        g.fillTriangle(sx2 - sr, sy2, sx2, sy2 + sr * 3, sx2 + sr, sy2);
+        g.fillTriangle(sx2, sy2 - sr, sx2 - sr * 3, sy2, sx2, sy2 + sr);
+        g.fillTriangle(sx2, sy2 - sr, sx2 + sr * 3, sy2, sx2, sy2 + sr);
+      }
+      return true;
+    }
+  };
+})();

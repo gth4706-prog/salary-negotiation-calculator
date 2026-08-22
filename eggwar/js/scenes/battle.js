@@ -17,6 +17,8 @@ GAME.BattleScene.prototype.init = function (data) {
   //    이 저장소의 '지연생성 가드' 함정과 같은 계열 — 상태를 씬에 두면 init 에서 되돌린다.
   this._combo = 0;
   this._comboAt = -9999;
+  //  상하반전은 판마다 다시 정한다 — 리셋 없이는 RT 다음의 일반 전투가 뒤집혀 나온다.
+  if (GAME.Iso) GAME.Iso.rtFlip = false;
   this._comboTier = -1;      // 색 단계 캐시 — 안 지우면 지난 판의 빨강이 남는다
   this._swings = null;
   this._prevCd = undefined;
@@ -335,6 +337,10 @@ GAME.BattleScene.prototype.create = function () {
     var rtSelf = this;
     this._rtShadow = {
       //  side 는 내 영웅의 팀을 따른다 — 손님(위쪽 팀) 컨트롤러면 'strategist' 다.
+      //  rtProxy: 방향키·스틱의 **직접 이동**을 좌표 변경이 아니라 이동 명령으로
+      //  바꾸라는 표식(input.js·touchpad.js). 그림자 좌표를 고쳐 봤자 시뮬에 안 간다 —
+      //  실기기에서 "움직여지지 않는다"(2026-08-22 태현님)의 원인이 이것이었다.
+      rtProxy: true, rtHero: this.hero,
       x: this.hero.x, y: this.hero.y, alive: true, isHero: true, side: this.hero.side,
       order: null, facing: this.hero.facing,
       def: this.hero.def, hero: this.hero.hero, skills: this.hero.skills,
@@ -545,6 +551,10 @@ GAME.BattleScene.prototype.create = function () {
   // padMode(세로 터치)는 스킬바를 안 만드므로 **높이를 예약하지도 않는다.**
   // 예약해 두는 바람에 힌트가 조작 패드 쪽으로 102px 밀려 있었다.
   var padMode = GAME.isTouch && (P || PHONE);
+  //  관전(실시간 전략가)은 조작면이 없어야 한다 — 스킬바가 있으면 "누르는데 왜 안
+  //  나가"가 된다(2026-08-22 태현님 ③: 전략가는 지켜보기만).
+  var spectator = this.rt && !this._heroIsPlayer;
+  if (spectator) padMode = true;
   var rowSpec = [{ name: 'hudBlock', h: this.hud.height, gap: P ? 10 : 12 }];
   if (!padMode) rowSpec.push({ name: 'skills', h: P ? 92 : 96, gap: P ? 10 : 12 });
   rowSpec.push({ name: 'hint', h: P ? 34 : 20, gap: 0 });
@@ -715,7 +725,7 @@ GAME.BattleScene.prototype.create = function () {
 
   // 모바일 조작 패드(왼쪽 스틱 + 오른쪽 원형 버튼) — 세로와 **폰 가로** 둘 다.
   // 데스크톱 가로에서는 마우스+키보드가 더 정확하므로 띄우지 않는다.
-  if (GAME.isTouch && (P || PHONE)) {
+  if (GAME.isTouch && (P || PHONE) && this.ctrl && !(this.rt && !this._heroIsPlayer)) {
     this.pad = new GAME.TouchPad(this, this.ctrl);
     this.ctrl.pad = this.pad;
   }
@@ -844,6 +854,8 @@ GAME.BattleScene.prototype._drawGoldBadge = function () {
 };
 
 GAME.BattleScene.prototype._hintDefault = function () {
+  //  관전(실시간 전략가) — 조작 안내 대신 관전 안내 한 줄.
+  if (this.rt && !this._heroIsPlayer) return '👁 관전 중 — 내 진형이 상대 영웅을 막고 있습니다';
   // 세로 터치에서는 상시 안내를 두지 않는다. 버튼에 '공격/Q/W/E/R/물약' 이 이미 적혀 있고,
   // 보스 층은 HUD 가 158px 로 커져서 이 문구가 스킬 버튼 위로 내려앉는다.
   // (조준 대기 같은 **일시적 안내**는 계속 이 라벨을 쓴다)
@@ -1561,6 +1573,28 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       }
       var ran = this._rtSession.advance(delta);
       this._rtStall = (ran === 0);
+      //  ── 스톨 탈출구 (2026-08-22 태현님 ⑤: "멈춰서 뒤로가기도 못 쓴다") ──────
+      //  상대가 10초 넘게 응답 없으면 나가기 버튼을 띄운다 — 강제종료 말고 출구를 준다.
+      this._rtStallMs = this._rtStall ? (this._rtStallMs || 0) + delta : 0;
+      if (this._rtStallMs > 10000 && !this._rtExitBtn && !this.state.over) {
+        var exSelf = this;
+        this._rtExitBtn = GAME.UI.button(this, GAME.CONFIG.WIDTH / 2, GAME.CONFIG.HEIGHT * 0.30,
+          Math.min(GAME.CONFIG.WIDTH - 60, 360), 54, '🚪 대전 나가기 (상대 응답 없음)', function () {
+            if (exSelf.state.over) return;
+            exSelf.state.over = true;
+            exSelf.state.winner = exSelf.rt.meTeam;   // 잠수는 남은 쪽 승리 — 연결 끊김과 같은 규칙
+            exSelf._rtNote = '상대가 응답하지 않아 판을 끝냈습니다';
+          });
+        [this._rtExitBtn.gfx, this._rtExitBtn.rect, this._rtExitBtn.text].forEach(function (e) {
+          if (e && e.setDepth) e.setDepth(9500);
+        });
+      }
+      if (this._rtExitBtn && (!this._rtStall || this.state.over)) {
+        [this._rtExitBtn.gfx, this._rtExitBtn.rect, this._rtExitBtn.text].forEach(function (e) {
+          if (e && e.destroy) e.destroy();
+        });
+        this._rtExitBtn = null;
+      }
       //  그림자는 렌더·조준용 — 시뮬 영웅 위치를 따라간다
       if (sh && this.hero) {
         sh.x = this.hero.x; sh.y = this.hero.y; sh.facing = this.hero.facing;
@@ -1957,7 +1991,9 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         test: self.test,
         arenaResult: arenaResult,
         rtResult: rtResult,
-        timeUp: !!this.state.timeUp,
+        //  ⚠ 이 콜백의 this 는 씬이 아니라 타이머다 — this.state 로 썼다가 결과 전환이
+        //  통째로 죽어 **모든 전투가 끝나는 순간 얼어붙었다**(v2.43~46 회귀, RT 실측이 잡음).
+        timeUp: !!self.state.timeUp,
         //  ── 탑에서는 학습 문구를 안 보여 준다 (2026-08-05 사용자 신고) ────────
         //  > "못깨고나서 7단계 올라갔다는 표현이보여서"
         //
@@ -2627,6 +2663,7 @@ GAME.BattleScene.prototype.draw = function () {
       }
 
     } else if (e.kind === 'slash') {
+      if (GAME.Iso.rtFlip) e = Object.assign({}, e, { angle: -e.angle });
       // 근접 부채꼴.
       //  ※ 예전엔 화면 좌표에 정원(正圓) 부채꼴을 그렸다 — 기울인 뷰에서 혼자 서 있어
       //    "어디까지 닿았는지"가 실제 판정(평면 원)과 어긋나 보였다.
@@ -2710,6 +2747,7 @@ GAME.BattleScene.prototype.draw = function () {
       g.fillCircle(e.x, spy, sr);
 
     } else if (e.kind === 'slashWave') {
+      if (GAME.Iso.rtFlip) e = Object.assign({}, e, { angle: -e.angle });
       // 근접 공격도 뭔가 날아가는 게 보이게 — 짧은 검기가 **호를 그리며** 뻗어나간다.
       // 예전엔 직선 하나였다. 호로 바꾸니 '베었다'가 훨씬 명확해진다.
       var wp = 1 - e.t / e.total;
@@ -2846,7 +2884,9 @@ GAME.BattleScene.prototype.draw = function () {
   // ── 유닛: 뒤(위)에서 앞(아래) 순으로 그려 겹침이 자연스럽게 ──
   var alive = [];
   for (i = 0; i < s.units.length; i++) if (s.units[i].alive) alive.push(s.units[i]);
-  alive.sort(function (a, b) { return a.y - b.y; });
+  //  반전 화면에서는 앞뒤가 뒤집힌다 — 정렬도 같이 뒤집어야 겹침이 자연스럽다.
+  alive.sort(GAME.Iso.rtFlip ? function (a, b) { return b.y - a.y; }
+                             : function (a, b) { return a.y - b.y; });
 
   // ⚠ **내가 모는 유닛은 y 정렬에서 빼 맨 위에 그린다** (2026-07-30, 실측 근거).
   //   폰 가로에서 근접 접촉 거리는 화면 세로차 16px 인데 알의 그린 높이는 25~33px 이다.
@@ -2984,7 +3024,10 @@ GAME.BattleScene.prototype.draw = function () {
     // 덮인다). `side` 는 **넘기지 않는다** — `drawUnit` 안에서 side 를 쓰는 유일한 자리가
     // 그 발밑 링이라, 링을 끈 상태에서 side 는 아무 일도 하지 않는 죽은 인자다.
     // (어깨띠는 양 진영 같은 모양이므로 side 를 필요로 하지 않는다.)
-    var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, 1, u.facing, walk,
+    //  반전 화면에서는 바라보는 방향의 세로 성분도 거울이어야 한다 — 안 뒤집으면
+    //  위로 걸어가는 유닛이 아래를 보며 걷는다(각 부호 반전 = y 성분만 거울).
+    var drawFacing = GAME.Iso.rtFlip ? -u.facing : u.facing;
+    var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, 1, drawFacing, walk,
                                undefined, { footRing: false, sizeMul: u.eliteDraw || 1,
                                             act: act, gearTier: u._gearTier, kit: u._kit,
                                             refine: u._rfStep });
@@ -3315,6 +3358,7 @@ GAME.BattleScene.prototype._rtCompose = function () {
       var sy = top ? (A.y + 62) : this.startPos.y;
       var hu = GAME.Combat.createHero(su.heroKey || 'vanguard',
         this.startPos.x, sy, team, {}, su.picks || GAME.defaultSkillPicks());
+      this._rtApplyItems(hu, su);
       if (top) hu.facing = Math.PI / 2;
       this._rtHeroes[team] = hu;
       this.state.units.push(hu);
@@ -3324,4 +3368,24 @@ GAME.BattleScene.prototype._rtCompose = function () {
   var myHero = this._rtHeroes[rt.meTeam] || null;
   this.hero = myHero || this._rtHeroes[rt.meTeam === 'controller' ? 'strategist' : 'controller'];
   this._heroIsPlayer = !!myHero;
+  //  내 진형이 밑에 보이게(2026-08-22 태현님 ④) — 내 팀이 위쪽 자리면 화면만 뒤집는다.
+  if (GAME.Iso) GAME.Iso.rtFlip = (rt.meTeam === 'strategist');
+};
+
+//  준비 단계에서 산 장비를 영웅에 얹는다 — **양쪽이 같은 setup 으로 같은 계산**을
+//  하므로 결정론이 유지된다(itemBonus 는 items 맵의 순수 함수).
+GAME.BattleScene.prototype._rtApplyItems = function (hu, su) {
+  if (!su || !su.items || !GAME.ArenaBuild || !GAME.ArenaBuild.itemBonus) return;
+  var ib = GAME.ArenaBuild.itemBonus({ items: su.items });
+  var d = hu.def;
+  d.damage += ib.damage;
+  d.armor += ib.armor;
+  d.speed += ib.speed;
+  d.lifesteal = (d.lifesteal || 0) + ib.lifesteal;
+  hu.cdrMul = (hu.cdrMul || 1) * ib.cdrMul;
+  if (ib.hp) { d.hp += ib.hp; hu.maxHp = d.hp; hu.hp = d.hp; }
+  hu._gearTier = GAME.UI.gearTierOf(su.items.weapon);
+  hu._kit = { armor: GAME.UI.gearTierOf(su.items.armor),
+              boots: GAME.UI.gearTierOf(su.items.boots),
+              acc: GAME.UI.gearTierOf(su.items.accessory) };
 };

@@ -58,14 +58,25 @@ GAME.Iso = {
   // 유닛이 지면에서 떠 보이는 정도(빌보드 높이 배율)
   LIFT: 1.15,
 
+  //  ── 실시간 대전 상하반전 (2026-08-22 태현님: "각자 본인의 진형이 밑에 있게") ──
+  //  내 팀이 위쪽(strategist 자리)이면 **화면만** 뒤집는다. 시뮬 좌표는 양쪽이
+  //  동일해야 하므로(록스텝) 월드는 절대 안 건드린다 — 투영과 역투영만 거울이다.
+  //  거울은 자기역원이라 toWorldY 도 같은 함수로 풀린다.
+  rtFlip: false,
+  _fy: function (worldY) {
+    if (!this.rtFlip) return worldY;
+    var A = GAME.CONFIG.ARENA;
+    return A.y + A.bottom - worldY;
+  },
+
   toScreenY: function (worldY) {
     var A = GAME.CONFIG.ARENA;
-    return this.SCREEN_TOP + (worldY - A.y) * this.TILT;
+    return this.SCREEN_TOP + (this._fy(worldY) - A.y) * this.TILT;
   },
 
   toWorldY: function (screenY) {
     var A = GAME.CONFIG.ARENA;
-    return A.y + (screenY - this.SCREEN_TOP) / this.TILT;
+    return this._fy(A.y + (screenY - this.SCREEN_TOP) / this.TILT);
   },
 
   // x는 변환하지 않는다(순수 y 압축). 좌우 이동이 화면에서도 그대로 좌우로 보여
@@ -79,15 +90,19 @@ GAME.Iso = {
   },
 
   // 화면상 아레나 사각형
+  //  ⚠ 반전(rtFlip) 중에는 toScreenY(A.y) 가 **아래 모서리**를 준다 — 사각형은
+  //    대칭이라 min/max 로 접어야 배경·테두리가 제자리에 남는다(실측: 반전 화면에서
+  //    유닛은 맞는데 테두리만 화면 밖 아래로 내려가 있었다).
   screenRect: function () {
     var A = GAME.CONFIG.ARENA;
+    var y1 = this.toScreenY(A.y), y2 = this.toScreenY(A.bottom);
     return {
       x: A.x,
-      y: this.toScreenY(A.y),
+      y: Math.min(y1, y2),
       w: A.w,
       h: A.h * this.TILT,
       right: A.right,
-      bottom: this.toScreenY(A.bottom)
+      bottom: Math.max(y1, y2)
     };
   },
 

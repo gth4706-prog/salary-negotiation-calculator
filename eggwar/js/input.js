@@ -183,6 +183,19 @@ GAME.InputController.prototype.update = function (dtMs) {
 
   if (dx || dy) {
     var len = Math.sqrt(dx * dx + dy * dy);
+    //  상하반전 화면(실시간, 내 진형이 아래로 보이게 뒤집힌 상태)에서는 ↑ 가
+    //  화면 위 = 월드 +y 다. 화면 기준 직관을 지키려면 세로 성분을 거울로.
+    if (GAME.Iso && GAME.Iso.rtFlip) dy = -dy;
+    //  실시간 그림자 — 좌표를 고치지 않고 **이동 명령**으로 바꾼다(록스텝만이 시뮬을
+    //  움직인다). 목표는 현재 위치에서 누른 방향으로 한 뼘 앞 — 매 프레임 갱신되므로
+    //  키를 누르는 동안 계속 그 방향으로 걷는다.
+    if (h.rtProxy && h.rtHero) {
+      var _rh = h.rtHero;
+      h.order = { type: 'move',
+                  x: _rh.x + (dx / len) * 120,
+                  y: _rh.y + (dy / len) * 120 };
+      return;
+    }
     h.manual = true;
     h.order = null;
     h.x += (dx / len) * GAME.Combat.effSpeed(h) * dt;

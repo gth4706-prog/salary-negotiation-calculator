@@ -89,7 +89,7 @@ GAME.TowerShopScene.SOURCES = {
     backLabel: '←  대전으로',
     purseLabel: '◈ 남은 예산  ',
     tabs: [['hero', '🥚 영웅'], ['item', '🛒 아이템'], ['skill', '📖 스킬']],
-    back: function (sc) { sc.scene.start('Versus'); },
+    back: function (sc) { sc.scene.start(sc._backTo || 'Versus'); },
     rec: function () { return GAME.ArenaBuild.get(); },
     purse: function (rec) { return GAME.ArenaBuild.left(rec); },
     // 대전은 환급이 없다 — 값은 언제나 정가다(바꿔 끼면 옛 값이 예산으로 그냥 돌아온다).
@@ -120,6 +120,8 @@ GAME.TowerShopScene.SOURCES = {
   }
 };
 GAME.TowerShopScene.prototype.init = function (data) {
+  //  실시간 준비 화면이 다녀갈 때 되돌아갈 곳(2026-08-22 RtPrep).
+  this._backTo = (data && data.backTo) || null;
   this.mode = (data && data.mode === 'arena') ? 'arena' : 'tower';
   this.src = GAME.TowerShopScene.SOURCES[this.mode];
   var defTab = this.mode === 'arena' ? 'hero' : 'item';

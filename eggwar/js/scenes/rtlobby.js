@@ -65,39 +65,52 @@ GAME.RtLobbyScene.prototype.create = function () {
   NR.on.start = function (msg) { self._onStart(msg); };
   NR.on.message = function (from, data) { self._onRelay(from, data); };
   this.events.once('shutdown', function () {
-    GAME.NetRoom.on = {};
     if (self._dom && self._dom.parentNode) self._dom.parentNode.removeChild(self._dom);
-    // 전투로 넘어갈 때는 연결을 유지해야 한다 — 나갈 때만 끊는다.
-    if (!self._started) GAME.NetRoom.leave(true);
+    if (!self._started) {
+      GAME.NetRoom.on = {};
+      GAME.NetRoom.leave(true);
+    } else {
+      //  준비 단계(RtFlow)로 넘어가는 길 — message/close 는 **RtFlow 가 이어받았다.**
+      //  `on = {}` 로 통째로 지우면 상대 세팅(rtSetup)이 유실되어 전투로 못 넘어간다
+      //  (2026-08-22 실측: 둘 다 확정했는데 Battle 이 영영 안 열렸다).
+      GAME.NetRoom.on.open = null;
+      GAME.NetRoom.on.peers = null;
+      GAME.NetRoom.on.rtt = null;
+      GAME.NetRoom.on.error = null;
+      GAME.NetRoom.on.start = null;
+    }
   });
 
-  // ── 왼쪽: 방 목록 ──
-  var listTop = u * 16;
+  // ── 방 목록 (2026-08-22 레이아웃 재정비 — 폰 가로 390px 에서 목록·버튼이
+  //    겹치고, 입장 뒤에도 '방 만들기'가 남아 있던 것을 고침) ──────────────────
+  var listTop = PH ? 96 : u * 16;
   this._listTop = listTop;
   this._refreshList();
 
-  // ── 오른쪽/하단: 버튼들 ──
-  var bw = Math.min(W - 30, 380), bh = Math.max(UI.BTN_H || 58, u * (PH ? 13 : 10));
-  UI.button(this, W / 2, H - u * 26, bw, bh, '🏟 방 만들기', function () {
-    if (self._joined) return;
-    self._setStatus('방을 만드는 중…');
-    GAME.NetRoom.createRoom({}, function (err, room) {
-      if (err) { self._setStatus('⚠ 방 만들기 실패: ' + err.message); return; }
-      GAME.NetRoom.join(room.code);
-    });
-  });
-  UI.button(this, W / 2, H - u * 26 + bh + 8, bw, bh, '🔑 코드로 입장', function () {
-    if (self._joined) return;
-    self._askCode();
-  });
-  var mh = Math.max(UI.BTN_H_SM || 52, u * 7);
-  UI.button(this, 76, Math.max(mh / 2 + 6, u * 3.4), 120, mh, '← 대전',
-    function () { self.scene.start('Versus'); }, { fontSize: 14 });
+  //  하단 버튼 — 폰은 세로가 없어 **가로로 나란히**, 참조를 들고 입장하면 숨긴다.
+  var bh = PH ? 50 : Math.max(UI.BTN_H || 58, u * 10);
+  this._mkBtns = [];
+  if (PH) {
+    var bw2 = Math.min(340, (W - 60) / 2);
+    this._mkBtns.push(UI.button(this, W / 2 - bw2 / 2 - 8, H - 34, bw2, bh, '🏟 방 만들기',
+      function () { self._createRoom(); }, { fontSize: 14 }));
+    this._mkBtns.push(UI.button(this, W / 2 + bw2 / 2 + 8, H - 34, bw2, bh, '🔑 코드로 입장',
+      function () { if (!self._joined) self._askCode(); }, { fontSize: 14 }));
+  } else {
+    var bw = Math.min(W - 30, 380);
+    this._mkBtns.push(UI.button(this, W / 2, H - u * 26, bw, bh, '🏟 방 만들기',
+      function () { self._createRoom(); }));
+    this._mkBtns.push(UI.button(this, W / 2, H - u * 26 + bh + 8, bw, bh, '🔑 코드로 입장',
+      function () { if (!self._joined) self._askCode(); }));
+  }
+  var mh = PH ? 40 : Math.max(UI.BTN_H_SM || 52, u * 7);
+  UI.button(this, PH ? 64 : 76, PH ? 26 : Math.max(mh / 2 + 6, u * 3.4), PH ? 100 : 120, mh,
+    '← 대전', function () { self.scene.start('Versus'); }, { fontSize: PH ? 12 : 14 });
 
-  // 방 상태 표시(코드·인원·지연) + 준비 버튼 — 입장하면 나타난다
-  this._codeTxt = UI.text(this, W / 2, listTop - u * 6, '',
+  // 방 상태 표시(코드·인원·지연) — 입장하면 나타난다
+  this._codeTxt = UI.text(this, W / 2, PH ? 52 : 110, '',
     { size: PH ? 'subhead' : 'head', color: C.accentAlt, origin: 0.5 });
-  this._peersTxt = UI.text(this, W / 2, listTop + u * 2, '',
+  this._peersTxt = UI.text(this, W / 2, PH ? 76 : 152, '',
     { size: PH ? 'caption' : 'body', color: C.text, origin: 0.5, originY: 0 });
   this._peersTxt.setAlign('center');
 
@@ -105,6 +118,16 @@ GAME.RtLobbyScene.prototype.create = function () {
 
   this.time.delayedCall(400, function () {
     if (self.scene.isActive() && GAME.Tutorial) GAME.Tutorial.show(self, 'rt');
+  });
+};
+
+GAME.RtLobbyScene.prototype._createRoom = function () {
+  var self = this;
+  if (this._joined) return;
+  this._setStatus('방을 만드는 중…');
+  GAME.NetRoom.createRoom({}, function (err, room) {
+    if (err) { self._setStatus('⚠ 방 만들기 실패: ' + err.message); return; }
+    GAME.NetRoom.join(room.code);
   });
 };
 
@@ -128,8 +151,10 @@ GAME.RtLobbyScene.prototype._refreshList = function () {
       self._rows.push(t);
       return;
     }
-    res.rooms.slice(0, 4).forEach(function (r, i) {
-      var b = UI.button(self, W / 2, self._listTop + 40 + i * 66, Math.min(W - 30, 560), 58,
+    var maxRows = GAME.CONFIG.PHONE ? 2 : 4;
+    res.rooms.slice(0, maxRows).forEach(function (r, i) {
+      var rh = GAME.CONFIG.PHONE ? 46 : 58;
+      var b = UI.button(self, W / 2, self._listTop + 36 + i * (rh + 8), Math.min(W - 30, 560), rh,
         '방 ' + r.code + '   ·   ' + r.host + '   ·   ' + r.members + '/2명',
         function () { GAME.NetRoom.join(r.code); }, { fontSize: 14 });
       self._rows.push(b.rect || b); if (b.text) self._rows.push(b.text);
@@ -172,20 +197,31 @@ GAME.RtLobbyScene.prototype._onRoom = function () {
     this._joined = true;
     this._rows.forEach(function (r) { r.destroy(); });
     this._rows = [];
+    //  방에 들어왔으면 만들기/입장 버튼은 치운다 — 남겨두면 역할 버튼과 겹치고
+    //  눌리기까지 한다(2026-08-22 태현님 ①: "버튼 클릭 시 액션도 이상함").
+    (this._mkBtns || []).forEach(function (b) {
+      [b.gfx, b.rect, b.text].forEach(function (e) { if (e && e.destroy) e.destroy(); });
+    });
+    this._mkBtns = [];
     var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
-    var bh = Math.max(UI.BTN_H || 58, 56);
-    var y0 = this._listTop + H * 0.10;
-    this._roleBtnS = UI.button(this, W / 2 - 170, y0, 320, bh, '🛡 전략가 (진형으로 막는다)',
+    var PH = GAME.CONFIG.PHONE;
+    var bh = PH ? 50 : Math.max(UI.BTN_H || 58, 56);
+    var bw = PH ? Math.min(330, (W - 56) / 2) : 330;
+    var y0 = PH ? 130 : 250;
+    this._roleBtnS = UI.button(this, W / 2 - bw / 2 - 9, y0, bw, bh, '🛡 전략가 (진형으로 막는다)',
       function () { self._pickRole('strategist'); },
-      { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist, fontSize: 14 });
-    this._roleBtnC = UI.button(this, W / 2 + 170, y0, 320, bh, '⚔ 컨트롤러 (영웅으로 뚫는다)',
+      { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist, fontSize: PH ? 12 : 14 });
+    this._roleBtnC = UI.button(this, W / 2 + bw / 2 + 9, y0, bw, bh, '⚔ 컨트롤러 (영웅으로 뚫는다)',
       function () { self._pickRole('controller'); },
-      { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, fontSize: 14 });
-    this._readyBtn = UI.button(this, W / 2, y0 + bh + 14, 320, bh, '⚔ 준비 완료',
-      function () { self._toggleReady(); });
-    this._roleTxt = UI.text(this, W / 2, y0 + bh * 2 + 26, '',
-      { size: 'caption', color: C.textDim, origin: 0.5 });
+      { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, fontSize: PH ? 12 : 14 });
+    this._roleTxt = UI.text(this, W / 2, y0 + bh / 2 + (PH ? 12 : 18), '',
+      { size: 'caption', color: C.textDim, origin: 0.5, originY: 0 });
     this._roleTxt.setAlign('center');
+    this._readyBtn = UI.button(this, W / 2, y0 + bh / 2 + (PH ? 96 : 128), Math.min(W - 40, 360), bh,
+      '⚔ 준비 완료', function () { self._toggleReady(); });
+    UI.text(this, W / 2, y0 + bh / 2 + (PH ? 96 : 128) + bh / 2 + 8,
+      '둘 다 준비하면 60초 동안 배치·장비를 고르고 전투가 시작됩니다',
+      { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 });
   }
   this._codeTxt.setText('방 코드  ' + NR.code);
   var names = NR.peers.map(function (p) { return p.id + (p.id === NR.host ? ' (방장)' : ''); });
@@ -217,9 +253,14 @@ GAME.RtLobbyScene.prototype._roleOk = function () {
 
 GAME.RtLobbyScene.prototype._refreshRoleUi = function () {
   if (!this._roleTxt || !this._roleTxt.scene) return;
-  var mark = function (btn, on) { if (btn && btn.text) btn.text.setAlpha(on ? 1 : 0.55); };
-  mark(this._roleBtnS, this._myRole !== 'controller');
-  mark(this._roleBtnC, this._myRole !== 'strategist');
+  var self2 = this;
+  var mark = function (btn, picked, col) {
+    if (!btn) return;
+    if (btn.text) btn.text.setAlpha(picked || !self2._myRole ? 1 : 0.5);
+    if (btn.rect && btn.rect.setStrokeStyle) btn.rect.setStrokeStyle(picked ? 3 : 1, col);
+  };
+  mark(this._roleBtnS, this._myRole === 'strategist', GAME.CONFIG.COLORS.strategist);
+  mark(this._roleBtnC, this._myRole === 'controller', GAME.CONFIG.COLORS.controller);
   var why = this._roleOk();
   var mine = this._myRole === 'strategist' ? '나: 🛡 전략가' :
              this._myRole === 'controller' ? '나: ⚔ 컨트롤러' : '나: (선택 전)';
@@ -237,62 +278,11 @@ GAME.RtLobbyScene.prototype._toggleReady = function () {
     this._readyBtn.text.setText('⚔ 준비 완료');
     return;
   }
-  //  3번 사양(2026-08-21): 들어가서 **고른다** — 전략가는 배치, 컨트롤러는 영웅.
-  this._openSetupPick();
-};
-
-//  세팅 선택 — 고르는 순간 준비가 걸리고 세팅이 상대에게 간다.
-GAME.RtLobbyScene.prototype._openSetupPick = function () {
-  var self = this;
-  if (this._myRole === 'strategist') {
-    var list = GAME.Formations.loadSaved();
-    GAME.Modal.open(this, {
-      title: '🛡 어느 배치로 싸울까요?',
-      items: list.map(function (f) {
-        return { key: f.id, name: f.name || '(이름 없음)',
-                 note: (f.units ? f.units.length : 0) + '기' };
-      }),
-      onPick: function (it) {
-        var f = GAME.Formations.getById(it.key);
-        if (!f) return;
-        self._commitSetup({ role: 'strategist',
-          formation: { name: f.name || '', units: f.units } });
-      }
-    });
-  } else {
-    GAME.Modal.open(this, {
-      title: '⚔ 어느 영웅으로 싸울까요?',
-      items: GAME.HERO_ORDER.map(function (k) {
-        var h = GAME.HEROES[k];
-        return { key: k, name: h.name, note: h.trait || '' };
-      }),
-      onPick: function (it) {
-        self._commitSetup({ role: 'controller', heroKey: it.key,
-          picks: GAME.defaultSkillPicks() });
-      }
-    });
-  }
-};
-
-GAME.RtLobbyScene.prototype._commitSetup = function (setup) {
-  //  rtt 는 여기서 한 번만 얼린다. 지연은 양쪽이 (내 rtt, 상대 rtt) 의 max 로
-  //  **같은 값**을 계산해야 한다 — 재전송 때 값이 바뀌면 세션 지연이 갈라져 desync 다.
-  if (this._myRttSent == null)
-    this._myRttSent = Math.round(GAME.NetRoom.bestRtt() || 180);
-  setup.rtt = this._myRttSent;
-  //  실시간 점수 교환 — 상대 점수를 알아야 승패 정산(gain/loss)이 상대 실력을 반영한다.
-  setup.rtScore = GAME.RtScore ? GAME.RtScore.get().score : 0;
-  this._mySetup = setup;
+  //  2026-08-22 태현님 사양: 여기서는 **역할만** 확정한다. 배치·장비는 다음 화면
+  //  (RtPrep, 60초)에서 고른다 — 둘 다 준비를 누르면 서버 start 가 온다.
   this._ready = true;
   GAME.NetRoom.setReady(true);
-  GAME.NetRoom.relay({ type: 'rtSetup', setup: setup });
-  this._readyBtn.text.setText('⌛ 상대를 기다리는 중… (다시 누르면 취소)');
-  this._maybeBattle();
-};
-
-//  유실 대비 재전송 — 이미 확정한 세팅을 그대로 다시 보낸다(rtt 포함, 값 불변).
-GAME.RtLobbyScene.prototype._sendSetup = function () {
-  if (this._mySetup) GAME.NetRoom.relay({ type: 'rtSetup', setup: this._mySetup });
+  this._readyBtn.text.setText('⌛ 상대의 준비를 기다리는 중… (다시 누르면 취소)');
 };
 
 GAME.RtLobbyScene.prototype._onRelay = function (from, data) {
@@ -300,48 +290,13 @@ GAME.RtLobbyScene.prototype._onRelay = function (from, data) {
   if (data.type === 'rtRole') {
     this._theirRole = data.role || null;
     this._refreshRoleUi();
-  } else if (data.type === 'rtSetup' && data.setup) {
-    this._theirSetup = data.setup;
-    this._maybeBattle();
   }
 };
 
-//  서버 start(seed) — 둘 다 준비를 눌렀다는 뜻. 세팅 두 쪽이 모이면 전투로.
+//  서버 start(seed) — 둘 다 준비를 눌렀다는 뜻. 60초 준비 화면으로 넘어간다.
 GAME.RtLobbyScene.prototype._onStart = function (msg) {
-  this._startMsg = msg;
-  this._sendSetup();                              // 유실 대비 한 번 더
-  this._setStatus('시작! 세팅을 교환하는 중…');
-  this._maybeBattle();
-};
-
-GAME.RtLobbyScene.prototype._maybeBattle = function () {
-  if (this._started || !this._startMsg) return;
-  if (!this._mySetup || !this._theirSetup) return;
+  if (this._started) return;
   this._started = true;
-  var NR = GAME.NetRoom;
-  //  팀 라벨: 방장 = 'controller' 팀(아래) · 손님 = 'strategist' 팀(위).
-  //  역할과 무관한 **자리 이름**이다 — 양쪽이 (me===host) 로 같은 결론을 낸다.
-  var meTeam = (NR.me === NR.host) ? 'controller' : 'strategist';
-  //  적응 입력 지연 — 두 rtt 의 max 에서 유도. 양쪽 입력이 같으므로 결과도 같다.
-  //  틱 33.4ms: delay ≈ ceil(rtt·0.7/33.4)+2, 6~18틱(200~600ms) 사이로 가둔다.
-  //  입력 편도 지연 추정 = (내 rtt + 상대 rtt) / 2.
-  //  · WS 릴레이: 편도 = 나→DO + DO→상대 ≈ 내rtt/2 + 상대rtt/2 — 정확히 이 식이다.
-  //    (⚠ max(rtt)·0.7 이던 옛 식은 릴레이 편도를 절반으로 잘못 봐 만성 스톨감이었다)
-  //  · P2P 직결: 편도 = rtt/2 라 이 식은 2배 보수적 — 그래도 3~4틱이라 충분히 낮다.
-  //  하한 3틱(100ms): P2P 에서 6틱(200ms)은 아깝다. 양쪽이 같은 rtt 쌍으로 같은
-  //  값을 내므로 갈라질 수 없다.
-  var oneWay = ((this._mySetup.rtt || 180) + (this._theirSetup.rtt || 180)) / 2;
-  var delay = Math.max(3, Math.min(24, Math.ceil(oneWay * 1.15 / 33.4) + 2));
-  var heroKey = this._mySetup.heroKey || this._theirSetup.heroKey || 'vanguard';
-  this.scene.start('Battle', {
-    rt: {
-      seed: this._startMsg.seed >>> 0,
-      meTeam: meTeam,
-      delay: delay,
-      my: this._mySetup,
-      their: this._theirSetup
-    },
-    heroKey: heroKey,
-    formationId: null
-  });
+  GAME.RtFlow.begin(this._myRole, this._theirRole, msg);
+  this.scene.start('RtPrep');
 };

@@ -604,6 +604,17 @@ GAME.TouchPad.prototype.update = function (dtMs) {
 
   var dt = dtMs / 1000;
   var len = Math.sqrt(dx * dx + dy * dy) || 1;
+  //  상하반전 화면(실시간)에서는 스틱 위 = 화면 위 = 월드 +y — 세로 성분 거울.
+  if (GAME.Iso && GAME.Iso.rtFlip) dy = -dy;
+  //  실시간 그림자 — 직접 이동을 록스텝 **이동 명령**으로 바꾼다(input.js 와 같은
+  //  이유: 그림자 좌표를 고쳐 봤자 시뮬에 안 간다 — "움직여지지 않는다"의 원인).
+  if (h.rtProxy && h.rtHero) {
+    var _rh = h.rtHero;
+    h.order = { type: 'move',
+                x: _rh.x + (dx / len) * 120,
+                y: _rh.y + (dy / len) * 120 };
+    return true;
+  }
   h.manual = true;
   h.order = null;
   h.x += (dx / len) * GAME.Combat.effSpeed(h) * dt;

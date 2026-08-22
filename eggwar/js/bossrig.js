@@ -359,31 +359,47 @@ GAME.BossRig = (function () {
       return true;
     },
 
-    //  스타일 배수 — 공격 타입이 어느 부위를 크게 쓰는가.
+    //  스타일 배수 — 공격 타입이 어느 부위를 크게 쓰는가 (2026-08-23 4차: 전부 증폭 +
+    //  body* 신설 — 몸통 전체가 접지점 둘레로 젖혔다 꽂힌다. 부위 회전과 달리 모든
+    //  층이 함께 돌아 **틈이 구조적으로 안 생기는** 가장 싼 큰 모션이다).
     _STYLE: {
-      breath: { headWind: 0.17, headStrike: 0.24, armWind: 0.07, armStrike: 0.12, wingThreat: 0.9, fingerWind: 0.06 },
-      slam:   { headWind: 0.10, headStrike: 0.16, armWind: 0.11, armStrike: 0.19, wingThreat: 0.9, fingerWind: 0.10 },
-      spread: { headWind: 0.16, headStrike: 0.24, armWind: 0.07, armStrike: 0.12, wingThreat: 1.7, fingerWind: 0.06 }
+      breath: { headWind: 0.24, headStrike: 0.34, armWind: 0.10, armStrike: 0.16, wingThreat: 1.3, fingerWind: 0.08, bodyWind: 0.030, bodyStrike: 0.048 },
+      slam:   { headWind: 0.14, headStrike: 0.22, armWind: 0.22, armStrike: 0.34, wingThreat: 1.1, fingerWind: 0.16, bodyWind: 0.055, bodyStrike: 0.085 },
+      spread: { headWind: 0.20, headStrike: 0.30, armWind: 0.10, armStrike: 0.16, wingThreat: 2.4, fingerWind: 0.08, bodyWind: 0.026, bodyStrike: 0.040 }
     },
     _styleOf: function (atk) {
       return this._STYLE[atk.style] ||
-        { headWind: 0.16, headStrike: 0.24, armWind: 0.07, armStrike: 0.12, wingThreat: 0.9, fingerWind: 0.06 };
+        { headWind: 0.18, headStrike: 0.26, armWind: 0.08, armStrike: 0.13, wingThreat: 1.0, fingerWind: 0.06, bodyWind: 0.024, bodyStrike: 0.038 };
     },
 
     _animRot: function (p, t, atk) {
       var s = Math.sin(t * p.speed + p.phase);
       var st = this._styleOf(atk);
+      var gait = atk.moving || 0;
       if (p.anim === 'wing' || p.anim === 'wingtip') {
+        //  걸을 때 날개가 걸음 박자로 살짝 퍼덕인다 — 몸이 무거워 보이는 비결.
         var boost = 1 + atk.threat * st.wingThreat;
-        return s * p.amp * boost;
+        return s * p.amp * boost + Math.sin(atk.walk + p.phase) * 0.030 * gait;
       }
-      if (p.anim === 'tail') return s * p.amp;
-      if (p.anim === 'head') return s * p.amp - atk.wind * st.headWind + atk.strike * st.headStrike;
-      if (p.anim === 'arm') return s * p.amp - atk.wind * st.armWind + atk.strike * st.armStrike;
+      if (p.anim === 'tail') {
+        //  꼬리는 걸음의 **반박자 뒤**를 따라온다(관성) + 발사 순간 채찍처럼 튄다.
+        return s * p.amp + Math.sin(atk.walk * 0.5 + p.phase + 1.2) * 0.055 * gait
+               - atk.strike * 0.05;
+      }
+      if (p.anim === 'head') {
+        //  걸음마다 고개가 까딱인다 — "사진이 미끄러진다"를 깨는 가장 큰 신호.
+        return s * p.amp - atk.wind * st.headWind + atk.strike * st.headStrike
+               + Math.sin(atk.walk + 0.9) * 0.024 * gait;
+      }
+      if (p.anim === 'arm') {
+        return s * p.amp - atk.wind * st.armWind + atk.strike * st.armStrike
+               + Math.sin(atk.walk + 3.14) * 0.045 * gait;
+      }
       if (p.anim === 'finger') return s * p.amp + atk.wind * st.fingerWind - atk.strike * 0.05;
       if (p.anim === 'leg') {
         //  걷기 — 이동 중에만(moving 0→1), 반대 위상 다리가 번갈아 젓는다.
-        return Math.sin(atk.walk + p.phase) * p.amp * (atk.moving || 0);
+        //  보폭 1.75배(4차) + 착지 직후 미세 굽힘(strike 순간의 무게).
+        return Math.sin(atk.walk + p.phase) * p.amp * 1.75 * gait + atk.strike * 0.03;
       }
       return s * p.amp;   // sway
     },
@@ -395,9 +411,18 @@ GAME.BossRig = (function () {
       var W = scene.textures.get(texKey).getSourceImage().width;
       var H = scene.textures.get(texKey).getSourceImage().height;
 
+      //  걸음 바운스 — 다리 위상과 같은 시계(atk.walk)를 쓰므로 발과 몸이 맞물린다.
+      var gait = atk.moving || 0;
+      var stBody = this._styleOf(atk);
       var bob = Math.sin(t * 1.6) * geom.h * 0.006 - atk.wind * geom.h * 0.012 +
-                atk.strike * geom.h * 0.02;
+                atk.strike * geom.h * 0.02 +
+                Math.abs(Math.sin(atk.walk)) * geom.h * 0.013 * gait;
       var lunge = (atk.strike * 0.045 - atk.wind * 0.02) * geom.w * (geom.flip ? -1 : 1);
+      //  몸통 전체 회전 — 전진 기울기(걸음) + 스킬 젖힘/내리꽂기. 접지점 둘레로
+      //  모든 층이 함께 돌아 부위 사이에 틈이 생길 수 없다.
+      var bodyRot = (gait * 0.045 - atk.wind * stBody.bodyWind +
+                     atk.strike * stBody.bodyStrike) * (geom.flip ? -1 : 1);
+      var ax = geom.sx + lunge, ay = geom.sy + bob;
       var baseLeft = geom.sx - (geom.flip ? 1 - geom.px : geom.px) * geom.w + lunge;
       var baseTop = geom.sy - geom.py * geom.h + bob;
       var intro = atk.intro === undefined ? 1 : atk.intro;
@@ -424,6 +449,10 @@ GAME.BossRig = (function () {
           img = scene.add.image(0, 0, tkey);
           this._img[id] = img;
         }
+        //  전장 레이어 탑승 — 줌(인트로·휠)이 보스만 빼놓고 확대하지 않게(bossbank 참조).
+        //  생성이 그리기 순서(filler→behind→base→front)라 컨테이너 add 순서 = 층이 된다.
+        if (scene.worldLayer && img.parentContainer !== scene.worldLayer)
+          scene.worldLayer.add(img);
         img.setVisible(true);
         img._bbStamp = scene.game.loop.frame;
         var ox, oy, rot = 0;
@@ -455,8 +484,18 @@ GAME.BossRig = (function () {
           rot += pr;
         }
         if (p && !isFiller) { rotMap[p.name] = rot; posMap[p.name] = { x: px0, y: py0 }; }
-        img.setPosition(px0, py0);
-        img.setRotation(rot);
+        //  몸통 전체 회전은 **가장 바깥 변환**이다 — 부모 체인 계산(rotMap/posMap)은
+        //  회전 전 좌표로 하고, 화면에 놓을 때만 접지점(ax,ay) 둘레로 함께 돌린다.
+        var fx0 = px0, fy0 = py0, frot = rot;
+        if (bodyRot) {
+          var bdx = px0 - ax, bdy = py0 - ay;
+          var bcs = Math.cos(bodyRot), bsn = Math.sin(bodyRot);
+          fx0 = ax + bdx * bcs - bdy * bsn;
+          fy0 = ay + bdx * bsn + bdy * bcs;
+          frot = rot + bodyRot;
+        }
+        img.setPosition(fx0, fy0);
+        img.setRotation(frot);
         img.setFlipX(!!geom.flip);
         img.setAlpha(geom.alpha);
         img.setDepth(geom.depth + (isFiller ? 0.47 :

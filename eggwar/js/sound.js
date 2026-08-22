@@ -238,6 +238,33 @@ GAME.Sound = {
             s._tone({ type: 'square', f0: 130, f1: 85, dur: 0.28, vol: 0.13 });
           });
           break;
+        //  ── 보스 발구름 — 걸을 때마다 땅이 운다 (2026-08-23 생동화 4차) ────────
+        //  ⚠ 걷는 내내 반복되므로 게이트 230ms + 짧게. 저역이 무게를, 짧은 중역
+        //    버스트가 폰에서 들리는 몫을 맡는다(이 파일의 폰 스피커 규율 그대로).
+        case 'bossStep':
+          if (!this._gate('bossStep', 230)) return;
+          this._burst({ dur: 0.03, freq: 900, q: 1.1, vol: 0.10 });
+          this._tone({ type: 'sine', f0: 95, f1: 48, dur: 0.13, vol: 0.20 });
+          break;
+        //  ── 브레스 발사 — '분다'가 아니라 '뿜는다'. 거친 고역 바람 + 낮은 으르렁 ──
+        case 'bossBreath':
+          if (!this._gate('bossBreath', 300)) return;
+          this._burst({ dur: 0.26, freq: 1200, q: 0.8, vol: 0.22, filter: 'highpass' });
+          this._tone({ type: 'sawtooth', f0: 160, f1: 90, dur: 0.24, vol: 0.14 });
+          break;
+        //  ── 내리찍기 착지 — boom 보다 낮고 무겁게, 잔진동이 길게 남는다 ─────────
+        case 'bossSlam':
+          if (!this._gate('bossSlam', 300)) return;
+          this._burst({ dur: 0.04, freq: 2100, q: 1.3, vol: 0.16, filter: 'highpass' });
+          this._burst({ dur: 0.30, freq: 180, q: 0.7, vol: 0.34, filter: 'lowpass' });
+          this._tone({ type: 'sine', f0: 95, f1: 34, dur: 0.40, vol: 0.26 });
+          break;
+        //  ── 스킬 모으기 — 예고가 켜지는 순간 낮게 차오른다(피하라는 신호이기도 하다) ──
+        case 'bossCharge':
+          if (!this._gate('bossCharge', 500)) return;
+          this._tone({ type: 'sawtooth', f0: 60, f1: 120, dur: 0.42, vol: 0.15 });
+          this._burst({ dur: 0.30, freq: 700, q: 1.6, vol: 0.08, filter: 'bandpass' });
+          break;
         //  ── 보스 격파 — 크게 터진 뒤 상행 팡파르 (2026-08-12) ────────────────
         //  ⚠ `win`(일반 승리, 최고음 784Hz)과 **일부러 다르게** 잡았다 — 보스를
         //    잡았다는 특별함이 승리 팡파르에 묻히면 안 된다. 앞에 `boom` 재료를

@@ -19,7 +19,8 @@ GAME.BossBank = (function () {
   var DATA = {
     //  pivotY: 바닥 효과(먼지·흙판)를 시트에서 지우며 실측한 **새 접지선**(px).
     //  안 주면 타일 바닥 — 지운 시트는 바닥에 투명 띠가 남아 발이 떠 보인다.
-    "bossAshSentry": {"art":"beast:sentry:ash","tileW":1216,"tileH":651,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.7849,"pivotY":609},
+    //  sizeMul 0.8 — 2026-08-23 태현님: "40층 재파수병 크기를 20% 정도 줄여줘".
+    "bossAshSentry": {"art":"beast:sentry:ash","tileW":1216,"tileH":651,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.7849,"pivotY":609,"sizeMul":0.8},
     "bossChief": {"art":"chieftain","tileW":1096,"tileH":863,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":5.0174},
     "bossDragonAwakened": {"art":"beast:awakened:ember","tileW":1324,"tileH":711,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.1337},
     "bossDragonClaw": {"art":"beast:claw:ember","tileW":1212,"tileH":670,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.8953},
@@ -35,8 +36,38 @@ GAME.BossBank = (function () {
     "bossShell": {"art":"guardian","tileW":1055,"tileH":874,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":5.0814,"pivotY":858}
   };
 
+  //  보스 인트로 대사 (2026-08-23 4차 — battle._setupBossIntro 가 읽는다).
+  //  ⚠ 12세 이용가 톤 — 위협은 하되 잔혹 묘사는 없다. 없는 키는 def.desc 폴백.
+  var LINES = {
+    bossChief: '내 부족의 알들을 밟고 여기까지 왔느냐.',
+    bossShell: '……단단한 것만이, 남는다.',
+    bossNest: '둥지가 침입자를 겨눈다 — 화살이 쏟아진다!',
+    bossAshSentry: '잿길을 밟은 값은, 재가 되어 치르는 법.',
+    bossDrakeAsh: '하늘이 어두워진다 — 잿날개가 내려앉는다.',
+    bossDrakeFrost: '숨이 얼어붙는다…… 느려진 발은 먹잇감일 뿐.',
+    bossDrakeStorm: '바람이 운다. 서 있는 것부터 날려주마.',
+    bossDragonFoot: '이것은 겨우…… 발끝이다.',
+    bossDragonClaw: '다섯 손가락이 전장을 통째로 움켜쥔다.',
+    bossDragonWing: '날갯짓 한 번에 하늘이 접힌다.',
+    bossDragonEgg: '알 속에서 무언가 뛰고 있다…… 두근. 두근.',
+    bossDragonEggCracked: '껍질에 금이 갔다. 안의 것이 밀어내고 있다.',
+    bossDragonCrack: '틈새의 눈이 — 너를 보았다.',
+    bossDragonLord: '태초의 용이 눈을 떴다. 모든 알의 어버이가.'
+  };
+
+  //  ── 전장 레이어 탑승 (2026-08-23 4차) ─────────────────────────────────────
+  //  전투 씬은 전장 그림을 worldLayer 컨테이너에 담아 줌을 건다. 보스 이미지가
+  //  씬 직속으로 남으면 **줌과 따로 놀아** 확대 중 보스만 제자리에 남는다
+  //  (인트로 실측 — PC 휠 줌에도 있던 잠복 버그다). 컨테이너는 자식 depth 를
+  //  무시하고 add 순서로 그리므로(v2.41 규율), 넣는 순서가 곧 층이다.
+  function mount(scene, img) {
+    if (scene.worldLayer && img.parentContainer !== scene.worldLayer)
+      scene.worldLayer.add(img);
+  }
+
   var B = {
     DATA: DATA,
+    LINES: LINES,
     _img: {},          // unit키 → 영속 Phaser.Image (매 프레임 재생성 금지 — v1.66 규율)
 
     metaOf: function (def) {
@@ -133,11 +164,25 @@ GAME.BossBank = (function () {
       var dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > 0.05 && dist < 200) st.walk += dist * 0.055;      // 200+ 는 순간이동(스폰)
       st.mv += ((dist > 0.05 && dist < 200 ? 1 : 0) - st.mv) * 0.22;
+      //  ── 발이 땅을 딛는 순간 (2026-08-23 4차 — 먼지·발구름 소리의 근원) ────────
+      //  다리 위상 sin(walk) 이 마루/골을 지날 때가 곧 착지다(다리 둘이 반대 위상이라
+      //  마루=앞다리, 골=뒷다리). 이동 중일 때만 센다.
+      var ph = Math.sin(st.walk);
+      var step = 0;
+      if (st.mv > 0.45 && st.phPrev !== undefined) {
+        if (st.phPrev < 0.72 && ph >= 0.72) step = 1;          // 앞다리 착지
+        else if (st.phPrev > -0.72 && ph <= -0.72) step = -1;  // 뒷다리 착지
+      }
+      st.phPrev = ph;
+      //  스킬 모으기 시작(예고 점화) 순간 — 소리·집속 이펙트의 트리거.
+      var charge = wind > 0 && !(st.windPrev > 0);
+      st.windPrev = wind;
       //  등장 연출 — 처음 그려진 순간부터 1.1초.
       var intro = Math.max(0, Math.min(1, (now - st.introAt) / 1100));
       return { wind: wind, strike: strike,
                threat: Math.min(1, wind * 0.7 + strike),
                walk: st.walk, moving: st.mv, intro: intro, struck: struck,
+               step: step, charge: charge,
                style: this._styleOf(def || u.def) };
     },
 
@@ -176,6 +221,10 @@ GAME.BossBank = (function () {
                 flip: flip, alpha: a, depth: (depth || 0) }, atk)) {
           var old2 = this._img[e.key];
           if (old2) old2.setVisible(false);
+          //  발사 이펙트는 리그 부위들 위로 — 컨테이너 순서 보증(add 순서가 층이다).
+          if (scene.worldLayer && this._fxg[e.key] && this._fxg[e.key].g &&
+              this._fxg[e.key].g.parentContainer === scene.worldLayer)
+            scene.worldLayer.bringToTop(this._fxg[e.key].g);
           return true;
         }
       }
@@ -186,6 +235,11 @@ GAME.BossBank = (function () {
         img = scene.add.image(0, 0, texKey);
         this._img[e.key] = img;
       }
+      mount(scene, img);
+      //  발사 이펙트는 언제나 보스 위 — 컨테이너 순서를 매 프레임 보증한다.
+      if (scene.worldLayer && this._fxg[e.key] && this._fxg[e.key].g &&
+          this._fxg[e.key].g.parentContainer === scene.worldLayer)
+        scene.worldLayer.bringToTop(this._fxg[e.key].g);
       img.setVisible(true);
       img._bbStamp = scene.game.loop.frame;
       img.setOrigin(px, py);
@@ -217,11 +271,14 @@ GAME.BossBank = (function () {
         kx = 1 - th * 0.028;
         rot = Math.sin(t * 1.15 + seed) * 0.014 + th * 0.006;
       } else {
-        //  그 외(리깅 없는 예비 자산 폴백) — 호흡 + 스웨이.
+        //  그 외(리깅 없는 폴백) — 호흡 + 스웨이 + **걸음 바운스·전진 기울기**(4차).
         var br = Math.sin(t * 1.8 + seed);
-        ky = 1 + br * 0.016 + atk.strike * 0.03 - atk.wind * 0.02;
+        var gwk = atk.moving || 0;
+        ky = 1 + br * 0.016 + atk.strike * 0.03 - atk.wind * 0.02 +
+             Math.abs(Math.sin(atk.walk)) * 0.022 * gwk;
         kx = 1 - br * 0.016 * 0.55 + atk.wind * 0.015;
-        rot = Math.sin(t * 0.9 + seed) * 0.010 + (atk.strike * 0.025 - atk.wind * 0.015);
+        rot = Math.sin(t * 0.9 + seed) * 0.010 + (atk.strike * 0.035 - atk.wind * 0.020) +
+              gwk * 0.045;
       }
       img.setDisplaySize(w * kx * introPop, h * ky * introPop);
       img.setRotation(rot * (flip ? -1 : 1));
@@ -244,39 +301,91 @@ GAME.BossBank = (function () {
         if (fx && fx.g && fx.g.destroy) { try { fx.g.destroy(); } catch (e) {} }
         fx = this._fxg[key] = { g: scene.add.graphics(), ps: [] };
       }
+      mount(scene, fx.g);
       var g = fx.g;
       g.setDepth(depth + 0.62);
       g.setVisible(true);
       g._bbStamp = scene.game.loop.frame;
       var now = scene.time.now;
-      if (atk.struck) {
-        var dir = flip ? -1 : 1;
-        var isEgg = /Egg|Crack/.test(key);
-        //  입(머리 쪽) 위치 근사 — 시트가 전부 오른쪽을 보므로 앞쪽 1/3 지점.
-        var mx = sx + dir * w * 0.34, my = syG - h * py + h * 0.34;
-        if (isEgg) { mx = sx; my = syG - h * py + h * 0.5; }
-        var glow = 0xffa243;
-        try {
-          if (GAME.BossArt && GAME.BossArt.TONE && def && def.art) {
-            var kind = def.art.split(':')[2];
-            if (GAME.BossArt.TONE[kind] && GAME.BossArt.TONE[kind].glow)
-              glow = GAME.BossArt.TONE[kind].glow;
-          }
-        } catch (e2) {}
-        for (var i = 0; i < 10; i++) {
-          var an = (Math.random() - 0.5) * 1.6 + (dir > 0 ? 0 : Math.PI);
-          var sp = 60 + Math.random() * 160;
-          fx.ps.push({ x: mx, y: my, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp - 40,
-                       t0: now, life: 380 + Math.random() * 240, r: 2 + Math.random() * 3, col: glow });
+      var dir = flip ? -1 : 1;
+      var isEgg = /Egg|Crack/.test(key);
+      //  입(머리 쪽) 위치 근사 — 시트가 전부 오른쪽을 보므로 앞쪽 1/3 지점.
+      var mx = sx + dir * w * 0.34, my = syG - h * py + h * 0.34;
+      if (isEgg) { mx = sx; my = syG - h * py + h * 0.5; }
+      var glow = 0xffa243;
+      try {
+        if (GAME.BossArt && GAME.BossArt.TONE && def && def.art) {
+          var kind = def.art.split(':')[2];
+          if (GAME.BossArt.TONE[kind] && GAME.BossArt.TONE[kind].glow)
+            glow = GAME.BossArt.TONE[kind].glow;
         }
-        //  내리찍기형은 바닥 먼지도 — 발치에서 옆으로 퍼진다.
-        if (atk.style === 'slam') {
-          for (var d2 = 0; d2 < 8; d2++) {
-            var side = d2 % 2 ? 1 : -1;
-            fx.ps.push({ x: sx + side * (10 + Math.random() * w * 0.2), y: syG - 4,
-                         vx: side * (40 + Math.random() * 90), vy: -(20 + Math.random() * 50),
-                         t0: now, life: 460 + Math.random() * 200, r: 3 + Math.random() * 4, col: 0x9b8f7c });
+      } catch (e2) {}
+
+      //  ── 발이 땅을 딛는 순간 — 발치 먼지 + 낮은 발구름 (2026-08-23 4차) ──────
+      //  step: +1 앞다리 / -1 뒷다리. 발 위치는 접지선 위 몸 폭의 ±15% 근사.
+      if (atk.step) {
+        var fxx = sx + dir * atk.step * w * 0.15;
+        for (var s2 = 0; s2 < 4; s2++) {
+          var sd = s2 % 2 ? 1 : -1;
+          fx.ps.push({ x: fxx + sd * Math.random() * 8, y: syG - 3,
+                       vx: sd * (26 + Math.random() * 60), vy: -(14 + Math.random() * 34),
+                       t0: now, life: 380 + Math.random() * 160,
+                       r: 2 + Math.random() * 3, col: 0x9b8f7c });
+        }
+        if (GAME.Sound) GAME.Sound.play('bossStep');
+      }
+      //  ── 스킬 모으기 — 예고 동안 입가로 **모여드는** 불티(밖→안). 시작 순간 소리 ──
+      if (atk.charge && GAME.Sound) GAME.Sound.play('bossCharge');
+      if (atk.wind > 0 && !isEgg) {
+        var ca = Math.random() * Math.PI * 2;
+        var cr = 26 + Math.random() * 30;
+        var cx0 = mx + Math.cos(ca) * cr, cy0 = my + Math.sin(ca) * cr;
+        fx.ps.push({ x: cx0, y: cy0, vx: (mx - cx0) * 3.2, vy: (my - cy0) * 3.2,
+                     t0: now, life: 300, r: 1.6 + Math.random() * 2, col: glow, noGrav: true });
+      }
+
+      if (atk.struck) {
+        //  ── 발사 순간 — 스타일마다 다른 그림 (태현님: "스킬이 각각 개성이 있어야") ──
+        if (atk.style === 'breath' && !isEgg) {
+          //  브레스: 입에서 **전방 원뿔**로 뿜는다 + 입가 확장 링.
+          for (var b2 = 0; b2 < 20; b2++) {
+            var ba = (Math.random() - 0.5) * 0.9 + (dir > 0 ? 0 : Math.PI);
+            var bs = 120 + Math.random() * 260;
+            fx.ps.push({ x: mx, y: my, vx: Math.cos(ba) * bs, vy: Math.sin(ba) * bs * 0.55 - 20,
+                         t0: now, life: 420 + Math.random() * 260,
+                         r: 2.5 + Math.random() * 3.5, col: glow, noGrav: true });
           }
+          fx.ps.push({ kind: 'ring', x: mx, y: my, r0: 8, r1: h * 0.30,
+                       t0: now, life: 340, col: glow });
+          if (GAME.Sound) GAME.Sound.play('bossBreath');
+        } else if (atk.style === 'slam') {
+          //  내리찍기: 바닥 먼지 링 + **땅 균열 금**이 방사로 번쩍 + 무거운 착지음.
+          for (var d2 = 0; d2 < 12; d2++) {
+            var side = d2 % 2 ? 1 : -1;
+            fx.ps.push({ x: sx + side * (10 + Math.random() * w * 0.22), y: syG - 4,
+                         vx: side * (50 + Math.random() * 110), vy: -(24 + Math.random() * 60),
+                         t0: now, life: 480 + Math.random() * 220, r: 3 + Math.random() * 4, col: 0x9b8f7c });
+          }
+          for (var c3 = 0; c3 < 6; c3++) {
+            var ca3 = (c3 / 6) * Math.PI + Math.PI * 0.06 * (Math.random() - 0.5);
+            fx.ps.push({ kind: 'crack', x: sx, y: syG - 2, ang: ca3,
+                         len: 30 + Math.random() * w * 0.30, t0: now, life: 520, col: 0x2b241c });
+          }
+          fx.ps.push({ kind: 'ring', x: sx, y: syG - 3, r0: 10, r1: w * 0.42,
+                       t0: now, life: 380, col: 0xcbbfa5, flat: true });
+          if (GAME.Sound) GAME.Sound.play('bossSlam');
+        } else {
+          //  소환/포효(spread)·알·기본: 방사 불티 + 파동 링.
+          for (var i = 0; i < 12; i++) {
+            var an = isEgg ? Math.random() * Math.PI * 2
+                           : (Math.random() - 0.5) * 1.6 + (dir > 0 ? 0 : Math.PI);
+            var sp = 60 + Math.random() * 160;
+            fx.ps.push({ x: mx, y: my, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp - 40,
+                         t0: now, life: 380 + Math.random() * 240, r: 2 + Math.random() * 3, col: glow });
+          }
+          if (atk.style === 'spread')
+            fx.ps.push({ kind: 'ring', x: sx, y: syG - h * py + h * 0.5, r0: 12, r1: w * 0.5,
+                         t0: now, life: 420, col: glow });
         }
       }
       g.clear();
@@ -287,8 +396,25 @@ GAME.BossBank = (function () {
         var age = (now - p.t0) / p.life;
         if (age >= 1) continue;
         keep.push(p);
+        if (p.kind === 'ring') {
+          //  확장 링 — flat 이면 지면(눕힌 타원), 아니면 정면 원.
+          var rr = p.r0 + (p.r1 - p.r0) * age;
+          g.lineStyle(2.5 * (1 - age) + 0.5, p.col, 0.7 * (1 - age));
+          if (p.flat) g.strokeEllipse(p.x, p.y, rr * 2, rr * 0.66);
+          else g.strokeCircle(p.x, p.y, rr);
+          continue;
+        }
+        if (p.kind === 'crack') {
+          //  땅 균열 — 지면에 방사형 실금(원근으로 세로를 눌러 그린다).
+          var cl = p.len * Math.min(1, age * 3);
+          g.lineStyle(2, p.col, 0.8 * (1 - age));
+          g.lineBetween(p.x, p.y, p.x + Math.cos(p.ang) * cl, p.y - Math.sin(p.ang) * cl * 0.30);
+          g.lineBetween(p.x, p.y, p.x - Math.cos(p.ang) * cl * 0.8, p.y - Math.sin(p.ang) * cl * 0.22);
+          continue;
+        }
         var dt2 = (now - p.t0) / 1000;
-        var x2 = p.x + p.vx * dt2, y2 = p.y + p.vy * dt2 + 90 * dt2 * dt2;
+        var grav = p.noGrav ? 0 : 90;
+        var x2 = p.x + p.vx * dt2, y2 = p.y + p.vy * dt2 + grav * dt2 * dt2;
         g.fillStyle(p.col, 0.85 * (1 - age));
         g.fillCircle(x2, y2, p.r * (1 - age * 0.5));
       }

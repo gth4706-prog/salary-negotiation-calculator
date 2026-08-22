@@ -89,15 +89,15 @@ GAME.BattleScene.prototype.create = function () {
   this.cameras.main.setBackgroundColor(C.bg);
   this.g = this.add.graphics();
 
-  // ── 휠 줌용 '전장 레이어' (PC 전용) ────────────────────────────────────
+  // ── 줌용 '전장 레이어' ──────────────────────────────────────────────────
   // 전장 그림만 한 겹(worldLayer)에 담는다. 확대는 이 레이어의 스케일·오프셋으로만
   // 일어나므로 HUD·스킬바·사이렌·종료막은 **구조적으로** 같이 커질 수 없다.
-  // 터치 기기는 아무것도 만들지 않는다 — 핀치 줌은 이번 범위가 아니다.
+  // 2026-08-23 4차: 레이어를 **전 프로필**에 만든다 — 보스 인트로 줌이 폰에서도
+  // 필요해서다. 휠 줌 입력만 PC 전용으로 남는다(핀치 줌은 여전히 범위 밖).
+  // z=1 에서는 마스크도 안 걸려 예전과 같은 렌더 경로다(setZoom 주석 참조).
   this._zoomOn = !GAME.isTouch;
-  if (this._zoomOn) {
-    this.worldLayer = this.add.container(0, 0);
-    this.worldLayer.add(this.g);
-  }
+  this.worldLayer = this.add.container(0, 0);
+  this.worldLayer.add(this.g);
 
   this.state = GAME.Combat.createState();
   //  전투 속도(PACE)는 통곡의 탑 전용 — createState 가 끄고, 여기서만 켠다.
@@ -312,6 +312,35 @@ GAME.BattleScene.prototype.create = function () {
     if (this.towerBonus === 'break' && GAME.TowerRun) {
       this._eggPool = Math.round(GAME.TowerRun.goldFor(this.tower) * 3);
       this._eggChunks = 0;
+    }
+    //  ── 알 체력은 그 판의 **실효 DPS 에서 역산**한다 (2026-08-23 태현님:
+    //  "3대만 맞으면 깨져 지킬 수가 없어" · "최소 30초는 때려야 모든 보상") ────────
+    //  고정 체력(900/1000)은 층 배수·PACE 를 거치며 수명이 층마다 널뛰었다.
+    //  목표는 체력이 아니라 **시간**이다 — 초를 정하고 DPS 를 곱해 체력을 만든다.
+    var PB = GAME.CONFIG.PACE || {};
+    if (this.towerBonus === 'guard') {
+      //  방치하면 GUARD_SEC 만에 깨진다 — 그 안에 달라붙는 적을 걷어내는 것이 게임.
+      //  armor 12(비율 경감 ~11%)가 별도로 있어 실제 수명은 이보다 조금 길다.
+      var GUARD_SEC = 16;
+      var edps = 0;
+      for (var gi = 0; gi < this.state.units.length; gi++) {
+        var gu = this.state.units[gi];
+        if (gu.side !== 'strategist' || !gu.alive || !gu.def || !gu.def.damage) continue;
+        edps += gu.def.damage * 1000 / Math.max(400, gu.def.cooldown || 1000);
+      }
+      this._egg.hp = this._egg.maxHp =
+        Math.max(900, Math.round(edps * (PB.DMG || 1) * GUARD_SEC));
+    } else if (this._egg) {
+      //  풀보상까지 BREAK_SEC — 평타 기대 DPS(치명 포함)×스킬 여유 1.5로 나눈 시간.
+      var BREAK_SEC = 31;
+      var hd2 = this.hero.def;
+      var cc2 = this.hero.critChance !== undefined ? this.hero.critChance
+                                                   : (GAME.CONFIG.CRIT_CHANCE || 0);
+      var cm2 = this.hero.critMul !== undefined ? this.hero.critMul
+                                                : (GAME.CONFIG.CRIT_MULT || 1.5);
+      var hdps = hd2.damage * 1000 / Math.max(250, hd2.cooldown || 1000);
+      hdps *= (1 + cc2 * (cm2 - 1)) * (PB.HERO_DMG || 1) * 1.5;
+      this._egg.hp = this._egg.maxHp = Math.max(1000, Math.round(hdps * BREAK_SEC));
     }
     //  시작 배너 — 타임 오버 배너와 같은 문법(2.2초 뒤 스스로 사라진다).
     var bnW = GAME.CONFIG.WIDTH, bnH = GAME.CONFIG.HEIGHT;
@@ -791,6 +820,9 @@ GAME.BattleScene.prototype.create = function () {
   // 휠 줌은 **모든 배치가 끝난 뒤** 붙인다 — 아레나 사각형(Iso.setMode 반영본)이 필요하다.
   this._setupZoom();
 
+  //  보스 층 인트로 — 줌 준비(_zoomRect)가 끝난 뒤에만 성립한다.
+  this._setupBossIntro();
+
   this.events.on('shutdown', function () {
     // 파괴된 Phaser 객체는 여전히 truthy 라 `_sirenG || _buildSiren()` 가드를 통과한다.
     // 이 저장소에서 이미 한 번 터진 유형이라 참조를 반드시 끊는다.
@@ -940,7 +972,7 @@ GAME.BattleScene.prototype.ZOOM_MAX = 2.5;
 GAME.BattleScene.prototype.ZOOM_STEP = 1.18;      // 휠 한 칸
 
 GAME.BattleScene.prototype._setupZoom = function () {
-  if (!this._zoomOn || !this.worldLayer) return;
+  if (!this.worldLayer) return;
   var self = this;
   var R = GAME.Iso.screenRect();
   this._zoomRect = { x: R.x, y: R.y, w: R.w, h: R.h };
@@ -952,6 +984,8 @@ GAME.BattleScene.prototype._setupZoom = function () {
   this._zoomMaskG = mg;
   this._zoomMask = mg.createGeometryMask();
 
+  //  휠 줌 입력은 PC 전용 — 레이어·마스크는 인트로 줌 때문에 전 프로필에 만든다.
+  if (!this._zoomOn) return;
   // Phaser 3.80 의 씬 휠 이벤트: (pointer, currentlyOver, dx, dy, dz)
   this._onWheel = function (pointer, over, dx, dy) {
     if (!self._zoomOn || !self.worldLayer) return;
@@ -962,6 +996,83 @@ GAME.BattleScene.prototype._setupZoom = function () {
                  pointer.x, pointer.y);                            // 위로 굴리면 확대
   };
   this.input.on('wheel', this._onWheel);
+};
+
+//  ── 보스 인트로 (2026-08-23 4차 — 태현님: "보스만의 대사와 소리 재생하고
+//  확대했다가 다시 전장 풀화면으로, 긴장감 조성") ─────────────────────────────
+//  보스 층 진입 순간: 시뮬 정지(update 의 _introHold 게이트) + 시네마 바 +
+//  보스 이름·대사 + 포효 + 보스 확대 → 풀화면 복귀. 총 2.6초. 타이머도 같이
+//  멈추므로 손해 보는 시간이 아니다. ⚠ 실시간(rt)은 제외 — 시뮬을 멈추면
+//  상대를 스톨로 끌고 간다(히트스톱과 같은 이유).
+GAME.BattleScene.prototype._setupBossIntro = function () {
+  this._introHold = 0;                 //  씬 인스턴스 재사용 대비 — 반드시 되돌린다
+  if (!this.tower || this.rt || !this._zoomRect) return;
+  var boss = null;
+  for (var i = 0; i < this.state.units.length; i++) {
+    var u = this.state.units[i];
+    if (u.alive && u.def && u.def.isBoss) { boss = u; break; }
+  }
+  if (!boss) return;
+  var self = this;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT, P = GAME.CONFIG.SMALL;
+  var HOLD = 2600;
+  this._introHold = HOLD;
+
+  if (GAME.Sound) GAME.Sound.play('bossRoar');
+
+  //  줌 — 보스의 화면 좌표를 닻으로 확대했다가 돌아온다. worldLayer 밖(HUD·바·
+  //  글자)은 구조적으로 같이 커질 수 없다(휠 줌과 같은 경로).
+  //  닻은 "확대가 끝났을 때 보스 접지점이 화면 62% 높이·가운데에 오는 점"을
+  //  역산한다: setZoom 은 닻 아래 화면 자리를 고정하므로 o = a(1-z), 원하는
+  //  o = T - z·bp 에서 a = (z·bp - T) / (z - 1).
+  var bp = GAME.Iso.toScreen(boss.x, boss.y);
+  var Z1 = 1.55;
+  var tx = W / 2, ty = H * 0.62;
+  var zx = (Z1 * bp.x - tx) / (Z1 - 1);
+  var zy = (Z1 * bp.y - ty) / (Z1 - 1);
+  var prox = { z: 1 };
+  this._introNoMask = true;
+  this.tweens.add({ targets: prox, z: 1.55, duration: 600, ease: 'Cubic.easeOut',
+    onUpdate: function () { if (self.worldLayer && self.worldLayer.scene) self.setZoom(prox.z, zx, zy); } });
+  this.time.delayedCall(HOLD - 700, function () {
+    self.tweens.add({ targets: prox, z: 1, duration: 640, ease: 'Cubic.easeInOut',
+      onUpdate: function () { if (self.worldLayer && self.worldLayer.scene) self.setZoom(prox.z, zx, zy); },
+      onComplete: function () {
+        self._introNoMask = false;
+        if (self.worldLayer && self.worldLayer.scene) self.resetZoom();
+      } });
+  });
+
+  //  시네마 바(위·아래 검은 띠) + 보스 이름·대사.
+  var objs = [];
+  var barH = Math.round(H * 0.11);
+  var top = this.add.rectangle(W / 2, -barH / 2, W, barH, 0x07060a, 0.92).setDepth(4000);
+  var bot = this.add.rectangle(W / 2, H + barH / 2, W, barH, 0x07060a, 0.92).setDepth(4000);
+  this.tweens.add({ targets: top, y: barH / 2, duration: 420, ease: 'Cubic.easeOut' });
+  this.tweens.add({ targets: bot, y: H - barH / 2, duration: 420, ease: 'Cubic.easeOut' });
+  objs.push(top, bot);
+  var line = (GAME.BossBank && GAME.BossBank.LINES && GAME.BossBank.LINES[boss.def.key]) ||
+             boss.def.desc || '';
+  var nm = this.add.text(W / 2, barH / 2, '— ' + boss.def.name + ' —', {
+    fontFamily: GAME.CONFIG.FONT, fontSize: (P ? 22 : 30) + 'px', fontStyle: 'bold',
+    color: '#ffd9a0', stroke: '#1a0f06', strokeThickness: 5
+  }).setOrigin(0.5).setDepth(4001).setAlpha(0);
+  var ln = this.add.text(W / 2, H - barH / 2, '“' + line + '”', {
+    fontFamily: GAME.CONFIG.FONT, fontSize: (P ? 14 : 18) + 'px',
+    color: '#e8dcc8', stroke: '#1a0f06', strokeThickness: 4,
+    wordWrap: { width: W - 60 }, align: 'center'
+  }).setOrigin(0.5).setDepth(4001).setAlpha(0);
+  this.tweens.add({ targets: [nm, ln], alpha: 1, delay: 240, duration: 380 });
+  //  전투 연출 글자 — 겹침 감사 제외 표식(피해 숫자와 같은 규칙)
+  nm.__floating = true; ln.__floating = true;
+  objs.push(nm, ln);
+
+  this.time.delayedCall(HOLD - 260, function () {
+    objs.forEach(function (o) {
+      if (o && o.scene) self.tweens.add({ targets: o, alpha: 0, duration: 240,
+        onComplete: function () { if (o && o.scene) o.destroy(); } });
+    });
+  });
 };
 
 GAME.BattleScene.prototype._overArena = function (sx, sy) {
@@ -993,8 +1104,13 @@ GAME.BattleScene.prototype.setZoom = function (z, ax, ay) {
 
   // 아레나 밖(빈 공간)이 보이지 않게 — 확대된 아레나가 창(R)을 항상 덮어야 한다.
   // z=1 이면 두 경계가 모두 0 이라 오프셋이 정확히 0 으로 돌아온다.
-  ox = Math.min(R.x * (1 - z), Math.max((R.x + R.w) * (1 - z), ox));
-  oy = Math.min(R.y * (1 - z), Math.max((R.y + R.h) * (1 - z), oy));
+  //  ⚠ 보스 인트로는 예외 — 보스가 진형 맨 위라 화면 가운데로 데려오려면 아레나
+  //    위 빈 공간이 보여야 한다(시네마 바가 그 자리를 덮는다). 인트로가 끝나면
+  //    z 가 1 로 돌아와 오프셋도 0 이므로 클램프 부재가 남지 않는다.
+  if (!this._introNoMask) {
+    ox = Math.min(R.x * (1 - z), Math.max((R.x + R.w) * (1 - z), ox));
+    oy = Math.min(R.y * (1 - z), Math.max((R.y + R.h) * (1 - z), oy));
+  }
 
   this._zoom = z;
   o.x = ox; o.y = oy;
@@ -1003,7 +1119,9 @@ GAME.BattleScene.prototype.setZoom = function (z, ax, ay) {
 
   // 마스크는 확대 중에만 건다 — 1.0 에서는 예전과 완전히 같은 렌더 경로여야 한다
   // (전투 종료 검은 막이 화면 전체를 덮는 것도 이 덕분에 그대로다).
-  if (z > 1.0001) {
+  //  ⚠ 보스 인트로 중에는 안 건다 — 보스는 진형 맨 위라 아레나 사각형으로 자르면
+  //    상반신이 잘린다(실측). 넘친 가장자리는 시네마 바가 가린다.
+  if (z > 1.0001 && !this._introNoMask) {
     if (this.worldLayer.mask !== this._zoomMask) this.worldLayer.setMask(this._zoomMask);
   } else if (this.worldLayer.mask) {
     this.worldLayer.clearMask();
@@ -1600,6 +1718,19 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     }
   }
 
+  //  ── 보스 인트로 (2026-08-23 4차 — 태현님: "확대했다가 전장 풀화면으로") ────
+  //  히트스톱과 같은 문법: 시뮬은 멈추고 렌더만 돈다. 그 사이 보스는 기상 연출
+  //  (atk.intro)을 하고 카메라(worldLayer 줌)가 보스를 당겨 보여준다.
+  //  타이머(state.elapsed)도 같이 멈추므로 플레이어가 손해 보는 시간이 아니다.
+  if (this._introHold > 0 && !this.rt) {
+    this._introHold -= delta;
+    this._dt = 0;
+    this.draw();
+    this.drawNumbers();
+    this.updateHud();
+    return;
+  }
+
   // 히트스톱 중에는 시뮬을 진행시키지 않는다 — 화면이 '멎었다가' 터지는 느낌을 만든다
   //  ⚠ 실시간에서는 히트스톱으로 시뮬을 멈추면 안 된다 — 내 쪽만 늦어져
   //    상대까지 스톨로 끌고 간다. 흔들림·플래시는 그대로 두고 멈춤만 끈다.
@@ -1940,7 +2071,9 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
           //  "지켜내면 무수한 보상": 골드 소나기(동전 비 연출 합산) + 보스와 같은
           //  경로의 확정 드랍(줄 게 없으면 골드 갈음 — grantBossDrop 규칙 재사용).
           if (this.towerBonus === 'guard' && this._egg && this._egg.alive) {
-            var guardGold = Math.round(GAME.TowerRun.goldFor(this.tower) * 2 *
+            //  2026-08-23 태현님: "골드를 주려고도 해야 해" — 2배 → **3배**(알깨기
+            //  총액과 같은 급). 드랍(스킬/아이템)과 골드가 **둘 다** 나온다.
+            var guardGold = Math.round(GAME.TowerRun.goldFor(this.tower) * 3 *
                                        GAME.TowerChar.luckGoldMul());
             goldGained += guardGold;
             GAME.TowerChar.addGold(guardGold);

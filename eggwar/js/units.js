@@ -655,10 +655,14 @@ GAME.UNITS.palisade = {
   lore: '뾰족하게 깎은 말뚝을 땅에 박는다. 박고 나면 그도 거기서 움직이지 않는다.',
   desc: '움직이지 않는 가시 울짱. 곁에 서 있는 적을 계속 갉는다. 공격은 하지 않는다.',
   voice: 'wood', voicePitch: 0.94,
-  cost: 30, pop: 3, hp: 260, armor: 30, speed: 0, range: 0, damage: 0, cooldown: 1000,
+  //  2026-08-23 태현님: "하나도 위협적이지 않아" → 오라 15→36 dps · 반경 74→104 ·
+  //  hp 260→380. 원거리 영웅이 아예 안 밟는 자리라 '밟으면 정말 아픈 구역'이어야
+  //  배치 축(공간 조각)이 성립한다. 통곡의 탑 AI 는 이 유닛을 안 쓴다(UNIT_ORDER 하위
+  //  10종은 수성·대전 전용) — 플레이어 배치만 세지는 방향의 버프다.
+  cost: 30, pop: 3, hp: 380, armor: 30, speed: 0, range: 0, damage: 0, cooldown: 1000,
   attack: 'melee', radius: 13, shape: 'square', weapon: 'stakes',
   immobile: true, chase: 0, aggro: 0,
-  auraRadius: 74, auraDps: 15, auraAlways: true
+  auraRadius: 104, auraDps: 36, auraAlways: true
 };
 
 //  껍질장이 — **선불 방어.** 약초꾼은 맞은 **뒤** 채우고, 이쪽은 맞기 **전** 막는다.

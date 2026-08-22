@@ -78,12 +78,43 @@ GAME.BossBank = (function () {
           if (im && im.visible && im._bbStamp !== undefined && fr - im._bbStamp > 1)
             im.setVisible(false);
         }
+        //  리그 부위 이미지도 같은 규칙으로 거둔다(죽은 보스의 날개가 남으면 유령).
+        if (GAME.BossRig) {
+          for (var rk in GAME.BossRig._img) {
+            var rim = GAME.BossRig._img[rk];
+            if (rim && rim.visible && rim._bbStamp !== undefined && fr - rim._bbStamp > 1)
+              rim.setVisible(false);
+          }
+        }
       });
       scene.events.once('shutdown', function () { scene._bossbankSweep = false; });
     },
 
     //  그린다 — 준비돼 있으면 true(호출부는 벡터를 건너뛴다), 아니면 false.
-    draw: function (scene, def, sx, sy, rScaled, alpha, facing, depth) {
+    //  ── 공격 신호 (2026-08-22 생동화) — 시뮬 상태를 **읽기만** 해서 모션 위상을 만든다.
+    //  wind: 예고 중 0→1 (몸을 젖힌다) · strike: 발사 직후 1→0 (내리꽂는 임펄스) ·
+    //  threat: 날갯짓 가속용 합성값. 전부 렌더 전용 — 유닛에 남기는 필드도 렌더 캐시다.
+    _atkOf: function (scene, u) {
+      if (!u) return { wind: 0, strike: 0, threat: 0 };
+      var st = u._bbAtk || (u._bbAtk = { prevAbil: 0, prevCd: 0, strikeAt: -1e9 });
+      var now = scene.time.now;
+      var abilT = u.abilT || 0;
+      //  예고 총 길이 — def 에서 읽는다(복수 스킬이면 붙잡힌 현재 스킬).
+      var ab = u._abilCur || (u.def && u.def.ability) || null;
+      var tel = (ab && ab.telegraph) || 600;
+      var wind = abilT > 0 ? Math.max(0, Math.min(1, 1 - abilT / tel)) : 0;
+      if (st.prevAbil > 0 && abilT <= 0) st.strikeAt = now;          // 스킬 발사 순간
+      if ((u.cd || 0) > st.prevCd + 200) st.strikeAt = now;          // 평타 발사 순간
+      st.prevAbil = abilT;
+      st.prevCd = u.cd || 0;
+      var strike = Math.max(0, 1 - (now - st.strikeAt) / 420);
+      return { wind: wind, strike: strike,
+               threat: Math.min(1, wind * 0.7 + strike) };
+    },
+
+    //  그린다 — 준비돼 있으면 true(호출부는 벡터를 건너뛴다), 아니면 false.
+    //  unit: 렌더 전용 참조(공격 모션 위상) — 없으면(카드·로딩 화면) 숨쉬기만 한다.
+    draw: function (scene, def, sx, sy, rScaled, alpha, facing, depth, unit) {
       var e = this.metaOf(def);
       if (!e) return false;
       var texKey = 'bossbank:' + e.key;
@@ -93,6 +124,27 @@ GAME.BossBank = (function () {
       var base = (GAME.UNITS && GAME.UNITS[e.key] && GAME.UNITS[e.key].radius) || rScaled;
       var k = (rScaled / base) / m.drawScale;
       var w = m.tileW * k, h = m.tileH * k;
+      var px = m.pivotX !== undefined ? m.pivotX / m.tileW : 0.5;
+      var py = m.pivotY !== undefined ? m.pivotY / m.tileH : 1.0;
+      var flip = facing !== undefined && Math.cos(facing) < 0;
+      var a = alpha === undefined ? 1 : alpha;
+      var atk = this._atkOf(scene, unit);
+      this._hookSweep(scene);
+
+      //  화면 위 넘침 보정(렌더 전용) — 리그·단일 공통.
+      var top0 = sy - h * py;
+      var yFix = top0 < 4 ? (4 - top0) : 0;
+
+      //  ── 관절 리깅 보스(태초의 용 등) — 부위 층으로 그린다 ──────────────────
+      if (GAME.BossRig && GAME.BossRig.has(e.key)) {
+        if (GAME.BossRig.draw(scene, e.key, texKey,
+              { sx: sx, sy: sy + yFix, w: w, h: h, px: px, py: py,
+                flip: flip, alpha: a, depth: (depth || 0) }, atk)) {
+          var old2 = this._img[e.key];
+          if (old2) old2.setVisible(false);
+          return true;
+        }
+      }
 
       var img = this._img[e.key];
       if (!img || !img.scene || img.scene !== scene) {
@@ -102,19 +154,27 @@ GAME.BossBank = (function () {
       }
       img.setVisible(true);
       img._bbStamp = scene.game.loop.frame;
-      this._hookSweep(scene);
-      //  접지점: 아래-가운데(피벗 메타가 있으면 그 지점).
-      var px = m.pivotX !== undefined ? m.pivotX / m.tileW : 0.5;
-      var py = m.pivotY !== undefined ? m.pivotY / m.tileH : 1.0;
       img.setOrigin(px, py);
-      img.setDisplaySize(w, h);
-      //  화면 위로 넘치면 아래로 민다(용 본체 클램프와 같은 규칙 — 렌더 보정일 뿐
-      //  판정 좌표는 안 건드린다).
-      var top = sy - h * py;
-      var yFix = top < 4 ? (4 - top) : 0;
-      img.setPosition(sx, sy + yFix);
-      img.setFlipX(facing !== undefined && Math.cos(facing) < 0);
-      img.setAlpha(alpha === undefined ? 1 : alpha);
+
+      //  ── 절차 모션 (2026-08-22 태현님: "판넬이면 안 된다") ────────────────────
+      //  리깅이 없는 보스도 전원 살아 숨쉰다: 호흡(바닥 기준 세로 맥동 + 부피 보존
+      //  가로 역맥동) · 미세 흔들림 · 공격 예고 젖힘 → 발사 런지. 알 3종은 심장처럼
+      //  더 크게 두근거린다(세계관: 안에서 뭔가 산다).
+      var t = scene.time.now / 1000;
+      var seed = (e.key.charCodeAt(4) || 0) * 0.7;       // 보스마다 위상이 다르게
+      var isEgg = /Egg|Crack/.test(e.key);
+      var brA = isEgg ? 0.035 : 0.016;
+      var brS = isEgg ? 2.8 : 1.8;
+      var br = Math.sin(t * brS + seed);
+      var ky = 1 + br * brA + atk.strike * 0.03 - atk.wind * 0.02;
+      var kx = 1 - br * brA * 0.55 + atk.wind * 0.015;
+      img.setDisplaySize(w * kx, h * ky);
+      img.setRotation((Math.sin(t * 0.9 + seed) * 0.010 +
+                       (atk.strike * 0.025 - atk.wind * 0.015)) * (flip ? -1 : 1));
+      var lunge = (atk.strike * 0.05 - atk.wind * 0.022) * w * (flip ? -1 : 1);
+      img.setPosition(sx + lunge, sy + yFix);
+      img.setFlipX(flip);
+      img.setAlpha(a);
       img.setDepth((depth || 0) + 0.5);
       return true;
     },
@@ -126,6 +186,7 @@ GAME.BossBank = (function () {
         if (im && im.destroy) { try { im.destroy(); } catch (err) {} }
       }
       this._img = {};
+      if (GAME.BossRig) GAME.BossRig.reset();
     }
   };
   return B;

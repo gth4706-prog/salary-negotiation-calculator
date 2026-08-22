@@ -3030,7 +3030,9 @@ GAME.BattleScene.prototype.draw = function () {
     var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, 1, drawFacing, walk,
                                undefined, { footRing: false, sizeMul: u.eliteDraw || 1,
                                             act: act, gearTier: u._gearTier, kit: u._kit,
-                                            refine: u._rfStep });
+                                            refine: u._rfStep,
+                                            //  보스 생동화(2026-08-22) — 공격 위상 읽기용 렌더 참조
+                                            unit: u });
 
     //  ── 방어 태세 표시 (2026-08-03) ──────────────────────────────────────────
     //  "때리면 안 되는 시간"을 **글자 없이** 알려야 한다. 두 단계로 보여준다:

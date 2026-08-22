@@ -892,7 +892,7 @@ window.GAME = window.GAME || {};
     }
   }
 
-  BA.draw = function (g, def, sx, sy, r0, alpha, t, facing) {
+  BA.draw = function (g, def, sx, sy, r0, alpha, t, facing, unit) {
     var info = BA.parse(def.art);
     if (!info) return false;
     var T = (GAME.Iso && GAME.Iso.TILT) || 0.72;
@@ -907,7 +907,7 @@ window.GAME = window.GAME || {};
         var bbR = r0 * (BA.SCALE[info.kind] || 1.6);
         g.fillStyle(0x000000, 0.30 * a);
         g.fillEllipse(sx, sy, bbR * 1.6, bbR * 1.6 * T, 14);
-        if (GAME.BossBank.draw(g.scene, def, sx, sy, r0, a, facing, g.depth))
+        if (GAME.BossBank.draw(g.scene, def, sx, sy, r0, a, facing, g.depth, unit))
           return true;
       } else if (GAME.BossBank.metaOf(def)) {
         GAME.BossBank.ensure(g.scene, def);

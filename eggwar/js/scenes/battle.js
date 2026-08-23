@@ -470,7 +470,21 @@ GAME.BattleScene.prototype.create = function () {
       state: this.state,
       mySide: this.rt.meTeam,
       delay: this.rt.delay,
-      send: function (msg) { GAME.NetRoom.relay({ lk: msg }); },
+      send: function (msg) {
+        //  ── 이중 전송 (2026-08-23 실기기 신고: "서버 연결 기다린다는 표시가 계속") ──
+        //  P2P 직결(DC)이 모바일 NAT 재바인딩 등으로 **조용히** 죽으면 readyState 는
+        //  'open' 인 채 패킷만 사라진다 — 폴백 판정이 ICE 실패 이벤트에만 걸려 있어
+        //  상대 입력이 끊긴 채 판이 영구 스톨했다. 그래서 DC 와 WS 에 **같이** 보낸다:
+        //  어느 한쪽만 살아 있으면 판이 돈다. 수신은 일련번호(q)·max 병합·digest
+        //  재비교가 전부 멱등이라 중복이 무해하다. inputsFinal(초당 30개)만 5틱마다
+        //  걸러 WS 로 보낸다(DO 무료 플랜 요청 비용 — 복구 정밀도 165ms 로 충분).
+        var pkt = { lk: msg };
+        var rc9 = GAME.NetRtc;
+        var viaDc = !!(rc9 && rc9.ready && rc9.ready() && rc9.send(pkt));
+        if (!viaDc || msg.type !== 'inputsFinal' || (msg.upto % 5) === 0) {
+          GAME.NetRoom.send({ t: 'relay', data: pkt });
+        }
+      },
       //  팀 라벨(controller/strategist)마다 그 팀의 영웅 — 없으면 null(진형만인 팀).
       heroOf: function (side) { return (rtSelf._rtHeroes && rtSelf._rtHeroes[side]) || null; },
       onDesync: function (t) {
@@ -558,7 +572,21 @@ GAME.BattleScene.prototype.create = function () {
       state: this.state,
       mySide: this.rt.meTeam,
       delay: this.rt.delay,
-      send: function (msg) { GAME.NetRoom.relay({ lk: msg }); },
+      send: function (msg) {
+        //  ── 이중 전송 (2026-08-23 실기기 신고: "서버 연결 기다린다는 표시가 계속") ──
+        //  P2P 직결(DC)이 모바일 NAT 재바인딩 등으로 **조용히** 죽으면 readyState 는
+        //  'open' 인 채 패킷만 사라진다 — 폴백 판정이 ICE 실패 이벤트에만 걸려 있어
+        //  상대 입력이 끊긴 채 판이 영구 스톨했다. 그래서 DC 와 WS 에 **같이** 보낸다:
+        //  어느 한쪽만 살아 있으면 판이 돈다. 수신은 일련번호(q)·max 병합·digest
+        //  재비교가 전부 멱등이라 중복이 무해하다. inputsFinal(초당 30개)만 5틱마다
+        //  걸러 WS 로 보낸다(DO 무료 플랜 요청 비용 — 복구 정밀도 165ms 로 충분).
+        var pkt = { lk: msg };
+        var rc9 = GAME.NetRtc;
+        var viaDc = !!(rc9 && rc9.ready && rc9.ready() && rc9.send(pkt));
+        if (!viaDc || msg.type !== 'inputsFinal' || (msg.upto % 5) === 0) {
+          GAME.NetRoom.send({ t: 'relay', data: pkt });
+        }
+      },
       heroOf: function (side) { return (rtSelf2._rtHeroes && rtSelf2._rtHeroes[side]) || null; },
       onDesync: function () {
         rtSelf2.state.over = true; rtSelf2.state.winner = null;

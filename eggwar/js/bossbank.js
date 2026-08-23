@@ -329,8 +329,22 @@ GAME.BossBank = (function () {
       var now = scene.time.now;
       var dir = flip ? -1 : 1;
       var isEgg = /Egg|Crack/.test(key);
-      //  입(머리 쪽) 위치 근사 — 시트가 전부 오른쪽을 보므로 앞쪽 1/3 지점.
+      //  입 위치 — 턱 리그가 있는 보스는 **턱 관절(경첩) 좌표가 곧 입가**다
+      //  (2026-08-23 태현님: "브레스는 입에서 나오게"). 관절에서 앞으로 6% 밀어
+      //  벌어진 입끝에 맞춘다. 리그 없는 보스만 기존 근사(앞쪽 1/3)로 남는다.
       var mx = sx + dir * w * 0.34, my = syG - h * py + h * 0.34;
+      var mMeta = DATA[key];
+      var mRig = GAME.BossRig && GAME.BossRig.RIGS && GAME.BossRig.RIGS[key];
+      if (mRig && mRig.parts && mMeta && mMeta.tileW) {
+        for (var mj = 0; mj < mRig.parts.length; mj++) {
+          if (!mRig.parts[mj].jaw) continue;
+          var ju = mRig.parts[mj].joint[0] / mMeta.tileW + 0.06;
+          var jv = mRig.parts[mj].joint[1] / mMeta.tileH;
+          mx = sx + dir * w * (ju - 0.5);
+          my = (syG - h * py) + h * jv;
+          break;
+        }
+      }
       if (isEgg) { mx = sx; my = syG - h * py + h * 0.5; }
       var glow = 0xffa243;
       try {

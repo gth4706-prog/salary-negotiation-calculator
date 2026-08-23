@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v2.68';
+GAME.VERSION = 'v2.69';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -12,6 +12,30 @@ window.addEventListener('load', function () {
       'Phaser를 불러오지 못했습니다. 인터넷 연결을 확인하세요.</p>';
     return;
   }
+
+  //  ── 부팅 자가 점검 (2026-08-23) — 배포 창의 404 화석에 대한 자기 복구 ────────
+  //  배포 직후 몇 초 동안은 새 파일 URL 이 404 를 낼 수 있고, 그 404 가 브라우저·
+  //  CDN 에 캐시되면 그 기기만 스크립트 하나가 빠진 채 부팅된다(전 화면이 절름발이 —
+  //  "실시간대전이랑 랭킹 작동안해"가 실제로 이렇게 보였다). 필수 모듈이 빠졌으면
+  //  **딱 한 번** 캐시 우회 주소로 다시 연다. 그래도 안 되면 안내를 띄운다.
+  var coreMissing = ['Combat', 'BossBank', 'BossRig', 'BattleReport', 'Music', 'NetRoom',
+                     'Tower', 'Api'].filter(function (k) { return !GAME[k]; });
+  if (coreMissing.length) {
+    var retried = false;
+    try { retried = sessionStorage.getItem('eggwar.bootRetry') === '1'; } catch (e) {}
+    if (!retried) {
+      try { sessionStorage.setItem('eggwar.bootRetry', '1'); } catch (e) {}
+      location.replace(location.pathname + '?cb=' + Date.now() +
+        (GAME.isAdmin ? '&admin=1' : ''));
+      return;
+    }
+    document.getElementById('game').innerHTML =
+      '<p style="color:#f0a86a;font-family:sans-serif;padding:2rem">' +
+      '게임 파일 일부를 받지 못했습니다(' + coreMissing.join(', ') + ').<br>' +
+      '잠시 후 앱을 완전히 종료했다가 다시 열어 주세요.</p>';
+    return;
+  }
+  try { sessionStorage.removeItem('eggwar.bootRetry'); } catch (e) {}
 
   var badge = document.getElementById('ver');
   if (badge) badge.textContent = GAME.VERSION;

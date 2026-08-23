@@ -70,6 +70,15 @@ GAME.RtPrepScene.prototype.create = function () {
   } else {
     //  컨트롤러 — 대전 준비창(예산 500)이 이미 영웅·아이템·스킬 전부를 판다.
     //  복제하지 않고 그 화면을 다녀온다(backTo 로 여기로 돌아온다).
+    //  ⚠⚠ 역할·배치 잔재를 먼저 정리한다 (2026-08-23 태현님 실사고: "예산이 2원").
+    //    ArenaBuild 레코드의 role 이 지난 공성 세션의 'strategist' 로 남아 있으면
+    //    spent() 가 전략가 갈래(유닛레벨 + _placedCost)로 계산되는데, _placedCost 는
+    //    Build 화면이 마지막으로 알려준 배치 총액 **화석**이라 벗어도 안 줄어드는
+    //    "2원 고정" 예산이 된다. 여기는 컨트롤러 준비다 — 명시하고 시작한다.
+    if (GAME.ArenaBuild) {
+      GAME.ArenaBuild.setRole('controller');
+      GAME.ArenaBuild.setPlacedCost(0);
+    }
     var rec = GAME.ArenaBuild ? GAME.ArenaBuild.get() : {};
     var hero = GAME.HEROES[rec.heroKey || 'vanguard'];
     this._loadoutTxt = UI.text(this, W / 2, top + 8, '', {

@@ -38,7 +38,7 @@ GAME.Combat = {
       //  전투 보고(2026-08-23 태현님: "라운드 끝날 때 전투 결과를 요약해줬으면") —
       //  영웅이 입힌/받은(유형별)/흡혈 회복. 렌더·판정 무관 부기라 록스텝 안전
       //  (digest 는 x/y/hp/alive/cd 만 먹는다).
-      report: { dealt: 0, taken: {}, lsHeal: 0, t0: 0, t1: 0,
+      report: { dealt: 0, taken: {}, takenBoss: {}, lsHeal: 0, t0: 0, t1: 0,
                 basicCrit: 0, basicNorm: 0, skills: {}, etc: 0 },
       //  잉걸불 구역(불씨꾼) — 땅에 남아 시간이 지나며 사라진다.
       //  ⚠ 갱신은 **여기(Combat.update)** 에서 돈다. 치유 구역은 battle.js 가 갱신해서
@@ -746,7 +746,13 @@ GAME.Combat = {
         //  (태현님: "방패병에게 2천 입었다 이런 식이면 돼").
         var bk = source.def.key || source.type || '적';
         if (GAME.UnitLevel && GAME.UnitLevel.baseKeyOf) bk = GAME.UnitLevel.baseKeyOf(bk);
-        state.report.taken[bk] = (state.report.taken[bk] || 0) + eff;
+        //  보스는 따로 센다 (2026-08-23 태현님: "보스몹에게 맞은 데미지도 따로") —
+        //  요약 화면이 ☠ 줄로 맨 위에 띄운다.
+        if (source.def.isBoss) {
+          state.report.takenBoss[bk] = (state.report.takenBoss[bk] || 0) + eff;
+        } else {
+          state.report.taken[bk] = (state.report.taken[bk] || 0) + eff;
+        }
       }
     }
 
@@ -1895,6 +1901,38 @@ GAME.Combat = {
     return { x: u.home.x + (dx / d) * out, y: u.home.y + (dy / d) * out };
   },
 
+  // ── 보스 몸 뒤 숨기 금지 (2026-08-23 태현님) ─────────────────────────────
+  //  "보스몹에 가려진 유닛들이 모자만 둥둥 떠다녀. 특히 용의 알 뒤에 숨어서
+  //   때리는 경우가 있다 — 겹치는 공간에 적 유닛은 못 서 있게."
+  //  보스의 그림은 판정 반지름(def.radius)의 몇 배라, 호위가 판정상 안 겹쳐도
+  //  그림에는 통째로 가려진다. **같은 편 유닛만** 그림 반경 밖으로 밀어낸다 —
+  //  ⚠ 반대편까지 밀면 알지키기/알깨기의 근접 공격이 알에 영영 못 닿는다
+  //    (근접 사거리 < 그림 반경). 신고된 것도 보스와 한편인 호위의 숨기다.
+  //  ⚠ 영웅·고정물·지뢰는 제외. 반경은 radius 배수로 유도한다 — 별도 거리 스탯을
+  //    만들면 scaleDef 의 DIST_KEYS 에 또 넣어야 한다(radius 는 이미 환산돼 있다).
+  BOSS_STAND_MUL: 2.6,
+  bossStandClear: function (state) {
+    var us = state.units, i, j;
+    for (i = 0; i < us.length; i++) {
+      var b = us[i];
+      if (!b.alive || !b.def.isBoss) continue;
+      var R = b.def.radius * this.BOSS_STAND_MUL;
+      for (j = 0; j < us.length; j++) {
+        var u = us[j];
+        if (i === j || !u.alive || u.side !== b.side || u.isHero) continue;
+        if (u.def.isBoss || u.def.immobile || this.isHazard(u)) continue;
+        var dx = u.x - b.x, dy = u.y - b.y;
+        var d = Math.sqrt(dx * dx + dy * dy);
+        var need = R + u.def.radius * 0.5;
+        if (d >= need) continue;
+        if (d < 0.001) { dx = 0; dy = 1; d = 1; }   // 정확히 겹쳤으면 아래쪽으로
+        u.x = b.x + (dx / d) * need;
+        u.y = b.y + (dy / d) * need;
+        this.clampToArena(u);
+      }
+    }
+  },
+
   // ── 원거리 간격 유지 ────────────────────────────────────────────────────
   // 근접은 뭉쳐도 된다(벽이 되는 게 일이다). 원거리는 뭉치면 **광역 한 방에 몰살**한다.
   // 같은 진영 원거리끼리 def.spacing 보다 가까우면 서로 밀어내되,
@@ -2990,6 +3028,7 @@ GAME.Combat = {
     // 원거리 간격 유지 → 겹침 해소 순서다. 겹침(separate)이 마지막이라야
     // 간격 밀어내기가 유닛을 서로 겹쳐놓은 채 프레임을 끝내지 않는다.
     this.spaceRanged(state, dt);
+    this.bossStandClear(state);
     this.separate(state);
 
     for (i = 0; i < state.units.length; i++) {

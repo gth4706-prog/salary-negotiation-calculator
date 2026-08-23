@@ -146,24 +146,34 @@ GAME.BattleReport = {
           }
         }
       } else if (cur === 'taken') {
+        //  보스 피해는 따로, 맨 위에 ☠ 로 (2026-08-23 태현님: "보스몹에게 맞은
+        //  데미지도 따로 보여줘야 해"). 일반 유형은 그 아래 피해 순.
+        var bossRows = [];
+        var tb = rep.takenBoss || {};
+        for (var bk2 in tb) bossRows.push({ k: bk2, v: tb[bk2], boss: true });
+        bossRows.sort(function (a, b) { return b.v - a.v; });
         var rows = [];
         for (var k in rep.taken) rows.push({ k: k, v: rep.taken[k] });
         rows.sort(function (a, b) { return b.v - a.v; });
-        var maxV = rows.length ? rows[0].v : 0;
+        var maxV = 0;
+        bossRows.concat(rows).forEach(function (r0) { maxV = Math.max(maxV, r0.v); });
         var maxRows = P ? 6 : 8;
-        if (!rows.length) {
+        if (!rows.length && !bossRows.length) {
           add(UI.text(scene, W / 2, y + 10, '받은 피해가 없습니다 — 완벽한 회피!',
             { size: P ? 14 : 'body', color: C.textDim, origin: 0.5 }).setDepth(D + 2));
         }
-        for (var r = 0; r < rows.length && r < maxRows; r++) {
-          gaugeRow(y + r * rowGap, nameOf(rows[r].k), rows[r].v, maxV,
-            GAME.UI.cssToHex(C.danger, 0xef4444));
+        var all = bossRows.concat(rows);
+        for (var r = 0; r < all.length && r < maxRows; r++) {
+          var row = all[r];
+          gaugeRow(y + r * rowGap,
+            (row.boss ? '☠ ' : '') + nameOf(row.k), row.v, maxV,
+            row.boss ? 0xb01f35 : GAME.UI.cssToHex(C.danger, 0xef4444));
         }
         //  넘친 유형은 한 줄로 합쳐 정직하게 남긴다.
-        if (rows.length > maxRows) {
+        if (all.length > maxRows) {
           var rest = 0;
-          for (var r2 = maxRows; r2 < rows.length; r2++) rest += rows[r2].v;
-          gaugeRow(y + maxRows * rowGap, '그 외 ' + (rows.length - maxRows) + '종', rest, maxV,
+          for (var r2 = maxRows; r2 < all.length; r2++) rest += all[r2].v;
+          gaugeRow(y + maxRows * rowGap, '그 외 ' + (all.length - maxRows) + '종', rest, maxV,
             GAME.UI.cssToHex(C.textFaint, 0x9a9cb6));
         }
       } else {

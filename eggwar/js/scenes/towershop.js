@@ -192,7 +192,10 @@ GAME.TowerShopScene.prototype.create = function () {
     var bw = GAME.CONFIG.SMALL ? 130 : 180;
     var bh = GAME.CONFIG.SMALL ? 32 : 40;
     this._bottomPad = bh + (GAME.CONFIG.SMALL ? 8 : 12);
-    GAME.UI.button(this, W - PAD - bw / 2, H - PAD - bh / 2 + 6, bw, bh, '⚔ 출전',
+    GAME.UI.button(this, W - PAD - bw / 2, H - PAD - bh / 2 + 6, bw, bh,
+      //  실시간 준비에서 온 경우 이 버튼은 출전이 아니라 '구성 끝'이다 — 문구가
+      //  거짓말을 하면 안 된다(2026-08-23 실사고: 출전인 줄 알고 눌렀다 화면 사망).
+      this._backTo === 'RtPrep' ? '✓ 구성 완료' : '⚔ 출전',
       function () { self._arenaSortie(); },
       { fill: GAME.UI.COL.panelTeal, line: C.controller, hover: GAME.UI.COL.panelTealHi,
         color: C.accent, fontSize: GAME.CONFIG.SMALL ? 14 : 17 });
@@ -206,6 +209,12 @@ GAME.TowerShopScene.prototype.create = function () {
 //   해석하는데 우리 키(w5·c8 …)는 그 표에 없다. 탑이 이미 쓰는 방식 그대로,
 //   보정은 `js/scenes/battle.js` 의 versus 블록이 `ArenaBuild.itemBonus` 로 직접 얹는다.
 GAME.TowerShopScene.prototype._arenaSortie = function () {
+  //  ⚠⚠ 실시간 준비(RtPrep)에서 온 경우 — 여기서 Battle 을 직접 시작하면 안 된다
+  //  (2026-08-23 태현님 실사고: "출전을 누르면 화면이 멈춰서 아무것도 안 움직여").
+  //  rt 데이터도 formationId 도 없는 반쪽 전투가 떠서 그 화면이 통째로 죽고,
+  //  준비 완료 신호도 못 보낸 채 상대만 관전 화면으로 넘어간다. 구성만 마치고
+  //  준비 화면으로 돌아간다 — 준비 완료·전투 전환은 RtPrep/RtFlow 의 몫이다.
+  if (this._backTo === 'RtPrep') { this.scene.start('RtPrep'); return; }
   var rec = GAME.ArenaBuild.get();
   var Z = GAME.CONFIG.ZONE_CONTROLLER;
   this.scene.start('Battle', {

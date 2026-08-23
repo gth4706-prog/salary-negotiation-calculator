@@ -1201,13 +1201,18 @@ GAME.Combat = {
     //  ⚠ 탑 전용 게이트: 실시간 대전·수성에는 towerPredict 가 없어 예전 그대로다.
     if (state && state.towerPredict && u.side === 'strategist' &&
         def.attack === 'projectile' && !GAME.isAutoHit(def) &&
-        target && target.alive && target._px !== undefined) {
-      var pvx = target.x - target._px, pvy = target.y - target._py;
+        target && target.alive && target._svx !== undefined) {
+      //  ⚠ 한 프레임 델타를 쓰면 안 된다(2026-08-23 실사고): 방향은 씰룩임이 잡고
+      //    크기는 최고 속도를 쓰니, 제자리 표적에도 풀 리드가 나가 "엉뚱한 데 발사"가
+      //    됐다. 평활 속도의 **방향과 크기를 그대로** 쓰고, 실속이 최고 속도의 35%
+      //    미만이면(사실상 정지·미세 조정) 리드하지 않는다.
+      var pvx = target._svx, pvy = target._svy;
       var pvl = Math.sqrt(pvx * pvx + pvy * pvy);
-      if (pvl > 0.01) {
+      var pmax = this.effSpeed(target);
+      if (pvl > pmax * 0.35) {
         var pd = this.dist(u, target);
         var pfly = pd / Math.max(60, def.projectileSpeed || 300);   // 비행 초
-        var psp = this.effSpeed(target);
+        var psp = Math.min(pvl, pmax);
         tx = target.x + (pvx / pvl) * psp * pfly * state.towerPredict;
         ty = target.y + (pvy / pvl) * psp * pfly * state.towerPredict;
         var PAR = GAME.CONFIG.ARENA;
@@ -1375,6 +1380,20 @@ GAME.Combat = {
     }
     if (!sk) return false;
     var ang = (typeof u.facing === 'number') ? u.facing : 0;
+    //  뛰기(dash)는 조준이 아니라 **가던 방향**이다 (2026-08-23 태현님).
+    //  공격이 facing 을 적 쪽으로 돌려놓아, 적을 때리며 이동하다 뛰면 적에게
+    //  뛰어드는 사고가 났다. 이동 명령 방향 > 실제 이동 흐름 > facing 순으로 잡는다.
+    if (sk.type === 'dash') {
+      var mvx = 0, mvy = 0;
+      if (u.order && u.order.x !== undefined &&
+          (u.order.type === 'move' || u.order.type === 'attackmove')) {
+        mvx = u.order.x - u.x; mvy = u.order.y - u.y;
+      }
+      if (mvx * mvx + mvy * mvy < 4 && u._svx !== undefined) {
+        mvx = u._svx; mvy = u._svy;
+      }
+      if (mvx * mvx + mvy * mvy > 100) ang = GAME.DetMath.atan2(mvy, mvx);
+    }
     var reach = this.skillReach(sk) || 120;
     return this.castSkill(u, slot, u.x + GAME.DetMath.cos(ang) * reach, u.y + GAME.DetMath.sin(ang) * reach, state);
   },
@@ -2295,11 +2314,12 @@ GAME.Combat = {
     //    (WORLD_SCALE 0.636)에서만 리드가 0.64배로 조용히 약해진다.
     u.abilX = tgt.x; u.abilY = tgt.y;          // 기본 = 예고 시점의 자리(예전과 동일)
     var lead = ab.aimLead || 0;
-    if (lead > 0 && tgt._px !== undefined) {
-      var vx = tgt.x - tgt._px, vy = tgt.y - tgt._py;
+    if (lead > 0 && tgt._svx !== undefined) {
+      //  평타 예측과 같은 신호(평활 속도) — 한 프레임 씰룩임이 예고를 흔들지 않게.
+      var vx = tgt._svx, vy = tgt._svy;
       var vlen = Math.sqrt(vx * vx + vy * vy);
-      if (vlen > 0.01) {                        // 멈춰 있으면 리드하지 않는다
-        var sp = this.effSpeed(tgt);            // 프레임 이동량이 아니라 초당 속도를 쓴다
+      if (vlen > this.effSpeed(tgt) * 0.35) {   // 사실상 정지면 리드하지 않는다
+        var sp = Math.min(vlen, this.effSpeed(tgt));
         var lt = (ab.telegraph || 0) / 1000;
         u.abilX = tgt.x + (vx / vlen) * sp * lt * lead;
         u.abilY = tgt.y + (vy / vlen) * sp * lt * lead;
@@ -3064,6 +3084,16 @@ GAME.Combat = {
     // 달라져 조용히 어긋난다.
     for (i = 0; i < state.units.length; i++) {
       var pu = state.units[i];
+      //  평활 속도(px/s) — 예측 사격·예고 리드가 읽는다 (2026-08-23 태현님:
+      //  "엉뚱한 데 발사" 수리). 한 프레임 델타는 씰룩임·넉백까지 방향으로 잡아
+      //  풀 리드를 태우는 오조준이 났다 — 지수평활로 흐름만 남긴다.
+      if (pu._px !== undefined && dt > 0) {
+        //  ⚠ 이 스코프의 dt 는 이미 **초**다(update 첫 줄 dtMs/1000) — ×1000 하면
+        //    속도가 천 배로 뻥튀기된다(실측 -66,276px/s. 배포 전에 잡았다).
+        var _fvx = (pu.x - pu._px) / dt, _fvy = (pu.y - pu._py) / dt;
+        pu._svx = (pu._svx || 0) * 0.85 + _fvx * 0.15;
+        pu._svy = (pu._svy || 0) * 0.85 + _fvy * 0.15;
+      }
       pu._px = pu.x; pu._py = pu.y;
     }
 

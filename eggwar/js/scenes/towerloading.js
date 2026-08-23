@@ -358,48 +358,59 @@ GAME.TowerLoadingScene.prototype.create = function () {
       lines.push('🏹 보너스 판 — 화살비를 피하라! 45초 버티기 · 바닥 금화 줍기 · 층은 오르지 않는 덤 판');
     }
   } else {
-    if (bossDef) lines.push('☠ ' + bossDef.name + ' — ' + bossDef.desc);
-    // 테마 층이면 그 사실이 가장 먼저 읽혀야 한다 — 판의 성격이 통째로 다르다.
-    if (formation && formation.themeLabel) {
-      lines.push('🎪 ' + formation.themeLabel + ' — ' + (formation.themeHint || ''));
-    }
-    // 층 조건은 답을 바꾸는 규칙이라 적 설명보다 먼저 온다.
-    if (formation && formation.ruleLabel) lines.push('⚠ ' + formation.ruleLabel + ' — ' + formation.ruleDesc);
+    //  ── B안 로테이션 (2026-08-23 태현님: "텍스트 너무 많아 — B로 해") ──────────
+    //  구성 = 층 정보(목표 포함 최대 2줄 — 보스 > 조건 > 테마 순) + 팁 1줄.
+    //  팁은 층 번호로 [적 스킬 → 내 스킬 → 배치 → AI 학습]을 돌아가며 **한 종류만** —
+    //  정보량은 유지하되 한 화면에는 한 종류만 온다. 못 만드는 종류면 다음으로 순환.
+    var infoCand = [];
+    if (bossDef) infoCand.push('☠ ' + bossDef.name + ' — ' + bossDef.desc);
+    if (formation && formation.ruleLabel) infoCand.push('⚠ ' + formation.ruleLabel + ' — ' + formation.ruleDesc);
+    if (formation && formation.themeLabel) infoCand.push('🎪 ' + formation.themeLabel + ' — ' + (formation.themeHint || ''));
+    for (var ic = 0; ic < infoCand.length && lines.length < 2; ic++) lines.push(infoCand[ic]);
 
-    //  ── 공략 (2026-08-22 태현님 개편) ────────────────────────────────────────
-    //  > "로딩화면은 적 유닛의 스킬설명 위주로 해줘. 배치와 AI 학습 내용도 꼭
-    //  >  들어가되 1~2줄만 하고 적에 대한 설명과 팁이 더 중요해."
-    //  구성: 🗡 적 스킬 설명(최대 2) + ▸ 내 스킬 팁(1) 이 먼저,
-    //        ◈ 배치 원형 · AI 학습(readNote)은 **맨 뒤 1~2줄**.
-    var adv = GAME.towerAdvice ? GAME.towerAdvice(formation, self.heroKey) : [];
-    if (adv.length) {
-      adv.forEach(function (s) { lines.push(s); });
-    } else if (formation && formation.units && formation.units.length) {
-      //  공략을 못 만든 층(표에 없는 유닛만 나오는 경우)에서는 예전 팁으로 돌아간다 —
-      //  줄이 통째로 비면 화면이 허전해지고, 읽을 것이 없으면 3초가 더 길게 느껴진다.
-      //  ⚠ 여기도 **원본 키로 되돌려야** 한다(위 `towerAdvice` 주석 참조).
-      //    예전에는 파생 키(`shieldman#6+charge`)를 그대로 찾아서 탑에서는 이 팁이
-      //    한 번도 안 떴다 — 배치 화면(파생 없음)에서만 우연히 맞았다.
-      var kinds = [];
-      formation.units.forEach(function (u) {
-        var k = (GAME.UnitLevel && GAME.UnitLevel.baseKeyOf)
-                ? GAME.UnitLevel.baseKeyOf(u.type) : u.type;
-        if (kinds.indexOf(k) < 0 && GAME.TOWER_UNIT_TIPS[k]) kinds.push(k);
-      });
-      if (kinds.length) {
-        var pick = kinds[Math.floor(Math.random() * kinds.length)];
-        var tips = GAME.TOWER_UNIT_TIPS[pick];
-        lines.push('💡 ' + tips[Math.floor(Math.random() * tips.length)]);
-      }
+    var base2 = function (t) {
+      return (GAME.UnitLevel && GAME.UnitLevel.baseKeyOf) ? GAME.UnitLevel.baseKeyOf(t) : t;
+    };
+    var present2 = {};
+    if (formation && formation.units) {
+      formation.units.forEach(function (u) { present2[base2(u.type)] = 1; });
     }
-
-    //  ── 배치 + AI 학습 — 맨 뒤 1~2줄 (2026-08-22 태현님: "꼭 들어가되 1~2줄만") ──
-    if (formation && formation.planLabel) lines.push('◈ ' + formation.planLabel + ' — ' + formation.planHint);
-    if (formation && formation.readNote) lines.push(formation.readNote);
-    //  줄이 넘치면 **뒤에서부터** 자른다 — 뒤가 배치·학습이라 태현님이 정한
-    //  중요도(적 설명 > 배치·학습) 그대로 잘린다. 7줄이 폰 가로 그림 띠의 하한이다.
-    //  2026-08-23 태현님: "글자 너무 과다" — 상한 7 → 4줄.
-    if (lines.length > 4) lines.length = 4;
+    var tipOf = {
+      enemy: function () {
+        var order = GAME.TOWER_SKILL_PRIORITY || [];
+        for (var i2 = 0; i2 < order.length; i2++) {
+          if (present2[order[i2]] && GAME.TOWER_SKILL_DESC[order[i2]]) {
+            return '🗡 ' + GAME.TOWER_SKILL_DESC[order[i2]];
+          }
+        }
+        return null;
+      },
+      mine: function () {
+        var hero2 = GAME.HEROES && GAME.HEROES[self.heroKey];
+        var rec2 = (GAME.TowerChar && GAME.TowerChar.exists && GAME.TowerChar.exists())
+                   ? GAME.TowerChar.get() : null;
+        if (!hero2 || !hero2.skillOptions || !rec2 || !rec2.picks) return null;
+        var mine2 = [];
+        (GAME.SKILL_SLOTS || []).forEach(function (slot) {
+          var opts2 = hero2.skillOptions[slot] || [];
+          var sk3 = opts2[rec2.picks[slot] || 0];
+          if (sk3 && GAME.TOWER_SKILL_PLAN[sk3.type]) mine2.push(sk3);
+        });
+        if (!mine2.length) return null;
+        var sk4 = mine2[Math.floor(Math.random() * mine2.length)];
+        return '▸ ' + GAME.UI.fillName(GAME.TOWER_SKILL_PLAN[sk4.type], sk4.name);
+      },
+      plan: function () {
+        return (formation && formation.planLabel)
+          ? '◈ ' + formation.planLabel + ' — ' + formation.planHint : null;
+      },
+      learn: function () { return (formation && formation.readNote) || null; }
+    };
+    var ROT = ['enemy', 'mine', 'plan', 'learn'];
+    for (var rIdx = 0; rIdx < ROT.length; rIdx++) {
+      var tip = tipOf[ROT[((this.tower || 0) + rIdx) % ROT.length]]();
+      if (tip) { lines.push(tip); break; }
+    }
   }
   lines = lines.filter(function (s) { return s; });
 

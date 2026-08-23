@@ -279,7 +279,7 @@ GAME.BOSS_UNITS = {
     key: 'bossAshSentry', name: '재 파수병', art: 'beast:sentry:ash', isBoss: true,
     lore: '탑 위에서 내려온 재를 뒤집어쓴 채 굳어 버린 파수병. 뿔이 돋기 시작했다.',
     desc: '재를 뒤집어쓴 파수병. 재가 쌓인 자리를 넓게 짓밟는다.',
-    cost: 0, hp: 2310, armor: 30, speed: 92, range: 104, damage: 70, cooldown: 1250,
+    cost: 0, hp: 2310, armor: 30, speed: 92, range: 104, damage: 35, cooldown: 1250,
     guard: { every: 12500, warn: 900, ms: 3800, cut: 0.15, reflect: 0.50 },
     attack: 'melee', coneDeg: 120,
     radius: 29, shape: 'star', weapon: 'riotShield',
@@ -289,10 +289,10 @@ GAME.BOSS_UNITS = {
     abilities: [
       { type: 'charge', cooldown: 6000, telegraph: 560,
         minRange: 150, maxRange: 500, dist: 500,
-        damage: 280, radius: 70, knockback: 58 },
+        damage: 140, radius: 70, knockback: 58 },
       { type: 'barrage', cooldown: 14000, telegraph: 700,
         minRange: 0, maxRange: 4000,
-        damage: 430, radius: 330, repeat: 1, fuse: 2600,
+        damage: 215, radius: 330, repeat: 1, fuse: 2600,
         slowMul: 0.5, slowMs: 2000 }
     ]
   },
@@ -301,7 +301,7 @@ GAME.BOSS_UNITS = {
     key: 'bossDrakeAsh', name: '잿날개', art: 'beast:drake:ash', isBoss: true,
     lore: '용이 거느린 것 중 가장 작은 것. 그런데도 부족 하나를 하룻밤에 지웠다.',
     desc: '용의 부하. 낮게 날아와 덮치고, 재를 흩뿌린다.',
-    cost: 0, hp: 2310, armor: 30, speed: 118, range: 112, damage: 65, cooldown: 1150,
+    cost: 0, hp: 2310, armor: 30, speed: 118, range: 112, damage: 32, cooldown: 1150,
     guard: { every: 12000, warn:  900, ms: 4000, cut: 0.15, reflect: 0.50 },
     attack: 'melee', coneDeg: 110,
     radius: 30, shape: 'star', weapon: 'rifle',
@@ -311,10 +311,10 @@ GAME.BOSS_UNITS = {
     abilities: [
       { type: 'charge', cooldown: 5000, telegraph: 480,
         minRange: 170, maxRange: 640, dist: 640,
-        damage: 269, radius: 78, knockback: 70 },
+        damage: 134, radius: 78, knockback: 70 },
       { type: 'barrage', cooldown: 14000, telegraph: 700,
         minRange: 0, maxRange: 4000,
-        damage: 300, radius: 125, repeat: 5, interval: 260, spread: 400, fuse: 1700 }
+        damage: 150, radius: 125, repeat: 5, interval: 260, spread: 400, fuse: 1700 }
     ]
   },
 
@@ -322,7 +322,7 @@ GAME.BOSS_UNITS = {
     key: 'bossDrakeFrost', name: '서리 권속', art: 'beast:drake:frost', isBoss: true,
     lore: '숨을 뱉으면 골짜기가 하얗게 언다. 얼어붙은 것은 다시 움직이지 못한다.',
     desc: '서리를 뿌리는 권속. 넓은 자리를 얼려 발을 묶는다.',
-    cost: 0, hp: 2240, armor: 34, speed: 104, range: 120, damage: 70, cooldown: 1250,
+    cost: 0, hp: 2240, armor: 34, speed: 104, range: 120, damage: 35, cooldown: 1250,
     guard: { every: 11800, warn:  900, ms: 4100, cut: 0.15, reflect: 0.52 },
     attack: 'melee', coneDeg: 120,
     radius: 30, shape: 'star', weapon: 'riotShield',
@@ -336,11 +336,11 @@ GAME.BOSS_UNITS = {
     abilities: [
       { type: 'barrage', cooldown: 6200, telegraph: 700,
         minRange: 0, maxRange: 4000,
-        damage: 219, radius: 130, repeat: 3, interval: 400, spread: 250,
+        damage: 110, radius: 130, repeat: 3, interval: 400, spread: 250,
         slowMul: 0.45, slowMs: 2200 },
       { type: 'barrage', cooldown: 15000, telegraph: 800,
         minRange: 0, maxRange: 4000,
-        damage: 360, radius: 300, repeat: 1, fuse: 2500,
+        damage: 180, radius: 300, repeat: 1, fuse: 2500,
         slowMul: 0.40, slowMs: 2600 }
     ]
   },
@@ -349,7 +349,7 @@ GAME.BOSS_UNITS = {
     key: 'bossDrakeStorm', name: '폭풍 권속', art: 'beast:drake:storm', isBoss: true,
     lore: '날개 한 번에 하늘이 갈린다. 용이 오기 전에 길을 여는 것이 이것의 일이다.',
     desc: '폭풍을 몰고 오는 권속. 하늘에서 연달아 내리꽂는다.',
-    cost: 0, hp: 2240, armor: 34, speed: 126, range: 116, damage: 62, cooldown: 1100,
+    cost: 0, hp: 2240, armor: 34, speed: 126, range: 116, damage: 31, cooldown: 1100,
     guard: { every: 11500, warn:  850, ms: 4200, cut: 0.14, reflect: 0.55 },
     attack: 'melee', coneDeg: 115,
     radius: 31, shape: 'star', weapon: 'rifle',
@@ -361,11 +361,11 @@ GAME.BOSS_UNITS = {
     abilities: [
       { type: 'barrage', cooldown: 5400, telegraph: 560,
         minRange: 0, maxRange: 4000,
-        damage: 205, radius: 118, repeat: 4, interval: 320, spread: 300,
+        damage: 102, radius: 118, repeat: 4, interval: 320, spread: 300,
         knockback: 46 },
       { type: 'barrage', cooldown: 14000, telegraph: 640,
         minRange: 0, maxRange: 4000,
-        damage: 240, radius: 88, repeat: 9, interval: 130, spread: 470, fuse: 1250,
+        damage: 120, radius: 88, repeat: 9, interval: 130, spread: 470, fuse: 1250,
         knockback: 62, rootMs: 350 }
     ]
   },
@@ -391,7 +391,7 @@ GAME.BOSS_UNITS = {
     key: 'bossDragonFoot', name: '용의 발', art: 'beast:foot:ember', isBoss: true,
     lore: '깨진 껍질을 딛고 발 하나가 먼저 나왔다. 발톱 하나가 계란 부족의 키만 하다.',
     desc: '용의 발. 밟히면 진형 한 줄이 사라진다.',
-    cost: 0, hp: 2060, armor: 46, speed: 0, range: 200, damage: 84, cooldown: 1500,
+    cost: 0, hp: 2060, armor: 46, speed: 0, range: 200, damage: 42, cooldown: 1500,
     guard: { every: 11500, warn: 850, ms: 4400, cut: 0.12, reflect: 0.60 },
     attack: 'melee', coneDeg: 160,
     radius: 32, shape: 'bunker', weapon: 'riotShield',
@@ -402,11 +402,11 @@ GAME.BOSS_UNITS = {
     abilities: [
       { type: 'barrage', cooldown: 5600, telegraph: 800,
         minRange: 0, maxRange: 4000,
-        damage: 247, radius: 165, repeat: 4, interval: 360, spread: 340,
+        damage: 124, radius: 165, repeat: 4, interval: 360, spread: 340,
         knockback: 54 },
       { type: 'barrage', cooldown: 15000, telegraph: 800,
         minRange: 0, maxRange: 4000,
-        damage: 420, radius: 345, repeat: 1, fuse: 2700, knockback: 110 }
+        damage: 210, radius: 345, repeat: 1, fuse: 2700, knockback: 110 }
     ]
   },
 
@@ -414,7 +414,7 @@ GAME.BOSS_UNITS = {
     key: 'bossDragonClaw', name: '용의 손', art: 'beast:claw:ember', isBoss: true,
     lore: '이번엔 손이다. 무엇을 쥐려고 껍질을 밀어내는지는 아무도 모른다.',
     desc: '용의 손. 다섯 손가락이 전장을 통째로 움켜쥔다.',
-    cost: 0, hp: 2000, armor: 50, speed: 0, range: 210, damage: 82, cooldown: 1450,
+    cost: 0, hp: 2000, armor: 50, speed: 0, range: 210, damage: 41, cooldown: 1450,
     guard: { every: 11000, warn: 800, ms: 4600, cut: 0.12, reflect: 0.65 },
     attack: 'melee', coneDeg: 170,
     radius: 34, shape: 'bunker', weapon: 'riotShield',
@@ -427,10 +427,10 @@ GAME.BOSS_UNITS = {
     //  궁극 「움켜쥐기」 — desc 그대로, 다섯 손가락이 다섯 자리를 동시에 찍는다.
     abilities: [
       { type: 'shockwave', cooldown: 5400, telegraph: 900,
-        damage: 295, radius: 270 },
+        damage: 148, radius: 270 },
       { type: 'barrage', cooldown: 15000, telegraph: 800,
         minRange: 0, maxRange: 4000,
-        damage: 360, radius: 135, repeat: 5, interval: 210, spread: 310, fuse: 2000,
+        damage: 180, radius: 135, repeat: 5, interval: 210, spread: 310, fuse: 2000,
         rootMs: 800 }
     ]
   },
@@ -440,7 +440,7 @@ GAME.BOSS_UNITS = {
     lore: '마지막으로 날개가 펴졌다. 하늘이 한 번 어두워졌다 — 구름이 아니었다.',
     desc: '용의 날개. 한 번 접었다 펴면 전장이 뒤집힌다.',
     // 부위 중 유일하게 움직인다 — 날개는 원래 움직이는 것이다. 다만 아주 느리게.
-    cost: 0, hp: 1950, armor: 54, speed: 62, range: 230, damage: 79, cooldown: 1400,
+    cost: 0, hp: 1950, armor: 54, speed: 62, range: 230, damage: 40, cooldown: 1400,
     guard: { every: 11000, warn: 800, ms: 4600, cut: 0.12, reflect: 0.65 },
     attack: 'melee', coneDeg: 180,
     radius: 36, shape: 'star', weapon: 'riotShield',
@@ -452,10 +452,10 @@ GAME.BOSS_UNITS = {
     //  궁극 「폭풍 날개」 — 날갯짓이 일으킨 돌풍이 일곱 자리를 찢는다.
     abilities: [
       { type: 'shockwave', cooldown: 5000, telegraph: 700,
-        damage: 245, radius: 225 },
+        damage: 122, radius: 225 },
       { type: 'barrage', cooldown: 14000, telegraph: 700,
         minRange: 0, maxRange: 4000,
-        damage: 300, radius: 105, repeat: 7, interval: 190, spread: 500, fuse: 1500,
+        damage: 150, radius: 105, repeat: 7, interval: 190, spread: 500, fuse: 1500,
         knockback: 80 }
     ]
   },
@@ -492,7 +492,7 @@ GAME.BOSS_UNITS = {
     //   지난번엔 abilities 만 고치고 평타를 안 봤다 — 같은 실수를 반복하지 말 것.
     //   알은 **밀치고 때리는 것이 아니다**(팔이 없다). 평타를 1/4 로 줄이고
     //   사거리도 줄여 "붙지만 않으면 안 맞는다"로 바꿈.
-    cost: 0, hp: 1980, armor: 52, speed: 0, range: 150, damage: 84, cooldown: 1500,
+    cost: 0, hp: 1980, armor: 52, speed: 0, range: 150, damage: 42, cooldown: 1500,
     guard: { every: 11000, warn: 900, ms: 4200, cut: 0.12, reflect: 0.55 },
     attack: 'melee', coneDeg: 360,
     radius: 38, shape: 'bunker', weapon: 'riotShield',
@@ -517,10 +517,10 @@ GAME.BOSS_UNITS = {
     //    50층 배수(층1.49 × 성장9.7 × 보스1.5 ≈ 21.6)로 나눈 값이 아래 damage 다.
     abilities: [
       { type: 'shockwave', cooldown: 5200, telegraph: 1000,
-        damage: 93, radius: 235 },                    // 박동 — 실측 ~2,000
+        damage: 46, radius: 235 },                    // 박동 — 실측 ~2,000
       { type: 'barrage', cooldown: 13000, telegraph: 2700,
         minRange: 0, maxRange: 4000, aimLead: 0,
-        damage: 232, radius: 160, repeat: 1, interval: 0, spread: 0 }  // 껍질 깨기 — 실측 ~5,000
+        damage: 116, radius: 160, repeat: 1, interval: 0, spread: 0 }  // 껍질 깨기 — 실측 ~5,000
     ]
   },
 
@@ -529,7 +529,7 @@ GAME.BOSS_UNITS = {
     lore: '껍질에 금이 갔다. 안쪽은 아직 어둡지만, 열기가 새어 나오기 시작했다.',
     desc: '금 간 알. 틈에서 새는 열기가 주변을 지진다.',
     // 방어력이 알(70)보다 낮다 — 금이 갔으니 당연하다. 대신 체력과 공격이 오른다.
-    cost: 0, hp: 2060, armor: 46, speed: 0, range: 158, damage: 79, cooldown: 1400,
+    cost: 0, hp: 2060, armor: 46, speed: 0, range: 158, damage: 40, cooldown: 1400,
     guard: { every: 11000, warn: 850, ms: 4400, cut: 0.12, reflect: 0.60 },
     attack: 'melee', coneDeg: 360,
     radius: 39, shape: 'bunker', weapon: 'riotShield',
@@ -537,10 +537,10 @@ GAME.BOSS_UNITS = {
     // 50층과 같은 구조(박동 + 피할 수 있는 한 방). 균열이 커진 만큼 둘 다 조금씩 세다.
     abilities: [
       { type: 'shockwave', cooldown: 4800, telegraph: 900,
-        damage: 42, radius: 258 },
+        damage: 21, radius: 258 },
       { type: 'barrage', cooldown: 12500, telegraph: 2600,
         minRange: 0, maxRange: 4000, aimLead: 0,
-        damage: 112, radius: 170, repeat: 1, interval: 0, spread: 0 }
+        damage: 56, radius: 170, repeat: 1, interval: 0, spread: 0 }
     ]
   },
 
@@ -548,7 +548,7 @@ GAME.BOSS_UNITS = {
     key: 'bossDragonCrack', name: '깨어지는 알', art: 'beast:eggeye:ember', isBoss: true,
     lore: '껍질이 갈라졌다. 그 틈으로 눈 하나가 이쪽을 보고 있다. 아직 눈뿐이다.',
     desc: '깨어지는 알. 균열에서 새어 나오는 열기가 전장을 태운다.',
-    cost: 0, hp: 2110, armor: 42, speed: 0, range: 165, damage: 73, cooldown: 1300,
+    cost: 0, hp: 2110, armor: 42, speed: 0, range: 165, damage: 36, cooldown: 1300,
     guard: { every: 10500, warn: 800, ms: 4600, cut: 0.10, reflect: 0.65 },
     attack: 'melee', coneDeg: 360,
     radius: 40, shape: 'bunker', weapon: 'riotShield',
@@ -561,11 +561,11 @@ GAME.BOSS_UNITS = {
     abilities: [
       { type: 'barrage', cooldown: 4400, telegraph: 700,
         minRange: 0, maxRange: 4000,
-        damage: 48, radius: 195, repeat: 5, interval: 300, spread: 360,
+        damage: 24, radius: 195, repeat: 5, interval: 300, spread: 360,
         knockback: 38 },
       { type: 'barrage', cooldown: 12000, telegraph: 2500,
         minRange: 0, maxRange: 4000, aimLead: 0,
-        damage: 138, radius: 180, repeat: 1, interval: 0, spread: 0 }
+        damage: 69, radius: 180, repeat: 1, interval: 0, spread: 0 }
     ]
   },
 
@@ -574,7 +574,7 @@ GAME.BOSS_UNITS = {
     lore: '계란 부족이 서로를 치는 동안, 그것은 산 아래에서 자고 있었다. 이제 다 나왔다.',
     desc: '태초의 용. 날개 한 번에 전장이 뒤집힌다.',
     //  300층. 앞의 다섯 부위가 전부 이 한 마리였다는 것을 여기서 확인한다.
-    cost: 0, hp: 1900, armor: 58, speed: 108, range: 260, damage: 70, cooldown: 1250,
+    cost: 0, hp: 1900, armor: 58, speed: 108, range: 260, damage: 35, cooldown: 1250,
     guard: { every: 10000, warn: 750, ms: 5000, cut: 0.10, reflect: 0.75 },
     attack: 'melee', coneDeg: 160,
     radius: 42, shape: 'star', weapon: 'riotShield',
@@ -584,10 +584,10 @@ GAME.BOSS_UNITS = {
     abilities: [
       { type: 'barrage', cooldown: 4200, telegraph: 600,
         minRange: 0, maxRange: 4000,
-        damage: 196, radius: 220, repeat: 7, interval: 280, spread: 440 },
+        damage: 98, radius: 220, repeat: 7, interval: 280, spread: 440 },
       { type: 'barrage', cooldown: 16000, telegraph: 800,
         minRange: 0, maxRange: 4000,
-        damage: 520, radius: 380, repeat: 1, fuse: 2900,
+        damage: 260, radius: 380, repeat: 1, fuse: 2900,
         slowMul: 0.5, slowMs: 2000 }
     ]
   },
@@ -601,7 +601,7 @@ lore: '오래 살아남아 둥지만큼 커진 우두머리. 그가 포효하면
     //   '길고 안전한 체력 깎기'가 됐다(사냥꾼 20층 꼬리 22.2초).
     //   위 능력으로 위협을 주고 체력을 줄여 **짧고 무서운** 쪽으로 옮긴다.
     //   실측(사냥꾼 20층): hp 1420 꼬리 22.2초 → 1050 17.5초 → 900 13.6초.
-    cost: 0, hp: 2380, armor: 26, speed: 96, range: 96, damage: 73, cooldown: 1300,
+    cost: 0, hp: 2380, armor: 26, speed: 96, range: 96, damage: 36, cooldown: 1300,
     guard: { every: 13000, warn: 1100, ms: 3400, cut: 0.20, reflect: 0.35 },
     attack: 'melee', coneDeg: 110,
     buffRadius: 250, buffDamageMul: 1.45,
@@ -613,10 +613,10 @@ lore: '오래 살아남아 둥지만큼 커진 우두머리. 그가 포효하면
     abilities: [
       { type: 'charge', cooldown: 6500, telegraph: 520,
         minRange: 150, maxRange: 460, dist: 460,
-        damage: 299, radius: 62, knockback: 46 },
+        damage: 150, radius: 62, knockback: 46 },
       { type: 'barrage', cooldown: 15000, telegraph: 750,
         minRange: 0, maxRange: 4000,
-        damage: 380, radius: 155, repeat: 3, interval: 300, spread: 330, fuse: 2000,
+        damage: 190, radius: 155, repeat: 3, interval: 300, spread: 330, fuse: 2000,
         knockback: 40 }
     ]
   },
@@ -630,7 +630,7 @@ lore: '버려진 알 껍질을 뒤집어쓴 커다란 것. 느리지만 한 번 
     //   '길고 안전한 체력 깎기'가 됐다(사냥꾼 20층 꼬리 22.2초).
     //   위 능력으로 위협을 주고 체력을 줄여 **짧고 무서운** 쪽으로 옮긴다.
     //   실측(사냥꾼 20층): hp 1420 꼬리 22.2초 → 1050 17.5초 → 900 13.6초.
-    cost: 0, hp: 2380, armor: 26, speed: 78, range: 104, damage: 90, cooldown: 1600,
+    cost: 0, hp: 2380, armor: 26, speed: 78, range: 104, damage: 45, cooldown: 1600,
     guard: { every: 12000, warn: 950, ms: 4000, cut: 0.15, reflect: 0.45 },
     attack: 'melee', coneDeg: 130,
     radius: 30, shape: 'shield', weapon: 'riotShield',
@@ -647,10 +647,10 @@ lore: '버려진 알 껍질을 뒤집어쓴 커다란 것. 느리지만 한 번 
     abilities: [
       { type: 'charge', cooldown: 5200, telegraph: 900,
         minRange: 160, maxRange: 580, dist: 580,
-        damage: 388, radius: 76, knockback: 92 },
+        damage: 194, radius: 76, knockback: 92 },
       { type: 'barrage', cooldown: 15000, telegraph: 800,
         minRange: 0, maxRange: 4000,
-        damage: 330, radius: 115, repeat: 6, interval: 240, spread: 430, fuse: 1700,
+        damage: 165, radius: 115, repeat: 6, interval: 240, spread: 430, fuse: 1700,
         knockback: 60, slowMul: 0.6, slowMs: 1500 }
     ]
   },
@@ -669,7 +669,7 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
     //   (다른 보스 기준으로 30 을 주면 초당 피해가 2.5배가 된다).
     cost: 0, hp: 2460, armor: 22, speed: 0, range: 0, rangeSpan: true,
     guard: { every: 12500, warn: 1000, ms: 3600, cut: 0.18, reflect: 0.40 },
-    damage: 29, cooldown: 520,
+    damage: 14, cooldown: 520,
     attack: 'projectile', projectileSpeed: 300, projectileRadius: 8,
     radius: 26, shape: 'bunker', weapon: 'mg',
     chase: 0, aggro: 0, immobile: true,
@@ -679,10 +679,10 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
     abilities: [
       { type: 'barrage', cooldown: 6800, telegraph: 640,
         minRange: 0, maxRange: 4000,
-        damage: 130, radius: 104, repeat: 3, interval: 430, spread: 230 },
+        damage: 65, radius: 104, repeat: 3, interval: 430, spread: 230 },
       { type: 'barrage', cooldown: 16000, telegraph: 700,
         minRange: 0, maxRange: 4000,
-        damage: 170, radius: 82, repeat: 10, interval: 150, spread: 540, fuse: 1400 }
+        damage: 85, radius: 82, repeat: 10, interval: 150, spread: 540, fuse: 1400 }
     ]
   }
 };

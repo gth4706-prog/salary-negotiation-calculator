@@ -2034,12 +2034,29 @@ GAME.Combat = {
     var tgt = this.nearestEnemy(u, state.units);
     if (!tgt) return false;
     var d = this.dist(u, tgt);
-    if (d < (ab.minRange || 0) || d > (ab.maxRange || Infinity)) return false;
     // ⚠ 돌진은 **닿을 수 있을 때만** 쓴다. maxRange 를 dist 보다 크게 잡았더니
     //   목표 앞에서 멈춰 아무도 못 치는 돌진이 됐다 — 실측: 400회 발동에 11회 명중(3%),
     //   무조작 영웅에게는 **0%**(초보가 더 안 맞는다는 건 기제가 안 도는 것이다).
     //   여기서 한 번 더 막아, 유닛 정의에서 실수해도 헛돌진이 나가지 않게 한다.
-    if (ab.type === 'charge' && d > ab.dist) return false;
+    //  ── 후보 순환 (2026-08-23 보스 궁극기) ─────────────────────────────────
+    //  복수 능력에서 이번 차례 능력이 사거리 게이트에 막히면 **다음 능력을 본다.**
+    //  안 그러면 돌진(minRange 150)이 첫 번째인 보스에게 영웅이 붙어 있는 동안
+    //  차례가 영원히 안 넘어가 궁극기가 한 번도 안 나간다(실측 — 시전 0회 교착).
+    var list0 = u.def.abilities;
+    if (list0 && list0.length) {
+      var start0 = (u._abilIdx || 0) % list0.length, picked0 = -1;
+      for (var ci0 = 0; ci0 < list0.length; ci0++) {
+        var cand0 = list0[(start0 + ci0) % list0.length];
+        if (d < (cand0.minRange || 0) || d > (cand0.maxRange || Infinity)) continue;
+        if (cand0.type === 'charge' && d > cand0.dist) continue;
+        ab = cand0; picked0 = (start0 + ci0) % list0.length; break;
+      }
+      if (picked0 < 0) return false;
+      u._abilPicked = picked0;
+    } else {
+      if (d < (ab.minRange || 0) || d > (ab.maxRange || Infinity)) return false;
+      if (ab.type === 'charge' && d > ab.dist) return false;
+    }
 
     u.abilCd = ab.cooldown;
     u.abilT = ab.telegraph;
@@ -2052,9 +2069,12 @@ GAME.Combat = {
       } else this._banterEv(state, u, 'skill');
     }
     // 이번 시전이 어느 스킬이었는지 붙잡아 두고(예고↔폭발 일치), 다음은 그 다음 것.
+    // (후보 순환으로 건너뛴 경우 _abilPicked 가 실제 시전 칸이다)
     if (u.def.abilities && u.def.abilities.length) {
       u._abilCur = ab;
-      u._abilIdx = ((u._abilIdx || 0) + 1) % u.def.abilities.length;
+      var castIdx = (u._abilPicked !== undefined) ? u._abilPicked : (u._abilIdx || 0);
+      u._abilIdx = (castIdx + 1) % u.def.abilities.length;
+      u._abilPicked = undefined;
     }
     // ── 예측 사격 (2026-07-31, 뺑뺑이의 **진짜 원인**을 고친다) ────────────────
     //  ⚠ 여기가 "22층인데 뺑뺑이만 돌리면 깨진다"의 구조적 원인이었다.
@@ -2301,7 +2321,9 @@ GAME.Combat = {
       for (var r = 0; r < reps; r++) {
         var sx = u.abilX + (r === 0 ? 0 : (GAME.Combat.rand() - 0.5) * (ab.spread || 200));
         var sy = u.abilY + (r === 0 ? 0 : (GAME.Combat.rand() - 0.5) * (ab.spread || 200));
-        var delay = r * (ab.interval || 420) + 340;
+        //  fuse(5.6차 — 보스 궁극기): 착탄까지의 예고 시간. 거대 원(맵 과반)은
+        //  피할 거리가 머니 fuse 를 길게 잡아 "보고 걸어나가면 피해진다"를 지킨다.
+        var delay = r * (ab.interval || 420) + (ab.fuse || 340);
         state.effects.push({ kind: 'telegraph', x: sx, y: sy, r: ab.radius,
                              t: delay, total: delay,
                              damage: ab.damage, side: u.side, owner: u, abil: true,

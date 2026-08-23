@@ -106,10 +106,10 @@ GAME.BossRig = (function () {
           poly: [[1000, 438], [1082, 444], [1108, 474], [1090, 516], [1044, 548], [1000, 514], [986, 470]] },
         //  다리 — 검은 사지가 회색 몸과 색으로 갈라져 상자 폴리곤이 안전하다.
         { name: 'legFront', behind: false, joint: [400, 420], eraseR: 80,
-          anim: 'leg', phase: 0, amp: 0.09, speed: 1,
+          anim: 'leg', phase: 0, amp: 0.16, speed: 1,
           poly: [[330, 380], [475, 395], [475, 611], [330, 611]] },
         { name: 'legRear', behind: false, joint: [900, 450], eraseR: 80,
-          anim: 'leg', phase: 3.14, amp: 0.08, speed: 1,
+          anim: 'leg', phase: 3.14, amp: 0.145, speed: 1,
           poly: [[820, 430], [1005, 445], [1010, 611], [820, 611]] }
       ]
     },
@@ -491,7 +491,7 @@ GAME.BossRig = (function () {
         //  사인 하나면 다리가 '진자'처럼 보인다 — 생물의 다리는 앞으로 차고 천천히 민다.
         var wph = atk.walk + p.phase;
         var sw = Math.sin(wph) + 0.35 * Math.sin(wph * 2);
-        return sw * p.amp * 1.45 * gait + sp * 0.02;
+        return sw * p.amp * 1.6 * gait + sp * 0.02;
       }
       if (p.anim === 'jaw') {
         //  ── 입 여닫기 (5.5차 — 태현님: "이동 중·특히 스킬 쓸 때, 매우 자연스럽게") ──

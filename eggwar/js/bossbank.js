@@ -190,12 +190,15 @@ GAME.BossBank = (function () {
       var spring = tSt < 0.62 ? Math.exp(-tSt * 5.2) * Math.cos(tSt * 16) : 0;
       //  등장 연출 — 처음 그려진 순간부터 1.1초.
       var intro = Math.max(0, Math.min(1, (now - st.introAt) / 1100));
+      //  스타일은 **이번에 붙잡힌 스킬**(_abilCur — 궁극기 포함)을 우선한다.
+      //  def 의 첫 능력만 보면 궁극기를 쓰는 순간에도 평소 자세로 움직인다.
+      var styleNow = (ab && this._STYLE_OF_TYPE[ab.type]) || this._styleOf(def || u.def);
       return { wind: wind, windE: windE, tremble: tremble, spring: spring,
                strike: strike,
                threat: Math.min(1, wind * 0.7 + strike),
                walk: st.walk, moving: st.mv, intro: intro, struck: struck,
                step: step, charge: charge,
-               style: this._styleOf(def || u.def) };
+               style: styleNow };
     },
 
     //  그린다 — 준비돼 있으면 true(호출부는 벡터를 건너뛴다), 아니면 false.

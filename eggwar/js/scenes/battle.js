@@ -3303,13 +3303,9 @@ GAME.BattleScene.prototype.draw = function () {
       GAME.UI.groundCircle(g, u.x, u.y, u.def.radius + 6);
     }
 
-    // 보스 — 발밑에 붉은 이중 고리를 둘러 한눈에 구분되게 한다
-    if (GAME.isBoss(u.def)) {
-      var pulse = 0.55 + 0.25 * Math.sin(s.elapsed / 280);
-      ringInk(u.x, u.y, u.def.radius + 12, 3.5, FX.bossRing, Math.min(1, pulse * RA));
-      g.lineStyle(2, FX.bossRing2, Math.min(1, pulse * 0.9 * RA));
-      GAME.UI.groundCircle(g, u.x, u.y, u.def.radius + 20);
-    }
+    //  보스 발밑 상시 이중 고리는 **제거했다** (2026-08-23 태현님: "발옆에 실선으로
+    //  남아있는 효과 잔상 깔끔하게 없애줘"). 인트로·크기·이름표가 이미 정체를 말하고,
+    //  상시 링은 이펙트 잔상처럼 읽혔다. 정예 링(작은 유닛 구분용)은 남긴다.
 
     if (u.rootedFor > 0) {
       ringInk(u.x, u.y, u.def.radius + 12, 2.5, FX.root, Math.min(1, 0.95 * RA));

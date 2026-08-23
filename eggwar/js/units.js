@@ -284,9 +284,16 @@ GAME.BOSS_UNITS = {
     attack: 'melee', coneDeg: 120,
     radius: 29, shape: 'star', weapon: 'riotShield',
     chase: 460, aggro: 460,
-    ability: { type: 'charge', cooldown: 6000, telegraph: 560,
-               minRange: 150, maxRange: 500, dist: 500,
-               damage: 280, radius: 70, knockback: 58 }
+    //  궁극 「잿더미 붕괴」(2026-08-23 태현님: "맵 과반에 빨간 원, 피하는 플레이") —
+    //  전장 절반을 덮는 거대 원 하나. fuse 2.6초 동안 걸어 나가면 피해진다.
+    abilities: [
+      { type: 'charge', cooldown: 6000, telegraph: 560,
+        minRange: 150, maxRange: 500, dist: 500,
+        damage: 280, radius: 70, knockback: 58 },
+      { type: 'barrage', cooldown: 14000, telegraph: 700,
+        minRange: 0, maxRange: 4000,
+        damage: 430, radius: 330, repeat: 1, fuse: 2600 }
+    ]
   },
 
   bossDrakeAsh: {
@@ -299,9 +306,15 @@ GAME.BOSS_UNITS = {
     radius: 30, shape: 'star', weapon: 'rifle',
     chase: 560, aggro: 560,
     // 급강하 — 가장 빠른 놈이라 거리를 더 멀리 지운다. 예고는 짧지만 사거리가 길다.
-    ability: { type: 'charge', cooldown: 5000, telegraph: 480,
-               minRange: 170, maxRange: 640, dist: 640,
-               damage: 269, radius: 78, knockback: 70 }
+    //  궁극 「재구름 폭격」 — 중형 원 5개가 시차로 쏟아진다.
+    abilities: [
+      { type: 'charge', cooldown: 5000, telegraph: 480,
+        minRange: 170, maxRange: 640, dist: 640,
+        damage: 269, radius: 78, knockback: 70 },
+      { type: 'barrage', cooldown: 14000, telegraph: 700,
+        minRange: 0, maxRange: 4000,
+        damage: 300, radius: 125, repeat: 5, interval: 260, spread: 400, fuse: 1700 }
+    ]
   },
 
   bossDrakeFrost: {
@@ -316,10 +329,17 @@ GAME.BOSS_UNITS = {
     // 얼림(2026-08-02 사용자 지시: "불 뿜거나 얼음 뿜거나 등 보스몹다운 스킬") —
     // `slowMul`/`slowMs`는 늪지기 스킬이 이미 쓰는 필드라 combat.js 는 한 글자도
     // 안 바뀐다. "얼어붙은 것은 다시 움직이지 못한다"는 lore 그대로 실현된다.
-    ability: { type: 'barrage', cooldown: 6200, telegraph: 700,
-               minRange: 0, maxRange: 4000,
-               damage: 219, radius: 130, repeat: 3, interval: 400, spread: 250,
-               slowMul: 0.45, slowMs: 2200 }
+    //  궁극 「눈사태」 — 전장 절반이 어는 거대 원. 맞으면 발이 거의 멎는다.
+    abilities: [
+      { type: 'barrage', cooldown: 6200, telegraph: 700,
+        minRange: 0, maxRange: 4000,
+        damage: 219, radius: 130, repeat: 3, interval: 400, spread: 250,
+        slowMul: 0.45, slowMs: 2200 },
+      { type: 'barrage', cooldown: 15000, telegraph: 800,
+        minRange: 0, maxRange: 4000,
+        damage: 360, radius: 300, repeat: 1, fuse: 2500,
+        slowMul: 0.40, slowMs: 2600 }
+    ]
   },
 
   bossDrakeStorm: {
@@ -334,10 +354,17 @@ GAME.BOSS_UNITS = {
     // 밀어냄(2026-08-02) — `knockback` 은 `js/combat.js`에 새로 추가한 opt-in
     // 필드(barrage 예고가 터질 때 슬로우처럼 얹는다). "폭풍"이라는 이름값을
     // 실제 물리적 결과로 준다 — 다른 barrage 보스는 이 필드가 없어 그대로다.
-    ability: { type: 'barrage', cooldown: 5400, telegraph: 560,
-               minRange: 0, maxRange: 4000,
-               damage: 205, radius: 118, repeat: 4, interval: 320, spread: 300,
-               knockback: 46 }
+    //  궁극 「연쇄 낙뢰」 — 작은 원 9개가 빠르게 연달아 떨어진다. 계속 움직여야 산다.
+    abilities: [
+      { type: 'barrage', cooldown: 5400, telegraph: 560,
+        minRange: 0, maxRange: 4000,
+        damage: 205, radius: 118, repeat: 4, interval: 320, spread: 300,
+        knockback: 46 },
+      { type: 'barrage', cooldown: 14000, telegraph: 640,
+        minRange: 0, maxRange: 4000,
+        damage: 240, radius: 88, repeat: 9, interval: 130, spread: 470, fuse: 1250,
+        knockback: 62 }
+    ]
   },
 
   // ── 용의 몸 — 50층마다 한 부위씩 (2026-08-02 사용자 지시) ────────────────────
@@ -368,10 +395,16 @@ GAME.BOSS_UNITS = {
     chase: 0, aggro: 0, immobile: true,
     // 밀어냄 — "밟히면 진형 한 줄이 사라진다"를 실제로 날아가게 만든다(knockback,
     // 폭풍 권속과 같은 opt-in 필드).
-    ability: { type: 'barrage', cooldown: 5600, telegraph: 800,
-               minRange: 0, maxRange: 4000,
-               damage: 247, radius: 165, repeat: 4, interval: 360, spread: 340,
-               knockback: 54 }
+    //  궁극 「대지진」 — 발이 구르면 전장 절반이 갈라진다.
+    abilities: [
+      { type: 'barrage', cooldown: 5600, telegraph: 800,
+        minRange: 0, maxRange: 4000,
+        damage: 247, radius: 165, repeat: 4, interval: 360, spread: 340,
+        knockback: 54 },
+      { type: 'barrage', cooldown: 15000, telegraph: 800,
+        minRange: 0, maxRange: 4000,
+        damage: 420, radius: 345, repeat: 1, fuse: 2700, knockback: 110 }
+    ]
   },
 
   bossDragonClaw: {
@@ -388,8 +421,14 @@ GAME.BOSS_UNITS = {
     // 대신 제자리에서 **자기 반경 전체를 찍어 누른다.** `shockwave`는 이미 있는
     // 능력 타입이라 combat.js 를 한 줄도 안 건드리고, 반경만 melee 사거리(210)보다
     // 훨씬 크게 잡아 "다섯 손가락이 전장을 통째로 움켜쥔다"는 desc 를 실현한다.
-    ability: { type: 'shockwave', cooldown: 5400, telegraph: 900,
-               damage: 295, radius: 270 }
+    //  궁극 「움켜쥐기」 — desc 그대로, 다섯 손가락이 다섯 자리를 동시에 찍는다.
+    abilities: [
+      { type: 'shockwave', cooldown: 5400, telegraph: 900,
+        damage: 295, radius: 270 },
+      { type: 'barrage', cooldown: 15000, telegraph: 800,
+        minRange: 0, maxRange: 4000,
+        damage: 360, radius: 135, repeat: 5, interval: 210, spread: 310, fuse: 2000 }
+    ]
   },
 
   bossDragonWing: {
@@ -406,8 +445,15 @@ GAME.BOSS_UNITS = {
     // 파동(`shockwave`, 넉백 내장)과 정확히 같은 그림이다. 날개는 부위 중
     // 유일하게 움직이는 존재라는 설정과도 맞는다(퍼덕임 = 자기중심). barrage 의
     // 여러 예고 대신 **한 번의 큰 파동**으로 바꿔 다른 barrage 보스와 구분한다.
-    ability: { type: 'shockwave', cooldown: 5000, telegraph: 700,
-               damage: 245, radius: 225 }
+    //  궁극 「폭풍 날개」 — 날갯짓이 일으킨 돌풍이 일곱 자리를 찢는다.
+    abilities: [
+      { type: 'shockwave', cooldown: 5000, telegraph: 700,
+        damage: 245, radius: 225 },
+      { type: 'barrage', cooldown: 14000, telegraph: 700,
+        minRange: 0, maxRange: 4000,
+        damage: 300, radius: 105, repeat: 7, interval: 190, spread: 500, fuse: 1500,
+        knockback: 80 }
+    ]
   },
 
   // ── 용의 알 세 단계 (2026-08-02 8차 신설 → 9차에서 **앞으로** 옮김) ──────────
@@ -530,9 +576,15 @@ GAME.BOSS_UNITS = {
     radius: 42, shape: 'star', weapon: 'riotShield',
     chase: 760, aggro: 760,
     // 둘을 다 가진 유일한 보스 — 거리도 지우고 설 자리도 지운다.
-    ability: { type: 'barrage', cooldown: 4200, telegraph: 600,
-               minRange: 0, maxRange: 4000,
-               damage: 196, radius: 220, repeat: 7, interval: 280, spread: 440 }
+    //  궁극 「태초의 화염」 — 게임에서 가장 큰 원. 예고 2.9초, 반드시 걸어 나가야 산다.
+    abilities: [
+      { type: 'barrage', cooldown: 4200, telegraph: 600,
+        minRange: 0, maxRange: 4000,
+        damage: 196, radius: 220, repeat: 7, interval: 280, spread: 440 },
+      { type: 'barrage', cooldown: 16000, telegraph: 800,
+        minRange: 0, maxRange: 4000,
+        damage: 520, radius: 380, repeat: 1, fuse: 2900 }
+    ]
   },
 
   bossChief: {
@@ -552,9 +604,16 @@ lore: '오래 살아남아 둥지만큼 커진 우두머리. 그가 포효하면
     chase: 420, aggro: 420,
     // 성난 돌진 — 속도 96 으로는 사냥꾼(178)을 영원히 못 잡는다. 보스가 '거리를 지우는
     // 수단'을 하나도 안 가진 게 뺑뺑이의 구조적 원인이었다. 예고 520ms 라 피할 수 있다.
-    ability: { type: 'charge', cooldown: 6500, telegraph: 520,
-               minRange: 150, maxRange: 460, dist: 460,
-               damage: 299, radius: 62, knockback: 46 }
+    //  궁극 「대지 가르기」 — 몽둥이가 땅을 세 번 갈라 큰 원 셋이 잇따라 터진다.
+    abilities: [
+      { type: 'charge', cooldown: 6500, telegraph: 520,
+        minRange: 150, maxRange: 460, dist: 460,
+        damage: 299, radius: 62, knockback: 46 },
+      { type: 'barrage', cooldown: 15000, telegraph: 750,
+        minRange: 0, maxRange: 4000,
+        damage: 380, radius: 155, repeat: 3, interval: 300, spread: 330, fuse: 2000,
+        knockback: 40 }
+    ]
   },
 
   bossShell: {
@@ -579,9 +638,16 @@ lore: '버려진 알 껍질을 뒤집어쓴 커다란 것. 느리지만 한 번 
     //   구르기를 더 자주 하거나(-2%p). **후자를 골랐다**: 체력을 올리면 방금 줄인 꼬리가
     //   도로 길어진다(사냥꾼 20층 14.8초 → 19.8초). 보스는 두꺼워서가 아니라
     //   무서워서 어려워야 한다는 것이 이번 변경의 요지다.
-    ability: { type: 'charge', cooldown: 5200, telegraph: 900,
-               minRange: 160, maxRange: 580, dist: 580,
-               damage: 388, radius: 76, knockback: 92 }
+    //  궁극 「산사태」 — 등껍질 조각이 여섯 자리로 쏟아진다.
+    abilities: [
+      { type: 'charge', cooldown: 5200, telegraph: 900,
+        minRange: 160, maxRange: 580, dist: 580,
+        damage: 388, radius: 76, knockback: 92 },
+      { type: 'barrage', cooldown: 15000, telegraph: 800,
+        minRange: 0, maxRange: 4000,
+        damage: 330, radius: 115, repeat: 6, interval: 240, spread: 430, fuse: 1700,
+        knockback: 60 }
+    ]
   },
 
   bossNest: {
@@ -604,9 +670,15 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
     chase: 0, aggro: 0, immobile: true,
     // 화살비 — 움직일 수 없으니 거리를 지우는 대신 **설 자리를 지운다.**
     // 예고 원 3개가 시차를 두고 떨어져서, 서 있으면 맞고 계속 움직이면 피한다.
-    ability: { type: 'barrage', cooldown: 6800, telegraph: 640,
-               minRange: 0, maxRange: 4000,
-               damage: 130, radius: 104, repeat: 3, interval: 430, spread: 230 }
+    //  궁극 「화살 폭우」 — 온 골짜기에 화살이 쏟아진다. 설 자리를 넓게 지운다.
+    abilities: [
+      { type: 'barrage', cooldown: 6800, telegraph: 640,
+        minRange: 0, maxRange: 4000,
+        damage: 130, radius: 104, repeat: 3, interval: 430, spread: 230 },
+      { type: 'barrage', cooldown: 16000, telegraph: 700,
+        minRange: 0, maxRange: 4000,
+        damage: 170, radius: 82, repeat: 10, interval: 150, spread: 540, fuse: 1400 }
+    ]
   }
 };
 

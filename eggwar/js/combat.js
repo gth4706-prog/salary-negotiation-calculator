@@ -3310,6 +3310,18 @@ GAME.Combat = {
       return;
     }
 
+    //  ── 탄막 보너스 판 (2026-08-23 태현님) — 적 유닛이 아예 없다(포탑은 씬이
+    //  그리는 장식이고 투사체만 진짜다). 전멸 승리를 끄고 **버티면 이긴다**:
+    //  영웅 사망 = 패배, dodgeUntil(ms) 도달 = 승리.
+    if (state.dodgeMode) {
+      if (this.aliveCount(state, 'controller') === 0) {
+        state.over = true; state.winner = 'strategist';
+      } else if (state.elapsed >= (state.dodgeUntil || 45000)) {
+        state.over = true; state.winner = 'controller';
+      }
+      return;
+    }
+
     // 승패 판정
     var cAlive = this.aliveCount(state, 'controller');
     var sAlive = this.aliveCount(state, 'strategist');

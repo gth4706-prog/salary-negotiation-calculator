@@ -148,8 +148,8 @@ GAME.BattleScene.prototype.create = function () {
       ? GAME.ArenaBuild.get().unitLv : null) || {};
 
   for (var i = 0; i < this.formation.units.length; i++) {
-    //  알깨기 판은 적 유닛이 없다 — 진형은 만들어졌지만 스폰하지 않는다.
-    if (this.towerBonus === 'break') break;
+    //  알깨기·탄막 판은 적 유닛이 없다 — 진형은 만들어졌지만 스폰하지 않는다.
+    if (this.towerBonus === 'break' || this.towerBonus === 'dodge') break;
     var e = this.formation.units[i];
     if (!GAME.UNITS[e.type]) continue;
     var w = GAME.Formations.toWorld(e);
@@ -297,7 +297,7 @@ GAME.BattleScene.prototype.create = function () {
   //  ── 황금알 스폰 (2026-08-23 보너스 판) ────────────────────────────────────
   //  알깨기: 적 없는 전장 한가운데(전략가 진형 자리). 알지키기: 영웅 진영 쪽.
   //  체력은 층 배수(mods)를 태워 성장을 따라간다 — TTK 가 층과 무관하게 비슷해진다.
-  if (this.towerBonus) {
+  if (this.towerBonus && this.towerBonus !== 'dodge') {
     var A = GAME.CONFIG.ARENA;
     var eggKey = this.towerBonus === 'break' ? 'bonusEggBreak' : 'bonusEggGuard';
     var zs = GAME.CONFIG.ZONE_STRATEGIST, zc = GAME.CONFIG.ZONE_CONTROLLER;
@@ -363,6 +363,38 @@ GAME.BattleScene.prototype.create = function () {
       onComplete: function () { bnTxt.destroy(); bnSub.destroy(); } });
   }
 
+  //  ── 탄막 보너스 판 (2026-08-23 태현님: "쇠뇌진지가 전장 전체에 쫙 둘러있고
+  //  내가 공격할 순 없는데 피하기만 — 시간이 갈수록 많아지고, 버틸 때마다 골드가
+  //  바닥에서 계속 나오는 거지") ─────────────────────────────────────────────
+  //  포탑은 유닛이 아니라 **씬이 그리는 장식**이고 투사체만 진짜다 — 유닛으로
+  //  만들면 조준·전멸 판정·정예 승격까지 전부 예외 처리해야 한다(가시덫 규율).
+  //  승패는 combat 의 dodgeMode 분기: 영웅 사망 = 패배 · 45초 버티면 승리.
+  if (this.towerBonus === 'dodge') {
+    this.state.dodgeMode = true;
+    this.state.dodgeUntil = 45000;
+    this._dodge = { turrets: [], coins: [], fireMs: 1450, nextTurret: 8000,
+                    nextCoin: 1600, gold: 0, hx: 0, hy: 0, hvx: 0, hvy: 0 };
+    for (var dti = 0; dti < 6; dti++) this._dodgeAddTurret();
+    this._dodgeG = this.add.graphics().setDepth(30);
+    if (this.worldLayer) this.worldLayer.add(this._dodgeG);
+    var dnW = GAME.CONFIG.WIDTH, dnH = GAME.CONFIG.HEIGHT;
+    var dnTxt = this.add.text(dnW / 2, dnH * 0.30, '🏹 보너스! 화살비를 피하라!', {
+      fontFamily: GAME.CONFIG.FONT, fontSize: (GAME.CONFIG.SMALL ? 30 : 44) + 'px',
+      fontStyle: 'bold', color: '#ffd54a', stroke: '#4d3305',
+      strokeThickness: GAME.CONFIG.SMALL ? 5 : 7
+    }).setOrigin(0.5).setDepth(3001);
+    var dnSub = this.add.text(dnW / 2, dnTxt.y + dnTxt.height * 0.5 + 10,
+      '45초 버티면 승리 — 바닥의 금화를 주우면 전부 내 것!', {
+        fontFamily: GAME.CONFIG.FONT, fontSize: (GAME.CONFIG.SMALL ? 13 : 16) + 'px',
+        color: '#ffedb8'
+      }).setOrigin(0.5, 0).setDepth(3001);
+    dnTxt.setScale(1.8).setAlpha(0);
+    this.tweens.add({ targets: dnTxt, scale: 1, alpha: 1, duration: 340, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: dnSub, alpha: { from: 0, to: 1 }, duration: 300 });
+    this.tweens.add({ targets: [dnTxt, dnSub], alpha: 0, delay: 2200, duration: 400,
+      onComplete: function () { dnTxt.destroy(); dnSub.destroy(); } });
+  }
+
   // 처치 보상 골드 — **영웅까지 units 에 들어간 뒤에** 훅을 건다.
   // 훅을 걸었는데 한 번도 안 불리면 towerrun.js 가 경고를 내고 옛 방식(층 총액)으로 돌아간다.
   // ⚠ `TowerRun.attachKillGold`/`goldGainFor` 는 **순수 계산**이라 `TowerRun.get()` 이
@@ -383,7 +415,7 @@ GAME.BattleScene.prototype.create = function () {
     GAME.TowerObjective.attach(this.state, this.tower);
   }
   // 탑 전용 정예 — 조건이 `elite` 훅을 켰으면 적 한 기를 승격한다.
-  if (this.tower && GAME.TowerElite && this.towerBonus !== 'break') {
+  if (this.tower && GAME.TowerElite && this.towerBonus !== 'break' && this.towerBonus !== 'dodge') {
     //  알깨기 판은 전략가 쪽에 황금알뿐이라 정예 승격이 알을 잡는다 — 잠근다.
     GAME.TowerElite.attach(this.state, this.towerRule);
   }
@@ -1812,6 +1844,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       }
     } else {
       GAME.Combat.update(this.state, dt);
+      if (this._dodge) this._dodgeUpdate(dt);
     }
   }
 
@@ -2019,7 +2052,9 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       tower: this.tower
     });
     var id = GAME.Account.current();
-    if (id && score > 0 && !noRec) {
+    //  사이드 판(알깨기·탄막)은 층수도 점수도 반영하지 않는다 (2026-08-23 태현님).
+    var scoreSide = !!(this.towerBonus && this.towerBonus !== 'guard');
+    if (id && score > 0 && !noRec && !scoreSide) {
       GAME.Score.add(id, {
         score: score, won: won, asStrategist: false,
         escalation: this.escalation, formationName: this.formation.name,
@@ -2042,14 +2077,22 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
       }
       // ⚠ 2026-08-01 — **패배해도 층이 안 돌아간다.** `Tower.fail()` 은 이제 `runs++`
       //   만 하고 `floor` 는 그대로 둔다(사용자 지시: "실패해도 1층으로 안 돌아가게").
-      towerRec = won ? GAME.Tower.clear(this.tower) : GAME.Tower.fail();
+      //  ── 사이드 판 (2026-08-23 태현님: "보너스판들은 알지키기 말고는 층수에 반영
+      //  안 되게") — 알깨기·탄막은 층이 오르지도 완화가 쌓이지도 않는 막간이다.
+      //  한 번 놀면 소모 표시를 남겨 그 층이 실전으로 바뀐다(골드 농사 차단).
+      var sideRound = !!(this.towerBonus && this.towerBonus !== 'guard');
+      towerRec = sideRound ? null
+                           : (won ? GAME.Tower.clear(this.tower) : GAME.Tower.fail());
+      if (sideRound && GAME.TowerChar && GAME.TowerChar.exists()) {
+        GAME.TowerChar.markBonusDone(this.tower);
+      }
       // 영구 캐릭터 — 이기면 골드를 적립한다. **지든 이기든 캐릭터는 그대로 남는다**
       // (예전 `TowerRun.end()` 처럼 지워지지 않는다 — 그게 이번 개편의 핵심이다).
       // ── 전투 양상을 압박 계수에 기록한다 (2026-08-02) ────────────────────
       //  승패만이 아니라 **얼마나 여유로웠나**를 남긴다 — 남은 체력과 걸린 시간.
       //  이 값이 다음 층부터 진형 유닛의 체력·공격에 곱해진다(js/tower.js).
       //  ⚠ 이기든 지든 부른다. 지는 판만 보면 값이 한쪽으로만 흐른다.
-      if (GAME.TowerChar && GAME.TowerChar.exists()) {
+      if (GAME.TowerChar && GAME.TowerChar.exists() && !sideRound) {
         var heroU = null;
         for (var hi = 0; hi < this.state.units.length; hi++) {
           if (this.state.units[hi].isHero) { heroU = this.state.units[hi]; break; }
@@ -2061,7 +2104,21 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         else GAME.TowerChar.noteFloorFail(this.tower);
       }
       if (GAME.TowerChar && GAME.TowerChar.exists()) {
-        if (won) {
+        if (won && sideRound) {
+          //  사이드 판 승리 — 층을 깬 게 아니므로 층 보상은 없다. 알깨기는 전투 중
+          //  주운 동전만(이미 코인 파이프라인이 셌다), 탄막은 주운 금화(실시간
+          //  적립됨 — 여기서는 표시 합산만)다.
+          var pk2 = GAME.TowerRun ? GAME.TowerRun.earnedFrom(this.state) : 0;
+          if (pk2 > 0) {
+            goldGained = Math.round(pk2 * GAME.TowerRun.ruleGoldMul(this.tower) *
+                                    GAME.TowerChar.luckGoldMul());
+            if (goldGained > 0) runRec = GAME.TowerChar.addGold(goldGained);
+          }
+          if (this.towerBonus === 'dodge' && this._dodge) {
+            goldGained += this._dodge.gold;      //  적립은 주운 순간 끝났다 — 표시만
+            runRec = GAME.TowerChar.get();
+          }
+        } else if (won) {
           var rawGold = GAME.TowerRun ? GAME.TowerRun.goldGainFor(this.tower, this.state) : 0;
           // ── 층 돌파 보상 골드 (2026-07-31 사용자 지시: "라운드를 깨면 라운드 보상
           //    골드도 랜덤하게 조금씩 줬으면") ─────────────────────────────────
@@ -2149,6 +2206,10 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
                                     GAME.TowerChar.luckGoldMul());
             if (goldGained > 0) runRec = GAME.TowerChar.addGold(goldGained);
           }
+          if (this.towerBonus === 'dodge' && this._dodge && this._dodge.gold > 0) {
+            goldGained += this._dodge.gold;      //  적립은 주운 순간 끝났다 — 표시만
+            runRec = GAME.TowerChar.get();
+          }
         }
       }
     }
@@ -2230,6 +2291,8 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         //  전투 보고(2026-08-23) — Result 가 탭·게이지로 요약해 보여준다.
         report: self.state.report,
         battleSec: Math.round((self.state.elapsed || 0) / 1000),
+        //  사이드 판 표식 — 결과·도전 화면이 "층 돌파"가 아니라 "보너스 종료"로 말한다.
+        bonusRound: (self.towerBonus && self.towerBonus !== 'guard') ? self.towerBonus : null,
         //  ── 탑에서는 학습 문구를 안 보여 준다 (2026-08-05 사용자 신고) ────────
         //  > "못깨고나서 7단계 올라갔다는 표현이보여서"
         //
@@ -2588,10 +2651,130 @@ GAME.BattleScene.prototype._updateGoldHud = function (dt) {
   }
 };
 
+//  ── 탄막 판 런타임 (2026-08-23) ────────────────────────────────────────────
+//  포탑은 그리기 전용(전투 유닛 아님) — 발사한 투사체만 combat 이 판정한다.
+//  탑 전용·비실시간이라 Math.random 을 써도 안전하다(동기화 대상 아님).
+GAME.BattleScene.prototype._dodgeAddTurret = function () {
+  var A = GAME.CONFIG.ARENA, d = this._dodge;
+  //  둘레를 황금비 간격으로 돈다 — 몇 기를 더해도 뭉치지 않고 고르게 퍼진다.
+  var t = (d.turrets.length * 0.618034) % 1;
+  var per = 2 * (A.w + A.h), s = t * per, inset = 18, x, y;
+  if (s < A.w) { x = A.x + s; y = A.y + inset; }
+  else if (s < A.w + A.h) { x = A.right - inset; y = A.y + (s - A.w); }
+  else if (s < A.w * 2 + A.h) { x = A.right - (s - A.w - A.h); y = A.bottom - inset; }
+  else { x = A.x + inset; y = A.bottom - (s - A.w * 2 - A.h); }
+  d.turrets.push({ x: x, y: y, cd: 500 + (d.turrets.length * 173) % 900 });
+};
+
+GAME.BattleScene.prototype._dodgeUpdate = function (dt) {
+  var d = this._dodge, st = this.state, h = this.hero;
+  var g = this._dodgeG;
+  if (!d || !st || !h) return;
+  if (st.over) { if (g) g.clear(); return; }
+  var ws = GAME.CONFIG.WORLD_SCALE || 1;
+
+  //  영웅 속도 추정(예측 사격용) — 유닛에 vx 가 없어 지난 프레임과의 차로 만든다.
+  if (dt > 0) {
+    d.hvx = (h.x - d.hx) / dt * 1000; d.hvy = (h.y - d.hy) / dt * 1000;
+  }
+  d.hx = h.x; d.hy = h.y;
+
+  //  증원 — 8초마다 포탑 +1(상한 16) + 발사 간격 7% 단축. "시간이 갈수록 많아진다".
+  d.nextTurret -= dt;
+  if (d.nextTurret <= 0) {
+    d.nextTurret = 8000;
+    if (d.turrets.length < 16) this._dodgeAddTurret();
+    d.fireMs = Math.max(430, d.fireMs * 0.93);
+  }
+
+  //  발사 — 포탑별 개별 쿨. 진행 방향 예측 사격(리드 55%) — "예상 공격" 문법 재사용.
+  var spd = 300 * ws;
+  for (var i = 0; i < d.turrets.length; i++) {
+    var tr = d.turrets[i];
+    tr.cd -= dt;
+    if (tr.cd > 0) continue;
+    tr.cd = d.fireMs;
+    var fx = h.x, fy = h.y;
+    var pdx = fx - tr.x, pdy = fy - tr.y;
+    var pd = Math.sqrt(pdx * pdx + pdy * pdy) || 1;
+    var lead = (pd / spd) * 0.55;
+    fx += d.hvx * lead; fy += d.hvy * lead;
+    var adx = fx - tr.x, ady = fy - tr.y;
+    var ad = Math.sqrt(adx * adx + ady * ady) || 1;
+    st.projectiles.push({
+      x: tr.x, y: tr.y, vx: (adx / ad) * spd, vy: (ady / ad) * spd,
+      //  피해 = 최대체력의 6% — 층·성장과 무관하게 "약 16대 맞으면 죽는다"로 고정.
+      damage: Math.max(1, Math.round(h.maxHp * 0.06 / ((GAME.CONFIG.PACE && GAME.CONFIG.PACE.DMG) || 1))),
+      side: 'strategist', radius: 7 * ws, life: 5200, owner: null, hitSet: [], big: true
+    });
+  }
+
+  //  금화 — 주기적으로 바닥에 떨어지고 9초 뒤 사라진다. 주우러 가는 발걸음이
+  //  곧 위험이다("버틸 때마다 골드가 바닥에서 계속 나오는 거지").
+  d.nextCoin -= dt;
+  if (d.nextCoin <= 0) {
+    d.nextCoin = 2100;
+    var A2 = GAME.CONFIG.ARENA, m = 70;
+    d.coins.push({
+      x: A2.x + m + Math.random() * (A2.w - m * 2),
+      y: A2.y + m + Math.random() * (A2.h - m * 2),
+      born: st.elapsed,
+      gold: Math.max(4, Math.round((GAME.TowerRun ? GAME.TowerRun.goldFor(this.tower) : 30)
+                                   * 0.07 * (1 + st.elapsed / 45000)))
+    });
+  }
+  for (var ci = d.coins.length - 1; ci >= 0; ci--) {
+    var cn = d.coins[ci];
+    if (st.elapsed - cn.born > 9000) { d.coins.splice(ci, 1); continue; }
+    var cdx = h.x - cn.x, cdy = h.y - cn.y;
+    if (cdx * cdx + cdy * cdy < 34 * 34) {
+      var got = Math.round(cn.gold * (GAME.TowerChar ? GAME.TowerChar.luckGoldMul() : 1));
+      if (GAME.TowerChar && GAME.TowerChar.exists()) GAME.TowerChar.addGold(got);
+      d.gold += got;
+      if (GAME.Sound) GAME.Sound.play('coin');
+      var cl = GAME.UI.label(this, cn.x, GAME.Iso.toScreenY(cn.y) - 18, '+' + got,
+        GAME.CONFIG.SMALL ? 14 : 16, GAME.CONFIG.COLORS.accent, 0.5).setOrigin(0.5).setDepth(60);
+      if (this.worldLayer) this.worldLayer.add(cl);
+      this.tweens.add({ targets: cl, y: cl.y - 26, alpha: 0, duration: 700,
+        onComplete: function () { cl.destroy(); } });
+      d.coins.splice(ci, 1);
+    }
+  }
+
+  //  그리기 — 포탑(쇠뇌 진지 아트 재사용, 영웅을 향해 조준)과 금화.
+  if (!g || !g.scene) return;
+  g.clear();
+  var nest = GAME.UNITS.mgnest;
+  for (var ti2 = 0; ti2 < d.turrets.length; ti2++) {
+    var t2 = d.turrets[ti2];
+    var sy = GAME.Iso.toScreenY(t2.y);
+    g.fillStyle(0x000000, 0.20);
+    g.fillEllipse(t2.x, sy + 4, 34, 13, 10);
+    try {
+      GAME.UI.drawUnitFlat(g, nest, t2.x, sy, GAME.CONFIG.COLORS.strategist, 1, 0.95,
+                           Math.atan2(h.y - t2.y, h.x - t2.x), 0, 0);
+    } catch (e) { g.fillStyle(0x8a4b2d, 1); g.fillCircle(t2.x, sy, 12); }
+  }
+  var blink = Math.sin(st.elapsed / 220) * 0.5 + 0.5;
+  for (var ci2 = 0; ci2 < d.coins.length; ci2++) {
+    var c2 = d.coins[ci2];
+    var cy2 = GAME.Iso.toScreenY(c2.y);
+    var age = st.elapsed - c2.born;
+    var fade = age > 7000 ? (0.35 + blink * 0.65) : 1;   // 사라지기 전 깜빡임
+    g.fillStyle(0x000000, 0.18 * fade);
+    g.fillEllipse(c2.x, cy2 + 4, 16, 6, 8);
+    g.fillStyle(0xd9a13c, fade); g.fillCircle(c2.x, cy2, 8);
+    g.fillStyle(0xffd166, fade); g.fillCircle(c2.x, cy2 - 1, 6);
+    g.fillStyle(0xfff3c4, fade * 0.9); g.fillCircle(c2.x - 2, cy2 - 3, 2);
+  }
+};
+
 GAME.BattleScene.prototype.updateHud = function () {
   var C = GAME.CONFIG.COLORS;
   var h = this.hero;
-  var TOTAL = GAME.CONFIG.BATTLE_TIME;
+  var TOTAL = this.state.dodgeMode
+    ? (this.state.dodgeUntil || 45000) / 1000
+    : GAME.CONFIG.BATTLE_TIME;
   var remain = Math.max(0, TOTAL - this.state.elapsed / 1000);
 
   // 보스가 살아 있으면 전용 바로 보여준다 — 보스 층의 목표가 눈에 박힌다

@@ -29,6 +29,7 @@ GAME.ResultScene.prototype.init = function (data) {
   this.arenaResult = data.arenaResult || null;// { delta, trophy, league }
   this.rtResult = data.rtResult || null;      // { won, delta, score } | { invalid }
   this.report = data.report || null;          // 전투 요약(combat state.report)
+  this.bonusRound = data.bonusRound || null;  // 사이드 보너스 판('break'|'dodge') — 층 미반영
   this.battleSec = data.battleSec || 0;
 };
 
@@ -59,7 +60,8 @@ GAME.ResultScene.prototype._skipToNextFloor = function () {
       //  전투 요약(2026-08-23) — 층 클리어는 Result 를 건너뛰므로 도전 화면이
       //  「📊 전투 요약」 버튼으로 이 데이터를 연다.
       report: this.report || null,
-      battleSec: this.battleSec || 0
+      battleSec: this.battleSec || 0,
+      bonus: this.bonusRound || null
     }
   });
   return true;

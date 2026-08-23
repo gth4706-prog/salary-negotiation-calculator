@@ -346,6 +346,17 @@ GAME.TowerLoadingScene.prototype.create = function () {
     //   글이 줄면 남는 자리가 전부 **그림**으로 간다 — 생김새를 외우는 게 이 화면의 목적이다.
     lines.push('🆕 새로운 적  ·  ' + debutDef.name);
     lines.push(debut.lesson);
+  } else if (GAME.Tower && GAME.Tower.bonusFor && GAME.Tower.bonusFor(this.tower)) {
+    //  보너스 판 — 적 설명은 거짓말이 된다(알깨기·탄막은 적이 안 나온다).
+    //  판의 규칙만 말한다. 층수 미반영도 여기서 미리 알린다(2026-08-23 태현님).
+    var bKind = GAME.Tower.bonusFor(this.tower);
+    if (bKind === 'guard') {
+      lines.push('🥚 보너스 판 — 황금알을 지켜라! 판이 끝날 때까지 버티면 큰 보상');
+    } else if (bKind === 'break') {
+      lines.push('🥚 보너스 판 — 황금알을 깨라! 때린 만큼 골드 · 층은 오르지 않는 덤 판');
+    } else {
+      lines.push('🏹 보너스 판 — 화살비를 피하라! 45초 버티기 · 바닥 금화 줍기 · 층은 오르지 않는 덤 판');
+    }
   } else {
     if (bossDef) lines.push('☠ ' + bossDef.name + ' — ' + bossDef.desc);
     // 테마 층이면 그 사실이 가장 먼저 읽혀야 한다 — 판의 성격이 통째로 다르다.

@@ -174,6 +174,25 @@ GAME.TowerChar = {
     return rec;
   },
 
+  // ── 보너스 판 소모 표시 (2026-08-23 태현님: "보너스판들은 알지키기 말고는
+  // 층수에 반영 안 되게") ─────────────────────────────────────────────────
+  //  알깨기·탄막은 층이 안 오르는 막간이라, 한 번 놀고 나면 그 층은 실전으로
+  //  바뀌어야 한다 — 안 그러면 같은 층에서 보너스만 무한 반복(골드 농사)이 된다.
+  //  ⚠ climbSeed 에 묶으면 안 된다 — 허브 진입마다 시드가 재롤되어(rollClimbSeed)
+  //    표시가 즉시 증발한다(실측). 층은 절대 내려가지 않으므로 **층 번호로 영구**가
+  //    맞다: 지나간 층의 표시는 어차피 다시 만날 일이 없다.
+  markBonusDone: function (floor) {
+    var rec = this.get();
+    if (!rec) return;
+    if (!rec.bonusDone) rec.bonusDone = {};
+    rec.bonusDone[floor] = 1;
+    this._save(rec);
+  },
+  bonusDone: function (floor) {
+    var rec = this.get();
+    return !!(rec && rec.bonusDone && rec.bonusDone[floor]);
+  },
+
   // ── 골드 ──────────────────────────────────────────────────────────────
   addGold: function (amount) {
     var rec = this.get();

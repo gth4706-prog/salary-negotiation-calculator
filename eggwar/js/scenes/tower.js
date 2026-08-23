@@ -1259,6 +1259,12 @@ GAME.TowerScene.prototype._runHintText = function () {
   if (cl) {
     var next = this._floor;                       // Tower.clear 가 이미 floor 를 올려놨다
     var head = '✅ ' + cl.floor + '층 돌파';
+    //  사이드 보너스 판(알깨기·탄막)은 층이 안 올랐다 — "돌파"라고 말하면 거짓말이다.
+    if (cl.bonus) {
+      var bn = cl.bonus === 'dodge' ? '🏹 화살비 보너스' : '🥚 황금알 보너스';
+      var bGot = cl.gold ? ('  ·  골드 +' + cl.gold) : '';
+      return bn + ' 종료' + bGot + '  ·  ' + next + '층은 그대로 — 이제 실전!';
+    }
     var got = (cl.gold ? ('  ·  골드 +' + cl.gold) : '') +
               (cl.score ? ('  ·  점수 +' + cl.score) : '');
     // 획득 — 보스 확정분과 일반 층 저확률분이 같은 자리에 온다(2026-08-02).

@@ -581,7 +581,7 @@ GAME.Tower = {
     if (r >= this.BONUS_CHANCE) return null;
     //  종류는 운이 아니라 **교대**다 (2026-08-23 태현님: "알지키기가 안 나와" —
     //  50/50 은 초반 표본이 작아 한쪽만 걸릴 수 있다). 이 층 아래의 보너스 층
-    //  수를 세서 홀짝으로 가른다 — 같은 등반에서 반드시 번갈아 나온다.
+    //  수를 세서 순환한다 — 같은 등반에서 세 종류가 반드시 번갈아 나온다.
     var nBelow = 0;
     for (var bf = 4; bf < floor; bf++) {
       if (this.isBossFloor(bf)) continue;
@@ -591,7 +591,14 @@ GAME.Tower = {
       bx ^= bx << 13; bx ^= bx >>> 17; bx ^= bx << 5; bx |= 0;
       if (((bx >>> 8) % 10000) / 10000 < this.BONUS_CHANCE) nBelow++;
     }
-    return (nBelow & 1) ? 'guard' : 'break';
+    var kind = ['break', 'guard', 'dodge'][nBelow % 3];
+    //  층수 미반영 판(알깨기·탄막)은 **한 번 놀면 소모된다** (2026-08-23 태현님:
+    //  "알지키기 말고는 층수에 반영 안 되게") — 층이 안 오르니 소모 표시가 없으면
+    //  같은 층에서 보너스 무한 반복(골드 농사)이 된다. 알지키기는 층이 올라
+    //  그 층을 다시 만날 일이 없어 소모 개념이 필요 없다.
+    if (kind !== 'guard' && GAME.TowerChar && GAME.TowerChar.bonusDone &&
+        GAME.TowerChar.bonusDone(floor)) return null;
+    return kind;
   },
 
   bossKeyFor: function (floor) {

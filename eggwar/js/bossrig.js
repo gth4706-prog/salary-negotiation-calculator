@@ -362,44 +362,53 @@ GAME.BossRig = (function () {
     //  스타일 배수 — 공격 타입이 어느 부위를 크게 쓰는가 (2026-08-23 4차: 전부 증폭 +
     //  body* 신설 — 몸통 전체가 접지점 둘레로 젖혔다 꽂힌다. 부위 회전과 달리 모든
     //  층이 함께 돌아 **틈이 구조적으로 안 생기는** 가장 싼 큰 모션이다).
+    //  crouch(5차): 웅크림 동안 몸이 내려앉는(+) / 부풀어 오르는(−) 세로 이동 비율.
+    //  내리찍기는 깊게 웅크리고, 소환·포효는 가슴을 편다 — 스킬의 '자세'가 갈린다.
     _STYLE: {
-      breath: { headWind: 0.24, headStrike: 0.34, armWind: 0.10, armStrike: 0.16, wingThreat: 1.3, fingerWind: 0.08, bodyWind: 0.030, bodyStrike: 0.048 },
-      slam:   { headWind: 0.14, headStrike: 0.22, armWind: 0.22, armStrike: 0.34, wingThreat: 1.1, fingerWind: 0.16, bodyWind: 0.055, bodyStrike: 0.085 },
-      spread: { headWind: 0.20, headStrike: 0.30, armWind: 0.10, armStrike: 0.16, wingThreat: 2.4, fingerWind: 0.08, bodyWind: 0.026, bodyStrike: 0.040 }
+      breath: { headWind: 0.24, headStrike: 0.34, armWind: 0.10, armStrike: 0.16, wingThreat: 1.3, fingerWind: 0.08, bodyWind: 0.030, bodyStrike: 0.048, crouch: 0.008 },
+      slam:   { headWind: 0.14, headStrike: 0.22, armWind: 0.22, armStrike: 0.34, wingThreat: 1.1, fingerWind: 0.16, bodyWind: 0.055, bodyStrike: 0.085, crouch: 0.024 },
+      spread: { headWind: 0.20, headStrike: 0.30, armWind: 0.10, armStrike: 0.16, wingThreat: 2.4, fingerWind: 0.08, bodyWind: 0.026, bodyStrike: 0.040, crouch: -0.012 }
     },
     _styleOf: function (atk) {
       return this._STYLE[atk.style] ||
-        { headWind: 0.18, headStrike: 0.26, armWind: 0.08, armStrike: 0.13, wingThreat: 1.0, fingerWind: 0.06, bodyWind: 0.024, bodyStrike: 0.038 };
+        { headWind: 0.18, headStrike: 0.26, armWind: 0.08, armStrike: 0.13, wingThreat: 1.0, fingerWind: 0.06, bodyWind: 0.024, bodyStrike: 0.038, crouch: 0.010 };
     },
 
     _animRot: function (p, t, atk) {
       var s = Math.sin(t * p.speed + p.phase);
       var st = this._styleOf(atk);
       var gait = atk.moving || 0;
+      //  5차 — 자연스러움의 재료 셋(bossbank._atkOf 가 만든다):
+      //  windE(빠르게 감고 유지) · tremble(감긴 뒤 떨림) · spring(발사 오버슈트 진동).
+      var wE = atk.windE !== undefined ? atk.windE : atk.wind;
+      var sp = atk.spring !== undefined ? atk.spring : atk.strike;
+      var tr = atk.tremble || 0;
       if (p.anim === 'wing' || p.anim === 'wingtip') {
         //  걸을 때 날개가 걸음 박자로 살짝 퍼덕인다 — 몸이 무거워 보이는 비결.
         var boost = 1 + atk.threat * st.wingThreat;
         return s * p.amp * boost + Math.sin(atk.walk + p.phase) * 0.030 * gait;
       }
       if (p.anim === 'tail') {
-        //  꼬리는 걸음의 **반박자 뒤**를 따라온다(관성) + 발사 순간 채찍처럼 튄다.
+        //  꼬리는 걸음의 **반박자 뒤**를 따라온다(관성) + 발사 때 채찍처럼 진동한다.
         return s * p.amp + Math.sin(atk.walk * 0.5 + p.phase + 1.2) * 0.055 * gait
-               - atk.strike * 0.05;
+               - sp * 0.05;
       }
       if (p.anim === 'head') {
         //  걸음마다 고개가 까딱인다 — "사진이 미끄러진다"를 깨는 가장 큰 신호.
-        return s * p.amp - atk.wind * st.headWind + atk.strike * st.headStrike
+        return s * p.amp - wE * st.headWind + sp * st.headStrike + tr
                + Math.sin(atk.walk + 0.9) * 0.024 * gait;
       }
       if (p.anim === 'arm') {
-        return s * p.amp - atk.wind * st.armWind + atk.strike * st.armStrike
+        return s * p.amp - wE * st.armWind + sp * st.armStrike + tr * 0.7
                + Math.sin(atk.walk + 3.14) * 0.045 * gait;
       }
-      if (p.anim === 'finger') return s * p.amp + atk.wind * st.fingerWind - atk.strike * 0.05;
+      if (p.anim === 'finger') return s * p.amp + wE * st.fingerWind - sp * 0.05;
       if (p.anim === 'leg') {
-        //  걷기 — 이동 중에만(moving 0→1), 반대 위상 다리가 번갈아 젓는다.
-        //  보폭 1.75배(4차) + 착지 직후 미세 굽힘(strike 순간의 무게).
-        return Math.sin(atk.walk + p.phase) * p.amp * 1.75 * gait + atk.strike * 0.03;
+        //  걷기 — 비대칭 걸음(5차): 2차 고조파를 섞어 스윙은 빠르고 디딤은 느리다.
+        //  사인 하나면 다리가 '진자'처럼 보인다 — 생물의 다리는 앞으로 차고 천천히 민다.
+        var wph = atk.walk + p.phase;
+        var sw = Math.sin(wph) + 0.35 * Math.sin(wph * 2);
+        return sw * p.amp * 1.45 * gait + sp * 0.02;
       }
       return s * p.amp;   // sway
     },
@@ -414,14 +423,18 @@ GAME.BossRig = (function () {
       //  걸음 바운스 — 다리 위상과 같은 시계(atk.walk)를 쓰므로 발과 몸이 맞물린다.
       var gait = atk.moving || 0;
       var stBody = this._styleOf(atk);
-      var bob = Math.sin(t * 1.6) * geom.h * 0.006 - atk.wind * geom.h * 0.012 +
+      var wEb = atk.windE !== undefined ? atk.windE : atk.wind;
+      var spb = atk.spring !== undefined ? atk.spring : atk.strike;
+      //  crouch — 스킬 자세(5차): 내리찍기는 웅크리고(+), 소환·포효는 편다(−).
+      var bob = Math.sin(t * 1.6) * geom.h * 0.006 +
+                wEb * geom.h * stBody.crouch +
                 atk.strike * geom.h * 0.02 +
                 Math.abs(Math.sin(atk.walk)) * geom.h * 0.013 * gait;
-      var lunge = (atk.strike * 0.045 - atk.wind * 0.02) * geom.w * (geom.flip ? -1 : 1);
-      //  몸통 전체 회전 — 전진 기울기(걸음) + 스킬 젖힘/내리꽂기. 접지점 둘레로
-      //  모든 층이 함께 돌아 부위 사이에 틈이 생길 수 없다.
-      var bodyRot = (gait * 0.045 - atk.wind * stBody.bodyWind +
-                     atk.strike * stBody.bodyStrike) * (geom.flip ? -1 : 1);
+      var lunge = (spb * 0.045 - wEb * 0.02) * geom.w * (geom.flip ? -1 : 1);
+      //  몸통 전체 회전 — 전진 기울기(걸음) + 스킬 젖힘(windE)/발사 스프링(spring).
+      //  접지점 둘레로 모든 층이 함께 돌아 부위 사이에 틈이 생길 수 없다.
+      var bodyRot = (gait * 0.045 - wEb * stBody.bodyWind +
+                     spb * stBody.bodyStrike) * (geom.flip ? -1 : 1);
       var ax = geom.sx + lunge, ay = geom.sy + bob;
       var baseLeft = geom.sx - (geom.flip ? 1 - geom.px : geom.px) * geom.w + lunge;
       var baseTop = geom.sy - geom.py * geom.h + bob;
@@ -474,6 +487,12 @@ GAME.BossRig = (function () {
         img.setOrigin(ox, oy);
         img.setDisplaySize(geom.w, geom.h);
         var px0 = baseLeft + ox * geom.w, py0 = baseTop + oy * geom.h;
+        //  스윙 중인 다리는 살짝 들린다(5차) — 회전만으로는 발끝이 땅에 끌린다.
+        //  들려서 빈 자리는 filler(정지 사본)가 밑에서 받친다.
+        if (p && p.anim === 'leg') {
+          py0 -= Math.max(0, Math.sin(atk.walk + p.phase + 1.35)) *
+                 geom.h * 0.010 * (atk.moving || 0);
+        }
         //  parent 체인 — 부모 회전을 물려받고, 관절 위치도 부모 둘레를 돈다.
         if (p && p.parent && rotMap[p.parent] !== undefined) {
           var pr = rotMap[p.parent], pp = posMap[p.parent];

@@ -177,9 +177,21 @@ GAME.BossBank = (function () {
       //  스킬 모으기 시작(예고 점화) 순간 — 소리·집속 이펙트의 트리거.
       var charge = wind > 0 && !(st.windPrev > 0);
       st.windPrev = wind;
+      //  ── 자연스러운 곡선 (2026-08-23 5차) ──────────────────────────────────
+      //  windE: 빠르게 감고 → 팽팽하게 유지(easeOut). 맹수의 웅크림은 천천히
+      //    깊어지는 게 아니라 순간에 감기고 터질 때까지 긴장을 유지한다.
+      //  tremble: 완전히 감긴 뒤의 미세 떨림 — "곧 터진다"의 몸 신호.
+      //  spring: 발사 = 감쇠 진동. 목표를 지나쳤다가 되돌아와 잦아든다(오버슈트).
+      //    선형 감쇠(strike)는 fx 트리거·게이지용으로 남긴다.
+      var iw = 1 - wind;
+      var windE = 1 - iw * iw * iw;
+      var tremble = windE > 0.85 ? Math.sin(now * 0.05) * 0.012 : 0;
+      var tSt = Math.max(0, now - st.strikeAt) / 1000;
+      var spring = tSt < 0.62 ? Math.exp(-tSt * 5.2) * Math.cos(tSt * 16) : 0;
       //  등장 연출 — 처음 그려진 순간부터 1.1초.
       var intro = Math.max(0, Math.min(1, (now - st.introAt) / 1100));
-      return { wind: wind, strike: strike,
+      return { wind: wind, windE: windE, tremble: tremble, spring: spring,
+               strike: strike,
                threat: Math.min(1, wind * 0.7 + strike),
                walk: st.walk, moving: st.mv, intro: intro, struck: struck,
                step: step, charge: charge,
@@ -265,20 +277,25 @@ GAME.BossBank = (function () {
         //  알 3종 — 좌우로 '늘어나는' 게 아니라 **심장이 친다**: sin 을 5제곱해
         //  두근-쉼-두근의 뾰족한 박동파를 만들고, 박동 순간에만 위로 부푼다.
         //  껍질이 흔들리는 미세 락킹(저주파 회전)이 "안에서 뭔가 민다"를 만든다.
+        //  5차: 예고 중에는 **심박이 세진다**(안의 것이 흥분한다) + 미세 떨림.
         var raw = Math.sin(t * 3.1 + seed);
         var th = Math.max(0, raw); th = th * th * th * th * th;
-        ky = 1 + th * 0.055 + atk.strike * 0.02;
-        kx = 1 - th * 0.028;
-        rot = Math.sin(t * 1.15 + seed) * 0.014 + th * 0.006;
+        var race = 1 + (atk.windE !== undefined ? atk.windE : atk.wind) * 1.2;
+        ky = 1 + th * 0.055 * race + atk.strike * 0.02;
+        kx = 1 - th * 0.028 * race;
+        rot = Math.sin(t * 1.15 + seed) * 0.014 + th * 0.006 + (atk.tremble || 0);
       } else {
-        //  그 외(리깅 없는 폴백) — 호흡 + 스웨이 + **걸음 바운스·전진 기울기**(4차).
+        //  그 외(리깅 없는 폴백) — 호흡 + 스웨이 + 걸음 바운스·전진 기울기(4차)
+        //  + windE/spring 곡선(5차 — 리깅 보스와 같은 성격의 감기·튕김).
         var br = Math.sin(t * 1.8 + seed);
         var gwk = atk.moving || 0;
-        ky = 1 + br * 0.016 + atk.strike * 0.03 - atk.wind * 0.02 +
+        var wEf = atk.windE !== undefined ? atk.windE : atk.wind;
+        var spf = atk.spring !== undefined ? atk.spring : atk.strike;
+        ky = 1 + br * 0.016 + spf * 0.03 - wEf * 0.02 +
              Math.abs(Math.sin(atk.walk)) * 0.022 * gwk;
-        kx = 1 - br * 0.016 * 0.55 + atk.wind * 0.015;
-        rot = Math.sin(t * 0.9 + seed) * 0.010 + (atk.strike * 0.035 - atk.wind * 0.020) +
-              gwk * 0.045;
+        kx = 1 - br * 0.016 * 0.55 + wEf * 0.015;
+        rot = Math.sin(t * 0.9 + seed) * 0.010 + (spf * 0.035 - wEf * 0.020) +
+              gwk * 0.045 + (atk.tremble || 0);
       }
       img.setDisplaySize(w * kx * introPop, h * ky * introPop);
       img.setRotation(rot * (flip ? -1 : 1));
@@ -344,22 +361,22 @@ GAME.BossBank = (function () {
                      t0: now, life: 300, r: 1.6 + Math.random() * 2, col: glow, noGrav: true });
       }
 
+      //  원소 결 — 파티클의 **물성**이 갈린다(5차: 색만 다른 건 개성이 아니다).
+      //  서리 = 무겁게 깔려 떨어진다 · 폭풍 = 지그재그로 튄다 · 불/재 = 떠오른다.
+      var kindStr = '';
+      try { kindStr = (def && def.art) ? String(def.art).split(':')[2] || '' : ''; } catch (e3) {}
+      var pGrav = kindStr === 'frost' ? 55 : (kindStr === 'storm' ? 0 : -25);
+
       if (atk.struck) {
         //  ── 발사 순간 — 스타일마다 다른 그림 (태현님: "스킬이 각각 개성이 있어야") ──
         if (atk.style === 'breath' && !isEgg) {
-          //  브레스: 입에서 **전방 원뿔**로 뿜는다 + 입가 확장 링.
-          for (var b2 = 0; b2 < 20; b2++) {
-            var ba = (Math.random() - 0.5) * 0.9 + (dir > 0 ? 0 : Math.PI);
-            var bs = 120 + Math.random() * 260;
-            fx.ps.push({ x: mx, y: my, vx: Math.cos(ba) * bs, vy: Math.sin(ba) * bs * 0.55 - 20,
-                         t0: now, life: 420 + Math.random() * 260,
-                         r: 2.5 + Math.random() * 3.5, col: glow, noGrav: true });
-          }
+          //  브레스: 한 방 터짐이 아니라 **0.4초 지속 분사**(아래 스트림이 잇는다).
+          fx.breathUntil = now + 400;
           fx.ps.push({ kind: 'ring', x: mx, y: my, r0: 8, r1: h * 0.30,
                        t0: now, life: 340, col: glow });
           if (GAME.Sound) GAME.Sound.play('bossBreath');
         } else if (atk.style === 'slam') {
-          //  내리찍기: 바닥 먼지 링 + **땅 균열 금**이 방사로 번쩍 + 무거운 착지음.
+          //  내리찍기: 먼지 + 땅 균열 + **이중 충격파**(본파 뒤 0.15초에 잔파).
           for (var d2 = 0; d2 < 12; d2++) {
             var side = d2 % 2 ? 1 : -1;
             fx.ps.push({ x: sx + side * (10 + Math.random() * w * 0.22), y: syG - 4,
@@ -373,19 +390,37 @@ GAME.BossBank = (function () {
           }
           fx.ps.push({ kind: 'ring', x: sx, y: syG - 3, r0: 10, r1: w * 0.42,
                        t0: now, life: 380, col: 0xcbbfa5, flat: true });
+          fx.ps.push({ kind: 'ring', x: sx, y: syG - 3, r0: 8, r1: w * 0.28,
+                       t0: now + 150, life: 320, col: 0xcbbfa5, flat: true });
           if (GAME.Sound) GAME.Sound.play('bossSlam');
         } else {
-          //  소환/포효(spread)·알·기본: 방사 불티 + 파동 링.
+          //  소환/포효(spread)·알·기본: 방사 불티 + **삼중 파동**(북소리처럼 밀려난다).
           for (var i = 0; i < 12; i++) {
             var an = isEgg ? Math.random() * Math.PI * 2
                            : (Math.random() - 0.5) * 1.6 + (dir > 0 ? 0 : Math.PI);
             var sp = 60 + Math.random() * 160;
             fx.ps.push({ x: mx, y: my, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp - 40,
-                         t0: now, life: 380 + Math.random() * 240, r: 2 + Math.random() * 3, col: glow });
+                         t0: now, life: 380 + Math.random() * 240, r: 2 + Math.random() * 3,
+                         col: glow, mode: kindStr, grav: kindStr ? pGrav : undefined,
+                         jit: kindStr === 'storm' ? 1 : 0 });
           }
-          if (atk.style === 'spread')
-            fx.ps.push({ kind: 'ring', x: sx, y: syG - h * py + h * 0.5, r0: 12, r1: w * 0.5,
-                         t0: now, life: 420, col: glow });
+          if (atk.style === 'spread') {
+            var scy = syG - h * py + h * 0.5;
+            fx.ps.push({ kind: 'ring', x: sx, y: scy, r0: 12, r1: w * 0.5, t0: now, life: 420, col: glow });
+            fx.ps.push({ kind: 'ring', x: sx, y: scy, r0: 10, r1: w * 0.42, t0: now + 160, life: 380, col: glow });
+            fx.ps.push({ kind: 'ring', x: sx, y: scy, r0: 8, r1: w * 0.34, t0: now + 320, life: 340, col: glow });
+          }
+        }
+      }
+      //  ── 브레스 스트림 — 발사 후 0.4초간 원소 물성대로 뿜는다 ──────────────────
+      if (fx.breathUntil && now < fx.breathUntil && !isEgg) {
+        for (var bi2 = 0; bi2 < 3; bi2++) {
+          var ba2 = (Math.random() - 0.5) * 0.8 + (dir > 0 ? 0 : Math.PI);
+          var spd2 = (kindStr === 'frost' ? 90 : 140) + Math.random() * (kindStr === 'frost' ? 140 : 240);
+          fx.ps.push({ x: mx, y: my, vx: Math.cos(ba2) * spd2, vy: Math.sin(ba2) * spd2 * 0.5 - 10,
+                       t0: now, life: 380 + Math.random() * 240, r: 2.5 + Math.random() * 3.5,
+                       col: glow, mode: kindStr, grav: pGrav,
+                       jit: kindStr === 'storm' ? 1 : 0 });
         }
       }
       g.clear();
@@ -396,6 +431,7 @@ GAME.BossBank = (function () {
         var age = (now - p.t0) / p.life;
         if (age >= 1) continue;
         keep.push(p);
+        if (age < 0) continue;          //  잔파(t0 미래) — 태어날 때까지 기다린다
         if (p.kind === 'ring') {
           //  확장 링 — flat 이면 지면(눕힌 타원), 아니면 정면 원.
           var rr = p.r0 + (p.r1 - p.r0) * age;
@@ -413,10 +449,17 @@ GAME.BossBank = (function () {
           continue;
         }
         var dt2 = (now - p.t0) / 1000;
-        var grav = p.noGrav ? 0 : 90;
-        var x2 = p.x + p.vx * dt2, y2 = p.y + p.vy * dt2 + grav * dt2 * dt2;
+        var grav = p.grav !== undefined ? p.grav : (p.noGrav ? 0 : 90);
+        //  폭풍 결 — 직선이 아니라 지그재그로 튄다(전하가 튀는 느낌).
+        var jx = p.jit ? Math.sin((now + j * 137) * 0.045) * 6 : 0;
+        var x2 = p.x + p.vx * dt2 + jx, y2 = p.y + p.vy * dt2 + grav * dt2 * dt2;
         g.fillStyle(p.col, 0.85 * (1 - age));
         g.fillCircle(x2, y2, p.r * (1 - age * 0.5));
+        //  서리 결 — 흰 심이 박힌다(찬 입김의 결정).
+        if (p.mode === 'frost') {
+          g.fillStyle(0xffffff, 0.5 * (1 - age));
+          g.fillCircle(x2, y2, p.r * 0.45 * (1 - age * 0.5));
+        }
       }
       fx.ps = keep;
     },

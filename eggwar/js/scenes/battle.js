@@ -491,7 +491,13 @@ GAME.BattleScene.prototype.create = function () {
         var pkt = { lk: msg };
         var rc9 = GAME.NetRtc;
         var viaDc = !!(rc9 && rc9.ready && rc9.ready() && rc9.send(pkt));
-        if (!viaDc || msg.type !== 'inputsFinal' || (msg.upto % 5) === 0) {
+        //  적응형 (2026-08-23 태현님: "연결 끊겼다는 알람 반복") — 상시 이중화가
+        //  DO 무료 플랜의 분당 한도를 건드려 WS 가 잘리고 재접속 알람이 돌았다.
+        //  DC 로 1.6초 안에 **받은 게 있으면** 살아 있는 것 — WS 는 침묵한다.
+        //  DC 가 조용하면 그때만 WS 로(그리고 inputsFinal 은 4틱마다 — 초당 7.5개).
+        var nowMs = (window.performance && performance.now) ? performance.now() : Date.now();
+        var dcLive = viaDc && rc9.lastRecvAt && (nowMs - rc9.lastRecvAt < 1600);
+        if (!dcLive && (msg.type !== 'inputsFinal' || (msg.upto % 4) === 0)) {
           GAME.NetRoom.send({ t: 'relay', data: pkt });
         }
       },
@@ -593,7 +599,13 @@ GAME.BattleScene.prototype.create = function () {
         var pkt = { lk: msg };
         var rc9 = GAME.NetRtc;
         var viaDc = !!(rc9 && rc9.ready && rc9.ready() && rc9.send(pkt));
-        if (!viaDc || msg.type !== 'inputsFinal' || (msg.upto % 5) === 0) {
+        //  적응형 (2026-08-23 태현님: "연결 끊겼다는 알람 반복") — 상시 이중화가
+        //  DO 무료 플랜의 분당 한도를 건드려 WS 가 잘리고 재접속 알람이 돌았다.
+        //  DC 로 1.6초 안에 **받은 게 있으면** 살아 있는 것 — WS 는 침묵한다.
+        //  DC 가 조용하면 그때만 WS 로(그리고 inputsFinal 은 4틱마다 — 초당 7.5개).
+        var nowMs = (window.performance && performance.now) ? performance.now() : Date.now();
+        var dcLive = viaDc && rc9.lastRecvAt && (nowMs - rc9.lastRecvAt < 1600);
+        if (!dcLive && (msg.type !== 'inputsFinal' || (msg.upto % 4) === 0)) {
           GAME.NetRoom.send({ t: 'relay', data: pkt });
         }
       },

@@ -88,6 +88,7 @@ GAME.NetRtc = {
     dc.onclose = function () { self._fail(); };
     dc.onerror = function () { self._fail(); };
     dc.onmessage = function (ev) {
+      self.lastRecvAt = (window.performance && performance.now) ? performance.now() : Date.now();
       var m;
       try { m = JSON.parse(ev.data); } catch (e) { return; }
       if (m.__p) { try { dc.send(JSON.stringify({ __q: m.__p })); } catch (e) {} return; }

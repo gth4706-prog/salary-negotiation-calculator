@@ -217,7 +217,8 @@ GAME.TouchPad.prototype._build = function () {
   // 한가운데(= 가장 덜 붐비는 자리)에 두는 편이 스틱·스킬 오조작을 줄인다.
   // ⚠ 통곡의 탑은 물약이 없다(js/towershopitems.js 카탈로그 자체에 없음) — 버튼을
   //   만들어 두면 "삭제됐는데 왜 아직 보이지"가 된다(사용자 신고). scene.tower 로 건너뛴다.
-  if (!(this.scene && (this.scene.tower || this.scene.versus))) {
+  //  실시간 대전도 물약이 없다(초기화 영웅 — 2026-08-23 태현님 "물약 버튼 이상함").
+  if (!(this.scene && (this.scene.tower || this.scene.versus || this.scene.rt))) {
     if (PHONE) {
       this._addButton('POTION', W / 2, H - S.potionR - margin, S.potionR, '물약', PAD.amber,
         function () { GAME.Combat.usePotion(self.hero, self.scene && self.scene.state); });

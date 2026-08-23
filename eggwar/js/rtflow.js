@@ -40,6 +40,7 @@ GAME.RtFlow = {
     this.startMsg = startMsg;
     this.mySetup = null;
     this.theirSetup = null;
+    this.myHeroPick = null;     //  지난 판의 영웅 선택이 새 판에 새지 않게
     this._started = false;
     this._rttFrozen = null;
     this.deadline = Date.now() + this.PREP_MS;
@@ -85,13 +86,16 @@ GAME.RtFlow = {
   },
 
   //  세팅 조립 — 양쪽 클라이언트가 이 스냅샷만으로 같은 영웅/진형을 만든다(결정론).
-  buildControllerSetup: function () {
-    var rec = GAME.ArenaBuild ? GAME.ArenaBuild.get() : {};
+  //  2026-08-23 태현님: "영웅은 모두 초기화된 상태로 서로 골라야 한다" —
+  //  대전 상점(예산·아이템)을 접고, 준비 화면에서 고른 영웅 + 기본 스킬픽만.
+  myHeroPick: null,
+  setHeroPick: function (k) { this.myHeroPick = k; },
+  buildControllerSetup: function (heroKey) {
     return {
       role: 'controller',
-      heroKey: rec.heroKey || 'vanguard',
-      picks: rec.picks || GAME.defaultSkillPicks(),
-      items: rec.items || {}
+      heroKey: heroKey || this.myHeroPick || 'vanguard',
+      picks: GAME.defaultSkillPicks(),
+      items: {}
     };
   },
   buildStrategistSetup: function (f) {

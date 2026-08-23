@@ -24,7 +24,16 @@ GAME.NetRoom = {
   // 방 서버 주소. **비어 있으면 실시간 대전 기능 자체가 꺼진다**(조용히).
   // 2026-08-19 배포 완료(npx wrangler, DO SQLite 마이그레이션 포함).
   // 실측: /health ok · welcome/relay/ready→start 왕복 확인 · RTT 177~184ms(LAX 경유).
-  BASE: 'https://arena-room.gth3941.workers.dev',
+  //  ⚠ 한국 ISP 는 Cloudflare 무료 트래픽을 해외 콜로(LAX)로 우회시킨다(실측 RTT
+  //    493ms). 한국 리전 릴레이로 갈아탈 때를 위해 저장소 오버라이드를 둔다 —
+  //    localStorage 'eggwar.rtbase' 에 주소를 넣으면 게임 배포 없이 갈아탄다.
+  BASE: (function () {
+    try {
+      var o = localStorage.getItem('eggwar.rtbase');
+      if (o && /^https:\/\//.test(o)) return o;
+    } catch (e) {}
+    return 'https://arena-room.gth3941.workers.dev';
+  })(),
 
   // ── 상태 ──
   ws: null,

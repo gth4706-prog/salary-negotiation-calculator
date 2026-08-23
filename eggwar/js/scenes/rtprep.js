@@ -37,7 +37,7 @@ GAME.RtPrepScene.prototype.create = function () {
 
   var isStrat = F.myRole === 'strategist';
   UI.text(this, W / 2, P ? 10 : 26,
-    isStrat ? '🛡 전투 준비 — 배치를 고르세요' : '⚔ 전투 준비 — 영웅과 장비를 맞추세요',
+    isStrat ? '🛡 전투 준비 — 배치를 고르세요' : '⚔ 전투 준비 — 영웅을 고르세요 (기본 스펙 대전)',
     { size: P ? 'subhead' : 'head', color: C.accent, origin: 0.5, originY: 0 });
 
   this._timerTxt = UI.text(this, W / 2, P ? 44 : 78, '', {
@@ -68,27 +68,28 @@ GAME.RtPrepScene.prototype.create = function () {
       self._formBtns.push(b);
     });
   } else {
-    //  컨트롤러 — 대전 준비창(예산 500)이 이미 영웅·아이템·스킬 전부를 판다.
-    //  복제하지 않고 그 화면을 다녀온다(backTo 로 여기로 돌아온다).
-    //  ⚠⚠ 역할·배치 잔재를 먼저 정리한다 (2026-08-23 태현님 실사고: "예산이 2원").
-    //    ArenaBuild 레코드의 role 이 지난 공성 세션의 'strategist' 로 남아 있으면
-    //    spent() 가 전략가 갈래(유닛레벨 + _placedCost)로 계산되는데, _placedCost 는
-    //    Build 화면이 마지막으로 알려준 배치 총액 **화석**이라 벗어도 안 줄어드는
-    //    "2원 고정" 예산이 된다. 여기는 컨트롤러 준비다 — 명시하고 시작한다.
-    if (GAME.ArenaBuild) {
-      GAME.ArenaBuild.setRole('controller');
-      GAME.ArenaBuild.setPlacedCost(0);
-    }
-    var rec = GAME.ArenaBuild ? GAME.ArenaBuild.get() : {};
-    var hero = GAME.HEROES[rec.heroKey || 'vanguard'];
-    this._loadoutTxt = UI.text(this, W / 2, top + 8, '', {
-      size: P ? 'caption' : 'body', color: C.text, origin: 0.5, originY: 0 });
-    this._loadoutTxt.setAlign('center');
-    UI.button(this, W / 2, top + (P ? 74 : 96), Math.min(W - 40, 420), P ? 50 : 58,
-      '🛒 대전 준비창 열기 (영웅·장비·스킬)', function () {
-        self.scene.start('TowerShop', { mode: 'arena', backTo: 'RtPrep' });
-      }, { fontSize: P ? 14 : 16 });
-    this._refreshLoadout();
+    //  컨트롤러 — 영웅 3종을 **초기화된 스펙으로 새로 고른다** (2026-08-23 태현님:
+    //  "영웅은 모두 초기화된 상태로 서로 골라야 한다"). 상점·예산·아이템은 접었다 —
+    //  실시간은 실력전이지 장비전이 아니다. 스킬은 기본 픽.
+    this._pickedHero = null;
+    this._heroBtns = [];
+    var hks = GAME.HERO_ORDER || ['vanguard', 'ranger', 'warden'];
+    var hbw = Math.min(W - 40, 560), hbh = P ? 52 : 62;
+    hks.forEach(function (hk, i) {
+      var hd = GAME.HEROES[hk];
+      if (!hd) return;
+      var b = UI.button(self, W / 2, top + 26 + i * (hbh + 10), hbw, hbh,
+        hd.name + '   ·   ' + (hd.tagline || hd.desc || '').slice(0, 26),
+        function () {
+          self._pickedHero = hk;
+          if (GAME.RtFlow.setHeroPick) GAME.RtFlow.setHeroPick(hk);
+          self._heroBtns.forEach(function (hb, j) {
+            hb.rect.setStrokeStyle(hks[j] === hk ? 3 : 1,
+              hks[j] === hk ? GAME.CONFIG.COLORS.controller : UI.COL.borderUi);
+          });
+        }, { fontSize: P ? 14 : 16 });
+      self._heroBtns.push(b);
+    });
   }
 
   var byBottom = P ? H - 40 : H - 90;
@@ -132,7 +133,10 @@ GAME.RtPrepScene.prototype._commit = function () {
     if (!f) { this._stateTxt.setText('⚠ 저장된 배치가 없습니다'); return; }
     F.commitMine(F.buildStrategistSetup(f));
   } else {
-    F.commitMine(F.buildControllerSetup());
+    if (!this._pickedHero && !F.myHeroPick) {
+      this._stateTxt.setText('⚠ 영웅을 고르세요'); return;
+    }
+    F.commitMine(F.buildControllerSetup(this._pickedHero));
   }
   this._refresh();
 };
@@ -143,7 +147,6 @@ GAME.RtPrepScene.prototype._refresh = function () {
   if (!this._timerTxt || !this._timerTxt.scene) return;
   var s = Math.ceil(F.remainMs() / 1000);
   this._timerTxt.setText('⏳ ' + s + '초');
-  if (this._loadoutTxt) this._refreshLoadout();
   var mine = F.mySetup ? '나: 준비 완료 ✓' : '나: 준비 중…';
   var theirs = F.theirSetup ? '상대: 준비 완료 ✓' : '상대: 준비 중…';
   this._stateTxt.setText(mine + '   ·   ' + theirs +

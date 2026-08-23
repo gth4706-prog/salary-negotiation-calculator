@@ -50,7 +50,12 @@ GAME.BossRig = (function () {
           poly: [[620, 540], [790, 555], [790, 713], [620, 713]] },
         { name: 'head', behind: false, joint: [940, 462], eraseR: 150,
           anim: 'head', phase: 0.4, amp: 0.035, speed: 1.7,
-          poly: [[858, 295], [1010, 268], [1130, 320], [1230, 396], [1258, 470], [1226, 575], [1090, 648], [948, 606], [872, 522], [856, 415]] }
+          poly: [[858, 295], [1010, 268], [1130, 320], [1230, 396], [1258, 470], [1226, 575], [1090, 648], [948, 606], [872, 522], [856, 415]] },
+        //  아래턱 — 원본이 **벌린 그림**이라 평소 restClose 만큼 다물고, 스킬 때
+        //  원본+α 로 벌린다(입속은 원본 그림에 이미 있어 maw 층 불필요).
+        { name: 'jaw', behind: false, parent: 'head', jaw: true, restClose: 0.20,
+          joint: [1015, 545], eraseR: 0, anim: 'jaw', phase: 0, amp: 1, speed: 1,
+          poly: [[995, 520], [1065, 530], [1095, 555], [1085, 610], [1045, 655], [975, 645], [955, 570]] }
       ]
     },
 
@@ -94,7 +99,11 @@ GAME.BossRig = (function () {
           poly: [[0, 260], [160, 230], [330, 280], [320, 460], [140, 500], [0, 460]] },
         { name: 'head', behind: false, joint: [990, 340], eraseR: 205,
           anim: 'head', phase: 0.3, amp: 0.035, speed: 1.5,
-          poly: [[985, 145], [1090, 130], [1216, 190], [1216, 500], [1080, 510], [980, 460], [935, 300]] },
+          poly: [[985, 145], [1090, 130], [1216, 190], [1216, 500], [1110, 522], [1046, 554], [998, 520], [978, 462], [935, 300]] },
+        //  아래턱(다문 그림) — 주둥이 아랫단. 벌리면 maw(입속) 층이 드러난다.
+        { name: 'jaw', behind: false, parent: 'head', jaw: true,
+          joint: [1012, 458], eraseR: 0, anim: 'jaw', phase: 0, amp: 1, speed: 1,
+          poly: [[1000, 438], [1082, 444], [1108, 474], [1090, 516], [1044, 548], [1000, 514], [986, 470]] },
         //  다리 — 검은 사지가 회색 몸과 색으로 갈라져 상자 폴리곤이 안전하다.
         { name: 'legFront', behind: false, joint: [400, 420], eraseR: 80,
           anim: 'leg', phase: 0, amp: 0.09, speed: 1,
@@ -118,6 +127,10 @@ GAME.BossRig = (function () {
         { name: 'head', behind: false, joint: [990, 420], eraseR: 130,
           anim: 'head', phase: 0.4, amp: 0.03, speed: 1.7,
           poly: [[960, 350], [1100, 340], [1180, 400], [1160, 500], [1080, 540], [980, 520], [940, 440]] },
+        //  아래턱(다문 그림) — 벌리면 maw(입속) 층이 드러난다 (5.5차)
+        { name: 'jaw', behind: false, parent: 'head', jaw: true,
+          joint: [1042, 472], eraseR: 0, anim: 'jaw', phase: 0, amp: 1, speed: 1,
+          poly: [[1032, 462], [1146, 468], [1152, 500], [1082, 522], [1015, 498]] },
         //  꼬리 폴리곤 오른변(x560)과 안 겹치게 x585 부터.
         { name: 'legRear', behind: false, joint: [630, 480], eraseR: 70,
           anim: 'leg', phase: 0, amp: 0.09, speed: 1,
@@ -141,6 +154,10 @@ GAME.BossRig = (function () {
         { name: 'head', behind: false, joint: [1010, 410], eraseR: 130,
           anim: 'head', phase: 0.5, amp: 0.03, speed: 1.6,
           poly: [[970, 330], [1120, 320], [1290, 400], [1290, 520], [1150, 560], [1020, 520], [950, 430]] },
+        //  아래턱(다문 그림) — 벌리면 maw(입속) 층이 드러난다 (5.5차)
+        { name: 'jaw', behind: false, parent: 'head', jaw: true, restClose: 0.09,
+          joint: [1200, 492], eraseR: 0, anim: 'jaw', phase: 0, amp: 1, speed: 1,
+          poly: [[1190, 483], [1348, 468], [1352, 512], [1240, 527], [1180, 512]] },
         { name: 'legRear', behind: false, joint: [690, 480], eraseR: 75,
           anim: 'leg', phase: 0, amp: 0.09, speed: 1,
           poly: [[628, 450], [770, 465], [770, 640], [628, 640]] },
@@ -163,6 +180,10 @@ GAME.BossRig = (function () {
         { name: 'head', behind: false, joint: [1020, 430], eraseR: 130,
           anim: 'head', phase: 0.6, amp: 0.03, speed: 1.6,
           poly: [[990, 340], [1140, 340], [1270, 430], [1260, 560], [1130, 590], [1020, 540], [970, 450]] },
+        //  아래턱(다문 그림) — 벌리면 maw(입속) 층이 드러난다 (5.5차)
+        { name: 'jaw', behind: false, parent: 'head', jaw: true, restClose: 0.16,
+          joint: [1100, 500], eraseR: 0, anim: 'jaw', phase: 0, amp: 1, speed: 1,
+          poly: [[1085, 492], [1232, 502], [1238, 548], [1150, 568], [1075, 532]] },
         { name: 'legRear', behind: false, joint: [560, 510], eraseR: 75,
           anim: 'leg', phase: 0, amp: 0.09, speed: 1,
           poly: [[545, 470], [640, 485], [640, 660], [545, 660]] },
@@ -225,8 +246,24 @@ GAME.BossRig = (function () {
     if (rig._exp) return rig._exp;
     var out = [];
     for (var i = 0; i < rig.parts.length; i++) {
-      out.push(rig.parts[i]);
-      if (rig.parts[i].tipSplit) out.push(makeTip(rig.parts[i]));
+      var pp = rig.parts[i];
+      //  입속(maw) — 다문 그림의 턱(restClose 없음)에만 깐다. 턱보다 먼저 그려져
+      //  턱이 열릴 때 벌어진 자리에서 어두운 구강이 드러난다(배경 관통 방지).
+      //  부모('head') 회전을 같이 물려받아 고개를 돌려도 이음새가 안 어긋난다.
+      if (pp.jaw && !pp.restClose) {
+        out.push({ name: pp.name + 'Maw', behind: false, parent: pp.parent,
+          isMaw: true, joint: pp.joint, eraseR: 0,
+          anim: 'none', phase: 0, amp: 0, speed: 0,
+          //  축 쪽으로 14% 오므린 폴리곤 — 턱 실루엣 가장자리(턱선)까지 어두우면
+          //  열렸을 때 원래 턱 윤곽이 검은 유령으로 남는다.
+          _mawPoly: pp.poly.map(function (pt) {
+            return [pp.joint[0] + (pt[0] - pp.joint[0]) * 0.86,
+                    pp.joint[1] + (pt[1] - pp.joint[1]) * 0.86];
+          }),
+          poly: pp.poly });
+      }
+      out.push(pp);
+      if (pp.tipSplit) out.push(makeTip(pp));
     }
     rig._exp = out;
     return out;
@@ -247,11 +284,30 @@ GAME.BossRig = (function () {
       if (!src || !src.width) return false;
       var W = src.width, H = src.height;
       var parts = partsOf(key);
+      var canvMap = {};
 
       for (var i = 0; i < parts.length; i++) {
         var p = parts[i];
         var pc = scene.textures.createCanvas('rig:' + key + ':' + p.name, W, H);
         var pctx = pc.getContext();
+        canvMap[p.name] = { pc: pc, ctx: pctx };
+        //  입속 층 — 원본을 안 그린다. 어두운 구강색으로만 채운다(5.5차).
+        //  ⚠ 원본의 **불투명 픽셀과 교집합**한다 — 안 하면 폴리곤이 실루엣을
+        //    조금만 벗어나도 검은 판이 허공에 뜬다(재파수병·잿날개 실측).
+        if (p.isMaw) {
+          pctx.save();
+          pathPoly(pctx, p._mawPoly);
+          pctx.clip();
+          pctx.fillStyle = '#170a08';
+          pctx.fillRect(0, 0, W, H);
+          pctx.restore();
+          pctx.save();
+          pctx.globalCompositeOperation = 'destination-in';
+          pctx.drawImage(src, 0, 0);
+          pctx.restore();
+          pc.refresh();
+          continue;
+        }
         pctx.save();
         pathPoly(pctx, p.poly);
         pctx.clip();
@@ -283,6 +339,33 @@ GAME.BossRig = (function () {
           pctx.restore();
         }
         pc.refresh();
+      }
+
+      //  ── 턱 자리 깎기 (5.5차) — 턱 픽셀을 **머리 캔버스에서** 지운다. 안 지우면
+      //  턱이 돌 때 원본 자리의 정지 턱이 이중상으로 남는다(용 머리 잔상과 같은 원리).
+      //  경첩 주변은 방사 페이드로 남겨 회전축 이음새를 가린다(base 디스크와 같은 원리).
+      //  다문 그림 보스는 벌어진 자리를 입속(maw) 층이 받치고, 벌린 그림(용)은
+      //  원본의 구강 그림(턱 폴리곤 밖)이 그대로 남아 받친다.
+      for (var jz = 0; jz < parts.length; jz++) {
+        var mz = parts[jz];
+        if (!mz.jaw) continue;
+        var host = canvMap[mz.parent];
+        if (!host) continue;
+        var er = document.createElement('canvas'); er.width = W; er.height = H;
+        var ex = er.getContext('2d');
+        ex.save(); pathPoly(ex, mz.poly); ex.clip();
+        ex.fillStyle = '#000'; ex.fillRect(0, 0, W, H); ex.restore();
+        var hg = ex.createRadialGradient(mz.joint[0], mz.joint[1], 6,
+                                         mz.joint[0], mz.joint[1], 34);
+        hg.addColorStop(0, 'rgba(0,0,0,1)');
+        hg.addColorStop(1, 'rgba(0,0,0,0)');
+        ex.globalCompositeOperation = 'destination-out';
+        ex.fillStyle = hg; ex.fillRect(0, 0, W, H);
+        host.ctx.save();
+        host.ctx.globalCompositeOperation = 'destination-out';
+        host.ctx.drawImage(er, 0, 0);
+        host.ctx.restore();
+        host.pc.refresh();
       }
 
       //  base — 원본 부위(자동 손목 제외: 부모 폴리곤이 이미 지운다)만 지운다.
@@ -410,6 +493,23 @@ GAME.BossRig = (function () {
         var sw = Math.sin(wph) + 0.35 * Math.sin(wph * 2);
         return sw * p.amp * 1.45 * gait + sp * 0.02;
       }
+      if (p.anim === 'jaw') {
+        //  ── 입 여닫기 (5.5차 — 태현님: "이동 중·특히 스킬 쓸 때, 매우 자연스럽게") ──
+        //  값 = '벌림 각'(원본 그림 기준 0). 걷는 중엔 느린 헐떡임, 브레스는 모으며
+        //  크게 벌리고 뿜는 동안 유지, 그 외 스킬은 발사 순간 포효로 벌어졌다
+        //  스프링으로 다물린다. 떨림(tremble)이 턱에도 얹혀 "곧 문다"가 보인다.
+        var pant = (0.5 + 0.5 * Math.sin(atk.walk * 0.55 + 1.0)) * 0.06 * gait;
+        var open;
+        if (atk.style === 'breath') open = wE * 0.26 + atk.strike * 0.15;
+        else open = wE * 0.10 + Math.max(0, sp) * 0.18;
+        open += Math.max(0, tr) * 0.6 + pant;
+        //  원본이 벌린 그림(용)은 restClose 만큼 평소 다물어 둔다. 상한: 원본+0.10.
+        var rest = p.restClose || 0;
+        var cap = rest + (rest > 0 ? 0.10 : 0.20);
+        if (open > cap) open = cap;
+        return open - rest;
+      }
+      if (p.anim === 'none') return 0;   // 입속 등 고정 자식 층
       return s * p.amp;   // sway
     },
 

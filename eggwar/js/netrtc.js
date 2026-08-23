@@ -51,7 +51,24 @@ GAME.NetRtc = {
     var self = this;
     var pc;
     try {
-      pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      //  ── ICE 서버 (2026-08-24 태현님 Metered 가입) ──────────────────────────
+      //  STUN 만으로는 세션의 15~20%가 직결에 실패해 LAX 릴레이(왕복 500ms)로
+      //  떨어졌다. TURN(Metered Open Relay — 서울 PoP, 최근접 자동 라우팅)을 더해
+      //  직결 실패분도 한국 경유 저지연으로 붙는다. 무료 500MB/월 — 록스텝은
+      //  판당 시간당 ~18MB 라 충분. TURN 자격증명은 클라이언트 내장이 표준(공개 성격).
+      var ICE = [
+        { urls: 'stun:stun.relay.metered.ca:80' },
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'turn:global.relay.metered.ca:80',
+          username: 'a1df21e589bc3d341b72a49e', credential: 'SkW2aLHIiEciJniz' },
+        { urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+          username: 'a1df21e589bc3d341b72a49e', credential: 'SkW2aLHIiEciJniz' },
+        { urls: 'turn:global.relay.metered.ca:443',
+          username: 'a1df21e589bc3d341b72a49e', credential: 'SkW2aLHIiEciJniz' },
+        { urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+          username: 'a1df21e589bc3d341b72a49e', credential: 'SkW2aLHIiEciJniz' }
+      ];
+      pc = new RTCPeerConnection({ iceServers: ICE });
     } catch (e) { this._fail(); return; }
     this.pc = pc;
     pc.onicecandidate = function (ev) {

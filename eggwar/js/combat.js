@@ -796,6 +796,15 @@ GAME.Combat = {
     if (unit.hp <= 0) {
       unit.hp = 0; unit.alive = false;
       this.spawnYolk(state, unit);   // 죽으면 노른자가 터진다
+      //  킬스트릭 (2026-08-23 태현님 ④) — 영웅이 2.6초 안에 연속 처치하면 계단.
+      //  씬이 ping 변화를 보고 톤을 올린다(렌더·소리 전용 — 판정 무관).
+      if (source && source.isHero && !unit.isHero && source.side !== unit.side && state) {
+        //  ⚠ `|| -99999` 는 함정 — 첫 처치가 elapsed 0 이면 falsy 라 무시된다(실측).
+        var ksPrev = (state._ksAt === undefined) ? -99999 : state._ksAt;
+        var ksN = (state.elapsed - ksPrev < 2600) ? (state._ksN || 0) + 1 : 1;
+        state._ksN = ksN; state._ksAt = state.elapsed;
+        if (ksN >= 2) state.killStreakPing = { n: ksN, seq: ((state.killStreakPing && state.killStreakPing.seq) || 0) + 1 };
+      }
       // ── 정예 '폭심' — 죽으면 크게 터진다 (towerrule.js) ──────────────────
       //  "붙어서 아무거나 먼저 잡기"를 벌준다. 아군도 함께 맞는다 — 그래야 위치가 의미를 갖는다.
       //  ⚠ `noCrit` 로 준다. 사망 폭발이 크리까지 터지면 즉사 구간이 생겨 배울 수 없다.
@@ -1497,6 +1506,9 @@ GAME.Combat = {
       var _uFloor = (u.damage * 10) / _uHits;
       if (skDmg < _uFloor) skDmg = _uFloor;
     }
+    //  궁극 착탄 연출 표식 (2026-08-23 태현님 ⑤) — 즉발형은 시전=착탄이므로 여기서,
+    //  지연형(예고·투사체·덫)은 그 물체에 실어 보내 터지는 순간 센다.
+    var isUltCast = !!(u.isHero && slot === 'R' && skDmg > 0);
 
     //  ── 영웅 연계 콤보 (2026-08-23 태현님: "각 영웅마다 연계 콤보를 만들자") ─────
     //  광전사·사냥꾼의 **피해 2배는 여기서 곱하지 않는다** — 시전 전체를 곱하면
@@ -1586,7 +1598,7 @@ GAME.Combat = {
           kind: 'telegraph', x: tx, y: ty, r: sk.radius,
           t: sk.telegraph + r * (sk.interval || 600),
           total: sk.telegraph,
-          damage: skDmg, side: u.side, owner: u, srcSkill: sk.name
+          damage: skDmg, side: u.side, owner: u, srcSkill: sk.name, ult: isUltCast
         });
       }
 
@@ -1607,6 +1619,7 @@ GAME.Combat = {
           hitSet: [],
           owner: u,
           srcSkill: sk.name,
+          ult: isUltCast,
           big: true
         });
         var last = state.projectiles[state.projectiles.length - 1];
@@ -1674,7 +1687,7 @@ GAME.Combat = {
       var py2 = td > maxD ? u.y + (tdy / td) * maxD : ty;
       state.traps.push({
         x: px2, y: py2, radius: sk.radius, damage: skDmg,
-        rootMs: sk.rootMs, life: sk.life, side: u.side, owner: u, srcSkill: sk.name
+        rootMs: sk.rootMs, life: sk.life, side: u.side, owner: u, srcSkill: sk.name, ult: isUltCast
       });
 
     } else if (sk.type === 'aura') {
@@ -1686,6 +1699,13 @@ GAME.Combat = {
       }
       u.auras.push({ radius: sk.radius, dps: _auDps,
                      t: sk.duration, tick: 0, srcSkill: sk.name });
+    }
+
+    //  궁극 즉발형(돌진·자기광역·강타·후려치기)은 시전 순간이 곧 착탄이다.
+    if (isUltCast && (sk.type === 'dash' || sk.type === 'aoeSelf' ||
+                      sk.type === 'strike' || sk.type === 'pull')) {
+      state.ultBlast = (state.ultBlast || 0) + 1;
+      state.ultBlastAt = { x: u.x, y: u.y };
     }
 
     //  ── 잿가루 (2026-08-08 · 잿가루꾼) ────────────────────────────────────
@@ -3054,6 +3074,8 @@ GAME.Combat = {
         if (!tu.alive || tu.side === tr.side) continue;
         if (this.dist(tu, tr) <= tr.radius) {
           this.applyDamage(tu, tr.damage, tr.owner, state, { srcSkill: tr.srcSkill });
+          if (tr.ult) { state.ultBlast = (state.ultBlast || 0) + 1;
+                        state.ultBlastAt = { x: tr.x, y: tr.y }; }
           tu.rootedFor = Math.max(tu.rootedFor, tr.rootMs);
           triggered = true;
         }
@@ -3120,9 +3142,13 @@ GAME.Combat = {
           if (p.hitSet.indexOf(o) !== -1) continue;
           p.hitSet.push(o);
           this.applyDamage(o, p.damage, p.owner, state, { srcSkill: p.srcSkill });
+          if (p.ult) { state.ultBlast = (state.ultBlast || 0) + 1;
+                       state.ultBlastAt = { x: o.x, y: o.y }; p.ult = false; }
           state.effects.push({ kind: 'spark', x: p.x, y: p.y, t: 120, total: 120, side: p.side });
         } else {
           this.applyDamage(o, p.damage, p.owner, state, { srcSkill: p.srcSkill });
+          if (p.ult) { state.ultBlast = (state.ultBlast || 0) + 1;
+                       state.ultBlastAt = { x: o.x, y: o.y }; p.ult = false; }
           if (p.sticky) this.applySlow(o, p);
           // 관측: 영웅이 논타겟에 실제로 맞았나 (회피 실력 계산의 분자)
           if (o.isHero && p.side === 'strategist' && !p.homing) {
@@ -3203,6 +3229,8 @@ GAME.Combat = {
             //  착탄음(2026-08-23 효과음 세트) — 예고 원이 터지는 순간. 대상 루프
             //  안이지만 sound 쪽 게이트(120ms)가 같은 폭발의 겹침을 막는다.
             if (GAME.Sound && e.damage) GAME.Sound.play('skillBurst');
+            if (e.ult) { state.ultBlast = (state.ultBlast || 0) + 1;
+                         state.ultBlastAt = { x: e.x, y: e.y }; }
             // 늪지기 스킬 — 예고 폭발이 둔화도 건다. `slowMul` 이 실린 예고만 해당된다
             // (없으면 아무 일도 안 하므로 기존 예고는 그대로다).
             if (e.slowMul) this.applySlow(w, { slowMul: e.slowMul, slowMs: e.slowMs || 2000 });

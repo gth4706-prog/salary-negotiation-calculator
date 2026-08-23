@@ -71,7 +71,8 @@ GAME.Sound = {
   FILES: {
     hit: ['hit_0', 'hit_1', 'hit_2'],
     critHit: ['critHit_0', 'critHit_1'],
-    bow: ['bow_1', 'bow_2'],
+    //  bow 파일은 뺐다(2026-08-23 태현님: 고공속 연사에서 시위 '텅'이 거북)
+    //  — 아래 절차 합성 '슝'(바람 가르는 소리)이 담당한다. wav 는 assets 에 남아 있다.
     arrowHit: ['arrowHit_0', 'arrowHit_1'],
     skill: ['skillCast'],
     skillBurst: ['skillBurst_0', 'skillBurst_1'],
@@ -81,7 +82,7 @@ GAME.Sound = {
   },
   //  파일 재생도 절차 합성과 **같은 쿨다운**을 지킨다(_gate 값 미러 — 파일이라고
   //  겹쳐 재생하면 더 지저분하다). 표에 없는 키는 게이트 없이 낸다(원래도 없었다).
-  FILE_GATES: { hit: 45, critHit: 90, bow: 55, arrowHit: 60, skillBurst: 120,
+  FILE_GATES: { hit: 45, critHit: 90, arrowHit: 60, skillBurst: 120,
                 bossStep: 230, bossBreath: 300, bossSlam: 300, bossCharge: 500 },
   _fbuf: null,
 
@@ -178,6 +179,16 @@ GAME.Sound = {
     src.start(t); src.stop(t + opt.dur + 0.02);
   },
 
+  //  ── 킬스트릭 (2026-08-23 태현님 승인 ④) — 2연킬부터, 톤이 한 단계씩 오른다.
+  //  ⚠ 세계관: 금속·전자음 금지 → 사각파 대신 triangle + sine 겹으로 부드럽게.
+  killStreak: function (n) {
+    if (!this._ready || !this.enabled) return;
+    if (!this._gate('killStreak', 200)) return;
+    var base = 300 * Math.pow(1.22, Math.min(5, n) - 1);
+    this._tone({ type: 'triangle', f0: base, f1: base * 1.34, dur: 0.16, vol: 0.16, attack: 0.01 });
+    this._tone({ type: 'sine', f0: base * 2, f1: base * 2.6, dur: 0.12, vol: 0.07, attack: 0.01 });
+  },
+
   // 같은 소리가 너무 자주 나지 않게 (ms)
   _gate: function (name, ms) {
     var now = Date.now();
@@ -236,11 +247,26 @@ GAME.Sound = {
         //    높은 '핑' 소리를 넣으면 그 순간 SF 가 된다.
         //  ⚠ `_gate` 는 필수다. 사냥꾼 연사는 초당 여러 발이라 안 막으면 소리가
         //    뭉개져 오히려 안 들린다(이 파일이 hit·yolk 에서 이미 배운 것).
-        case 'bow':
+        case 'bow': {
           if (!this._gate('bow', 55)) return;
-          this._tone({ type: 'triangle', f0: 230, f1: 96, dur: 0.10, vol: 0.17 });
-          this._burst({ dur: 0.055, freq: 2300, q: 2.6, vol: 0.10, filter: 'highpass' });
+          //  2026-08-23 태현님: "공격속도 높아지니 거북 — 얇고 작은 '슝'으로."
+          //  시위 '텅'(저역 튕김)을 버리고 **바람 가르는 소리**만 남긴다: 노이즈를
+          //  대역필터로 3.2k→700Hz 훑어 내리면 화살이 지나가는 결이 된다.
+          //  작게(0.13) · 짧게(0.11s) — 연사로 깔려도 안 쌓인다.
+          var tB = this.ctx.currentTime;
+          var sB = this.ctx.createBufferSource();
+          sB.buffer = this._noise(0.11);
+          var fB = this.ctx.createBiquadFilter();
+          fB.type = 'bandpass'; fB.Q.value = 1.6;
+          fB.frequency.setValueAtTime(3200, tB);
+          fB.frequency.exponentialRampToValueAtTime(700, tB + 0.10);
+          var gB = this.ctx.createGain();
+          gB.gain.setValueAtTime(0.13, tB);
+          gB.gain.exponentialRampToValueAtTime(0.0001, tB + 0.11);
+          sB.connect(fB); fB.connect(gB); gB.connect(this.master);
+          sB.start(tB); sB.stop(tB + 0.13);
           break;
+        }
         //  화살이 박히는 소리 — 짧고 마른 '탁'. 살에 박히는 것이지 금속끼리가 아니다.
         case 'arrowHit':
           if (!this._gate('arrowHit', 60)) return;

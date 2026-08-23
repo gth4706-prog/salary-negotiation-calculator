@@ -17,6 +17,10 @@ GAME.BattleScene.prototype.init = function (data) {
   //    이 저장소의 '지연생성 가드' 함정과 같은 계열 — 상태를 씬에 두면 init 에서 되돌린다.
   this._combo = 0;
   this._comboAt = -9999;
+  //  ping 감시 필드도 판마다 되돌린다 — 새 판의 카운터는 0에서 시작하는데 지난 판
+  //  값이 남으면 시작하자마자 유령 알림(콤보 사고와 같은 계열)이 뜬다.
+  this._reflectSeen = 0; this._comboSeen = 0; this._ksSeen = 0; this._ubSeen = 0;
+  this._ultFlashRect = null;
   //  상하반전은 판마다 다시 정한다 — 리셋 없이는 RT 다음의 일반 전투가 뒤집혀 나온다.
   if (GAME.Iso) GAME.Iso.rtFlip = false;
   this._comboTier = -1;      // 색 단계 캐시 — 안 지우면 지난 판의 빨강이 남는다
@@ -1676,10 +1680,14 @@ GAME.BattleScene.prototype.drawNumbers = function () {
     //  ⚠ 내가 준 피해에만 적용한다. 맞은 쪽까지 커지면 "덜 튀게 한다"는 결정과 어긋난다.
     //  ⚠ 크기는 `setFontSize` 를 부르므로 값이 잘게 흔들리면 매 프레임 재래스터가 된다
     //    → **4px 격자로 양자화**해 캐시가 실제로 듣게 한다.
+    var mag = Math.min(1, Math.log(Math.max(1, n.value)) / Math.log(10000));
     if (mine) {
-      var mag = Math.min(1, Math.log(Math.max(1, n.value)) / Math.log(10000));
       size = Math.round((size * (1 + mag * 0.42)) / 4) * 4;
     }
+    //  ── 무게 팝 (2026-08-23 태현님 ③) — 큰 피해일수록 태어날 때 크게 튀었다
+    //  줄어든다. setScale 은 변환이라 재래스터가 없다(위 세터 캐시 규율과 무관).
+    var popK = mine ? (0.18 + mag * 0.55) : 0.08;
+    t.setScale(1 + popK * Math.max(0, 1 - prog * 5));
     // ⚠ Phaser 의 Text 스타일 세터(setFontSize/setColor/setStroke)는 값이 같아도
     //   **매번 캔버스를 다시 굽는다**(updateText). 매 프레임 부르면 숫자 하나당
     //   프레임마다 3~4회 재래스터가 일어난다 — 실측: 숫자 4개에서 22.8회/프레임,
@@ -1966,6 +1974,40 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     }
   }
   if (this._comboMute > 0) this._comboMute -= dt;
+
+  //  ── 킬스트릭 (2026-08-23 태현님 ④) — 2연킬부터 톤 계단 + 짧은 문구 ─────────
+  var ksp = this.state.killStreakPing;
+  if (ksp && ksp.seq !== (this._ksSeen || 0)) {
+    this._ksSeen = ksp.seq;
+    if (GAME.Sound && GAME.Sound.killStreak) GAME.Sound.killStreak(ksp.n);
+    if (ksp.n >= 3) this._orbToast('🔥 ' + ksp.n + '연속 처치!');
+  }
+
+  //  ── 궁극 착탄 (2026-08-23 태현님 ⑤) — 흰 섬광 1프레임 + 이중 충격파 ────────
+  var ub = this.state.ultBlast || 0;
+  if (ub !== (this._ubSeen || 0)) {
+    this._ubSeen = ub;
+    var ubAt = this.state.ultBlastAt;
+    //  섬광 — 전 화면 흰 판(깊이 최상단). 과하면 촌스러워서 궁극 한정·0.22초.
+    if (!this._ultFlashRect || !this._ultFlashRect.scene) {
+      this._ultFlashRect = this.add.rectangle(GAME.CONFIG.WIDTH / 2, GAME.CONFIG.HEIGHT / 2,
+        GAME.CONFIG.WIDTH, GAME.CONFIG.HEIGHT, 0xfffcf0, 1).setDepth(8500).setAlpha(0);
+    }
+    this._ultFlashRect.setAlpha(0.5);
+    this.tweens.add({ targets: this._ultFlashRect, alpha: 0, duration: 220 });
+    if (ubAt) {
+      //  이중 충격파 — 시뮬 상태가 아니라 씬 트윈으로 그린다(RT 안전·잔재 걱정 없음).
+      for (var ubi = 0; ubi < 2; ubi++) {
+        var ubc = this.add.circle(ubAt.x, GAME.Iso.toScreenY(ubAt.y), 12)
+          .setStrokeStyle(5 - ubi * 2, 0xe8b23a, 0.85).setDepth(80).setScale(1);
+        if (this.worldLayer) this.worldLayer.add(ubc);
+        this.tweens.add({ targets: ubc, radius: 150 + ubi * 90, alpha: 0,
+          delay: ubi * 110, duration: 380, ease: 'Cubic.easeOut',
+          onComplete: (function (o9) { return function () { o9.destroy(); }; })(ubc) });
+      }
+    }
+    if (this.cameras && this.cameras.main) this.cameras.main.shake(240, 0.006);
+  }
 
   if (this.state.bossHealOn && GAME.HealZone && GAME.HealZone.tickBoss) {
     var bu = null;

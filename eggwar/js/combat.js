@@ -1539,8 +1539,11 @@ GAME.Combat = {
 
     // 스킬 시전음 — 광역/폭발 계열은 묵직하게, 나머지는 솟는 톤으로
     if (GAME.Sound) {
-      var boomy = (sk.type === 'aoeSelf' || sk.type === 'aoeTarget' || sk.type === 'trap');
-      GAME.Sound.play(boomy ? 'boom' : 'skill');
+      //  2026-08-23 태현님: "궁극기랑 덫 소리가 거슬려" — 원인은 **소리와 사건의
+      //  불일치**였다: 덫 '설치'와 예고형 '시전'에 광역 폭발음(boom)이 울렸다.
+      //  폭발음은 실제로 터지는 것(aoeSelf 즉발)에만. 예고형은 차징음, 덫은 설치음.
+      GAME.Sound.play(sk.type === 'aoeSelf' ? 'boom'
+                    : sk.type === 'trap' ? 'trapSet' : 'skill');
     }
 
     if (sk.type === 'dash') {

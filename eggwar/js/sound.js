@@ -108,6 +108,8 @@ GAME.Sound = {
     }
   },
 
+  //  파일별 상대 음량 — 잦은 소리는 눌러 둔다(2026-08-23 태현님: "시끄럽다").
+  FILE_VOL: { skillBurst: 0.55, boom: 0.8 },
   _playFile: function (name) {
     var list = this._fbuf && this._fbuf[name];
     if (!list || !list.length) return false;
@@ -116,7 +118,14 @@ GAME.Sound = {
       var src = this.ctx.createBufferSource();
       src.buffer = list[Math.floor(Math.random() * list.length)];
       src.playbackRate.value = 0.97 + Math.random() * 0.06;
-      src.connect(this.master);
+      var vol = this.FILE_VOL[name];
+      if (vol !== undefined && vol !== 1) {
+        var g = this.ctx.createGain();
+        g.gain.value = vol;
+        src.connect(g); g.connect(this.master);
+      } else {
+        src.connect(this.master);
+      }
       src.start(t);
       return true;
     } catch (e) { return false; }
@@ -283,6 +292,11 @@ GAME.Sound = {
         //    쓰여서(광역·덫 계열) 가장 자주 나는 소리 중 하나가 됐다.
         //  ⚠ 저역을 지우지 않는다 — 그게 「묵직함」의 정체이고 헤드폰·진동에서 산다.
         //    대신 **앞에 짧은 고역 한 겹**을 얹어 폰에서도 「터졌다」가 전해지게 한다.
+        case 'trapSet':      // 덫 설치 — 말뚝 박는 낮은 '턱'. 폭발음이 아니다.
+          if (!this._gate('trapSet', 200)) return;
+          this._tone({ type: 'triangle', f0: 190, f1: 90, dur: 0.09, vol: 0.16 });
+          this._burst({ dur: 0.05, freq: 700, q: 1.4, vol: 0.10 });
+          break;
         case 'skillBurst':   // 스킬 착탄(예고 원이 터지는 순간) — boom 보다 가볍게
           if (!this._gate('skillBurst', 120)) return;
           this._burst({ dur: 0.05, freq: 1600, q: 1.1, vol: 0.14, filter: 'highpass' });

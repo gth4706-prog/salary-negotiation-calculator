@@ -20,7 +20,7 @@ GAME.BattleScene.prototype.init = function (data) {
   //  ping 감시 필드도 판마다 되돌린다 — 새 판의 카운터는 0에서 시작하는데 지난 판
   //  값이 남으면 시작하자마자 유령 알림(콤보 사고와 같은 계열)이 뜬다.
   this._reflectSeen = 0; this._comboSeen = 0; this._ksSeen = 0; this._ubSeen = 0;
-  this._ultFlashRect = null;
+
   //  상하반전은 판마다 다시 정한다 — 리셋 없이는 RT 다음의 일반 전투가 뒤집혀 나온다.
   if (GAME.Iso) GAME.Iso.rtFlip = false;
   this._comboTier = -1;      // 색 단계 캐시 — 안 지우면 지난 판의 빨강이 남는다
@@ -78,8 +78,7 @@ GAME.BattleScene.prototype.init = function (data) {
   this._endElapsed = 0;
   this._endShown = -1;
   //  토스트 큐 — 씬 인스턴스가 재사용되므로 여기서 되돌린다(이 파일의 상습 사고 계열).
-  this._toastQ = [];
-  this._toastOn = false;
+  this._toasts = null;      //  크레딧 스택 자막 — 씬 재사용 대비 초기화
 };
 
 GAME.BattleScene.prototype.create = function () {
@@ -1456,38 +1455,51 @@ GAME.BattleScene.prototype._dropAlert = function (drop) {
 };
 
 GAME.BattleScene.prototype._orbToast = function (text) {
+  //  ── 크레딧 스택 (2026-08-23 태현님: "겹치면 뒤엣게 늦게 떠 — 영화 크레딧처럼
+  //  밀고 올라가서 위엣것부터 사라지게") ──────────────────────────────────────
+  //  예전엔 한 줄짜리 직렬 큐라 구슬→연계가 연달아 오면 두 번째가 1.7초를 기다렸다.
+  //  이제 새 자막은 즉시 바닥 줄에 뜨고, 있던 자막들이 위로 밀려 올라간다.
   if (!text) return;
-  if (!this._toastQ) this._toastQ = [];
-  if (this._toastQ.length >= this.TOAST_MAX) return;
-  this._toastQ.push(text);
-  if (!this._toastOn) this._toastPump();
+  var C = GAME.CONFIG.COLORS, W = GAME.CONFIG.WIDTH;
+  var r = GAME.Iso.screenRect();
+  var baseY = r.bottom - (GAME.CONFIG.SMALL ? 34 : 46);
+  if (!this._toasts) this._toasts = [];
+  var m = GAME.UI.label(this, W / 2, baseY, text,
+    GAME.CONFIG.SMALL ? 17 : 20, C.accent, 0.5).setOrigin(0.5, 1).setDepth(60).setAlpha(0);
+  m.setAlign('center').setWordWrapWidth(Math.min(W - 60, r.w - 40));
+  this._toasts.push(m);
+  this.tweens.add({ targets: m, alpha: 1, duration: 160 });
+  //  상한을 넘치면 **위(가장 오래된 것)부터** 지운다.
+  while (this._toasts.length > this.TOAST_MAX) this._toastDrop(this._toasts[0]);
+  this._toastFlow();
+  var self = this;
+  this.time.delayedCall(3400, function () { self._toastDrop(m); });
 };
 
-GAME.BattleScene.prototype._toastPump = function () {
-  var self = this;
-  if (!this._toastQ || !this._toastQ.length) { this._toastOn = false; return; }
-  var text = this._toastQ.shift();
-  this._toastOn = true;
+//  자막 하나를 떠나보낸다 — 위로 흘러가며 사라지고, 남은 줄들이 자리를 당긴다.
+GAME.BattleScene.prototype._toastDrop = function (m) {
+  if (!this._toasts) return;
+  var i = this._toasts.indexOf(m);
+  if (i < 0) return;
+  this._toasts.splice(i, 1);
+  if (m && m.scene) {
+    this.tweens.add({ targets: m, alpha: 0, y: m.y - 16, duration: 260,
+      onComplete: function () { if (m && m.scene) m.destroy(); } });
+  }
+  this._toastFlow();
+};
 
-  var C = GAME.CONFIG.COLORS;
-  var W = GAME.CONFIG.WIDTH;
+//  바닥 기준으로 다시 쌓는다 — 최신이 맨 아래, 오래된 것일수록 위.
+GAME.BattleScene.prototype._toastFlow = function () {
+  if (!this._toasts) return;
   var r = GAME.Iso.screenRect();
-  // 전장 바닥에서 한 줄 높이만큼 위 — 영웅이 주로 서 있는 아래쪽 가장자리는 피한다.
   var y = r.bottom - (GAME.CONFIG.SMALL ? 34 : 46);
-  if (this._orbMsg && this._orbMsg.scene) this._orbMsg.destroy();
-  this._orbMsg = GAME.UI.label(this, W / 2, y, text,
-    GAME.CONFIG.SMALL ? 17 : 20, C.accent, 0.5).setOrigin(0.5, 1).setDepth(60);
-  this._orbMsg.setAlign('center').setWordWrapWidth(Math.min(W - 60, r.w - 40));
-  var m = this._orbMsg;
-
-  //  뒤에 밀린 게 있으면 짧게, 없으면 넉넉히.
-  var dur = this._toastQ.length ? 1700 : 4000;
-  // 씬이 먼저 죽어도 안전하게(파괴된 객체를 만지면 Phaser 가 터진다).
-  this.time.delayedCall(dur, function () {
-    if (m && m.scene) m.destroy();
-    if (self.scene && self.scene.isActive && self.scene.isActive()) self._toastPump();
-    else self._toastOn = false;
-  });
+  for (var i = this._toasts.length - 1; i >= 0; i--) {
+    var m = this._toasts[i];
+    if (!m || !m.scene) continue;
+    this.tweens.add({ targets: m, y: y, duration: 200, ease: 'Cubic.easeOut' });
+    y -= (m.height + 6);
+  }
 };
 
 GAME.BattleScene.prototype._drawOrbs = function (g) {
@@ -1980,7 +1992,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   if (ksp && ksp.seq !== (this._ksSeen || 0)) {
     this._ksSeen = ksp.seq;
     if (GAME.Sound && GAME.Sound.killStreak) GAME.Sound.killStreak(ksp.n);
-    if (ksp.n >= 3) this._orbToast('🔥 ' + ksp.n + '연속 처치!');
+    //  자막은 뺐다(2026-08-23 태현님: "무의미해") — 톤 계단만 남긴다.
   }
 
   //  ── 궁극 착탄 (2026-08-23 태현님 ⑤) — 흰 섬광 1프레임 + 이중 충격파 ────────
@@ -1988,13 +2000,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   if (ub !== (this._ubSeen || 0)) {
     this._ubSeen = ub;
     var ubAt = this.state.ultBlastAt;
-    //  섬광 — 전 화면 흰 판(깊이 최상단). 과하면 촌스러워서 궁극 한정·0.22초.
-    if (!this._ultFlashRect || !this._ultFlashRect.scene) {
-      this._ultFlashRect = this.add.rectangle(GAME.CONFIG.WIDTH / 2, GAME.CONFIG.HEIGHT / 2,
-        GAME.CONFIG.WIDTH, GAME.CONFIG.HEIGHT, 0xfffcf0, 1).setDepth(8500).setAlpha(0);
-    }
-    this._ultFlashRect.setAlpha(0.5);
-    this.tweens.add({ targets: this._ultFlashRect, alpha: 0, duration: 220 });
+    //  흰 섬광은 뺐다(2026-08-23 태현님: "과하다 — 없애고 떨림만 약하게").
     if (ubAt) {
       //  이중 충격파 — 시뮬 상태가 아니라 씬 트윈으로 그린다(RT 안전·잔재 걱정 없음).
       for (var ubi = 0; ubi < 2; ubi++) {
@@ -2006,7 +2012,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
           onComplete: (function (o9) { return function () { o9.destroy(); }; })(ubc) });
       }
     }
-    if (this.cameras && this.cameras.main) this.cameras.main.shake(240, 0.006);
+    if (this.cameras && this.cameras.main) this.cameras.main.shake(130, 0.0035);
   }
 
   if (this.state.bossHealOn && GAME.HealZone && GAME.HealZone.tickBoss) {
@@ -2565,8 +2571,7 @@ GAME.BattleScene.prototype._juice = function (dt) {
     this._shakeAt = now;
     if (this.cameras && this.cameras.main) {
       //  궁극은 판을 바꾸는 한 방 — 화면도 한 단계 크게 운다.
-      this.cameras.main.shake(castUlt ? 220 : (cast ? 150 : 220),
-                              castUlt ? 0.007 : (cast ? 0.005 : 0.008));
+      this.cameras.main.shake(cast ? 150 : 220, cast ? 0.005 : 0.008);
     }
   }
 

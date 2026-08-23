@@ -74,6 +74,7 @@ GAME.TowerScene.prototype.create = function (data) {
   //  ⚠ 인스턴스 프로퍼티라 `scene.restart` 후에도 남는다 → 매 create 에서 반드시
   //    덮어쓴다. 안 그러면 랭킹에 갔다 돌아와도 "+18 골드"가 계속 붙어 있는다.
   this._cleared = (data && data.cleared) || null;
+  this._reportBtn = null;   // 씬 인스턴스 재사용 대비(지연생성 가드 규율)
   // ⚠ 씬 인스턴스는 살아남는다 — init 에서 되돌리지 않으면 두 번째 획득부터
   //   팝업이 영영 안 뜬다(이 폴더의 '지연생성 가드' 함정과 같은 계열이다).
   this._dropShown = false;
@@ -1212,6 +1213,21 @@ GAME.TowerScene.prototype._refreshRun = function (bump) {
   // 결과 화면을 건너뛰므로 이 줄이 유일한 획득 표시다.
   var gained = (this._cleared && this._cleared.gold) ? ('   (+' + this._cleared.gold + ')') : '';
   this.goldLabel.setText('💰 골드  ' + this.char.gold + gained);
+
+  //  📊 전투 요약 (2026-08-23 태현님) — 층 클리어는 결과 화면을 건너뛰므로,
+  //  방금 판의 요약은 여기서 연다. 클리어 직후 한 번만 만든다.
+  if (this._cleared && this._cleared.report && !this._reportBtn && GAME.BattleReport) {
+    var rpSelf = this;
+    var rpP = GAME.CONFIG.PHONE;
+    this._reportBtn = GAME.UI.button(this,
+      GAME.CONFIG.WIDTH - (rpP ? 86 : 110), rpP ? 68 : 96,
+      rpP ? 140 : 170, rpP ? 42 : 46, '📊 전투 요약',
+      function () {
+        GAME.BattleReport.open(rpSelf, rpSelf._cleared.report,
+          { win: true, sec: rpSelf._cleared.battleSec || 0 });
+      }, { fontSize: rpP ? 13 : 14 });
+    this._reportBtn.setDepth(60);
+  }
   if (bump) {
     this.goldLabel.setScale(1.25);
     this.tweens.add({ targets: this.goldLabel, scale: 1, duration: 260, ease: 'Back.easeOut' });

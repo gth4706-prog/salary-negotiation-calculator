@@ -1895,6 +1895,17 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   }
   if (this._reflectMute > 0) this._reflectMute -= dt;
 
+  //  ── 연계 콤보 알림 (2026-08-23) — reflectPing 과 같은 문법 ─────────────────
+  var cping = this.state.comboPing || 0;
+  if (cping !== (this._comboSeen || 0)) {
+    this._comboSeen = cping;
+    if (!this._comboMute || this._comboMute <= 0) {
+      this._orbToast('⚡ 연계!');
+      this._comboMute = 600;
+    }
+  }
+  if (this._comboMute > 0) this._comboMute -= dt;
+
   if (this.state.bossHealOn && GAME.HealZone && GAME.HealZone.tickBoss) {
     var bu = null;
     for (var bi = 0; bi < this.state.units.length; bi++) {
@@ -2216,6 +2227,9 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         //  ⚠ 이 콜백의 this 는 씬이 아니라 타이머다 — this.state 로 썼다가 결과 전환이
         //  통째로 죽어 **모든 전투가 끝나는 순간 얼어붙었다**(v2.43~46 회귀, RT 실측이 잡음).
         timeUp: !!self.state.timeUp,
+        //  전투 보고(2026-08-23) — Result 가 탭·게이지로 요약해 보여준다.
+        report: self.state.report,
+        battleSec: Math.round((self.state.elapsed || 0) / 1000),
         //  ── 탑에서는 학습 문구를 안 보여 준다 (2026-08-05 사용자 신고) ────────
         //  > "못깨고나서 7단계 올라갔다는 표현이보여서"
         //

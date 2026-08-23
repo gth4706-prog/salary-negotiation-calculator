@@ -28,6 +28,8 @@ GAME.ResultScene.prototype.init = function (data) {
   this.versus = !!data.versus;                // 대전(비동기 PvP) 공격이었는가
   this.arenaResult = data.arenaResult || null;// { delta, trophy, league }
   this.rtResult = data.rtResult || null;      // { won, delta, score } | { invalid }
+  this.report = data.report || null;          // 전투 요약(combat state.report)
+  this.battleSec = data.battleSec || 0;
 };
 
 // ── 통곡의 탑 · 층 클리어는 이 화면을 **건너뛴다** (2026-07-29, 사용자 지시) ─────────
@@ -53,7 +55,11 @@ GAME.ResultScene.prototype._skipToNextFloor = function () {
       gold: this.goldGained || 0,
       score: this.score || 0,
       best: (this.towerRec && this.towerRec.best) || 0,
-      drop: this.bossDrop || null
+      drop: this.bossDrop || null,
+      //  전투 요약(2026-08-23) — 층 클리어는 Result 를 건너뛰므로 도전 화면이
+      //  「📊 전투 요약」 버튼으로 이 데이터를 연다.
+      report: this.report || null,
+      battleSec: this.battleSec || 0
     }
   });
   return true;
@@ -226,6 +232,25 @@ GAME.ResultScene.prototype.create = function () {
 
   // 폰 가로: 판정 → 보상 → 버튼 3단을 세로로 쌓으면 아래 두 단이 통째로 화면 밖으로
   // 나간다(실측 화면밖 11건). 왼쪽 = 무슨 일이 있었나, 오른쪽 = 무엇을 받았고 다음은 뭔가.
+  //  📊 전투 요약 (2026-08-23 태현님) — 우상단 버튼. 승리는 '입힌 피해',
+  //  패배는 '받은 피해' 탭이 기본으로 열린다(BattleReport 가 처리).
+  if (this.report && GAME.BattleReport) {
+    var repSelf = this;
+    var rpBtn = GAME.UI.button(this,
+      W - (GAME.CONFIG.PHONE ? 86 : 110), GAME.CONFIG.PHONE ? 30 : 40,
+      GAME.CONFIG.PHONE ? 140 : 180, GAME.CONFIG.PHONE ? 44 : 48, '📊 전투 요약',
+      function () {
+        GAME.BattleReport.open(repSelf, repSelf.report,
+          { win: good, sec: repSelf.battleSec });
+      }, { fontSize: GAME.CONFIG.PHONE ? 13 : 15 });
+    rpBtn.setDepth(50);
+    //  겹침 감사 훅 — 버튼을 눌러야 열리는 패널은 씬만 띄워서는 검사가 안 된다.
+    if (GAME.__openReport) {
+      GAME.__openReport = 0;
+      GAME.BattleReport.open(repSelf, repSelf.report, { win: good, sec: repSelf.battleSec });
+    }
+  }
+
   if (GAME.CONFIG.PHONE) { this._buildPhone(title, sub, color, tierObj); return; }
 
   var plate = GAME.UI.verdictPlate(this, W / 2, u * 9, bw, title, sub, {

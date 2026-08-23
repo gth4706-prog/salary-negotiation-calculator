@@ -35,6 +35,10 @@ GAME.Combat = {
       // 치유 구역(js/healzone.js) — 물약을 대신한다. `towerHealOn` 은 통곡의 탑
       // 전투에서만 battle.js 가 켠다(대전·수성의 탑은 이 기제가 안 돈다).
       healZones: [], healTaken: 0, towerHealOn: false,
+      //  전투 보고(2026-08-23 태현님: "라운드 끝날 때 전투 결과를 요약해줬으면") —
+      //  영웅이 입힌/받은(유형별)/흡혈 회복. 렌더·판정 무관 부기라 록스텝 안전
+      //  (digest 는 x/y/hp/alive/cd 만 먹는다).
+      report: { dealt: 0, taken: {}, lsHeal: 0, t0: 0, t1: 0 },
       //  잉걸불 구역(불씨꾼) — 땅에 남아 시간이 지나며 사라진다.
       //  ⚠ 갱신은 **여기(Combat.update)** 에서 돈다. 치유 구역은 battle.js 가 갱신해서
       //    헤드리스(sim·회귀·곡선 도구)에서는 아예 안 돈다 — 회복이면 몰라도
@@ -689,6 +693,22 @@ GAME.Combat = {
     unit.hp -= eff;
     unit.flash = 130;
 
+    //  ── 전투 보고 수집 (2026-08-23) — 실효 피해(방어·보호막 통과 후) 기준 ───────
+    if (state && state.report && eff > 0 && source) {
+      if (source.isHero) {
+        state.report.dealt += eff;
+        if (!state.report.t0) state.report.t0 = state.elapsed;
+        state.report.t1 = state.elapsed;
+      }
+      if (unit.isHero && source.side !== unit.side && source.def) {
+        //  파생 키(정예·궁극)를 기본 유닛으로 되돌려 같은 유형끼리 묶는다
+        //  (태현님: "방패병에게 2천 입었다 이런 식이면 돼").
+        var bk = source.def.key || source.type || '적';
+        if (GAME.UnitLevel && GAME.UnitLevel.baseKeyOf) bk = GAME.UnitLevel.baseKeyOf(bk);
+        state.report.taken[bk] = (state.report.taken[bk] || 0) + eff;
+      }
+    }
+
     // ── 크게 맞았다 — 기존 타격음 위에 얹는 강조음 (2026-08-12) ──────────────
     //  "지금 hit은 일반 타격 하나뿐이다. 큰 피해에 얹을 강조음이 있으면 '묵직하게
     //  맞았다'가 소리로도 전달된다." 문턱은 유닛 피격음(6%)보다 훨씬 높게 잡는다 —
@@ -893,7 +913,13 @@ GAME.Combat = {
           want = room <= 0 ? 0 : Math.min(want, room);
           opts.lsBudget.used += want;
         }
-        if (want > 0) this.heal(source, want);
+        if (want > 0) {
+          //  전투 보고 — 흡혈로 **실제로 찬 양**(넘침 제외)만 센다.
+          if (state && state.report && source.isHero) {
+            state.report.lsHeal += Math.min(want, Math.max(0, source.maxHp - source.hp));
+          }
+          this.heal(source, want);
+        }
       }
     }
     return eff;
@@ -1412,6 +1438,42 @@ GAME.Combat = {
     //  그 스킬만 조용히 옛 수치로 돈다 — 이 저장소가 반복해 겪은 실패 모드다).
     var skDmg = this._skillPower(u, sk);
     var skShield = this._skillShield(u, sk);
+
+    //  ── 영웅 연계 콤보 (2026-08-23 태현님: "각 영웅마다 연계 콤보를 만들자") ─────
+    //  영웅의 정체성별로 하나씩. 발동하면 금빛 고리 + 강조음이 울린다.
+    //  · 광전사: 돌진(dash) 뒤 3초 안의 **다음 다른 스킬**이 2배 — 파고들어 꽂는다.
+    //  · 사냥꾼: **속박된 적**(자기 덫 등)이 사거리 안에 있으면 이 시전이 2배 —
+    //    묶어 두고 조준 사격한다.
+    //  · 파수꾼: 피해 스킬을 쓸 때마다 **보호막**을 얻는다(스킬 위력의 60%,
+    //    최대체력 35% 상한) — 때리는 것이 곧 버티는 것이 된다.
+    var comboOn = false;
+    if (u.isHero && state) {
+      var hk = u.def.key;
+      if (hk === 'vanguard') {
+        if (sk.type !== 'dash' && u._comboUntil && state.elapsed < u._comboUntil && skDmg > 0) {
+          skDmg *= 2; comboOn = true; u._comboUntil = 0;
+        }
+        if (sk.type === 'dash') u._comboUntil = state.elapsed + 3000;
+      } else if (hk === 'ranger' && skDmg > 0) {
+        for (var _ri = 0; _ri < state.units.length; _ri++) {
+          var _rv = state.units[_ri];
+          if (_rv.alive && _rv.side !== u.side && (_rv.rootedFor || 0) > 0 &&
+              this.dist(u, _rv) < 420 * (GAME.CONFIG.WORLD_SCALE || 1)) {
+            skDmg *= 2; comboOn = true; break;
+          }
+        }
+      } else if (hk === 'warden' && skDmg > 0) {
+        var _cap = u.maxHp * 0.35;
+        var _gain = Math.min(Math.max(0, _cap - (u.shield || 0)), skDmg * 0.6);
+        if (_gain > 0) { u.shield = (u.shield || 0) + _gain; comboOn = true; }
+      }
+      if (comboOn) {
+        state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: u.def.radius + 30,
+                             t: 320, total: 320, side: u.side });
+        state.comboPing = (state.comboPing || 0) + 1;   // 씬이 읽어 '연계!' 를 띄운다
+        if (GAME.Sound) GAME.Sound.play('critHit');
+      }
+    }
 
     // ── 이 시전이 만든 이펙트에 **누가 썼는지** 표시한다 (2026-08-01) ───────────
     //  스킬 이펙트가 세 영웅 모두 같은 색이라 정체성이 안 섰다. 색을 나누려면

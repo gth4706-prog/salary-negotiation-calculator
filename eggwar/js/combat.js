@@ -91,7 +91,7 @@ GAME.Combat = {
               // 빠뜨리면 폰 프로필(WORLD_SCALE 0.556)에서만 조용히 어긋난다.
               'spacing', 'protectGap',
               // 달려들며 치기 밀어내기. 거리 단위라 여기 반드시 넣는다.
-              'chargeKnock', 'trampleKnock', 'auraRadius'],
+              'chargeKnock', 'trampleKnock', 'auraRadius', 'auraSlowRadius'],
 
   scaleDef: function (def) {
     var K = GAME.CONFIG.WORLD_SCALE;
@@ -171,6 +171,14 @@ GAME.Combat = {
       u.auras.push({ radius: u.def.auraRadius, dps: u.def.auraDps, t: Infinity, tick: 0,
                      tickMs: 500, noLs: true, noNumber: true, passive: true,
                      moveOnly: !u.def.auraAlways });
+    }
+    //  둔화 오라(2026-08-23 보스 광역 디버프) — 서리 권속의 한기처럼 "곁에 서 있는
+    //  동안만" 적을 느리게 한다. dps 오라와 별개 등록이라 서로 안 섞인다.
+    if (u.def.auraSlowMul) {
+      u.auras.push({ radius: u.def.auraSlowRadius || u.def.auraRadius,
+                     slowMul: u.def.auraSlowMul, slowMs: 600,
+                     t: Infinity, tick: 0, tickMs: 400, noLs: true, noNumber: true,
+                     passive: true, moveOnly: false });
     }
     return u;
   },
@@ -1100,6 +1108,32 @@ GAME.Combat = {
         u._spotAt === undefined && state) {
       u._spotAt = state.elapsed;
       this._banterEv(state, u, 'spot');
+    }
+    //  ── 예측 사격 (2026-08-23 태현님: "학습되면서 영웅의 동선을 예상해서,
+    //  특히 궁수나 투석꾼들은 예상 공격을 하길 원해") ────────────────────────────
+    //  탑이 깊어질수록(state.towerPredict 0→0.85, battle.js 가 층에서 계산) 원거리
+    //  유닛의 평타가 **표적의 진행 방향 앞**을 노린다. 리드양 = 투사체 비행 시간 ×
+    //  표적 속도 × 예측 계수. 능력 예고의 aimLead(뺑뺑이 수리)와 같은 원리를
+    //  평타로 넓힌 것 — 등속으로 도는 영웅은 맞기 시작하고, 방향을 꺾는 영웅은
+    //  여전히 피한다(꺾을수록 실효 속도가 떨어지는 것이 대가).
+    //  ⚠ 탑 전용 게이트: 실시간 대전·수성에는 towerPredict 가 없어 예전 그대로다.
+    if (state && state.towerPredict && u.side === 'strategist' &&
+        def.attack === 'projectile' && !GAME.isAutoHit(def) &&
+        target && target.alive && target._px !== undefined) {
+      var pvx = target.x - target._px, pvy = target.y - target._py;
+      var pvl = Math.sqrt(pvx * pvx + pvy * pvy);
+      if (pvl > 0.01) {
+        var pd = this.dist(u, target);
+        var pfly = pd / Math.max(60, def.projectileSpeed || 300);   // 비행 초
+        var psp = this.effSpeed(target);
+        tx = target.x + (pvx / pvl) * psp * pfly * state.towerPredict;
+        ty = target.y + (pvy / pvl) * psp * pfly * state.towerPredict;
+        var PAR = GAME.CONFIG.ARENA;
+        if (PAR) {
+          tx = Math.max(PAR.x + 10, Math.min(PAR.x + PAR.w - 10, tx));
+          ty = Math.max(PAR.y + 10, Math.min(PAR.y + PAR.h - 10, ty));
+        }
+      }
     }
     var ang = GAME.DetMath.atan2(ty - u.y, tx - u.x);
     this.faceAttack(u, ang);
@@ -2329,6 +2363,9 @@ GAME.Combat = {
                              damage: ab.damage, side: u.side, owner: u, abil: true,
                              // 늪지기처럼 둔화를 얹는 스킬이면 예고에 실어 보낸다.
                              slowMul: ab.slowMul, slowMs: ab.slowMs,
+                             //  속박(2026-08-23 보스 디버프) — 움켜쥐기·낙뢰 같은
+                             //  "잠깐 발이 묶인다"용. opt-in(없으면 기존 barrage 그대로).
+                             rootMs: ab.rootMs,
                              // 용 보스 — "밀어낸다"는 이름값이 필요한 종류만(opt-in).
                              knockback: ab.knockback });
       }
@@ -2431,12 +2468,31 @@ GAME.Combat = {
         var reach = (medic ? medic.def.healRadius : 0) + 220 * (GAME.CONFIG.WORLD_SCALE || 1);
         // 회복 반경 안이면 그 자리에서 회복받으며 싸운다(붙지 않는다)
         if (medic && medD > medic.def.healRadius * 0.75 && medD <= reach) {
-          this.moveToward(u, medic.x, medic.y, this.effSpeed(u) * dt * (0.55 + 0.45 * ad2.retreat));
-          if (d <= def.range) {
-            this.faceAttack(u, GAME.DetMath.atan2(tgt.y - u.y, tgt.x - u.x));
-            if (u.cd <= 0) { this.fire(u, tgt.x, tgt.y, tgt, state); u.cd = def.cooldown; }
+          //  ── 몰림 방지 (2026-08-23 태현님: "도망가는 듯하면서 지들끼리 겹쳐 비벼") ──
+          //  ① 상한: 약초꾼 곁이 이미 붐비면(3기+) 후퇴를 접고 그 자리에서 싸운다 —
+          //     고층은 광역 피해로 절반이 동시에 다치는데, 전부 한 약초꾼에게 걸어가면
+          //     진형이 한 점에 뭉쳐 비비며 화력이 사라진다(신고 재현 시나리오).
+          var crowd = 0;
+          for (var cwi = 0; cwi < state.units.length; cwi++) {
+            var cw = state.units[cwi];
+            if (!cw.alive || cw.side !== u.side || cw === u || cw === medic) continue;
+            if (this.dist(cw, medic) < medic.def.healRadius * 0.9) crowd++;
           }
-          return;
+          if (crowd < 3) {
+            //  ② 목적지는 약초꾼의 **중심이 아니라 고리 위 자기 쪽 접점**이다 —
+            //     중심으로 걸으면 전원이 같은 점을 향해 겹친다. 자기가 오던 방향의
+            //     반경 70% 지점에 서면 고리 둘레로 자연히 흩어진다.
+            var ringA = GAME.DetMath.atan2(u.y - medic.y, u.x - medic.x);
+            var ringR = medic.def.healRadius * 0.7;
+            this.moveToward(u, medic.x + GAME.DetMath.cos(ringA) * ringR,
+                               medic.y + GAME.DetMath.sin(ringA) * ringR,
+                               this.effSpeed(u) * dt * (0.55 + 0.45 * ad2.retreat));
+            if (d <= def.range) {
+              this.faceAttack(u, GAME.DetMath.atan2(tgt.y - u.y, tgt.x - u.x));
+              if (u.cd <= 0) { this.fire(u, tgt.x, tgt.y, tgt, state); u.cd = def.cooldown; }
+            }
+            return;
+          }
         }
       }
 
@@ -2691,9 +2747,12 @@ GAME.Combat = {
               // 지속 피해는 크리티컬 판정을 하지 않는다(숫자가 폭주함)
               // 상시 오라(파수꾼 '무게')는 흡혈을 태우지 않는다 — 초당 4번 도는 판정에
               // 흡혈이 붙으면 서 있기만 해도 회복이 쌓여 '버티는 지속형'이 '무적'이 된다.
-              this.applyDamage(v, au.dps * (au.tickMs || 250) / 1000, u, state,
+              if (au.dps) this.applyDamage(v, au.dps * (au.tickMs || 250) / 1000, u, state,
                 { noCrit: true, noNumber: !!au.noNumber, zone: true,
                   lsScale: au.noLs ? 0 : this._ls(auraHit++), lsBudget: auraLs });
+              //  둔화 오라(2026-08-23 보스 광역 디버프) — 짧게 걸어 틱마다 갱신한다.
+              //  반경을 벗어나면 0.6초 안에 풀린다 = "곁에 있는 동안만 느려진다".
+              if (au.slowMul) this.applySlow(v, { slowMul: au.slowMul, slowMs: au.slowMs || 600 });
             }
           }
         }
@@ -2996,6 +3055,9 @@ GAME.Combat = {
             // 늪지기 스킬 — 예고 폭발이 둔화도 건다. `slowMul` 이 실린 예고만 해당된다
             // (없으면 아무 일도 안 하므로 기존 예고는 그대로다).
             if (e.slowMul) this.applySlow(w, { slowMul: e.slowMul, slowMs: e.slowMs || 2000 });
+            //  속박 — 짧게(0.35~0.9초) 발을 묶는다. 예고를 보고 못 피한 값이라
+            //  회피형 광역의 약속("보고 피하면 안 맞는다")과 충돌하지 않는다.
+            if (e.rootMs) w.rootedFor = Math.max(w.rootedFor || 0, e.rootMs);
             // 용 보스 — 폭풍/손/발 처럼 "밀어낸다"는 이름값이 필요한 barrage 에만
             // 얹는다(2026-08-02, `slowMul` 과 같은 opt-in 패턴 — 없으면 기존 barrage는
             // 한 줄도 안 바뀐다). charge/shockwave 의 `bite()` 넉백과 같은 식이다.

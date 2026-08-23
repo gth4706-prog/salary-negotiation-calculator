@@ -371,6 +371,12 @@ GAME.BattleScene.prototype.create = function () {
   if (this.tower && GAME.TowerChar && GAME.TowerChar.exists() && GAME.TowerRun) {
     GAME.TowerRun.attachKillGold(this.state, this.tower);
   }
+  //  예측 사격 계수(2026-08-23) — 층이 깊을수록 원거리 유닛이 영웅의 진행 방향을
+  //  읽는다. 9층부터 시작해 층당 +3%p, 상한 85%. 탑 전용(combat.fire 가 읽는다) —
+  //  실시간 대전·수성의 탑에는 이 필드가 없어 예전 그대로다.
+  if (this.tower && !this.rt) {
+    this.state.towerPredict = Math.min(0.85, Math.max(0, (this.tower - 8) * 0.03));
+  }
   // 층 목표 — **유닛이 다 만들어진 지금** 붙인다('우두머리'를 고르려면 적이 있어야 한다).
   // 목표가 없는 층이면 null 이라 전투는 예전처럼 전멸 판정만 쓴다.
   if (this.tower && GAME.TowerObjective) {

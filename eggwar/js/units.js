@@ -292,7 +292,8 @@ GAME.BOSS_UNITS = {
         damage: 280, radius: 70, knockback: 58 },
       { type: 'barrage', cooldown: 14000, telegraph: 700,
         minRange: 0, maxRange: 4000,
-        damage: 430, radius: 330, repeat: 1, fuse: 2600 }
+        damage: 430, radius: 330, repeat: 1, fuse: 2600,
+        slowMul: 0.5, slowMs: 2000 }
     ]
   },
 
@@ -326,6 +327,8 @@ GAME.BOSS_UNITS = {
     attack: 'melee', coneDeg: 120,
     radius: 30, shape: 'star', weapon: 'riotShield',
     chase: 560, aggro: 560,
+    //  상시 한기(2026-08-23 광역 디버프) — 곁에 서 있는 동안만 느려진다(0.6초 갱신).
+    auraSlowRadius: 250, auraSlowMul: 0.75,
     // 얼림(2026-08-02 사용자 지시: "불 뿜거나 얼음 뿜거나 등 보스몹다운 스킬") —
     // `slowMul`/`slowMs`는 늪지기 스킬이 이미 쓰는 필드라 combat.js 는 한 글자도
     // 안 바뀐다. "얼어붙은 것은 다시 움직이지 못한다"는 lore 그대로 실현된다.
@@ -363,7 +366,7 @@ GAME.BOSS_UNITS = {
       { type: 'barrage', cooldown: 14000, telegraph: 640,
         minRange: 0, maxRange: 4000,
         damage: 240, radius: 88, repeat: 9, interval: 130, spread: 470, fuse: 1250,
-        knockback: 62 }
+        knockback: 62, rootMs: 350 }
     ]
   },
 
@@ -427,7 +430,8 @@ GAME.BOSS_UNITS = {
         damage: 295, radius: 270 },
       { type: 'barrage', cooldown: 15000, telegraph: 800,
         minRange: 0, maxRange: 4000,
-        damage: 360, radius: 135, repeat: 5, interval: 210, spread: 310, fuse: 2000 }
+        damage: 360, radius: 135, repeat: 5, interval: 210, spread: 310, fuse: 2000,
+        rootMs: 800 }
     ]
   },
 
@@ -583,7 +587,8 @@ GAME.BOSS_UNITS = {
         damage: 196, radius: 220, repeat: 7, interval: 280, spread: 440 },
       { type: 'barrage', cooldown: 16000, telegraph: 800,
         minRange: 0, maxRange: 4000,
-        damage: 520, radius: 380, repeat: 1, fuse: 2900 }
+        damage: 520, radius: 380, repeat: 1, fuse: 2900,
+        slowMul: 0.5, slowMs: 2000 }
     ]
   },
 
@@ -646,7 +651,7 @@ lore: '버려진 알 껍질을 뒤집어쓴 커다란 것. 느리지만 한 번 
       { type: 'barrage', cooldown: 15000, telegraph: 800,
         minRange: 0, maxRange: 4000,
         damage: 330, radius: 115, repeat: 6, interval: 240, spread: 430, fuse: 1700,
-        knockback: 60 }
+        knockback: 60, slowMul: 0.6, slowMs: 1500 }
     ]
   },
 

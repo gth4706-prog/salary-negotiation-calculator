@@ -1227,6 +1227,14 @@ GAME.TowerScene.prototype._refreshRun = function (bump) {
           { win: true, sec: rpSelf._cleared.battleSec || 0 });
       }, { fontSize: rpP ? 13 : 14 });
     this._reportBtn.setDepth(60);
+    //  층을 깨고 돌아온 직후에는 요약을 **먼저** 띄운다 (2026-08-23 태현님:
+    //  "팝업으로 보여주고 닫은 다음에야 상점 선택") — 한 번만. 베일이 상점·전투
+    //  버튼을 닫기 전까지 막는다.
+    if (!this._cleared._reportShown) {
+      this._cleared._reportShown = true;
+      GAME.BattleReport.open(rpSelf, this._cleared.report,
+        { win: true, sec: this._cleared.battleSec || 0 });
+    }
   }
   if (bump) {
     this.goldLabel.setScale(1.25);

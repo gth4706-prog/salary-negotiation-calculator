@@ -106,12 +106,45 @@ GAME.BattleReport = {
         var secs = Math.max(1, Math.round(((rep.t1 || 0) - (rep.t0 || 0)) / 1000)) || 1;
         var totalSec = opts.sec || secs;
         add(UI.text(scene, W / 2, y, UI.numAbbr(Math.round(rep.dealt)),
-          { size: P ? 30 : 40, color: C.accent, origin: 0.5, originY: 0 }).setDepth(D + 2));
-        add(UI.text(scene, W / 2, y + (P ? 34 : 46),
+          { size: P ? 26 : 34, color: C.accent, origin: 0.5, originY: 0 }).setDepth(D + 2));
+        add(UI.text(scene, W / 2, y + (P ? 30 : 40),
           '교전 ' + secs + '초 동안  ·  초당 ' + UI.numAbbr(Math.round(rep.dealt / secs)) +
           '  ·  판 전체 ' + totalSec + '초',
           { size: P ? 12 : 'caption', color: C.textDim, origin: 0.5, originY: 0 }).setDepth(D + 2));
-        gaugeRow(y + (P ? 66 : 92), '내 피해', rep.dealt, rep.dealt, GAME.UI.cssToHex(C.accent, 0x35d0a5));
+        //  ── 출처 분해 (2026-08-23 태현님: "기본공격과 스킬별로 나눠서, 기본공격은
+        //  치명타와 아닌 거 비교") — 평타 두 줄이 항상 맨 위, 스킬은 피해 순. ────────
+        var dRows = [];
+        var accHex = GAME.UI.cssToHex(C.accent, 0x35d0a5);
+        if (rep.basicCrit || rep.basicNorm) {
+          dRows.push({ n: '평타 · 치명타', v: rep.basicCrit || 0, col: 0xffd166 });
+          dRows.push({ n: '평타 · 일반', v: rep.basicNorm || 0, col: accHex });
+        }
+        var skRows = [];
+        var sks = rep.skills || {};
+        for (var sk2 in sks) skRows.push({ n: sk2, v: sks[sk2], col: 0x6ea8fe });
+        skRows.sort(function (a, b) { return b.v - a.v; });
+        var dMaxRows = P ? 5 : 7;
+        var over = dRows.length + skRows.length - dMaxRows;
+        if (over > 0) {
+          var restV = 0, restN = 0;
+          while (skRows.length && dRows.length + skRows.length > dMaxRows) {
+            restV += skRows.pop().v; restN++;
+          }
+          if (restV > 0) skRows.push({ n: '그 외 스킬 ' + restN + '종', v: restV, col: 0x9a9cb6 });
+        }
+        dRows = dRows.concat(skRows);
+        if (rep.etc > 0) dRows.push({ n: '기타(오라 등)', v: rep.etc, col: 0x9a9cb6 });
+        var dy = y + (P ? 52 : 72);
+        if (!dRows.length) {
+          //  구버전 판(분해 수집 이전)의 저장 데이터 — 총량 한 줄로 정직하게.
+          gaugeRow(dy + (P ? 14 : 20), '내 피해', rep.dealt, rep.dealt, accHex);
+        } else {
+          var dMax = 0;
+          for (var dm = 0; dm < dRows.length; dm++) dMax = Math.max(dMax, dRows[dm].v);
+          for (var dr = 0; dr < dRows.length; dr++) {
+            gaugeRow(dy + dr * rowGap, dRows[dr].n, dRows[dr].v, dMax, dRows[dr].col);
+          }
+        }
       } else if (cur === 'taken') {
         var rows = [];
         for (var k in rep.taken) rows.push({ k: k, v: rep.taken[k] });

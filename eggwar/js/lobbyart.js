@@ -446,9 +446,11 @@ GAME.LobbyArt = {
     if (r && r.width) {
       if (cx - s * 0.5 < r.x - r.width / 2 + s * 0.35) return null;
     }
-    var ready = GAME.GearBank && GAME.GearBank.ready(iconKey, scene);
-    if (ready) {
-      var img = scene.add.image(cx, t.y, 'gear-' + iconKey);
+    //  ⚠ 원본(260px+)을 그대로 27px 로 내리면 NPOT 밉맵 부재로 검은 얼룩이 된다
+    //    (2026-08-23 실사고) — 단계 축소로 구운 thumb 텍스처를 쓴다.
+    var tkey = GAME.GearBank && GAME.GearBank.thumb && GAME.GearBank.thumb(scene, iconKey, s);
+    if (tkey) {
+      var img = scene.add.image(cx, t.y, tkey);
       var sc = s / Math.max(1, Math.max(img.width, img.height));
       img.setScale(sc).setDepth((t.depth || 0) + 1);
       return img;
@@ -682,6 +684,33 @@ GAME.LobbyArt = {
     state.t += dt;
     var g = state.g;
     g.clear();
+
+    //  ── 공기 (2026-08-23) — 로비가 정물이라 "게임이 살아 있다"는 인상이 약했다.
+    //  떠다니는 민들레 씨·재티 몇 점이 들판에 바람을 만든다. 전부 벡터(자산 0KB),
+    //  개수 상한 14 라 그리기 비용은 무시할 수준. 글자 대비를 해치지 않게 아주 옅다.
+    if (!state.motes) {
+      state.motes = [];
+      var mW = GAME.CONFIG.WIDTH, mH = GAME.CONFIG.HEIGHT;
+      for (var mi = 0; mi < 14; mi++) {
+        state.motes.push({
+          x: Math.random() * mW, y: Math.random() * mH * 0.72,
+          r: 1.4 + Math.random() * 2.2,
+          vx: 8 + Math.random() * 14,          //  왼→오른쪽으로 흐르는 미풍
+          ph: Math.random() * Math.PI * 2,     //  둥실거림 위상
+          warm: Math.random() < 0.35           //  따뜻한 점(불티) / 밝은 점(씨앗)
+        });
+      }
+    }
+    var mW2 = GAME.CONFIG.WIDTH, mH2 = GAME.CONFIG.HEIGHT;
+    for (var mj = 0; mj < state.motes.length; mj++) {
+      var mo = state.motes[mj];
+      mo.x += mo.vx * dt / 1000;
+      var my = mo.y + Math.sin(state.t / 1400 + mo.ph) * 9;
+      if (mo.x > mW2 + 8) { mo.x = -8; mo.y = Math.random() * mH2 * 0.72; }
+      var tw = 0.10 + 0.08 * Math.sin(state.t / 900 + mo.ph * 2);
+      g.fillStyle(mo.warm ? 0xd99b5a : 0xfff6e0, Math.max(0.05, tw));
+      g.fillEllipse(mo.x, my, mo.r * 2, mo.r * 2, 8);
+    }
     //  데모 — 적을 굴리고 목책을 흘린 뒤, 영웅은 아래 루프가 그 위에 그린다.
     //  ⚠ **영웅과 짝을 맞춰 돈다**(PC 는 좌우 둘이다). 배열 길이가 어긋나도
     //    조용히 건너뛴다 — 아트 하나 때문에 로비가 안 뜨면 안 된다.

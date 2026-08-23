@@ -38,7 +38,8 @@ GAME.Combat = {
       //  전투 보고(2026-08-23 태현님: "라운드 끝날 때 전투 결과를 요약해줬으면") —
       //  영웅이 입힌/받은(유형별)/흡혈 회복. 렌더·판정 무관 부기라 록스텝 안전
       //  (digest 는 x/y/hp/alive/cd 만 먹는다).
-      report: { dealt: 0, taken: {}, lsHeal: 0, t0: 0, t1: 0 },
+      report: { dealt: 0, taken: {}, lsHeal: 0, t0: 0, t1: 0,
+                basicCrit: 0, basicNorm: 0, skills: {}, etc: 0 },
       //  잉걸불 구역(불씨꾼) — 땅에 남아 시간이 지나며 사라진다.
       //  ⚠ 갱신은 **여기(Combat.update)** 에서 돈다. 치유 구역은 battle.js 가 갱신해서
       //    헤드리스(sim·회귀·곡선 도구)에서는 아예 안 돈다 — 회복이면 몰라도
@@ -499,6 +500,35 @@ GAME.Combat = {
     // 지뢰는 피해로 제거할 수 없다. 밟아서 터뜨리거나, 피해서 지나가는 수밖에.
     if (this.isHazard(unit)) return 0;
 
+    //  ── 연계 콤보 — **맞은 유닛에게만** (2026-08-23 태현님: "맞은 유닛들에 대해서만
+    //  추가 데미지가 적용되어야 해") ─────────────────────────────────────────────
+    //  v2.67 은 시전 전체를 2배로 곱해 조건과 무관한 유닛까지 혜택을 봤다. 이제
+    //  피해가 실제로 닿는 이 관문에서 **대상별로** 판정한다:
+    //  · 사냥꾼: 피해가 닿는 순간 그 대상이 **속박 중**이면 그 대상만 2배.
+    //  · 광전사: 돌진에 **직접 맞은 적**에게만 3초 표식 — 다음 스킬 피해가 그
+    //    표식 대상에만 2배(1회 소모). 돌진 자체(srcDash)는 표식을 못 먹는다.
+    //  크리 굴림 전에 곱해서 치명타와도 곱연산이 되게 한다.
+    if (source && source.isHero && opts && opts.srcSkill && !opts.srcDash &&
+        dmg > 0 && state) {
+      var _cbHk = source.def && source.def.key, _cbOn = false;
+      if (_cbHk === 'ranger' && (unit.rootedFor || 0) > 0) _cbOn = true;
+      else if (_cbHk === 'vanguard' && unit._vgComboUntil &&
+               state.elapsed < unit._vgComboUntil) { _cbOn = true; unit._vgComboUntil = 0; }
+      if (_cbOn) {
+        dmg *= 2;
+        //  발동 표시는 피해가 실제로 닿은 순간에 — 다만 광역 한 방이 여럿을 때리면
+        //  고리·소리가 겹치므로 짧게 묶는다(같은 시전은 한 번만 울린다).
+        if (!state._comboFxAt || state.elapsed - state._comboFxAt > 400) {
+          state._comboFxAt = state.elapsed;
+          state.effects.push({ kind: 'ring', x: unit.x, y: unit.y,
+                               r: (unit.def.radius || 14) + 30, t: 320, total: 320,
+                               side: source.side });
+          state.comboPing = (state.comboPing || 0) + 1;
+          if (GAME.Sound) GAME.Sound.play('critHit');
+        }
+      }
+    }
+
     //  ── 매듭 (2026-08-08 · 매듭지기) ──────────────────────────────────────
     //  묶인 아군끼리 피해를 **나눠 진다.** 한 기만 집중해서 끊는 전술이 안 통하고,
     //  답은 광역으로 동시에 치는 것이 된다.
@@ -528,7 +558,8 @@ GAME.Combat = {
           var _each = (dmg * _share) / _link.length;
           for (var _kk = 0; _kk < _link.length; _kk++) {
             this.applyDamage(_link[_kk], _each, source, state,
-                             { noCrit: true, noKnot: true, noLs: true, noPace: true });
+                             { noCrit: true, noKnot: true, noLs: true, noPace: true,
+                               srcSkill: opts && opts.srcSkill });
           }
           dmg = dmg * (1 - _share);
         }
@@ -697,6 +728,16 @@ GAME.Combat = {
     if (state && state.report && eff > 0 && source) {
       if (source.isHero) {
         state.report.dealt += eff;
+        //  출처 분해 (태현님: "기본공격과 스킬별로 나눠서, 기본공격은 치명타 비교") —
+        //  스킬 경로는 opts.srcSkill(이름)을 실어 보내고, 표식 없는 영웅 피해가
+        //  평타다. 오라·반사 같은 파생은 '기타'로 정직하게 묶는다.
+        var _rp = state.report;
+        if (opts && opts.srcSkill) {
+          _rp.skills[opts.srcSkill] = (_rp.skills[opts.srcSkill] || 0) + eff;
+        } else if (opts && (opts.zone || opts.abil)) {
+          _rp.etc += eff;
+        } else if (crit) _rp.basicCrit += eff;
+        else _rp.basicNorm += eff;
         if (!state.report.t0) state.report.t0 = state.elapsed;
         state.report.t1 = state.elapsed;
       }
@@ -1439,35 +1480,30 @@ GAME.Combat = {
     var skDmg = this._skillPower(u, sk);
     var skShield = this._skillShield(u, sk);
 
+    //  ── 궁극기(R) 하한 — **평타 10대 수준** (2026-08-23 태현님: "전반적으로
+    //  궁극기가 너무 약해. 평타 10대 수준의 데미지나 효과는 있어야 해") ──────────
+    //  후반엔 무기가 공격력을 지수로 키우는데 스킬 계수는 cap(1.45)에 막혀,
+    //  35초짜리 궁극이 평타 1.5대만도 못한 역전이 났다. 시전 한 번의 **총량**이
+    //  평타 10대에 못 미치면 끌어올린다(반복 낙하는 반복 수로 나눠 총합 기준).
+    //  ⚠ 상한이 아니라 **하한**이다 — 계수 공식이 더 크면 그대로 둔다.
+    if (u.isHero && slot === 'R' && skDmg > 0) {
+      var _uHits = sk.repeat || 1;
+      var _uFloor = (u.damage * 10) / _uHits;
+      if (skDmg < _uFloor) skDmg = _uFloor;
+    }
+
     //  ── 영웅 연계 콤보 (2026-08-23 태현님: "각 영웅마다 연계 콤보를 만들자") ─────
-    //  영웅의 정체성별로 하나씩. 발동하면 금빛 고리 + 강조음이 울린다.
-    //  · 광전사: 돌진(dash) 뒤 3초 안의 **다음 다른 스킬**이 2배 — 파고들어 꽂는다.
-    //  · 사냥꾼: **속박된 적**(자기 덫 등)이 사거리 안에 있으면 이 시전이 2배 —
-    //    묶어 두고 조준 사격한다.
-    //  · 파수꾼: 피해 스킬을 쓸 때마다 **보호막**을 얻는다(스킬 위력의 60%,
-    //    최대체력 35% 상한) — 때리는 것이 곧 버티는 것이 된다.
-    var comboOn = false;
-    if (u.isHero && state) {
-      var hk = u.def.key;
-      if (hk === 'vanguard') {
-        if (sk.type !== 'dash' && u._comboUntil && state.elapsed < u._comboUntil && skDmg > 0) {
-          skDmg *= 2; comboOn = true; u._comboUntil = 0;
-        }
-        if (sk.type === 'dash') u._comboUntil = state.elapsed + 3000;
-      } else if (hk === 'ranger' && skDmg > 0) {
-        for (var _ri = 0; _ri < state.units.length; _ri++) {
-          var _rv = state.units[_ri];
-          if (_rv.alive && _rv.side !== u.side && (_rv.rootedFor || 0) > 0 &&
-              this.dist(u, _rv) < 420 * (GAME.CONFIG.WORLD_SCALE || 1)) {
-            skDmg *= 2; comboOn = true; break;
-          }
-        }
-      } else if (hk === 'warden' && skDmg > 0) {
-        var _cap = u.maxHp * 0.35;
-        var _gain = Math.min(Math.max(0, _cap - (u.shield || 0)), skDmg * 0.6);
-        if (_gain > 0) { u.shield = (u.shield || 0) + _gain; comboOn = true; }
-      }
-      if (comboOn) {
+    //  광전사·사냥꾼의 **피해 2배는 여기서 곱하지 않는다** — 시전 전체를 곱하면
+    //  조건과 무관한 유닛까지 혜택을 본다(태현님 2차 지시: "맞은 유닛들에 대해서만").
+    //  대상별 판정은 applyDamage 관문에서 한다(srcSkill 표식이 스킬 피해의 증표).
+    //  광전사의 표식 심기는 아래 dash 분기에서, 사냥꾼은 피해 순간의 속박 여부로.
+    //  · 파수꾼: 피해 스킬을 쓸 때마다 **보호막**(스킬 위력의 60%, 최대체력 35% 상한)
+    //    — 자기 자신에게 걸리는 효과라 시전 시점이 맞다.
+    if (u.isHero && state && u.def.key === 'warden' && skDmg > 0) {
+      var _cap = u.maxHp * 0.35;
+      var _gain = Math.min(Math.max(0, _cap - (u.shield || 0)), skDmg * 0.6);
+      if (_gain > 0) {
+        u.shield = (u.shield || 0) + _gain;
         state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: u.def.radius + 30,
                              t: 320, total: 320, side: u.side });
         state.comboPing = (state.comboPing || 0) + 1;   // 씬이 읽어 '연계!' 를 띄운다
@@ -1503,7 +1539,11 @@ GAME.Combat = {
           o = state.units[i2];
           if (!o.alive || o.side === u.side) continue;
           if (this._distToSegment(o, fromX, fromY, u.x, u.y) <= sk.radius + o.def.radius) {
-            this.applyDamage(o, skDmg, u, state, { lsScale: this._ls(dashHit++), lsBudget: dashLs });
+            this.applyDamage(o, skDmg, u, state,
+              { lsScale: this._ls(dashHit++), lsBudget: dashLs, srcSkill: sk.name, srcDash: true });
+            //  광전사 연계 표식 — **돌진에 직접 맞은 적만** 3초간. 다음 스킬이
+            //  이 표식 대상에게만 2배로 들어간다(applyDamage 관문에서 소모).
+            if (u.isHero && u.def.key === 'vanguard') o._vgComboUntil = state.elapsed + 3000;
           }
         }
       }
@@ -1519,7 +1559,7 @@ GAME.Combat = {
         if (!o.alive || o.side === u.side) continue;
         var d = this.dist(u, o);
         if (d <= sk.radius + o.def.radius) {
-          this.applyDamage(o, skDmg, u, state, { lsScale: this._ls(aoeHit++), lsBudget: aoeLs });
+          this.applyDamage(o, skDmg, u, state, { lsScale: this._ls(aoeHit++), lsBudget: aoeLs, srcSkill: sk.name });
           if (sk.rootMs) o.rootedFor = Math.max(o.rootedFor, sk.rootMs);
           if (sk.knockback && d > 0.1) {
             var kx = (o.x - u.x) / d, ky = (o.y - u.y) / d;
@@ -1540,7 +1580,7 @@ GAME.Combat = {
           kind: 'telegraph', x: tx, y: ty, r: sk.radius,
           t: sk.telegraph + r * (sk.interval || 600),
           total: sk.telegraph,
-          damage: skDmg, side: u.side, owner: u
+          damage: skDmg, side: u.side, owner: u, srcSkill: sk.name
         });
       }
 
@@ -1560,6 +1600,7 @@ GAME.Combat = {
           pierce: !!sk.pierce,
           hitSet: [],
           owner: u,
+          srcSkill: sk.name,
           big: true
         });
         var last = state.projectiles[state.projectiles.length - 1];
@@ -1571,7 +1612,7 @@ GAME.Combat = {
       var tgt = this.nearestEnemy(u, state.units);
       if (tgt && this.dist(u, tgt) <= u.def.range + 70) {
         u._lsMul = sk.lifestealMul || 1;
-        this.applyDamage(tgt, skDmg, u, state);
+        this.applyDamage(tgt, skDmg, u, state, { srcSkill: sk.name });
         u._lsMul = 1;
         if (sk.rootMs) tgt.rootedFor = Math.max(tgt.rootedFor, sk.rootMs);
         state.effects.push({
@@ -1607,7 +1648,7 @@ GAME.Combat = {
         var aa = GAME.DetMath.atan2(o.y - u.y, o.x - u.x);
         var df = GAME.DetMath.atan2(GAME.DetMath.sin(aa - ang), GAME.DetMath.cos(aa - ang));
         if (Math.abs(df) > halfP) continue;
-        this.applyDamage(o, skDmg, u, state, { lsScale: this._ls(pullHit++), lsBudget: pullLs });
+        this.applyDamage(o, skDmg, u, state, { lsScale: this._ls(pullHit++), lsBudget: pullLs, srcSkill: sk.name });
         // 영웅 쪽으로 끌어당긴다 (leash는 그대로 적용되어 진형이 무너지진 않는다)
         var pullTo = Math.max(0, dd - 120);
         this.displaceTo(o, u.x + GAME.DetMath.cos(aa) * pullTo, u.y + GAME.DetMath.sin(aa) * pullTo);
@@ -1627,13 +1668,18 @@ GAME.Combat = {
       var py2 = td > maxD ? u.y + (tdy / td) * maxD : ty;
       state.traps.push({
         x: px2, y: py2, radius: sk.radius, damage: skDmg,
-        rootMs: sk.rootMs, life: sk.life, side: u.side, owner: u
+        rootMs: sk.rootMs, life: sk.life, side: u.side, owner: u, srcSkill: sk.name
       });
 
     } else if (sk.type === 'aura') {
       // 구역 스킬의 초당 피해도 계수를 탄다(`_skillPower` 와 같은 규칙).
-      u.auras.push({ radius: sk.radius, dps: this._skillDps(u, sk),
-                     t: sk.duration, tick: 0 });
+      var _auDps = this._skillDps(u, sk);
+      //  궁극(R) 구역도 하한을 지킨다 — 지속 총량(dps×초)이 평타 10대에 못 미치면 상향.
+      if (u.isHero && slot === 'R' && _auDps > 0) {
+        _auDps = Math.max(_auDps, u.damage * 10 * 1000 / (sk.duration || 1000));
+      }
+      u.auras.push({ radius: sk.radius, dps: _auDps,
+                     t: sk.duration, tick: 0, srcSkill: sk.name });
     }
 
     //  ── 잿가루 (2026-08-08 · 잿가루꾼) ────────────────────────────────────
@@ -2810,7 +2856,7 @@ GAME.Combat = {
               // 상시 오라(파수꾼 '무게')는 흡혈을 태우지 않는다 — 초당 4번 도는 판정에
               // 흡혈이 붙으면 서 있기만 해도 회복이 쌓여 '버티는 지속형'이 '무적'이 된다.
               if (au.dps) this.applyDamage(v, au.dps * (au.tickMs || 250) / 1000, u, state,
-                { noCrit: true, noNumber: !!au.noNumber, zone: true,
+                { noCrit: true, noNumber: !!au.noNumber, zone: true, srcSkill: au.srcSkill,
                   lsScale: au.noLs ? 0 : this._ls(auraHit++), lsBudget: auraLs });
               //  둔화 오라(2026-08-23 보스 광역 디버프) — 짧게 걸어 틱마다 갱신한다.
               //  반경을 벗어나면 0.6초 안에 풀린다 = "곁에 있는 동안만 느려진다".
@@ -2968,7 +3014,7 @@ GAME.Combat = {
         var tu = state.units[k];
         if (!tu.alive || tu.side === tr.side) continue;
         if (this.dist(tu, tr) <= tr.radius) {
-          this.applyDamage(tu, tr.damage, tr.owner, state);
+          this.applyDamage(tu, tr.damage, tr.owner, state, { srcSkill: tr.srcSkill });
           tu.rootedFor = Math.max(tu.rootedFor, tr.rootMs);
           triggered = true;
         }
@@ -3016,7 +3062,7 @@ GAME.Combat = {
         }
       }
       if (blocker) {
-        this.applyDamage(blocker, p.damage, p.owner, state);
+        this.applyDamage(blocker, p.damage, p.owner, state, { srcSkill: p.srcSkill });
         if (p.sticky) this.applySlow(blocker, p);
         if (blocker.side === 'strategist') state.telemetry.guardBlocked++;
         state.effects.push({ kind: 'block', x: p.x, y: p.y, t: 200, total: 200, side: p.side });
@@ -3034,10 +3080,10 @@ GAME.Combat = {
         if (p.pierce) {
           if (p.hitSet.indexOf(o) !== -1) continue;
           p.hitSet.push(o);
-          this.applyDamage(o, p.damage, p.owner, state);
+          this.applyDamage(o, p.damage, p.owner, state, { srcSkill: p.srcSkill });
           state.effects.push({ kind: 'spark', x: p.x, y: p.y, t: 120, total: 120, side: p.side });
         } else {
-          this.applyDamage(o, p.damage, p.owner, state);
+          this.applyDamage(o, p.damage, p.owner, state, { srcSkill: p.srcSkill });
           if (p.sticky) this.applySlow(o, p);
           // 관측: 영웅이 논타겟에 실제로 맞았나 (회피 실력 계산의 분자)
           if (o.isHero && p.side === 'strategist' && !p.homing) {
@@ -3113,7 +3159,8 @@ GAME.Combat = {
           if (!w.alive || w.side === e.side) continue;
           var ex = w.x - e.x, ey = w.y - e.y;
           if (Math.sqrt(ex * ex + ey * ey) <= e.r + w.def.radius) {
-            this.applyDamage(w, e.damage, e.owner, state, e.abil ? { abil: true } : undefined);
+            this.applyDamage(w, e.damage, e.owner, state,
+                             { abil: !!e.abil, srcSkill: e.srcSkill });
             // 늪지기 스킬 — 예고 폭발이 둔화도 건다. `slowMul` 이 실린 예고만 해당된다
             // (없으면 아무 일도 안 하므로 기존 예고는 그대로다).
             if (e.slowMul) this.applySlow(w, { slowMul: e.slowMul, slowMs: e.slowMs || 2000 });

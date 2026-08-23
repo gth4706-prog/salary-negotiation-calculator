@@ -112,6 +112,40 @@
       scene.load.start();
     },
 
+    //  작은 자리(버튼 아이콘 ~27px)용 축소 텍스처. 원본(260px+)을 WebGL 이 한 번에
+    //  10배 축소하면 NPOT 밉맵이 없어 픽셀이 듬성듬성 찍혀 **검은 얼룩**이 된다
+    //  (2026-08-23 로비 설정·랭킹 아이콘 실사고). 캔버스에서 절반씩 단계 축소해
+    //  목표 크기 2배(레티나 대비)의 텍스처를 한 번 굽고 재사용한다.
+    thumb: function (scene, key, sizePx) {
+      if (!this.ready(key, scene)) return null;
+      var size = Math.max(16, Math.round(sizePx * 2));
+      var tkey = 'gthumb-' + key + '-' + size;
+      var tm = scene.textures;
+      if (tm.exists(tkey)) return tkey;
+      var src = tm.get('gear-' + key).getSourceImage();
+      var w = src.width, h = src.height;
+      var scale = size / Math.max(w, h);
+      var cur = src;
+      //  절반씩 줄인다 — 한 번에 크게 줄이면 캔버스 보간도 픽셀을 건너뛴다.
+      while (Math.max(cur.width, cur.height) * 0.5 > size) {
+        var half = document.createElement('canvas');
+        half.width = Math.max(1, Math.round(cur.width * 0.5));
+        half.height = Math.max(1, Math.round(cur.height * 0.5));
+        var hx = half.getContext('2d');
+        hx.imageSmoothingEnabled = true; hx.imageSmoothingQuality = 'high';
+        hx.drawImage(cur, 0, 0, half.width, half.height);
+        cur = half;
+      }
+      var out = document.createElement('canvas');
+      out.width = Math.max(1, Math.round(w * scale));
+      out.height = Math.max(1, Math.round(h * scale));
+      var ox = out.getContext('2d');
+      ox.imageSmoothingEnabled = true; ox.imageSmoothingQuality = 'high';
+      ox.drawImage(cur, 0, 0, out.width, out.height);
+      try { tm.addCanvas(tkey, out); } catch (e) { return 'gear-' + key; }
+      return tkey;
+    },
+
     //  g 가 컨테이너 안이면 이미지도 같은 컨테이너로 — 상점 미리보기(패널 컨테이너)와
     //  PC 전투 줌(worldLayer)에서 좌표가 어긋나던 원인(2026-08-21 "무기 사니까 안 보여").
     _mount: function (img, g) {

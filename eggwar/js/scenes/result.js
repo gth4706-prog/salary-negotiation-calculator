@@ -236,14 +236,22 @@ GAME.ResultScene.prototype.create = function () {
   //  패배는 '받은 피해' 탭이 기본으로 열린다(BattleReport 가 처리).
   if (this.report && GAME.BattleReport) {
     var repSelf = this;
+    //  ⚠ 폰은 우상단이 보상 열(y=14 시작)의 자리다 — 우상단에 두면 획득 골드
+    //    글자를 정확히 덮는다(2026-08-23 태현님 실사고). 왼쪽 열(판정 패널) 아래는
+    //    비어 있으므로 거기 둔다. PC 는 우상단이 비어 있어 그대로.
     var rpBtn = GAME.UI.button(this,
-      W - (GAME.CONFIG.PHONE ? 86 : 110), GAME.CONFIG.PHONE ? 30 : 40,
-      GAME.CONFIG.PHONE ? 140 : 180, GAME.CONFIG.PHONE ? 44 : 48, '📊 전투 요약',
+      GAME.CONFIG.PHONE ? (16 + 404 / 2) : (W - 110),
+      GAME.CONFIG.PHONE ? (GAME.CONFIG.HEIGHT - 38) : 40,
+      GAME.CONFIG.PHONE ? 200 : 180, GAME.CONFIG.PHONE ? 44 : 48, '📊 전투 요약',
       function () {
         GAME.BattleReport.open(repSelf, repSelf.report,
           { win: good, sec: repSelf.battleSec });
       }, { fontSize: GAME.CONFIG.PHONE ? 13 : 15 });
     rpBtn.setDepth(50);
+    //  전투가 끝나면 요약을 **먼저** 보여준다 (2026-08-23 태현님: "팝업으로 보여주고
+    //  닫은 다음에야 메뉴나 상점을 선택할 수 있게") — 베일이 전 화면을 덮으므로
+    //  닫기 전에는 아래 버튼이 눌리지 않는다. 버튼은 다시 보기용으로 남는다.
+    GAME.BattleReport.open(repSelf, repSelf.report, { win: good, sec: repSelf.battleSec });
     //  겹침 감사 훅 — 버튼을 눌러야 열리는 패널은 씬만 띄워서는 검사가 안 된다.
     if (GAME.__openReport) {
       GAME.__openReport = 0;

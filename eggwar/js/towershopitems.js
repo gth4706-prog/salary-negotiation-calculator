@@ -69,12 +69,22 @@ GAME.TowerShopItems = (function () {
       { key: 'w11', name: '질풍 찌르개', cost: 1150,  vsCost: 110, damageAdd: 92,  atkspeedAdd: 14 },
       { key: 'w12', name: '맹수 발톱',   cost: 1250,  vsCost: 115, damageAdd: 88,  critAdd: 12 },
       { key: 'w5', name: '강철 손도끼', cost: 1400,  vsCost: 120, damageAdd: 130, lifestealAdd: 0.10, note: '공격력 +130, 흡혈 +10%' },
+      //  ── 2026-08-23 증설(태현님 "300층까지 충분한 구조인지 점검") — 실측:
+      //  1,400→4,200(3.0배)·4,800→13,500(2.8배) 두 공백이 각 13개 층이고,
+      //  42,000 뒤로는 78층 이후 222개 층 동안 살 것이 없었다. 배율을 2배 안팎으로
+      //  고르게 6단을 끼워 300층 언저리(용 본체)까지 사다리가 이어진다.
+      { key: 'w16', name: '검은 요석 낫', cost: 2600, vsCost: 140, damageAdd: 150, critAdd: 8, note: '공격력 +150, 치명타 +8%' },
       { key: 'w13', name: '바람의 송곳니', cost: 4200, vsCost: 160, damageAdd: 190, atkspeedAdd: 24 },
       { key: 'w14', name: '사냥신의 눈', cost: 4500, vsCost: 165, damageAdd: 175, critAdd: 22, lifestealAdd: 0.06 },
       { key: 'w6', name: '흑철 대검',   cost: 4800,  vsCost: 170, damageAdd: 290,  note: '공격력 +290' },
+      { key: 'w17', name: '멧돼지왕 엄니', cost: 8500, vsCost: 190, damageAdd: 360, lifestealAdd: 0.12, note: '공격력 +360, 흡혈 +12%' },
       { key: 'w15', name: '번개 이빨',   cost: 13500, vsCost: 225, damageAdd: 420, atkspeedAdd: 32, critAdd: 10 },
       { key: 'w7', name: '용골 단검',   cost: 15000, vsCost: 230, damageAdd: 620, lifestealAdd: 0.18, cdrMul: 0.90, note: '공격력 +620, 흡혈 +18%, 스킬 쿨 -10%' },
-      { key: 'w8', name: '여명의 창',   cost: 42000, vsCost: 300, damageAdd: 1350, lifestealAdd: 0.26, note: '공격력 +1350, 흡혈 +26%' }
+      { key: 'w18', name: '심연 흑철 창', cost: 25000, vsCost: 260, damageAdd: 850, atkspeedAdd: 20, note: '공격력 +850, 공속 +20' },
+      { key: 'w8', name: '여명의 창',   cost: 42000, vsCost: 300, damageAdd: 1350, lifestealAdd: 0.26, note: '공격력 +1350, 흡혈 +26%' },
+      { key: 'w19', name: '용비늘 도끼', cost: 95000, vsCost: 340, damageAdd: 2900, lifestealAdd: 0.22, note: '공격력 +2900, 흡혈 +22%' },
+      { key: 'w20', name: '태초의 송곳니', cost: 210000, vsCost: 380, damageAdd: 6400, critAdd: 16, lifestealAdd: 0.15, note: '공격력 +6400, 치명타 +16%, 흡혈 +15%' },
+      { key: 'w21', name: '용심장 파쇄추', cost: 450000, vsCost: 420, damageAdd: 13500, lifestealAdd: 0.30, cdrMul: 0.85, note: '공격력 +13500, 흡혈 +30%, 스킬 쿨 -15%' }
     ],
     armor: [
       { key: 'a1', name: '가죽 갑옷',     cost: 15,    vsCost: 15,  hpAdd: 140,   note: '체력 +140' },

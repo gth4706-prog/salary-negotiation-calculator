@@ -133,8 +133,8 @@ GAME.NetRoom = {
       self.connected = false;
       self._stopHeartbeat();
       self._emit('close', { code: ev && ev.code, byUser: self.closedByUser });
-      //  4009 = 서버의 의도적 거절(버전 불일치) — 재시도해도 같은 답이다.
-      if (!self.closedByUser && !(ev && ev.code === 4009)) self._scheduleRetry(id);
+      //  4009 = 버전 불일치 · 4004 = 없는 방 — 서버의 의도적 거절. 재시도해도 같은 답이다.
+      if (!self.closedByUser && !(ev && (ev.code === 4009 || ev.code === 4004))) self._scheduleRetry(id);
     };
   },
 

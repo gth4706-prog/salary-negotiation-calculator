@@ -49,7 +49,13 @@ GAME.BattleScene.prototype.init = function (data) {
   //  격파율·랭킹이 통째로 거짓이 되기 때문이다(혼자서 무한히 올릴 수 있다).
   //  기록을 거르는 곳을 **한 군데로 모은다** — 갈라놓으면 하나를 빼먹는다.
   this.test = !!data.test;
-  this.startPos = data.startPos || { x: 600, y: 590 };
+  //  ⚠ 기본 스폰을 PC 좌표(600,590)로 박으면 폰 프로필(아레나 bottom 384)에서
+  //    **아레나 밖**에 선다 — 탄막 판에서 화살이 경계 소멸로 영웅을 못 맞추는
+  //    유령 현상의 진범이었다(2026-08-23 실측). 컨트롤러 구역에서 계산한다.
+  this.startPos = data.startPos || (function () {
+    var Z = GAME.CONFIG.ZONE_CONTROLLER;
+    return { x: Z.x + Z.w / 2, y: Z.y + Z.h * 0.55 };
+  })();
   this.ended = false;
   this.markers = [];
 
@@ -376,7 +382,8 @@ GAME.BattleScene.prototype.create = function () {
     this.state.dodgeMode = true;
     this.state.dodgeUntil = 45000;
     this._dodge = { turrets: [], coins: [], fireMs: 1450, nextTurret: 8000,
-                    nextCoin: 1600, gold: 0, hx: 0, hy: 0, hvx: 0, hvy: 0 };
+                    nextCoin: 1600, nextBomb: 800, shotN: 0,   //  폭격은 15초 게이트(elapsed) 뒤 곧바로 시작
+                    gold: 0, hx: 0, hy: 0, hvx: 0, hvy: 0 };
     for (var dti = 0; dti < 6; dti++) this._dodgeAddTurret();
     this._dodgeG = this.add.graphics().setDepth(30);
     if (this.worldLayer) this.worldLayer.add(this._dodgeG);
@@ -2777,25 +2784,55 @@ GAME.BattleScene.prototype._dodgeUpdate = function (dt) {
   }
 
   //  발사 — 포탑별 개별 쿨. 진행 방향 예측 사격(리드 55%) — "예상 공격" 문법 재사용.
+  //  2026-08-23 태현님 2차: "너무 약해 — 10대 맞으면 죽게, 더 다양한 공격으로 압박."
+  //  피해 10%(10대 사망) + 세 번째 발마다 **부채꼴 3연발** + 15초부터 **투석 폭격**.
   var spd = 300 * ws;
+  var dodgeDmg = Math.max(1, Math.round(h.maxHp * 0.10 /
+                 ((GAME.CONFIG.PACE && GAME.CONFIG.PACE.DMG) || 1)));
   for (var i = 0; i < d.turrets.length; i++) {
     var tr = d.turrets[i];
     tr.cd -= dt;
     if (tr.cd > 0) continue;
     tr.cd = d.fireMs;
+    d.shotN++;
     var fx = h.x, fy = h.y;
     var pdx = fx - tr.x, pdy = fy - tr.y;
     var pd = Math.sqrt(pdx * pdx + pdy * pdy) || 1;
     var lead = (pd / spd) * 0.55;
     fx += d.hvx * lead; fy += d.hvy * lead;
-    var adx = fx - tr.x, ady = fy - tr.y;
-    var ad = Math.sqrt(adx * adx + ady * ady) || 1;
-    st.projectiles.push({
-      x: tr.x, y: tr.y, vx: (adx / ad) * spd, vy: (ady / ad) * spd,
-      //  피해 = 최대체력의 6% — 층·성장과 무관하게 "약 16대 맞으면 죽는다"로 고정.
-      damage: Math.max(1, Math.round(h.maxHp * 0.06 / ((GAME.CONFIG.PACE && GAME.CONFIG.PACE.DMG) || 1))),
-      side: 'strategist', radius: 7 * ws, life: 5200, owner: null, hitSet: [], big: true
-    });
+    var baseAng = Math.atan2(fy - tr.y, fx - tr.x);
+    //  세 발마다 부채꼴(±0.24rad) — 옆걸음 회피를 좁힌다. 나머지는 단발 예측탄.
+    var fans = (d.shotN % 3 === 0) ? [-0.24, 0, 0.24] : [0];
+    for (var fi = 0; fi < fans.length; fi++) {
+      var fa = baseAng + fans[fi];
+      st.projectiles.push({
+        x: tr.x, y: tr.y, vx: Math.cos(fa) * spd, vy: Math.sin(fa) * spd,
+        damage: dodgeDmg,
+        side: 'strategist', radius: 7 * ws, life: 5200, owner: null, hitSet: [], big: true
+      });
+    }
+  }
+
+  //  투석 폭격 — 15초부터 4.5초마다, 영웅 예측 지점 주변에 예고 원 3개(투석꾼 문법).
+  //  예고 900ms 를 보고 걸어 나가면 피해진다 — 직선탄을 피하는 동선을 꺾게 만든다.
+  if (st.elapsed > 15000) {
+    d.nextBomb -= dt;
+    if (d.nextBomb <= 0) {
+      d.nextBomb = 4500;
+      var bombR = 74 * ws;
+      for (var bi = 0; bi < 3; bi++) {
+        var bx2 = h.x + d.hvx * 0.5 + (Math.random() - 0.5) * 170 * ws;
+        var by2 = h.y + d.hvy * 0.5 + (Math.random() - 0.5) * 130 * ws;
+        var A3 = GAME.CONFIG.ARENA;
+        bx2 = Math.max(A3.x + 20, Math.min(A3.right - 20, bx2));
+        by2 = Math.max(A3.y + 20, Math.min(A3.bottom - 20, by2));
+        st.effects.push({
+          kind: 'telegraph', x: bx2, y: by2, r: bombR,
+          t: 900 + bi * 160, total: 900,
+          damage: Math.round(dodgeDmg * 1.4), side: 'strategist', owner: null
+        });
+      }
+    }
   }
 
   //  금화 — 주기적으로 바닥에 떨어지고 9초 뒤 사라진다. 주우러 가는 발걸음이

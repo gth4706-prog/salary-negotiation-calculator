@@ -94,30 +94,37 @@ GAME.RtPrepScene.prototype.create = function () {
         function () {
           self._pickedHero = hk;
           if (GAME.RtFlow.setHeroPick) GAME.RtFlow.setHeroPick(hk);
-          self._markHero(hks, hk);
-          self._refreshLoadout();
+          //  영웅을 고르면 **곧장 드래프트로** (2026-08-24 태현님: "준비완료하고
+          //  아이템·스킬 고르는 순간이 없어") — 별도 버튼은 폰에서 준비 버튼과
+          //  겹쳐 안 보였다. RtFlow 는 전역이라 씬을 떠나도 흐름이 안 죽는다.
+          self.scene.start('TowerShop', { mode: 'arena', backTo: 'RtPrep', tab: 'item' });
         }, { fontSize: P ? 14 : 16 });
       self._heroBtns.push(b);
     });
     if (this._pickedHero) this._markHero(hks, this._pickedHero);
 
-    var shopY = top + 26 + hks.length * (hbh + 8) + (P ? 10 : 16);
-    UI.button(this, W / 2, shopY, Math.min(W - 40, 380), P ? 46 : 52,
-      '🛒 무기·스킬 준비 (예산 ' + (GAME.Arena ? GAME.Arena.BUDGET : 500) + ')',
-      function () {
-        if (!self._pickedHero) { self._stateTxt.setText('⚠ 영웅부터 고르세요'); return; }
-        //  RtFlow 는 전역이라 씬을 떠나도 준비 흐름·타이머·상대 세팅이 안 죽는다.
-        self.scene.start('TowerShop', { mode: 'arena', backTo: 'RtPrep' });
-      }, { fontSize: P ? 13 : 15 });
-    this._loadoutTxt = UI.text(this, W / 2, shopY + (P ? 34 : 42), '', {
+    this._loadoutTxt = UI.text(this, W / 2, top + 26 + hks.length * (hbh + 8) + (P ? 6 : 12), '', {
       size: 'caption', color: C.textDim, origin: 0.5, originY: 0 });
     this._loadoutTxt.setAlign('center');
     this._refreshLoadout();
   }
 
   var byBottom = P ? H - 40 : H - 90;
-  this._readyBtn = UI.button(this, W / 2, byBottom - (P ? 52 : 66), Math.min(W - 40, 380),
-    P ? 52 : 60, '⚔ 전투 준비 완료', function () { self._commit(); });
+  var readyY = byBottom - (P ? 52 : 66);
+  if (isStrat) {
+    this._readyBtn = UI.button(this, W / 2, readyY, Math.min(W - 40, 380),
+      P ? 52 : 60, '⚔ 전투 준비 완료', function () { self._commit(); });
+  } else {
+    //  컨트롤러 — 하단 한 줄에 [🛒 장비 다시] [⚔ 준비 완료] 나란히 (폰 겹침 방지)
+    var halfW = Math.min((W - 60) / 2, 260);
+    UI.button(this, W / 2 - halfW / 2 - 8, readyY, halfW, P ? 52 : 60,
+      '🛒 장비 다시', function () {
+        if (!self._pickedHero) { self._stateTxt.setText('⚠ 영웅부터 고르세요'); return; }
+        self.scene.start('TowerShop', { mode: 'arena', backTo: 'RtPrep', tab: 'item' });
+      }, { fontSize: P ? 13 : 15 });
+    this._readyBtn = UI.button(this, W / 2 + halfW / 2 + 8, readyY, halfW,
+      P ? 52 : 60, '⚔ 전투 준비 완료', function () { self._commit(); }, { fontSize: P ? 13 : 15 });
+  }
   this._stateTxt = UI.text(this, W / 2, byBottom, '', {
     size: 'caption', color: C.textDim, origin: 0.5 });
   this._stateTxt.setAlign('center');

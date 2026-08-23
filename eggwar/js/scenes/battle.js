@@ -468,6 +468,10 @@ GAME.BattleScene.prototype.create = function () {
       //  실기기에서 "움직여지지 않는다"(2026-08-22 태현님)의 원인이 이것이었다.
       rtProxy: true, rtHero: this.hero,
       x: this.hero.x, y: this.hero.y, alive: true, isHero: true, side: this.hero.side,
+      //  ⚠ rootedFor 가 없으면 skillReady 의 `rootedFor <= 0` 이 undefined 비교로
+      //  **항상 false** — 스킬 버튼 전체가 무반응이 된다(2026-08-24 태현님 신고).
+      //  시전 정당성은 어차피 시뮬 쪽 castSkill 이 다시 검사한다.
+      rootedFor: 0,
       order: null, facing: this.hero.facing,
       def: this.hero.def, hero: this.hero.hero, skills: this.hero.skills,
       skillCd: this.hero.skillCd, cdrMul: this.hero.cdrMul,

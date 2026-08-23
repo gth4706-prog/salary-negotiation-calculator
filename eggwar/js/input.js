@@ -64,6 +64,9 @@ GAME.InputController.prototype._bind = function () {
     }
 
     // ── 터치 조작 ──
+    //  실시간 대전은 전장 탭 이동/교전을 받지 않는다 (2026-08-24 태현님:
+    //  "전장 터치방식은 없애줘") — 스틱과 버튼만. 통곡의 탑·수성은 그대로.
+    if (self.hero.rtProxy) return;
     if (p.y > GAME.Iso.screenRect().bottom) return;   // 하단 버튼 영역은 버튼이 처리
     // 조작 패드(스틱·버튼) 위를 누른 것은 전장 탭이 아니다.
     // 패드가 전장 아래쪽에 겹쳐 있어서 이 판정이 없으면 스틱을 잡을 때마다 영웅이 튄다.

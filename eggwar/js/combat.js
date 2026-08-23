@@ -2563,11 +2563,24 @@ GAME.Combat = {
 
   runAI: function (u, state, dt) {
     var def = u.def;
-    //  실시간 대전(2026-08-21 태현님): 영웅은 **명령이 있을 때만** 움직이고 때린다.
-    //  자동 교전은 전략가 유닛의 것이다. 양쪽 클라이언트가 같은 규칙 = 결정론 유지.
-    //  (2026-08-23 태현님: "자동공격이 기본 베이스" — 예전엔 rt 영웅이 명령 없으면
-    //  통째로 멈췄다. runAI 는 상태만 읽는 결정론이라 양쪽 시뮬이 같은 답을 낸다 —
-    //  통곡의 탑과 같은 바탕(자동 교전) 위에 명령이 얹히는 구조로 되돌린다.)
+    //  실시간 대전 영웅 — **통곡의 탑 조작 문법 그대로** (2026-08-24 태현님 ①).
+    //  쫓아가지 않는다(이동은 명령만 — 여기서 따라가면 카이팅이 무너진다).
+    //  사거리 안의 적은 **이동 중에도, 서 있어도** 자동으로 친다(input.js 205·219 와
+    //  같은 문법). v2.81 은 게이트만 걷어 full AI 를 태웠는데, 그러면 영웅이 명령
+    //  없이 스스로 적에게 걸어가고, move 명령 중엔 engage=false 라 발사가 영영
+    //  안 됐다 — "자동공격이 안 된다"의 실체. 상태만 읽는 결정론이라 양쪽 동일.
+    if (state.pvpRealtime && u.isHero) {
+      var rtTgt = this.nearestEnemy(u, state.units);
+      if (rtTgt && u.cd <= 0 && this.dist(u, rtTgt) <= def.range) {
+        this.fire(u, rtTgt.x, rtTgt.y, rtTgt, state);
+        u.cd = def.cooldown;
+      }
+      if (u.order && u.order.x !== undefined &&
+          (u.order.type === 'move' || u.order.type === 'attackmove')) {
+        if (this.moveToward(u, u.order.x, u.order.y, this.effSpeed(u) * dt)) u.order = null;
+      }
+      return;
+    }
     // 능력이 이번 프레임을 가져갔으면 이동·공격은 건너뛴다(예고와 실제가 어긋나면 못 피한다)
     // ⚠ `abilities`(복수)만 가진 유닛도 여기를 통과해야 한다 — 이 가드가
     //   `def.ability` 만 보고 있어서 알 보스가 **스킬을 한 번도 안 썼다**(실측:

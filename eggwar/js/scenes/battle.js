@@ -1903,8 +1903,11 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       }
       //  상태 배너: 사고 > 스톨 > 관전 순으로 하나만 말한다
       if (this._rtTxt && this._rtTxt.scene) {
+        //  ⚠ 스톨 배너는 **연속 1.5초 이상** 막혔을 때만 (2026-08-24 태현님 ②).
+        //  록스텝은 상대 확정을 기다리는 0틱 프레임이 정상적으로 자주 생긴다 —
+        //  프레임 단위로 띄우면 멀쩡한 판에서도 배너가 상시 노출된다(2계정 실측 28/30).
         var msg = this._rtNote ? ('⚠ ' + this._rtNote)
-          : (this._rtStall && this.state.elapsed > 400 ? '⏳ 상대 연결을 기다리는 중…'
+          : (this._rtStall && this._rtStallMs > 1500 && this.state.elapsed > 400 ? '⏳ 상대 연결을 기다리는 중…'
           : (!this._heroIsPlayer ? '👁 관전 — 내 진형이 싸우는 중입니다 (내 영웅 시점 아님)' : ''));
         if (msg) { this._rtTxt.setText(msg); this._rtTxt.setVisible(true); }
         else this._rtTxt.setVisible(false);

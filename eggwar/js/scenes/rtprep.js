@@ -20,6 +20,8 @@ GAME.RtPrepScene.prototype.init = function () {
   this._stateTxt = null;
   this._readyBtn = null;
   this._pickedFormation = null;
+  this._loadoutTxt = null;      // 씬 인스턴스는 재사용된다 — 파괴된 Text 참조 방지
+  this._heroBtns = null;
 };
 
 GAME.RtPrepScene.prototype.create = function () {
@@ -37,7 +39,7 @@ GAME.RtPrepScene.prototype.create = function () {
 
   var isStrat = F.myRole === 'strategist';
   UI.text(this, W / 2, P ? 10 : 26,
-    isStrat ? '🛡 전투 준비 — 배치를 고르세요' : '⚔ 전투 준비 — 영웅을 고르세요 (기본 스펙 대전)',
+    isStrat ? '🛡 전투 준비 — 배치를 고르세요' : '⚔ 전투 준비 — 영웅과 무기를 고르세요',
     { size: P ? 'subhead' : 'head', color: C.accent, origin: 0.5, originY: 0 });
 
   this._timerTxt = UI.text(this, W / 2, P ? 44 : 78, '', {
@@ -68,28 +70,49 @@ GAME.RtPrepScene.prototype.create = function () {
       self._formBtns.push(b);
     });
   } else {
-    //  컨트롤러 — 영웅 3종을 **초기화된 스펙으로 새로 고른다** (2026-08-23 태현님:
-    //  "영웅은 모두 초기화된 상태로 서로 골라야 한다"). 상점·예산·아이템은 접었다 —
-    //  실시간은 실력전이지 장비전이 아니다. 스킬은 기본 픽.
-    this._pickedHero = null;
+    //  컨트롤러 — 영웅 3종을 **초기화된 스펙으로 새로 고른다** (2026-08-23 태현님).
+    //  2026-08-24 ④: 영웅을 고른 뒤 **무기·스킬 드래프트**(예산 500)를 되살렸다 —
+    //  단 이월 없는 임시 빌드다(ArenaBuild._rtRec, 판마다 DEFAULT 에서 시작).
+    //  상점을 안 다녀오면 기본 스펙 그대로 = "초기화된 상태" 약속 유지.
+    this._pickedHero = GAME.RtFlow.myHeroPick || null;   // 상점 왕복 후 선택 복원
+    //  상점 영웅 탭에서 영웅을 바꿔 돌아왔으면 그쪽이 최신이다(이미 골랐던 경우만 —
+    //  DEFAULT 의 vanguard 가 "안 골랐는데 골라진" 것으로 새지 않게).
+    var AB0 = GAME.ArenaBuild;
+    if (this._pickedHero && AB0 && AB0._rtRec && AB0._rtRec.heroKey &&
+        AB0._rtRec.heroKey !== this._pickedHero) {
+      this._pickedHero = AB0._rtRec.heroKey;
+      if (GAME.RtFlow.setHeroPick) GAME.RtFlow.setHeroPick(this._pickedHero);
+    }
     this._heroBtns = [];
     var hks = GAME.HERO_ORDER || ['vanguard', 'ranger', 'warden'];
-    var hbw = Math.min(W - 40, 560), hbh = P ? 52 : 62;
+    var hbw = Math.min(W - 40, 560), hbh = P ? 46 : 56;
     hks.forEach(function (hk, i) {
       var hd = GAME.HEROES[hk];
       if (!hd) return;
-      var b = UI.button(self, W / 2, top + 26 + i * (hbh + 10), hbw, hbh,
+      var b = UI.button(self, W / 2, top + 26 + i * (hbh + 8), hbw, hbh,
         hd.name + '   ·   ' + (hd.tagline || hd.desc || '').slice(0, 26),
         function () {
           self._pickedHero = hk;
           if (GAME.RtFlow.setHeroPick) GAME.RtFlow.setHeroPick(hk);
-          self._heroBtns.forEach(function (hb, j) {
-            hb.rect.setStrokeStyle(hks[j] === hk ? 3 : 1,
-              hks[j] === hk ? GAME.CONFIG.COLORS.controller : UI.COL.borderUi);
-          });
+          self._markHero(hks, hk);
+          self._refreshLoadout();
         }, { fontSize: P ? 14 : 16 });
       self._heroBtns.push(b);
     });
+    if (this._pickedHero) this._markHero(hks, this._pickedHero);
+
+    var shopY = top + 26 + hks.length * (hbh + 8) + (P ? 10 : 16);
+    UI.button(this, W / 2, shopY, Math.min(W - 40, 380), P ? 46 : 52,
+      '🛒 무기·스킬 준비 (예산 ' + (GAME.Arena ? GAME.Arena.BUDGET : 500) + ')',
+      function () {
+        if (!self._pickedHero) { self._stateTxt.setText('⚠ 영웅부터 고르세요'); return; }
+        //  RtFlow 는 전역이라 씬을 떠나도 준비 흐름·타이머·상대 세팅이 안 죽는다.
+        self.scene.start('TowerShop', { mode: 'arena', backTo: 'RtPrep' });
+      }, { fontSize: P ? 13 : 15 });
+    this._loadoutTxt = UI.text(this, W / 2, shopY + (P ? 34 : 42), '', {
+      size: 'caption', color: C.textDim, origin: 0.5, originY: 0 });
+    this._loadoutTxt.setAlign('center');
+    this._refreshLoadout();
   }
 
   var byBottom = P ? H - 40 : H - 90;
@@ -109,10 +132,16 @@ GAME.RtPrepScene.prototype.create = function () {
   this._refresh();
 };
 
+GAME.RtPrepScene.prototype._markHero = function (hks, hk) {
+  this._heroBtns.forEach(function (hb, j) {
+    hb.rect.setStrokeStyle(hks[j] === hk ? 3 : 1,
+      hks[j] === hk ? GAME.CONFIG.COLORS.controller : GAME.UI.COL.borderUi);
+  });
+};
+
 GAME.RtPrepScene.prototype._refreshLoadout = function () {
   if (!this._loadoutTxt || !this._loadoutTxt.scene) return;
   var rec = GAME.ArenaBuild ? GAME.ArenaBuild.get() : {};
-  var hero = GAME.HEROES[rec.heroKey || 'vanguard'];
   var CAT = GAME.TowerShopItems;
   var parts = [];
   if (CAT && rec.items) {
@@ -121,8 +150,9 @@ GAME.RtPrepScene.prototype._refreshLoadout = function () {
       if (it) parts.push(CAT.nameFor(it, rec.heroKey));
     });
   }
-  this._loadoutTxt.setText('현재 구성: ' + (hero ? hero.name : '?') +
-    (parts.length ? '\n' + parts.join(' · ') : '\n(장비 없음 — 준비창에서 사세요)'));
+  this._loadoutTxt.setText(parts.length
+    ? '장비: ' + parts.join(' · ')
+    : '(장비 없음 — 안 사도 됩니다. 기본 스펙으로 출전)');
 };
 
 GAME.RtPrepScene.prototype._commit = function () {

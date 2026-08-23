@@ -26,10 +26,26 @@ GAME.ArenaBuild = {
   _key: function () { return GAME.Account.current() || 'guest'; },
   _all: function () { return GAME.Store.get(this.KEY, {}); },
   _save: function (rec) {
+    if (this._rtRec) { this._rtRec = rec; return; }   // RT 임시 레코드는 저장 안 한다
     var all = this._all();
     all[this._key()] = rec;
     GAME.Store.set(this.KEY, all);
   },
+
+  // ── 실시간 대전 전용 임시 레코드 (2026-08-24 태현님 ④) ──────────────────────
+  //  "영웅 고른 다음 무기·능력치 고르는 과정" 을 복원하되 "초기화된 상태" 약속도
+  //  지킨다 — 판마다 DEFAULT 에서 새로 시작하고, localStorage 에 안 남기며(위 _save
+  //  게이트), 일반 대전(비동기)의 저장 빌드도 안 건드린다. RtFlow.begin 이 켜고
+  //  maybeBattle/abort 가 끈다. 켜져 있는 동안 get() 이 이 레코드만 돌려주므로
+  //  TowerShop(mode:'arena') 의 구매·스킬픽이 전부 여기로 쌓인다.
+  _rtRec: null,
+  rtBegin: function (heroKey) {
+    this._rtRec = this.DEFAULT();
+    this._rtRec.role = 'controller';
+    if (heroKey) this._rtRec.heroKey = heroKey;
+    return this._rtRec;
+  },
+  rtEnd: function () { this._rtRec = null; },
 
   // ── 2026-08-01 개편 — 대전이 통곡의 탑의 아이템·스킬 화면을 그대로 쓴다 ──────
   //  사용자 지시: "대전도 통곡의 탑에서 업데이트한 아이템UI와 스킬, 전투화면은 모두
@@ -65,6 +81,7 @@ GAME.ArenaBuild = {
   },
 
   get: function () {
+    if (this._rtRec) return this._rtRec;              // RT 준비 중엔 임시 레코드만
     var rec = this._all()[this._key()];
     if (!rec) return this.DEFAULT();
     var def = this.DEFAULT();

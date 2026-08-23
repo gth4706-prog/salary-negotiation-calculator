@@ -41,6 +41,12 @@ GAME.RtFlow = {
     this.mySetup = null;
     this.theirSetup = null;
     this.myHeroPick = null;     //  지난 판의 영웅 선택이 새 판에 새지 않게
+    //  컨트롤러 — 판마다 **초기화된** 임시 빌드(예산 500 드래프트, 2026-08-24 태현님 ④).
+    //  이월 없음 · 저장 안 됨. TowerShop(mode:'arena') 왕복이 전부 여기에 쌓인다.
+    if (GAME.ArenaBuild) {
+      if (myRole === 'controller') GAME.ArenaBuild.rtBegin();
+      else GAME.ArenaBuild.rtEnd();
+    }
     this._started = false;
     this._rttFrozen = null;
     this.deadline = Date.now() + this.PREP_MS;
@@ -89,13 +95,20 @@ GAME.RtFlow = {
   //  2026-08-23 태현님: "영웅은 모두 초기화된 상태로 서로 골라야 한다" —
   //  대전 상점(예산·아이템)을 접고, 준비 화면에서 고른 영웅 + 기본 스킬픽만.
   myHeroPick: null,
-  setHeroPick: function (k) { this.myHeroPick = k; },
+  setHeroPick: function (k) {
+    this.myHeroPick = k;
+    //  임시 빌드에도 같은 영웅을 — 상점(TowerShop)이 rec.heroKey 를 보고 그린다.
+    if (GAME.ArenaBuild && GAME.ArenaBuild._rtRec) GAME.ArenaBuild._rtRec.heroKey = k;
+  },
   buildControllerSetup: function (heroKey) {
+    //  드래프트 반영(2026-08-24 태현님 ④) — 준비 중 상점에서 산 아이템·스킬픽을
+    //  세팅 스냅샷에 싣는다. 상점을 안 다녀왔으면 DEFAULT 그대로 = 기본 스펙.
+    var rec = (GAME.ArenaBuild && GAME.ArenaBuild._rtRec) || null;
     return {
       role: 'controller',
-      heroKey: heroKey || this.myHeroPick || 'vanguard',
-      picks: GAME.defaultSkillPicks(),
-      items: {}
+      heroKey: heroKey || this.myHeroPick || (rec && rec.heroKey) || 'vanguard',
+      picks: (rec && rec.picks) || GAME.defaultSkillPicks(),
+      items: (rec && rec.items) || {}
     };
   },
   buildStrategistSetup: function (f) {
@@ -126,6 +139,8 @@ GAME.RtFlow = {
     if (!this.mySetup || !this.theirSetup || !this.startMsg) return;
     this._started = true;
     this._stopTick();
+    //  세팅 스냅샷에 이미 실렸다 — 임시 빌드는 여기서 닫는다(전투·일반 대전 오염 방지).
+    if (GAME.ArenaBuild) GAME.ArenaBuild.rtEnd();
     var NR = GAME.NetRoom;
     //  팀 라벨: 방장 = 'controller' 팀 · 손님 = 'strategist' 팀 (역할과 무관한 자리 이름).
     var meTeam = (NR.me === NR.host) ? 'controller' : 'strategist';
@@ -147,6 +162,7 @@ GAME.RtFlow = {
 
   abort: function (msg) {
     this._stopTick();
+    if (GAME.ArenaBuild) GAME.ArenaBuild.rtEnd();
     if (!this.active) return;
     this.active = false;
     GAME.NetRoom.on.message = null;

@@ -55,11 +55,22 @@ GAME.Music = {
   //  · HTMLAudio 로 **스트리밍** 재생(7MB 를 다 받기 전에 소리가 난다)
   //  · MediaElementSource 로 기존 bus 에 물린다 — 페이드·음량·끄기 전부 공용
   //  · 파일이 못 열리면(404·코덱) 같은 key 의 합성곡(SONGS)으로 폴백한다
-  FILES: { tower: 'assets/bgm/tower.mp3' },
+  //  BGM 풀세트(2026-08-23 태현님 전달, 10파일 실측 후 선정):
+  //  로비·수성·통곡 = 본판(길이·피크 여유·루프 꼬리 우위) / 실시간·공성 대기 = alt
+  //  (1dB 더 크고 시작 -14.4dB 로 즉각적, 루프 꼬리 -50dB — 대기실 루프에 맞다).
+  FILES: {
+    lobby: 'assets/bgm/lobby.mp3',
+    tower: 'assets/bgm/tower.mp3',
+    defend: 'assets/bgm/defend.mp3',
+    versus: 'assets/bgm/versus.mp3'
+  },
+  //  결과 스팅어 — 본곡 컷팅 임시본(전용판이 오면 파일만 교체).
+  STING_FILES: { win: 'assets/bgm/sting-win.mp3', lose: 'assets/bgm/sting-lose.mp3' },
   _el: null,          // 재사용하는 오디오 엘리먼트(MediaElementSource 는 1회만 생성 가능)
   _elNode: null,
   _fileKey: null,     // 파일 모드로 울리는 중인 곡 key
   _fileBroken: {},    // key → true (로드 실패 — 합성 폴백 고정)
+  _stEl: null, _stGain: null, _stCur: null, _stBroken: {},
 
   // ── 수명 주기 ─────────────────────────────────────────────────────────────
   init: function () {
@@ -638,12 +649,47 @@ GAME.Music = {
   //  왜 `Sound.play('win')` 을 안 쓰는가: 저건 삼각파 3음짜리 0.4초로, 층을 깬
   //  순간에 비해 너무 가볍다("효과음이 필요하다"는 신고가 그 뜻이었다).
   //  여기서는 뿔피리 팡파르 + 북 + 종으로 **끝났다는 감각**을 만든다.
+  //  ── 파일 스팅어 (2026-08-23) — 음악 bus 를 **거치지 않는다.** 스팅 동안 bus 를
+  //  0.25 로 눕히는데, 같은 bus 를 타면 스팅어까지 같이 조용해진다. 전용 게인으로
+  //  destination 직결하되 음량 설정(volume)은 존중한다.
+  _stingFile: function (kind) {
+    if (!this.STING_FILES[kind] || this._stBroken[kind]) return false;
+    var self = this;
+    try {
+      if (!this._stEl) {
+        this._stEl = new Audio();
+        this._stEl.addEventListener('error', function () {
+          if (self._stCur) self._stBroken[self._stCur] = true;
+          self._stCur = null;
+        });
+        var node = this.ctx.createMediaElementSource(this._stEl);
+        this._stGain = this.ctx.createGain();
+        node.connect(this._stGain);
+        this._stGain.connect(this.ctx.destination);
+      }
+      this._stGain.gain.setValueAtTime(Math.min(1, this.volume * 1.8), this.ctx.currentTime);
+      this._stCur = kind;
+      this._stEl.src = this.STING_FILES[kind] + '?v=' + ((GAME.VERSION || '').replace('v', ''));
+      var p = this._stEl.play();
+      if (p && p.catch) p.catch(function () {});
+      return true;
+    } catch (e) { this._stBroken[kind] = true; return false; }
+  },
+
   sting: function (kind) {
     if (!this._attach() || !this.enabled) return;
     var self = this, t = this.ctx.currentTime + 0.02;
     // 스팅어는 배경음악 위에 겹치므로 잠깐 음악을 눕힌다(안 그러면 둘 다 안 들린다).
     var back = this.cur;
     if (back) this._ramp(this.volume * 0.25, 0.15);
+
+    //  파일 스팅어가 있으면 그쪽이 우선 — 끝나는 시각(~7초)에 음악을 되올린다.
+    if (this._stingFile(kind)) {
+      if (back) setTimeout(function () {
+        if (self.cur === back) self._ramp(self.enabled ? self.volume : 0, 0.8);
+      }, 7200);
+      return;
+    }
 
     try {
       if (kind === 'win') {

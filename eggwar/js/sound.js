@@ -57,6 +57,66 @@ GAME.Sound = {
       this.master.gain.value = this.enabled ? this.volume : 0;
       this.master.connect(this.ctx.destination);
       this._ready = true;
+      this._loadFiles();
+      return true;
+    } catch (e) { return false; }
+  },
+
+  //  ── 파일 효과음 (2026-08-23 — 19종 도착, assets/sfx/*.wav 총 1.1MB) ─────────
+  //  wav 를 쓴다: 무압축 = 인코더 지연 없음(README 실측 — OGG 는 20ms 어택이
+  //  -12dB 로 뭉개진다). ⚠ ogg 단독 배포 금지(iOS Safari 재생 불가).
+  //  로딩은 오디오 잠금 해제 뒤 비동기 — 못/안 받은 키는 아래 절차 합성이 그대로
+  //  낸다(파일이 그리기의 전제조건이 되면 로드 타이밍에 소리가 통째로 사라진다).
+  //  같은 키의 변주는 랜덤 + 재생속도 미세 변주(±3%) — 연타가 기계음이 안 되게.
+  FILES: {
+    hit: ['hit_0', 'hit_1', 'hit_2'],
+    critHit: ['critHit_0', 'critHit_1'],
+    bow: ['bow_1', 'bow_2'],
+    arrowHit: ['arrowHit_0', 'arrowHit_1'],
+    skill: ['skillCast'],
+    skillBurst: ['skillBurst_0', 'skillBurst_1'],
+    boom: ['boom'],
+    bossRoar: ['bossRoar'], bossStep: ['bossStep'], bossSlam: ['bossSlam'],
+    bossCharge: ['bossCharge'], bossBreath: ['bossBreath'], bossDown: ['bossDown']
+  },
+  //  파일 재생도 절차 합성과 **같은 쿨다운**을 지킨다(_gate 값 미러 — 파일이라고
+  //  겹쳐 재생하면 더 지저분하다). 표에 없는 키는 게이트 없이 낸다(원래도 없었다).
+  FILE_GATES: { hit: 45, critHit: 90, bow: 55, arrowHit: 60, skillBurst: 120,
+                bossStep: 230, bossBreath: 300, bossSlam: 300, bossCharge: 500 },
+  _fbuf: null,
+
+  _loadFiles: function () {
+    if (this._fbuf || !this.ctx) return;
+    this._fbuf = {};
+    var self = this;
+    for (var key in this.FILES) {
+      (function (k) {
+        self.FILES[k].forEach(function (fname) {
+          //  ⚠ 캐시버스터를 버전에 안 묶는다 — 소리 파일은 배포마다 안 바뀌는데
+          //    ?v= 를 올리면 폰이 매번 1.1MB 를 다시 받는다.
+          fetch('assets/sfx/' + fname + '.wav?v=1')
+            .then(function (r) { return r.ok ? r.arrayBuffer() : Promise.reject(); })
+            .then(function (ab) { return self.ctx.decodeAudioData(ab); })
+            .then(function (buf) {
+              if (!self._fbuf[k]) self._fbuf[k] = [];
+              self._fbuf[k].push(buf);
+            })
+            .catch(function () { /* 못 받으면 절차 합성이 대신 낸다 */ });
+        });
+      })(key);
+    }
+  },
+
+  _playFile: function (name) {
+    var list = this._fbuf && this._fbuf[name];
+    if (!list || !list.length) return false;
+    try {
+      var t = this.ctx.currentTime;
+      var src = this.ctx.createBufferSource();
+      src.buffer = list[Math.floor(Math.random() * list.length)];
+      src.playbackRate.value = 0.97 + Math.random() * 0.06;
+      src.connect(this.master);
+      src.start(t);
       return true;
     } catch (e) { return false; }
   },
@@ -130,6 +190,12 @@ GAME.Sound = {
   play: function (name) {
     if (!this._ready || !this.enabled) return;
     try {
+      //  파일이 있으면 파일 우선(변주 랜덤) — 게이트는 절차 합성과 같은 값을 지킨다.
+      if (this._fbuf && this._fbuf[name] && this._fbuf[name].length) {
+        var fg = this.FILE_GATES[name];
+        if (fg !== undefined && !this._gate(name, fg)) return;
+        if (this._playFile(name)) return;
+      }
       switch (name) {
         case 'tap':          // 버튼 누름 — 아주 짧은 '톡'
           //  ⚠ 버튼 소리는 **짧고 작아야** 한다. 길거나 크면 메뉴를 오갈 때마다
@@ -191,6 +257,11 @@ GAME.Sound = {
         //    쓰여서(광역·덫 계열) 가장 자주 나는 소리 중 하나가 됐다.
         //  ⚠ 저역을 지우지 않는다 — 그게 「묵직함」의 정체이고 헤드폰·진동에서 산다.
         //    대신 **앞에 짧은 고역 한 겹**을 얹어 폰에서도 「터졌다」가 전해지게 한다.
+        case 'skillBurst':   // 스킬 착탄(예고 원이 터지는 순간) — boom 보다 가볍게
+          if (!this._gate('skillBurst', 120)) return;
+          this._burst({ dur: 0.05, freq: 1600, q: 1.1, vol: 0.14, filter: 'highpass' });
+          this._burst({ dur: 0.20, freq: 480, q: 0.9, vol: 0.26 });
+          break;
         case 'boom':         // 광역·폭발
           this._burst({ dur: 0.03, freq: 1900, q: 1.2, vol: 0.16, filter: 'highpass' });
           this._burst({ dur: 0.34, freq: 220, q: 0.6, vol: 0.36, filter: 'lowpass' });

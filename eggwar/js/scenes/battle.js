@@ -2470,6 +2470,12 @@ GAME.BattleScene.prototype._juice = function (dt) {
     if (heroHit && biggest >= 0.10 && GAME.UI && GAME.UI.haptic) {
       GAME.UI.haptic(Math.min(40, Math.round(12 + biggest * 90)));
     }
+    //  ── 내 큰 한 방 — 마이크로 셰이크 (2026-08-23 태현님: 타격감 보강) ─────────
+    //  히트스톱이 이미 "멈출 만큼 큰 타격"을 걸렀으므로 그 판정을 그대로 빌린다.
+    //  내가 맞은 쪽은 다굴 셰이크(아래 ②)가 담당 — 여기서는 **때린 쪽**만, 아주 짧게.
+    if (!heroHit && this.cameras && this.cameras.main) {
+      this.cameras.main.shake(90, 0.003);
+    }
   }
 
   // ② 화면 흔들림 — **아껴 쓴다.**
@@ -2480,16 +2486,22 @@ GAME.BattleScene.prototype._juice = function (dt) {
   var h = this.hero;
 
   // 시전 감지: 쿨다운이 '올라가는' 순간이 곧 시전이다. 로직에 손대지 않고 읽기만 한다.
-  var cast = false;
+  var cast = false, castUlt = false;
   if (h && h.skillCd) {
     if (!this._prevCd) this._prevCd = {};
     for (var s = 0; s < GAME.SKILL_SLOTS.length; s++) {
       var sl = GAME.SKILL_SLOTS[s];
       var cd = h.skillCd[sl] || 0;
-      if (this._prevCd[sl] !== undefined && cd > this._prevCd[sl] + 1) cast = true;
+      if (this._prevCd[sl] !== undefined && cd > this._prevCd[sl] + 1) {
+        cast = true;
+        if (sl === 'R') castUlt = true;
+      }
       this._prevCd[sl] = cd;
     }
   }
+  //  궁극(R) 시전 — 30초+ 쿨이라 '중요할 때만' 진동 규칙(v1.31)에 맞는다.
+  //  피해 하한(평타 10대)으로 세진 만큼 손에도 무게가 실려야 한다.
+  if (castUlt && GAME.UI && GAME.UI.haptic) GAME.UI.haptic(26);
 
   // 다굴 판정: **가까이 붙은** 적만 센다. 사거리로 세면 고층에서 원거리 유닛이
   // 항상 조건을 채워 5초마다 계속 흔들린다 — 그건 '다굴'이 아니다.
@@ -2510,7 +2522,9 @@ GAME.BattleScene.prototype._juice = function (dt) {
   if ((cast || (gang >= 3 && heroHit)) && now - this._shakeAt >= GAP) {
     this._shakeAt = now;
     if (this.cameras && this.cameras.main) {
-      this.cameras.main.shake(cast ? 150 : 220, cast ? 0.005 : 0.008);
+      //  궁극은 판을 바꾸는 한 방 — 화면도 한 단계 크게 운다.
+      this.cameras.main.shake(castUlt ? 220 : (cast ? 150 : 220),
+                              castUlt ? 0.007 : (cast ? 0.005 : 0.008));
     }
   }
 

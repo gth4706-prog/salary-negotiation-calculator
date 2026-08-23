@@ -3200,6 +3200,9 @@ GAME.Combat = {
           if (Math.sqrt(ex * ex + ey * ey) <= e.r + w.def.radius) {
             this.applyDamage(w, e.damage, e.owner, state,
                              { abil: !!e.abil, srcSkill: e.srcSkill });
+            //  착탄음(2026-08-23 효과음 세트) — 예고 원이 터지는 순간. 대상 루프
+            //  안이지만 sound 쪽 게이트(120ms)가 같은 폭발의 겹침을 막는다.
+            if (GAME.Sound && e.damage) GAME.Sound.play('skillBurst');
             // 늪지기 스킬 — 예고 폭발이 둔화도 건다. `slowMul` 이 실린 예고만 해당된다
             // (없으면 아무 일도 안 하므로 기존 예고는 그대로다).
             if (e.slowMul) this.applySlow(w, { slowMul: e.slowMul, slowMs: e.slowMs || 2000 });

@@ -103,7 +103,9 @@ GAME.RtPrepScene.prototype.create = function () {
     });
     if (this._pickedHero) this._markHero(hks, this._pickedHero);
 
-    this._loadoutTxt = UI.text(this, W / 2, top + 26 + hks.length * (hbh + 8) + (P ? 6 : 12), '', {
+    //  장비 요약은 타이머 아래 빈 줄에 — 영웅 목록 아래는 폰(H 390)에서 하단
+    //  버튼 줄과 겹친다(스크린샷 실측 2026-08-24).
+    this._loadoutTxt = UI.text(this, W / 2, P ? 70 : 116, '', {
       size: 'caption', color: C.textDim, origin: 0.5, originY: 0 });
     this._loadoutTxt.setAlign('center');
     this._refreshLoadout();

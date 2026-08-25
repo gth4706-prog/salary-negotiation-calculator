@@ -18,6 +18,12 @@ GAME.MenuScene.prototype.create = function () {
   // 로그인하지 않았으면 로그인 화면으로 보낸다
   if (!GAME.Account.current()) { this.scene.start('Login'); return; }
 
+  //  운영 지급(js/gift.js) — 다른 팝업(튜토리얼 등)이 열려 있으면 이번엔 건너뛰고
+  //  다음 메뉴 진입에 다시 확인한다. 캐릭터가 없어도 마찬가지로 미룬다.
+  this.time.delayedCall(600, function () {
+    if (GAME.Gift && self.scene.isActive()) GAME.Gift.claim(self);
+  });
+
   this.cameras.main.setBackgroundColor(C.bg);
 
   // ── 로비 배경: 계란들이 걸어다닌다 (2026-08-01) ─────────────────────────────

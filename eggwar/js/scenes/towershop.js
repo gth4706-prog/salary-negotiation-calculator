@@ -282,58 +282,7 @@ GAME.TowerShopScene.prototype._buildBody = function (bump) {
   if (this.tab === 'hero') this._buildHeroTab();
   else if (this.tab === 'item') this._buildItemTab();
   else if (this.tab === 'skill') this._buildSkillTab();
-  else if (this.mode === 'arena') this._buildRtStatsTab();
-  else this._buildStatsTab();
-};
-
-// ── 실시간 능력치 탭 (2026-08-31) — 고정 증가치 5종, 예산 공유 ────────────────
-//  탑의 복권형 탭과 다른 화면이다: 실시간 드래프트는 계획이 서야 하므로 뽑기가 없다.
-GAME.TowerShopScene.prototype._buildRtStatsTab = function () {
-  var C = GAME.CONFIG.COLORS, UI = GAME.UI, self = this;
-  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
-  var PAD = GAME.CONFIG.SMALL ? 14 : 24;
-  var AB = GAME.ArenaBuild, R = AB.RT_STATS;
-  var rec = this.char;
-  var top = this._bodyTop + 4;
-  var rowH = GAME.CONFIG.SMALL ? 44 : 52;
-  var w = Math.min(W - PAD * 2, 640);
-  var x0 = (W - w) / 2;
-  var keys = ['damage', 'hp', 'armor', 'speed', 'luck'];
-  keys.forEach(function (k, i) {
-    var d = R[k];
-    var y = top + i * (rowH + 8) + rowH / 2;
-    var lv = (rec.rtStats && rec.rtStats[k]) || 0;
-    var g = self.add.graphics();
-    g.fillStyle(UI.COL.surfaceAlt, 1);
-    g.fillRoundedRect(x0, y - rowH / 2, w, rowH, 10);
-    g.lineStyle(1, UI.COL.borderUi, 1);
-    g.strokeRoundedRect(x0, y - rowH / 2, w, rowH, 10);
-    self._body.push(g);
-    self._body.push(UI.label(self, x0 + 14, y - 10,
-      d.name + '  Lv.' + lv + '/' + d.max, GAME.CONFIG.SMALL ? 15 : 17, C.text, 0));
-    self._body.push(UI.label(self, x0 + 14, y + 8,
-      d.note, GAME.CONFIG.SMALL ? 11 : 12, C.textDim, 0));
-    //  [−] [가격 +] — 예산이 모자라거나 상한이면 버튼이 말한다.
-    var canBuy = lv < d.max && AB.left(rec) >= d.cost;
-    var bb = UI.button(self, x0 + w - 52, y, 84, rowH - 12,
-      canBuy ? ('＋ ' + d.cost) : (lv >= d.max ? '최대' : '예산 부족'),
-      function () {
-        if (AB.buyRtStat(k) !== null) self._buildBody(true);
-      }, { fontSize: GAME.CONFIG.SMALL ? 12 : 14 });
-    self._body.push(bb.rect, bb.text);
-    if (bb.gfx) self._body.push(bb.gfx);
-    if (lv > 0) {
-      var sb = UI.button(self, x0 + w - 130, y, 44, rowH - 12, '−',
-        function () {
-          if (AB.sellRtStat(k) !== null) self._buildBody(true);
-        }, { fontSize: 14 });
-      self._body.push(sb.rect, sb.text);
-      if (sb.gfx) self._body.push(sb.gfx);
-    }
-  });
-  this._body.push(UI.label(this, W / 2, top + keys.length * (rowH + 8) + 6,
-    '행운 구슬은 떨어뜨린 쪽(내 팀)만 주울 수 있습니다',
-    GAME.CONFIG.SMALL ? 11 : 12, C.textDim, 0.5));
+  else this._buildStatsTab();       //  arena 모드도 같은 탭(TC 어댑터) — 2026-09-01
 };
 
 // ── 우측 캐릭터 미리보기 + 장비 슬롯 박스 (요청 16) ─────────────────────────
@@ -1280,6 +1229,11 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
 //      실제로 오른 수치를 같이. 등급은 `TowerChar.gradeOf` 가 굴림 범위 안 상대 위치로
 //      정하므로 스탯마다 기준이 갈리지 않는다.
 GAME.TowerShopScene.prototype._buildStatsTab = function () {
+  //  실시간 대전(mode 'arena')도 **이 탭 그대로** 쓴다(2026-09-01 태현님: "통곱의탑
+  //  화면과 기능을 그대로, 행운만 바뀌는거야"). 데이터 출처만 TC 로 갈아끼운다 —
+  //  ArenaBuild.RtStats 가 TowerChar 와 같은 API 를 구현한다(지갑만 예산).
+  var TC = this.mode === 'arena' ? GAME.ArenaBuild.RtStats : GAME.TowerChar;
+  var chr = this.mode === 'arena' ? TC.rec() : this.char;
   var C = GAME.CONFIG.COLORS;
   var self = this;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
@@ -1291,14 +1245,14 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
   //  직사각형 카드에 각 파트 어울리는 그림으로 뽑기하는 것처럼") ────────────────
   //  구성: 위 = 총 능력치 요약 한 줄(7종) / 아래 = 스탯마다 세로 카드 한 장
   //  (그림 + 이름 + 총합 + 🎲 가격). 카드의 🎲 를 누르는 것이 곧 뽑기다.
-  var totalBonus = GAME.TowerChar.statBonus(this.char);
-  var itemBonus = GAME.TowerChar.itemBonus(this.char);
+  var totalBonus = TC.statBonus(chr);
+  var itemBonus = TC.itemBonus(chr);
   function totalOf(d) {
-    if (d.key === 'luck') return GAME.TowerChar.luckLevel(self.char);
+    if (d.key === 'luck') return TC.luckLevel(chr);
     return (totalBonus[d.key] || 0) + (itemBonus[d.key] || 0);
   }
 
-  var DEFS = GAME.TowerChar.STAT_DEFS;
+  var DEFS = TC.STAT_DEFS;
   var n = DEFS.length;
   var contW = W - PAD * 2;
   var leftX = PAD;
@@ -1334,7 +1288,7 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
     var bh = P ? 12 : 15;
     var bx = cxm - bw / 2;
     var by = snm.y + snm.height + (P ? 3 : 4);
-    var ceil = GAME.TowerChar.statCeil ? GAME.TowerChar.statCeil(d.key, tv) : Math.max(1, tv);
+    var ceil = TC.statCeil ? TC.statCeil(d.key, tv) : Math.max(1, tv);
     var ratio = Math.max(0, Math.min(1, ceil > 0 ? tv / ceil : 0));
     //  홈이 옅으면 배경에 묻혀 '게이지'가 아니라 '떠 있는 알약'으로 읽힌다(실측).
     barG.fillStyle(0x000000, 0.42);
@@ -1352,7 +1306,10 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
 
   //  ② 카드 줄 — 한 줄 7장. 폰 가로도 816/7 ≈ 112px 로 선다.
   var cardTop = top + sumH + (P ? 6 : 12);
-  var cardH = Math.min(P ? 240 : 460, H - cardTop - (P ? 6 : 16));
+  //  대전(arena) 폰은 우하단 [✓ 구성 완료] 버튼이 떠 있다 — 카드 바닥을 그 위로
+  //  올린다(감사 실측: 44×5px 겹침).
+  var botPad = P ? (this.mode === 'arena' ? 48 : 6) : 16;
+  var cardH = Math.min(P ? 240 : 460, H - cardTop - botPad);
   var cc = GAME.Layout.cols(n, { gap: P ? 6 : 10, width: contW, left: leftX, pad: 0 });
 
   //  스탯별 그림 — 벡터로 그린다(자산 0KB 원칙 + 파트 정체성).
@@ -1428,9 +1385,9 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
 
   DEFS.forEach(function (d, i) {
     var cx0 = cc[i].x, cw = cc[i].w;
-    var lv = self.char.stats[d.key] || 0;
-    var cost = GAME.TowerChar.costOf(d.key, lv);
-    var can = self.char.gold >= cost;
+    var lv = chr.stats[d.key] || 0;
+    var cost = TC.costOf(d.key, lv);
+    var can = chr.gold >= cost;
     var total = totalOf(d);
 
     var g = self.add.graphics();
@@ -1466,12 +1423,13 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
     //  설명 한 줄 — 치명타는 실효값(확률·배수)을 그 자리에서 계산해 보여준다.
     var smallTxt;
     if (d.key === 'crit') {
-      var ce = GAME.TowerChar.critOf(total);
+      var ce = TC.critOf(total);
       smallTxt = ce.chance + '%' + (ce.chance >= 50 ? '(최대)' : '') + ' ×' + ce.mul;
     } else if (d.key === 'atkspeed') {
       smallTxt = '간격 -' + Math.round((1 - 1 / (1 + total / 100)) * 100) + '%';
     } else if (d.key === 'luck') {
-      smallTxt = P ? '골드·드랍↑' : '골드 +2%·드랍 +2.5%/Lv';
+      smallTxt = self.mode === 'arena' ? '구슬 +5%/Lv'
+        : (P ? '골드·드랍↑' : '골드 +2%·드랍 +2.5%/Lv');
     } else {
       var rl = Math.max(1, Math.round(d.add * 0.6)), rh = Math.round(d.add * 1.4);
       smallTxt = '+' + rl + '~+' + rh;
@@ -1480,12 +1438,12 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
       P ? 9 : 11, C.textDim, 0.5).setOrigin(0.5, 0).setWordWrapWidth(cw - 8).setAlign('center'));
 
     //  🎲 뽑기 버튼 — 카드 바닥. 결과 배지는 카드 위(그림 자리)에 튄다.
-    var canSell = GAME.TowerChar.canSellStat && GAME.TowerChar.canSellStat(d.key);
+    var canSell = TC.canSellStat && TC.canSellStat(d.key);
     var bh = P ? 30 : 44;
     var by2 = cardTop + cardH - 10 - bh / 2 - (canSell ? (P ? 24 : 30) : 0);
     var b = GAME.UI.button(self, cx0 + cw / 2, by2, cw - 12, bh,
       '🎲 ' + cost, function () {
-        var res = GAME.TowerChar.levelUp(d.key);
+        var res = TC.levelUp(d.key);
         if (!res) return;
         self._lastRoll = { key: d.key, gain: res.gain, at: Date.now() };
         self._buildBody(true);
@@ -1496,10 +1454,10 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
 
     //  이동속도 되팔기 — 이 스탯만(빠르면 조준이 흔들린다 — 2026-08-03 결정 유지).
     if (canSell) {
-      var back = GAME.TowerChar.sellStatBack(d.key);
+      var back = TC.sellStatBack(d.key);
       var sb = GAME.UI.button(self, cx0 + cw / 2, cardTop + cardH - 10 - (P ? 11 : 14),
         cw - 12, P ? 20 : 26, '↩ ' + back, function () {
-          if (!GAME.TowerChar.levelDown(d.key)) return;
+          if (!TC.levelDown(d.key)) return;
           self._buildBody(true);
         }, { fontSize: P ? 10 : 12 });
       sb.text.setColor(C.textDim);
@@ -1509,7 +1467,7 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
 
     //  방금 굴린 카드에는 결과 배지 — 등급색으로 3초.
     if (self._lastRoll && self._lastRoll.key === d.key && Date.now() - self._lastRoll.at < 3000) {
-      var gr = GAME.TowerChar.gradeOf(d.key, self._lastRoll.gain);
+      var gr = TC.gradeOf(d.key, self._lastRoll.gain);
       var bg = self.add.graphics().setDepth(30);
       self._body.push(bg);
       var badgeW = cw - 8, badgeH = P ? 30 : 40;

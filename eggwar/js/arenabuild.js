@@ -42,7 +42,10 @@ GAME.ArenaBuild = {
   rtBegin: function (heroKey) {
     this._rtRec = this.DEFAULT();
     this._rtRec.role = 'controller';
-    this._rtRec.rtStats = {};                //  실시간 능력치(이 필드가 있어야 구매 가능)
+    //  실시간 능력치(이 필드가 있어야 구매 가능) — 통곡의 탑 방식 그대로(2026-09-01
+    //  태현님: "화면과 기능을 그대로, 행운만 바뀌는거야"): lv = 🎲 누른 횟수,
+    //  gain = 굴려서 실제로 받은 누적치, burn = 되팔기 30% 소각분.
+    this._rtRec.rtStats = { lv: {}, gain: {}, burn: 0 };
     if (heroKey) this._rtRec.heroKey = heroKey;
     return this._rtRec;
   },
@@ -199,31 +202,145 @@ GAME.ArenaBuild = {
   },
   rtStatSpent: function (rec) {
     if (!rec || !rec.rtStats) return 0;
-    var t = 0;
-    for (var k in rec.rtStats) {
-      var d = this.RT_STATS[k];
-      if (d) t += d.cost * (rec.rtStats[k] || 0);
+    var rs = rec.rtStats;
+    //  옛 평면 형태({damage: 렙수})의 스냅샷 — 레거시 가격표로 계산(하위호환).
+    if (!rs.lv) {
+      var t0 = 0;
+      for (var k0 in rs) {
+        var d0 = this.RT_STATS[k0];
+        if (d0) t0 += d0.cost * (rs[k0] || 0);
+      }
+      return t0;
+    }
+    //  탑 방식 — 계단 가격(cost + step×lv)의 누적합 + 되팔기 소각분.
+    var t = rs.burn || 0;
+    for (var k in rs.lv) {
+      var d = this.RtStats.statDef(k);
+      if (!d) continue;
+      var lv = rs.lv[k] || 0;
+      t += d.cost * lv + d.step * lv * (lv - 1) / 2;
     }
     return t;
   },
-  buyRtStat: function (key) {
-    var rec = this.get();
-    if (!rec.rtStats) return null;                 // 실시간 준비 중이 아니다
-    var d = this.RT_STATS[key];
-    if (!d) return null;
-    var lv = rec.rtStats[key] || 0;
-    if (lv >= d.max) return null;
-    if (this.left(rec) < d.cost) return null;
-    rec.rtStats[key] = lv + 1;
-    this._save(rec);
-    return this.left(rec);
-  },
-  sellRtStat: function (key) {
-    var rec = this.get();
-    if (!rec.rtStats || !(rec.rtStats[key] > 0)) return null;
-    rec.rtStats[key] -= 1;
-    this._save(rec);
-    return this.left(rec);
+
+  //  ── 실시간 능력치 — 통곡의 탑 능력치 탭과 **같은 API** (2026-09-01 태현님) ────
+  //  towershop._buildStatsTab 이 GAME.TowerChar 대신 이 객체를 꽂아 쓴다.
+  //  가격 곡선·🎲 굴림(0.6~1.4)·등급 배지·이동속도만 되팔기(70%)까지 탑 그대로이고,
+  //  지갑만 골드 → 한 판 예산(left)이며 **행운의 뜻만 다르다**(구슬 드랍률).
+  //  ⚠ 굴림은 Math.random 이지만 준비 단계(전투 전)라 록스텝 무관 — 결과 누적치가
+  //    세팅 스냅샷에 실려 양쪽이 같은 값을 적용한다.
+  RtStats: {
+    SELL_RATE: 0.70,
+    SELLABLE_STATS: { speed: true },
+    GRADES: null,          //  탑 것을 그대로 빌린다(_defs 초기화 때)
+    _defs: null,
+    defs: function () {
+      if (this._defs) return this._defs;
+      var src = (GAME.TowerChar && GAME.TowerChar.STAT_DEFS) || [];
+      this._defs = src.map(function (d) {
+        var c = {};
+        for (var k in d) c[k] = d[k];
+        if (d.key === 'luck') c.desc = '레벨당: 처치 시 구슬 드랍 +5% — 내 팀만 줍는다';
+        return c;
+      });
+      this.GRADES = GAME.TowerChar && GAME.TowerChar.GRADES;
+      return this._defs;
+    },
+    statDef: function (key) {
+      var D = this.defs();
+      for (var i = 0; i < D.length; i++) if (D[i].key === key) return D[i];
+      return null;
+    },
+    costOf: function (key, level) {
+      var d = this.statDef(key);
+      if (!d) return Infinity;
+      return d.cost + d.step * (level || 0);
+    },
+    //  UI 가 읽는 캐릭터 뷰 — gold 자리에 **남은 예산**을 넣는다.
+    rec: function () {
+      var AB = GAME.ArenaBuild;
+      var r = AB.get();
+      var rs = (r.rtStats && r.rtStats.lv) ? r.rtStats : { lv: {}, gain: {}, burn: 0 };
+      return { stats: rs.lv, statGain: rs.gain, gold: AB.left(r),
+               items: r.items, heroKey: r.heroKey };
+    },
+    statBonus: function (rec) {
+      var out = { damage: 0, hp: 0, armor: 0, speed: 0, atkspeed: 0, crit: 0 };
+      if (!rec || !rec.statGain) return out;
+      for (var k in out) out[k] = rec.statGain[k] || 0;
+      //  ⚠ HERO_BASE(영웅별 공짜 선지급)는 안 붙는다 — 그건 탑 캐릭터의 축이고,
+      //    실시간 영웅은 "초기화된 스펙" 약속(2026-08-23)이 먼저다.
+      return out;
+    },
+    //  실효(RT_ITEM_EFF 반영) 아이템 보너스 — 요약 막대가 실전값을 말해야 한다.
+    itemBonus: function (rec) {
+      var AB = GAME.ArenaBuild;
+      var ib = AB.itemBonus({ items: (rec && rec.items) || {} });
+      var E = AB.RT_ITEM_EFF;
+      return { damage: Math.round(ib.damage * E.damage), armor: Math.round(ib.armor * E.armor),
+               hp: Math.round(ib.hp * E.hp), speed: Math.round(ib.speed * E.speed),
+               lifesteal: ib.lifesteal * E.lifesteal, cdrMul: ib.cdrMul,
+               atkspeed: ib.atkspeed || 0, crit: ib.crit || 0, luck: ib.luck || 0 };
+    },
+    luckLevel: function (rec) {
+      if (!rec) rec = this.rec();
+      return ((rec.statGain && rec.statGain.luck) || 0) + (this.itemBonus(rec).luck || 0);
+    },
+    critOf: function (pts) { return GAME.TowerChar.critOf(pts); },
+    statCeil: function (key, cur) { return GAME.TowerChar.statCeil(key, cur); },
+    gradeOf: function (key, gain) { return GAME.TowerChar.gradeOf(key, gain); },
+    rollGain: function (key) {
+      var d = this.statDef(key);
+      if (!d) return 0;
+      var val = Math.round(d.add * (0.6 + Math.random() * 0.8));
+      return val < 1 ? 1 : val;
+    },
+    levelUp: function (key) {
+      var AB = GAME.ArenaBuild;
+      var r = AB.get();
+      if (!r.rtStats || !r.rtStats.lv) return null;      //  실시간 준비 중이 아니다
+      var d = this.statDef(key);
+      if (!d) return null;
+      var lv = r.rtStats.lv[key] || 0;
+      var cost = this.costOf(key, lv);
+      if (AB.left(r) < cost) return null;
+      r.rtStats.lv[key] = lv + 1;
+      var gain = this.rollGain(key);
+      r.rtStats.gain[key] = (r.rtStats.gain[key] || 0) + gain;
+      AB._save(r);
+      return { rec: this.rec(), gain: gain };
+    },
+    canSellStat: function (key) {
+      var AB = GAME.ArenaBuild;
+      var r = AB.get();
+      return !!(this.SELLABLE_STATS[key] && r.rtStats && r.rtStats.lv &&
+                (r.rtStats.lv[key] || 0) > 0);
+    },
+    sellStatBack: function (key) {
+      var AB = GAME.ArenaBuild;
+      var r = AB.get();
+      var lv = (r.rtStats && r.rtStats.lv && r.rtStats.lv[key]) || 0;
+      if (lv <= 0) return 0;
+      return Math.floor(this.costOf(key, lv - 1) * this.SELL_RATE);
+    },
+    levelDown: function (key) {
+      var AB = GAME.ArenaBuild;
+      var r = AB.get();
+      var d = this.statDef(key);
+      if (!r.rtStats || !r.rtStats.lv || !d || !this.SELLABLE_STATS[key]) return null;
+      var lv = r.rtStats.lv[key] || 0;
+      if (lv <= 0) return null;
+      //  빼는 양은 그동안 받은 것의 평균(탑 levelDown 주석 그대로 — 마지막 굴림은
+      //  어디에도 안 남는다). 소각분(30%)은 burn 에 쌓아 spent 계산이 맞게 한다.
+      var per = (r.rtStats.gain[key] || 0) / lv;
+      var paid = this.costOf(key, lv - 1);
+      var back = this.sellStatBack(key);
+      r.rtStats.lv[key] = lv - 1;
+      r.rtStats.gain[key] = Math.max(0, Math.round((r.rtStats.gain[key] || 0) - per));
+      r.rtStats.burn = (r.rtStats.burn || 0) + (paid - back);
+      AB._save(r);
+      return { rec: this.rec(), back: back, lost: Math.round(per) };
+    }
   },
   rtItemAllowed: function (slotKey, itemKey) {
     var list = (GAME.TowerShopItems && GAME.TowerShopItems.CATALOG[slotKey]) || [];
@@ -252,15 +369,31 @@ GAME.ArenaBuild = {
     d.lifesteal = (d.lifesteal || 0) + ib.lifesteal * E.lifesteal;
     hu.cdrMul = (hu.cdrMul || 1) * (1 - (1 - ib.cdrMul) * E.cdr);
     var hp = Math.round(ib.hp * E.hp);
-    //  실시간 능력치 — 고정 증가치라 배율 없이 그대로 붙는다(표기 = 실효).
+    //  실시간 능력치 — 배율 없이 그대로 붙는다(표기 = 실효).
     var st = (arguments.length > 2 && arguments[2]) || null;
-    if (st) {
+    if (st && st.gain) {
+      //  탑 방식(2026-09-01) — gain 은 🎲 굴림의 누적치. 적용식은 battle.js 탑
+      //  분기와 같은 규칙(공속 = 평타 간격만, 치명타 = critOf 50% 상한 전환).
+      var gn = st.gain;
+      d.damage += gn.damage || 0;
+      d.armor += gn.armor || 0;
+      d.speed += gn.speed || 0;
+      hp += gn.hp || 0;
+      if (gn.atkspeed > 0) d.cooldown = Math.max(250, Math.round(d.cooldown / (1 + gn.atkspeed / 100)));
+      if (gn.crit > 0 && GAME.TowerChar && GAME.TowerChar.critOf) {
+        var ce = GAME.TowerChar.critOf(gn.crit);
+        hu.critChance = ce.chance / 100;     //  치명 굴림은 Combat.rand()(시드) — 록스텝 안전
+        hu.critMul = ce.mul;
+      }
+      hu.rtLuck = gn.luck || 0;              //  구슬 드랍률(처치 시 5%/렙) — combat 이 읽는다
+    } else if (st) {
+      //  옛 평면 형태({damage: 렙수}) — 구버전 스냅샷 하위호환.
       var R = this.RT_STATS;
       d.damage += R.damage.add * (st.damage || 0);
       d.armor += R.armor.add * (st.armor || 0);
       d.speed += R.speed.add * (st.speed || 0);
       hp += R.hp.add * (st.hp || 0);
-      hu.rtLuck = st.luck || 0;              //  구슬 드랍률(처치 시 5%/렙) — combat 이 읽는다
+      hu.rtLuck = st.luck || 0;
     }
     if (hp) { d.hp += hp; hu.maxHp = d.hp; hu.hp = d.hp; }
     return ib;
@@ -272,8 +405,15 @@ GAME.ArenaBuild = {
     var ib = this.itemBonus({ items: items || {} });
     var E = this.RT_ITEM_EFF;
     var parts = [];
-    //  능력치(고정 증가) 합산 — 표기 = 실효
-    if (stats) {
+    //  능력치 합산 — 표기 = 실효
+    if (stats && stats.gain) {
+      var NM = { damage: '공', hp: '체', armor: '방', speed: '이속',
+                 atkspeed: '공속', crit: '치명' };
+      for (var gk in NM) {
+        if (stats.gain[gk] > 0) parts.push(NM[gk] + '+' + stats.gain[gk]);
+      }
+      if (stats.gain.luck > 0) parts.push('행운 ' + stats.gain.luck);
+    } else if (stats) {
       var R = this.RT_STATS;
       for (var sk in stats) {
         if (R[sk] && stats[sk] > 0) {
@@ -390,3 +530,9 @@ GAME.ArenaBuild = {
     GAME.Store.set(this.KEY, all);
   }
 };
+
+//  towershop._buildStatsTab 이 `TC.STAT_DEFS` 를 직접 읽는다(탑과 같은 코드 경로) —
+//  게으른 초기화(defs)를 프로퍼티로도 노출한다.
+Object.defineProperty(GAME.ArenaBuild.RtStats, 'STAT_DEFS', {
+  get: function () { return this.defs(); }
+});

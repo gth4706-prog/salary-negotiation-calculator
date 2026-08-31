@@ -544,6 +544,13 @@ window.GAME = window.GAME || {};
 
     var txt = scene.add.text(x, y, label, styleOf(px, color, { align: 'center' })).setOrigin(0.5);
     finish(txt, px, { lineSpacing: 0 });
+    //  돌판 원단 위 잉크색 라벨은 옹이·나뭇결에 먹힌다(2026-09-01 태현님: "버튼
+    //  가독성이 너무 안좋아") — 원단 모드에서는 크림 글자 + 잉크 윤곽으로 새긴다.
+    //  색을 명시한 호출부(opts.color)는 그대로 존중한다.
+    if (skin && !opts.color) {
+      txt.setColor('#f7eed8');
+      txt.setStroke('#241a10', Math.max(3, Math.round(px * 0.22)));
+    }
     if (opts.wrap) txt.setWordWrapWidth(opts.wrap);
 
     // Rectangle 의 색 API 를 가로채 gfx 로 넘긴다 → 기존 호출부가 그대로 작동한다

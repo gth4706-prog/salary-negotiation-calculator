@@ -207,7 +207,9 @@ GAME.RtLobbyScene.prototype._onRoom = function () {
     var PH = GAME.CONFIG.PHONE;
     var bh = PH ? 50 : Math.max(UI.BTN_H || 58, 56);
     var bw = PH ? Math.min(330, (W - 56) / 2) : 330;
-    var y0 = PH ? 130 : 250;
+    //  ⚠ 폰 y0 130 이면 버튼 윗변(105)이 참가자 글 둘째 줄(왕복 지연, ~76+34)을
+    //    덮는다(2026-09-01 태현님 캡처 실측) — 148 로 내린다.
+    var y0 = PH ? 148 : 250;
     this._roleBtnS = UI.button(this, W / 2 - bw / 2 - 9, y0, bw, bh, '🛡 전략가 (진형으로 막는다)',
       function () { self._pickRole('strategist'); },
       { fill: UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist, fontSize: PH ? 12 : 14 });
@@ -217,7 +219,8 @@ GAME.RtLobbyScene.prototype._onRoom = function () {
     this._roleTxt = UI.text(this, W / 2, y0 + bh / 2 + (PH ? 12 : 18), '',
       { size: 'caption', color: C.textDim, origin: 0.5, originY: 0 });
     this._roleTxt.setAlign('center');
-    this._readyBtn = UI.button(this, W / 2, y0 + bh / 2 + (PH ? 96 : 128), Math.min(W - 40, 360), bh,
+    //  ⚠ 폭 360 은 대기 문구가 판을 넘어 뻗는다(캡처 실측) — 넉넉히 520.
+    this._readyBtn = UI.button(this, W / 2, y0 + bh / 2 + (PH ? 96 : 128), Math.min(W - 40, 520), bh,
       '⚔ 준비 완료', function () { self._toggleReady(); });
     UI.text(this, W / 2, y0 + bh / 2 + (PH ? 96 : 128) + bh / 2 + 8,
       '둘 다 준비하면 60초 동안 배치·장비를 고르고 전투가 시작됩니다',
@@ -229,7 +232,9 @@ GAME.RtLobbyScene.prototype._onRoom = function () {
     (NR.peers.length < 2 ? '\n상대를 기다리는 중 — 코드를 알려주세요' :
       (NR.rttMs != null ? '\n왕복 지연 ' + Math.round(NR.rttMs) + 'ms' : '')));
   this._refreshRoleUi();
-  this._setStatus(NR.statusText());
+  //  방에 들어오면 상태 줄을 비운다 — 방 코드·참가자·지연을 전용 줄이 이미 말하고 있어
+  //  같은 내용이 겹쳌 찍혔다(2026-09-01 태현님 캐처 실측).
+  this._setStatus(this._joined ? '' : NR.statusText());
 };
 
 GAME.RtLobbyScene.prototype._pickRole = function (role) {
@@ -282,7 +287,7 @@ GAME.RtLobbyScene.prototype._toggleReady = function () {
   //  (RtPrep, 60초)에서 고른다 — 둘 다 준비를 누르면 서버 start 가 온다.
   this._ready = true;
   GAME.NetRoom.setReady(true);
-  this._readyBtn.text.setText('⌛ 상대의 준비를 기다리는 중… (다시 누르면 취소)');
+  this._readyBtn.text.setText('⌛ 상대 대기 중 — 다시 누르면 취소');
 };
 
 GAME.RtLobbyScene.prototype._onRelay = function (from, data) {

@@ -25,6 +25,12 @@ GAME.Combat = {
 
   //  실시간 행운 구슬 효과 4종 (2026-08-31) — 유발자 팀 영웅에게 즉시·이번 판 한정.
   //  탑 구슬(TowerBoon 훅)과 별개다: 록스텝 결정론 + 두 영웅 공존 때문에 단순 스탯형.
+  //  ── 실시간 대전 유지력 배율 (2026-09-01 태현님: "회복하면 절대 못잡는다") ──
+  //  buff 스킬의 healNow·shield 에 같이 걸린다. 값은 scratchpad 힐 루프 결투 실측:
+  //  0.30(회복만)일 땐 탱크+회복 픽이 공격 빌드를 **전승**(잔여 1~62%)했고,
+  //  0.20 + 보호막 동배율에서 공격 쪽이 잡아낸다. 탑/수성/비동기는 무영향.
+  RT_SUSTAIN: 0.20,
+
   RT_ORBS: {
     rtMight: { name: '맹공의 구슬', desc: '공격력 +10%', dmgMul: 1.10 },
     rtStone: { name: '단단함의 구슬', desc: '방어력 +6', armorAdd: 6 },
@@ -1612,6 +1618,12 @@ GAME.Combat = {
     //  그 스킬만 조용히 옛 수치로 돈다 — 이 저장소가 반복해 겪은 실패 모드다).
     var skDmg = this._skillPower(u, sk);
     var skShield = this._skillShield(u, sk);
+    //  실시간 대전 — 회복과 같은 배율로 보호막도 깎는다(RT_SUSTAIN, 2026-09-01
+    //  태현님: "다지기에서 체력회복하면 절대 못잡는 상태"). 회복만 깎고 보호막을
+    //  놔두면 불굴(회복 400+막 220)의 유지력 절반이 그대로 남는다 — 실측으로 확인.
+    if (state && state.pvpRealtime && skShield > 0) {
+      skShield = Math.round(skShield * GAME.Combat.RT_SUSTAIN);
+    }
 
     //  ── 궁극기(R) 하한 — **평타 10대 수준** (2026-08-23 태현님: "전반적으로
     //  궁극기가 너무 약해. 평타 10대 수준의 데미지나 효과는 있어야 해") ──────────
@@ -1775,7 +1787,7 @@ GAME.Combat = {
       //    스킬이 너무 사기야 그냥 풀피로 끝나") — 480 회복이 12초마다 돌면 TTK 30초대
       //    결투에서 사실상 불사다. 탑(PvE)은 그대로.
       if (sk.healNow) this.heal(u, state.pvpRealtime
-        ? Math.round(sk.healNow * 0.30) : sk.healNow, state);
+        ? Math.round(sk.healNow * GAME.Combat.RT_SUSTAIN) : sk.healNow, state);
       state.effects.push({
         kind: 'ring', x: u.x, y: u.y, r: u.def.radius + 26,
         t: 400, total: 400, side: u.side

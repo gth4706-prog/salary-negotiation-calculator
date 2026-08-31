@@ -23,6 +23,15 @@ GAME.Combat = {
   clearRng: function () { this._rng = null; },
   rand: function () { return this._rng ? this._rng() : Math.random(); },
 
+  //  실시간 행운 구슬 효과 4종 (2026-08-31) — 유발자 팀 영웅에게 즉시·이번 판 한정.
+  //  탑 구슬(TowerBoon 훅)과 별개다: 록스텝 결정론 + 두 영웅 공존 때문에 단순 스탯형.
+  RT_ORBS: {
+    rtMight: { name: '맹공의 구슬', desc: '공격력 +10%', dmgMul: 1.10 },
+    rtStone: { name: '단단함의 구슬', desc: '방어력 +6', armorAdd: 6 },
+    rtSwift: { name: '질주의 구슬', desc: '이동속도 +10', speedAdd: 10 },
+    rtLife:  { name: '생명의 구슬', desc: '체력 30% 회복', healPct: 0.30 }
+  },
+
   createState: function () {
     //  PACE 는 **통곡의 탑 전투에서만** 켠다(battle.js·sim 이 상태 생성 직후 세운다).
     //  기본 false — 수성·대전·실시간은 기존 속도 그대로다(수성 무배치 곡선 실측으로
@@ -870,8 +879,31 @@ GAME.Combat = {
         this._banterEv(state, unit, 'death');
       }
       // 구슬 — 전략가 유닛을 잡았을 때만. 위험물(가시덫)은 '잡았다'로 안 친다.
-      if (state && GAME.Orb && unit.side === 'strategist' && !this.isHazard(unit)) {
+      //  ⚠ 실시간 판은 아래 전용 경로(rtOrb)가 맡는다 — 탑 구슬은 Math.random +
+      //    TowerRun 저장이라 록스텝에서 desync 다.
+      if (state && GAME.Orb && !state.pvpRealtime &&
+          unit.side === 'strategist' && !this.isHazard(unit)) {
         GAME.Orb.maybeDrop(state, unit.x, unit.y);
+      }
+      //  ── 실시간 행운 구슬 (2026-08-31 태현님) ────────────────────────────
+      //  처치가 나면 **반대 팀 영웅의 행운**(rtLuck, 드래프트 능력치)만큼 확률로
+      //  구슬이 떨어지고, owner 를 그 팀으로 박는다 — **유발자만 줍는다.**
+      //  전부 상태 난수(seedRng)라 양쪽 시뮬이 같은 답을 낸다.
+      if (state && state.pvpRealtime && !this.isHazard(unit)) {
+        var rtOwner = unit.side === 'controller' ? 'strategist' : 'controller';
+        var rtHero = null;
+        for (var rh = 0; rh < state.units.length; rh++) {
+          var rhu = state.units[rh];
+          if (rhu.isHero && rhu.alive && rhu.side === rtOwner) { rtHero = rhu; break; }
+        }
+        var rtLk = (rtHero && rtHero.rtLuck) || 0;
+        state.orbs = state.orbs || [];
+        if (rtLk > 0 && state.orbs.length < 6 && this.rand() < rtLk * 0.05) {
+          //  효과 4종 중 상태 난수로 하나 — 이름·수치는 RT_ORBS 표.
+          var rtPool = ['rtMight', 'rtStone', 'rtSwift', 'rtLife'];
+          state.orbs.push({ key: rtPool[Math.floor(this.rand() * rtPool.length) % rtPool.length],
+                            x: unit.x, y: unit.y, t: 0, taken: false, owner: rtOwner });
+        }
       }
       if (state && state.towerHealOn && GAME.HealZone && unit.side === 'strategist' && !this.isHazard(unit)) {
         GAME.HealZone.maybeDrop(state, unit.x, unit.y);
@@ -1672,7 +1704,11 @@ GAME.Combat = {
         t: sk.duration
       });
       if (skShield) u.shield += skShield;
-      if (sk.healNow) this.heal(u, sk.healNow, state);
+      //  ⚠ 실시간 결투에서 회복 스킬은 3할만 듣는다 (2026-08-31 태현님: "전사 회복
+      //    스킬이 너무 사기야 그냥 풀피로 끝나") — 480 회복이 12초마다 돌면 TTK 30초대
+      //    결투에서 사실상 불사다. 탑(PvE)은 그대로.
+      if (sk.healNow) this.heal(u, state.pvpRealtime
+        ? Math.round(sk.healNow * 0.30) : sk.healNow, state);
       state.effects.push({
         kind: 'ring', x: u.x, y: u.y, r: u.def.radius + 26,
         t: 400, total: 400, side: u.side
@@ -2843,6 +2879,32 @@ GAME.Combat = {
     if (state.over) return;
     var dt = dtMs / 1000;
     state.elapsed += dtMs;
+    //  ── 실시간 구슬 습득 (2026-08-31) — **시뮬이 줍는다**(양쪽 동일 판정).
+    //  owner 팀 영웅만 반경 안에서 줍는다. 효과는 그 영웅에게 즉시·영구(이번 판).
+    if (state.pvpRealtime && state.orbs && state.orbs.length) {
+      var RT_ORBS = GAME.Combat.RT_ORBS;
+      for (var oi = 0; oi < state.orbs.length; oi++) {
+        var orb = state.orbs[oi];
+        if (orb.taken || !orb.owner) continue;
+        orb.age = (orb.age || 0) + dtMs;
+        if (orb.age < 250) continue;          //  떨어지는 게 보인 다음에 줍는다
+        for (var ou = 0; ou < state.units.length; ou++) {
+          var oh = state.units[ou];
+          if (!oh.isHero || !oh.alive || oh.side !== orb.owner) continue;
+          if (this.dist(oh, orb) <= 46) {
+            orb.taken = true;
+            var fx = RT_ORBS[orb.key];
+            if (fx) {
+              if (fx.dmgMul) oh.def.damage = Math.round(oh.def.damage * fx.dmgMul);
+              if (fx.armorAdd) oh.def.armor += fx.armorAdd;
+              if (fx.speedAdd) oh.def.speed += fx.speedAdd;
+              if (fx.healPct) this.heal(oh, Math.round(oh.maxHp * fx.healPct), state);
+            }
+          }
+          break;
+        }
+      }
+    }
     state.noHitFor += dtMs;
 
     var i, u, k;

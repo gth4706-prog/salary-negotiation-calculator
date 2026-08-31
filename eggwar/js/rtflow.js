@@ -108,7 +108,8 @@ GAME.RtFlow = {
       role: 'controller',
       heroKey: heroKey || this.myHeroPick || (rec && rec.heroKey) || 'vanguard',
       picks: (rec && rec.picks) || GAME.defaultSkillPicks(),
-      items: (rec && rec.items) || {}
+      items: (rec && rec.items) || {},
+      stats: (rec && rec.rtStats) || {}      //  실시간 능력치(행운 포함) — 2026-08-31
     };
   },
   buildStrategistSetup: function (f) {

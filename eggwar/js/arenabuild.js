@@ -42,6 +42,7 @@ GAME.ArenaBuild = {
   rtBegin: function (heroKey) {
     this._rtRec = this.DEFAULT();
     this._rtRec.role = 'controller';
+    this._rtRec.rtStats = {};                //  실시간 능력치(이 필드가 있어야 구매 가능)
     if (heroKey) this._rtRec.heroKey = heroKey;
     return this._rtRec;
   },
@@ -132,6 +133,7 @@ GAME.ArenaBuild = {
   heroSpent: function (rec) {
     rec = rec || this.get();
     var t = (typeof GAME.HERO_BASE_COST === 'number') ? GAME.HERO_BASE_COST : 78;
+    t += this.rtStatSpent(rec);              //  실시간 능력치(rtStats 없는 레코드는 0)
     var slots = this.ITEM_SLOTS();
     for (var i = 0; i < slots.length; i++) {
       var slot = slots[i].key;
@@ -182,6 +184,47 @@ GAME.ArenaBuild = {
   //  된다. 배율로 깎으면 표기와 실효가 갈라지니, 실시간은 저단계만 판다.
   //  값은 tools/rt-balance-audit.js 가 "무조작 체력차 ≤50%" 로 잡는다.
   RT_TIER_MAX: 3,
+
+  //  ── 실시간 능력치 (2026-08-31 태현님: "아이템 3단뿐이면 능력치도") ──────────
+  //  탑의 복권형과 달리 **고정 증가치**다 — 드래프트는 예산 500 안에서 계획을
+  //  세우는 자리라 뽑기가 끼면 계획이 안 된다(록스텝 결정론에도 맞다).
+  //  luck 은 스탯이 아니라 **구슬 드랍률**이다: 1 렙 = 처치 시 5%, 떨어진 구슬은
+  //  **그 행운을 올린 쪽(유발자 팀)만** 주울 수 있다(태현님 사양).
+  RT_STATS: {
+    damage: { name: '공격력',   add: 6,  cost: 45, max: 5, note: '+6 / 렙' },
+    hp:     { name: '체력',     add: 45, cost: 45, max: 5, note: '+45 / 렙' },
+    armor:  { name: '방어력',   add: 3,  cost: 40, max: 5, note: '+3 / 렙' },
+    speed:  { name: '이동속도', add: 6,  cost: 40, max: 3, note: '+6 / 렙' },
+    luck:   { name: '행운',     add: 1,  cost: 35, max: 5, note: '처치 시 구슬 +5% / 렙 (내 팀만 습득)' }
+  },
+  rtStatSpent: function (rec) {
+    if (!rec || !rec.rtStats) return 0;
+    var t = 0;
+    for (var k in rec.rtStats) {
+      var d = this.RT_STATS[k];
+      if (d) t += d.cost * (rec.rtStats[k] || 0);
+    }
+    return t;
+  },
+  buyRtStat: function (key) {
+    var rec = this.get();
+    if (!rec.rtStats) return null;                 // 실시간 준비 중이 아니다
+    var d = this.RT_STATS[key];
+    if (!d) return null;
+    var lv = rec.rtStats[key] || 0;
+    if (lv >= d.max) return null;
+    if (this.left(rec) < d.cost) return null;
+    rec.rtStats[key] = lv + 1;
+    this._save(rec);
+    return this.left(rec);
+  },
+  sellRtStat: function (key) {
+    var rec = this.get();
+    if (!rec.rtStats || !(rec.rtStats[key] > 0)) return null;
+    rec.rtStats[key] -= 1;
+    this._save(rec);
+    return this.left(rec);
+  },
   rtItemAllowed: function (slotKey, itemKey) {
     var list = (GAME.TowerShopItems && GAME.TowerShopItems.CATALOG[slotKey]) || [];
     for (var i = 0; i < list.length; i++) {
@@ -209,16 +252,36 @@ GAME.ArenaBuild = {
     d.lifesteal = (d.lifesteal || 0) + ib.lifesteal * E.lifesteal;
     hu.cdrMul = (hu.cdrMul || 1) * (1 - (1 - ib.cdrMul) * E.cdr);
     var hp = Math.round(ib.hp * E.hp);
+    //  실시간 능력치 — 고정 증가치라 배율 없이 그대로 붙는다(표기 = 실효).
+    var st = (arguments.length > 2 && arguments[2]) || null;
+    if (st) {
+      var R = this.RT_STATS;
+      d.damage += R.damage.add * (st.damage || 0);
+      d.armor += R.armor.add * (st.armor || 0);
+      d.speed += R.speed.add * (st.speed || 0);
+      hp += R.hp.add * (st.hp || 0);
+      hu.rtLuck = st.luck || 0;              //  구슬 드랍률(처치 시 5%/렙) — combat 이 읽는다
+    }
     if (hp) { d.hp += hp; hu.maxHp = d.hp; hu.hp = d.hp; }
     return ib;
   },
 
   //  실시간 적용 효과 요약 문구 — 화면(RtPrep)이 "산 만큼 실제로 얼마가 붙는가"를
   //  말한다(2026-08-31 태현님: "아이템으로 구매한 능력치가 얼마나 되는지 알아야").
-  rtBonusText: function (items) {
+  rtBonusText: function (items, stats) {
     var ib = this.itemBonus({ items: items || {} });
     var E = this.RT_ITEM_EFF;
     var parts = [];
+    //  능력치(고정 증가) 합산 — 표기 = 실효
+    if (stats) {
+      var R = this.RT_STATS;
+      for (var sk in stats) {
+        if (R[sk] && stats[sk] > 0) {
+          if (sk === 'luck') parts.push('행운 ' + stats[sk]);
+          else parts.push(R[sk].name.slice(0, 2) + '+' + (R[sk].add * stats[sk]));
+        }
+      }
+    }
     var dmg = Math.round(ib.damage * E.damage);
     var arm = Math.round(ib.armor * E.armor);
     var hp = Math.round(ib.hp * E.hp);

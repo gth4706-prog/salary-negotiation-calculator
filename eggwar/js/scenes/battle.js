@@ -1266,6 +1266,22 @@ GAME.BattleScene.prototype.resetZoom = function () {
 GAME.BattleScene.prototype._updateOrbs = function (dt) {
   var st = this.state;
   if (!st || !st.orbs || !st.orbs.length || !GAME.Orb) return;
+  //  ── 실시간(rt) — 줍기는 **시뮬이** 한다(combat update, 양쪽 동일 판정).
+  //  여기서는 taken 전환만 감지해 토스트를 띄우고 목록에서 걷는다.
+  if (this.rt) {
+    var RT = GAME.Combat.RT_ORBS || {};
+    for (var ri = st.orbs.length - 1; ri >= 0; ri--) {
+      var ro = st.orbs[ri];
+      ro.t += dt;
+      if (!ro.taken) continue;
+      st.orbs.splice(ri, 1);
+      var fx = RT[ro.key];
+      if (fx && this.rt.meTeam === ro.owner) {
+        this._orbToast(fx.name + ' — ' + fx.desc + '!');
+      }
+    }
+    return;
+  }
   var h = this.hero;
   if (!h || !h.alive) return;
   var pickR = (h.def ? h.def.radius : 17) + 34;
@@ -3989,7 +4005,7 @@ GAME.BattleScene.prototype._rtApplyItems = function (hu, su) {
   if (!su || !su.items || !GAME.ArenaBuild || !GAME.ArenaBuild.applyToHeroRt) return;
   //  스탯 적용은 ArenaBuild.applyToHeroRt 한 곳이 한다 — 실시간 전용 효과 배율
   //  (RT_ITEM_EFF, 2026-08-31 무조작 50% 기준)을 감사 도구와 같은 식으로 태운다.
-  GAME.ArenaBuild.applyToHeroRt(hu, su.items);
+  GAME.ArenaBuild.applyToHeroRt(hu, su.items, su.stats || null);
   hu._gearTier = GAME.UI.gearTierOf(su.items.weapon);
   hu._kit = { armor: GAME.UI.gearTierOf(su.items.armor),
               boots: GAME.UI.gearTierOf(su.items.boots),

@@ -162,7 +162,7 @@ GAME.RtPrepScene.prototype._refreshLoadout = function () {
   //  "산 만큼 실제로 얼마가 붙는가" (2026-08-31 태현님) — 실시간 효과 배율이
   //  반영된 실효값을 같이 적는다. 상점 표기(원값)와 다른 것이 정상이다.
   var eff = parts.length && GAME.ArenaBuild.rtBonusText
-    ? GAME.ArenaBuild.rtBonusText(rec.items) : '';
+    ? GAME.ArenaBuild.rtBonusText(rec.items, rec.rtStats) : '';
   //  ⚠ 4슬롯 풀장비 + 실효까지 이름을 다 적으면 PC 에서 타이머와 스친다(감사 실측).
   //    3종 이상은 개수로 접는다 — 이름은 상점(장비 다시)에서 어차피 보인다.
   var head = parts.length <= 2 ? '장비: ' + parts.join(' · ')

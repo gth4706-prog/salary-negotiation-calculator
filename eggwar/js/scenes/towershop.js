@@ -178,7 +178,12 @@ GAME.TowerShopScene.prototype.create = function () {
   this.goldLabel = GAME.UI.label(this, W - PAD, 10, '', 20, C.accent, 1).setOrigin(1, 0);
 
   var tabY = 46;
-  var TABS = this.src.tabs;
+  var TABS = this.src.tabs.slice();
+  //  실시간 준비(임시 빌드) — 능력치 탭이 열린다 (2026-08-31 태현님:
+  //  "아이템 3단뿐이면 능력치도"). 비동기 대전은 그대로 없음(2026-08-01 결정 유지).
+  if (this.mode === 'arena' && GAME.ArenaBuild && GAME.ArenaBuild._rtRec) {
+    TABS.push(['stats', '⚒ 능력치']);
+  }
   var tabW = Math.min(W - PAD * 2, 420);
   var tc = GAME.Layout.cols(TABS.length, { gap: 8, width: tabW, left: (W - tabW) / 2, pad: 0 });
   this._tabBtns = [];
@@ -277,7 +282,58 @@ GAME.TowerShopScene.prototype._buildBody = function (bump) {
   if (this.tab === 'hero') this._buildHeroTab();
   else if (this.tab === 'item') this._buildItemTab();
   else if (this.tab === 'skill') this._buildSkillTab();
+  else if (this.mode === 'arena') this._buildRtStatsTab();
   else this._buildStatsTab();
+};
+
+// ── 실시간 능력치 탭 (2026-08-31) — 고정 증가치 5종, 예산 공유 ────────────────
+//  탑의 복권형 탭과 다른 화면이다: 실시간 드래프트는 계획이 서야 하므로 뽑기가 없다.
+GAME.TowerShopScene.prototype._buildRtStatsTab = function () {
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI, self = this;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var PAD = GAME.CONFIG.SMALL ? 14 : 24;
+  var AB = GAME.ArenaBuild, R = AB.RT_STATS;
+  var rec = this.char;
+  var top = this._bodyTop + 4;
+  var rowH = GAME.CONFIG.SMALL ? 44 : 52;
+  var w = Math.min(W - PAD * 2, 640);
+  var x0 = (W - w) / 2;
+  var keys = ['damage', 'hp', 'armor', 'speed', 'luck'];
+  keys.forEach(function (k, i) {
+    var d = R[k];
+    var y = top + i * (rowH + 8) + rowH / 2;
+    var lv = (rec.rtStats && rec.rtStats[k]) || 0;
+    var g = self.add.graphics();
+    g.fillStyle(UI.COL.surfaceAlt, 1);
+    g.fillRoundedRect(x0, y - rowH / 2, w, rowH, 10);
+    g.lineStyle(1, UI.COL.borderUi, 1);
+    g.strokeRoundedRect(x0, y - rowH / 2, w, rowH, 10);
+    self._body.push(g);
+    self._body.push(UI.label(self, x0 + 14, y - 10,
+      d.name + '  Lv.' + lv + '/' + d.max, GAME.CONFIG.SMALL ? 15 : 17, C.text, 0));
+    self._body.push(UI.label(self, x0 + 14, y + 8,
+      d.note, GAME.CONFIG.SMALL ? 11 : 12, C.textDim, 0));
+    //  [−] [가격 +] — 예산이 모자라거나 상한이면 버튼이 말한다.
+    var canBuy = lv < d.max && AB.left(rec) >= d.cost;
+    var bb = UI.button(self, x0 + w - 52, y, 84, rowH - 12,
+      canBuy ? ('＋ ' + d.cost) : (lv >= d.max ? '최대' : '예산 부족'),
+      function () {
+        if (AB.buyRtStat(k) !== null) self._buildBody(true);
+      }, { fontSize: GAME.CONFIG.SMALL ? 12 : 14 });
+    self._body.push(bb.rect, bb.text);
+    if (bb.gfx) self._body.push(bb.gfx);
+    if (lv > 0) {
+      var sb = UI.button(self, x0 + w - 130, y, 44, rowH - 12, '−',
+        function () {
+          if (AB.sellRtStat(k) !== null) self._buildBody(true);
+        }, { fontSize: 14 });
+      self._body.push(sb.rect, sb.text);
+      if (sb.gfx) self._body.push(sb.gfx);
+    }
+  });
+  this._body.push(UI.label(this, W / 2, top + keys.length * (rowH + 8) + 6,
+    '행운 구슬은 떨어뜨린 쪽(내 팀)만 주울 수 있습니다',
+    GAME.CONFIG.SMALL ? 11 : 12, C.textDim, 0.5));
 };
 
 // ── 우측 캐릭터 미리보기 + 장비 슬롯 박스 (요청 16) ─────────────────────────

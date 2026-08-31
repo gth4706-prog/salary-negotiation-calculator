@@ -438,6 +438,23 @@ window.GAME = window.GAME || {};
 
     // ── 시각: 라운드 사각형은 Graphics 로 그린다 ──
     var gfx = scene.add.graphics();
+    //  ── 생성 돌판 원단 (2026-08-31 태현님: "버튼이 AI스럽다") ────────────────
+    //  기본색 버튼만 이미지 밑판을 쓴다 — fill 을 지정한 버튼(진영색 CTA·선택 탭)은
+    //  색이 정체성이라 절차 그리기를 유지한다(돌판에 틴트를 곱하면 흙탕이 된다).
+    //  opts.skin === false 로 끌 수 있고, 소재가 없으면(uibank not ready) 자동 폴백.
+    var skin = null;
+    //  ⚠ inset 은 **텍스처 px** 다(화면 px 아님 — 처음에 그걸 착각해 모서리가 리본처럼
+    //    뭉개졌다). 원단은 132×100 으로 작게 구워 두었고 inset 20 이 그 기준이다.
+    //    높이 44 미만·폭 120 미만 버튼(탭 등)은 모서리가 안 성립해 절차 그리기 유지.
+    if (opts.skin !== false && opts.fill === undefined && h >= 44 && w >= 120 &&
+        GAME.UIBank && GAME.UIBank.ready(scene, 'texButton') && scene.add.nineslice) {
+      var _ins = 20;
+      skin = scene.add.nineslice(x, y, 'ui-texButton', undefined, w, h, _ins, _ins, _ins, _ins);
+      //  depth 전파 — 호출부는 gfx/rect 만 올린다(모달 1002 등). 스킨이 베일 아래
+      //  남으면 버튼 몸통만 사라진다(droppopup 주석의 그 사고 계열).
+      var _gsd = gfx.setDepth.bind(gfx);
+      gfx.setDepth = function (d) { _gsd(d); if (skin && skin.scene) skin.setDepth(d - 0.5); return gfx; };
+    }
 
     // ── 입력 + 호환: 진짜 Rectangle 을 투명하게 얹는다 ──
     //    (setFillStyle / setStrokeStyle 호출을 가로채 gfx 를 다시 그린다)
@@ -447,6 +464,22 @@ window.GAME = window.GAME || {};
 
     function redraw() {
       var light = UI.IS_LIGHT;
+      if (skin && skin.scene) {
+        //  이미지 밑판 모드 — 몸통은 원단이 그리고, 상태는 틴트·침강·테두리로 만든다.
+        var sdy = st.down && !st.disabled ? 2 : 0;
+        skin.setY(y + sdy);
+        skin.setAlpha(st.disabled ? 0.45 : 1);
+        skin.setTint(st.down ? 0xcdbb97 : (st.over ? 0xfff2d2 : 0xffffff));
+        gfx.clear();
+        //  호출부가 setStrokeStyle 로 준 강조 테두리(선택 표시)는 살린다.
+        if (st.lw > 1) {
+          gfx.lineStyle(st.lw, st.line, 1);
+          gfx.strokeRoundedRect(x - w / 2 + st.lw / 2, y - h / 2 + sdy + st.lw / 2,
+            w - st.lw, h - st.lw, radius);
+        }
+        if (txt) txt.setY(y + sdy).setAlpha(st.disabled ? 0.45 : 1);
+        return;
+      }
       var f = st.fill;
       if (st.disabled) f = shade(COL.surface, light ? -0.045 : -0.01);
       else if (st.down) f = press;
@@ -550,7 +583,10 @@ window.GAME = window.GAME || {};
       if (opts.fireOnUp && was && !st.disabled) onClick();
     });
 
-    rect.once('destroy', function () { if (gfx && gfx.scene) gfx.destroy(); });
+    rect.once('destroy', function () {
+      if (gfx && gfx.scene) gfx.destroy();
+      if (skin && skin.scene) skin.destroy();      //  스킨 유령 방지(_clearBody 계열)
+    });
 
     // 겹침 감사용 표시 — 버튼과 그 버튼의 라벨은 겹쳐도 정상이다
     rect.__uiBtn = true;

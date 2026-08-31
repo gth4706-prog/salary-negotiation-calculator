@@ -45,6 +45,20 @@ GAME.RtPrepScene.prototype.create = function () {
   this._timerTxt = UI.text(this, W / 2, P ? 44 : 78, '', {
     size: P ? 'head' : 'title', color: C.accentAlt, origin: 0.5, originY: 0 });
 
+  //  이번 판의 맵(2026-08-31 ④) — 시드는 서버 start 가 배포했고 양쪽이 같은 맵을 본다.
+  //  ⚠ 이름은 타이머 줄에 붙인다(update 가 매 틱 읽는 this._mapName) — 별도 줄로
+  //    두면 컨트롤러 장비요약(P 70 / PC 124)과 정확히 겹친다(감사 실측 2026-08-31).
+  //    설명(desc)은 자리가 남는 전략가 쪽에만 한 줄 띄운다.
+  this._mapName = '';
+  if (GAME.RtMaps && F.startMsg && F.startMsg.seed !== undefined) {
+    var mp = GAME.RtMaps.forSeed(F.startMsg.seed >>> 0);
+    this._mapName = mp.name;
+    if (isStrat) {
+      UI.text(this, W / 2, P ? 70 : 124, '🗺 ' + mp.name + ' — ' + mp.desc,
+        { size: 'caption', color: C.textDim, origin: 0.5, originY: 0 });
+    }
+  }
+
   var top = P ? 96 : 150;
 
   if (isStrat) {
@@ -193,7 +207,7 @@ GAME.RtPrepScene.prototype._refresh = function () {
   if (!F || !F.active) return;                  // Battle 전환 중이면 손대지 않는다
   if (!this._timerTxt || !this._timerTxt.scene) return;
   var s = Math.ceil(F.remainMs() / 1000);
-  this._timerTxt.setText('⏳ ' + s + '초');
+  this._timerTxt.setText('⏳ ' + s + '초' + (this._mapName ? '  ·  🗺 ' + this._mapName : ''));
   var mine = F.mySetup ? '나: 준비 완료 ✓' : '나: 준비 중…';
   var theirs = F.theirSetup ? '상대: 준비 완료 ✓' : '상대: 준비 중…';
   this._stateTxt.setText(mine + '   ·   ' + theirs +

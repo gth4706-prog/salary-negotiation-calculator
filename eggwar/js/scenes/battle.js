@@ -123,6 +123,8 @@ GAME.BattleScene.prototype.create = function () {
   if (this.rt) {
     GAME.Combat.seedRng(this.rt.seed);
     this.state.pvpRealtime = true;
+    //  맵 변형(2026-08-31 태현님 ④) — 같은 시드라 양쪽이 같은 맵을 고른다.
+    if (GAME.RtMaps) this.state.rtMap = GAME.RtMaps.forSeed(this.rt.seed);
     this._rtCompose();
   }
 
@@ -3202,6 +3204,9 @@ GAME.BattleScene.prototype.draw = function () {
     }
   }
 
+  // ── 실시간 맵 지형 (js/rtmaps.js) — 유닛·이펙트보다 먼저(지면) ──
+  if (s.rtMap) this._drawRtMap(g, s.rtMap);
+
   // ── 지면 레이어: 마커·덫·이펙트 ──
   for (i = 0; i < this.markers.length; i++) {
     var mk = this.markers[i];
@@ -3960,6 +3965,50 @@ GAME.BattleScene.prototype.draw = function () {
 //  ── 실시간 편성 (2026-08-21) — 역할 조합 자유(혼합·컨vs컨; 전vs전은 다음 증분) ──
 //  결정적 생성 순서: 팀 고정 순서(controller→strategist) × [진형 유닛들 → 영웅].
 //  양쪽 클라이언트가 같은 rt.my/their 를 받아 같은 순서로 만들면 비트가 같다.
+//  ── 실시간 맵 지형 그리기 (js/rtmaps.js, 2026-08-31 태현님 ④) ────────────────
+//  판정은 combat.js 가 월드 좌표로 한다 — 여기는 그 사각형을 화면에 옮길 뿐이다.
+//  ⚠ rtFlip(상하반전) 중에는 toScreenY(y) 가 아래 모서리를 줄 수 있다 —
+//    iso.js screenRect 주석과 같은 함정. min/max 로 접는다.
+GAME.BattleScene.prototype._drawRtMap = function (g, M) {
+  var Iso = GAME.Iso, i, j;
+  function sy(rc) {
+    var y1 = Iso.toScreenY(rc.y), y2 = Iso.toScreenY(rc.y + rc.h);
+    return { x: rc.x, y: Math.min(y1, y2), w: rc.w, h: Math.abs(y2 - y1) };
+  }
+  //  균열(낙사) — 어둠으로 꺼진 바닥 + 가장자리 균열선.
+  for (i = 0; i < M.pits.length; i++) {
+    var P = sy(M.pits[i]);
+    g.fillStyle(0x120d08, 0.88); g.fillRect(P.x, P.y, P.w, P.h);
+    g.lineStyle(2, 0x3a2c1c, 0.9); g.strokeRect(P.x + 1, P.y + 1, P.w - 2, P.h - 2);
+  }
+  //  가시밭 — 이끼빛 바닥 + 가시 삼각형(좌표에서 결정적으로 배치).
+  for (i = 0; i < M.thorns.length; i++) {
+    var T = sy(M.thorns[i]);
+    g.fillStyle(0x37421f, 0.5); g.fillRect(T.x, T.y, T.w, T.h);
+    g.lineStyle(1.5, 0x2a3317, 0.8); g.strokeRect(T.x, T.y, T.w, T.h);
+    g.fillStyle(0x252d12, 0.9);
+    for (var tx = T.x + 9; tx < T.x + T.w - 9; tx += 24) {
+      for (var ty = T.y + 8; ty < T.y + T.h - 6; ty += 18) {
+        var ox = ((tx * 7 + ty * 13) % 11) - 5;   //  결정적 흔들림(난수 아님)
+        g.fillTriangle(tx + ox - 4, ty + 6, tx + ox + 4, ty + 6, tx + ox, ty - 5);
+      }
+    }
+  }
+  //  벽·바위 — 윗면을 위로 띄운 가짜 입체(윗면 밝게, 앞면 어둡게).
+  var LIFT = 13;
+  for (i = 0; i < M.walls.length; i++) {
+    var W = sy(M.walls[i]);
+    g.fillStyle(0x4a3f31, 1); g.fillRect(W.x, W.y + W.h - LIFT, W.w, LIFT);        //  앞면
+    g.fillStyle(0x6d5f4b, 1); g.fillRect(W.x, W.y - LIFT, W.w, W.h);               //  윗면
+    g.lineStyle(1.5, 0x2e2417, 0.9); g.strokeRect(W.x, W.y - LIFT, W.w, W.h);
+    //  돌 이음매 — 윗면에 세로선 몇 개.
+    g.lineStyle(1, 0x574a39, 0.8);
+    for (j = W.x + 18; j < W.x + W.w - 6; j += 22) {
+      g.lineBetween(j, W.y - LIFT + 3, j, W.y - LIFT + W.h - 3);
+    }
+  }
+};
+
 GAME.BattleScene.prototype._rtCompose = function () {
   var rt = this.rt;
   var A = GAME.CONFIG.ARENA;

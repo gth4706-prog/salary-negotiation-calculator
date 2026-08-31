@@ -1184,6 +1184,73 @@ GAME.Combat = {
     if (u.y > A.bottom - r) u.y = A.bottom - r;
   },
 
+  // ── 실시간 맵 지형 (js/rtmaps.js, 2026-08-31) ──────────────────────────────
+  //  전부 상태의 순수 함수 — 난수를 안 쓰므로 록스텝 결정론에 안전하다.
+  //  ⚠ 매 tick(30/s) 마다 돈다. 지형은 사각형 몇 개뿐이라 비용은 무시 가능.
+  updateRtMap: function (state, dtMs) {
+    var M = state.rtMap, i, j, u;
+    for (i = 0; i < state.units.length; i++) {
+      u = state.units[i];
+      if (!u.alive || this.isHazard(u)) continue;
+      //  벽 — 원 vs AABB 밀어내기. 이동·넉백·돌진 무엇으로 파고들어도 되돌린다.
+      for (j = 0; j < M.walls.length; j++) this._pushOutWall(u, M.walls[j]);
+      //  가시밭 — 서 있는 동안 0.5초마다 최대체력 2% (초당 4%). 방어력 경감을
+      //  미리 상쇄해서(×(100+armor)/100) 표기 비율이 실효 비율이 되게 한다 —
+      //  안 그러면 방어 몰빵이 가시밭까지 무력화한다(RT 밸런스 사고의 재판).
+      if (M.thorns.length) {
+        var inTh = false;
+        for (j = 0; j < M.thorns.length; j++) {
+          var T = M.thorns[j];
+          if (u.x > T.x && u.x < T.x + T.w && u.y > T.y && u.y < T.y + T.h) { inTh = true; break; }
+        }
+        if (inTh) {
+          u._thornMs = (u._thornMs || 0) + dtMs;
+          if (u._thornMs >= 500) {
+            u._thornMs -= 500;
+            var td = Math.max(4, Math.round(u.maxHp * 0.02 * (100 + (u.def.armor || 0)) / 100));
+            this.applyDamage(u, td, null, state, { noPace: true });
+            state.effects.push({ kind: 'spark', x: u.x, y: u.y, t: 140, total: 140, side: u.side });
+          }
+        } else u._thornMs = 0;
+      }
+      //  균열(낙사) — **영웅만** 죽는다. 진형 유닛은 가장자리 배치가 흔해서
+      //  유닛까지 죽이면 배치 자체가 자살이 된다(rtmaps.js 안전선 주석).
+      if (u.isHero && M.pits.length) {
+        for (j = 0; j < M.pits.length; j++) {
+          var P = M.pits[j];
+          if (u.x > P.x && u.x < P.x + P.w && u.y > P.y && u.y < P.y + P.h) {
+            this.applyDamage(u, 1e9, null, state, { noPace: true });
+            break;
+          }
+        }
+      }
+    }
+  },
+
+  //  원(유닛) vs AABB(벽) — 겹친 만큼 가장 얕은 축으로 밀어낸다.
+  _pushOutWall: function (u, W) {
+    var r = u.def.radius;
+    var cx = Math.max(W.x, Math.min(u.x, W.x + W.w));
+    var cy = Math.max(W.y, Math.min(u.y, W.y + W.h));
+    var dx = u.x - cx, dy = u.y - cy;
+    var d2 = dx * dx + dy * dy;
+    if (d2 >= r * r) return;
+    if (d2 > 1e-6) {
+      //  중심이 벽 밖 — 최근접점 반대 방향으로 겹침만큼.
+      var d = Math.sqrt(d2), push = (r - d) / d;
+      u.x += dx * push; u.y += dy * push;
+    } else {
+      //  중심이 벽 안 — 네 변 중 가장 가까운 변으로 탈출.
+      var toL = u.x - W.x, toR = W.x + W.w - u.x;
+      var toT = u.y - W.y, toB = W.y + W.h - u.y;
+      var m = Math.min(toL, toR, toT, toB);
+      if (m === toL) u.x = W.x - r;
+      else if (m === toR) u.x = W.x + W.w + r;
+      else if (m === toT) u.y = W.y - r;
+      else u.y = W.y + W.h + r;
+    }
+  },
+
   // ── 시선 (요청 4) ───────────────────────────────────────────────────────
   // 규칙 두 줄이 전부다:
   //   · 이동 중이면 **진행 방향**을 본다  (moveToward)
@@ -2907,6 +2974,10 @@ GAME.Combat = {
     }
     state.noHitFor += dtMs;
 
+    //  ── 실시간 맵 지형 (2026-08-31 태현님 ④, js/rtmaps.js) ──────────────
+    //  벽 밀어내기·가시밭 도트·균열 낙사를 시뮬이 직접 굴린다(양쪽 동일).
+    if (state.pvpRealtime && state.rtMap) this.updateRtMap(state, dtMs);
+
     var i, u, k;
 
     //  ── 최후 저항 판정 (2026-08-08) ────────────────────────────────────────
@@ -3219,6 +3290,21 @@ GAME.Combat = {
       if (p.life <= 0 || p.x < A.x || p.x > A.right || p.y < A.y || p.y > A.bottom) {
         state.projectiles.splice(i, 1);
         continue;
+      }
+
+      //  실시간 맵 벽 — 투사체를 차단한다("구조물 뒤에 숨을 수 있는맵"의 본체).
+      //  ⚠ 유도탄(homing)도 막는다 — 엄폐가 자동명중까지 못 이기면 벽이 장식이 된다.
+      if (state.rtMap && state.rtMap.walls.length) {
+        var wallHit = false;
+        for (k = 0; k < state.rtMap.walls.length; k++) {
+          var WB = state.rtMap.walls[k];
+          if (p.x > WB.x && p.x < WB.x + WB.w && p.y > WB.y && p.y < WB.y + WB.h) { wallHit = true; break; }
+        }
+        if (wallHit) {
+          state.effects.push({ kind: 'block', x: p.x, y: p.y, t: 200, total: 200, side: p.side });
+          state.projectiles.splice(i, 1);
+          continue;
+        }
       }
 
       // 방탄병 차단 — 아군에게 갈 투사체를 몸으로 대신 맞는다.

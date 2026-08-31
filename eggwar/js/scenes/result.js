@@ -21,6 +21,7 @@ GAME.ResultScene.prototype.init = function (data) {
   this.escalation = data.escalation || 0;
   this.tower = data.tower || 0;
   this.towerRec = data.towerRec || null;
+  this._replay = !!data.towerReplay;          // 지난 층 다시(연습 판) — 진행 무변화
   this.runRec = data.runRec || null;          // 통곡의 탑 도전 상태(골드·레벨)
   this.goldGained = data.goldGained || 0;
   this.bossDrop = data.bossDrop || null;       // 보스 확정 드랍 { kind, name, note }
@@ -51,6 +52,7 @@ GAME.ResultScene.prototype.init = function (data) {
 //  ⚠ 패배·무승부는 그대로 결과 화면을 거친다. 요약이 필요한 순간이다.
 //  ⚠ 다른 모드(일반 대전·방어전·수성의 탑·비동기 대전)는 이 분기에 들어오지 않는다.
 GAME.ResultScene.prototype._skipToNextFloor = function () {
+  if (this._replay) return false;              // 연습 판은 층 클리어가 아니다
   if (!this.tower || this.winner !== 'controller') return false;
   // 결과 화면이 내던 승리음은 여기서 대신 낸다(연출이 통째로 사라지지 않게).
   if (GAME.Sound && GAME.Sound.play) { try { GAME.Sound.play('win'); } catch (e) {} }
@@ -375,7 +377,8 @@ GAME.ResultScene.prototype.create = function () {
 
   var b1;
   // 2026-08-01 — 패배해도 층이 안 돌아가므로 재도전 문구도 같은 층을 가리킨다.
-  if (this.tower) b1 = (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : this.tower + '층 재도전');
+  if (this.tower && this._replay) b1 = '🔁 ' + this.tower + '층 한 번 더 (연습)';
+  else if (this.tower) b1 = (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : this.tower + '층 재도전');
   else if (this.defendTower) b1 = (this.winner === 'controller' ? '그대로 재도전' : (this.defendTower + 1) + '회차 방어');
   else if (this.rtResult) {
     //  실시간(2026-08-31 태현님 ①) — 예전 기본 갈래('같은 진형에 다시 도전' →
@@ -410,6 +413,7 @@ GAME.ResultScene.prototype.create = function () {
     // 2026-07-31 — 이 화면의 `self.tower` 분기는 **패배했을 때만** 온다(승리는
     // `_skipToNextFloor` 가 이 화면 자체를 건너뛴다). 그래서 여기는 항상 "같은 층 재도전"
     // 이고, 허브를 한 번 더 거치지 않고 `instantRetry` 로 곧장 그 층 전투로 들어간다.
+    if (self.tower && self._replay) { self.scene.start('Tower', { step: 'challenge', instantRetry: true, replayFloor: self.tower }); return; }
     if (self.tower) self.scene.start('Tower', { step: 'challenge', instantRetry: true });
     else if (self.defendTower) {
       // 2026-08-07 — 졌으면 **배치를 그대로 들고 곧장 다시 붙는다**(허브를 안 거친다).
@@ -592,13 +596,18 @@ GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
 
   var b1;
   // 2026-08-01 — 패배해도 층이 안 돌아가므로 재도전 문구도 같은 층을 가리킨다.
-  if (this.tower) b1 = (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : this.tower + '층 재도전');
+  if (this.tower && this._replay) b1 = '🔁 ' + this.tower + '층 한 번 더 (연습)';
+  else if (this.tower) b1 = (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : this.tower + '층 재도전');
   else if (this.defendTower) b1 = (this.winner === 'controller' ? '그대로 재도전' : (this.defendTower + 1) + '회차 방어');
   else if (this.versus) b1 = '다음 상대';
   else if (this.defendMode) b1 = '배치 고쳐 다시';
   else b1 = '같은 진형에 다시 도전';
 
   UI.button(this, rx + rw / 2, mainTop + mainH / 2, rw, mainH, b1, function () {
+    if (self.tower && self._replay) {
+      self.scene.start('Tower', { step: 'challenge', instantRetry: true, replayFloor: self.tower });
+      return;
+    }
     // 2026-07-31 — 이 화면의 `self.tower` 분기는 **패배했을 때만** 온다(승리는
     // `_skipToNextFloor` 가 이 화면 자체를 건너뛴다). 그래서 여기는 항상 "같은 층 재도전"
     // 이고, 허브를 한 번 더 거치지 않고 `instantRetry` 로 곧장 그 층 전투로 들어간다.

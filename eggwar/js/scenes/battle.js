@@ -42,6 +42,8 @@ GAME.BattleScene.prototype.init = function (data) {
   this.items = data.items || {};
   this.picks = data.picks || GAME.defaultSkillPicks();
   this.tower = data.tower || 0;      // 통곡의 탑 층수 (0이면 일반 대전)
+  //  지난 층 다시(2026-08-31) — 층 전진·기록·드랍·점수 없는 연습 판 표식.
+  this.towerReplay = !!data.replay;
   this.versus = !!data.versus;       // 대전(비동기 PvP) 공격 — 승패로 트로피가 오간다
   // ── 시험 판 (2026-07-30, 사용자 지시) ─────────────────────────────────────
   //  내 전장을 내가 쳐 보는 연습이다. **아무것도 기록하지 않는다** —
@@ -132,7 +134,10 @@ GAME.BattleScene.prototype.create = function () {
 
   //  ── 보너스 판 (2026-08-23 태현님) — 20% 확률, 알지키기('guard')/알깨기('break') ──
   //  결정은 tower.js `bonusFor`(결정적 난수)가 한다. 여기서는 판을 꾸밀 뿐이다.
-  this.towerBonus = this.tower ? GAME.Tower.bonusFor(this.tower) : null;
+  //  지난 층 다시(2026-08-31 태현님) — 막간(보너스 판)을 섞지 않는다.
+  //  ⚠ towerReplay 플래그는 init 이 세운다(여기는 create — data 가 없다.
+  //    실제로 여기서 data.replay 를 읽다가 전투가 통째로 죽었다, 감사가 잡음).
+  this.towerBonus = (this.tower && !this.towerReplay) ? GAME.Tower.bonusFor(this.tower) : null;
 
   // ── 층 조건 훅을 state 에 싣는다 (2026-07-30 대개편) ─────────────────────
   //  배수로 표현되는 조건(철벽·질풍·좁은눈)은 위 `mods` 에 이미 곱해져 있고,
@@ -2182,7 +2187,8 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     });
     var id = GAME.Account.current();
     //  사이드 판(알깨기·탄막)은 층수도 점수도 반영하지 않는다 (2026-08-23 태현님).
-    var scoreSide = !!(this.towerBonus && this.towerBonus !== 'guard');
+    //  지난 층 다시(replay)도 같다 — 이미 깬 층으로 점수를 또 벌면 랭킹이 거짓이 된다.
+    var scoreSide = !!(this.towerBonus && this.towerBonus !== 'guard') || !!this.towerReplay;
     if (id && score > 0 && !noRec && !scoreSide) {
       GAME.Score.add(id, {
         score: score, won: won, asStrategist: false,
@@ -2201,7 +2207,7 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
     if (this.tower) {
       // 탑 학습 — **이긴 판·진 판 모두** 기록한다. 진 판에서만 배우면 가설을 세울 수는
       // 있어도 그것이 통했는지 확인할 수가 없다(확인은 이긴 판에서 나온다).
-      if (GAME.TowerLearn) {
+      if (GAME.TowerLearn && !this.towerReplay) {
         GAME.TowerLearn.record(this.tower, this.state, this.state.winner === 'strategist');
       }
       // ⚠ 2026-08-01 — **패배해도 층이 안 돌아간다.** `Tower.fail()` 은 이제 `runs++`
@@ -2210,8 +2216,10 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
       //  안 되게") — 알깨기·탄막은 층이 오르지도 완화가 쌓이지도 않는 막간이다.
       //  한 번 놀면 소모 표시를 남겨 그 층이 실전으로 바뀐다(골드 농사 차단).
       var sideRound = !!(this.towerBonus && this.towerBonus !== 'guard');
-      towerRec = sideRound ? null
-                           : (won ? GAME.Tower.clear(this.tower) : GAME.Tower.fail());
+      //  지난 층 다시(replay) — 사이드 판과 같은 레일: 층 전진도 실패 기록도 없다.
+      var replay = !!this.towerReplay;
+      towerRec = (sideRound || replay) ? null
+                                       : (won ? GAME.Tower.clear(this.tower) : GAME.Tower.fail());
       if (sideRound && GAME.TowerChar && GAME.TowerChar.exists()) {
         GAME.TowerChar.markBonusDone(this.tower);
       }
@@ -2221,7 +2229,7 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
       //  승패만이 아니라 **얼마나 여유로웠나**를 남긴다 — 남은 체력과 걸린 시간.
       //  이 값이 다음 층부터 진형 유닛의 체력·공격에 곱해진다(js/tower.js).
       //  ⚠ 이기든 지든 부른다. 지는 판만 보면 값이 한쪽으로만 흐른다.
-      if (GAME.TowerChar && GAME.TowerChar.exists() && !sideRound) {
+      if (GAME.TowerChar && GAME.TowerChar.exists() && !sideRound && !replay) {
         var heroU = null;
         for (var hi = 0; hi < this.state.units.length; hi++) {
           if (this.state.units[hi].isHero) { heroU = this.state.units[hi]; break; }
@@ -2233,7 +2241,9 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         else GAME.TowerChar.noteFloorFail(this.tower);
       }
       if (GAME.TowerChar && GAME.TowerChar.exists()) {
-        if (won && sideRound) {
+        //  replay 승리도 사이드 판과 같은 보상 규칙 — **처치 골드만**(층 보상·드랍 없음).
+        //  층 골드는 층 번호에 비례하므로 저층 반복은 애초에 벌이가 안 된다(농사 무해).
+        if (won && (sideRound || replay)) {
           //  사이드 판 승리 — 층을 깬 게 아니므로 층 보상은 없다. 알깨기는 전투 중
           //  주운 동전만(이미 코인 파이프라인이 셌다), 탄막은 주운 금화(실시간
           //  적립됨 — 여기서는 표시 합산만)다.
@@ -2407,6 +2417,7 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         winner: self.state.winner,
         formationId: self.formation.id,
         heroKey: self.heroKey,
+        towerReplay: !!self.towerReplay,
         escalation: self.escalation,
         score: score,
         tower: self.tower,

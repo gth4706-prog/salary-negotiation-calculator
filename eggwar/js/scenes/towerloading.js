@@ -257,6 +257,7 @@ GAME.TowerLoadingScene.prototype.init = function (data) {
   this.formationId = data.formationId;
   this.tower = data.tower || 0;
   this.heroKey = data.heroKey;
+  this.replay = !!data.replay;      // 지난 층 다시(2026-08-31) — Battle 에 그대로 전달
   this._t = 0;
   this._meter = null;
   // 데뷔 층이면 읽을 시간을 더 준다.
@@ -506,6 +507,7 @@ GAME.TowerLoadingScene.prototype.update = function (time, delta) {
       items: {},
       picks: picks,
       tower: this.tower,
+      replay: this.replay,
       startPos: { x: Z.x + Z.w / 2, y: Z.y + Z.h * 0.55 }
     });
   }

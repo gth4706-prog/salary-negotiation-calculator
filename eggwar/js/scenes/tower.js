@@ -86,7 +86,12 @@ GAME.TowerScene.prototype.create = function (data) {
   //  (허브에 들어올 때와 완전히 같은 절차) 허브 화면을 그리는 대신 곧장 `_enterBattle`
   //  로 들어간다 — "허브를 한 번 더 거쳐야 한다"는 번거로움이 요청의 핵심이었다.
   if (data && data.instantRetry && this.char) {
-    this._enterBattle(floor);
+    //  ⚠ 조기 return 이라 아래의 settings.data 청소를 안 지난다 — 여기서도 비운다.
+    //    안 비우면 pwa Nav 뒤로가기가 이 인자를 되돌려 전투가 저절로 재시작된다.
+    if (this.scene && this.scene.settings) this.scene.settings.data = {};
+    //  지난 층 다시(replayFloor) — 재도전도 그 층으로(현재 층이 아니라).
+    if (data.replayFloor) this._enterBattle(data.replayFloor, true);
+    else this._enterBattle(floor);
     return;
   }
 
@@ -996,9 +1001,14 @@ GAME.TowerScene.prototype._buildChallenge = function () {
   GAME.UI.button(this, W / 2, byBottom - bh * 0.5, bw, bh, '← 메뉴', function () {
     self.scene.start('Menu');
   }, { fontSize: P ? 15 : 15 });
-  GAME.UI.button(this, W / 2, byBottom - bh * 1.5 - gap, bw, bh, '🏆 랭킹', function () {
+  //  랭킹 줄을 반으로 나눠 [🔁 지난 층]을 세운다 (2026-08-31 태현님).
+  var halfBw = (bw - 10) / 2;
+  GAME.UI.button(this, W / 2 - halfBw / 2 - 5, byBottom - bh * 1.5 - gap, halfBw, bh, '🏆 랭킹', function () {
     self.scene.start('Rank', { scope: 'live' });
-  }, { fontSize: P ? 17 : 16 });
+  }, { fontSize: P ? 15 : 15 });
+  GAME.UI.button(this, W / 2 + halfBw / 2 + 5, byBottom - bh * 1.5 - gap, halfBw, bh, '🔁 지난 층', function () {
+    self._openReplayPick();
+  }, { fontSize: P ? 15 : 15 });
   this.panelMaxBottom = byBottom - bh * 2.5 - gap * 2 - (bh + u * 0.8) / 2 - 8;
   // 허브의 세 번째 갈래("도전") — 있으면 로딩 화면을 거쳐 전투로, 없으면 캐릭터를 만든다.
   GAME.UI.button(this, W / 2, byBottom - bh * 2.5 - gap * 2, bw, bh + u * 0.8,
@@ -1025,13 +1035,55 @@ GAME.TowerScene.prototype._buildChallenge = function () {
 //  ⚠ 그 뒤 '5층마다 자동 지급'으로 바꿨다가 그것도 폐기했다 — 받은 줄도 몰랐다.
 //  지금은 **전투 중에 적을 잡으면 구슬로 떨어진다**(`js/orb.js`). 얻는 순간이 손에 남는다.
 
+// ── 지난 층 다시 (2026-08-31 태현님: "이미 깼던 층도 골라서 깰 수 있게,
+//    언제든 원래 층으로도 돌아가야 해") ──────────────────────────────────
+//  현재 층은 절대 안 움직인다 — 연습 판은 층·점수·드랍·완화 전부 무변화, 처치
+//  골드만 남는다(battle.js 의 replay 게이트). 허브로 돌아오면 언제나 현재 층이다.
+//  UI 는 재오픈 스테퍼(설정 Modal 선례) — 층 목록 팝업은 폰 높이 390 에서 안 접힌다.
+GAME.TowerScene.prototype._openReplayPick = function () {
+  var self = this;
+  var maxF = this._floor - 1;
+  if (!this.char || maxF < 1) {
+    GAME.Modal.open(this, {
+      title: '아직 깬 층이 없습니다',
+      items: [{ key: 'ok', name: '확인', note: '2층부터 지난 층을 다시 골라 깰 수 있어요' }],
+      onPick: function () {}, onClose: function () {}
+    });
+    return;
+  }
+  if (!this._replaySel || this._replaySel > maxF) this._replaySel = maxF;
+  var sel = this._replaySel;
+  var items = [];
+  if (sel > 1) items.push({ key: '-10', name: '◀◀ 10층 아래로' });
+  if (sel > 1) items.push({ key: '-1', name: '◀ 1층 아래로' });
+  if (sel < maxF) items.push({ key: '+1', name: '▶ 1층 위로' });
+  if (sel < maxF) items.push({ key: '+10', name: '▶▶ 10층 위로' });
+  items.push({ key: 'go', name: '⚔ ' + sel + '층 다시 깨기' + (GAME.Tower.bossFor(sel) ? '  ★ 보스' : ''),
+               note: '연습 판 — 층·점수·드랍 없음, 처치 골드만' });
+  GAME.Modal.open(this, {
+    title: '🔁 지난 층 다시 — ' + sel + '층 (1~' + maxF + ')',
+    items: items,
+    onPick: function (it) {
+      if (!it) return;
+      if (it.key === 'go') { self._enterBattle(sel, true); return; }
+      self._replaySel = Math.max(1, Math.min(maxF, sel + parseInt(it.key, 10)));
+      self._openReplayPick();               // 재오픈으로 문구 갱신(설정 Modal 패턴)
+    },
+    onClose: function () {}
+  });
+};
+
 // 전투 진입 — 허브의 모든 "도전" 버튼(PC/폰가로)이 **같은 함수**를 쓴다.
 // 두 곳에 복사하면 한쪽만 고쳐져 조용히 갈라진다(이 폴더의 상습 사고).
 // ⚠ 2026-08-01 — Battle 로 바로 가지 않고 `TowerLoading`(3초 로딩, 요청 12번)을 거친다.
 //   영웅/아이템/스킬은 Loading 씬이 `GAME.TowerChar` 에서 직접 읽으므로 여기서
 //   Battle 의 진입 데이터를 만들지 않는다(만들면 두 곳이 같은 계약을 복제하게 된다).
-GAME.TowerScene.prototype._enterBattle = function (floor) {
-  this._equipSkillsThenBattle(floor, 0);
+GAME.TowerScene.prototype._enterBattle = function (floor, replay) {
+  //  지난 층 다시(2026-08-31 태현님: "이미 깼던 층도 골라서 깰 수 있게") —
+  //  진형은 그 층 것으로 새로 뽑는다. 현재 층 진형은 씬이 이미 들고 있지만
+  //  재도전 층은 매번 새로 굴린다(같은 층도 배치가 섞이는 탑의 원칙 그대로).
+  if (replay) this.formation = GAME.Tower.formationFor(floor, this.heroKey);
+  this._equipSkillsThenBattle(floor, 0, replay);
 };
 
 // ── 새로 얻은 스킬만 딱 한 번 안내한다 (2026-08-01 사용자 지시) ────────────────
@@ -1044,7 +1096,7 @@ GAME.TowerScene.prototype._enterBattle = function (floor) {
 //  ⚠ 목록을 안 비우면 영원히 다시 뜬다 — `clearNewSkills()` 호출이 이 기능의 심장이다.
 //  ⚠ 닫기/배경 탭으로 스킵해도 다음으로 진행한다(modal.js 의 onClose). 안 그러면
 //    팝업을 닫는 순간 도전 자체가 멈춘다.
-GAME.TowerScene.prototype._equipSkillsThenBattle = function (floor, qIdx) {
+GAME.TowerScene.prototype._equipSkillsThenBattle = function (floor, qIdx, replay) {
   var self = this;
   if (!this._newSkillQueue) {
     this._newSkillQueue = GAME.TowerChar.pendingNewSkills().slice();
@@ -1058,7 +1110,8 @@ GAME.TowerScene.prototype._equipSkillsThenBattle = function (floor, qIdx) {
     this.scene.start('TowerLoading', {
       formationId: this.formation.id,
       tower: floor,
-      heroKey: this.heroKey
+      heroKey: this.heroKey,
+      replay: !!replay
     });
     return;
   }
@@ -1083,9 +1136,9 @@ GAME.TowerScene.prototype._equipSkillsThenBattle = function (floor, qIdx) {
     items: items,
     onPick: function (it) {
       if (it) GAME.TowerChar.equipSkill(slot, parseInt(it.key, 10));
-      self._equipSkillsThenBattle(floor, qIdx + 1);
+      self._equipSkillsThenBattle(floor, qIdx + 1, replay);
     },
-    onClose: function () { self._equipSkillsThenBattle(floor, qIdx + 1); }
+    onClose: function () { self._equipSkillsThenBattle(floor, qIdx + 1, replay); }
   });
 };
 
@@ -1167,21 +1220,27 @@ GAME.TowerScene.prototype._buildChallengePhone = function () {
   }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
        hover: UI.COL.panelTealHi, color: C.accent, fontSize: 21 });
 
-  var keys = ['delete', 'rank', 'menu'];
+  var keys = ['delete', 'replay', 'rank', 'menu'];
   var bc = GAME.Layout.cols(keys.length, { gap: 10, width: rw, left: rx, pad: 0 });
   for (var i = 0; i < keys.length; i++) {
     (function (k, col) {
-      if (k === 'rank') {
+      if (k === 'replay') {
+        //  지난 층 다시 (2026-08-31 태현님) — PC 와 같은 재오픈 스테퍼 팝업.
+        UI.button(self, col.cx, secTop + secH / 2, col.w, secH, '🔁 지난 층', function () {
+          self._openReplayPick();
+        }, { fontSize: 14 });
+      } else if (k === 'rank') {
         UI.button(self, col.cx, secTop + secH / 2, col.w, secH, '🏆 랭킹', function () {
           self.scene.start('Rank', { scope: 'live' });
-        }, { fontSize: 16 });
+        }, { fontSize: 14 });
       } else if (k === 'menu') {
         UI.button(self, col.cx, secTop + secH / 2, col.w, secH, '← 메뉴', function () {
           self.scene.start('Menu');
-        }, { fontSize: 16 });
+        }, { fontSize: 14 });
       } else {
         // 캐릭터 삭제 — PC 판과 같은 확인 팝업(요청 4번).
-        UI.button(self, col.cx, secTop + secH / 2, col.w, secH, '캐릭터 삭제', function () {
+        //  4열이 되며 칸이 좁아졌다 — '캐릭터 삭제' 는 넘친다(넘침 감사 대비 축약).
+        UI.button(self, col.cx, secTop + secH / 2, col.w, secH, '🗑 삭제', function () {
           GAME.Modal.open(self, {
             title: '캐릭터를 삭제할까요?',
             items: [

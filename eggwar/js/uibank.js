@@ -69,6 +69,19 @@
       return img;
     },
 
+    //  9-slice — 버튼/패널 원단(texButton 등)을 임의 크기로 늘린다.
+    //  inset 은 네 변에서 안 늘어나는 테두리 폭(px, 원본 기준). 소재가 오면
+    //  ui-theme 버튼 redraw 가 이걸 밑판으로 쓰고 절차 그리기는 폴백으로 남는다.
+    nineSlice: function (scene, key, cx, cy, w, h, inset, opts) {
+      if (!this.ready(scene, key)) return null;
+      opts = opts || {};
+      var ins = inset || 24;
+      var img = scene.add.nineslice(cx, cy, 'ui-' + key, undefined, w, h, ins, ins, ins, ins);
+      if (opts.depth !== undefined) img.setDepth(opts.depth);
+      if (opts.alpha !== undefined) img.setAlpha(opts.alpha);
+      return img;
+    },
+
     //  지정 상자 **안에 들어가게**(contain) 놓는다 — 도장·카드 그림용.
     place: function (scene, key, cx, cy, w, h, opts) {
       if (!this.ready(scene, key)) return null;

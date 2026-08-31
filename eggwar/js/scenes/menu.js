@@ -431,6 +431,16 @@ GAME.MenuScene.prototype._buildPhone = function () {
       hover: UI.COL.panelTealHi, color: C.accent, fontSize: 20 });
   if (GAME.LobbyArt) GAME.LobbyArt.markFor(self, pbA, 'spears', 1);
 
+  //  생성 모드 카드 일러스트(도착 시 자동 활성 — uibank). 버튼 판 위·글자 아래에
+  //  옅게 얹는다: 이미지는 버튼 뒤에 만들어져(생성 순서) 글자 depth 만 올리면 된다.
+  if (GAME.UIBank) {
+    [[pbC, 'cardDefend', x1, wSm], [pbB, 'cardTower', x2, wSm], [pbA, 'cardVersus', x3, wBig]]
+      .forEach(function (p) {
+        var img = GAME.UIBank.place(self, p[1], p[2], cy, p[3] - 10, cardH - 10, { alpha: 0.5 });
+        if (img && p[0].text) p[0].text.setDepth(1);
+      });
+  }
+
   //  조작 안내는 로비에서 뺐다(A안 — 온보딩·전투 화면이 이미 가르친다).
   //  퍼레이드가 지나는 들판을 글자가 가로지르던 것도 함께 해결된다.
 

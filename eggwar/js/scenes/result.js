@@ -176,6 +176,7 @@ GAME.ResultScene.prototype.create = function () {
   //  실시간은 팀 라벨(controller/strategist)이 역할이 아니라 '자리'다 — 내 승패는
   //  rtResult.won 이 안다(winner==='controller' 비교는 손님 쪽에서 반대로 읽힌다).
   if (this.rtResult && !this.rtResult.invalid) good = !!this.rtResult.won;
+  this._good = good;   // _buildPhone(별도 메서드)의 도장 훅이 같이 쓴다
   if (GAME.Sound) GAME.Sound.play(good ? 'win' : 'lose');
   //  실시간 재대결 — 방이 살아 있으면 상대의 [한판 더]/재시작 신호를 받는다.
   this._rtWire();
@@ -346,6 +347,11 @@ GAME.ResultScene.prototype.create = function () {
 
   if (GAME.CONFIG.PHONE) { this._buildPhone(title, sub, color, tierObj); return; }
 
+  //  생성 승패 도장(도착 시 자동 활성 — uibank). 판정 현수막 뒤에 옅게.
+  if (GAME.UIBank) {
+    GAME.UIBank.place(this, this._good ? 'stampWin' : 'stampLose',
+      W / 2, u * 22, u * 34, u * 34, { alpha: 0.85 });
+  }
   var plate = GAME.UI.verdictPlate(this, W / 2, u * 9, bw, title, sub, {
     tierIndex: tierObj.i,
     accentCss: color,
@@ -548,6 +554,11 @@ GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
   var LW = 404;
   var rx = PAD + LW + 16, rw = W - PAD - rx;
 
+  //  생성 승패 도장(도착 시 자동 활성) — 왼쪽 기둥 하단의 빈 들판 자리.
+  if (GAME.UIBank) {
+    GAME.UIBank.place(this, this._good ? 'stampWin' : 'stampLose',
+      PAD + LW / 2, H * 0.62, 200, 200, { alpha: 0.85 });
+  }
   var plate = UI.verdictPlate(this, PAD + LW / 2, 12, LW, title, sub, {
     tierIndex: tierObj.i, accentCss: color, titleSize: 'title'
   });

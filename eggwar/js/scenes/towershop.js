@@ -158,6 +158,11 @@ GAME.TowerShopScene.prototype.create = function () {
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var PAD = GAME.CONFIG.SMALL ? 14 : 24;
 
+  //  생성 상점 배너(도착 시 자동 활성 — uibank) — 제목 줄 뒤에 옅게 깐다.
+  if (GAME.UIBank) {
+    GAME.UIBank.cover(this, 'bannerShop', W / 2, 22, W, 44, { alpha: 0.9 });
+  }
+
   GAME.UI.label(this, PAD, 10, this.src.backLabel, 15, C.textDim, 0)
     .setInteractive({ useHandCursor: true })
     .on('pointerdown', function () { self.src.back(self); });

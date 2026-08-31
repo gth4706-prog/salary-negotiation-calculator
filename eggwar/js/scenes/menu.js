@@ -32,7 +32,11 @@ GAME.MenuScene.prototype.create = function () {
   //  ⚠ 씬 인스턴스는 재사용된다 — 매번 새로 만들고, 나갈 때 반드시 지운다.
   //  배경은 **전 프로필**에서 그린다(영웅 아트와 달리 글자 뒤라 겹칠 일이 없다).
   //  ⚠ `start` 보다 먼저 불러야 depth 순서가 맞는다(배경 -60 → 영웅 -50).
-  this._backdrop = GAME.LobbyArt ? GAME.LobbyArt.backdrop(this) : null;
+  //  생성 배경 일러스트가 도착해 있으면 그걸 깔고 절차 배경은 접는다(uibank —
+  //  소재 전에는 ready() false 라 지금 화면 그대로). 영웅 퍼레이드는 그 위에 그대로.
+  this._bgImg = GAME.UIBank ? GAME.UIBank.cover(this, 'bgMenu', W / 2, H / 2, W, H,
+    { depth: -70 }) : null;
+  this._backdrop = (!this._bgImg && GAME.LobbyArt) ? GAME.LobbyArt.backdrop(this) : null;
   this._parade = GAME.LobbyArt ? GAME.LobbyArt.start(this) : null;
   this.events.off('shutdown', this._paradeStop, this);
   this.events.once('shutdown', this._paradeStop, this);

@@ -57,6 +57,10 @@ GAME.BattleScene.prototype.init = function (data) {
     return { x: Z.x + Z.w / 2, y: Z.y + Z.h * 0.55 };
   })();
   this.ended = false;
+  //  ⚠ 씬 인스턴스는 재사용된다 — [한판 더] 재대결에서 안 되돌리면 두 판째부터
+  //  실시간 점수 정산이 조용히 빠지고(_rtScored 잔류) 방 유지 플래그가 샌다.
+  this._rtScored = false;
+  this._rtKeepRoom = false;
   this.markers = [];
 
   // 휠 줌 상태 — **씬 인스턴스는 재사용된다.** 여기서 되돌리지 않으면 다음 판이
@@ -515,6 +519,14 @@ GAME.BattleScene.prototype.create = function () {
     //  order.target 은 유닛 참조라 직렬화 불가 — 인덱스로 보내고 여기서 되살린다.
     var apply0 = this._rtSession._apply.bind(this._rtSession);
     this._rtSession._apply = function (hero, cmd) {
+      //  방향 시전(2026-08-31 태현님: "스킬이 바라보는 방향으로 나가지 않는다") —
+      //  좌표를 큐 시점에 굳히면 지연 틱 동안 영웅이 움직여 방향이 뒤틀린다.
+      //  슬롯만 보내고 **적용 시점의 시뮬 영웅 facing/이동 방향**으로 계산한다
+      //  (castSkillFacing 은 상태만 읽는 결정론 — 양쪽 같은 답).
+      if (cmd.kind === 'skillF') {
+        if (hero) GAME.Combat.castSkillFacing(hero, cmd.slot, rtSelf.state);
+        return;
+      }
       if (cmd.kind === 'order' && cmd.order && cmd.order.ti !== undefined) {
         var tgt = rtSelf.state.units[cmd.order.ti];
         cmd = { kind: 'order', order: { type: cmd.order.type, x: cmd.order.x, y: cmd.order.y,
@@ -552,11 +564,13 @@ GAME.BattleScene.prototype.create = function () {
       padding: { x: 12, y: 6 }
     }).setOrigin(0.5, 0).setDepth(9300).setScrollFactor(0).setVisible(false);
 
-    //  씬이 내려가면 콜백·참조를 정리하고 방을 나간다(전투 = 한 판 = 한 방).
+    //  씬이 내려가면 콜백·참조를 정리한다. 방은 **정상 종료면 유지**한다 —
+    //  결과 화면의 [한판 더]가 같은 방에서 재대결한다(2026-08-31 태현님 ①).
+    //  데싱크·상대 이탈이면 방이 의미 없으니 나간다.
     this.events.once('shutdown', function () {
       GAME.NetRoom.on.message = null;
       GAME.NetRoom.on.close = null;
-      GAME.NetRoom.leave(true);
+      if (!rtSelf._rtKeepRoom) GAME.NetRoom.leave(true);
       rtSelf._rtShadow = null;
       rtSelf._rtSession = null;
     });
@@ -572,6 +586,19 @@ GAME.BattleScene.prototype.create = function () {
           return;
         }
         return cast0(u, slot, tx, ty, state);
+      };
+      //  방향 시전은 좌표가 아니라 **슬롯만** 보낸다 — 방향은 적용 틱의 시뮬 영웅이
+      //  스스로 계산한다(위 _apply 의 skillF). 좌표를 지금 굳히면 록스텝 지연(수 틱)
+      //  동안 이동한 만큼 방향이 뒤틀린다 — "바라보는 방향으로 안 나간다"의 원인.
+      var castF0 = GAME.Combat.castSkillFacing.bind(GAME.Combat);
+      GAME.Combat.castSkillFacing = function (u, slot, state) {
+        var sc = GAME.game && GAME.game.scene.getScene('Battle');
+        if (sc && sc._rtShadow && u === sc._rtShadow) {
+          if (sc._heroIsPlayer && sc._rtSession && GAME.Combat.skillReady(u, slot))
+            sc._rtSession.queueLocal({ kind: 'skillF', slot: slot });
+          return true;
+        }
+        return castF0(u, slot, state);
       };
       var pot0 = GAME.Combat.usePotion ? GAME.Combat.usePotion.bind(GAME.Combat) : null;
       if (pot0) GAME.Combat.usePotion = function (u, state) {
@@ -2318,6 +2345,10 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
 
     //  실시간 대전 — 점수를 정산한다(공성 트로피와 **다른 축**, 2026-08-21).
     //  데싱크(승자 null)는 판 무효 = 무정산. 상대 점수는 로비 세팅 교환값.
+    //  정상 종료 + 방 연결 생존이면 결과 화면에서 재대결할 수 있게 방을 넘긴다.
+    if (this.rt && this.state.winner !== null && GAME.NetRoom.connected) {
+      this._rtKeepRoom = true;
+    }
     var rtResult = null;
     if (this.rt && !this.test && GAME.RtScore && !this._rtScored) {
       this._rtScored = true;
@@ -2387,6 +2418,10 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         test: self.test,
         arenaResult: arenaResult,
         rtResult: rtResult,
+        //  재대결용 — 방이 살아 있을 때만. 역할은 지난 판 그대로 잇는다.
+        rtLive: (self._rtKeepRoom && self.rt && self.rt.my) ? {
+          myRole: self.rt.my.role, theirRole: self.rt.their.role
+        } : null,
         //  ⚠ 이 콜백의 this 는 씬이 아니라 타이머다 — this.state 로 썼다가 결과 전환이
         //  통째로 죽어 **모든 전투가 끝나는 순간 얼어붙었다**(v2.43~46 회귀, RT 실측이 잡음).
         timeUp: !!self.state.timeUp,
@@ -3940,15 +3975,10 @@ GAME.BattleScene.prototype._rtCompose = function () {
 //  준비 단계에서 산 장비를 영웅에 얹는다 — **양쪽이 같은 setup 으로 같은 계산**을
 //  하므로 결정론이 유지된다(itemBonus 는 items 맵의 순수 함수).
 GAME.BattleScene.prototype._rtApplyItems = function (hu, su) {
-  if (!su || !su.items || !GAME.ArenaBuild || !GAME.ArenaBuild.itemBonus) return;
-  var ib = GAME.ArenaBuild.itemBonus({ items: su.items });
-  var d = hu.def;
-  d.damage += ib.damage;
-  d.armor += ib.armor;
-  d.speed += ib.speed;
-  d.lifesteal = (d.lifesteal || 0) + ib.lifesteal;
-  hu.cdrMul = (hu.cdrMul || 1) * ib.cdrMul;
-  if (ib.hp) { d.hp += ib.hp; hu.maxHp = d.hp; hu.hp = d.hp; }
+  if (!su || !su.items || !GAME.ArenaBuild || !GAME.ArenaBuild.applyToHeroRt) return;
+  //  스탯 적용은 ArenaBuild.applyToHeroRt 한 곳이 한다 — 실시간 전용 효과 배율
+  //  (RT_ITEM_EFF, 2026-08-31 무조작 50% 기준)을 감사 도구와 같은 식으로 태운다.
+  GAME.ArenaBuild.applyToHeroRt(hu, su.items);
   hu._gearTier = GAME.UI.gearTierOf(su.items.weapon);
   hu._kit = { armor: GAME.UI.gearTierOf(su.items.armor),
               boots: GAME.UI.gearTierOf(su.items.boots),

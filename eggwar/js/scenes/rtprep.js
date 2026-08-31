@@ -159,8 +159,12 @@ GAME.RtPrepScene.prototype._refreshLoadout = function () {
       if (it) parts.push(CAT.nameFor(it, rec.heroKey));
     });
   }
+  //  "산 만큼 실제로 얼마가 붙는가" (2026-08-31 태현님) — 실시간 효과 배율이
+  //  반영된 실효값을 같이 적는다. 상점 표기(원값)와 다른 것이 정상이다.
+  var eff = parts.length && GAME.ArenaBuild.rtBonusText
+    ? GAME.ArenaBuild.rtBonusText(rec.items) : '';
   this._loadoutTxt.setText(parts.length
-    ? '장비: ' + parts.join(' · ')
+    ? '장비: ' + parts.join(' · ') + (eff ? '   →  실효 ' + eff : '')
     : '(장비 없음 — 안 사도 됩니다. 기본 스펙으로 출전)');
 };
 

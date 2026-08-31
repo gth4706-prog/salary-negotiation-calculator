@@ -688,6 +688,12 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
   //  ⚠ 행 수는 `list.length` 에서 계산한다 — 단계를 늘리면 폰이 4행에서 5행이 되고
   //    카드 높이가 그만큼 줄어든다. 단계를 더 늘릴 때는 반드시 overlap-audit 을 돌릴 것.
   var list = GAME.TowerShopItems.CATALOG[this.itemSlot] || [];
+  //  실시간 준비(임시 빌드) 중엔 단계 상한까지만 보여준다(2026-08-31 밸런스 —
+  //  탑 지수 아이템이 실시간 예산에 통째로 팔리던 것이 격차의 진범).
+  //  구매 관문은 ArenaBuild.equipItem 이 한 번 더 막는다(UI 만 거르면 샌다).
+  if (GAME.ArenaBuild && GAME.ArenaBuild._rtRec) {
+    list = list.slice(0, GAME.ArenaBuild.RT_TIER_MAX);
+  }
   var curKey = this.char.items[this.itemSlot];
   var cur = curKey ? GAME.TowerShopItems.find(this.itemSlot, curKey) : null;
 

@@ -28,6 +28,11 @@ GAME.ResultScene.prototype.init = function (data) {
   this.versus = !!data.versus;                // 대전(비동기 PvP) 공격이었는가
   this.arenaResult = data.arenaResult || null;// { delta, trophy, league }
   this.rtResult = data.rtResult || null;      // { won, delta, score } | { invalid }
+  this.rtLive = data.rtLive || null;          // { myRole, theirRole } — 방 유지 중이면
+  this._rtVoted = false;                      // 내가 [한판 더]를 눌렀나
+  this._rtTheirVote = false;                  // 상대의 [한판 더]가 도착했나
+  this._rtGoing = false;                      // 재대결 전환 중(방을 나가면 안 된다)
+  this._rtVoteTimer = null;
   this.report = data.report || null;          // 전투 요약(combat state.report)
   this.bonusRound = data.bonusRound || null;  // 사이드 보너스 판('break'|'dodge') — 층 미반영
   this.battleSec = data.battleSec || 0;
@@ -69,9 +74,80 @@ GAME.ResultScene.prototype._skipToNextFloor = function () {
 
 //  이 결과가 어느 보드의 것인가 — 랭킹 버튼이 맞는 탭을 열게 한다.
 GAME.ResultScene.prototype._rankKind = function () {
+  if (this.rtResult) return 'rt';
   if (this.defendTower) return 'dtower';
   if (this.versus) return 'arena';   // ⚠ 대전 보드의 키는 'versus' 가 아니라 'arena' 다(js/score.js KINDS)
   return 'tower';
+};
+
+// ── 실시간 재대결 (2026-08-31 태현님 ①) ─────────────────────────────────────
+//  방(WS)은 battle 이 정상 종료 판에 한해 살려서 넘긴다. 양쪽이 [한판 더]를 누르면
+//  방장이 새 시드를 릴레이하고, 둘 다 같은 역할로 RtFlow.begin → RtPrep 재진입.
+//  ⚠ 투표는 1초마다 재전송한다 — 상대가 아직 결과 화면에 못 왔으면(종료 연출 시차)
+//    그쪽 수신 핸들러가 없어서 첫 전송이 조용히 버려진다(멱등이라 중복 무해).
+GAME.ResultScene.prototype._rtWire = function () {
+  if (!this.rtLive || !GAME.NetRoom.connected) return;
+  var self = this;
+  GAME.NetRoom.on.message = function (from, data) {
+    if (!data) return;
+    if (data.type === 'rtAgain') {
+      self._rtTheirVote = true;
+      if (self._rtAgainBtn && self._rtAgainBtn.text && !self._rtVoted)
+        self._rtAgainBtn.text.setText('🔔 상대가 한판 더를 원합니다!');
+      self._maybeRestart();
+    } else if (data.type === 'rtRestart' && data.seed !== undefined) {
+      self._rtGo(data.seed);
+    }
+  };
+  GAME.NetRoom.on.close = function () {
+    self.rtLive = null;
+    if (self._rtAgainBtn && self._rtAgainBtn.text && self._rtAgainBtn.text.scene)
+      self._rtAgainBtn.text.setText('(상대가 방을 떠났습니다)');
+  };
+  //  씬을 떠날 때 — 재대결 전환이 아니면 방을 정리한다(콜백 잔류 방지).
+  //  ⚠ 재대결이면 콜백을 **건드리면 안 된다** — _rtGo 의 RtFlow.begin 이 방금
+  //    자기 핸들러(rtSetup 수신)를 걸었는데 여기서 null 로 덮으면 세팅 교환이 죽는다.
+  this.events.once('shutdown', function () {
+    if (self._rtVoteTimer) { clearInterval(self._rtVoteTimer); self._rtVoteTimer = null; }
+    if (!self._rtGoing) {
+      GAME.NetRoom.on.message = null;
+      GAME.NetRoom.on.close = null;
+      GAME.NetRoom.leave(true);
+    }
+  });
+};
+
+GAME.ResultScene.prototype._rtAgainClick = function () {
+  if (this._rtVoted || !this.rtLive || !GAME.NetRoom.connected) return;
+  this._rtVoted = true;
+  var self = this;
+  GAME.NetRoom.relay({ type: 'rtAgain' });
+  this._rtVoteTimer = setInterval(function () {
+    if (self._rtGoing || !GAME.NetRoom.connected) { clearInterval(self._rtVoteTimer); return; }
+    GAME.NetRoom.relay({ type: 'rtAgain' });
+  }, 1000);
+  if (this._rtAgainBtn && this._rtAgainBtn.text)
+    this._rtAgainBtn.text.setText('⌛ 상대를 기다리는 중…');
+  this._maybeRestart();
+};
+
+GAME.ResultScene.prototype._maybeRestart = function () {
+  //  방장만 시드를 만든다 — 두 명이 각자 만들면 서로 다른 판이 된다.
+  if (!this._rtVoted || !this._rtTheirVote || this._rtGoing) return;
+  if (GAME.NetRoom.me !== GAME.NetRoom.host) return;
+  var seed = (Math.floor(Math.random() * 0x7fffffff) || 1) >>> 0;
+  GAME.NetRoom.relay({ type: 'rtRestart', seed: seed });
+  this._rtGo(seed);
+};
+
+GAME.ResultScene.prototype._rtGo = function (seed) {
+  if (this._rtGoing || !this.rtLive) return;
+  this._rtGoing = true;
+  if (this._rtVoteTimer) { clearInterval(this._rtVoteTimer); this._rtVoteTimer = null; }
+  GAME.RtFlow.begin(this.rtLive.myRole, this.rtLive.theirRole, { seed: seed >>> 0 });
+  var sm = GAME.game.scene;
+  sm.getScenes(true).forEach(function (s) { sm.stop(s.scene.key); });
+  sm.start('RtPrep');
 };
 
 GAME.ResultScene.prototype.create = function () {
@@ -95,7 +171,12 @@ GAME.ResultScene.prototype.create = function () {
   var good = this.defendMode || this.defendTower
     ? (this.winner !== 'controller')
     : (this.winner === 'controller');
+  //  실시간은 팀 라벨(controller/strategist)이 역할이 아니라 '자리'다 — 내 승패는
+  //  rtResult.won 이 안다(winner==='controller' 비교는 손님 쪽에서 반대로 읽힌다).
+  if (this.rtResult && !this.rtResult.invalid) good = !!this.rtResult.won;
   if (GAME.Sound) GAME.Sound.play(good ? 'win' : 'lose');
+  //  실시간 재대결 — 방이 살아 있으면 상대의 [한판 더]/재시작 신호를 받는다.
+  this._rtWire();
   //  등반 중 쌓인 획득 팝업 — 여기가 "게임 끝난 다음"이다(2026-08-22 태현님).
   //  결과음과 겹치지 않게 반 박자 늦춘다.
   //  ⚠ 700ms 지연 동안 [다음 층]을 누르면 flush 가 증발해 **다음 판 결과에서**
@@ -296,9 +377,35 @@ GAME.ResultScene.prototype.create = function () {
   // 2026-08-01 — 패배해도 층이 안 돌아가므로 재도전 문구도 같은 층을 가리킨다.
   if (this.tower) b1 = (this.winner === 'controller' ? (this.tower + 1) + '층 도전' : this.tower + '층 재도전');
   else if (this.defendTower) b1 = (this.winner === 'controller' ? '그대로 재도전' : (this.defendTower + 1) + '회차 방어');
+  else if (this.rtResult) {
+    //  실시간(2026-08-31 태현님 ①) — 예전 기본 갈래('같은 진형에 다시 도전' →
+    //  Draft('__rt'))는 **없는 진형으로 가는 막다른 화면**이었다(판 끝 멈춤의 정체).
+    b1 = (this.rtLive && GAME.NetRoom.connected) ? '🔄 한판 더 (상대 동의 시)' : null;
+  }
   else if (this.versus) b1 = '다음 상대';
   else if (this.defendMode) b1 = '배치 고쳐 다시';
   else b1 = '같은 진형에 다시 도전';
+  if (this.rtResult) {
+    if (b1) {
+      this._rtAgainBtn = GAME.UI.button(this, W / 2, btnTop, bw, u * 7, b1,
+        function () { self._rtAgainClick(); },
+        { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
+          hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 16 : 17 });
+    } else {
+      GAME.UI.text(this, W / 2, btnTop, '(상대가 방을 떠나 재대결할 수 없습니다)',
+        { size: 'caption', color: C.textDim, origin: 0.5 });
+    }
+    GAME.UI.button(this, W / 2, btnTop + u * 9, bw, u * 6, '🚪 대전 나가기', function () {
+      self._rtGoing = false;
+      GAME.NetRoom.leave(true);
+      self.scene.start('Versus');
+    }, { fontSize: P ? 14 : 15 });
+    GAME.UI.button(this, W / 2, btnTop + u * 16, bw, u * 5, '← 메뉴로', function () {
+      GAME.NetRoom.leave(true);
+      self.scene.start('Menu');
+    }, { fontSize: P ? 13 : 14 });
+    return;
+  }
   GAME.UI.button(this, W / 2, btnTop, bw, u * 7, b1, function () {
     // 2026-07-31 — 이 화면의 `self.tower` 분기는 **패배했을 때만** 온다(승리는
     // `_skipToNextFloor` 가 이 화면 자체를 건너뛴다). 그래서 여기는 항상 "같은 층 재도전"
@@ -460,6 +567,27 @@ GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
   UI.revealIn(this, [plate].concat(blocks).concat([noteObjs]), { stagger: 120 });
   if (scoreRow) {
     UI.countUp(this, scoreRow.value, this.score, { suffix: '점', duration: 800, delay: 300 });
+  }
+
+  //  실시간(폰) — 큰 버튼 = [한판 더], 아랫줄 = 나가기·랭킹·메뉴 (2026-08-31 ①).
+  if (this.rtResult) {
+    if (this.rtLive && GAME.NetRoom.connected) {
+      this._rtAgainBtn = UI.button(this, rx + rw / 2, mainTop + mainH / 2, rw, mainH,
+        '🔄 한판 더', function () { self._rtAgainClick(); },
+        { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
+          hover: UI.COL.panelTealHi, color: C.accent, fontSize: 18 });
+    } else {
+      UI.text(this, rx + rw / 2, mainTop + mainH / 2, '(상대가 방을 떠났습니다)',
+        { size: 'caption', color: C.textDim, origin: 0.5 });
+    }
+    var bcR = GAME.Layout.cols(3, { gap: 10, width: rw, left: rx, pad: 0 });
+    [['🚪 나가기', function () { GAME.NetRoom.leave(true); self.scene.start('Versus'); }],
+     ['🏆 랭킹', function () { self.scene.start('Rank', { kind: 'rt', scope: 'all' }); }],
+     ['메뉴', function () { GAME.NetRoom.leave(true); self.scene.start('Menu'); }]
+    ].forEach(function (o, i) {
+      UI.button(self, bcR[i].cx, secTop + secH / 2, bcR[i].w, secH, o[0], o[1], { fontSize: 15 });
+    });
+    return;
   }
 
   var b1;

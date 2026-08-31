@@ -149,6 +149,9 @@ GAME.ArenaBuild = {
     var rec = this.get();
     var it = this.findItem(slotKey, itemKey);
     if (!it) return null;
+    //  실시간 준비 중엔 단계 상한 위 아이템은 화면에서 걸러지지만, 여기서도 막는다 —
+    //  UI 만 거르면 다른 경로(불러오기 등)로 새는 것이 이 저장소의 반복 패턴이다.
+    if (this._rtRec && !this.rtItemAllowed(slotKey, itemKey)) return null;
     var prev = rec.items[slotKey];
     rec.items[slotKey] = itemKey;
     if (this.spent(rec) > GAME.Arena.BUDGET) { rec.items[slotKey] = prev; return null; }
@@ -162,6 +165,71 @@ GAME.ArenaBuild = {
     rec.items[slotKey] = null;
     this._save(rec);
     return this.left(rec);
+  },
+
+  // ── 실시간 대전 전용 아이템 효과 배율 (2026-08-31 태현님: "방어구만 올리면
+  //    피가 안 단다 … 무조작으로 50% 체력차이만 발생하게") ─────────────────────
+  //  탑 카탈로그 수치는 못 깎는다(통곡의 탑 밸런스가 그 위에 서 있다). 실시간만
+  //  **효과에 배율**을 걸어 격차를 줄인다. 값은 tools/rt-balance-audit.js 실측으로
+  //  잡는다 — 여기 숫자를 바꾸면 그 감사를 반드시 다시 돌릴 것.
+  //  2026-08-31 실측 채택(무조작 최악 대진 승자 잔여 50%): 3단 상한 + 이 배율에서
+  //  warden balanced vs none = 50% 로 기준선에 정확히 닿는다. speed/흡혈/쿨감은
+  //  무조작 결투로 잴 수 없는 축이라 1 로 둔다(3단 값 자체가 작다).
+  RT_ITEM_EFF: { damage: 0.4, armor: 0.3, hp: 0.15, speed: 1, lifesteal: 1, cdr: 1 },
+
+  //  실시간에서 **살 수 있는 아이템 단계 상한** (2026-08-31). 탑 카탈로그는 지수라
+  //  (10단+ 무기 공+13,500 — 기본 28의 480배) 예산 500으로도 영웅이 다른 생물이
+  //  된다. 배율로 깎으면 표기와 실효가 갈라지니, 실시간은 저단계만 판다.
+  //  값은 tools/rt-balance-audit.js 가 "무조작 체력차 ≤50%" 로 잡는다.
+  RT_TIER_MAX: 3,
+  rtItemAllowed: function (slotKey, itemKey) {
+    var list = (GAME.TowerShopItems && GAME.TowerShopItems.CATALOG[slotKey]) || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].key === itemKey) return i < this.RT_TIER_MAX;
+    }
+    return false;
+  },
+
+  //  실시간 전투에 아이템을 얹는다 — battle.js(_rtApplyItems)와 감사 도구가 **같은
+  //  함수**를 쓴다(두 벌이면 조용히 갈라진다). 결정론: itemBonus 는 items 의 순수 함수.
+  applyToHeroRt: function (hu, items) {
+    //  단계 상한 위 아이템은 **적용 단계에서도** 거른다 — 상대가 보낸 세팅 스냅샷을
+    //  그대로 믿으면 조작된 클라이언트가 지수 아이템을 실어 보낼 수 있다.
+    //  양쪽이 같은 규칙으로 거르므로 결정론은 유지된다.
+    var safe = {};
+    for (var k in (items || {})) {
+      if (items[k] && this.rtItemAllowed(k, items[k])) safe[k] = items[k];
+    }
+    var ib = this.itemBonus({ items: safe });
+    var E = this.RT_ITEM_EFF;
+    var d = hu.def;
+    d.damage += Math.round(ib.damage * E.damage);
+    d.armor += Math.round(ib.armor * E.armor);
+    d.speed += Math.round(ib.speed * E.speed);
+    d.lifesteal = (d.lifesteal || 0) + ib.lifesteal * E.lifesteal;
+    hu.cdrMul = (hu.cdrMul || 1) * (1 - (1 - ib.cdrMul) * E.cdr);
+    var hp = Math.round(ib.hp * E.hp);
+    if (hp) { d.hp += hp; hu.maxHp = d.hp; hu.hp = d.hp; }
+    return ib;
+  },
+
+  //  실시간 적용 효과 요약 문구 — 화면(RtPrep)이 "산 만큼 실제로 얼마가 붙는가"를
+  //  말한다(2026-08-31 태현님: "아이템으로 구매한 능력치가 얼마나 되는지 알아야").
+  rtBonusText: function (items) {
+    var ib = this.itemBonus({ items: items || {} });
+    var E = this.RT_ITEM_EFF;
+    var parts = [];
+    var dmg = Math.round(ib.damage * E.damage);
+    var arm = Math.round(ib.armor * E.armor);
+    var hp = Math.round(ib.hp * E.hp);
+    var spd = Math.round(ib.speed * E.speed);
+    if (dmg) parts.push('공+' + dmg);
+    if (arm) parts.push('방+' + arm);
+    if (hp) parts.push('체+' + hp);
+    if (spd) parts.push('이속+' + spd);
+    if (ib.lifesteal) parts.push('흡혈+' + Math.round(ib.lifesteal * E.lifesteal * 100) + '%');
+    if (ib.cdrMul !== 1) parts.push('쿨감 ' + Math.round((1 - ib.cdrMul) * E.cdr * 100) + '%');
+    return parts.join(' · ');
   },
 
   // 아이템이 실제 전투 스탯으로 — 탑의 `TowerChar.itemBonus` 와 **같은 규칙**이다.

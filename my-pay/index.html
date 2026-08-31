@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0E7C5A">
+<title>내 월급 한 장 — 실수령액·퇴직금·연차·실업급여를 한 번에</title>
+<meta name="description" content="월 급여와 입사일만 넣으면 실수령액, 4대보험, 퇴직금, 연차, 실업급여, 통상시급, 퇴사 타이밍이 한 화면에 나옵니다. 계산기마다 같은 값을 다시 입력할 필요가 없습니다.">
+<link rel="canonical" href="https://joeltool.com/my-pay/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="내 월급 한 장 — 한 번 입력하면 전부 나옵니다">
+<meta property="og:description" content="실수령액·4대보험·퇴직금·연차·실업급여·통상시급을 한 화면에서.">
+<meta property="og:url" content="https://joeltool.com/my-pay/">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%B5%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="../css/style.css?v=0.18">
+<link rel="stylesheet" href="../css/my-pay.css?v=0.01">
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<nav class="nav"><div class="in">
+  <a class="brand" href="../" title="각잡살림">
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
+    <span class="n">각잡살림</span>
+  </a>
+  <div class="links">
+    <a href="../my-pay/" class="on">월급</a>
+    <a href="../room-planner/">방 배치</a>
+    <a href="../fishing-tide/">물때</a>
+    <button class="theme-btn" id="theme-btn" type="button">◐</button>
+    <span class="ver-badge">v0.01</span>
+  </div>
+</div></nav>
+
+<main class="wrap page stack">
+
+  <header class="hero">
+    <h1>내 월급 한 장</h1>
+    <p class="lead">월 급여와 입사일만 넣으면 <b>실수령액·4대보험·퇴직금·연차·실업급여·통상시급·퇴사 타이밍</b>이 한꺼번에 나옵니다.
+      계산기를 옮겨다니며 같은 값을 다시 넣지 않아도 됩니다.</p>
+  </header>
+
+  <!-- ============ 입력 ============ -->
+  <section class="card mp-input">
+    <div class="grid2">
+      <label class="fld">
+        <span class="lb">월 급여 (세전)</span>
+        <span class="inp"><input id="mp-monthly" type="number" inputmode="numeric" min="0" step="1" placeholder="300"><i>만원</i></span>
+        <small>세금·보험을 떼기 전 금액입니다. 급여명세서의 「지급액 합계」입니다.</small>
+      </label>
+
+      <label class="fld">
+        <span class="lb">입사일</span>
+        <span class="inp"><input id="mp-hire" type="date"></span>
+        <small>퇴직금·연차·실업급여 일수를 정합니다.</small>
+      </label>
+
+      <label class="fld">
+        <span class="lb">주 소정근로시간</span>
+        <span class="inp"><input id="mp-weekly" type="number" inputmode="numeric" min="0" max="68" step="1" value="40"><i>시간</i></span>
+        <small>계약서에 적힌 시간입니다. 주 5일 8시간이면 40입니다.</small>
+      </label>
+
+      <label class="fld">
+        <span class="lb">비과세 (식대 등)</span>
+        <span class="inp"><input id="mp-taxfree" type="number" inputmode="numeric" min="0" step="1" value="20"><i>만원</i></span>
+        <small>식대는 월 20만 원까지 비과세입니다. 세금과 보험료 기준에서 함께 빠집니다.</small>
+      </label>
+    </div>
+
+    <label class="chk"><input id="mp-age50" type="checkbox"> 퇴사일 기준 <b>만 50세 이상</b> 또는 장애인 <small>(실업급여 지급일수가 늘어납니다)</small></label>
+  </section>
+
+  <p id="mp-empty" class="empty-note">월 급여를 넣으면 아래에 결과가 한꺼번에 나타납니다.</p>
+
+  <!-- ============ 결과 ============ -->
+  <div id="mp-results" hidden>
+
+    <section class="card hi">
+      <h2>실수령액</h2>
+      <p class="big" id="mp-net">—</p>
+      <p class="muted" id="mp-net-sub"></p>
+      <div class="kvlist" id="mp-deduct"></div>
+      <p class="muted" id="mp-net-note"></p>
+      <p class="fine">소득세는 국세청 근로소득 간이세액표를 <b>1인 가구 기준으로 근사</b>한 값입니다.
+        부양가족이 있으면 실제로는 더 적게 뗍니다. 확정 세액은 연말정산에서 정해집니다.</p>
+    </section>
+
+    <div class="cols">
+      <section class="card">
+        <h2>4대보험</h2>
+        <div class="kv big-kv"><span>내가 내는 돈</span><b id="mp-ins-me">—</b></div>
+        <div class="kv big-kv"><span>회사가 내는 돈</span><b id="mp-ins-company">—</b></div>
+        <p class="muted" id="mp-ins-note"></p>
+      </section>
+
+      <section class="card">
+        <h2>통상시급과 수당</h2>
+        <div id="mp-hr-body"></div>
+      </section>
+    </div>
+
+    <div class="cols">
+      <section class="card">
+        <h2>퇴직금</h2>
+        <div id="mp-sev-body"></div>
+      </section>
+
+      <section class="card">
+        <h2>연차</h2>
+        <div id="mp-al-body"></div>
+      </section>
+    </div>
+
+    <div class="cols">
+      <section class="card">
+        <h2>실업급여</h2>
+        <div id="mp-ub-body"></div>
+      </section>
+
+      <section class="card">
+        <h2>퇴사 타이밍</h2>
+        <div id="mp-tm-body"></div>
+      </section>
+    </div>
+
+  </div>
+
+  <!-- ============ 근거 ============ -->
+  <section class="card src">
+    <h2>계산 근거</h2>
+    <ul class="srclist">
+      <li><b>4대보험 요율(2026)</b> — 국민연금 4.75% · 건강보험 3.595% · 장기요양 건강보험료의 13.14% · 고용보험 0.9%.
+        국민연금은 기준소득월액 상한 637만 원까지만 부과됩니다.</li>
+      <li><b>퇴직금</b> — 근로자퇴직급여 보장법 제8조. 1일 평균임금 × 30일 × (재직일수 ÷ 365).
+        계속근로 1년 이상, 주 소정근로 15시간 이상이 조건입니다.</li>
+      <li><b>연차</b> — 근로기준법 제60조. 1년 미만은 1개월 개근당 1일(최대 11일), 1년 이상은 15일에서 2년마다 1일씩 가산(최대 25일).</li>
+      <li><b>실업급여</b> — 고용보험법. 평균임금의 60%, 2026년 1일 상한 68,100원 · 하한 66,048원.
+        소정급여일수는 고용보험 가입기간과 나이로 정해집니다.</li>
+      <li><b>가산수당</b> — 근로기준법 제56조. 연장·야간 각 50%, 휴일 8시간 이내 50% · 초과 100%.
+        <b>상시 5인 미만 사업장에는 적용되지 않습니다.</b></li>
+      <li><b>최저임금(2026)</b> — 시급 10,320원.</li>
+    </ul>
+    <p class="fine">이 도구는 참고용입니다. 실제 지급액은 회사 규정, 상여금·수당 구성, 부양가족 수, 사업장 규모에 따라 달라집니다.
+      다툼이 있으면 고용노동부 고객상담센터(<b>1350</b>)에 확인하세요.</p>
+  </section>
+
+</main>
+
+<footer class="footer"><div class="in">
+  <a href="../about.html">소개</a><span class="sep">·</span>
+  <a href="../privacy.html">개인정보처리방침</a><span class="sep">·</span>
+  <a href="../disclaimer.html">면책조항</a><span class="sep">·</span>
+  <a href="../contact.html">문의</a>
+  <div class="cp">© 각잡살림 · 참고용 도구이며 결과는 실제와 다를 수 있습니다.</div>
+</div></footer>
+
+<script src="../js/site.js?v=0.18"></script>
+<script src="../js/payTax.js?v=0.01"></script>
+<script src="../js/insurance.js?v=0.01"></script>
+<script src="../js/severance.js?v=0.01"></script>
+<script src="../js/annualleave.js?v=0.01"></script>
+<script src="../js/unemployment.js?v=0.01"></script>
+<script src="../js/wage.js?v=0.01"></script>
+<script src="../js/overtime.js?v=0.01"></script>
+<script src="../js/myPay.js?v=0.01"></script>
+</body>
+</html>

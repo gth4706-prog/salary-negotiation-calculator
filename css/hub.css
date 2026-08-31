@@ -1,171 +1,67 @@
-/* =========================================================
-   각잡살림 허브(index.html) 전용 스타일 — 공유 style.css 뒤에 로드
-   개별 도구 페이지는 건드리지 않음. 이 파일은 index.html에서만 로드됨.
-   방향: 애플 웹 표면에서 실측된 값(캔버스 #F5F5F7, 잉크 #1D1D1F,
-   액션 블루 #0071E3, 980px 필, 18px 카드 반경)을 참고 톤으로 사용.
-   SF Pro는 라이선스 폰트라 대신 Pretendard(이미 로드 중)로 절제된
-   위계를 낸다. 개별 도구 카드 색은 강요하지 않고 허브 톤으로 통일.
-   ========================================================= */
-:root{
-  --hub-canvas:#F5F5F7;
-  --hub-surface:#FFFFFF;
-  --hub-ink:#1D1D1F;
-  --hub-muted:#6E6E73;
-  --hub-accent:#0071E3;
-  --hub-accent-ink:#0058B0;
-  --hub-line:#D6D6DB;
+/* 허브 — 도구 셋 (2026-08-31 재구축)
+ *
+ * 예전 허브는 20개를 3열 그리드에 카드로 깔고 카테고리 칩으로 걸렀다.
+ * 셋뿐이면 고르는 화면이 필요 없다. **각 도구가 뭘 해주는지 한 번에 읽히는 것**이 전부다.
+ * 그래서 카드를 크게 눕히고 요약 한 문장 + 쓰는 상황 한 문장만 둔다.
+ */
+
+.hero { text-align: left; margin-bottom: 26px; }
+.hero h1 { font-size: clamp(27px, 6.4vw, 38px); line-height: 1.25; letter-spacing: -.02em; margin: 0 0 12px; word-break: keep-all; }
+.hero .lead { color: var(--muted); font-size: 16px; line-height: 1.75; margin: 0; word-break: keep-all; max-width: 34em; }
+
+.tools { display: grid; gap: 14px; margin-bottom: 26px; }
+
+.tool {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 18px;
+  padding: 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  color: inherit;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.tool:hover, .tool:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+  border-color: var(--tone, var(--accent));
+  outline: none;
 }
 
-body{background:var(--hub-canvas);color:var(--hub-ink)}
+/* 도구마다 자기 색 — 도구 페이지의 --accent 와 같은 값이어야 한다 */
+.t-pay  { --tone: #0E7C5A; }
+.t-room { --tone: #2E6F9E; }
+.t-tide { --tone: #FF4B3E; }
 
-.nav{background:rgba(245,245,247,.82);border-bottom:1px solid var(--hub-line);backdrop-filter:blur(20px)}
-.nav .brand{color:var(--hub-ink)}
-.nav .brand svg{color:var(--hub-accent)}
-.nav .links a{color:var(--hub-muted)}
-.nav .links a:hover{color:var(--hub-ink);background:#EBEBEE}
-.theme-btn{background:var(--hub-surface);border:1px solid var(--hub-line);color:var(--hub-muted)}
-.theme-btn:hover{border-color:var(--hub-accent);color:var(--hub-accent)}
+.tool .ico {
+  width: 54px; height: 54px; flex: none;
+  display: grid; place-items: center;
+  font-size: 27px; line-height: 1;
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--tone) 13%, transparent);
+}
+.tool .body { min-width: 0; }
+.tool h2 {
+  font-size: 19px; margin: 0 0 7px; letter-spacing: -.01em;
+  color: var(--tone);
+}
+.tool .sum { margin: 0; font-size: 14.5px; line-height: 1.72; color: var(--ink); word-break: keep-all; }
+.tool .why { margin: 7px 0 0; font-size: 13px; line-height: 1.6; color: var(--faint); word-break: keep-all; }
+.tool .go { flex: none; font-size: 13.5px; font-weight: 700; color: var(--tone); white-space: nowrap; }
 
-/* ---------- 히어로 ---------- */
-.hero h1{
-  font-size:clamp(30px,5.2vw,42px);
-  font-weight:700;
-  letter-spacing:-.02em;
-  color:var(--hub-ink);
-}
-.hero p{color:var(--hub-muted);font-size:16px;line-height:1.6}
-.brand-desc{
-  background:var(--hub-surface)!important;
-  border:1px solid var(--hub-line)!important;
-  color:var(--hub-muted)!important;
-  border-radius:980px;
-  padding:9px 20px;
-}
-.brand-desc b{color:var(--hub-ink)}
+.note h2 { font-size: 15px; color: var(--muted); margin: 0 0 12px; }
+.note p { font-size: 14.5px; line-height: 1.8; color: var(--muted); word-break: keep-all; margin: 0 0 10px; }
+.note p:last-child { margin-bottom: 0; }
+.note a { color: var(--accent-ink); }
 
-/* ---------- 고민별 필터 칩 ---------- */
-.cat-filter{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
-.cat-filter .chip{
-  font:inherit;font-size:13px;font-weight:600;
-  background:var(--hub-surface);
-  border:1px solid var(--hub-line);
-  color:var(--hub-muted);
-  border-radius:980px;
-  padding:8px 16px;
-  cursor:pointer;
-  transition:background .15s,color .15s,border-color .15s;
+@media (max-width: 560px) {
+  .tool { grid-template-columns: auto 1fr; padding: 18px; gap: 14px; }
+  .tool .ico { width: 44px; height: 44px; font-size: 22px; border-radius: 12px; }
+  /* 화살표는 카드 전체가 링크라 없어도 된다 — 좁은 화면에선 자리만 차지한다 */
+  .tool .go { display: none; }
+  .tool h2 { font-size: 17.5px; }
 }
-.cat-filter .chip:hover{border-color:var(--hub-accent);color:var(--hub-accent)}
-.cat-filter .chip.on{background:var(--hub-accent);border-color:var(--hub-accent);color:#fff}
-
-/* 카드 안 카테고리 태그 */
-.tool-cards .cat-tag{
-  display:inline-block;
-  font-size:11px;font-weight:700;
-  color:var(--hub-muted);
-  margin-bottom:4px;
-}
-
-.hub-grid{margin-top:16px}
-
-/* ---------- 도구 카드 ---------- */
-.tool-cards a{
-  background:var(--hub-surface);
-  border:1px solid var(--hub-line);
-  border-radius:18px;
-  box-shadow:0 1px 2px rgba(0,0,0,.04);
-  transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .18s,border-color .18s;
-}
-.tool-cards a:hover{
-  transform:translateY(-3px);
-  box-shadow:0 16px 32px rgba(0,0,0,.09);
-  border-color:#C7C7CC;
-  text-decoration:none;
-}
-.tool-cards .ico{
-  background:#EEF4FC;
-  color:var(--hub-ink);
-  border-radius:14px;
-}
-.tool-cards .tbody b{color:var(--hub-ink);font-weight:700;letter-spacing:-.01em}
-.tool-cards .tbody span{color:var(--hub-muted)}
-.tool-cards .go{
-  display:flex;
-  align-items:center;justify-content:center;
-  flex:none;
-  width:26px;height:26px;
-  border-radius:50%;
-  background:#EBEBEE;
-  color:var(--hub-muted);
-  font-size:13px;
-  transition:background .18s,color .18s,transform .18s;
-}
-.tool-cards a:hover .go{
-  background:var(--hub-accent);
-  color:#fff;
-  transform:translateX(2px);
-}
-
-
-/* ---------- 하단 CTA ---------- */
-.hub-cta{
-  background:var(--hub-surface);
-  border:1px solid var(--hub-line);
-  border-radius:18px;
-  box-shadow:none;
-}
-.hub-cta .desc{color:var(--hub-muted)}
-.hub-cta-btn{
-  display:inline-block;
-  margin-top:14px;
-  background:var(--hub-accent);
-  color:#fff;
-  font-weight:700;
-  font-size:15px;
-  padding:11px 26px;
-  border-radius:980px;
-  text-decoration:none;
-  transition:background .15s;
-}
-.hub-cta-btn:hover{background:var(--hub-accent-ink);text-decoration:none}
-.hub-cta-btn:focus-visible{outline:2px solid var(--hub-accent);outline-offset:3px}
-
-/* ---------- 푸터 ---------- */
-.footer{border-top:1px solid var(--hub-line)}
-.footer a{color:var(--hub-muted)}
-.footer a:hover{color:var(--hub-ink)}
-.footer .cp{color:#8E8E93}
-
-@media (prefers-reduced-motion:reduce){
-  .tool-cards a,.tool-cards .go{transition:none}
-}
-
-/* =========================================================
-   도구별 색 미리보기 (2026-08-04 추가)
-   각 도구가 자기 주제에 맞는 테마를 갖게 되면서, 허브 카드도 그 색을
-   미리 보여줘야 "들어가면 뭐가 나올지"가 카드 단계에서 전달된다.
-   아이콘 칩 배경 + 호버 테두리 + 화살표 원에 그 도구의 대표색을 쓴다.
-   ⚠️ 색은 각 도구 CSS 의 --accent 와 같은 값으로 맞춘다. 도구 테마를
-      바꾸면 여기도 같이 바꿀 것(두 곳에 나뉘어 있다).
-   ========================================================= */
-.tool-cards a[href^="salary-calculator"]   { --tc:#0E7C5A }  /* 명세서 에메랄드 */
-.tool-cards a[href^="resignation-timing"]  { --tc:#D23B30 }  /* 달력 빨강 */
-.tool-cards a[href^="room-planner"]        { --tc:#2E6F9E }  /* 청사진 코발트 */
-.tool-cards a[href^="couple-referee"]      { --tc:#7B2B33 }  /* 법복 버건디 */
-.tool-cards a[href^="keyword-checker"]     { --tc:#1F9E63 }  /* 콘솔 그린 */
-.tool-cards a[href^="minecraft-seeds"]     { --tc:#5FA441 }  /* 잔디 초록 */
-.tool-cards a[href^="fishing-tide"]        { --tc:#FF4B3E }  /* 입질 레드 */
-.tool-cards a[href^="map-archery"]         { --tc:#B23A2E }  /* 과녁 빨강 */
-.tool-cards a[href^="wiki-rabbithole"]     { --tc:#2F6F4E }  /* 굴 초록 */
-.tool-cards a[href^="anon-letter"]         { --tc:#C9A227 }  /* 등불 황금 */
-
-/* 위 목록에 없는 도구는 허브 기본 강조색을 쓴다 */
-.tool-cards a{ --tc:var(--hub-accent) }
-
-.tool-cards a .ico{
-  background:color-mix(in srgb,var(--tc) 13%,transparent);
-  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--tc) 22%,transparent);
-}
-.tool-cards a:hover{ border-color:color-mix(in srgb,var(--tc) 55%,transparent) }
-.tool-cards a:hover .go{ background:var(--tc) }
-.tool-cards a .cat-tag{ color:color-mix(in srgb,var(--tc) 78%,var(--hub-muted)) }

@@ -9,9 +9,6 @@
 <title>원룸 가구 배치 시뮬레이션 | 방 평면도로 가구 미리 놓아보기</title>
 <meta name="description" content="평수만 입력하면 내 방 모양에 맞춘 평면도가 만들어집니다. 싱크대·냉장고·세탁기부터 침대·책상까지 실제 규격으로 배치해보고 통로 폭, 앞 공간까지 실시간으로 진단해 드립니다.">
 <link rel="canonical" href="https://joeltool.com/room-planner/">
-<link rel="alternate" hreflang="ko" href="https://joeltool.com/room-planner/">
-<link rel="alternate" hreflang="en" href="https://joeltool.com/room-planner/en/">
-<link rel="alternate" hreflang="x-default" href="https://joeltool.com/room-planner/">
 <meta property="og:type" content="website">
 <meta property="og:title" content="방 가구 배치 시뮬레이터">
 <meta property="og:description" content="평수 입력 → 내 방 모양 만들기 → 가전·가구 배치 → 통로·앞공간까지 자동 진단.">
@@ -19,7 +16,7 @@
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%8B%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
-<link rel="stylesheet" href="../css/style.css?v=0.17">
+<link rel="stylesheet" href="../css/style.css?v=0.18">
 <link rel="stylesheet" href="../css/planner.css?v=0.16">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"방 가구 배치 시뮬레이터","applicationCategory":"DesignApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"평수 기반으로 내 방 모양을 만들고 가전·가구를 배치해 통로·앞공간을 진단하는 무료 도구."}
@@ -42,12 +39,7 @@
     <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
     <span class="n">각잡살림</span>
   </a>
-  <div class="links"><a href="../guides.html">가이드</a>
-    <a href="../about.html">소개</a>
-    <a class="lang-switch" href="en/" title="Switch to English" hreflang="en">🇺🇸 EN</a>
-    <button class="theme-btn" id="theme-btn" type="button">◐</button>
-    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.16</span>
-  </div>
+  <div class="links"><a href="../my-pay/">월급</a><a href="../room-planner/" class="on">방 배치</a><a href="../fishing-tide/">물때</a><button class="theme-btn" id="theme-btn" type="button">◐</button></div>
 </div></nav>
 
 <!-- 상단 고정 평면도: 방 생성 전엔 숨김 -->
@@ -191,66 +183,15 @@
   </section>
 
   <!-- FAQ (검색 유입용) -->
-  <section class="card">
-    <h2>자주 묻는 질문</h2>
-    <div class="faq">
-      <details>
-        <summary>가구 배치를 미리 확인하는 게 정말 필요한가요?</summary>
-        <p>이사 후 침대·소파를 들여놓고 나서야 <strong>통로가 너무 좁거나 문이 안 열리는 문제</strong>를 발견하는 경우가 많습니다. 평수·방 모양·가구 사이즈를 미리 넣어보면 실측 전에 겹침·통로 폭 문제를 걸러낼 수 있습니다.</p>
-      </details>
-      <details>
-        <summary>정확한 가구 사이즈를 모르면 어떻게 하나요?</summary>
-        <p>침대는 <strong>슈퍼싱글·퀸·킹 표준 규격</strong>을 프리셋으로 제공해 사이즈를 몰라도 바로 배치할 수 있습니다. 나머지 가구는 실측하거나 구매 페이지에 적힌 가로×세로 치수를 직접 입력하면 됩니다. 표준 침대 규격은 <a href="guide/bed-size-guide.html">침대 사이즈 총정리</a>에서 확인하세요.</p>
-      </details>
-      <details>
-        <summary>원룸에서 통로 폭은 최소 얼마나 확보해야 하나요?</summary>
-        <p>사람이 지나다니는 <strong>기본 통로는 최소 60cm</strong>가 권장 기준입니다. 이 시뮬레이터는 가구를 배치하는 동안 통로가 좁아지면 실시간으로 경고를 표시합니다. 자세한 기준은 <a href="guide/passage-width-guide.html">통로 폭 가이드</a>를 참고하세요.</p>
-      </details>
-      <details>
-        <summary>상품 링크를 붙여넣으면 사이즈를 자동으로 가져오나요?</summary>
-        <p>현재는 지원하지 않습니다. 오늘의집·쿠팡 등은 자동 수집을 막고 있어(robots.txt 차단), 대신 사이즈를 <strong>직접 입력</strong>하는 방식을 채택했습니다. cm·mm 단위를 토글로 바꿀 수 있어 어떤 단위로 적혀 있어도 그대로 넣으면 됩니다.</p>
-      </details>
-      <details>
-        <summary>배치한 결과를 저장하거나 공유할 수 있나요?</summary>
-        <p>네. "배치도 링크 복사" 버튼을 누르면 지금 배치가 URL 하나에 담겨, 그 링크를 열면 같은 배치가 그대로 재현됩니다. 가족이나 룸메이트와 배치안을 공유할 때 유용합니다.</p>
-      </details>
-    </div>
-  </section>
-
-  <!-- 가이드 -->
-  <section class="card">
-    <h2>가구 배치 가이드</h2>
-    <p class="desc">배치 전에 읽으면 좋은 글.</p>
-    <ul class="guides">
-      <li><a href="guide/bed-size-guide.html">침대 사이즈 총정리<span>슈퍼싱글·퀸·킹 표준 규격 한눈에</span></a></li>
-      <li><a href="guide/bed-placement-guide.html">원룸 침대 배치 — 5평·6평 방에 침대 놓는 자리<span>벽에 붙이는 기준, 문·창문과 겹치지 않게 두는 법</span></a></li>
-      <li><a href="guide/passage-width-guide.html">원룸 가구 배치, 통로 폭은 얼마나?<span>최소 확보 기준과 자주 하는 실수</span></a></li>
-      <li><a href="guide/pre-move-planning-guide.html">이사 전 가구 배치를 미리 확인해야 하는 이유<span>실측 전에 걸러지는 문제들</span></a></li>
-    </ul>
-  </section>
-
-  <!-- 연관 도구: 이유가 붙은 것만 -->
-  <section class="card">
-    <h2>가구 사기 전에 읽어보세요</h2>
-    <ul class="guides">
-      <li><a href="guide/pre-move-planning-guide.html">이사 전 미리 재둘 것<span>이사 당일에 가구가 안 들어가는 일이 없도록, 미리 재둘 치수를 정리했어요.</span></a></li>
-      <li><a href="guide/bed-size-guide.html">침대 사이즈 고르기<span>슈퍼싱글과 퀸의 실제 차이, 방 크기별로 뭐가 들어가는지.</span></a></li>
-      <li><a href="guide/passage-width-guide.html">통로는 몇 cm 필요할까<span>배치는 됐는데 지나다닐 수가 없는 방을 피하는 법.</span></a></li>
-    </ul>
-    <p class="more-tools"><a href="../">← 다른 도구도 보기</a></p>
-  </section>
 </main>
 
 <footer class="footer"><div class="in">
-  <a href="../about.html">소개</a><span class="sep">·</span>
-  <a href="../privacy.html">개인정보처리방침</a><span class="sep">·</span><a href="../disclaimer.html">면책조항</a><span class="sep">·</span><a href="../editorial-policy.html">편집 방침</a><span class="sep">·</span>
-  <a href="../contact.html">문의</a><span class="sep">·</span>
-  <a href="guide/pre-move-planning-guide.html">이사 전 체크</a>
+  <a href="../about.html">소개</a><span class="sep">·</span><a href="../privacy.html">개인정보처리방침</a><span class="sep">·</span><a href="../disclaimer.html">면책조항</a><span class="sep">·</span><a href="../contact.html">문의</a>
   <div class="cp">참고용 도구이며 실제 시공·구매 전 현장 실측을 권장합니다. © 각잡살림</div>
 </div></footer>
 
 <script src="../js/furniture-icons.js?v=0.16"></script>
-<script src="../js/site.js?v=0.11"></script>
+<script src="../js/site.js?v=0.18"></script>
 <script src="../js/planner.js?v=0.16"></script>
 <!-- Cloudflare Web Analytics — 쿠키를 쓰지 않고 개인을 식별하지 않는다.
      이 토큰은 공개 페이지에 심으라고 만들어진 클라이언트 식별자다(비밀값 아님).

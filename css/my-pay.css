@@ -1,0 +1,123 @@
+/* 내 월급 한 장 — 급여명세서/핀테크 톤 (2026-08-31)
+ *
+ * ⚠️ 클래스를 하나씩 덮어쓰지 말 것. 공유 style.css 를 구동하는 **토큰을 재정의**하면
+ *    버튼·카드·입력창까지 한 번에 같은 톤이 된다. 예전에 .faq/.opt-btn 을 하나씩 쫓다가
+ *    기본 테라코타가 계속 새어나왔다.
+ * ⚠️ 테마 토글이 양방향으로 동작하려면 세 벌(bare :root / prefers-color-scheme / [data-theme])을
+ *    모두 써야 한다.
+ */
+
+:root {
+  --accent: #0E7C5A; --accent-2: #3FA981; --accent-ink: #0A5C43;
+  --base: #0E7C5A; --bonus: #A9D9C6;
+  --soft: #E3F2EB; --warm: #EDF6F1; --warm-ink: #0A5C43;
+  --wrap: 760px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --accent: #4FC79A; --accent-2: #7BDCB8; --accent-ink: #9BE7CB;
+    --base: #4FC79A; --bonus: #2A5C4B;
+    --soft: #12362B; --warm: #12362B; --warm-ink: #9BE7CB;
+  }
+}
+:root[data-theme="light"] {
+  --accent: #0E7C5A; --accent-2: #3FA981; --accent-ink: #0A5C43;
+  --base: #0E7C5A; --bonus: #A9D9C6;
+  --soft: #E3F2EB; --warm: #EDF6F1; --warm-ink: #0A5C43;
+}
+:root[data-theme="dark"] {
+  --accent: #4FC79A; --accent-2: #7BDCB8; --accent-ink: #9BE7CB;
+  --base: #4FC79A; --bonus: #2A5C4B;
+  --soft: #12362B; --warm: #12362B; --warm-ink: #9BE7CB;
+}
+
+/* ---------- 입력 ---------- */
+.mp-input .grid2 {
+  display: grid; gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.fld { display: block; }
+.fld .lb { display: block; font-weight: 700; font-size: 14.5px; margin-bottom: 7px; }
+.fld .inp {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  background: var(--surface); padding: 0 13px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.fld .inp:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.fld .inp input {
+  flex: 1; min-width: 0; border: 0; background: none; color: var(--ink);
+  font: 600 17px var(--font); padding: 12px 0; outline: none;
+}
+.fld .inp i { font-style: normal; color: var(--faint); font-size: 14px; flex: none; }
+.fld small { display: block; color: var(--faint); font-size: 12.5px; line-height: 1.55; margin-top: 6px; word-break: keep-all; }
+
+.chk {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 14.5px; cursor: pointer;
+}
+.chk input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+.chk small { color: var(--faint); }
+
+.empty-note {
+  text-align: center; color: var(--faint); font-size: 14.5px;
+  padding: 30px 16px; border: 1px dashed var(--line-strong);
+  border-radius: var(--r); margin: 4px 0;
+}
+
+/* ---------- 결과 ---------- */
+.cols { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); margin-bottom: 16px; }
+#mp-results > .card { margin-bottom: 16px; }
+.cols > .card { margin-bottom: 0; }
+
+.card.hi { border-color: var(--accent); box-shadow: var(--shadow); }
+
+#mp-results h2 { font-size: 15px; letter-spacing: 0; color: var(--muted); margin: 0 0 12px; font-weight: 700; }
+
+.big {
+  font: 800 clamp(30px, 7vw, 40px)/1.15 var(--font);
+  color: var(--accent-ink); margin: 0 0 6px; word-break: keep-all;
+}
+.big .unit { font-size: .42em; font-weight: 700; color: var(--faint); margin-left: 3px; }
+.big.warn { color: var(--bad); }
+
+.kv {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14.5px;
+}
+.kv:last-child { border-bottom: 0; }
+.kv span { color: var(--muted); flex: none; }
+.kv b { text-align: right; font-weight: 700; word-break: keep-all; }
+.big-kv { font-size: 16px; padding: 12px 0; }
+.big-kv b { font-size: 21px; color: var(--accent-ink); }
+.kvlist { margin: 14px 0 10px; }
+
+.sub-h { font-weight: 700; font-size: 13.5px; color: var(--muted); margin: 16px 0 2px; }
+
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 700;
+  background: var(--soft); color: var(--accent-ink);
+  padding: 2px 7px; border-radius: 999px; vertical-align: middle;
+}
+.muted { color: var(--faint); font-size: 13.5px; line-height: 1.7; word-break: keep-all; margin: 8px 0 0; }
+.fine { color: var(--faint); font-size: 12.5px; line-height: 1.65; word-break: keep-all; margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.warn-box {
+  background: var(--bad-bg); color: var(--bad); border-radius: var(--r-sm);
+  padding: 10px 13px; font-size: 13.5px; font-weight: 600; margin: 12px 0 0; word-break: keep-all;
+}
+
+/* ---------- 근거 ---------- */
+.src .srclist { list-style: none; padding: 0; margin: 0; }
+.src .srclist li {
+  font-size: 14px; line-height: 1.75; color: var(--muted);
+  padding: 11px 0 11px 15px; border-bottom: 1px solid var(--line);
+  border-left: 3px solid var(--soft); padding-left: 13px; word-break: keep-all;
+}
+.src .srclist li:last-child { border-bottom: 0; }
+.src .srclist b { color: var(--ink); }
+
+@media (max-width: 520px) {
+  .cols { grid-template-columns: 1fr; }
+  .kv { font-size: 14px; }
+}

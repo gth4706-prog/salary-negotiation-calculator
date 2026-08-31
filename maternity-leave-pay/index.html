@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="googlebot" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="노무 실무용 출산전후휴가급여 계산기(비공개).">
+<title>출산전후휴가급여 계산기</title>
+<style>
+:root{
+  --ground:#F4F6F5; --surface:#FFFFFF; --raised:#EDF1F0; --line:#D6DEDB;
+  --ink:#161A19; --muted:#65726E; --accent:#14625C; --accent-soft:#DCEAE8;
+  --pay:#A4531B; --pay-soft:#F7E9DC; --warn:#B3261E; --warn-soft:#FBE9E7;
+  --sans:system-ui,-apple-system,"Segoe UI","Malgun Gothic",sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"D2Coding",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#101413; --surface:#171C1B; --raised:#1E2524; --line:#2C3634;
+    --ink:#E6ECEA; --muted:#93A19D; --accent:#5FBDB2; --accent-soft:#16302E;
+    --pay:#E0A268; --pay-soft:#33241A; --warn:#F2B8B5; --warn-soft:#3A1F1D;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#101413; --surface:#171C1B; --raised:#1E2524; --line:#2C3634;
+  --ink:#E6ECEA; --muted:#93A19D; --accent:#5FBDB2; --accent-soft:#16302E;
+  --pay:#E0A268; --pay-soft:#33241A; --warn:#F2B8B5; --warn-soft:#3A1F1D;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
+  line-height:1.6;padding:clamp(18px,4vw,40px) clamp(14px,3vw,24px) 64px}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header h1{font-size:clamp(20px,4vw,27px);margin:0 0 4px;font-weight:650;
+  letter-spacing:-.02em;text-wrap:balance}
+header .sub{color:var(--muted);font-size:13.5px;margin:0}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px}
+.panel h2{font-size:12px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 14px;font-weight:650;font-family:var(--mono)}
+.panel h2.mt{margin-top:20px}
+.grid{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;color:var(--muted);font-weight:600}
+.field input,.field select{padding:8px 10px;border:1px solid var(--line);
+  border-radius:7px;font-size:14.5px;background:var(--surface);color:var(--ink);
+  font-family:var(--sans)}
+.field input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.field .hint{font-size:11.5px;color:var(--muted)}
+.field input:focus-visible,.field select:focus-visible,button:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px}
+button{padding:9px 16px;border:1px solid var(--line);background:var(--surface);
+  color:var(--ink);border-radius:7px;cursor:pointer;font-size:13.5px;font-family:var(--sans)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+details.settings summary{cursor:pointer;font-size:12.5px;color:var(--muted);font-family:var(--mono)}
+details.settings[open] summary{margin-bottom:13px}
+
+.summary{display:grid;gap:11px;grid-template-columns:repeat(auto-fit,minmax(148px,1fr))}
+.stat{background:var(--raised);border-radius:8px;padding:11px 13px}
+.stat .k{font-size:11px;color:var(--muted);letter-spacing:.06em;font-weight:600}
+.stat .v{font-size:17px;font-weight:650;font-family:var(--mono);
+  font-variant-numeric:tabular-nums;margin-top:2px}
+.stat.pay{background:var(--pay-soft)} .stat.pay .v{color:var(--pay)}
+
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:9px 11px;text-align:left}
+th{font-size:11.5px;letter-spacing:.06em;color:var(--muted);font-weight:650;
+  background:var(--raised);white-space:nowrap}
+td.num,th.num{text-align:right;font-family:var(--mono);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+td.pay{color:var(--pay);font-weight:650;background:var(--pay-soft)}
+tr.total td{border-top:2px solid var(--line);border-bottom:none;font-weight:700;background:var(--raised)}
+tr.total td.pay{background:var(--pay-soft)}
+
+.notice{background:var(--accent-soft);border-left:3px solid var(--accent);
+  border-radius:0 8px 8px 0;padding:12px 15px;font-size:13px}
+.notice b{font-weight:650}
+.alert{background:var(--warn-soft);border-left:3px solid var(--warn);
+  border-radius:0 8px 8px 0;padding:11px 15px;font-size:13px;color:var(--warn);margin-bottom:10px}
+.muted{color:var(--muted);font-size:12.5px}
+.basis{font-size:12.5px;color:var(--muted);line-height:1.85;margin:13px 0 0}
+.basis b{color:var(--ink)}
+.testout{font-family:var(--mono);font-size:12.5px;white-space:pre-wrap;
+  margin-top:12px;padding:12px;background:var(--raised);border-radius:7px;
+  max-height:340px;overflow:auto}
+.ok{color:var(--accent);font-weight:650} .bad{color:var(--warn);font-weight:650}
+
+@media print{
+  body{background:#fff;padding:0}
+  .no-print{display:none !important}
+  .panel{border:none;padding:0}
+  .stat,td.pay,tr.total td,th{background:#f1f1f1 !important;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  @page{margin:14mm}
+}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <h1>출산전후휴가급여 계산기</h1>
+    <p class="sub">휴가 시작일·소정근로시간·통상임금을 넣으면 달력 월별로 회사 지급액과 고용보험 지원액을 산출합니다. 2026년 기준.</p>
+  </header>
+
+  <div class="panel no-print">
+    <h2>휴가 정보</h2>
+    <div class="grid">
+      <div class="field">
+        <label for="startDate">휴가 시작일</label>
+        <input type="date" id="startDate">
+      </div>
+      <div class="field">
+        <label for="birthType">출산 유형</label>
+        <select id="birthType">
+          <option value="normal">일반 (90일)</option>
+          <option value="preterm">미숙아 (100일)</option>
+          <option value="twins">다태아·쌍둥이 (120일)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="companyType">기업 구분</label>
+        <select id="companyType">
+          <option value="small">우선지원대상기업 (중소)</option>
+          <option value="large">대규모기업 (대기업)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="birthDate">출산(예정)일 — 선택</label>
+        <input type="date" id="birthDate">
+        <span class="hint">산후 확보일수를 검증합니다</span>
+      </div>
+    </div>
+
+    <h2 class="mt">소정근로시간</h2>
+    <div class="grid">
+      <div class="field">
+        <label for="hoursPerDay">1일 소정근로시간</label>
+        <input type="number" id="hoursPerDay" value="8" min="1" max="12" step="0.5">
+      </div>
+      <div class="field">
+        <label for="daysPerWeek">1주 소정근로일</label>
+        <input type="number" id="daysPerWeek" value="5" min="1" max="7" step="1">
+      </div>
+      <div class="field">
+        <label>월 소정근로시간</label>
+        <input type="text" id="monthlyHours" readonly tabindex="-1">
+        <span class="hint">(주소정 + 주휴) × 4.345, 반올림</span>
+      </div>
+    </div>
+
+    <h2 class="mt">통상임금</h2>
+    <div class="grid">
+      <div class="field">
+        <label for="basePay">기본급 (월)</label>
+        <input type="number" id="basePay" step="1000" value="3000000">
+      </div>
+      <div class="field">
+        <label for="allowance">통상수당 (월)</label>
+        <input type="number" id="allowance" step="1000" value="0">
+        <span class="hint">고정·일률·정기 지급 수당</span>
+      </div>
+      <div class="field">
+        <label for="bonus">연간 상여금</label>
+        <input type="number" id="bonus" step="1000" value="0">
+        <span class="hint">÷12로 월액 환산</span>
+      </div>
+    </div>
+
+    <h2 class="mt">비과세 수당 — 급여대장 연결용</h2>
+    <div class="grid">
+      <div class="field">
+        <label for="meal">식대 (월)</label>
+        <input type="number" id="meal" step="1000" value="0">
+      </div>
+      <div class="field">
+        <label for="carFee">차량유지비 (월)</label>
+        <input type="number" id="carFee" step="1000" value="0">
+      </div>
+      <div class="field">
+        <label for="nontaxMode">휴가 기간 중 처리</label>
+        <select id="nontaxMode">
+          <option value="none">미지급 (근로일만 일할)</option>
+          <option value="full">전액 지급</option>
+        </select>
+        <span class="hint">고객사 규정에 따라 선택</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="btnCalc">계산</button>
+      <button id="btnPrint">인쇄</button>
+      <button id="btnTest">계산 검증</button>
+    </div>
+
+    <details class="settings" style="margin-top:16px">
+      <summary>법령 수치 설정 (2026년 기준 · 매년 변경됨)</summary>
+      <div class="grid">
+        <div class="field">
+          <label for="capMonthly">급여 상한액 (30일)</label>
+          <input type="number" id="capMonthly" step="10000" value="2200000">
+        </div>
+        <div class="field">
+          <label for="minHourly">최저임금 시급</label>
+          <input type="number" id="minHourly" step="10" value="10320">
+        </div>
+      </div>
+      <p class="muted" style="margin:11px 0 0">상한·하한은 <b>고용보험 지원액</b>에만 적용됩니다.
+        사업주의 통상임금 지급 의무에는 상한이 없습니다.</p>
+    </details>
+    <div id="testout"></div>
+  </div>
+
+  <div id="result"></div>
+
+  <div class="notice">
+    <b>고용보험 급여는 실제로 30일 단위로 신청·지급됩니다.</b>
+    이 표의 월별 배분은 <b>회사가 매달 얼마를 지급해야 하는가</b>를 보기 위한 실무용 계산이며,
+    고용보험 실제 입금 시점과는 다릅니다. 휴가를 분할 사용한 경우에는 별도 검토가 필요합니다.
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ===================================================================
+   계산 코어
+   계산 방식은 노동OK 출산휴가급여 계산기의 산출 결과를 여러 조건으로
+   역검증하여 일치시킨 것이다. 검증 케이스는 하단 runTests() 참조.
+   =================================================================== */
+const PayCalc = (function(){
+
+  const TYPE = {
+    normal:  {total:90,  empDays:60, afterBirth:45, label:"일반"},
+    preterm: {total:100, empDays:60, afterBirth:45, label:"미숙아"},
+    twins:   {total:120, empDays:75, afterBirth:60, label:"다태아"}
+  };
+
+  const parseDate = s => { const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); };
+  const addDays = (d,n) => { const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()); x.setDate(x.getDate()+n); return x; };
+  const pad = n => String(n).padStart(2,"0");
+  const fmtDate = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+  const daysInMonth = (y,m) => new Date(y, m+1, 0).getDate();
+  const diffDays = (a,b) => Math.round((b-a)/86400000);
+
+  /** 월 소정근로시간 = (주소정근로시간 + 주휴시간) × 365/7/12, 반올림 */
+  function monthlyHours(hoursPerDay, daysPerWeek){
+    const weekly = hoursPerDay * daysPerWeek;
+    const holiday = weekly >= 15 ? hoursPerDay : 0;   // 주 15시간 미만은 주휴 없음
+    return Math.round((weekly + holiday) * 365 / 7 / 12);
+  }
+
+  /**
+   * input: {startDate, type, large, basePay, allowance, bonus,
+   *         hoursPerDay, daysPerWeek, capMonthly, minHourly, birthDate?}
+   */
+  function calc(input){
+    const T = TYPE[input.type] || TYPE.normal;
+    const start = parseDate(input.startDate);
+    const end   = addDays(start, T.total - 1);
+
+    // --- 통상임금 ---
+    const monthlyWage = (input.basePay||0) + (input.allowance||0) + (input.bonus||0)/12;
+    const hours  = monthlyHours(input.hoursPerDay, input.daysPerWeek);
+    const hourly = Math.floor(monthlyWage / hours);            // 시간급 통상임금
+    const dailyByHours = Math.floor(hourly * input.hoursPerDay); // 1일 통상임금
+    const dailyByMonth = monthlyWage / 30;                      // 월통상임금의 1일분
+
+    // --- 고용보험 급여 기준액(1일) ---
+    const capDaily = Math.floor(input.capMonthly / 30);
+    const minMonthly = input.minHourly * hours;                 // 최저임금 월환산
+    const floorDaily = Math.floor(minMonthly / 30);             // 하한 일액
+    let baseDaily, basisNote;
+    if(hourly < input.minHourly){
+      // 시간급 통상임금이 최저임금 미만 → 최저임금 기준으로 상향(하한 적용)
+      baseDaily = floorDaily;
+      basisNote = "하한";
+    } else {
+      baseDaily = Math.floor(Math.min(dailyByMonth, dailyByHours));
+      basisNote = "통상임금";
+    }
+    const insDaily = Math.min(baseDaily, capDaily);
+    if(insDaily === capDaily && basisNote === "통상임금") basisNote = "상한";
+
+    // --- 달력 월별 집계 ---
+    const months = new Map();
+    for(let i=0;i<T.total;i++){
+      const d = addDays(start, i);
+      const key = d.getFullYear()+"-"+pad(d.getMonth()+1);
+      if(!months.has(key)) months.set(key,{key, y:d.getFullYear(), m:d.getMonth(), a:0, b:0});
+      if(i < T.empDays) months.get(key).a++; else months.get(key).b++;
+    }
+
+    const nontaxMonthly = (input.meal||0) + (input.carFee||0);
+
+    const rows=[]; let tIns=0, tEmp=0, tGross=0, tDays=0, tNontax=0, tWork=0;
+    for(const mo of months.values()){
+      const dim = daysInMonth(mo.y, mo.m);
+      // 사업주 구간: 월 통상임금을 그 달의 역일수로 일할계산
+      //   (한 달 전체가 구간에 들면 월액 그대로 → 31일 달도 월액을 넘지 않는다)
+      const segAPay = Math.floor(monthlyWage * mo.a / dim);
+      const segBPay = insDaily * mo.b;
+      const gross = segAPay + segBPay;
+      // 고용보험: 대규모기업은 사업주 구간(A)에 지원이 없다
+      const ins = input.large ? insDaily * mo.b : insDaily * (mo.a + mo.b);
+      const emp = Math.max(0, gross - ins);
+
+      // --- 급여대장 연결용 ---
+      const leaveDays = mo.a + mo.b;
+      const workDays = dim - leaveDays;          // 그 달에 실제 근로한 날
+      const nontax = input.nontaxFull
+        ? nontaxMonthly                           // 휴가 중에도 전액 지급
+        : Math.floor(nontaxMonthly * workDays / dim);  // 근로일만 일할
+      // 근로분 통상임금(참고값) — 실제 금액은 연장근로 등에 따라 대장에서 확정
+      const workPay = Math.floor(monthlyWage * workDays / dim);
+
+      rows.push({month:mo.key, days:leaveDays, segA:mo.a, segB:mo.b,
+                 gross, ins, emp, dim, workDays, workPay, nontax,
+                 companyTotal: emp + nontax});
+      tIns+=ins; tEmp+=emp; tGross+=gross; tDays+=leaveDays;
+      tNontax+=nontax; tWork+=workDays;
+    }
+
+    const result = {
+      typeLabel:T.label, totalDays:T.total, segADays:T.empDays,
+      segBDays:T.total - T.empDays, afterBirth:T.afterBirth,
+      start:fmtDate(start), end:fmtDate(end),
+      monthlyWage, hours, hourly, dailyByHours, dailyByMonth,
+      capDaily, floorDaily, insDaily, basisNote,
+      rows, nontaxMonthly,
+      totals:{days:tDays, gross:tGross, ins:tIns, emp:tEmp,
+              nontax:tNontax, workDays:tWork, companyTotal:tEmp+tNontax},
+      warnings:[]
+    };
+
+    if(input.birthDate){
+      const b = parseDate(input.birthDate);
+      if(b < start)      result.warnings.push("출산일이 휴가 시작일보다 빠릅니다. 날짜를 확인하세요.");
+      else if(b > end)   result.warnings.push("출산일이 휴가 종료일보다 늦습니다. 날짜를 확인하세요.");
+      else {
+        const after = diffDays(b, end) + 1;   // 출산일 포함
+        if(after < T.afterBirth)
+          result.warnings.push("산후 기간이 "+after+"일뿐입니다. 법정 최소 "+T.afterBirth+
+            "일 이상 확보되어야 하므로 휴가 시작일을 조정해야 합니다.");
+      }
+    }
+    if(!(monthlyWage>0)) result.warnings.push("기본급을 입력하세요.");
+    return result;
+  }
+
+  return { calc, monthlyHours, TYPE };
+})();
+
+/* ===== 화면 ===== */
+const won = n => Math.round(n).toLocaleString("ko-KR")+"원";
+const $ = id => document.getElementById(id);
+
+function readInput(){
+  return {
+    startDate: $("startDate").value,
+    type: $("birthType").value,
+    large: $("companyType").value==="large",
+    basePay: Number($("basePay").value)||0,
+    allowance: Number($("allowance").value)||0,
+    bonus: Number($("bonus").value)||0,
+    hoursPerDay: Number($("hoursPerDay").value)||8,
+    daysPerWeek: Number($("daysPerWeek").value)||5,
+    meal: Number($("meal").value)||0,
+    carFee: Number($("carFee").value)||0,
+    nontaxFull: $("nontaxMode").value==="full",
+    capMonthly: Number($("capMonthly").value)||0,
+    minHourly: Number($("minHourly").value)||0,
+    birthDate: $("birthDate").value||null
+  };
+}
+
+function render(){
+  const inp = readInput();
+  $("monthlyHours").value = PayCalc.monthlyHours(inp.hoursPerDay, inp.daysPerWeek)+"시간";
+  if(!inp.startDate){
+    $("result").innerHTML='<div class="panel"><p class="muted">휴가 시작일을 입력하고 [계산]을 누르세요.</p></div>';
+    return;
+  }
+  const r = PayCalc.calc(inp);
+  const warn = r.warnings.map(w=>'<div class="alert">⚠ '+w+'</div>').join("");
+
+  const body = r.rows.map(x=>`<tr>
+      <td>${x.month}</td>
+      <td class="num">${x.days}일</td>
+      <td class="num">${x.segA}/${x.segB}</td>
+      <td class="num">${won(x.gross)}</td>
+      <td class="num">${won(x.ins)}</td>
+      <td class="num pay">${won(x.emp)}</td>
+    </tr>`).join("");
+
+  const ledgerBody = r.rows.map(x=>`<tr>
+      <td>${x.month}</td>
+      <td class="num">${x.dim}일</td>
+      <td class="num">${x.workDays}일</td>
+      <td class="num">${x.days}일</td>
+      <td class="num">${x.workDays? won(x.workPay) : "—"}</td>
+      <td class="num pay">${won(x.emp)}</td>
+      <td class="num">${won(x.nontax)}</td>
+      <td class="num pay">${won(x.companyTotal)}</td>
+    </tr>`).join("");
+
+  const basisText = r.basisNote==="하한"
+    ? `시간급 통상임금 ${won(r.hourly)}이 최저임금 ${won(Number($("minHourly").value))} 미만이므로 <b>하한액</b>을 적용합니다.`
+    : (r.basisNote==="상한"
+        ? `급여 기준액이 1일 <b>상한액 ${won(r.capDaily)}</b>을 초과하여 상한액을 적용합니다.`
+        : `1일 통상임금(${won(r.dailyByHours)})과 월 통상임금의 1일분(${won(r.dailyByMonth)}) 중 <b>적은 금액</b>을 기준으로 합니다.`);
+
+  $("result").innerHTML = warn + `
+    <div class="panel">
+      <h2>요약</h2>
+      <div class="summary">
+        <div class="stat"><div class="k">휴가 기간 (${r.typeLabel})</div>
+          <div class="v" style="font-size:13px">${r.start} ~ ${r.end}</div></div>
+        <div class="stat"><div class="k">총 일수</div><div class="v">${r.totalDays}일</div></div>
+        <div class="stat"><div class="k">사업주 구간 / 고용보험 단독</div>
+          <div class="v">${r.segADays}일 / ${r.segBDays}일</div></div>
+        <div class="stat"><div class="k">고용보험 지원 합계</div><div class="v">${won(r.totals.ins)}</div></div>
+        <div class="stat pay"><div class="k">회사 지급 합계</div><div class="v">${won(r.totals.emp)}</div></div>
+      </div>
+      <p class="basis">
+        <b>통상임금</b> 월 ${won(r.monthlyWage)} · 월 소정근로시간 ${r.hours}시간<br>
+        <b>시간급 통상임금</b> ${won(r.hourly)} · <b>1일 통상임금</b> ${won(r.dailyByHours)}
+        (${won(r.hourly)} × ${$("hoursPerDay").value}시간)<br>
+        <b>고용보험 급여 기준액</b> 1일 ${won(r.insDaily)} — ${basisText}<br>
+        ${r.large? "" : ""}
+      </p>
+    </div>
+
+    <div class="panel" style="margin-top:20px">
+      <h2>월별 지급액</h2>
+      <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th>월</th><th class="num">휴가일수</th><th class="num">구간 A/B</th>
+          <th class="num">급여총액</th><th class="num">고용보험 지원</th>
+          <th class="num">회사 지급액</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+        <tfoot><tr class="total">
+          <td>합계</td><td class="num">${r.totals.days}일</td>
+          <td class="num">${r.segADays}/${r.segBDays}</td>
+          <td class="num">${won(r.totals.gross)}</td>
+          <td class="num">${won(r.totals.ins)}</td>
+          <td class="num pay">${won(r.totals.emp)}</td>
+        </tr></tfoot>
+      </table>
+      </div>
+      <p class="muted" style="margin:12px 0 0">
+        구간 A = 사업주 유급 의무기간(최초 ${r.segADays}일) · 구간 B = 고용보험 단독 구간(${r.segBDays}일)<br>
+        구간 A의 급여총액은 <b>월 통상임금을 그 달의 역일수로 일할계산</b>합니다(한 달 전체가 포함되면 월액 그대로).
+      </p>
+    </div>
+
+    <div class="panel" style="margin-top:20px">
+      <h2>급여대장 연결</h2>
+      <p class="muted" style="margin:-6px 0 14px">
+        매달 급여대장에 넣을 값입니다. <b>출산휴가급여(사업주)</b>가 회사가 지급할 금액이고,
+        고용보험 지원액은 근로자가 고용센터에서 받으므로 대장에 넣지 않습니다.
+      </p>
+      <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th>월</th><th class="num">역일수</th><th class="num">근로일</th><th class="num">휴가일</th>
+          <th class="num">근로분 (참고)</th><th class="num">출산휴가급여<br>(사업주)</th>
+          <th class="num">비과세</th><th class="num">회사 지급 계</th>
+        </tr></thead>
+        <tbody>${ledgerBody}</tbody>
+        <tfoot><tr class="total">
+          <td>합계</td><td class="num">—</td><td class="num">${r.totals.workDays}일</td>
+          <td class="num">${r.totals.days}일</td><td class="num">—</td>
+          <td class="num pay">${won(r.totals.emp)}</td>
+          <td class="num">${won(r.totals.nontax)}</td>
+          <td class="num pay">${won(r.totals.companyTotal)}</td>
+        </tr></tfoot>
+      </table>
+      </div>
+
+      <div class="actions no-print">
+        <button id="btnCopy">엑셀로 복사</button>
+        <button id="btnShowTsv">붙여넣을 값 보기</button>
+      </div>
+      <div id="tsvbox"></div>
+
+      <p class="basis">
+        <b>대장 작성 시 주의</b><br>
+        · 휴가 중인 달은 <b>소정근로시간·기본급·연장/야간/휴일수당이 모두 0</b>입니다.
+          통상시급을 <i>총급여 ÷ 총근로시간</i>으로 역산하는 대장이라면 그 달은 <b>0으로 나누게 되므로</b>,
+          휴가 전 통상시급(${won(r.hourly)})을 <b>고정값으로 입력</b>하세요.<br>
+        · 출산휴가급여는 기본급 칸이 아니라 <b>별도 항목</b>으로 넣으세요. 기본급에 넣으면 통상시급 역산이 오염됩니다.<br>
+        · <b>근로분(참고)</b>은 월 통상임금을 역일수로 나눈 값일 뿐입니다.
+          실제 근로분은 연장·야간·휴일근로에 따라 달라지므로 <b>대장의 기존 로직으로 확정</b>하세요.<br>
+        · <b>과세 구분에 주의하세요.</b> 고용보험이 지급하는 출산전후휴가급여는 비과세지만,
+          <b>사업주가 지급하는 차액분은 과세 대상 근로소득</b>입니다. 이 표의 「출산휴가급여(사업주)」는
+          <b>과세</b> 항목으로 대장에 넣으세요.<br>
+        · 4대보험 공제는 고객사 상황(납부예외·경감 신청 여부)에 따라 달라지므로
+          대장의 기존 로직과 공단 처리 결과를 따르세요. 이 계산기는 공제 전 지급액만 산출합니다.
+      </p>
+    </div>`;
+
+  const tsv = buildTsv(r);
+  $("btnCopy").onclick = async ()=>{
+    try{ await navigator.clipboard.writeText(tsv); $("btnCopy").textContent="복사됨 ✓"; }
+    catch(e){ showTsv(tsv); $("btnCopy").textContent="아래에서 복사하세요"; }
+  };
+  $("btnShowTsv").onclick = ()=>showTsv(tsv);
+}
+
+/** 엑셀에 그대로 붙여넣을 수 있는 탭 구분 텍스트 */
+function buildTsv(r){
+  const head=["월","역일수","근로일","휴가일","구간A","구간B","근로분(참고)",
+              "출산휴가급여(사업주)","비과세","회사지급계","고용보험(근로자수령)"];
+  const lines=[head.join("\t")];
+  r.rows.forEach(x=>lines.push([x.month,x.dim,x.workDays,x.days,x.segA,x.segB,
+    x.workPay,x.emp,x.nontax,x.companyTotal,x.ins].join("\t")));
+  lines.push(["합계","","","","","","",r.totals.emp,r.totals.nontax,
+    r.totals.companyTotal,r.totals.ins].join("\t"));
+  return lines.join("\n");
+}
+
+function showTsv(tsv){
+  $("tsvbox").innerHTML='<textarea id="tsvta" style="width:100%;min-height:150px;'+
+    'font-family:var(--mono);font-size:12.5px;padding:10px;border:1px solid var(--line);'+
+    'border-radius:7px;background:var(--surface);color:var(--ink)"></textarea>'+
+    '<p class="muted">전체 선택(Ctrl+A) 후 복사(Ctrl+C)해서 엑셀에 붙여넣으세요.</p>';
+  const ta=$("tsvta"); ta.value=tsv; ta.focus(); ta.select();
+}
+
+/* ===== 자체 검증 =====
+   기대값은 노동OK 계산기에서 동일 조건으로 실행해 얻은 실제 산출값이다. */
+function runTests(){
+  const out=[]; let pass=0, fail=0;
+  const CAP=2200000, MINH=10320;
+  const base={capMonthly:CAP, minHourly:MINH, hoursPerDay:8, daysPerWeek:5,
+              allowance:0, bonus:0, type:"normal", large:false};
+
+  function chk(name, actual, expected){
+    const ok = actual === expected;
+    ok?pass++:fail++;
+    out.push((ok?"  PASS  ":"  FAIL  ")+name+
+      (ok?"":"\n           결과 "+Math.round(actual).toLocaleString()+
+            " / 기대 "+expected.toLocaleString()));
+  }
+  function months(r){ const o={}; r.rows.forEach(x=>o[x.month]={ins:x.ins,emp:x.emp}); return o; }
+
+  // ── 1. 일반 · 우선지원 · 300만 · 2026-03-01
+  let r=PayCalc.calc({...base, startDate:"2026-03-01", basePay:3000000});
+  let m=months(r);
+  chk("① 일반/중소/300만 — 고용보험 합계", r.totals.ins, 6599970);
+  chk("① 일반/중소/300만 — 회사 합계",   r.totals.emp, 1500020);
+  chk("① 2026-03 고용보험", m["2026-03"].ins, 2273323);
+  chk("① 2026-03 회사",     m["2026-03"].emp,  726677);
+  chk("① 2026-04 회사",     m["2026-04"].emp,  773343);
+  chk("① 2026-05 회사",     m["2026-05"].emp,       0);
+
+  // ── 2. 하한 적용 (시간급 통상임금 < 최저임금)
+  r=PayCalc.calc({...base, startDate:"2026-03-01", basePay:1800000});
+  m=months(r);
+  chk("② 하한적용/180만 — 고용보험 합계", r.totals.ins, 6470640);
+  chk("② 하한적용/180만 — 회사 합계",   r.totals.emp, 0);
+  chk("② 2026-03 고용보험", m["2026-03"].ins, 2228776);
+
+  // ── 3. 2월(28일)이 사업주 구간에 완전히 포함되는 경우
+  r=PayCalc.calc({...base, startDate:"2026-01-15", basePay:3000000});
+  m=months(r);
+  // 노동OK 합계란은 1,696,794원으로 표시되나, 그쪽 월별 행을 더하면 1,696,793원이다
+  // (합계를 행 합이 아니라 '총급여총액 − 총고용보험'으로 따로 계산해 생긴 1원 반올림 차이).
+  // 이 계산기는 고객사 제출을 전제로 하므로 세로 합이 맞는 쪽(행 합)을 채택한다.
+  chk("③ 1/15 시작 — 회사 합계(행 합 기준)", r.totals.emp, 1696793);
+  chk("③ 2026-01 회사", m["2026-01"].emp, 398500);
+  chk("③ 2026-02 회사", m["2026-02"].emp, 946676);
+  chk("③ 2026-03 회사", m["2026-03"].emp, 351617);
+  chk("③ 2026-04 회사", m["2026-04"].emp,      0);
+
+  // ── 4. 시간제 (1일 4시간 · 주5일)
+  r=PayCalc.calc({...base, startDate:"2026-03-01", basePay:1200000, hoursPerDay:4});
+  m=months(r);
+  chk("④ 시간제 4h/120만 — 고용보험 합계", r.totals.ins, 3600000);
+  chk("④ 시간제 4h/120만 — 회사 합계",   r.totals.emp, 0);
+  chk("④ 2026-03 고용보험", m["2026-03"].ins, 1240000);
+  chk("④ 월 소정근로시간 104시간", PayCalc.monthlyHours(4,5), 104);
+
+  // ── 5. 대규모기업
+  r=PayCalc.calc({...base, startDate:"2026-03-01", basePay:3000000, large:true});
+  m=months(r);
+  chk("⑤ 대기업/300만 — 고용보험 합계", r.totals.ins, 2199990);
+  chk("⑤ 대기업/300만 — 회사 합계",   r.totals.emp, 5900000);
+  chk("⑤ 2026-03 회사", m["2026-03"].emp, 3000000);
+  chk("⑤ 2026-04 회사", m["2026-04"].emp, 2900000);
+
+  // ── 6. 미숙아 (100일)
+  r=PayCalc.calc({...base, startDate:"2026-03-01", basePay:3000000, type:"preterm"});
+  m=months(r);
+  chk("⑥ 미숙아 총 일수 100일", r.totalDays, 100);
+  chk("⑥ 미숙아 — 고용보험 합계", r.totals.ins, 7333300);
+  chk("⑥ 미숙아 — 회사 합계",   r.totals.emp, 1500020);
+  chk("⑥ 2026-06 고용보험", m["2026-06"].ins, 586664);
+
+  // ── 7. 다태아 구간 구성
+  r=PayCalc.calc({...base, startDate:"2026-03-01", basePay:3000000, type:"twins"});
+  chk("⑦ 다태아 총 일수 120일", r.totalDays, 120);
+  chk("⑦ 다태아 사업주 구간 75일", r.segADays, 75);
+  chk("⑦ 다태아 고용보험 단독 45일", r.segBDays, 45);
+
+  // ── 8. 월 소정근로시간 / 정합성
+  chk("⑧ 월 소정근로시간 209시간(8h·주5일)", PayCalc.monthlyHours(8,5), 209);
+  r=PayCalc.calc({...base, startDate:"2026-03-01", basePay:3000000});
+  chk("⑧ 월별 일수 합 = 총 일수", r.rows.reduce((a,x)=>a+x.days,0), 90);
+  chk("⑧ 월별 고용보험 합 = 전체", r.rows.reduce((a,x)=>a+x.ins,0), r.totals.ins);
+  chk("⑧ 월별 회사지급 합 = 전체", r.rows.reduce((a,x)=>a+x.emp,0), r.totals.emp);
+
+  // ── 9. 급여대장 연결값 (근로일·비과세 일할)
+  //    3/10 시작 → 3월은 근로 9일 + 휴가 22일
+  r=PayCalc.calc({...base, startDate:"2026-03-10", basePay:3000000,
+                  meal:200000, carFee:0, nontaxFull:false});
+  let mar=r.rows.find(x=>x.month==="2026-03");
+  chk("⑨ 3/10 시작 — 3월 근로일 9일", mar.workDays, 9);
+  chk("⑨ 3월 휴가일 22일", mar.days, 22);
+  chk("⑨ 3월 비과세 일할 (20만×9/31)", mar.nontax, Math.floor(200000*9/31));
+  let apr=r.rows.find(x=>x.month==="2026-04");
+  chk("⑨ 4월 근로일 0일(전월 휴가)", apr.workDays, 0);
+  chk("⑨ 4월 비과세 0원", apr.nontax, 0);
+
+  // ── 10. 비과세 전액 지급 옵션
+  r=PayCalc.calc({...base, startDate:"2026-03-10", basePay:3000000,
+                  meal:200000, carFee:0, nontaxFull:true});
+  apr=r.rows.find(x=>x.month==="2026-04");
+  chk("⑩ 전액지급 시 4월 비과세 20만원", apr.nontax, 200000);
+
+  // ── 11. 회사 지급 계 = 출산휴가급여 + 비과세
+  chk("⑪ 회사 지급 계 = 급여 + 비과세",
+      r.totals.companyTotal, r.totals.emp + r.totals.nontax);
+
+  const head = fail===0
+    ? '<span class="ok">전체 '+pass+'개 검증 통과 ✓  (기대값 출처: 노동OK 계산기 실행 결과)</span>'
+    : '<span class="bad">'+fail+'개 실패 / '+pass+'개 통과</span>';
+  $("testout").innerHTML='<div class="testout">'+head+"\n\n"+out.join("\n")+'</div>';
+}
+
+/* ===== 초기화 ===== */
+$("btnCalc").onclick=render;
+$("btnPrint").onclick=()=>{ render(); setTimeout(()=>window.print(),80); };
+$("btnTest").onclick=runTests;
+["startDate","birthType","companyType","birthDate","hoursPerDay","daysPerWeek",
+ "basePay","allowance","bonus","capMonthly","minHourly"]
+  .forEach(id=>$(id).addEventListener("change",render));
+
+$("startDate").value="2026-03-01";
+render();
+</script>
+
+</body>
+</html>

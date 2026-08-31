@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="google-site-verification" content="-Vv3HKaiNfWlG3iVql38iG773LaD3LpSHJtwBU4-iU8" />
+<meta name="naver-site-verification" content="d4f9a360f5b25c71f4df188700ea809f9f69c0dd" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#A56F63">
+<title>Resignation Timing Calculator | Pick a resignation date that captures severance and paid leave</title>
+<meta name="description" content="Enter just your start date and we'll calculate the date your severance pay kicks in and the date your next batch of paid leave accrues — then recommend a resignation date that captures both. A quick self-check on why you're considering leaving is included.">
+<link rel="canonical" href="https://joeltool.com/resignation-timing/en/">
+<link rel="alternate" hreflang="ko" href="https://joeltool.com/resignation-timing/">
+<link rel="alternate" hreflang="en" href="https://joeltool.com/resignation-timing/en/">
+<link rel="alternate" hreflang="x-default" href="https://joeltool.com/resignation-timing/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Resignation Timing Calculator">
+<meta property="og:description" content="Pick a resignation date that captures both severance pay and paid leave — plus a quick self-check on why you're considering leaving.">
+<meta property="og:url" content="https://joeltool.com/resignation-timing/en/">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%AA%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="../../css/style.css?v=0.17">
+<link rel="stylesheet" href="../../css/resignation.css?v=0.08">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Resignation Timing Calculator","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"A free tool that uses your start date to calculate the optimal resignation date that captures both severance pay and paid-leave accrual, under Korean labor law."}
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<nav class="nav"><div class="in">
+  <a class="brand" href="../../en/">
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
+    <span class="n">Gakjab Salim</span>
+  </a>
+  <div class="links"><a href="../../en/guides.html">Guides</a>
+    <a href="../../salary-calculator/en/">Salary calculator</a>
+    <a href="../../en/about.html">About</a>
+    <a class="lang-switch" href="../" title="한국어로 보기" hreflang="ko">🇰🇷 KO</a>
+    <button class="theme-btn" id="theme-btn" type="button">◐</button>
+    <span class="ver-badge" title="Build version — for cache checks">v0.08</span>
+  </div>
+</div></nav>
+
+<main class="wrap page stack">
+  <header class="hero">
+    <h1>Resignation Timing Calculator</h1>
+    <p>Enter just your start date and we'll calculate <b>the date that captures both your severance pay and your paid-leave accrual</b>. Below that, you can also do a <b>quick self-check on why you're considering leaving</b>.</p>
+  </header>
+
+  <div class="note"><span>ℹ️</span><span>All calculations happen <b>entirely in your browser</b> and are never saved or transmitted anywhere. Actual rules can vary by employer policy, so treat this as a reference only. This tool models Korean labor law (severance pay and statutory paid leave).</span></div>
+
+  <!-- STEP 1: input -->
+  <section class="card step" id="stepIn">
+    <h2 class="q">When did you start?<span class="s">Your start date is all we need. Everything else is optional.</span></h2>
+    <div class="row" style="margin-top:16px">
+      <div class="field"><label class="lbl" for="hire-date">Start date</label><input class="txt" id="hire-date" type="date"></div>
+      <div class="field">
+        <label class="lbl">Paid-leave accrual basis</label>
+        <div class="unit-toggle">
+          <button type="button" class="unit-btn on" id="basis-hire" data-basis="hire">By start date</button>
+          <button type="button" class="unit-btn" id="basis-fiscal" data-basis="fiscal">By fiscal year (Jan 1)</button>
+        </div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:15px">
+      <div class="field"><label class="lbl" for="monthly-pay">Monthly pay (after tax) <span class="hint">(optional — enter your take-home pay; used to approximate leave payout and severance)</span></label><div class="money"><input class="txt" id="monthly-pay" type="number" min="0" step="10" placeholder="300" inputmode="numeric"><span class="u">10k KRW</span></div></div>
+      <div class="field"><label class="lbl" for="target-date">Target resignation date <span class="hint">(optional — we'll also check this specific date)</span></label><input class="txt" id="target-date" type="date"></div>
+    </div>
+    <button class="cta" id="calc-btn" type="button" style="margin-top:16px">Calculate resignation timing →</button>
+    <div class="helper" id="hire-hint" role="status" aria-live="polite" hidden></div>
+  </section>
+
+  <!-- STEP 2: result -->
+  <section class="card step" id="stepResult" hidden>
+    <h2 class="q">Here's what we calculated<span class="s" id="result-sub">–</span></h2>
+    <div class="verdict-line" id="combo-line" style="margin-top:14px">–</div>
+    <div class="cmp2" id="result-cards" style="margin-top:14px"></div>
+    <div class="cmp2" id="target-cards" style="margin-top:10px"></div>
+  </section>
+
+  <!-- STEP 3: self-check -->
+  <section class="card step" id="stepPsy">
+    <h2 class="q">What's the reason you're considering leaving?<span class="s">Answer with one click and the next question appears. After 5 questions, we'll show a short summary.</span></h2>
+    <div class="helper" style="margin-top:12px">💡 This check is a <b>reference self-reflection tool</b> and doesn't replace professional counseling. If things stay hard, we'd recommend talking to a professional.</div>
+
+    <div class="psy-progress" id="psy-progress" style="margin-top:14px"></div>
+    <div class="psy-q" id="psy-q" style="margin-top:10px"></div>
+    <div class="verdict-line" id="psy-result" hidden style="margin-top:16px"></div>
+    <button class="cta ghost" id="psy-restart" type="button" hidden style="margin-top:12px">↺ Start over</button>
+  </section>
+
+  <!-- Tool explanation -->
+  <section class="card tool-about">
+    <h2>Why does one day change your resignation date?</h2>
+    <h3>How this is calculated</h3>
+    <p>Severance pay requires <b>one full year of continuous service</b>. Fall even a day short and you get nothing. Paid leave works differently — under one year of service you earn <b>1 day per month of perfect attendance (up to 11 days)</b>; once you pass one year, you get <b>15 days all at once</b>, then one more day every two years, up to 25. This tool takes just your start date, calculates both dates separately, and tells you the <b>earliest date that captures both</b>.</p>
+    <h3>Who this is for</h3>
+    <p>Anyone who already has their next move lined up and is deciding when to hand in notice, anyone weighing leaving right before hitting their one-year mark, or anyone curious how much they'd lose by leaving with unused paid leave.</p>
+    <h3>What this doesn't do</h3>
+    <p>It can't account for employer policies that are more generous than the legal minimum (extra leave days, fiscal-year settlement, etc.). The estimated severance figure is also an <b>approximation based on take-home pay</b> and will differ from the real number — actual severance is calculated from your average wage over the prior 3 months, including bonuses and allowances. The accrual date for employees who started at the end of a month is a point where practice varies, so we'd recommend confirming with a labor attorney (노무사) if it matters for you.</p>
+  </section>
+
+  <!-- Related tools -->
+  <section class="card">
+    <h2>If you've decided to leave, also check</h2>
+    <ul class="guides">
+      <li><a href="../../salary-calculator/en/">Salary Negotiation Calculator<span>Check first whether your next offer is actually better than what you have now.</span></a></li>
+      <li><a href="../../salary-calculator/en/guide/why-take-home-differs.html">Why does take-home pay differ?<span>Even when salary goes up, what actually lands in your account is often less than expected — we broke down why.</span></a></li>
+    </ul>
+    <p class="more-tools"><a href="../../en/">← See the rest of the toolkit</a></p>
+  </section>
+</main>
+
+<footer class="footer"><div class="in">
+  <a href="../../en/about.html">About</a><span class="sep">·</span>
+  <a href="../../en/privacy.html">Privacy Policy</a><span class="sep">·</span><a href="../../en/disclaimer.html">Disclaimer</a><span class="sep">·</span>
+  <a href="../../en/contact.html">Contact</a>
+  <div class="cp">Reference tool only — not legally binding. © Gakjab Salim</div>
+</div></footer>
+
+<script>window.RESIGN_LANG="en";</script>
+<script src="../../js/site.js?v=0.06"></script>
+<script src="../../js/resignation.js?v=0.08"></script>
+<!-- Cloudflare Web Analytics — 쿠키를 쓰지 않고 개인을 식별하지 않는다.
+     이 토큰은 공개 페이지에 심으라고 만들어진 클라이언트 식별자다(비밀값 아님).
+     ⚠️ 자동 설치(auto_install)가 켜져 있었지만 실제로는 비콘이 주입되지 않아
+        수집이 0이었다(2026-08-05 확인). 그래서 직접 심는다. -->
+</body>
+</html>

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="google-site-verification" content="-Vv3HKaiNfWlG3iVql38iG773LaD3LpSHJtwBU4-iU8" />
+<meta name="naver-site-verification" content="d4f9a360f5b25c71f4df188700ea809f9f69c0dd" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#A56F63">
+<title>키워드 진단기 | 내 페이지의 SEO 키워드 확인</title>
+<meta name="description" content="웹페이지 링크를 넣으면 title·설명·제목 태그·본문에서 실제로 어떤 SEO 키워드가 잡히는지 순위로 보여주고, 추가하면 좋을 키워드 후보도 제시합니다.">
+<link rel="canonical" href="https://joeltool.com/keyword-checker/">
+<link rel="alternate" hreflang="ko" href="https://joeltool.com/keyword-checker/">
+<link rel="alternate" hreflang="en" href="https://joeltool.com/keyword-checker/en/">
+<link rel="alternate" hreflang="x-default" href="https://joeltool.com/keyword-checker/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="키워드 진단기">
+<meta property="og:description" content="링크 하나로 내 페이지의 SEO 키워드를 순위로 확인하고, 추가 키워드 후보까지.">
+<meta property="og:url" content="https://joeltool.com/keyword-checker/">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%8D%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="../css/style.css?v=0.17">
+<link rel="stylesheet" href="../css/keywordChecker.css?v=0.09">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"키워드 진단기","applicationCategory":"UtilityApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"KRW"},"description":"웹페이지 링크에서 SEO 키워드를 추출하고 추가 키워드 후보를 제시하는 무료 도구."}
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<nav class="nav"><div class="in">
+  <a class="brand" href="../" title="각잡살림 — 각 잡고 만든 살림(생활 도구). 쓸모있는 무료 웹 도구 모음">
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
+    <span class="n">각잡살림</span>
+  </a>
+  <div class="links"><a href="../guides.html">가이드</a>
+    <a href="../about.html">소개</a>
+    <a class="lang-switch" href="en/" title="Switch to English" hreflang="en">🇺🇸 EN</a>
+    <button class="theme-btn" id="theme-btn" type="button">◐</button>
+    <span class="ver-badge" title="배포 버전 — 캐시 없이 최신인지 확인용">v0.09</span>
+  </div>
+</div></nav>
+
+<main class="wrap-wide page stack">
+  <header class="hero">
+    <h1>키워드 진단기</h1>
+    <p>웹페이지 링크만 넣으면 <b>실제로 잡혀있는 SEO 키워드</b>를 순위로 보여드려요. 추가하면 좋을 키워드 후보도 같이요.</p>
+  </header>
+
+  <div class="note" id="kc-soon" hidden><span>⚠️</span><span><b>일시적으로 진단 서버에 연결하지 못했어요.</b> 잠시 후 다시 시도해주세요.</span></div>
+
+  <div class="note"><span>ℹ️</span><span>title·설명·제목 태그(H1~H3)·본문에서 키워드를 뽑아요. 완전한 형태소분석은 아니라 <b>근사치</b>이고, 추천 키워드는 조합 후보라 <b>실제 검색량은 확인 전</b>이에요. 상품 링크(쿠팡 등)는 접근이 막혀 있어 지원하지 않아요.</span></div>
+
+  <!-- STEP 1: URL 입력 -->
+  <section class="card step" id="stepIn">
+    <h2 class="q">진단할 페이지 링크를 넣어주세요<span class="s">블로그 글, 상세페이지, 랜딩페이지 등 어떤 웹페이지든 괜찮아요.</span></h2>
+    <div class="field full" style="margin-top:16px">
+      <input class="txt" id="kc-url" type="text" placeholder="https://example.com/my-post" inputmode="url">
+    </div>
+    <button class="cta" id="kc-go" type="button" style="margin-top:14px">키워드 진단하기 →</button>
+    <div class="helper" id="kc-error" hidden style="margin-top:12px"></div>
+  </section>
+
+  <!-- STEP 2: 결과 -->
+  <section class="card step" id="stepResult" hidden>
+    <h2 class="q" id="kc-title" style="font-size:clamp(17px,3.2vw,20px)">–</h2>
+    <p class="desc" id="kc-desc" style="margin:4px 0 0"></p>
+
+    <h3 class="kc-sub">발견된 키워드</h3>
+    <div class="kc-list" id="kc-keywords"></div>
+
+    <h3 class="kc-sub">추가하면 좋을 키워드 후보 <span class="hint">(조합 예시, 실제 검색량 미확인)</span></h3>
+    <div class="kc-chips" id="kc-suggestions"></div>
+
+    <button class="cta ghost" id="kc-restart" type="button" style="margin-top:18px">↺ 다른 페이지 진단하기</button>
+  </section>
+
+  <!-- 도구 설명: 어떻게 동작하는지·누구에게 맞는지·뭘 못 하는지.
+       도구 페이지는 텍스트가 얇아 검색·심사 양쪽에서 불리하다. 채우기용이 아니라
+       실제로 사용자가 궁금해하는 것만 적는다. "못 하는 것"을 빼지 말 것. -->
+  <section class="card tool-about">
+    <h2>키워드 진단은 어떻게 하나요</h2>
+    <h3>어떻게 뽑나요</h3>
+    <p>주소를 넣으면 그 페이지를 가져와 <b>제목·H1·소제목·메타 설명·본문</b>을 나눠 읽고, 위치별로 다른 가중치를 줘서 어떤 단어가 실제로 강조돼 있는지 순위를 냅니다. 제목에 있는 단어가 본문에만 있는 단어보다 5배 무겁습니다. 조사는 <b>떼어낸 형태가 문서 안에 단독으로도 나올 때만</b> 정리해서, "처우협의" 같은 진짜 단어가 쪼개지지 않게 했어요.</p>
+    <h3>결과를 어떻게 쓰나요</h3>
+    <p>상위에 뜬 단어가 <b>내가 노리던 검색어와 다르다면</b> 그 글은 다른 주제로 읽히고 있다는 뜻입니다. 제목과 소제목을 먼저 고치세요 — 본문만 고치는 건 효과가 가장 약합니다.</p>
+    <h3>왜 위치마다 가중치가 다른가요</h3>
+    <p>검색엔진은 페이지의 모든 단어를 똑같이 취급하지 않습니다. <b>제목(title)</b>은 그 문서가 무엇에 관한 것인지 스스로 선언하는 자리라 가장 무겁고, <b>H1·소제목</b>은 문서의 뼈대를 드러내는 자리라 그다음입니다. 본문에 같은 단어가 열 번 나오는 것보다 제목에 한 번 들어가는 편이 강한 신호입니다.</p>
+    <p>그래서 이 도구도 같은 기준으로 점수를 매깁니다. 결과를 보고 고칠 때도 <b>제목 → 소제목 → 본문</b> 순서로 손대는 게 효율이 좋습니다. 반대로 본문에 키워드를 억지로 반복해 넣는 방식은 효과가 거의 없고, 읽는 사람에게 어색하게 읽혀 오히려 손해입니다.</p>
+    <h3>키워드가 너무 흩어져 있을 때</h3>
+    <p>상위 단어들이 서로 관련 없이 흩어져 있다면, 한 글에 여러 주제를 담았다는 신호입니다. 이 경우 어떤 검색어로도 뚜렷하게 잡히지 않습니다. 글을 주제별로 나누거나, 한 주제를 골라 나머지를 덜어내는 편이 낫습니다.</p>
+    <p>반대로 상위 단어가 노리던 키워드와 맞는데도 검색에 안 잡힌다면, 그건 이 도구가 볼 수 있는 영역 밖의 문제입니다. 경쟁 강도가 높거나, 색인이 아직 안 됐거나, 사이트 전체의 신뢰도가 낮은 경우입니다.</p>
+    <h3>이건 못 해요</h3>
+    <p>검색량이나 경쟁 강도는 알려주지 못합니다. 이 도구는 <b>"내 페이지가 무슨 단어로 읽히는가"</b>만 봅니다. 자바스크립트로 나중에 그려지는 내용은 못 읽고, 로그인이 필요한 페이지도 안 됩니다.</p>
+  </section>
+
+  <!-- 연관 도구: 이유가 붙은 것만.
+       유튜브 자막 추출기는 백엔드가 막혀 비공개 처리했으므로 여기서 링크하지 않는다
+       (살아있는 페이지가 고장난 페이지로 안내하면 안 된다). -->
+  <section class="card">
+    <h2>함께 읽으면 좋은 글</h2>
+    <ul class="guides">
+      <li><a href="guide/why-not-ranking-guide.html">내 글이 검색에 안 잡히는 이유<span>색인 여부부터 주제 일치, 검색 의도, 경쟁 강도까지 확인할 순서대로.</span></a></li>
+    </ul>
+    <!-- deepen-2026-08-19 -->
+  <section class="card">
+    <h2>이 도구가 보는 것</h2>
+    <p>글을 써서 올렸는데 검색에 안 잡히는 이유는 대개 <b>내가 노린 키워드와 페이지가 실제로 말하는 키워드가 다르기</b> 때문입니다. 이 도구는 페이지를 읽어 <b>검색엔진이 이 글을 무슨 주제로 볼지</b>를 추정해서 보여줍니다.</p>
+    <table>
+      <thead><tr><th>보는 항목</th><th>왜 중요한가</th></tr></thead>
+      <tbody>
+        <tr><td><b>title 태그</b></td><td>검색 결과에 그대로 나오고, 주제 판단의 가장 강한 신호</td></tr>
+        <tr><td><b>H1 / H2</b></td><td>본문의 구조. 여기 없는 단어는 주제로 잘 안 잡힙니다</td></tr>
+        <tr><td>meta description</td><td>순위에 직접 영향은 적지만 <b>클릭률</b>을 가릅니다</td></tr>
+        <tr><td>본문 분량과 반복 어휘</td><td>얇거나 주제가 흩어지면 어느 키워드에도 안 걸립니다</td></tr>
+      </tbody>
+    </table>
+
+    <h2>결과 읽는 법</h2>
+    <ol>
+      <li><b>추정된 키워드에 내가 노린 말이 있는가</b> — 없으면 그게 원인입니다.</li>
+      <li>있는데 <b>순위가 낮다면</b> 매칭 문제가 아니라 경쟁 문제입니다. 더 좁은 롱테일로 옮기세요.</li>
+      <li><b>title 에만 있고 H1·본문에 없다면</b> 신호가 약합니다. 본문에 자연스럽게 들어가야 합니다.</li>
+      <li>전혀 엉뚱한 키워드가 나온다면 <b>글이 여러 주제를 섞고 있다</b>는 뜻입니다. 쪼개는 편이 낫습니다.</li>
+    </ol>
+
+    <h2>고치는 순서</h2>
+    <p>한 번에 여러 곳을 바꾸면 <b>무엇이 효과가 있었는지 알 수 없습니다.</b> 순서대로 하나씩 바꾸고 2주씩 두고 보세요.</p>
+    <table>
+      <thead><tr><th>순서</th><th>바꿀 것</th><th>기대</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><b>H1 을 검색어 명사구로</b></td><td>가장 저렴하고 효과가 큰 변경</td></tr>
+        <tr><td>2</td><td>본문에 그 표현을 자연스럽게 배치</td><td>주제 신호 강화</td></tr>
+        <tr><td>3</td><td>title 조정 (핵심어를 앞으로)</td><td>매칭 + 클릭률</td></tr>
+        <tr><td>4</td><td>분량 보강 · 표·FAQ 추가</td><td>체류시간·리치 결과</td></tr>
+      </tbody>
+    </table>
+    <p class="hint">※ <b>이미 순위가 잘 나오는 페이지는 건드리지 마세요.</b> 실제로 노출의 90%를 만들던 페이지의 제목·H1·본문을 한 번에 바꿨다가 순위가 무너진 사례가 있습니다. 실험은 잃을 게 없는 페이지에서 합니다.</p>
+
+    <h2>이 도구가 못 하는 것</h2>
+    <ul>
+      <li><b>실제 검색 순위</b>는 알려주지 않습니다. 그건 Search Console 이나 직접 검색으로 확인해야 합니다.</li>
+      <li>검색량 데이터를 제공하지 않습니다. 키워드 도구를 함께 쓰세요.</li>
+      <li>로그인이 필요한 페이지, robots.txt 로 막힌 페이지는 읽지 못합니다.</li>
+      <li>JavaScript 로만 그려지는 본문은 <b>일부만</b> 읽힐 수 있습니다 — 이 경우 검색엔진도 같은 문제를 겪습니다.</li>
+    </ul>
+
+    <h2>자주 묻는 질문</h2>
+    <div class="faq">
+      <details><summary>내 블로그 글도 진단할 수 있나요</summary>
+        <p>공개된 웹페이지면 됩니다. 네이버 블로그, 티스토리, 브런치, 자체 사이트 모두 가능합니다. 다만 <b>로그인이 필요한 비공개 글</b>이나 robots.txt 로 크롤링이 막힌 페이지는 읽지 못합니다.</p></details>
+      <details><summary>결과가 안 나오고 오류가 떠요</summary>
+        <p>주소가 정확한지(https 포함), 브라우저에서 그 주소가 열리는지 먼저 확인해보세요. 일부 사이트는 외부 접근을 차단합니다. 일시적인 연결 문제일 수도 있으니 잠시 후 다시 시도해보세요.</p></details>
+      <details><summary>추정 키워드가 내 생각과 완전히 달라요</summary>
+        <p>그게 이 도구의 쓸모입니다. <b>내가 생각한 주제와 페이지가 실제로 말하는 주제가 다르다</b>는 뜻이고, 검색엔진도 같게 볼 가능성이 큽니다. H1 과 본문에 노린 표현이 들어가 있는지 먼저 확인하세요.</p></details>
+      <details><summary>키워드를 많이 반복하면 순위가 오르나요</summary>
+        <p>오르지 않습니다. 부자연스럽게 반복하면 오히려 <b>스팸으로 평가</b>될 수 있습니다. 중요한 건 횟수가 아니라 <b>위치</b>입니다 — title, H1, 첫 문단에 자연스럽게 한 번씩 들어가는 편이 본문에 스무 번 넣는 것보다 낫습니다.</p></details>
+      <details><summary>고친 뒤 언제 반영되나요</summary>
+        <p>검색엔진이 다시 크롤링해야 반영되며 보통 <b>2~6주</b> 걸립니다. 그래서 한 번에 여러 곳을 바꾸면 원인을 분리할 수 없습니다. 하나씩 바꾸고 최소 2주는 그대로 두세요.</p></details>
+      <details><summary>진단 결과를 어디에 저장하나요</summary>
+        <p>저장하지 않습니다. 입력한 주소는 진단을 위해 서버로 전달되어 그 페이지를 읽는 데만 쓰이고, 결과는 화면에만 표시됩니다.</p></details>
+    </div>
+  </section>
+
+  <p class="more-tools"><a href="../">← 다른 도구도 보기</a></p>
+  </section>
+</main>
+
+<footer class="footer"><div class="in">
+  <a href="../about.html">소개</a><span class="sep">·</span>
+  <a href="../privacy.html">개인정보처리방침</a><span class="sep">·</span><a href="../disclaimer.html">면책조항</a><span class="sep">·</span><a href="../editorial-policy.html">편집 방침</a><span class="sep">·</span>
+  <a href="../contact.html">문의</a>
+  <div class="cp">참고용 도구이며 실제 검색 순위·검색량을 보장하지 않습니다. © 각잡살림</div>
+</div></footer>
+
+<script src="../js/site.js?v=0.05"></script>
+<script src="../js/keywordChecker.js?v=0.05"></script>
+<!-- Cloudflare Web Analytics — 쿠키를 쓰지 않고 개인을 식별하지 않는다.
+     이 토큰은 공개 페이지에 심으라고 만들어진 클라이언트 식별자다(비밀값 아님).
+     ⚠️ 자동 설치(auto_install)가 켜져 있었지만 실제로는 비콘이 주입되지 않아
+        수집이 0이었다(2026-08-05 확인). 그래서 직접 심는다. -->
+</body>
+</html>

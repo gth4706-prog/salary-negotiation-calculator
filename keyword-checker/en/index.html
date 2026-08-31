@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="google-site-verification" content="-Vv3HKaiNfWlG3iVql38iG773LaD3LpSHJtwBU4-iU8" />
+<meta name="naver-site-verification" content="d4f9a360f5b25c71f4df188700ea809f9f69c0dd" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#A56F63">
+<title>Keyword Checker | Check the SEO keywords on your page</title>
+<meta name="description" content="Paste a page link and see which SEO keywords are actually ranked in the title, description, heading tags, and body copy — plus candidate keywords worth adding.">
+<link rel="canonical" href="https://joeltool.com/keyword-checker/en/">
+<link rel="alternate" hreflang="ko" href="https://joeltool.com/keyword-checker/">
+<link rel="alternate" hreflang="en" href="https://joeltool.com/keyword-checker/en/">
+<link rel="alternate" hreflang="x-default" href="https://joeltool.com/keyword-checker/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Keyword Checker">
+<meta property="og:description" content="Paste a link to see the SEO keywords ranked on your page, plus candidate keywords to add.">
+<meta property="og:url" content="https://joeltool.com/keyword-checker/en/">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%8D%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="../../css/style.css?v=0.17">
+<link rel="stylesheet" href="../../css/keywordChecker.css?v=0.08">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Keyword Checker","applicationCategory":"UtilityApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"A free tool that extracts SEO keywords from a page link and suggests candidate keywords to add."}
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3411300219743350" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<nav class="nav"><div class="in">
+  <a class="brand" href="../../en/" title="Gakjab Salim — a collection of genuinely useful free web tools">
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="20" r="2.3" fill="currentColor"/><path d="M20 8 L23.4 20 L20 32 L16.6 20 Z" fill="currentColor"/></svg>
+    <span class="n">Gakjab Salim</span>
+  </a>
+  <div class="links"><a href="../../en/guides.html">Guides</a>
+    <a href="../../en/about.html">About</a>
+    <a class="lang-switch" href="../" title="한국어로 보기" hreflang="ko">🇰🇷 KO</a>
+    <button class="theme-btn" id="theme-btn" type="button">◐</button>
+    <span class="ver-badge" title="Build version — for cache checks">v0.08</span>
+  </div>
+</div></nav>
+
+<main class="wrap-wide page stack">
+  <header class="hero">
+    <h1>Keyword Checker</h1>
+    <p>Paste a page link and we'll show you the <b>SEO keywords actually present</b>, ranked — plus candidate keywords worth adding.</p>
+  </header>
+
+  <div class="note" id="kc-soon" hidden><span>⚠️</span><span><b>We couldn't reach the analysis server just now.</b> Please try again in a moment.</span></div>
+
+  <div class="note"><span>ℹ️</span><span>Keywords are extracted from the title, meta description, heading tags (H1–H3), and body copy. This isn't full morphological analysis, so results are <b>approximate</b>, and suggested keywords are candidates only — <b>actual search volume isn't verified</b>. Shopping-site product links (like Coupang) block access and aren't supported.</span></div>
+
+  <!-- STEP 1: URL 입력 -->
+  <section class="card step" id="stepIn">
+    <h2 class="q">Paste the page link you want to check<span class="s">Blog posts, product pages, landing pages — any web page works.</span></h2>
+    <div class="field full" style="margin-top:16px">
+      <input class="txt" id="kc-url" type="text" placeholder="https://example.com/my-post" inputmode="url">
+    </div>
+    <button class="cta" id="kc-go" type="button" style="margin-top:14px">Check keywords →</button>
+    <div class="helper" id="kc-error" hidden style="margin-top:12px"></div>
+  </section>
+
+  <!-- STEP 2: 결과 -->
+  <section class="card step" id="stepResult" hidden>
+    <h2 class="q" id="kc-title" style="font-size:clamp(17px,3.2vw,20px)">–</h2>
+    <p class="desc" id="kc-desc" style="margin:4px 0 0"></p>
+
+    <h3 class="kc-sub">Keywords found</h3>
+    <div class="kc-list" id="kc-keywords"></div>
+
+    <h3 class="kc-sub">Candidate keywords worth adding <span class="hint">(example combinations, search volume not verified)</span></h3>
+    <div class="kc-chips" id="kc-suggestions"></div>
+
+    <button class="cta ghost" id="kc-restart" type="button" style="margin-top:18px">↺ Check another page</button>
+  </section>
+
+  <!-- 도구 설명 -->
+  <section class="card tool-about">
+    <h2>How does keyword checking work</h2>
+    <h3>How keywords are extracted</h3>
+    <p>Once you enter a URL, we fetch that page and read the <b>title, H1, subheadings, meta description, and body copy</b> separately, weighting each location differently to rank which words are actually emphasized. A word in the title counts 5x more than the same word appearing only in the body. We only strip grammatical particles when the bare form also appears standalone elsewhere in the document, so genuine multi-word terms don't get split apart.</p>
+    <h3>How to use the results</h3>
+    <p>If the top-ranked word <b>doesn't match the search term you were targeting</b>, that means the page is reading as a different topic than you intended. Fix the title and subheadings first — editing only the body copy has the weakest effect.</p>
+    <h3>What this doesn't do</h3>
+    <p>This tool can't tell you search volume or competition level. It only shows <b>what words your page is actually read as being about</b>. It can't read content rendered later by JavaScript, and it doesn't work on pages that require login.</p>
+  </section>
+
+  <!-- 연관 도구. 유튜브 자막 추출기는 비공개 처리했으므로 링크하지 않는다. -->
+  <section class="card">
+    <p class="more-tools"><a href="../../en/">← See the rest of the toolkit</a></p>
+  </section>
+</main>
+
+<footer class="footer"><div class="in">
+  <a href="../../en/about.html">About</a><span class="sep">·</span>
+  <a href="../../en/privacy.html">Privacy Policy</a><span class="sep">·</span><a href="../../en/disclaimer.html">Disclaimer</a><span class="sep">·</span>
+  <a href="../../en/contact.html">Contact</a>
+  <div class="cp">Reference tool only — does not guarantee actual search ranking or volume. © Gakjab Salim</div>
+</div></footer>
+
+<script>window.KEYWORD_LANG="en";</script>
+<script src="../../js/site.js?v=0.06"></script>
+<script src="../../js/keywordChecker.js?v=0.06"></script>
+<!-- Cloudflare Web Analytics — 쿠키를 쓰지 않고 개인을 식별하지 않는다.
+     이 토큰은 공개 페이지에 심으라고 만들어진 클라이언트 식별자다(비밀값 아님).
+     ⚠️ 자동 설치(auto_install)가 켜져 있었지만 실제로는 비콘이 주입되지 않아
+        수집이 0이었다(2026-08-05 확인). 그래서 직접 심는다. -->
+</body>
+</html>

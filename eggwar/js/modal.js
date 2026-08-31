@@ -57,12 +57,37 @@ GAME.Modal = {
     veil.on('pointerdown', function () { self.close(); if (opts.onClose) opts.onClose(); });
     objs.push(veil);
 
-    var panel = scene.add.rectangle(W / 2, panelY, panelW, panelH, UI.COL.surface)
-      .setOrigin(0.5, 0).setStrokeStyle(2, UI.COL.borderUi).setDepth(1001);
-    objs.push(panel);
+    //  ── 양피지 패널 (2026-08-31 비주얼 개편) — 버튼과 같은 언어: 그림자·투톤·
+    //  잉크 테두리·제목 띠. 평면 사각형이 "웹페이지" 느낌의 뿌리였다.
+    var pg = scene.add.graphics().setDepth(1001);
+    //  ⚠ UI.shade 를 쓰면 안 된다 — 테마가 톤표 조회형으로 덮어써서 표에 없는 색은
+    //    범위 밖 값(7자리 hex)이 나온다(실측: 형광 청록 패널 사고). 순수 산수로 계산.
+    var msh = function (c, amt) {
+      var r = Math.max(0, Math.min(255, ((c >> 16) & 255) + Math.round(255 * amt)));
+      var g = Math.max(0, Math.min(255, ((c >> 8) & 255) + Math.round(255 * amt)));
+      var b = Math.max(0, Math.min(255, (c & 255) + Math.round(255 * amt)));
+      return (r << 16) | (g << 8) | b;
+    };
+    var pBase = UI.IS_LIGHT ? 0xf2e6c6 : UI.COL.surface;
+    var pInk = UI.IS_LIGHT ? 0x3a2c18 : 0x07070d;
+    var pl = W / 2 - panelW / 2;
+    pg.fillStyle(pInk, 0.40);
+    pg.fillRoundedRect(pl + 3, panelY + 5, panelW, panelH, 14);
+    pg.fillStyle(msh(pBase, -0.06), 1);
+    pg.fillRoundedRect(pl, panelY, panelW, panelH, 14);
+    pg.fillStyle(msh(pBase, 0.08), 1);
+    pg.fillRoundedRect(pl, panelY, panelW, Math.max(28, panelH * 0.16),
+      { tl: 14, tr: 14, bl: 0, br: 0 });
+    //  제목 띠 — 현수막처럼 어두운 가죽색 밴드
+    pg.fillStyle(UI.IS_LIGHT ? 0x6b543a : 0x2e2e40, 1);
+    pg.fillRoundedRect(pl, panelY, panelW, titleH - 4, { tl: 14, tr: 14, bl: 0, br: 0 });
+    pg.lineStyle(2, msh(pInk, 0.12), 1);
+    pg.strokeRoundedRect(pl, panelY, panelW, panelH, 14);
+    objs.push(pg);
 
     objs.push(UI.label(scene, W / 2, panelY + 12, opts.title || '선택',
-      'subhead', C.text, 0.5).setOrigin(0.5, 0).setDepth(1002));
+      'subhead', UI.IS_LIGHT ? '#fff6e2' : C.text, 0.5)
+      .setOrigin(0.5, 0).setDepth(1002));
 
     var y = panelY + titleH;
     items.forEach(function (it, i) {

@@ -341,7 +341,11 @@ window.GAME = window.GAME || {};
       ? UI.lineGap(px) : opts.lineSpacing);
     // 전장 위에 얹히는 글자는 외곽선을 줘야 배경 색과 상관없이 읽힌다.
     // 외곽선 색은 글자 밝기에서 정한다(밝은 글자 + 밝은 테두리 = 뭉개짐).
-    if (opts.outline) {
+    //  2026-08-31 비주얼 개편: **제목급(head 이상)은 자동으로** 잉크 외곽선+그림자 —
+    //  민무늬 큰 글자가 "웹페이지" 느낌의 큰 몫이었다. opts.outline === false 로 끌 수 있다.
+    var wantOutline = opts.outline === false ? false
+      : (opts.outline || px >= (FS.head || 26));
+    if (wantOutline) {
       var oc = UI.outlineFor(t.style && t.style.color);
       t.setStroke(oc, px >= FS.heading ? 4 : 3);
       t.setShadow(0, 1, UI.IS_LIGHT ? 'rgba(60,44,20,0.45)' : 'rgba(0,0,0,0.75)', 2, false, true);

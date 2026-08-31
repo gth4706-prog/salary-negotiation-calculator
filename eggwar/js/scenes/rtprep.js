@@ -105,7 +105,7 @@ GAME.RtPrepScene.prototype.create = function () {
 
     //  장비 요약은 타이머 아래 빈 줄에 — 영웅 목록 아래는 폰(H 390)에서 하단
     //  버튼 줄과 겹친다(스크린샷 실측 2026-08-24).
-    this._loadoutTxt = UI.text(this, W / 2, P ? 70 : 116, '', {
+    this._loadoutTxt = UI.text(this, W / 2, P ? 70 : 124, '', {
       size: 'caption', color: C.textDim, origin: 0.5, originY: 0 });
     this._loadoutTxt.setAlign('center');
     this._refreshLoadout();
@@ -163,8 +163,12 @@ GAME.RtPrepScene.prototype._refreshLoadout = function () {
   //  반영된 실효값을 같이 적는다. 상점 표기(원값)와 다른 것이 정상이다.
   var eff = parts.length && GAME.ArenaBuild.rtBonusText
     ? GAME.ArenaBuild.rtBonusText(rec.items) : '';
+  //  ⚠ 4슬롯 풀장비 + 실효까지 이름을 다 적으면 PC 에서 타이머와 스친다(감사 실측).
+  //    3종 이상은 개수로 접는다 — 이름은 상점(장비 다시)에서 어차피 보인다.
+  var head = parts.length <= 2 ? '장비: ' + parts.join(' · ')
+                               : '장비 ' + parts.length + '종';
   this._loadoutTxt.setText(parts.length
-    ? '장비: ' + parts.join(' · ') + (eff ? '   →  실효 ' + eff : '')
+    ? head + (eff ? '  →  실효 ' + eff : '')
     : '(장비 없음 — 안 사도 됩니다. 기본 스펙으로 출전)');
 };
 

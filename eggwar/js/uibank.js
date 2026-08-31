@@ -21,16 +21,16 @@
 
   var DATA = {
     //  ── 브리프 5종 — 도착하면 src 만 채운다 (예: 'assets/ui/bg-menu.png?v=2.91') ──
-    bgMenu:     { src: null },   // 1688×780 메뉴 배경 일러스트
-    cardTower:  { src: null },   // 800×480 통곡의 탑 카드
-    cardDefend: { src: null },   // 800×480 수성의 탑 카드
-    cardVersus: { src: null },   // 800×480 대전 카드
-    bannerShop: { src: null },   // 1600×240 상점 배너
-    texButton:  { src: null },   // 600×240 돌판 버튼 원단 (9-slice)
-    texPanel:   { src: null },   // 600×240 가죽 패널 원단 (9-slice)
-    texRibbon:  { src: null },   // 600×240 뼈 리본 원단 (9-slice)
-    stampWin:   { src: null },   // 700×700 승리 도장
-    stampLose:  { src: null }    // 700×700 패배 도장
+    bgMenu:     { src: 'assets/ui/bg-menu.png?v=2.91' },   // 1688×780 메뉴 배경 일러스트
+    cardTower:  { src: 'assets/ui/card-tower.png?v=2.91' },   // 800×480 통곡의 탑 카드
+    cardDefend: { src: 'assets/ui/card-defend.png?v=2.91' },   // 800×480 수성의 탑 카드
+    cardVersus: { src: 'assets/ui/card-versus.png?v=2.91' },   // 800×480 대전 카드
+    bannerShop: { src: 'assets/ui/banner-shop.png?v=2.91' },   // 1600×240 상점 배너
+    texButton:  { src: 'assets/ui/tex-button-stone.png?v=2.91' },   // 600×240 돌판 버튼 원단 (9-slice)
+    texPanel:   { src: 'assets/ui/tex-panel-leather.png?v=2.91' },   // 600×240 가죽 패널 원단 (9-slice)
+    texRibbon:  { src: 'assets/ui/tex-ribbon-bone.png?v=2.91' },   // 600×240 뼈 리본 원단 (9-slice)
+    stampWin:   { src: 'assets/ui/stamp-win.png?v=2.91' },   // 700×700 승리 도장
+    stampLose:  { src: 'assets/ui/stamp-lose.png?v=2.91' }    // 700×700 패배 도장
   };
 
   G.UIBank = {

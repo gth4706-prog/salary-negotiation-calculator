@@ -158,17 +158,22 @@ GAME.TowerShopScene.prototype.create = function () {
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var PAD = GAME.CONFIG.SMALL ? 14 : 24;
 
-  //  생성 상점 배너(도착 시 자동 활성 — uibank) — 제목 줄 뒤에 옅게 깐다.
+  //  생성 상점 배너(uibank) — 옅게 깔고, 제목은 잉크 테두리 흰 글자로 그 위에.
+  //  진하게 깔면 어두운 텐트 위에 어두운 제목이 얹혀 안 읽힌다(실측 스크린샷).
+  var hasBanner = false;
   if (GAME.UIBank) {
-    GAME.UIBank.cover(this, 'bannerShop', W / 2, 22, W, 44, { alpha: 0.9 });
+    hasBanner = !!GAME.UIBank.cover(this, 'bannerShop', W / 2, 21, W, 42, { alpha: 0.55 });
   }
 
   GAME.UI.label(this, PAD, 10, this.src.backLabel, 15, C.textDim, 0)
     .setInteractive({ useHandCursor: true })
     .on('pointerdown', function () { self.src.back(self); });
 
-  GAME.UI.label(this, W / 2, 6, this.src.title, GAME.CONFIG.SMALL ? 22 : 30, C.text, 0.5)
-    .setOrigin(0.5, 0);
+  GAME.UI.text(this, W / 2, 6, this.src.title, {
+    size: GAME.CONFIG.SMALL ? 22 : 30,
+    color: hasBanner ? '#fff6df' : undefined,
+    origin: 0.5, originY: 0, outline: hasBanner
+  });
 
   this.goldLabel = GAME.UI.label(this, W - PAD, 10, '', 20, C.accent, 1).setOrigin(1, 0);
 

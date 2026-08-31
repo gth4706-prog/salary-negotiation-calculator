@@ -311,6 +311,9 @@ GAME.LobbyArt = {
       ? hero.y - (hero.def.radius || 16) * hero.scale * 1.5
       : d.line;
 
+    //  생성 배경 일러스트가 깔린 화면(menu._bgImg)에서는 절차 능선·목책을 접는다 —
+    //  그림 위에 흰 말뚝이 이중으로 뜬다(2026-08-31 실측). 영웅·적 데모는 그대로.
+    var skipScenery = !!GAME.LobbyArt.noScenery;
     //  ① 흐르는 **원경 능선** (2026-08-04 사용자: "배경이 전체 오른쪽에서 왼쪽으로")
     //  ⚠ 하늘·들판은 가로로 균일해서 밀어도 안 보인다 — 그건 `backdrop` 이 한 번 굽고
     //    끝낸다. **움직임을 만드는 것은 능선과 목책뿐**이므로 그 둘만 여기서 흐른다.
@@ -319,6 +322,8 @@ GAME.LobbyArt = {
     //  구간 폭 기준으로 잰다 — PC 는 좌우 여백 하나가 곧 이 데모의 세계다.
     var bx0 = d.x0, bx1 = d.x1, bw = Math.max(1, bx1 - bx0);
     var span = bw * 0.62;                           // 능선 한 주기
+    if (skipScenery) span = 0;                      // (아래 두 루프를 통째로 건너뛴다)
+    if (!skipScenery) {
     var rOff = d.scroll * 0.42;                     // 원경은 느리게 — 시차(parallax)
     var rp, seg, sx0;
     for (seg = 0; seg < 2; seg++) {
@@ -356,6 +361,7 @@ GAME.LobbyArt = {
     }
     g.fillStyle(mix(bg, M.rope, 0.30), 1);
     g.fillRect(bx0, line - ph * 0.66, bw, Math.max(1.4, ph * 0.04));
+    }
 
     //  ② 스킬 파문 — 땅에 퍼지는 고리 하나. 화려함보다 **읽히는 것**이 먼저다.
     if (d.skillFx) {

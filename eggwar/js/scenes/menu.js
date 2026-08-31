@@ -36,6 +36,8 @@ GAME.MenuScene.prototype.create = function () {
   //  소재 전에는 ready() false 라 지금 화면 그대로). 영웅 퍼레이드는 그 위에 그대로.
   this._bgImg = GAME.UIBank ? GAME.UIBank.cover(this, 'bgMenu', W / 2, H / 2, W, H,
     { depth: -70 }) : null;
+  //  일러스트가 깔리면 데모의 절차 능선·목책도 접는다(그림 위 흰 말뚝 이중 방지).
+  if (GAME.LobbyArt) GAME.LobbyArt.noScenery = !!this._bgImg;
   this._backdrop = (!this._bgImg && GAME.LobbyArt) ? GAME.LobbyArt.backdrop(this) : null;
   this._parade = GAME.LobbyArt ? GAME.LobbyArt.start(this) : null;
   this.events.off('shutdown', this._paradeStop, this);
@@ -436,7 +438,9 @@ GAME.MenuScene.prototype._buildPhone = function () {
   if (GAME.UIBank) {
     [[pbC, 'cardDefend', x1, wSm], [pbB, 'cardTower', x2, wSm], [pbA, 'cardVersus', x3, wBig]]
       .forEach(function (p) {
-        var img = GAME.UIBank.place(self, p[1], p[2], cy, p[3] - 10, cardH - 10, { alpha: 0.5 });
+        //  cover — 세로형 카드 아트를 가로 버튼에 꽉 채워(중앙 밴드) 은은한 질감으로.
+        //  contain 은 우표처럼 좁게 떠서 폐기(실측 스크린샷).
+        var img = GAME.UIBank.cover(self, p[1], p[2], cy, p[3] - 8, cardH - 8, { alpha: 0.38 });
         if (img && p[0].text) p[0].text.setDepth(1);
       });
   }

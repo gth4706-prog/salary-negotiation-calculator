@@ -237,9 +237,18 @@ GAME.ArenaBuild = {
     defs: function () {
       if (this._defs) return this._defs;
       var src = (GAME.TowerChar && GAME.TowerChar.STAT_DEFS) || [];
+      var E = GAME.ArenaBuild.RT_ITEM_EFF;
       this._defs = src.map(function (d) {
         var c = {};
         for (var k in d) c[k] = d[k];
+        //  ⚠ 실시간은 아이템과 **같은 실효 배율**로 add 를 깎는다(2026-09-02 태현님:
+        //    "방어력 좀만 올려도 사냥꾼이 아무리 때려도 못잡음"). 안 깎으면 능력치
+        //    방어력이 예산당 아이템의 5배 효율이라(탑 가격표 그대로) 방어 몰빵이
+        //    성립한다 — 실측. add 를 깎으면 굴림·배지·기대범위가 전부 따라와
+        //    표기 = 실효가 유지된다(굴림 하한 1 은 rollGain 이 지킨다).
+        if (d.key === 'damage') c.add = Math.max(1, Math.round(d.add * E.damage));
+        if (d.key === 'armor') c.add = Math.max(1, Math.round(d.add * E.armor));
+        if (d.key === 'hp') c.add = Math.max(1, Math.round(d.add * E.hp));
         if (d.key === 'luck') c.desc = '레벨당: 처치 시 구슬 드랍 +5% — 내 팀만 줍는다';
         return c;
       });

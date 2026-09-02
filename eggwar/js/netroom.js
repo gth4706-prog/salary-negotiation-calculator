@@ -122,28 +122,40 @@ GAME.NetRoom = {
     catch (e) { this._scheduleRetry(id); return; }
     this.ws = ws;
 
+    //  ⚠ 소켓 신원 가드 — 재접속(visibilitychange)으로 새 소켓을 열면 **옛 좀비
+    //    소켓의 onclose 가 늦게 도착해** connected=false 로 새 연결 상태를 덮고
+    //    재시도까지 걸어 소켓이 두 개가 된다(실제 위험 경로). 핸들러마다
+    //    "내가 아직 현역인가(self.ws === ws)"를 먼저 본다.
     ws.onopen = function () {
+      if (self.ws !== ws) return;
       self.connected = true;
       self._retry = 0;
       self._startHeartbeat();
     };
 
     ws.onmessage = function (ev) {
+      if (self.ws !== ws) return;
       var msg;
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
       self._onMessage(msg);
     };
 
     ws.onerror = function () {
+      if (self.ws !== ws) return;
       self._emit('error', '연결 오류');
     };
 
     ws.onclose = function (ev) {
+      if (self.ws !== ws) return;
       self.connected = false;
       self._stopHeartbeat();
       self._emit('close', { code: ev && ev.code, byUser: self.closedByUser });
-      //  4009 = 버전 불일치 · 4004 = 없는 방 — 서버의 의도적 거절. 재시도해도 같은 답이다.
-      if (!self.closedByUser && !(ev && (ev.code === 4009 || ev.code === 4004))) self._scheduleRetry(id);
+      //  4009 = 버전 불일치 · 4004 = 없는 방 — 서버의 의도적 거절. 재시도해도 같은 답.
+      //  4008 = 다른 연결(같은 닉네임)이 자리를 가져감 — 이쪽이 물러나는 게 맞다.
+      if (!self.closedByUser &&
+          !(ev && (ev.code === 4009 || ev.code === 4004 || ev.code === 4008))) {
+        self._scheduleRetry(id);
+      }
     };
   },
 
@@ -303,15 +315,34 @@ GAME.NetRoom = {
     if (!this.enabled()) return '실시간 대전 준비 중';
     if (!this.connected) return '연결 중…';
     var n = this.peers.length;
+    //  지연은 **실제 전투 경로**(P2P 직결이 붙었으면 그쪽)를 보여준다 — 예전엔
+    //  서버 경유 WS 값만 보여줘서 "612ms" 같은 숫자가 떴는데, 정작 전투 입력
+    //  지연은 bestRtt 로 정해진다. 화면과 전투가 다른 값을 말하면 안 된다.
+    var rt = this.bestRtt();
+    var viaP2p = GAME.NetRtc && GAME.NetRtc.ready() && GAME.NetRtc.rttMs != null;
     return '방 ' + this.code + ' · ' + n + '/2명' +
-      (this.rttMs === null ? '' : ' · 지연 ' + Math.round(this.rttMs) + 'ms');
+      (rt == null ? '' : ' · 지연 ' + Math.round(rt) + 'ms' + (viaP2p ? ' (직결)' : ''));
   }
 };
 
-// 탭을 닫거나 새로고침하면 상대가 "왜 멈춰 있지"를 겪지 않도록 즉시 알린다.
-// (소켓이 그냥 끊겨도 서버가 결국 감지하지만, 그동안 상대는 몇 초를 기다린다.)
-if (typeof window !== 'undefined' && window.addEventListener) {
-  window.addEventListener('pagehide', function () {
-    if (GAME.NetRoom.connected) GAME.NetRoom.leave(true);
+// ── 백그라운드 전환 = 퇴장이 아니다 (2026-09-02 태현님: "접속이 너무 자주 끊어짐") ──
+//  예전 코드는 pagehide 에서 leave(true) 를 불렀다. 그런데 폰은 **화면이 꺼지거나
+//  앱을 잠깐 바꿔도 pagehide 가 뜬다** — 상대를 기다리며 화면이 어두워지는 순간
+//  자기 손으로 방을 나가 버렸고(closedByUser=true 라 재접속 로직까지 무력화),
+//  돌아와 보면 "연결이 끊겼습니다"였다. 이게 신고의 정체다.
+//  지금은: 나가기는 오직 [나가기] 버튼과 씬 shutdown 만 한다. 백그라운드로 소켓이
+//  죽으면 서버 하트비트 청소가 상대에게 알리고, **화면에 돌아오면 같은 방으로
+//  즉시 재입장**한다(서버가 같은 닉네임의 유령 자리를 회수한다 — worker 쪽 짝 수정).
+if (typeof window !== 'undefined' && window.addEventListener &&
+    typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', function () {
+    var NR = GAME.NetRoom;
+    if (document.visibilityState !== 'visible') return;
+    if (!NR.code || NR.connected || NR.closedByUser) return;
+    //  대기 중이던 재시도 타이머보다 빠르게, 횟수도 새로 센다(사람이 돌아온 순간이
+    //  가장 붙기 좋은 순간이다 — 백그라운드에선 타이머가 스로틀되어 있었다).
+    if (NR._retryTimer) { clearTimeout(NR._retryTimer); NR._retryTimer = null; }
+    NR._retry = 0;
+    NR._openSocket();
   });
 }

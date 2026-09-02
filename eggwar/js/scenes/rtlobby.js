@@ -228,9 +228,11 @@ GAME.RtLobbyScene.prototype._onRoom = function () {
   }
   this._codeTxt.setText('방 코드  ' + NR.code);
   var names = NR.peers.map(function (p) { return p.id + (p.id === NR.host ? ' (방장)' : ''); });
+  var bestRt = NR.bestRtt();
   this._peersTxt.setText(names.join('   vs   ') +
     (NR.peers.length < 2 ? '\n상대를 기다리는 중 — 코드를 알려주세요' :
-      (NR.rttMs != null ? '\n왕복 지연 ' + Math.round(NR.rttMs) + 'ms' : '')));
+      (bestRt != null ? '\n왕복 지연 ' + Math.round(bestRt) + 'ms' +
+        (GAME.NetRtc && GAME.NetRtc.ready() ? ' (직결)' : ' (서버 경유)') : '')));
   this._refreshRoleUi();
   //  방에 들어오면 상태 줄을 비운다 — 방 코드·참가자·지연을 전용 줄이 이미 말하고 있어
   //  같은 내용이 겹쳌 찍혔다(2026-09-01 태현님 캐처 실측).

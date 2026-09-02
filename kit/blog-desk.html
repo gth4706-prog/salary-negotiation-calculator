@@ -133,6 +133,30 @@ details[open] summary:before{content:'▾ '}
   .prev{max-height:360px;font-size:14.5px}
   .guide ol{padding-left:18px}
 }
+
+/* ── 직접 쓰기 (2026-09-02) ─────────────────────────────────────────
+   여기가 없으면 새 글을 쓸 때마다 Claude 가 코드를 고쳐야 한다.
+   그래서 이 작업대는 도구가 아니라 배달함이었다. */
+.editor{background:var(--surface);border:1px solid var(--accent);border-radius:var(--r);
+  padding:18px;margin-bottom:18px;box-shadow:var(--shadow)}
+.editor h2{font-size:16px;margin:0 0 14px}
+.ed-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));margin-bottom:12px}
+.editor label{display:block;font-size:13px;font-weight:700;color:var(--muted)}
+.editor input,.editor textarea{width:100%;box-sizing:border-box;margin-top:5px;
+  font:400 15px/1.7 inherit;color:var(--ink);background:var(--paper);
+  border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 11px}
+.editor textarea{resize:vertical;min-height:280px;font-size:14.5px}
+.editor input:focus,.editor textarea:focus{outline:none;border-color:var(--accent)}
+.ed-help{background:var(--surface-2);border-radius:var(--r-sm);padding:13px 15px;margin:12px 0;
+  font-size:13px;line-height:1.75;color:var(--muted)}
+.ed-help b{color:var(--ink)}
+.ed-help code{background:var(--surface);padding:1px 5px;border-radius:4px;
+  font-family:ui-monospace,Consolas,monospace;font-size:12.5px;color:var(--accent-ink)}
+.ed-help ul{margin:7px 0 0;padding-left:17px}
+.ed-help li{margin-bottom:4px}
+button.danger{color:var(--warn);border-color:var(--warn)}
+.card .edit-btn{font-size:12.5px;padding:5px 9px}
+.mine-tag{background:var(--accent);color:#fff}
 </style>
 </head>
 <body>
@@ -156,9 +180,58 @@ details[open] summary:before{content:'▾ '}
   </div>
 
   <div class="bar">
+    <button class="primary" id="newpost">＋ 새 글 쓰기</button>
     <span class="count" id="count"></span>
     <button class="ghost" id="reset">체크 전체 해제</button>
     <button class="ghost" id="report">진행 상황 복사</button>
+    <button class="ghost" id="backup">내 글 백업</button>
+  </div>
+
+
+  <div class="editor" id="editor" hidden>
+    <h2 id="ed-h">새 글 쓰기</h2>
+
+    <div class="ed-help">
+      <b>본문 문법</b>
+      <ul>
+        <li>문단은 <b>빈 줄</b>로 나눕니다.</li>
+        <li>줄 앞에 <code>■ </code> 를 붙이면 <b>소제목</b>이 됩니다 (24px 굵게 + 구분선).</li>
+        <li><code>[[링크]]</code> 자리에 아래 링크가 들어갑니다. 링크를 비우면 그냥 지워집니다.</li>
+        <li><code>[[사진:calc-severance]]</code> 처럼 쓰면 그 자리에서 단계가 끊기고 사진을 넣게 안내합니다.</li>
+      </ul>
+    </div>
+
+    <div class="ed-help">
+      <b>네이버에서 노출되려면</b>
+      <ul>
+        <li><b>제목 앞쪽</b>에 노리는 검색어를 넣습니다. 뒤로 갈수록 약해집니다.</li>
+        <li><b>소제목 3~5개</b>로 나눕니다. 끊어 읽히면 체류시간이 올라갑니다.</li>
+        <li><b>첫 문단</b>에 검색어를 한 번 더 씁니다.</li>
+        <li>1,500자 이상. 짧으면 잘 안 뜹니다.</li>
+        <li><b>외부 링크는 1개까지.</b> 2개 넘으면 홍보성으로 분류됩니다.</li>
+        <li>겪은 일·본 것을 넣습니다. 네이버는 경험이 담긴 글을 위로 올립니다.</li>
+      </ul>
+    </div>
+
+    <div class="ed-grid">
+      <label>제목<input id="ed-t" placeholder="검색어를 앞쪽에"></label>
+      <label>트랙<input id="ed-track" placeholder="예: 직장 / 생활"></label>
+      <label>노리는 검색어<input id="ed-kw" placeholder="쉼표로 구분"></label>
+      <label>태그<input id="ed-tags" placeholder="쉼표로 구분 (10개 권장)"></label>
+      <label>링크 문구<input id="ed-lt" placeholder="내 월급 한 장"></label>
+      <label>링크 주소<input id="ed-lu" placeholder="https://joeltool.com/my-pay/"></label>
+    </div>
+
+    <label>본문<textarea id="ed-body" placeholder="첫 문단은 검색어를 넣어 짧게.&#10;&#10;■ 첫 소제목&#10;&#10;내용...&#10;&#10;■ 두 번째 소제목&#10;&#10;내용..."></textarea></label>
+    <p class="sub" style="margin:6px 0 0;font-size:12.5px" id="ed-count"></p>
+
+    <label style="margin-top:12px">노출 팁 (나중에 나에게 보이는 메모)<input id="ed-seo" placeholder="이 글로 노리는 것"></label>
+
+    <div class="row">
+      <button class="primary" id="ed-save">저장</button>
+      <button id="ed-cancel">취소</button>
+      <button class="danger" id="ed-del" hidden>이 글 삭제</button>
+    </div>
   </div>
 
   <div id="list"></div>
@@ -167,7 +240,7 @@ details[open] summary:before{content:'▾ '}
 <div class="lb" id="lb"><img id="lbimg" alt=""></div>
 <div class="toast" id="toast"></div>
 
-<script src="blog-drafts.js?v=0.04"></script>
+<script src="blog-drafts.js?v=0.05"></script>
 <script src="blog-tables.js?v=0.02"></script>
 <script>
 (function(){
@@ -185,7 +258,9 @@ details[open] summary:before{content:'▾ '}
 
   /* 원고 텍스트 → 문단 배열. ■ 는 소제목, [[링크]] 는 실제 주소로 */
   function parse(d){
-    var txt=d.body.replace(/\[\[링크\]\]/g, d.link.text+'('+d.link.url+')');
+    /* 링크가 없는 글도 있다(가리킬 도구가 없으면 억지로 붙이지 않는다).
+       그때는 [[링크]] 자리를 그냥 지운다 — 여기서 터지면 그 글 전체가 안 열린다. */
+    var txt=d.body.replace(/\[\[링크\]\]/g, d.link ? (d.link.text+'('+d.link.url+')') : '');
     return txt.split(/\n\n+/).map(function(blk){
       var t=blk.trim(); if(!t) return null;
       if(t.indexOf('■ ')===0) return {h:t.slice(2).trim()};
@@ -406,8 +481,99 @@ details[open] summary:before{content:'▾ '}
     });
   }
 
+
+  /* ===== 내가 쓴 글 (2026-09-02) ==========================================
+     내장 4편은 읽기 전용 예시고, 여기부터가 태현님 글이다.
+     ⚠️ localStorage 는 브라우저를 갈아엎으면 사라진다. 그래서 「내 글 백업」으로
+        언제든 통째로 복사해 둘 수 있게 했다. 원고는 다시 못 쓴다. */
+  var MKEY='blogdesk.mine.v1';
+  var mine=[]; try{ mine=JSON.parse(localStorage.getItem(MKEY)||'[]'); }catch(e){ mine=[]; }
+  function saveMine(){ try{ localStorage.setItem(MKEY,JSON.stringify(mine)); }catch(e){ toast('저장 실패 — 저장공간이 꽉 찼을 수 있어요'); } }
+  function allDrafts(){ return (window.BLOG_DRAFTS||[]).concat(mine); }
+
+  var edEl=document.getElementById('editor'), editing=null;
+  function $e(id){ return document.getElementById(id); }
+
+  function openEditor(d){
+    editing = d || null;
+    $e('ed-h').textContent = d ? '글 고치기' : '새 글 쓰기';
+    $e('ed-t').value      = d ? d.title : '';
+    $e('ed-track').value  = d ? d.track : '직장';
+    $e('ed-kw').value     = d ? (d.keywords||[]).join(', ') : '';
+    $e('ed-tags').value   = d ? (d.tags||[]).join(', ') : '';
+    $e('ed-lt').value     = d && d.link ? d.link.text : '내 월급 한 장';
+    $e('ed-lu').value     = d && d.link ? d.link.url  : 'https://joeltool.com/my-pay/';
+    $e('ed-body').value   = d ? d.body : '';
+    $e('ed-seo').value    = d ? (d.seo||'') : '';
+    $e('ed-del').hidden   = !d;
+    edEl.hidden=false; countBody();
+    edEl.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  function closeEditor(){ edEl.hidden=true; editing=null; }
+
+  /* 분량은 네이버 노출에 실제로 영향을 준다 — 쓰는 동안 보이게 한다 */
+  function countBody(){
+    var n=$e('ed-body').value.replace(/\s/g,'').length;
+    $e('ed-count').textContent = '공백 제외 '+n.toLocaleString()+'자'+
+      (n<1500 ? '  · 1,500자를 넘기는 게 좋습니다' : '  · 분량은 충분합니다');
+    $e('ed-count').style.color = n<1500 ? 'var(--warn)' : 'var(--accent-ink)';
+  }
+
+  function splitList(v){
+    return String(v||'').split(/[,\n]/).map(function(x){return x.trim();}).filter(Boolean);
+  }
+
+  function saveFromForm(){
+    var title=$e('ed-t').value.trim(), body=$e('ed-body').value.trim();
+    if(!title){ toast('제목을 넣어주세요'); return; }
+    if(!body){ toast('본문을 넣어주세요'); return; }
+    var url=$e('ed-lu').value.trim(), ltxt=$e('ed-lt').value.trim();
+    var rec={
+      id: editing ? editing.id : 'mine-'+Date.now().toString(36),
+      mine:true,
+      track: $e('ed-track').value.trim() || '직장',
+      title: title,
+      keywords: splitList($e('ed-kw').value),
+      tags: splitList($e('ed-tags').value),
+      link: (url&&ltxt) ? {url:url, text:ltxt} : null,
+      seo: $e('ed-seo').value.trim() || '직접 쓴 글',
+      images: [],
+      body: body
+    };
+    if(editing){
+      for(var i=0;i<mine.length;i++) if(mine[i].id===editing.id){ mine[i]=rec; break; }
+    } else mine.push(rec);
+    saveMine(); closeEditor(); render(); toast('저장했습니다');
+  }
+
+  function deleteCurrent(){
+    if(!editing) return;
+    mine = mine.filter(function(x){ return x.id!==editing.id; });
+    saveMine(); closeEditor(); render(); toast('삭제했습니다');
+  }
+
+  $e('newpost').addEventListener('click',function(){ openEditor(null); });
+  $e('ed-cancel').addEventListener('click',closeEditor);
+  $e('ed-save').addEventListener('click',saveFromForm);
+  $e('ed-del').addEventListener('click',deleteCurrent);
+  $e('ed-body').addEventListener('input',countBody);
+
+  /* 목록에서 고치기 */
+  listEl.addEventListener('click',function(ev){
+    var b=ev.target.closest&&ev.target.closest('[data-edit]');
+    if(!b) return;
+    var id=b.getAttribute('data-edit');
+    for(var i=0;i<mine.length;i++) if(mine[i].id===id){ openEditor(mine[i]); return; }
+  });
+
+  /* 백업 — 이 텍스트만 있으면 어디서든 되살린다 */
+  $e('backup').addEventListener('click',function(){
+    if(!mine.length){ toast('아직 직접 쓴 글이 없습니다'); return; }
+    copyText(JSON.stringify(mine,null,2), '내 글 '+mine.length+'편을 복사했습니다 (메모장에 붙여 보관하세요)');
+  });
+
   function render(){
-    var drafts=window.BLOG_DRAFTS||[]; listEl.innerHTML=''; var n=0;
+    var drafts=allDrafts(); listEl.innerHTML=''; var n=0;
     drafts.forEach(function(d){
       if(done[d.id]) n++;
       var c=document.createElement('div');
@@ -422,6 +588,7 @@ details[open] summary:before{content:'▾ '}
           '<span class="track">'+esc(d.track)+'</span>'+
           '<p class="ttl">'+esc(d.title)+'</p></div>'+
         '<label class="chk"><input type="checkbox" '+(done[d.id]?'checked':'')+'> 업로드함</label></div>'+
+        (d.mine?'<div class="row"><button class="edit-btn" data-edit="'+d.id+'">고치기</button></div>':'')+
         '<p class="meta">노리는 검색어 <b>'+esc(d.keywords.join(' · '))+'</b></p>'+
         '<div class="row">'+
           '<button class="primary" data-c="title">제목 복사</button>'+
@@ -467,7 +634,7 @@ details[open] summary:before{content:'▾ '}
     done={}; save(); render(); toast('해제됨');
   });
   document.getElementById('report').addEventListener('click',function(){
-    var drafts=window.BLOG_DRAFTS||[];
+    var drafts=allDrafts();
     var L=['[블로그 발행 현황 '+new Date().toISOString().slice(0,10)+']'];
     drafts.forEach(function(d){ L.push((done[d.id]?'[O] ':'[ ] ')+d.title+(done[d.id]?'  ('+done[d.id]+')':'')); });
     L.push('','올린 것: '+Object.keys(done).length+' / '+drafts.length);

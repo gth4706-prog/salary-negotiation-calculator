@@ -85,9 +85,21 @@ GAME.Modal = {
     pg.strokeRoundedRect(pl, panelY, panelW, panelH, 14);
     objs.push(pg);
 
-    objs.push(UI.label(scene, W / 2, panelY + 12, opts.title || '선택',
-      'subhead', UI.IS_LIGHT ? '#fff6e2' : C.text, 0.5)
-      .setOrigin(0.5, 0).setDepth(1002));
+    //  제목 띠에 리본(2026-09-02 W4) — 소재가 있을 때만. 없으면 위 가죽 밴드가 그대로
+    //  제목 띠다(절차 폴백을 겹쳐 그리지 않는다 — 밴드가 이미 그 역할이다).
+    //  말린 끝은 0.4 배: 위로 13px 만 솟아 panelY 하한 12 안에서 화면 밖으로 안 나간다.
+    var onRibbon = false;
+    if (UI.ribbon && GAME.UIBank && GAME.UIBank.ready(scene, 'texRibbonSm')) {
+      var rib = UI.ribbon(scene, W / 2, panelY + (titleH - 4) / 2, panelW - 8, titleH - 4,
+        { scale: 0.4, maxW: W - 4, depth: 1001.5 });
+      objs.push(rib.obj);
+      onRibbon = true;
+    }
+
+    objs.push(UI.text(scene, W / 2, panelY + 12, opts.title || '선택', {
+      size: 'subhead', color: (UI.IS_LIGHT || onRibbon) ? '#fff6e2' : C.text,
+      origin: 0.5, originY: 0, outline: onRibbon
+    }).setDepth(1002));
 
     var y = panelY + titleH;
     items.forEach(function (it, i) {

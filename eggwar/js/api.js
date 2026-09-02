@@ -294,6 +294,27 @@ GAME.Api = {
     });
   },
 
+  // ── 클라우드 저장 (2026-09-02, js/cloudsave.js 가 부른다) ────────────────────
+  //  둘 다 **성공했을 때만** resolve 한다. 실패는 그대로 reject — 호출부(CloudSave)가
+  //  메시지로 '서버 대기(404)' / 'PIN 다름' / '연결 실패'를 가른다.
+  //  ⚠ cloudGet 도 POST 다. 규약상 GET ?name=&pin= 도 서버가 받지만 PIN 을 URL 에
+  //    실으면 로그·프록시에 남는다 — 본문으로 보낸다. (POST 라 `_fetch` 의 probe
+  //    관문에 걸리지만, 검증 환경에서는 CloudSave 자체가 꺼지므로 무해하다.)
+  cloudPut: function (id, pin, ver, data) {
+    return this._fetch('/cloud/put', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: id, pin: pin, ver: ver, data: data })
+    });
+  },
+  cloudGet: function (id, pin) {
+    return this._fetch('/cloud/get', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: id, pin: pin })
+    });
+  },
+
   names: function (token) {
     return this._fetch('/names', { headers: token ? { 'X-Admin-Token': token } : {} });
   },

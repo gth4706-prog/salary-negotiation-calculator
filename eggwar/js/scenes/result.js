@@ -120,6 +120,14 @@ GAME.ResultScene.prototype._rtWire = function () {
 };
 
 GAME.ResultScene.prototype._rtAgainClick = function () {
+  //  연습 대전 — 같은 난이도로 곧장 다시(준비 화면부터). 방·서버 없음.
+  if (this.rtResult && this.rtResult.practice) {
+    if (this._rtGoing) return;
+    this._rtGoing = true;
+    GAME.RtFlow.beginLocal(this.rtResult.practice);
+    this.scene.start('RtPrep');
+    return;
+  }
   if (this._rtVoted || !this.rtLive || !GAME.NetRoom.connected) return;
   this._rtVoted = true;
   var self = this;
@@ -155,6 +163,27 @@ GAME.ResultScene.prototype._rtGo = function (seed) {
 GAME.ResultScene.prototype.create = function () {
   // 층 클리어는 화면을 만들지 않고 바로 다음 층 도전 화면으로 넘어간다.
   if (this._skipToNextFloor()) return;
+
+  //  메타 토스트(v3.0) — 이 판에서 새로 달성한 업적·완료한 일일 과제를 띄운다.
+  var selfM = this;
+  //  첫 전투 가이드 보상(v3.0 B) — 한 번만 나온다(Guide.claim 이 두 번째부터 null).
+  try {
+    var gw = (GAME.Guide && GAME.Guide.claim) ? GAME.Guide.claim() : null;
+    if (gw && gw.gold && GAME.TowerChar && GAME.TowerChar.exists()) {
+      var grec = GAME.TowerChar.get();
+      grec.gold = (grec.gold || 0) + gw.gold;
+      GAME.TowerChar._save(grec);
+      if (GAME.MetaToast) GAME.MetaToast.push('🎓 첫 전투 가이드 완료 — 골드 +' + gw.gold);
+    }
+  } catch (e) {}
+  this.time.delayedCall(500, function () {
+    if (!selfM.scene.isActive()) return;
+    if (GAME.Achievements && GAME.Achievements.flush) GAME.Achievements.flush(selfM);
+    if (GAME.Daily && GAME.Daily.flush) GAME.Daily.flush(selfM);
+    if (GAME.Progress && GAME.Progress.flush) GAME.Progress.flush(selfM);
+    //  클라우드 저장(v3.0 E) — 판이 끝난 진행을 밀어 올린다(디바운스·무변화 미전송).
+    if (GAME.CloudSave && GAME.CloudSave.push) { try { GAME.CloudSave.push(); } catch (e) {} }
+  });
 
   var C = GAME.CONFIG.COLORS;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
@@ -277,6 +306,11 @@ GAME.ResultScene.prototype.create = function () {
     if (rr.invalid) {
       title = '판 무효'; color = C.warn;
       sub = '동기화가 어긋나 이 판은 기록되지 않았습니다. 점수 변동 없음.';
+    } else if (rr.practice) {
+      //  연습 대전(봇) — 점수 무정산. 난이도만 말한다.
+      var lvName = (GAME.RtBot && GAME.RtBot.LEVELS[rr.practice] && GAME.RtBot.LEVELS[rr.practice].name) || rr.practice;
+      title = rr.won ? '연습 대전 승리' : '연습 대전 패배'; color = rr.won ? C.accent : C.textDim;
+      sub = '봇(' + lvName + ') 상대 연습 — 실시간 점수는 움직이지 않습니다.';
     } else if (rr.won) {
       title = '실시간 대전 승리'; color = C.accent;
       sub = '실시간 점수 +' + rr.delta + ' → ' + rr.score;
@@ -389,7 +423,8 @@ GAME.ResultScene.prototype.create = function () {
   else if (this.rtResult) {
     //  실시간(2026-08-31 태현님 ①) — 예전 기본 갈래('같은 진형에 다시 도전' →
     //  Draft('__rt'))는 **없는 진형으로 가는 막다른 화면**이었다(판 끝 멈춤의 정체).
-    b1 = (this.rtLive && GAME.NetRoom.connected) ? '🔄 한판 더 (상대 동의 시)' : null;
+    b1 = this.rtResult.practice ? '🔁 다시 (연습 대전)'
+       : (this.rtLive && GAME.NetRoom.connected) ? '🔄 한판 더 (상대 동의 시)' : null;
   }
   else if (this.versus) b1 = '다음 상대';
   else if (this.defendMode) b1 = '배치 고쳐 다시';
@@ -586,9 +621,9 @@ GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
 
   //  실시간(폰) — 큰 버튼 = [한판 더], 아랫줄 = 나가기·랭킹·메뉴 (2026-08-31 ①).
   if (this.rtResult) {
-    if (this.rtLive && GAME.NetRoom.connected) {
+    if (this.rtResult.practice || (this.rtLive && GAME.NetRoom.connected)) {
       this._rtAgainBtn = UI.button(this, rx + rw / 2, mainTop + mainH / 2, rw, mainH,
-        '🔄 한판 더', function () { self._rtAgainClick(); },
+        this.rtResult.practice ? '🔁 다시 (연습)' : '🔄 한판 더', function () { self._rtAgainClick(); },
         { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
           hover: UI.COL.panelTealHi, color: C.accent, fontSize: 18 });
     } else {

@@ -35,6 +35,25 @@ GAME.LoadingScene.TIPS = [
   '약초꾼을 먼저 끊으면 진형이 무너진다.',
   '방어력은 비율로 깎인다 — 물량은 여전히 유효하다.'
 ];
+//  조작 팁 (2026-09-02 W4) — 문구는 battle.js 의 조작 안내줄과 같은 말을 쓴다.
+//  한 줄이 폰 폭(세로 420, wrap 360)에서 두 줄을 넘지 않게 짧게.
+GAME.LoadingScene.TIPS_CONTROL = [
+  'PC 조작: 방향키로 이동, Q W E R 로 스킬.',
+  '폰 조작: 왼쪽 아무 데나 누르면 그 자리가 스틱이 된다.',
+  '폰 조작: 오른쪽 버튼으로 스킬 — 바라보는 방향으로 나간다.',
+  '폰 조작: 한 번 탭은 이동하며 교전, 두 번 탭은 이동만.'
+];
+//  팁 전체 = 기본 팁 + 실시간 맵 5종(GAME.RtMaps.LIST 의 name/desc) + 조작 팁.
+//  맵 목록은 **부를 때** 읽는다 — rtmaps.js 가 이 파일보다 뒤에 로드돼도 안전하다.
+GAME.LoadingScene.tips = function () {
+  var out = this.TIPS.slice();
+  var maps = (GAME.RtMaps && GAME.RtMaps.LIST) || [];
+  for (var i = 0; i < maps.length; i++) {
+    if (!maps[i] || !maps[i].name) continue;
+    out.push('실시간 맵 「' + maps[i].name + '」 — ' + (maps[i].desc || ''));
+  }
+  return out.concat(this.TIPS_CONTROL);
+};
 
 GAME.LoadingScene.prototype.create = function () {
   //  무기 이미지 선적재 — 캐릭터 카드가 텍스처보다 먼저 그려져 옛 벡터로 박제되는
@@ -53,6 +72,7 @@ GAME.LoadingScene.prototype.create = function () {
   this.cameras.main.setBackgroundColor(C.bg);
   this.done = false;
   this.t = 0;
+  this.ribbon = null;      // 씬 인스턴스 재사용 — 지난 폴백의 파괴된 띠 참조를 비운다
   // 인트로는 기본 투영에서 그린다(전투 씬이 켠 전체화면 모드가 남아 있을 수 있다)
   GAME.Iso.setMode('default');
 
@@ -422,13 +442,24 @@ GAME.LoadingScene.prototype._buildFallback = function () {
   this.yolks = [];
   this.clashed = false;
 
-  this.title = GAME.UI.label(this, W / 2, this.stageY + (P ? 92 : 118), '계란들의 전쟁',
-    P ? 34 : 52, C.text, 0.5).setOrigin(0.5, 0).setAlpha(0);
-  this.sub = GAME.UI.label(this, W / 2, this.title.y + (P ? 44 : 62),
+  //  세로 배치는 **위에서부터 실측 높이로 이어 내린다** (W4) — 예전 고정 오프셋은
+  //  폰 가로(820×390)에서 팁이 바닥 안내줄을 파고들고 있었다(계산으로 확인).
+  //  · 제목 위치 = 계란 무대 아래(반지름 2.4배). update() 의 R 과 같은 식.
+  //  · 제목 뒤 리본 띠 — 첫 부팅엔 소재가 아직 없는 게 보통이라 절차 띠가 뜬다.
+  //    규격이 같으므로(UI.ribbon) 어느 쪽이든 다음 줄은 full.bottom 에서 시작한다.
+  var small = GAME.CONFIG.SMALL;
+  var R0 = P ? 30 : 38;
+  var titlePx = (small && !P) ? 30 : (P ? 34 : 52);
+  this.title = GAME.UI.label(this, W / 2, this.stageY + R0 * 2.4 + ((small && !P) ? 8 : (P ? 20 : 26)),
+    '계란들의 전쟁', titlePx, '#fff6df', 0.5).setOrigin(0.5, 0).setAlpha(0);
+  this.ribbon = GAME.UI.ribbonBehind(this, this.title,
+    { padX: P ? 24 : 36, padY: 6, maxW: W - 8, scale: small ? 0.7 : 1 });
+  this.ribbon.obj.setAlpha(0);
+  this.sub = GAME.UI.label(this, W / 2, this.ribbon.full.bottom + u * 1.2,
     '계란 부족 비대칭 실시간 대전', P ? 15 : 18, C.textDim, 0.5).setOrigin(0.5, 0).setAlpha(0);
 
   var barW = Math.min(W - 80, 320), barH = 10;
-  var barY = this.sub.y + (P ? 42 : 52);
+  var barY = Math.round(this.sub.y + this.sub.height + u * 2.5);
   this.barGeo = { x: W / 2 - barW / 2, y: barY, w: barW, h: barH };
   this.progress = { v: 0 };
   this.tweens.add({
@@ -436,8 +467,9 @@ GAME.LoadingScene.prototype._buildFallback = function () {
     duration: GAME.LoadingScene.DURATION - 400, ease: 'Sine.easeInOut'
   });
 
-  var tip = GAME.LoadingScene.TIPS[Math.floor(Math.random() * GAME.LoadingScene.TIPS.length)];
-  this.tipLbl = GAME.UI.label(this, W / 2, barY + barH + u * 4, tip,
+  var tips = GAME.LoadingScene.tips();
+  var tip = tips[Math.floor(Math.random() * tips.length)];
+  this.tipLbl = GAME.UI.label(this, W / 2, barY + barH + u * 1.6, tip,
     P ? 13 : 14, GAME.CONFIG.COLORS.textFaint, 0.5)
     .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 60).setAlpha(0);
 
@@ -521,6 +553,7 @@ GAME.LoadingScene.prototype.update = function (time, delta) {
   if (after > 60) {
     var a1 = Math.min(1, (after - 60) / 320);
     this.title.setAlpha(a1);
+    if (this.ribbon && this.ribbon.obj.scene) this.ribbon.obj.setAlpha(a1);
     var s = 1 + 0.14 * Math.max(0, 1 - (after - 60) / 260);
     this.title.setScale(s);
     this.sub.setAlpha(Math.min(1, (after - 220) / 340));

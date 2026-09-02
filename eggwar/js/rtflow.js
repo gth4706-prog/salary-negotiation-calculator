@@ -35,6 +35,8 @@ GAME.RtFlow = {
 
   begin: function (myRole, theirRole, startMsg) {
     this.active = true;
+    this.local = false;
+    this.botLevel = null;
     this.myRole = myRole;
     this.theirRole = theirRole;
     this.startMsg = startMsg;
@@ -62,6 +64,29 @@ GAME.RtFlow = {
     GAME.NetRoom.on.close = function (info) {
       if (!info || !info.byUser) self.abort('상대의 연결이 끊겼습니다');
     };
+    if (this._tickId) clearInterval(this._tickId);
+    this._tickId = setInterval(function () { self._check(); }, 500);
+  },
+
+  //  ── 연습 대전(봇) — 방·서버 없이 같은 준비 흐름을 탄다 (v3.0, 2026-09-02) ──
+  //  NetRoom 콜백을 **하나도 안 건다.** 상대 세팅은 commitMine 이 봇 세팅으로 채운다.
+  local: false,
+  botLevel: null,
+  beginLocal: function (level) {
+    this.active = true;
+    this.local = true;
+    this.botLevel = level || 'normal';
+    this.myRole = 'controller';
+    this.theirRole = 'controller';
+    this.startMsg = { seed: (Math.floor(Math.random() * 0xffffffff) >>> 0) };
+    this.mySetup = null;
+    this.theirSetup = null;
+    this.myHeroPick = null;
+    if (GAME.ArenaBuild) GAME.ArenaBuild.rtBegin();
+    this._started = false;
+    this._rttFrozen = 0;
+    this.deadline = Date.now() + this.PREP_MS;
+    var self = this;
     if (this._tickId) clearInterval(this._tickId);
     this._tickId = setInterval(function () { self._check(); }, 500);
   },
@@ -119,6 +144,24 @@ GAME.RtFlow = {
 
   commitMine: function (setup) {
     if (!this.active || this.mySetup) return;
+    //  입력 지연은 여기서 얼리는 rtt 로 정해진다. P2P 직결이 아직 안 붙었으면 서버
+    //  경유 rtt(수백 ms)가 판 내내 굳는다 — "렉" 신고의 한 축(2026-09-02). 직결이
+    //  붙을 때까지 **최대 1.5초**만 기다렸다가 얼린다(양쪽 같은 규칙이라 안전하고,
+    //  기다리는 동안도 준비 시간은 흐른다).
+    if (!this.local && this._rttFrozen == null && GAME.NetRtc && !GAME.NetRtc.ready() &&
+        GAME.NetRoom.peers && GAME.NetRoom.peers.length >= 2 && !this._rttWaiting) {
+      var selfW = this, waited = 0;
+      this._rttWaiting = true;
+      var iv = setInterval(function () {
+        waited += 100;
+        if (GAME.NetRtc.ready() || waited >= 1500 || !selfW.active) {
+          clearInterval(iv);
+          selfW._rttWaiting = false;
+          if (selfW.active) selfW.commitMine(setup);
+        }
+      }, 100);
+      return;
+    }
     //  rtt 는 한 번만 얼린다 — 양쪽이 (내 rtt, 상대 rtt)의 같은 쌍으로 같은 지연을
     //  계산해야 한다. 재전송 때 값이 바뀌면 세션 지연이 갈라져 desync 다.
     if (this._rttFrozen == null)
@@ -126,6 +169,12 @@ GAME.RtFlow = {
     setup.rtt = this._rttFrozen;
     setup.rtScore = GAME.RtScore ? GAME.RtScore.get().score : 0;
     this.mySetup = setup;
+    if (this.local) {
+      //  연습 대전 — 상대는 봇. 내 영웅과 다른 영웅을 우선 고른다(시드 결정적).
+      this.theirSetup = GAME.RtBot.botSetup(this.botLevel, this.startMsg.seed, setup.heroKey);
+      this.maybeBattle();
+      return;
+    }
     GAME.NetRoom.relay({ type: 'rtSetup', setup: setup });
     this.maybeBattle();
   },
@@ -144,16 +193,19 @@ GAME.RtFlow = {
     if (GAME.ArenaBuild) GAME.ArenaBuild.rtEnd();
     var NR = GAME.NetRoom;
     //  팀 라벨: 방장 = 'controller' 팀 · 손님 = 'strategist' 팀 (역할과 무관한 자리 이름).
-    var meTeam = (NR.me === NR.host) ? 'controller' : 'strategist';
+    //  연습 대전은 언제나 내가 'controller' 팀 · 지연 2틱(네트워크 없음).
+    var meTeam = this.local ? 'controller' : ((NR.me === NR.host) ? 'controller' : 'strategist');
     var oneWay = ((this.mySetup.rtt || 180) + (this.theirSetup.rtt || 180)) / 2;
-    var delay = Math.max(3, Math.min(24, Math.ceil(oneWay * 1.15 / 33.4) + 2));
+    var delay = this.local ? 2 : Math.max(3, Math.min(24, Math.ceil(oneWay * 1.15 / 33.4) + 2));
     var heroKey = this.mySetup.heroKey || this.theirSetup.heroKey || 'vanguard';
     var rt = {
       seed: this.startMsg.seed >>> 0,
       meTeam: meTeam,
       delay: delay,
       my: this.mySetup,
-      their: this.theirSetup
+      their: this.theirSetup,
+      local: !!this.local,
+      botLevel: this.local ? this.botLevel : null
     };
     this.active = false;
     var sm = GAME.game.scene;
@@ -166,9 +218,12 @@ GAME.RtFlow = {
     if (GAME.ArenaBuild) GAME.ArenaBuild.rtEnd();
     if (!this.active) return;
     this.active = false;
-    GAME.NetRoom.on.message = null;
-    GAME.NetRoom.on.close = null;
-    GAME.NetRoom.leave(true);
+    if (!this.local) {
+      GAME.NetRoom.on.message = null;
+      GAME.NetRoom.on.close = null;
+      GAME.NetRoom.leave(true);
+    }
+    this.local = false;
     var sm = GAME.game && GAME.game.scene;
     if (sm) {
       var prep = sm.getScene('RtPrep');

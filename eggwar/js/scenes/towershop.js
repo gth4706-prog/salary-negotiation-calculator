@@ -186,6 +186,12 @@ GAME.TowerShopScene.prototype.create = function () {
   }
   var tabW = Math.min(W - PAD * 2, 420);
   var tc = GAME.Layout.cols(TABS.length, { gap: 8, width: tabW, left: (W - tabW) / 2, pad: 0 });
+  //  탭 바 뒤 리본 띠 (2026-09-02 W4) — 탭 버튼이 **뒤이어** 만들어져 그 위에 얹힌다.
+  //  세로 여유가 없는 화면이다(제목 바닥 ~36 / 본문 시작 98): 몸통은 탭 높이 40 + 4,
+  //  말린 끝은 0.5 배(위로 16·아래로 11 만 솟아 제목·본문을 안 건드린다).
+  //  폭은 화면 안(W-4)으로 자른다 — 폰 세로에선 끝이 탭 양끝 밑으로 들어간다.
+  //  소재가 아직이면 UI.ribbon 이 같은 규격의 절차 띠를 그린다.
+  this._tabRibbon = GAME.UI.ribbon(this, W / 2, tabY + 22, tabW + 16, 44, { scale: 0.5, maxW: W - 4 });
   this._tabBtns = [];
   TABS.forEach(function (t, i) {
     var b = GAME.UI.button(self, tc[i].cx, tabY + 22, tc[i].w, 40, t[1], function () {
@@ -912,6 +918,20 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
         if (!pAfford) return;
         if (self.src.buy(self.itemSlot, pick.key)) {
           self.itemPick = null;
+          //  메타 이벤트(v3.0) — 장착 4칸의 **최저 단계**(빈 칸은 0). 탑 캐릭터만
+          //  (실시간 임시 빌드는 판마다 초기화라 업적 대상이 아니다).
+          if (self.mode !== 'arena' && GAME.Achievements && GAME.Achievements.emit) {
+            try {
+              var rec2 = self.src.rec(), CAT2 = GAME.TowerShopItems, minTier = Infinity;
+              ['weapon', 'armor', 'boots', 'accessory'].forEach(function (sl) {
+                var k2 = rec2.items && rec2.items[sl];
+                var list2 = CAT2.CATALOG[sl] || [], idx2 = -1;
+                for (var q = 0; q < list2.length; q++) if (list2[q].key === k2) { idx2 = q; break; }
+                minTier = Math.min(minTier, idx2 + 1);
+              });
+              GAME.Achievements.emit('gear', { tier: minTier === Infinity ? 0 : minTier });
+            } catch (e) {}
+          }
           self._buildBody(true);
         }
       }, { fontSize: P ? 12 : 14 });

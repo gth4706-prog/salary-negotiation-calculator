@@ -24,14 +24,7 @@ GAME.Sound = {
   _ready: false,
 
   init: function () {
-    // 저장된 설정 복원
-    try {
-      var saved = GAME.Store ? GAME.Store.get(this.KEY, null) : null;
-      if (saved) {
-        if (saved.enabled !== undefined) this.enabled = !!saved.enabled;
-        if (typeof saved.volume === 'number') this.volume = saved.volume;
-      }
-    } catch (e) {}
+    this._loadPrefs();
 
     var self = this;
     // 자동재생 정책 — 사용자 제스처가 있어야 소리를 낼 수 있다.
@@ -130,6 +123,63 @@ GAME.Sound = {
       return true;
     } catch (e) { return false; }
   },
+
+  //  저장된 설정 복원 — init 과 감사(tools/feel-audit.js)가 같이 부른다.
+  //  init 은 window 리스너까지 거므로 헤드리스에서는 못 부른다 → 복원만 떼어 둔다.
+  _loadPrefs: function () {
+    try {
+      var saved = GAME.Store ? GAME.Store.get(this.KEY, null) : null;
+      if (saved) {
+        if (saved.enabled !== undefined) this.enabled = !!saved.enabled;
+        if (typeof saved.volume === 'number') this.volume = saved.volume;
+      }
+    } catch (e) {}
+    try {
+      var h = GAME.Store ? GAME.Store.get(this.HAPTIC_KEY, null) : null;
+      this.hapticOn = (h === null || h === undefined) ? true : !!h;
+    } catch (e) { this.hapticOn = true; }
+  },
+
+  // ══ 햅틱 (2026-09-02 C 갈래 — 게임필) ═══════════════════════════════════════
+  //  소리와 같은 자리에서 관리한다: 켜고 끄는 설정·저장 키·"실패해도 게임은 돈다".
+  //  종류를 이름으로 부른다(길이를 호출부에 박지 않는다) — 손맛의 단계가 한 표에
+  //  모여 있어야 '중요할 때만 울린다'(v1.31 규칙)를 한눈에 지킬 수 있다.
+  //  ⚠ iOS 사파리는 navigator.vibrate 가 없다 — 그때는 조용히 아무 일도 안 한다.
+  //  ⚠ 값이 크면 싸구려 진동이 된다. 피격 8ms 는 '톡', 궁극 40ms 가 상한.
+  HAPTIC_KEY: 'eggwar.haptic',
+  HAPTIC: {
+    hit: 8, skill: 15, kill: 25, ult: 40,
+    win: [30, 40, 60], lose: 80,
+    //  battle.js 가 예전부터 쓰던 두 자리 — 표로 끌어와 같은 토글을 따르게 한다.
+    reflect: [14, 40, 14], pickup: 18,
+    ultBanner: [22, 50, 30]      //  궁극기 배너(_ultBanner) — 두 번 끊어 피격과 구분
+  },
+  hapticOn: true,
+
+  //  순수 함수 — 종류 → 진동 패턴(ms 또는 ms 배열). 모르는 종류는 null.
+  hapticPattern: function (kind) {
+    var p = this.HAPTIC[kind];
+    if (p === undefined) return null;
+    return Array.isArray(p) ? p.slice() : p;
+  },
+  hapticSupported: function () {
+    try { return typeof navigator !== 'undefined' && !!navigator && typeof navigator.vibrate === 'function'; }
+    catch (e) { return false; }
+  },
+  //  실제로 울렸으면 true. 꺼져 있거나·지원 안 하거나·모르는 종류면 false(예외 없음).
+  haptic: function (kind) {
+    if (!this.hapticOn) return false;
+    var p = this.hapticPattern(kind);
+    if (p === null) return false;
+    if (!this.hapticSupported()) return false;
+    try { return !!navigator.vibrate(p); } catch (e) { return false; }
+  },
+  setHaptic: function (on) {
+    this.hapticOn = !!on;
+    try { if (GAME.Store) GAME.Store.set(this.HAPTIC_KEY, this.hapticOn); } catch (e) {}
+    return this.hapticOn;
+  },
+  toggleHaptic: function () { return this.setHaptic(!this.hapticOn); },
 
   setEnabled: function (on) {
     this.enabled = !!on;
@@ -557,5 +607,65 @@ GAME.Sound = {
   playFor: function (kind, def) {
     if (!def || !def.voice) return;
     this.playUnit(kind, def.voice, def.voicePitch);
+  }
+};
+
+// ============================================================================
+//  GAME.Feel — 게임필 **순수 함수** 모음 (2026-09-02 C 갈래)
+//
+//  battle.js(슬로모·이모트)·main.js(에러 오버레이)가 쓰는 판정을 씬 밖으로 뺀 것이다.
+//  두 파일은 Phaser 없이는 안 실리므로 헤드리스(tools/feel-audit.js)가 이 판정을
+//  경계값까지 검사할 수 있는 유일한 길이 여기다. 상태를 갖지 않는다(errorGate 만
+//  자기 클로저를 만든다) — 씬에 얹는 상태는 씬이 init 에서 되돌린다.
+// ============================================================================
+GAME.Feel = {
+  //  ── 결정타 슬로모 ─────────────────────────────────────────────────────────
+  //  판이 끝나는 순간(마지막 처치·영웅 사망) 0.45초 동안 렌더 시간을 0.35배로.
+  //  ⚠ 실시간(록스텝)은 시뮬 틱에 **원래 delta** 를 넘긴다 — 여기 배율은 렌더·이펙트용.
+  SLOWMO_MS: 450,
+  SLOWMO_SCALE: 0.35,
+  //  남은 슬로모(ms) → 이번 프레임 배율. 0 이하·NaN 이면 정상 속도.
+  slowmoScale: function (remainMs) {
+    return (typeof remainMs === 'number' && remainMs > 0) ? this.SLOWMO_SCALE : 1;
+  },
+  //  남은 슬로모를 **실제 경과 시간**으로 줄인다(배율이 걸린 dt 로 줄이면 3배 길어진다).
+  slowmoStep: function (remainMs, realDelta) {
+    var r = (typeof remainMs === 'number' && remainMs > 0) ? remainMs : 0;
+    var d = (typeof realDelta === 'number' && realDelta > 0) ? realDelta : 0;
+    return Math.max(0, r - d);
+  },
+
+  //  ── 실시간 이모트 ─────────────────────────────────────────────────────────
+  EMOTES: ['😀', '👍', '😱', '🔥'],
+  EMOTE_COOL: 2000,     // 스팸 방지 — 한 사람이 2초에 하나
+  EMOTE_SHOW: 1600,     // 말풍선이 떠 있는 시간
+  //  상대가 보낸 값은 믿지 않는다 — 0..3 정수만 이모트다.
+  emoteValid: function (k) {
+    return typeof k === 'number' && isFinite(k) && k === Math.floor(k) &&
+           k >= 0 && k < this.EMOTES.length;
+  },
+  //  쿨 판정 — 마지막 전송 시각과 지금(둘 다 같은 시계, ms).
+  emoteAllowed: function (lastAt, now, cool) {
+    var c = (typeof cool === 'number') ? cool : this.EMOTE_COOL;
+    if (typeof lastAt !== 'number' || !isFinite(lastAt)) return true;
+    return (now - lastAt) >= c;
+  },
+
+  //  ── 에러 오버레이 "같은 에러는 1회만" ──────────────────────────────────────
+  //  서명은 문구·파일·줄 번호로 만든다. 루프가 살아 있는 채 같은 자리가 매 프레임
+  //  터지면 오버레이가 프레임마다 다시 뜨는 것을 이 게이트가 막는다.
+  errorSig: function (msg, src, line) {
+    return String(msg === undefined || msg === null ? '' : msg).slice(0, 200) + '|' +
+           String(src === undefined || src === null ? '' : src).slice(-80) + '|' +
+           String(line === undefined || line === null ? '' : line);
+  },
+  //  게이트 하나를 만든다: 처음 보는 서명이면 true, 이미 봤으면 false.
+  errorGate: function () {
+    var seen = {};
+    return function (sig) {
+      if (seen[sig]) return false;
+      seen[sig] = true;
+      return true;
+    };
   }
 };

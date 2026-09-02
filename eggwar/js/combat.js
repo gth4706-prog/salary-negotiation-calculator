@@ -1636,6 +1636,16 @@ GAME.Combat = {
       var _uFloor = (u.damage * 10) / _uHits;
       if (skDmg < _uFloor) skDmg = _uFloor;
     }
+    //  ── 실시간 전용 스킬 배율표 (ArenaBuild.RT_SKILL_MOD, 2026-09-02 W3) ──────
+    //  스킬 이름 → { damage, shield, heal, dps } 배율. **pvpRealtime 에서만** 읽고,
+    //  표에 없는 스킬은 1.0 이다(탑·수성·비동기 대전은 이 분기를 아예 안 탄다).
+    //  궁극 하한 **뒤에** 곱한다 — 표가 마지막 말을 갖는다. 값은 rt-balance-audit 가 정한다.
+    var _rtSk = (state && state.pvpRealtime && GAME.ArenaBuild && GAME.ArenaBuild.RT_SKILL_MOD &&
+                 GAME.ArenaBuild.RT_SKILL_MOD[sk.name]) || null;
+    if (_rtSk) {
+      if (_rtSk.damage !== undefined && skDmg > 0) skDmg = Math.round(skDmg * _rtSk.damage);
+      if (_rtSk.shield !== undefined && skShield > 0) skShield = Math.round(skShield * _rtSk.shield);
+    }
     //  궁극 착탄 연출 표식 (2026-08-23 태현님 ⑤) — 즉발형은 시전=착탄이므로 여기서,
     //  지연형(예고·투사체·덫)은 그 물체에 실어 보내 터지는 순간 센다.
     var isUltCast = !!(u.isHero && slot === 'R' && skDmg > 0);
@@ -1650,6 +1660,11 @@ GAME.Combat = {
     if (u.isHero && state && u.def.key === 'warden' && skDmg > 0) {
       var _cap = u.maxHp * 0.35;
       var _gain = Math.min(Math.max(0, _cap - (u.shield || 0)), skDmg * 0.6);
+      //  실시간 대전 — 연계 보호막도 buff 보호막과 **같은 배율**(RT_SUSTAIN)로 깎는다
+      //  (2026-09-02 W3 실측: 이 보호막이 RT_SUSTAIN 을 안 타서 공격 몰빵 파수꾼의
+      //  유지력이 초당 ~20(흡혈 7 + 연계막 9 + 갈고리 흡혈 4)이라 방어 몰빵 광전사의
+      //  순피해가 초당 3 으로 떨어졌다 — "아무리 때려도 못 잡음"의 실체). 탑은 그대로.
+      if (state.pvpRealtime) _gain = Math.round(_gain * GAME.Combat.RT_SUSTAIN);
       if (_gain > 0) {
         u.shield = (u.shield || 0) + _gain;
         state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: u.def.radius + 30,
@@ -1787,7 +1802,8 @@ GAME.Combat = {
       //    스킬이 너무 사기야 그냥 풀피로 끝나") — 480 회복이 12초마다 돌면 TTK 30초대
       //    결투에서 사실상 불사다. 탑(PvE)은 그대로.
       if (sk.healNow) this.heal(u, state.pvpRealtime
-        ? Math.round(sk.healNow * GAME.Combat.RT_SUSTAIN) : sk.healNow, state);
+        ? Math.round(sk.healNow * GAME.Combat.RT_SUSTAIN * ((_rtSk && _rtSk.heal !== undefined) ? _rtSk.heal : 1))
+        : sk.healNow, state);
       state.effects.push({
         kind: 'ring', x: u.x, y: u.y, r: u.def.radius + 26,
         t: 400, total: 400, side: u.side
@@ -1834,6 +1850,8 @@ GAME.Combat = {
       if (u.isHero && slot === 'R' && _auDps > 0) {
         _auDps = Math.max(_auDps, u.damage * 10 * 1000 / (sk.duration || 1000));
       }
+      //  실시간 전용 배율(RT_SKILL_MOD.dps) — 위 damage 와 같은 자리(하한 뒤).
+      if (_rtSk && _rtSk.dps !== undefined && _auDps > 0) _auDps = Math.round(_auDps * _rtSk.dps);
       u.auras.push({ radius: sk.radius, dps: _auDps,
                      t: sk.duration, tick: 0, srcSkill: sk.name });
     }

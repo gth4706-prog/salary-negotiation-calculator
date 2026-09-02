@@ -187,9 +187,15 @@ GAME.Tutorial = {
         { key: 'tower', name: '🗼 통곡의 탑' },
         { key: 'dtower', name: '🛡 수성의 탑' },
         { key: 'siege', name: '🏰 공성전' },
-        { key: 'rt', name: '⚡ 실시간 대전' }
+        { key: 'rt', name: '⚡ 실시간 대전' },
+        //  가이드 전투(2026-09-02 갈래 B) — 기록을 지워 다음 탑 1층 전투에 다시 띄운다.
+        //  카드가 아니라 **전투 안에서** 행동으로 배우는 것이라 여기서 바로 열 수 없다.
+        { key: 'guide', name: '🎓 첫 전투 가이드 다시', note: GAME.Guide ? '다음 탑 1층 전투에서 다시 안내' : '', disabled: !GAME.Guide }
       ],
-      onPick: function (it) { self.show(scene, it.key, true); }
+      onPick: function (it) {
+        if (it.key === 'guide') { if (GAME.Guide) GAME.Guide.reset(); return; }
+        self.show(scene, it.key, true);
+      }
     });
   }
 };

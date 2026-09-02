@@ -39,11 +39,12 @@ GAME.RtPrepScene.prototype.create = function () {
 
   var isStrat = F.myRole === 'strategist';
   UI.text(this, W / 2, P ? 10 : 26,
-    isStrat ? '🛡 전투 준비 — 배치를 고르세요' : '⚔ 전투 준비 — 영웅과 무기를 고르세요',
+    F.local ? '🤖 연습 대전 — 영웅과 무기를 고르세요'
+            : (isStrat ? '🛡 전투 준비 — 배치를 고르세요' : '⚔ 전투 준비 — 영웅과 무기를 고르세요'),
     { size: P ? 'subhead' : 'head', color: C.accent, origin: 0.5, originY: 0 });
 
   this._timerTxt = UI.text(this, W / 2, P ? 44 : 78, '', {
-    size: P ? 'head' : 'title', color: C.accentAlt, origin: 0.5, originY: 0 });
+    size: P ? 'subhead' : 'title', color: C.accentAlt, origin: 0.5, originY: 0 });   //  폰: head(26px)는 아래 장비요약과 8px 겹친다(감사 실측)
 
   //  이번 판의 맵(2026-08-31 ④) — 시드는 서버 start 가 배포했고 양쪽이 같은 맵을 본다.
   //  ⚠ 이름은 타이머 줄에 붙인다(update 가 매 틱 읽는 this._mapName) — 별도 줄로
@@ -209,7 +210,9 @@ GAME.RtPrepScene.prototype._refresh = function () {
   var s = Math.ceil(F.remainMs() / 1000);
   this._timerTxt.setText('⏳ ' + s + '초' + (this._mapName ? '  ·  🗺 ' + this._mapName : ''));
   var mine = F.mySetup ? '나: 준비 완료 ✓' : '나: 준비 중…';
-  var theirs = F.theirSetup ? '상대: 준비 완료 ✓' : '상대: 준비 중…';
+  var theirs = F.local
+    ? ('상대: 🤖 봇(' + ((GAME.RtBot && GAME.RtBot.LEVELS[F.botLevel] || {}).name || F.botLevel) + ')')
+    : (F.theirSetup ? '상대: 준비 완료 ✓' : '상대: 준비 중…');
   this._stateTxt.setText(mine + '   ·   ' + theirs +
     (F.mySetup && !F.theirSetup ? '\n상대가 끝나면 바로 시작됩니다' : ''));
   if (F.mySetup && this._readyBtn && this._readyBtn.text) {

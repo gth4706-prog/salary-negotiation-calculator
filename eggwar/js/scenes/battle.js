@@ -91,6 +91,19 @@ GAME.BattleScene.prototype.init = function (data) {
   this._endShown = -1;
   //  토스트 큐 — 씬 인스턴스가 재사용되므로 여기서 되돌린다(이 파일의 상습 사고 계열).
   this._toasts = null;      //  크레딧 스택 자막 — 씬 재사용 대비 초기화
+
+  //  ── 게임필 (2026-09-02 C 갈래) — 슬로모·이모트·햅틱 상태, 전부 판마다 되돌린다 ──
+  this._slowmo = 0;             //  남은 슬로모(ms). 지난 판 값이 남으면 새 판이 느리게 시작한다
+  this._slowmoFired = false;    //  한 판에 한 번 — _endGate 와 ended 블록이 둘 다 부른다
+  this._emoteLastAt = -1e9;     //  스팸 방지 쿨의 기준 시각(performance.now)
+  this._emoteBar = null;        //  파괴된 버튼을 붙들지 않게(지연생성 가드 함정)
+  //  ⚠ 힌트·물약 라벨은 **레이아웃에 따라 안 만드는 판**이 있다(폰 가로·실시간). 안 되돌리면
+  //    직전 판의 파괴된 Text 를 updateHud 가 setColor 해 Phaser 안에서 터진다
+  //    (v3.0 실측: 연습 대전 → 탑 1층 진입에서 `reading 'cut'`).
+  this.hintText = null;
+  this.potionText = null;
+  this._bubbles = [];           //  떠 있는 말풍선 — 지난 판 것이 파괴된 채 남으면 setPos 에서 터진다
+  this._hapKillAt = -1e9;       //  처치 진동 간격(난전에서 연속으로 울리지 않게)
 };
 
 GAME.BattleScene.prototype.create = function () {
@@ -117,6 +130,9 @@ GAME.BattleScene.prototype.create = function () {
   this.state = GAME.Combat.createState();
   //  전투 속도(PACE)는 통곡의 탑 전용 — createState 가 끄고, 여기서만 켠다.
   GAME.Combat.paceOn = !!this.tower;
+  //  슬로모가 걸어 둔 시계 배율을 되돌린다 — 씬 플러그인(time/tweens)은 인스턴스와 함께
+  //  살아남으므로 지난 판이 슬로모 중에 끝났으면 새 판의 트윈·타이머가 0.35배로 돈다.
+  this._setTimeScale(1);
 
   //  실시간: 시뮬 난수를 서버 시드로 고정 + 승패 규칙 전환(P1 의 pvpRealtime).
   //  ⚠ 유닛 생성 **전에** 걸어야 한다 — 생성 순서·초기값까지 결정론에 들어간다.
@@ -496,6 +512,7 @@ GAME.BattleScene.prototype.create = function () {
       mySide: this.rt.meTeam,
       delay: this.rt.delay,
       send: function (msg) {
+        if (rtSelf.rt.local) return;               //  연습 대전 — 보낼 상대가 없다
         //  ── 이중 전송 (2026-08-23 실기기 신고: "서버 연결 기다린다는 표시가 계속") ──
         //  P2P 직결(DC)이 모바일 NAT 재바인딩 등으로 **조용히** 죽으면 readyState 는
         //  'open' 인 채 패킷만 사라진다 — 폴백 판정이 ICE 실패 이벤트에만 걸려 있어
@@ -542,17 +559,26 @@ GAME.BattleScene.prototype.create = function () {
       }
       apply0(hero, cmd);
     };
-    GAME.NetRoom.on.message = function (from, data) {
-      if (data && data.lk) rtSelf._rtSession.onMessage(data.lk);
-    };
-    GAME.NetRoom.on.close = function (info) {
-      if (!rtSelf.state.over) {
-        rtSelf.state.over = true;
-        //  상대가 나가면 남은 쪽(내 팀) 승리.
-        rtSelf.state.winner = rtSelf.rt.meTeam;
-        rtSelf._rtNote = '상대의 연결이 끊겼습니다';
-      }
-    };
+    if (this.rt.local) {
+      //  연습 대전(봇, v3.0) — 네트워크 콜백을 걸지 않는다. 상대 영웅은 봇 두뇌가
+      //  록스텝 명령 큐로 조종하고, update 가 매 프레임 상대 확정 틱을 밀어 준다.
+      var botTeam = this.rt.meTeam === 'controller' ? 'strategist' : 'controller';
+      this._rtBot = GAME.RtBot.create(this.state, this._rtSession, botTeam, this.rt.botLevel);
+    } else {
+      GAME.NetRoom.on.message = function (from, data) {
+        if (data && data.lk) rtSelf._rtSession.onMessage(data.lk);
+        //  이모트(렌더 전용) — 록스텝(lk)과는 별개 메시지. 시뮬에 닿지 않는다.
+        if (data && data.type === 'emote') rtSelf._onEmote(data.k);
+      };
+      GAME.NetRoom.on.close = function (info) {
+        if (!rtSelf.state.over) {
+          rtSelf.state.over = true;
+          //  상대가 나가면 남은 쪽(내 팀) 승리.
+          rtSelf.state.winner = rtSelf.rt.meTeam;
+          rtSelf._rtNote = '상대의 연결이 끊겼습니다';
+        }
+      };
+    }
     //  실시간 상태 배너 — 스톨("상대 대기")·데싱크·관전 표시. 없으면 화면이 왜
     //  멈췄는지 아무도 모른다(코드만 있고 표시가 없던 것을 2026-08-20 보완).
     //  시작 카운트다운 — 두 클라이언트가 거의 동시에 3초를 세고 출발한다.
@@ -575,9 +601,12 @@ GAME.BattleScene.prototype.create = function () {
     //  결과 화면의 [한판 더]가 같은 방에서 재대결한다(2026-08-31 태현님 ①).
     //  데싱크·상대 이탈이면 방이 의미 없으니 나간다.
     this.events.once('shutdown', function () {
-      GAME.NetRoom.on.message = null;
-      GAME.NetRoom.on.close = null;
-      if (!rtSelf._rtKeepRoom) GAME.NetRoom.leave(true);
+      if (!rtSelf.rt.local) {
+        GAME.NetRoom.on.message = null;
+        GAME.NetRoom.on.close = null;
+        if (!rtSelf._rtKeepRoom) GAME.NetRoom.leave(true);
+      }
+      rtSelf._rtBot = null;
       rtSelf._rtShadow = null;
       rtSelf._rtSession = null;
     });
@@ -655,6 +684,8 @@ GAME.BattleScene.prototype.create = function () {
     });
     GAME.NetRoom.on.message = function (from, data) {
       if (data && data.lk) rtSelf2._rtSession.onMessage(data.lk);
+      //  관전자도 상대 이모트는 본다(보내지만 못한다 — 버튼이 없다).
+      if (data && data.type === 'emote') rtSelf2._onEmote(data.k);
     };
     GAME.NetRoom.on.close = function () {
       if (!rtSelf2.state.over) {
@@ -932,6 +963,25 @@ GAME.BattleScene.prototype.create = function () {
   if (GAME.isTouch && (P || PHONE) && this.ctrl && !(this.rt && !this._heroIsPlayer)) {
     this.pad = new GAME.TouchPad(this, this.ctrl);
     this.ctrl.pad = this.pad;
+  }
+
+  //  ── 실시간 이모트 버튼 (2026-09-02 C 갈래) — RT 판, 내 영웅이 있을 때만 ──────
+  //  관전(전략가)은 버튼이 없다(받기만 한다). 봇 판(rt.local)은 릴레이 없이 내 것만.
+  //  자리: 터치 프로필은 touchpad.emoteAnchor(조작부와 안 겹치는 곳), PC 는 스킬 바
+  //  오른쪽 빈자리(스킬 열이 가운데 560px 만 쓴다).
+  if (this.rt && this._heroIsPlayer && GAME.UI.emoteBar) {
+    var eaSelf = this;
+    var ea;
+    if (GAME.isTouch && (P || PHONE) && GAME.TouchPad.emoteAnchor) {
+      ea = GAME.TouchPad.emoteAnchor(this.hud.bottom);
+    } else {
+      var lastCol = cols[cols.length - 1];
+      var eaR = 17, eaSpan = (eaR * 2 + 10) * 3;
+      ea = { x: lastCol.cx + lastCol.w / 2 + 40 + eaSpan / 2,
+             y: rows.skills ? rows.skills.cy : (GAME.CONFIG.HEIGHT - 40), r: eaR, gap: 10, dir: 'row' };
+    }
+    ea.onPick = function (k) { eaSelf._sendEmote(k); };
+    this._emoteBar = GAME.UI.emoteBar(this, ea);
   }
 
   // ── 동전 밭 ──────────────────────────────────────────────────────────────
@@ -1506,7 +1556,8 @@ GAME.BattleScene.prototype._ultBanner = function (name) {
   if (GAME.Sound) GAME.Sound.play('boom');
   //  ⚠ 진동은 **중요할 때만**이라는 규칙이 있다(v1.31). 30초에 한 번인 궁극기는
   //    그 기준에 맞는다. 두 번 끊어 평소 피격(한 번)과 구분한다.
-  try { navigator.vibrate && navigator.vibrate([22, 50, 30]); } catch (e) {}
+  //    2026-09-02: sound.js 의 HAPTIC 표('ultBanner')로 — 📳 토글을 따르게.
+  if (GAME.Sound && GAME.Sound.haptic) GAME.Sound.haptic('ultBanner');
 };
 
 //  ── 토스트 (2026-08-05: 큐 신설) ────────────────────────────────────────────
@@ -1621,7 +1672,7 @@ GAME.BattleScene.prototype._updateHealZones = function (dt) {
     var msg = GAME.HealZone.applyKind(st, h, z.kind || 'heal');
     if (msg) this._orbToast(msg);
     //  주운 순간은 **드물고 중요하다** — 5초 안에 갈지 말지 판단해서 얻어낸 결과다.
-    if (GAME.UI && GAME.UI.haptic) GAME.UI.haptic(18);
+    if (GAME.Sound && GAME.Sound.haptic) GAME.Sound.haptic('pickup');
   }
 };
 
@@ -1850,6 +1901,19 @@ GAME.BattleScene.prototype.drawNumbers = function () {
 GAME.BattleScene.prototype.update = function (time, delta) {
   var dt = Math.min(delta, 50);
 
+  //  ── 결정타 슬로모 (2026-09-02 C 갈래) ──────────────────────────────────────
+  //  판이 끝나는 순간(_cinematicEnd) 0.45초 동안 **렌더 시간(dt)** 만 0.35배로.
+  //  ⚠ `delta` 는 건드리지 않는다 — 실시간의 록스텝 틱(`_rtSession.advance(delta)`)과
+  //    히트스톱 카운트다운은 실제 시간으로 흘러야 한다(내 쪽만 늦어지면 상대를 스톨로
+  //    끌고 간다). 남은 슬로모도 실제 delta 로 줄인다(배율 걸린 dt 로 줄이면 3배 길어진다).
+  //  씬 시계(this.time)·트윈도 같은 배율로 — 동전 비·종료 배너가 같이 늘어져야 한 장면이다.
+  if (this._slowmo > 0 && GAME.Feel) {
+    var smK = GAME.Feel.slowmoScale(this._slowmo);
+    this._slowmo = GAME.Feel.slowmoStep(this._slowmo, delta);
+    dt *= smK;
+    this._setTimeScale(this._slowmo > 0 ? smK : 1);
+  }
+
   // ── 타격감(juice) ──────────────────────────────────────────────────────
   // "타격감이 없다"는 실측 신고에 대한 대응. 지금 공격은 예비동작·타격·여파가 없이
   // 즉발이라 데미지 숫자만 뜨고 끝난다. 아래 세 가지를 **렌더 계층에서만** 붙인다:
@@ -1926,6 +1990,11 @@ GAME.BattleScene.prototype.update = function (time, delta) {
         this.draw(); this.drawNumbers(); this.updateHud();
         return;
       }
+      if (this._rtBot) {
+        //  연습 대전 — 봇이 명령을 큐에 넣고, 상대 확정 틱을 항상 앞으로 밀어 스톨 0.
+        this._rtBot.update(delta);
+        this._rtSession.remoteTick = this._rtSession.tick + this._rtSession.delay;
+      }
       var ran = this._rtSession.advance(delta);
       this._rtStall = (ran === 0);
       //  ── 스톨 탈출구 (2026-08-22 태현님 ⑤: "멈춰서 뒤로가기도 못 쓴다") ──────
@@ -1973,7 +2042,9 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   }
 
   // 라운드 종료를 **씬에서** 3초 붙잡는다. combat.js 는 건드리지 않는다.
-  this._endGate(dt);
+  //  ⚠ 슬로모(dt ×0.35, v3.0)에 유예까지 늘어지면 3초가 8.5초가 된다 — 실시간 잠수 탈출이
+  //    결과 화면까지 못 가는 것으로 감사에 잡혔다. 유예는 **실제 경과(delta)**로 센다.
+  this._endGate(delta);
 
   //  온보딩 코치 진행 — 행동을 감지해 다음 단계로
   if (this._coach && this._coachTxt && this._coachTxt.scene) {
@@ -2044,9 +2115,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
       if (GAME.Sound) GAME.Sound.play('hit');
       //  "때리면 안 되는 때 때렸다"는 **배워야 하는 실수**다. 손으로도 알려 준다 —
       //  두 번 짧게 끊어 평소 피격(한 번)과 구분되게 한다.
-      if (GAME.UI && GAME.UI.haptic) {
-        try { navigator.vibrate && navigator.vibrate([14, 40, 14]); } catch (e) {}
-      }
+      if (GAME.Sound && GAME.Sound.haptic) GAME.Sound.haptic('reflect');
       this._reflectMute = 800;
     }
   }
@@ -2116,6 +2185,13 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     if (this.markers[i].t <= 0) this.markers.splice(i, 1);
   }
 
+  //  이모트 말풍선·쿨 표시(렌더 전용, 2026-09-02)
+  if (this._bubbles && this._bubbles.length) this._updateBubbles(dt);
+  if (this._emoteBar && GAME.Feel) {
+    var enow = (window.performance && performance.now) ? performance.now() : Date.now();
+    this._emoteBar.setCooling(!GAME.Feel.emoteAllowed(this._emoteLastAt, enow));
+  }
+
   this._dt = dt;          // 걸음걸이·공격 모션 위상 계산용 (렌더에서만 쓴다)
   this.draw();
   this.drawNumbers();
@@ -2123,6 +2199,17 @@ GAME.BattleScene.prototype.update = function (time, delta) {
 
   if (this.state.over && !this.ended) {
     this.ended = true;
+
+    //  ── 결정타 (2026-09-02 C 갈래) — 슬로모 + 승패 진동 ─────────────────────
+    //  타임 오버·연결 끊김·데싱크는 '결정타'가 아니다 — 슬로모 없이 그대로 간다.
+    if (!this.state.timeUp && !this._rtNote) this._cinematicEnd();
+    if (GAME.Sound && GAME.Sound.haptic) {
+      var wn = this.state.winner;
+      if (wn === 'controller' || wn === 'strategist') {
+        var mySide = this.rt ? this.rt.meTeam : 'controller';
+        GAME.Sound.haptic(wn === mySide ? 'win' : 'lose');
+      }
+    }
 
     // 바닥에 남은 동전은 **버린다**(자동 수거하지 않는다 — 근거는 js/coin.js 머리말).
     if (this._coins) {
@@ -2378,7 +2465,17 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
       this._rtKeepRoom = true;
     }
     var rtResult = null;
-    if (this.rt && !this.test && GAME.RtScore && !this._rtScored) {
+    if (this.rt && this.rt.local && !this._rtScored) {
+      //  연습 대전 — 점수 무정산. 결과 화면이 "연습" 으로 말하고 [다시] 를 준다.
+      this._rtScored = true;
+      rtResult = { won: this.state.winner === this.rt.meTeam, delta: 0,
+                   score: GAME.RtScore ? GAME.RtScore.get().score : 0,
+                   practice: this.rt.botLevel || 'normal' };
+      if (GAME.Achievements && GAME.Achievements.emit)
+        GAME.Achievements.emit('rtResult', { won: rtResult.won, practice: true });
+      if (GAME.Progress && GAME.Progress.emit)
+        GAME.Progress.emit('rtResult', { won: rtResult.won, practice: true });
+    } else if (this.rt && !this.test && GAME.RtScore && !this._rtScored) {
       this._rtScored = true;
       if (this.state.winner === null) {
         rtResult = { invalid: true };
@@ -2410,6 +2507,48 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
     // 층 보상 동전을 영웅 머리 위로 쏟는다. **화면을 넘기기 전에** 뿌려야 보인다.
     // ⚠ `forfeit()` 은 위에서 이미 불렸다 — 그건 `list`(주울 동전)만 비우고
     //   `rainList`(연출 전용)는 안 건드리므로 순서가 안전하다.
+    //  ── 메타 이벤트 (v3.0 업적·일일 과제, js/achievements.js · js/daily.js) ──────
+    //  판이 끝난 자리에서 한 번만 발행한다. 조건 판정은 Achievements 가 한다.
+    if (GAME.Achievements && GAME.Achievements.emit && !this.test) {
+      try {
+        var AE = GAME.Achievements, st0 = this.state, kills = 0, bossDead = false;
+        for (var ai = 0; ai < st0.units.length; ai++) {
+          var au = st0.units[ai];
+          if (au.side !== 'strategist' || au.alive || GAME.Combat.isHazard(au)) continue;
+          kills++;
+          if (au.def && au.def.isBoss) bossDead = true;
+        }
+        if (kills > 0) AE.emit('kill', { n: kills });
+        if (bossDead && won) AE.emit('bossKill', { floor: this.tower });
+        var orbN = 0;
+        if (st0.orbs) for (var oi2 = 0; oi2 < st0.orbs.length; oi2++) if (st0.orbs[oi2].taken) orbN++;
+        if (st0.orbTaken && st0.orbTaken.length) orbN += st0.orbTaken.length;
+        if (orbN > 0) AE.emit('orb', { n: orbN });
+        if (this.tower && won && !this.towerReplay) AE.emit('towerClear', { floor: this.tower });
+        if (this.versus && won) AE.emit('siegeWin', {});
+        if (rtResult && !rtResult.invalid && !rtResult.practice)
+          AE.emit('rtResult', { won: !!rtResult.won, practice: false });
+        if (GAME.Daily && GAME.Daily.emit) {
+          if (kills > 0) GAME.Daily.emit('kill', { n: kills });
+          if (bossDead && won) GAME.Daily.emit('bossKill', {});
+          if (orbN > 0) GAME.Daily.emit('orb', { n: orbN });
+          if (this.tower && won && !this.towerReplay) GAME.Daily.emit('towerClear', { floor: this.tower });
+          if (rtResult && !rtResult.invalid) GAME.Daily.emit('rtResult', { won: !!rtResult.won, practice: !!rtResult.practice });
+        }
+        //  플레이어 XP(v3.0 A) — 같은 이벤트를 나란히.
+        if (GAME.Progress && GAME.Progress.emit) {
+          var PG = GAME.Progress;
+          if (kills > 0) PG.emit('kill', { n: kills });
+          if (bossDead && won) PG.emit('bossKill', { n: 1 });
+          if (orbN > 0) PG.emit('orb', { n: orbN });
+          if (this.tower && won && !this.towerReplay) PG.emit('towerClear', { floor: this.tower });
+          if (this.versus && won) PG.emit('siegeWin', {});
+          if (rtResult && !rtResult.invalid && !rtResult.practice)
+            PG.emit('rtResult', { won: !!rtResult.won, practice: false });
+        }
+      } catch (e) { /* 메타는 전투를 절대 막지 않는다 */ }
+    }
+
     var holdMs = 1100;
     //  타임 오버 배너는 읽을 시간이 필요하다 — 지는 판이라 동전 비도 없다.
     if (this.state.timeUp && this.state.winner !== 'controller' && !this.rt) holdMs = Math.max(holdMs, 2400);
@@ -2576,6 +2715,15 @@ GAME.BattleScene.prototype._juice = function (dt) {
       if (GAME.HitFX) {
         GAME.HitFX.death(this, u.x, GAME.Iso.toScreenY(u.y) - (u.radius || 14) * 0.4, u.radius);
       }
+      //  처치 진동(2026-09-02) — **내가 적을 잡았을 때만**, 250ms 에 한 번(광역기로
+      //  넷이 한 번에 죽으면 한 번만 울린다). 내 영웅의 죽음은 lose 가 담당한다.
+      var mineKill = ((this._heroIsPlayer === undefined) ? true : this._heroIsPlayer) &&
+                     this.hero && u !== this.hero && u.side !== this.hero.side;
+      if (mineKill && GAME.Sound && GAME.Sound.haptic &&
+          this.state.elapsed - (this._hapKillAt || -1e9) >= 250) {
+        this._hapKillAt = this.state.elapsed;
+        GAME.Sound.haptic('kill');
+      }
     }
     this._prevHp[key] = u.alive ? u.hp : 0;
   }
@@ -2605,9 +2753,9 @@ GAME.BattleScene.prototype._juice = function (dt) {
     //    여기서 따로 조건을 만들면 두 기준이 갈라져 언젠가 어긋난다.
     //  ⚠ **내가 맞았을 때만.** 내가 때리는 건 이미 소리·숫자·정지로 알려준다 —
     //    손까지 울리면 난전 내내 진동이 이어져 '중요할 때만'이 무너진다.
-    if (heroHit && biggest >= 0.10 && GAME.UI && GAME.UI.haptic) {
-      GAME.UI.haptic(Math.min(40, Math.round(12 + biggest * 90)));
-    }
+    //  2026-09-02: 길이는 sound.js 의 HAPTIC 표('hit' 8ms)가 정한다 — 세기 비례를
+    //  버렸다. 8ms 는 '톡'이고 그 이상은 난전에서 손이 계속 떨린다. 토글(📳)도 거기서.
+    if (heroHit && biggest >= 0.10 && GAME.Sound && GAME.Sound.haptic) GAME.Sound.haptic('hit');
     //  ── 내 큰 한 방 — 마이크로 셰이크 (2026-08-23 태현님: 타격감 보강) ─────────
     //  히트스톱이 이미 "멈출 만큼 큰 타격"을 걸렀으므로 그 판정을 그대로 빌린다.
     //  내가 맞은 쪽은 다굴 셰이크(아래 ②)가 담당 — 여기서는 **때린 쪽**만, 아주 짧게.
@@ -2639,7 +2787,10 @@ GAME.BattleScene.prototype._juice = function (dt) {
   }
   //  궁극(R) 시전 — 30초+ 쿨이라 '중요할 때만' 진동 규칙(v1.31)에 맞는다.
   //  피해 하한(평타 10대)으로 세진 만큼 손에도 무게가 실려야 한다.
-  if (castUlt && GAME.UI && GAME.UI.haptic) GAME.UI.haptic(26);
+  //  2026-09-02: 일반 스킬도 짧게(15ms) — 눌린 것을 손이 안다. 내 영웅일 때만
+  //  (수성·관전에서 h 는 남의 영웅이다).
+  var mineCast = ((this._heroIsPlayer === undefined) ? true : this._heroIsPlayer);
+  if (cast && mineCast && GAME.Sound && GAME.Sound.haptic) GAME.Sound.haptic(castUlt ? 'ult' : 'skill');
 
   // 다굴 판정: **가까이 붙은** 적만 센다. 사거리로 세면 고층에서 원거리 유닛이
   // 항상 조건을 채워 5초마다 계속 흔들린다 — 그건 '다굴'이 아니다.
@@ -2664,9 +2815,95 @@ GAME.BattleScene.prototype._juice = function (dt) {
       this.cameras.main.shake(cast ? 150 : 220, cast ? 0.005 : 0.008);
     }
   }
+  //  궁극(R)은 5초 간격 규칙 **밖**이다(2026-09-02 C 갈래) — 30초+ 쿨의 한 방이 방금
+  //  일반 스킬이 흔든 탓에 조용히 나가면 무게가 없다. 위 GAP 셰이크가 이미 도는 중이면
+  //  Phaser 가 이 호출을 무시하므로(force 없음) 큰 쪽이 살아남는다. 렌더 전용.
+  if (castUlt && mineCast && this.cameras && this.cameras.main) this.cameras.main.shake(120, 0.004);
 
   // ③ 저체력 경고 — 사이렌처럼 붉은 테두리가 몇 번 번쩍인다
   this._lowHpWarn();
+};
+
+// ═══ 게임필 보조 (2026-09-02 C 갈래) — 전부 렌더 전용, 시뮬·록스텝에 안 닿는다 ═══
+
+//  씬 시계·트윈 배율 — 슬로모가 걸고 풀며, create 가 되돌린다(플러그인은 씬 재사용을 따라 살아남는다).
+GAME.BattleScene.prototype._setTimeScale = function (k) {
+  if (this._timeScaleK === k) return;
+  this._timeScaleK = k;
+  try { if (this.time) this.time.timeScale = k; } catch (e) {}
+  try { if (this.tweens && typeof this.tweens.timeScale === 'number') this.tweens.timeScale = k; } catch (e) {}
+};
+
+//  판이 끝나는 순간 — 한 판에 한 번만 슬로모를 건다(_endGate 진입과 ended 블록이 둘 다 부른다).
+GAME.BattleScene.prototype._cinematicEnd = function () {
+  if (this._slowmoFired || !GAME.Feel) return;
+  this._slowmoFired = true;
+  this._slowmo = GAME.Feel.SLOWMO_MS;
+};
+
+//  내 이모트 — 쿨(2초)을 넘겼을 때만. 봇 판(rt.local)은 상대가 없으니 릴레이 없이 내 것만.
+GAME.BattleScene.prototype._sendEmote = function (k) {
+  var F = GAME.Feel;
+  if (!F || !F.emoteValid(k) || !this.rt) return false;
+  var now = (window.performance && performance.now) ? performance.now() : Date.now();
+  if (!F.emoteAllowed(this._emoteLastAt, now)) return false;
+  this._emoteLastAt = now;
+  if (!this.rt.local && GAME.NetRoom && GAME.NetRoom.relay) {
+    try { GAME.NetRoom.relay({ type: 'emote', k: k }); } catch (e) {}
+  }
+  this._showBubble(this.hero, F.EMOTES[k]);
+  return true;
+};
+
+//  상대 이모트 — 값은 믿지 않는다(0..3 정수만). 상대 팀 영웅 머리 위, 영웅이 없는 팀(진형만)이면
+//  전장 위쪽 가운데.
+GAME.BattleScene.prototype._onEmote = function (k) {
+  var F = GAME.Feel;
+  if (!F || !F.emoteValid(k) || !this.rt) return;
+  var theirs = this.rt.meTeam === 'controller' ? 'strategist' : 'controller';
+  var hero = (this._rtHeroes && this._rtHeroes[theirs]) || null;
+  this._showBubble(hero, F.EMOTES[k]);
+};
+
+//  말풍선 하나를 띄운다. 같은 주인의 것이 떠 있으면 바꿔 단다(겹쳐 쌓이지 않게).
+GAME.BattleScene.prototype._showBubble = function (owner, text) {
+  if (!GAME.UI.emoteBubble || !this.scene || !this.scene.isActive()) return;
+  if (!this._bubbles) this._bubbles = [];
+  for (var i = this._bubbles.length - 1; i >= 0; i--) {
+    if (this._bubbles[i].owner === owner) { this._bubbles[i].b.destroy(); this._bubbles.splice(i, 1); }
+  }
+  var r = (owner && owner.def && owner.def.radius) || 17;
+  var b = GAME.UI.emoteBubble(this, text, { r: r });
+  if (this.worldLayer) b.addTo(this.worldLayer);
+  var e = { owner: owner, b: b, t: GAME.Feel ? GAME.Feel.EMOTE_SHOW : 1600, total: GAME.Feel ? GAME.Feel.EMOTE_SHOW : 1600 };
+  this._placeBubble(e);
+  this._bubbles.push(e);
+};
+
+GAME.BattleScene.prototype._placeBubble = function (e) {
+  var o = e.owner;
+  var x, y;
+  if (o) {
+    var r = (o.def && o.def.radius) || 17;
+    x = o.x; y = GAME.Iso.toScreenY(o.y) - r * 3.4 - 6;   //  머리 위(계란 몸통은 발밑에서 3.2r)
+  } else {
+    var R = GAME.Iso.screenRect();
+    x = R.x + R.w / 2; y = R.y + 44;
+  }
+  e.b.setPos(x, y);
+};
+
+GAME.BattleScene.prototype._updateBubbles = function (dt) {
+  for (var i = this._bubbles.length - 1; i >= 0; i--) {
+    var e = this._bubbles[i];
+    e.t -= dt;
+    if (e.t <= 0) { e.b.destroy(); this._bubbles.splice(i, 1); continue; }
+    this._placeBubble(e);
+    var fin = e.total - e.t;                              //  지난 시간
+    var pop = fin < 160 ? (0.6 + 0.4 * (fin / 160)) : 1;   //  등장 팝
+    e.b.setScale(pop);
+    e.b.setAlpha(e.t < 300 ? e.t / 300 : 1);               //  마지막 0.3초 페이드
+  }
 };
 
 // 체력이 30% 밑으로 **떨어지는 순간** 붉은 비네트를 2~3번 번쩍인다.
@@ -2739,6 +2976,10 @@ GAME.BattleScene.prototype._sirenPulse = function (times) {
 GAME.BattleScene.prototype.ROUND_END_MS = 3000;
 
 GAME.BattleScene.prototype._endGate = function (dt) {
+  //  실시간 대전은 유예 없음(v3.0) — 결착 순간의 슬로모(0.45초)와 결과 화면 전환(1.1초)이
+  //  이미 '끝났다'를 말한다. 3초 유예까지 얹으면 잠수 탈출·상대 이탈 뒤 결과가 4초 넘게
+  //  안 떠서 멈춘 것처럼 보인다(rt-audit 실측).
+  if (this.rt) return;
   var s = this.state;
   if (this._endHold === undefined) this._endHold = -1;
 
@@ -2748,6 +2989,8 @@ GAME.BattleScene.prototype._endGate = function (dt) {
       this._endElapsed = s.elapsed;
       s.over = false;
       this._showEndBanner();
+      //  마지막 처치의 순간은 **여기**다 — 유예가 끝나 ended 블록이 도는 3초 뒤가 아니라.
+      if (!s.timeUp) this._cinematicEnd();
     }
     return;
   }

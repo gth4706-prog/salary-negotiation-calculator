@@ -933,3 +933,105 @@ window.GAME = window.GAME || {};
       destroy: function () { g.destroy(); t.destroy(); } };
   };
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  실시간 이모트 (2026-09-02 C 갈래) — 버튼 줄 + 말풍선. **렌더 전용.**
+//  battle.js 가 RT 판(관전 제외)에서만 만든다. 록스텝 시뮬에는 한 줄도 안 닿는다 —
+//  이모트는 NetRoom.relay 로 오가는 별도 메시지(type:'emote')이지 입력이 아니다.
+//  ⚠ 말풍선은 **한 번 그려 두고 위치만 옮긴다.** 프레임마다 다시 그리면 그 자체가
+//    쓰레기가 된다(v1.56 매 프레임 할당 금지).
+// ═══════════════════════════════════════════════════════════════════════════
+(function () {
+  var UI = GAME.UI;
+  var CFG = GAME.CONFIG;
+
+  //  버튼 줄. opts: { x, y (줄 중심), r, gap, dir:'row'|'col', depth, onPick(k) }
+  //  반환: { objs, buttons, setCooling(on), setAlpha(a), destroy }
+  UI.emoteBar = function (scene, opts) {
+    opts = opts || {};
+    var list = (GAME.Feel && GAME.Feel.EMOTES) || ['😀', '👍', '😱', '🔥'];
+    var r = opts.r || 17, gap = opts.gap === undefined ? 8 : opts.gap;
+    var step = r * 2 + gap, n = list.length;
+    var col = opts.dir === 'col';
+    var x0 = col ? opts.x : opts.x - step * (n - 1) / 2;
+    var y0 = col ? opts.y - step * (n - 1) / 2 : opts.y;
+    var depth = opts.depth || 905;
+    var objs = [], buttons = [];
+    var M = UI.MAT || {};
+    var face = 0x1e1510, line = M.bone || 0xe8dcc4;
+    list.forEach(function (em, k) {
+      var x = col ? x0 : x0 + step * k;
+      var y = col ? y0 + step * k : y0;
+      //  화면 밖으로 밀리지 않게 — 테두리 두께까지 세서 가둔다(touchpad._addButton 과 같은 이유).
+      var pad = Math.max(3, r * 0.2);
+      x = Math.max(r + pad, Math.min(CFG.WIDTH - r - pad, x));
+      y = Math.max(r + pad, Math.min(CFG.HEIGHT - r - pad, y));
+      var c = scene.add.circle(x, y, r, face, 0.66)
+        .setStrokeStyle(2, line, 0.85).setDepth(depth).setScrollFactor(0);
+      //  판정은 그림보다 조금 넓게(1.15r) — 급하게 누르는 버튼이다.
+      c.setInteractive(new Phaser.Geom.Circle(r, r, r * 1.15), Phaser.Geom.Circle.Contains);
+      var t = scene.add.text(x, y, em, {
+        fontFamily: CFG.FONT, fontSize: Math.round(r * 1.25) + 'px'
+      }).setOrigin(0.5).setDepth(depth + 1).setScrollFactor(0);
+      c.on('pointerdown', function (p) {
+        if (p && p.event && p.event.preventDefault) p.event.preventDefault();
+        c.setFillStyle(0x4a3620, 0.92);
+        if (opts.onPick) opts.onPick(k);
+      });
+      c.on('pointerup', function () { c.setFillStyle(face, 0.66); });
+      c.on('pointerout', function () { c.setFillStyle(face, 0.66); });
+      //  겹침 감사용 표식 — 버튼과 자기 라벨 쌍만 정확히 제외되게(UI.button 의 __uiBtn 과 같은 방식)
+      c.__emoteKey = k;
+      t.__emoteOwner = k;
+      objs.push(c, t);
+      buttons.push({ k: k, circle: c, text: t, x: x, y: y, r: r });
+    });
+    var cooling = false;
+    return {
+      objs: objs, buttons: buttons,
+      //  쿨 중에는 흐리게 — "눌렀는데 왜 안 나가"를 눈으로 답한다. 판정은 battle.js 가 한다.
+      setCooling: function (on) {
+        on = !!on;
+        if (on === cooling) return;
+        cooling = on;
+        for (var i = 0; i < buttons.length; i++) {
+          buttons[i].circle.setAlpha(on ? 0.35 : 1);
+          buttons[i].text.setAlpha(on ? 0.35 : 1);
+        }
+      },
+      setAlpha: function (a) { for (var i = 0; i < objs.length; i++) objs[i].setAlpha(a); },
+      destroy: function () {
+        for (var i = 0; i < objs.length; i++) { if (objs[i] && objs[i].destroy) objs[i].destroy(); }
+        objs.length = 0; buttons.length = 0;
+      }
+    };
+  };
+
+  //  말풍선 하나. text 는 이모지 한 글자. opts: { r (영웅 반지름 — 크기 기준), depth }
+  //  반환: { setPos(x, y — 꼬리 끝, 즉 머리 위 점), setAlpha(a), addTo(container), destroy }
+  UI.emoteBubble = function (scene, text, opts) {
+    opts = opts || {};
+    var r = opts.r || 17;
+    var depth = opts.depth || 9200;
+    var fs = Math.max(18, Math.round(r * 1.6));
+    var t = scene.add.text(0, 0, text, { fontFamily: CFG.FONT, fontSize: fs + 'px' })
+      .setOrigin(0.5).setDepth(depth + 1);
+    var w = Math.max(fs + 16, t.width + 16), h = t.height + 10, tail = 9;
+    var g = scene.add.graphics().setDepth(depth);
+    //  로컬 원점(0,0) = 꼬리 끝. 몸통은 그 위. 한 번만 그린다.
+    g.fillStyle(0xfff8ea, 0.96);
+    g.lineStyle(2, 0x5a4630, 0.9);
+    g.fillRoundedRect(-w / 2, -tail - h, w, h, Math.min(10, h / 2));
+    g.strokeRoundedRect(-w / 2, -tail - h, w, h, Math.min(10, h / 2));
+    g.fillTriangle(-5, -tail, 5, -tail, 0, 0);
+    g.lineBetween(-5, -tail, 0, 0); g.lineBetween(5, -tail, 0, 0);
+    return {
+      gfx: g, text: t,
+      setPos: function (x, y) { g.setPosition(x, y); t.setPosition(x, y - tail - h / 2); },
+      setAlpha: function (a) { g.setAlpha(a); t.setAlpha(a); },
+      setScale: function (s) { g.setScale(s); t.setScale(s); },
+      addTo: function (container) { if (container && container.add) { container.add(g); container.add(t); } },
+      destroy: function () { g.destroy(); t.destroy(); }
+    };
+  };
+})();

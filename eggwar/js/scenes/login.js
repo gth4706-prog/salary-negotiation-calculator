@@ -178,17 +178,84 @@ GAME.LoginScene.prototype._submit = function (value) {
   GAME.Auth.status(id).then(function (st) {
     if (!self.scene.isActive()) return;
     self.msg.setText('');
-    if (!st.supported || !st.hasPin) { self._enter(id); return; }
-    self._askPin(id);
+    if (!st.supported) { self._enter(id); return; }
+    if (st.hasPin) { self._askPin(id); return; }
+    //  PIN 없는 닉네임 — 클라우드 저장(js/cloudsave.js)은 PIN 이 있어야 돈다.
+    //  "PIN 을 설정하면 다른 기기에서도 이어집니다" 한 줄과 설정 진입을 **한 번** 권한다.
+    self._offerPin(id);
   });
 };
 
-//  닉네임 확정 → 메뉴로.
-GAME.LoginScene.prototype._enter = function (id) {
+//  닉네임 확정 → (PIN 이 있으면 클라우드 동기화) → 메뉴로.
+//  ⚠ 동기화는 **로그인을 막지 않는다.** 서버가 없거나 느려도(`_fetch` 8초 상한) 메뉴로 간다.
+GAME.LoginScene.prototype._enter = function (id, pin) {
+  var self = this;
   var r = GAME.Account.login(id);
   if (!r.ok) { this.msg.setText(r.reason); return; }
   this._removeInput();
-  this.scene.start('Menu');
+  if (!pin || !GAME.CloudSave) {
+    //  PIN 없이 들어왔다 — 지난 세션의 PIN(다른 닉네임일 수 있다)을 메모리에서 지운다.
+    if (GAME.CloudSave) GAME.CloudSave.end();
+    this.scene.start('Menu');
+    return;
+  }
+  this.msg.setText('☁ 진행을 불러오는 중…');
+  var gone = false;
+  var go = function () {
+    if (gone) return;
+    gone = true;
+    if (self.scene.isActive()) self.scene.start('Menu');
+  };
+  GAME.CloudSave.begin(id, pin).then(go, go);
+};
+
+//  ── PIN 없는 닉네임에게 한 번 권한다 (2026-09-02, 클라우드 저장) ──────────────
+//  기기·닉네임마다 **한 번만** 보여 준다(OFFER_KEY). 매번 물으면 로그인이 한 단계 늘고,
+//  안 보여 주면 이 기능이 있다는 것을 아무도 모른다. 거절해도 통곡의 탑 메뉴의
+//  'PIN 설정'(js/scenes/tower.js `_setPin`)으로 언제든 걸 수 있다.
+GAME.LoginScene.OFFER_KEY = 'eggwar.cloud.offer.v1';
+GAME.LoginScene.prototype._offerPin = function (id) {
+  var self = this;
+  if (!GAME.CloudSave || !GAME.Modal || !GAME.PinUI) { this._enter(id); return; }
+  var seen = GAME.Store.get(GAME.LoginScene.OFFER_KEY, {}) || {};
+  if (seen[id]) { this._enter(id); return; }
+  seen[id] = Date.now();
+  GAME.Store.set(GAME.LoginScene.OFFER_KEY, seen);
+  this._removeInput();
+  GAME.Modal.open(this, {
+    title: '☁ ' + GAME.CloudSave.HINT,
+    items: [
+      { key: 'pin',  name: '🔒 PIN 설정하고 시작', note: '숫자 4자리 · 다른 기기에서 이 닉네임으로 이어서' },
+      { key: 'skip', name: '그냥 시작',            note: '나중에 통곡의 탑 메뉴에서 설정할 수 있습니다' }
+    ],
+    onPick: function (it) {
+      if (it.key === 'pin') self._setupPin(id); else self._enter(id);
+    },
+    onClose: function () { self._enter(id); }
+  });
+};
+
+//  PIN 을 두 번 받아 서버에 건다(js/scenes/tower.js `_setPin` 과 같은 규율 — 4자리는
+//  오타가 나도 티가 안 나서 한 번만 받으면 자기가 뭘 걸었는지 모른 채 잠긴다).
+//  성공하면 그 PIN 으로 클라우드 동기화까지 이어서 들어간다.
+GAME.LoginScene.prototype._setupPin = function (id) {
+  var self = this;
+  GAME.PinUI.open(this, {
+    title: id + ' — PIN 설정',
+    note: '숫자 4자리로 이 닉네임을 잠급니다. 이 PIN 으로 다른 기기에서도 진행이 이어집니다. ' +
+          '4자리는 강하지 않으니 다른 곳에서 쓰는 비밀번호는 쓰지 마세요.',
+    second: '한 번 더',
+    confirm: '설정',
+    onSubmit: function (pin, say, done) {
+      say('처리 중…');
+      GAME.Auth.set(id, pin).then(function (r) {
+        if (!self.scene.isActive()) return;
+        if (r.ok) { done(); self._enter(id, pin); return; }
+        say('⚠ ' + (r.why || '설정에 실패했습니다.'));
+      });
+    },
+    onCancel: function () { if (self.scene.isActive()) self._enter(id); }
+  });
 };
 
 //  PIN 입력을 받는다. DOM 판을 쓰는 이유는 `js/transferui.js` 와 같다
@@ -203,7 +270,8 @@ GAME.LoginScene.prototype._askPin = function (id) {
     onSubmit: function (pin, say, done) {
       say('확인 중…');
       GAME.Auth.verify(id, pin).then(function (r) {
-        if (r.ok) { done(); self._enter(id); return; }
+        //  맞으면 그 PIN 으로 클라우드 동기화까지(js/cloudsave.js). PIN 은 메모리에만 남는다.
+        if (r.ok) { done(); self._enter(id, pin); return; }
         say('⚠ ' + (r.why || 'PIN 이 다릅니다.'));
       });
     },

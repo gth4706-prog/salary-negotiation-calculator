@@ -29,7 +29,12 @@
     texButton:  { src: 'assets/ui/tex-button-stone.png?v=2.93' },   // 600×240 돌판 버튼 원단 (9-slice)
     texPanel:   { src: 'assets/ui/tex-panel-leather.png?v=2.93' },   // 355×486 가죽 패널 원단 (9-slice, inset ~55)
     texPanelCard: { src: 'assets/ui/tex-panel-card.png?v=2.96' },    // 178×244 카드용 저해상판 (inset 28 — 폰 카드 폭 110 에서도 모서리 성립)
-    texRibbon:  { src: 'assets/ui/tex-ribbon-bone.png?v=2.93' },   // 600×240 뼈 리본 원단 (9-slice)
+    texRibbon:  { src: 'assets/ui/tex-ribbon-bone.png?v=2.93' },   // 440×205 뼈 리본 원단 (원본 — 큰 띠용)
+    //  리본 저해상판 (2026-09-02 W4) — 랭킹 제목·상점 탭 바·로딩 제목 뒤 띠. 폭 220.
+    //  inset 은 **텍스처 px** 이고 tools/split-ui-sheets.py 가 알파에서 실측해 적는다
+    //  (l/r = 말린 끝 폭, t/b = 띠 몸통 상하 가장자리 + 3px). 손으로 고치지 말 것.
+    //  ⚠ 한 줄에 둘 것 — 굽기 스크립트가 이 줄의 inset 을 정규식으로 갈아끼운다.
+    texRibbonSm: { src: 'assets/ui/tex-ribbon-sm.png?v=3.00', inset: { l: 49, r: 48, t: 35, b: 25 } },
     stampWin:   { src: 'assets/ui/stamp-win.png?v=2.93' },   // 700×700 승리 도장
     stampLose:  { src: 'assets/ui/stamp-lose.png?v=2.93' }    // 700×700 패배 도장
   };
@@ -73,11 +78,14 @@
     //  9-slice — 버튼/패널 원단(texButton 등)을 임의 크기로 늘린다.
     //  inset 은 네 변에서 안 늘어나는 테두리 폭(px, 원본 기준). 소재가 오면
     //  ui-theme 버튼 redraw 가 이걸 밑판으로 쓰고 절차 그리기는 폴백으로 남는다.
+    //  inset 은 숫자(네 변 동일) 또는 { l, r, t, b }(리본처럼 비대칭인 원단).
     nineSlice: function (scene, key, cx, cy, w, h, inset, opts) {
       if (!this.ready(scene, key)) return null;
       opts = opts || {};
       var ins = inset || 24;
-      var img = scene.add.nineslice(cx, cy, 'ui-' + key, undefined, w, h, ins, ins, ins, ins);
+      var img = (typeof ins === 'object')
+        ? scene.add.nineslice(cx, cy, 'ui-' + key, undefined, w, h, ins.l, ins.r, ins.t, ins.b)
+        : scene.add.nineslice(cx, cy, 'ui-' + key, undefined, w, h, ins, ins, ins, ins);
       if (opts.depth !== undefined) img.setDepth(opts.depth);
       if (opts.alpha !== undefined) img.setAlpha(opts.alpha);
       return img;

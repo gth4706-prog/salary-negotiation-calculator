@@ -28,6 +28,9 @@ GAME.RankScene.prototype.init = function (data) {
   this.rowObjects = [];
   this.scopeLabel = null;
   this.myLabel = null;
+  //  실시간 탭의 '내 순위 줄'이 목록 바닥에 고정돼 있으면 참 — 하단 '내 기록' 문구는
+  //  같은 정보라 비운다. 씬 인스턴스는 재사용되므로 여기서 되돌린다.
+  this._pinned = false;
 };
 
 // ── 공용 조각 ──────────────────────────────────────────────────────────────
@@ -141,7 +144,21 @@ GAME.RankScene.prototype._myTextFrom = function (rows) {
 };
 
 GAME.RankScene.prototype._setMy = function (s) {
+  if (this._pinned) s = '';        // 고정된 내 순위 줄이 이미 말하고 있다
   if (this.myLabel && this.myLabel.setText) this.myLabel.setText(s);
+};
+
+//  실시간 탭의 고정 줄 재료 — 서버 순위표에 내가 있으면 그 줄(순위 포함), 없으면
+//  로컬 최고 기록(순위 없음 → rankRow 가 '-' 로 그린다). 기록이 없으면 null.
+GAME.RankScene.prototype._myPin = function (rows) {
+  if (this.kind !== 'rt') return null;
+  var me = GAME.Account.current();
+  if (!me) return null;
+  for (var i = 0; i < (rows || []).length; i++) {
+    if (rows[i] && rows[i].id === me) return { r: rows[i], rank: i + 1 };
+  }
+  var mine = GAME.Score.myBest(me, this.kind, this.scope);
+  return mine ? { r: mine, rank: 0 } : null;
 };
 
 GAME.RankScene.prototype._setNote = function (s) {
@@ -171,10 +188,19 @@ GAME.RankScene.prototype.create = function () {
   this.cameras.main.setBackgroundColor(C.bg);
   if (GAME.CONFIG.PHONE) { this._buildPhone(); return; }
 
-  GAME.UI.label(this, W / 2, P ? 20 : 30, '랭킹', P ? 26 : 34, C.text, 0.5);
-  this.scopeLabel = GAME.UI.label(this, W / 2, P ? 48 : 68,
+  //  제목 + 리본 띠 (W4). 말린 끝이 제목 위로 (35-3)·s px 솟으므로 제목은 그만큼
+  //  아래에서 시작한다 — 띠 전체 상자(full)가 화면 안에 들도록 top 을 먼저 정하고
+  //  제목 y 를 거기서 역산한다. 다음 줄(안내)은 full.bottom 에서 이어 내린다.
+  //  s=0.7: 세로 900 에서 목록 8행이 유지되는 끝 크기(1.0 이면 7행으로 준다).
+  var ribS = 0.7;
+  var ribIns = (GAME.UIBank && GAME.UIBank.DATA.texRibbonSm.inset) || { t: 35 };
+  var titleTop = 6 + (ribIns.t - 3) * ribS + 4;
+  var title = GAME.UI.label(this, W / 2, titleTop, '랭킹', P ? 26 : 34, '#fff6df', 0.5)
+    .setOrigin(0.5, 0);
+  var rib = GAME.UI.ribbonBehind(this, title, { padX: P ? 28 : 40, padY: 4, maxW: W - 8, scale: ribS });
+  this.scopeLabel = GAME.UI.label(this, W / 2, rib.full.bottom + 2,
     GAME.Api.enabled() ? '서버 확인 중…' : GAME.Score.scopeNote(),
-    'micro', C.textDim, 0.5).setWordWrapWidth(W - 40);
+    'micro', C.textDim, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 40);
 
   // ── 1단계: 분류 ──
   var kinds = GAME.Score.KINDS;
@@ -182,7 +208,7 @@ GAME.RankScene.prototype.create = function () {
   // 모바일 최소 규격 위에 둔다. 세로 900 이라 데스크톱도 높이가 아깝지 않다.
   var th = 56;
   var tw = Math.min(W - 24, P ? 396 : 640);
-  var tcy = (P ? 66 : 86) + th / 2;
+  var tcy = this.scopeLabel.y + this.scopeLabel.height + 6 + th / 2;
   var tc = GAME.Layout.cols(kinds.length, { gap: 8, width: tw, left: (W - tw) / 2, pad: 0 });
   for (var i = 0; i < kinds.length; i++) {
     this._kindTab(kinds[i].k, kinds[i].n, tc[i].cx, tcy, tc[i].w, th, P ? 16 : 17);
@@ -216,7 +242,7 @@ GAME.RankScene.prototype.create = function () {
   var btnH0 = 56;
   var btnCy = H - (P ? 32 : 34);            // 세로 900 에서 바닥이 정확히 896 (밖으로 안 나간다)
   this.myLabel = GAME.UI.label(this, W / 2, btnCy - btnH0 / 2 - 8,
-    this._myText(), P ? 15 : 15, C.text, 0.5)
+    this._pinned ? '' : this._myText(), P ? 15 : 15, C.text, 0.5)
     .setWordWrapWidth(W - 40).setOrigin(0.5, 1);
 
   var bw = Math.min(W - 24, 420);
@@ -243,12 +269,21 @@ GAME.RankScene.prototype._buildPhone = function () {
   var RAILW = 186;
   var TH = 56;                     // 탭·버튼 높이 (터치 타깃 55 이상)
 
-  UI.label(this, PAD, 6, '랭킹', 22, C.text, 0).setOrigin(0, 0);
+  //  레일 제목 + 리본 띠 (W4) — 레일 폭 안에서 끝을 작게(0.5). 다음 줄은 띠 바닥에서.
+  //  레일 예산: 띠 ~61 + 탭 2줄 122 + 기간 20 + 알약 56 + 8 + 버튼 56 = 323 < 390.
+  var ribS = 0.5;
+  var ribIns = (GAME.UIBank && GAME.UIBank.DATA.texRibbonSm.inset) || { t: 35 };
+  var title = UI.label(this, PAD + RAILW / 2, 4 + (ribIns.t - 3) * ribS + 3, '랭킹', 22, '#fff6df', 0.5)
+    .setOrigin(0.5, 0);
+  //  띠 몸통은 제목 폭이 아니라 **레일 폭**에 맞춘다(제목 폭이면 짧막해서 표식처럼 보인다).
+  var rib = UI.ribbon(this, PAD + RAILW / 2, title.getBounds().centerY, RAILW,
+    Math.ceil(title.height) + 6, { maxW: RAILW, scale: ribS });
+  this.children.moveBelow(rib.obj, title);
 
   // 1단계 — 분류 탭. 4개가 되면서(실시간 신설, 2026-08-21) 세로 한 줄로는
   // 레일 바닥 버튼이 화면(390) 밖으로 밀린다(실측 잘림) → **2×2 격자**로 접는다.
   var kinds = GAME.Score.KINDS;
-  var y = 36;
+  var y = Math.ceil(rib.full.bottom) + 4;
   var ktw = Math.floor((RAILW - 6) / 2);
   for (var i = 0; i < kinds.length; i++) {
     var kc = i % 2, kr = Math.floor(i / 2);
@@ -324,6 +359,20 @@ GAME.RankScene.prototype._metaOf = function (r) {
     var lg = (GAME.Arena && GAME.Arena.leagueOf) ? GAME.Arena.leagueOf(r.value) : null;
     return (lg ? lg.name : '대전') + (r.at ? ' · ' + this._ago(r.at) : '');
   }
+  if (this.kind === 'rt') {
+    //  전적(승/패)이 **있으면** 보인다 — 서버 줄이 wins/losses 를 실어 오면 그것,
+    //  내 줄이면 이 기기의 RtScore(서버는 점수만 받는다 — rtscore.js). 둘 다 없으면 시각만.
+    var w = r.wins, l = r.losses;
+    var me = GAME.Account.current();
+    if ((w === undefined || l === undefined) && r.id === me && GAME.RtScore) {
+      try { var rec = GAME.RtScore.get(); w = rec.wins; l = rec.losses; } catch (e) {}
+    }
+    var hasRec = (typeof w === 'number' && typeof l === 'number' && (w + l) > 0);
+    var parts = [];
+    if (hasRec) parts.push(w + '승 ' + l + '패');
+    if (r.at) parts.push(this._ago(r.at));
+    return parts.length ? parts.join(' · ') : '실시간 대전';
+  }
   return r.at ? this._ago(r.at) : '이전 기록';
 };
 
@@ -342,6 +391,7 @@ GAME.RankScene.prototype._empty = function () {
   var d = GAME.Score.kindDef(this.kind);
   var how = this.kind === 'tower' ? '통곡의 탑에서 한 층이라도 오르면'
           : this.kind === 'dtower' ? '수성의 탑에서 한 층이라도 막아내면'
+          : this.kind === 'rt' ? '실시간 대전을 한 판이라도 치르면'
           : '대전에서 한 판이라도 겨루면';
   return '아직 ' + d.n + ' 기록이 없습니다.\n' + how + ' 여기에 올라갑니다.';
 };
@@ -379,7 +429,14 @@ GAME.RankScene.prototype._renderRows = function (rows) {
   add(GAME.UI.label(this, W - g.pad - 4, g.top - 22, d.n + ' 기록', 'micro', C.textDim, 1)
     .setOrigin(1, 0));
 
-  for (var i = 0; i < Math.min(rows.length, g.maxRows); i++) {
+  //  실시간 탭(W4): 내 순위 줄을 **목록 맨 아래에 고정** — 마지막 칸을 그 줄에 비워 둔다.
+  //  내가 상위권에 이미 보여도 고정 줄은 남는다(순위표의 관용 — 스크롤 없이 늘 보인다).
+  var pin = this._myPin(rows);
+  this._pinned = !!pin;
+  if (pin) this._setMy('');
+  var visible = Math.min(rows.length, g.maxRows - (pin ? 1 : 0));
+
+  for (var i = 0; i < visible; i++) {
     var r = rows[i];
     var v = this._valueOf(r);
     var row = GAME.UI.rankRow(this, g.pad, g.top + i * g.rowH, rowW, {
@@ -393,9 +450,24 @@ GAME.RankScene.prototype._renderRows = function (rows) {
     for (var q = 0; q < row.objs.length; q++) keep.push(row.objs[q]);
   }
 
-  if (rows.length > g.maxRows) {
-    add(GAME.UI.label(this, W / 2, g.top + g.maxRows * g.rowH + 4,
-      '외 ' + (rows.length - g.maxRows) + '명 더 있음', 'micro', C.textDim, 0.5));
+  var yAfter = g.top + visible * g.rowH;
+  if (pin) {
+    var pv = this._valueOf(pin.r);
+    var prow = GAME.UI.rankRow(this, g.pad, yAfter + 6, rowW, {
+      rank: pin.rank,                       // 0 이면 rankRow 가 '-' 로 그린다(순위권 밖)
+      id: me,
+      valueText: pv.value,
+      unitText: pv.unit,
+      metaText: this._metaOf(pin.r),
+      mine: true
+    });
+    for (var pq = 0; pq < prow.objs.length; pq++) keep.push(prow.objs[pq]);
+    yAfter += 6 + g.rowH;
+  }
+
+  if (rows.length > visible) {
+    add(GAME.UI.label(this, W / 2, yAfter + 4,
+      '외 ' + (rows.length - visible) + '명 더 있음', 'micro', C.textDim, 0.5));
   }
 };
 
@@ -416,7 +488,11 @@ GAME.RankScene.prototype._renderRowsPhone = function (rows) {
     return;
   }
 
-  var n = Math.min(rows.length, g.maxRows);
+  //  실시간 탭(W4): 내 순위 줄은 **오른쪽 열 맨 아래 칸**에 고정 — 그 칸은 비워 둔다.
+  var pin = this._myPin(rows);
+  this._pinned = !!pin;
+  if (pin) this._setMy('');
+  var n = Math.min(rows.length, g.maxRows - (pin ? 1 : 0));
   for (var i = 0; i < n; i++) {
     var col = i < g.perCol ? 0 : 1;
     var idx = i - col * g.perCol;
@@ -431,5 +507,17 @@ GAME.RankScene.prototype._renderRowsPhone = function (rows) {
       mine: r.id === me
     }, { height: g.h });
     for (var q = 0; q < row.objs.length; q++) keep.push(row.objs[q]);
+  }
+  if (pin) {
+    var pv = this._valueOf(pin.r);
+    var prow = UI.rankRow(this, g.colX[1], g.top + (g.perCol - 1) * g.rowH, g.colW, {
+      rank: pin.rank,
+      id: me,
+      valueText: pv.value,
+      unitText: pv.unit,
+      metaText: this._metaOf(pin.r),
+      mine: true
+    }, { height: g.h });
+    for (var pq = 0; pq < prow.objs.length; pq++) keep.push(prow.objs[pq]);
   }
 };

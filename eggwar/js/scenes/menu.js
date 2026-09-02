@@ -18,6 +18,16 @@ GAME.MenuScene.prototype.create = function () {
   // 로그인하지 않았으면 로그인 화면으로 보낸다
   if (!GAME.Account.current()) { this.scene.start('Login'); return; }
 
+  //  메타(v3.0) — 보류된 일일 과제 골드 정산 + 못 띄운 업적 토스트를 여기서 흘린다.
+  if (GAME.Daily && GAME.Daily.settle) { try { GAME.Daily.settle(); } catch (e) {} }
+  if (GAME.Progress && GAME.Progress.settle) { try { GAME.Progress.settle(); } catch (e) {} }   //  출석·보류 보상
+  if (GAME.CloudSave && GAME.CloudSave.push) { try { GAME.CloudSave.push(); } catch (e) {} }   //  진행 밀어 올리기(디바운스)
+  this.time.delayedCall(900, function () {
+    if (!self.scene.isActive()) return;
+    if (GAME.Achievements && GAME.Achievements.flush) GAME.Achievements.flush(self);
+    if (GAME.Progress && GAME.Progress.flush) GAME.Progress.flush(self);
+  });
+
   //  운영 지급(js/gift.js) — 다른 팝업(튜토리얼 등)이 열려 있으면 이번엔 건너뛰고
   //  다음 메뉴 진입에 다시 확인한다. 캐릭터가 없어도 마찬가지로 미룬다.
   this.time.delayedCall(600, function () {
@@ -169,23 +179,37 @@ GAME.MenuScene.prototype.create = function () {
   });
   by += (P ? 22 : 26);
 
-  var rc = GAME.Layout.cols(GAME.isAdmin ? 4 : 3, {
-    gap: 10, width: bw, left: (W - bw) / 2, pad: 0
+  //  보조 버튼 줄 — 👤 프로필(대격변 v3 · W2)이 들어와 4칸(관리자 5칸)이다.
+  //  모드 버튼 폭(bw=440)에 4칸을 넣으면 칸이 102px 라 '닉네임 변경'이 넘친다 →
+  //  **이 줄만** 560 까지 넓힌다(위 모드 버튼·아래 유틸 줄은 그대로).
+  //  ⚠ 칸 번호를 손으로 박지 않고 순서 배열에서 뽑는다 — 예전엔 관리자 버튼이
+  //    '❓ 안내'와 같은 칸(rc[2])에 겹쳐 그려졌다.
+  var rslots = ['rank', 'profile', 'nick', 'help'];
+  if (GAME.isAdmin) rslots.push('admin');
+  var rbw = Math.min(W - 40, rslots.length >= 5 ? 680 : 560);
+  var rc = GAME.Layout.cols(rslots.length, {
+    gap: 10, width: rbw, left: (W - rbw) / 2, pad: 0
   });
+  var rAt = function (k) { return rc[rslots.indexOf(k)]; };
   var smallH = GAME.UI.BTN_H_SM || 52;
   var ry = by + smallH / 2 - u * 1.4;
   // 랭킹은 3분류(통곡의 탑 / 수성의 탑 / 대전) × 2기간이다.
   // 첫 화면은 **통곡의 탑 · 전체** — 이 게임에서 가장 많이 쌓이는 기록이다.
-  var rkb = GAME.UI.button(this, rc[0].cx, ry, rc[0].w, smallH, '랭킹', function () {
+  var rkb = GAME.UI.button(this, rAt('rank').cx, ry, rAt('rank').w, smallH, '랭킹', function () {
     self.scene.start('Rank', { kind: 'tower', scope: 'all' });
   }, { fontSize: P ? 15 : 15 });
   //  깃발 꽂힌 뼈 기둥 — 이긴 자가 꽂는 것이다(옛 🏅 을 대신한다).
   if (GAME.LobbyArt) GAME.LobbyArt.iconFor(self, rkb, 'iconFlag', 'banner');
-  GAME.UI.button(this, rc[1].cx, ry, rc[1].w, smallH, '닉네임 변경', function () {
-    GAME.Account.logout();
+  //  👤 프로필 — 업적·칭호·오늘의 과제·통계(js/scenes/profile.js).
+  GAME.UI.button(this, rAt('profile').cx, ry, rAt('profile').w, smallH, '👤 프로필', function () {
+    self.scene.start('Profile', { tab: 'main', page: 0 });
+  }, { fontSize: P ? 15 : 14 });
+  //  세로(420)는 4칸이면 칸 폭 87 — '닉네임 변경'(6자)이 넘쳐 '닉네임'으로 줄인다.
+  GAME.UI.button(this, rAt('nick').cx, ry, rAt('nick').w, smallH, P ? '닉네임' : '닉네임 변경', function () {
+    if (GAME.CloudSave && GAME.CloudSave.end) GAME.CloudSave.end(); GAME.Account.logout();
     self.scene.start('Login');
   }, { fontSize: P ? 15 : 14 });
-  GAME.UI.button(this, rc[2].cx, ry, rc[2].w, smallH, '❓ 안내', function () {
+  GAME.UI.button(this, rAt('help').cx, ry, rAt('help').w, smallH, '❓ 안내', function () {
     if (GAME.Tutorial) GAME.Tutorial.openPicker(self);
   }, { fontSize: P ? 15 : 14 });
 
@@ -292,7 +316,7 @@ GAME.MenuScene.prototype.create = function () {
     this._soundBtnBottom = utilY + utilH / 2;
   }
   if (GAME.isAdmin) {
-    GAME.UI.button(this, rc[2].cx, ry, rc[2].w, smallH, '닉네임 관리', function () {
+    GAME.UI.button(this, rAt('admin').cx, ry, rAt('admin').w, smallH, '닉네임 관리', function () {
       self.scene.start('Admin', { page: 0 });
     }, { fontSize: P ? 15 : 14, line: GAME.UI.COL.focus, color: C.warn });
   }
@@ -397,6 +421,10 @@ GAME.MenuScene.prototype._buildPhone = function () {
   UI.button(this, W - PAD - topW * 2 - 20 - 30, 14 + topH / 2, 60, topH, '❓', function () {
     if (GAME.Tutorial) GAME.Tutorial.openPicker(self);
   }, { fontSize: 18 });
+  //  👤 프로필 (대격변 v3 · W2) — ❓ 왼쪽에 같은 높이로. 간판(좌상단, 폭 ≈ 240)과는
+  //  W=820 에서 왼쪽 끝이 ≈ 390 이라 겹치지 않는다.
+  UI.button(this, W - PAD - topW * 2 - 20 - 60 - 10 - topW / 2, 14 + topH / 2, topW, topH, '👤 프로필',
+    function () { self.scene.start('Profile', { tab: 'main', page: 0 }); }, { fontSize: 16 });
 
   // ── 하단 모드 카드 한 줄 — 대전이 가장 크다 ──
   var cardH = 96, cy = H - PAD - cardH / 2;
@@ -537,6 +565,10 @@ GAME.MenuScene.prototype._openSettings = function () {
     name: GAME.Sound.enabled ? '🔊 소리 끄기' : '🔈 소리 켜기' });
   if (GAME.Music) items.push({ key: 'music',
     name: GAME.Music.enabled ? '🥁 음악 끄기' : '🥁 음악 켜기' });
+  //  📳 진동 — 기기가 지원할 때만(iOS 사파리는 navigator.vibrate 가 없다 — 있지도 않은
+  //  것을 끄는 항목은 "왜 아무 일도 안 나지"가 된다). 저장 키 eggwar.haptic (js/sound.js).
+  if (GAME.Sound && GAME.Sound.toggleHaptic && GAME.Sound.hapticSupported())
+    items.push({ key: 'haptic', name: GAME.Sound.hapticOn ? '📳 진동 끄기' : '📳 진동 켜기' });
   if (GAME.UI.toggleNight) items.push({ key: 'theme',
     name: GAME.UI.isDarkTheme() ? '☀ 주간 모드로 전환' : '🌙 야간 모드로 전환' });
   items.push({ key: 'nick', name: '✏ 닉네임 변경' });
@@ -564,8 +596,10 @@ GAME.MenuScene.prototype._openSettings = function () {
       }
       if (it.key === 'sound') GAME.Sound.toggle();
       else if (it.key === 'music') GAME.Music.toggle();
+      //  켜는 순간 한 번 울려 준다 — 소리 토글이 소리로 답하듯, 진동은 진동으로 답한다.
+      else if (it.key === 'haptic') { if (GAME.Sound.toggleHaptic()) GAME.Sound.haptic('skill'); }
       else if (it.key === 'theme') GAME.UI.toggleNight();   // 씬을 다시 시작한다
-      else if (it.key === 'nick') { GAME.Account.logout(); self.scene.start('Login'); }
+      else if (it.key === 'nick') { if (GAME.CloudSave && GAME.CloudSave.end) GAME.CloudSave.end(); GAME.Account.logout(); self.scene.start('Login'); }
       else if (it.key === 'fs') GAME.PWA.toggleFullscreen(function () {});
       else if (it.key === 'iosfs') GAME.PWA.showHomeScreenGuide();
       else if (it.key === 'admin') self.scene.start('Admin');

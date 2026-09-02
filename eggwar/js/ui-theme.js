@@ -223,6 +223,12 @@ window.GAME = window.GAME || {};
   var SCALE = {
     display:  [42, 52],   // 세로 39.0px — EGG WAR 로고, 승/패 판정
     title:    [28, 34],   //       26.0px — 씬 제목
+    //  '제목급'의 하한 (2026-09-02 W4). 이 크기부터 **간판체(FONT_DISPLAY)** 와 잉크
+    //  외곽선이 자동으로 붙는다. 예전엔 finish() 가 `FS.head || 26` 으로 이 토큰을
+    //  참조만 하고 정의가 없어서 size:'head' 를 준 씬(rtlobby·rtprep)이 본문 크기로
+    //  떨어지고 있었다 — 정의를 채운다. 26 = 예전 하드코딩 하한 그대로(가로도 26 —
+    //  올리면 PC 의 26px 글자(draft 골드 등)가 갖고 있던 외곽선을 잃는다).
+    head:     [26, 26],   //       24.2px — 소제목·타이머 (제목급 하한)
     heading:  [22, 24],   //       20.4px — 구역 제목, 강조 수치
     subhead:  [19, 20],   //       17.7px — 카드 제목 (iOS 본문 17pt 선)
     body:     [18, 17],   //       16.7px — 본문 기본값 (게임 권장 16px+)
@@ -324,9 +330,22 @@ window.GAME = window.GAME || {};
     return lum(css) > 0.42 ? DARK_OUTLINE : themed;
   };
 
+  // ── 간판체 확대 (2026-09-02 W4) ─────────────────────────────────────────────
+  //  로고·궁극기 배너에만 쓰던 Black Han Sans(CONFIG.FONT_DISPLAY)를 **제목급
+  //  (px ≥ FS.head)** 전부에 얹는다. 본문·캡션·버튼 라벨은 Jua 그대로 — 무거운
+  //  디스플레이 폰트는 작은 글자에서 가독성이 무너진다(config.js 주석의 그 이유).
+  //  폴백 스택은 `간판체, 본문체` 순: 간판체 서브셋에 없는 글자는 그 글자만 Jua 로
+  //  그려진다. 그래서 서브셋을 소스 문자열의 한글 835자 전부로 다시 구웠다
+  //  (fonts/blackhansans-subset.woff2, 14KB→36KB). 자간·크기는 안 건드린다 —
+  //  실측: 간판체 글자 높이 0.978em vs Jua 0.999em(더 작다), 폭은 약 7% 넓다.
+  UI.displayFamily = function () {
+    return CFG.FONT_DISPLAY ? (CFG.FONT_DISPLAY + ', ' + CFG.FONT) : CFG.FONT;
+  };
+  UI.isHeadPx = function (px) { return px >= FS.head; };
+
   function styleOf(px, color, extra) {
     var s = {
-      fontFamily: CFG.FONT,
+      fontFamily: UI.isHeadPx(px) ? UI.displayFamily() : CFG.FONT,
       fontSize: px + 'px',
       color: color || TXT.text
     };
@@ -344,7 +363,7 @@ window.GAME = window.GAME || {};
     //  2026-08-31 비주얼 개편: **제목급(head 이상)은 자동으로** 잉크 외곽선+그림자 —
     //  민무늬 큰 글자가 "웹페이지" 느낌의 큰 몫이었다. opts.outline === false 로 끌 수 있다.
     var wantOutline = opts.outline === false ? false
-      : (opts.outline || px >= (FS.head || 26));
+      : (opts.outline || UI.isHeadPx(px));
     if (wantOutline) {
       var oc = UI.outlineFor(t.style && t.style.color);
       t.setStroke(oc, px >= FS.heading ? 4 : 3);
@@ -542,7 +561,9 @@ window.GAME = window.GAME || {};
       if (txt) txt.setY(y + dy).setAlpha(st.disabled ? 0.45 : 1);
     }
 
-    var txt = scene.add.text(x, y, label, styleOf(px, color, { align: 'center' })).setOrigin(0.5);
+    //  버튼 라벨은 크기와 무관하게 **본문체**다 — 간판체는 제목에만(W4 결정).
+    var txt = scene.add.text(x, y, label, styleOf(px, color, { align: 'center', fontFamily: CFG.FONT }))
+      .setOrigin(0.5);
     finish(txt, px, { lineSpacing: 0 });
     //  돌판 원단 위 잉크색 라벨은 옹이·나뭇결에 먹힌다(2026-09-01 태현님: "버튼
     //  가독성이 너무 안좋아") — 원단 모드에서는 크림 글자 + 잉크 윤곽으로 새긴다.
@@ -694,6 +715,95 @@ window.GAME = window.GAME || {};
     // 폭을 재려면 Text 가 먼저 있어야 해서 순서를 못 바꾸니, 그린 뒤 글자를 위로 올린다.
     if (scene.children && scene.children.bringToTop) scene.children.bringToTop(t);
     return { gfx: g, text: t, w: w, h: h };
+  };
+
+  // ───────────────────────────────────────────────────────────────────────
+  //  7-b. 리본 띠 (2026-09-02 W4) — 제목·탭 바 뒤에 까는 뼈 리본
+  //     UI.ribbon(scene, cx, cy, bandW, bandH, opts)
+  //       (cx, cy)      = **띠 몸통(글자가 앉는 면)** 의 중심. 말린 끝은 몸통 밖으로 뻗는다.
+  //       bandW/bandH   = 몸통 크기. 반환값의 full 이 말린 끝까지 포함한 실제 상자다 —
+  //                       다음 줄은 full.bottom 에서 이어 내릴 것(고정 오프셋 금지).
+  //       opts.maxW     = 말린 끝 포함 전체 폭 상한(화면 폭) — 넘으면 몸통을 줄인다.
+  //       opts.scale    = 말린 끝 크기 배율(기본 1). 9-slice 모서리는 텍스처 px 로 박히므로
+  //                       좁은 자리(상점 탭 바)는 0.5~0.6 으로 끝을 작게 만든다.
+  //                       (nineslice 를 1/s 크기로 만들고 setScale(s) — 결과적으로
+  //                        더 작게 구운 원단과 같다.)
+  //       opts.depth / opts.alpha
+  //     inset 은 uibank DATA(texRibbonSm.inset) 의 **텍스처 px 실측치**를 읽는다 —
+  //     l/r = 말린 끝 폭, t/b = 몸통 상하 가장자리 + 3(잉크선 보호). 그래서 몸통은
+  //     텍스처 세로에서 (t-3) ~ (h-(b-3)) 사이다. 화면 몸통 높이 = 전체 - (t+b-6)·s.
+  //     소재가 아직 없으면(로드 전·src null) 같은 상자 규격으로 **절차 그리기**한다 —
+  //     몸통 + 제비꼬리 끝. 레이아웃은 두 경우가 완전히 같다(full 이 같다).
+  // ───────────────────────────────────────────────────────────────────────
+  var RIBBON_EDGE_PAD = 3;   // split-ui-sheets.py measure_ribbon 의 edge_pad 와 같은 값
+  UI.ribbon = function (scene, cx, cy, bandW, bandH, opts) {
+    opts = opts || {};
+    var s = opts.scale || 1;
+    var UB = GAME.UIBank;
+    var d = UB && UB.DATA && UB.DATA.texRibbonSm;
+    var ins = (d && d.inset) || { l: 49, r: 48, t: 35, b: 25 };
+    var endL = ins.l * s, endR = ins.r * s;
+    var overT = (ins.t - RIBBON_EDGE_PAD) * s, overB = (ins.b - RIBBON_EDGE_PAD) * s;
+    if (opts.maxW && bandW + endL + endR > opts.maxW) bandW = Math.max(24, opts.maxW - endL - endR);
+    bandH = Math.max(bandH, 12 * s);
+    var fullW = bandW + endL + endR, fullH = bandH + overT + overB;
+    //  몸통 중심 → 전체 상자 중심 (말린 끝이 비대칭이라 몇 px 어긋난다)
+    var fcx = cx + (endR - endL) / 2, fcy = cy + (overB - overT) / 2;
+    var full = { left: fcx - fullW / 2, right: fcx + fullW / 2, top: fcy - fullH / 2, bottom: fcy + fullH / 2,
+                 w: fullW, h: fullH };
+    var band = { left: cx - bandW / 2, right: cx + bandW / 2, top: cy - bandH / 2, bottom: cy + bandH / 2,
+                 w: bandW, h: bandH };
+    var obj = null, textured = false;
+    if (UB && UB.ready(scene, 'texRibbonSm') && scene.add.nineslice) {
+      obj = scene.add.nineslice(fcx, fcy, 'ui-texRibbonSm', undefined,
+        Math.max(ins.l + ins.r + 2, fullW / s), Math.max(ins.t + ins.b + 2, fullH / s),
+        ins.l, ins.r, ins.t, ins.b);
+      obj.setScale(s);
+      textured = true;
+    } else {
+      //  절차 폴백 — 가죽색 몸통 + 양끝 제비꼬리. 상자 규격은 텍스처판과 같다.
+      var g = scene.add.graphics();
+      var leather = UI.IS_LIGHT ? 0xc78a4e : 0x9c6a3a;
+      var tail = UI.IS_LIGHT ? 0xa66f38 : 0x7a5029;
+      var ink = UI.IS_LIGHT ? 0x3a2414 : 0x1a120a;
+      var dy = Math.round(bandH * 0.18);            // 꼬리는 몸통보다 조금 처진다
+      var notch = Math.min(endL, endR) * 0.55;
+      var by0 = band.top + dy, by1 = band.bottom + dy;
+      g.fillStyle(ink, 0.35);
+      g.fillRect(band.left + 2, band.top + 4, bandW, bandH);
+      g.fillStyle(tail, 1);
+      g.fillPoints([
+        { x: full.left, y: by0 }, { x: band.left + 6, y: by0 }, { x: band.left + 6, y: by1 },
+        { x: full.left, y: by1 }, { x: full.left + notch, y: (by0 + by1) / 2 }], true);
+      g.fillPoints([
+        { x: full.right, y: by0 }, { x: band.right - 6, y: by0 }, { x: band.right - 6, y: by1 },
+        { x: full.right, y: by1 }, { x: full.right - notch, y: (by0 + by1) / 2 }], true);
+      g.fillStyle(leather, 1);
+      g.fillRoundedRect(band.left, band.top, bandW, bandH, 4);
+      g.lineStyle(2, ink, 0.9);
+      g.strokeRoundedRect(band.left + 1, band.top + 1, bandW - 2, bandH - 2, 4);
+      obj = g;
+      obj.__uiBtnGfx = true;     // 감사 도구가 Graphics 를 텍스트로 오인하지 않게
+    }
+    if (opts.depth !== undefined) obj.setDepth(opts.depth);
+    if (opts.alpha !== undefined) obj.setAlpha(opts.alpha);
+    return { obj: obj, full: full, band: band, textured: textured,
+             destroy: function () { if (obj && obj.scene) obj.destroy(); } };
+  };
+  //  글자가 앉을 몸통 크기를 글자 실측에서 잡는 도우미 — 제목 하나짜리 띠용.
+  //  (txt 는 이미 만든 Text. 띠는 그 **뒤**에 있어야 하므로 만든 뒤 sendToBack 하거나
+  //   depth 를 글자보다 낮게 줄 것.)
+  UI.ribbonBehind = function (scene, txt, opts) {
+    opts = opts || {};
+    var padX = opts.padX === undefined ? 22 : opts.padX;
+    var padY = opts.padY === undefined ? 6 : opts.padY;
+    var b = txt.getBounds();
+    var r = UI.ribbon(scene, b.centerX, b.centerY, Math.ceil(b.width) + padX * 2,
+      Math.ceil(b.height) + padY * 2, opts);
+    if (opts.depth === undefined && scene.children && scene.children.moveBelow) {
+      scene.children.moveBelow(r.obj, txt);
+    }
+    return r;
   };
 
   // ───────────────────────────────────────────────────────────────────────

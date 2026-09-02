@@ -36,6 +36,10 @@ GAME.RtLobbyScene.prototype.init = function () {
   this._roleTxt = null;
   this._startMsg = null;
   this._dom = null;
+  this._quick = false;          // 빠른 대전 중(자동 역할·준비)
+  this._quickAt = 0;            // 빠른 대전 시작 시각 — 60초 넘으면 연습 대전 제안
+  this._quickTxt = null;
+  this._quickEv = null;
 };
 
 GAME.RtLobbyScene.prototype.create = function () {
@@ -103,6 +107,25 @@ GAME.RtLobbyScene.prototype.create = function () {
     this._mkBtns.push(UI.button(this, W / 2, H - u * 26 + bh + 8, bw, bh, '🔑 코드로 입장',
       function () { if (!self._joined) self._askCode(); }));
   }
+  //  ── 빠른 대전 · 연습 대전 (v3.0, 2026-09-02) ─────────────────────────────
+  //  "방 목록이 비면 할 게 없다"가 실시간 대전의 가장 큰 구멍이었다. 빠른 대전은
+  //  열린 방을 찾아 붙거나 방을 만들어 기다리고, 연습 대전은 봇과 실시간 규칙
+  //  그대로 싸운다(js/rtbot.js). 둘 다 입장 전 화면에만 있고 입장하면 치운다.
+  var qy = PH ? (H - 34 - bh - 8) : (H - u * 26 - bh - 8);
+  var qw = PH ? Math.min(340, (W - 60) / 2) : Math.min(W - 30, 380);
+  if (PH) {
+    this._mkBtns.push(UI.button(this, W / 2 - qw / 2 - 8, qy, qw, bh, '⚡ 빠른 대전',
+      function () { self._quickMatch(); }, { fontSize: 14 }));
+    this._mkBtns.push(UI.button(this, W / 2 + qw / 2 + 8, qy, qw, bh, '🤖 연습 대전 (봇)',
+      function () { self._practice(); }, { fontSize: 14 }));
+  } else {
+    var qw2 = (qw - 8) / 2;
+    this._mkBtns.push(UI.button(this, W / 2 - qw2 / 2 - 4, qy, qw2, bh, '⚡ 빠른 대전',
+      function () { self._quickMatch(); }));
+    this._mkBtns.push(UI.button(this, W / 2 + qw2 / 2 + 4, qy, qw2, bh, '🤖 연습 대전',
+      function () { self._practice(); }));
+  }
+
   var mh = PH ? 40 : Math.max(UI.BTN_H_SM || 52, u * 7);
   UI.button(this, PH ? 64 : 76, PH ? 26 : Math.max(mh / 2 + 6, u * 3.4), PH ? 100 : 120, mh,
     '← 대전', function () { self.scene.start('Versus'); }, { fontSize: PH ? 12 : 14 });
@@ -233,6 +256,19 @@ GAME.RtLobbyScene.prototype._onRoom = function () {
     (NR.peers.length < 2 ? '\n상대를 기다리는 중 — 코드를 알려주세요' :
       (bestRt != null ? '\n왕복 지연 ' + Math.round(bestRt) + 'ms' +
         (GAME.NetRtc && GAME.NetRtc.ready() ? ' (직결)' : ' (서버 경유)') : '')));
+  //  빠른 대전 — 상대가 들어오면 역할·준비를 자동으로 잡는다(사람이 누를 것이 없다).
+  //  방장=컨트롤러 · 손님=전략가(저장 배치가 있을 때만, 없으면 컨트롤러). 상대가
+  //  수동으로 들어온 사람이어도 내 쪽만 자동이면 충분하다.
+  if (this._quick && !this._ready && NR.peers.length >= 2) {
+    var iAmHost = NR.me === NR.host;
+    var wantRole = iAmHost ? 'controller'
+                 : (GAME.Formations.loadSaved().length ? 'strategist' : 'controller');
+    if (this._myRole !== wantRole) this._pickRole(wantRole);
+    var self3 = this;
+    this.time.delayedCall(600, function () {
+      if (self3.scene.isActive() && self3._quick && !self3._ready && !self3._roleOk()) self3._toggleReady();
+    });
+  }
   this._refreshRoleUi();
   //  방에 들어오면 상태 줄을 비운다 — 방 코드·참가자·지연을 전용 줄이 이미 말하고 있어
   //  같은 내용이 겹쳌 찍혔다(2026-09-01 태현님 캐처 실측).
@@ -306,4 +342,65 @@ GAME.RtLobbyScene.prototype._onStart = function (msg) {
   this._started = true;
   GAME.RtFlow.begin(this._myRole, this._theirRole, msg);
   this.scene.start('RtPrep');
+};
+
+// ── 연습 대전(봇) — 난이도를 고르고 준비 화면으로 (v3.0, 2026-09-02) ──────────
+GAME.RtLobbyScene.prototype._practice = function () {
+  var self = this;
+  if (this._joined) return;
+  var B = GAME.RtBot;
+  if (!B) { this._setStatus('⚠ 봇 모듈이 없습니다'); return; }
+  GAME.Modal.open(this, {
+    title: '🤖 연습 대전 — 난이도',
+    items: B.ORDER.map(function (k) { return { key: k, name: B.LEVELS[k].name, note: B.LEVELS[k].note }; }),
+    onPick: function (it) {
+      GAME.Modal.close();
+      GAME.RtFlow.beginLocal(it.key);
+      self._started = true;             //  shutdown 이 방을 정리하지 않게(방 없음)
+      self.scene.start('RtPrep');
+    }
+  });
+};
+
+// ── 빠른 대전 — 열린 방에 붙거나, 없으면 방을 만들어 기다린다 ───────────────
+GAME.RtLobbyScene.prototype._quickMatch = function () {
+  var self = this;
+  if (this._joined || this._quick) return;
+  this._quick = true;
+  this._quickAt = Date.now();
+  this._setStatus('⚡ 상대를 찾는 중…');
+  GAME.NetRoom.listRooms(function (err, res) {
+    if (!self.scene || !self.scene.isActive()) return;
+    var open = (res && res.rooms || []).filter(function (r) { return (r.members || 0) < 2; });
+    if (!err && open.length) { GAME.NetRoom.join(open[0].code); return; }
+    GAME.NetRoom.createRoom({}, function (e2, room) {
+      if (!self.scene || !self.scene.isActive()) return;
+      if (e2) { self._quick = false; self._setStatus('⚠ 방 만들기 실패: ' + e2.message); return; }
+      GAME.NetRoom.join(room.code);
+    });
+  });
+  //  1초마다 경과를 보여주고, 60초가 넘도록 상대가 없으면 연습 대전을 제안한다.
+  if (this._quickEv) this._quickEv.remove(false);
+  this._quickEv = this.time.addEvent({ delay: 1000, loop: true, callback: function () {
+    if (!self.scene.isActive() || !self._quick) return;
+    var NR = GAME.NetRoom;
+    if (NR.peers.length >= 2) return;
+    var sec = Math.round((Date.now() - self._quickAt) / 1000);
+    if (self._joined && self._peersTxt && self._peersTxt.scene) {
+      self._peersTxt.setText('⚡ 상대를 찾는 중… ' + sec + '초\n방 코드 ' + NR.code + ' — 친구에게 알려도 됩니다');
+    }
+    if (sec >= 60 && !self._quickTxt) {
+      var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT, PH = GAME.CONFIG.PHONE;
+      self._quickTxt = GAME.UI.button(self, W / 2, PH ? H - 34 : H - 60, Math.min(W - 40, 420), PH ? 46 : 54,
+        '🤖 상대가 없어요 — 연습 대전으로', function () {
+          GAME.NetRoom.leave(true);
+          self._quick = false; self._joined = false;
+          self.scene.restart();
+          self.time.delayedCall(80, function () {
+            var sc = GAME.game.scene.getScene('RtLobby');
+            if (sc && sc._practice) sc._practice();
+          });
+        }, { fontSize: PH ? 14 : 16 });
+    }
+  } });
 };

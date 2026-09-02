@@ -836,6 +836,12 @@ GAME.DefendTower = {
     rec.floor = floor + 1;
     if (floor > (rec.best || 0)) rec.best = floor;
     rec.gold = (rec.gold || 0) + this.earnedFrom(state);
+    //  메타 이벤트(v3.0) — 회차 방어 성공. 조건 판정은 Achievements/Daily 가 한다.
+    try {
+      if (GAME.Achievements && GAME.Achievements.emit) GAME.Achievements.emit('dtowerClear', { run: floor });
+      if (GAME.Daily && GAME.Daily.emit) GAME.Daily.emit('dtowerClear', { run: floor });
+      if (GAME.Progress && GAME.Progress.emit) GAME.Progress.emit('dtowerClear', { run: floor });
+    } catch (e) {}
     // 다음 층에서 같은 배치로 이어갈 수 있게 남긴다(고칠 수도 있다)
     if (placed) { rec.placed = placed; rec.tier = tier || null; }
     this._save(rec);

@@ -643,3 +643,19 @@ GAME.TouchPad.prototype.destroy = function () {
   this.objects = [];
   this.buttons = [];
 };
+
+// ── 이모트 버튼 자리 (2026-09-02 C 갈래) — 터치 프로필에서 조작부와 안 겹치는 곳 ──
+//  폰 가로: **하단 중앙.** 물약이 원래 쓰던 자리인데 실시간 대전은 물약이 없다(위 _build
+//  주석). 스틱 판정 구역(왼쪽 40%)과 스킬 호(오른쪽) 사이의 빈 띠라 두 엄지 어느 쪽도
+//  안 가린다. 폭은 4개 × (2r+gap) ≈ 150px — 폰 가로 W 844 에서 338~602 가 비어 있다.
+//  세로(은퇴 예정): HUD 바로 아래 가운데 줄 — 하단은 스틱·스킬 호가 다 차지한다.
+//  ⚠ 자리만 정한다. 그리는 것은 GAME.UI.emoteBar(ui-hud.js), 판정은 battle.js.
+GAME.TouchPad.emoteAnchor = function (hudBottom) {
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  if (GAME.CONFIG.PHONE) {
+    var margin = 16, r = 15;
+    return { x: W / 2, y: H - r - margin - 2, r: r, gap: 8, dir: 'row' };
+  }
+  var r2 = 17;
+  return { x: W / 2, y: (hudBottom || 0) + r2 + 10, r: r2, gap: 10, dir: 'row' };
+};

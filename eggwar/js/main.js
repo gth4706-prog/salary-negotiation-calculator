@@ -1,9 +1,132 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v2.97';
+GAME.VERSION = 'v3.00';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
+
+// ── 전역 에러 복구 오버레이 (2026-09-02, C 갈래 — 안정성) ─────────────────────
+//  이 저장소는 "씬 update 예외 → Phaser 루프 사망 → 타이머 고정·화면 정지"를 여러 번
+//  겪었다(v1.58 수성의 탑 정지, v2.43~46 결과 전환 사망 …). 지금까지는 예외가 나면
+//  **아무 안내 없이 얼어붙었다.** 예외를 못 내게 하는 것과 별개로, 났을 때 사람에게
+//  출구를 준다: DOM 오버레이 "문제가 생겼어요 — [메뉴로 돌아가기] [새로고침]".
+//
+//  · 캔버스가 아니라 **DOM** 에 띄운다 — Phaser 가 죽은 뒤에도 그려져야 하니까.
+//  · [메뉴로]: 실시간 대전 중이면 방을 먼저 나가고(상대에게 '연결 끊김'이 간다),
+//    활성 씬을 전부 stop → Menu 를 start. Phaser 의 rAF 루프는 예외로 끊긴 상태일 수
+//    있으므로 loop.sleep()→wake() 로 다시 건다(살아 있었다면 그냥 이어진다).
+//  · 같은 에러(문구·파일·줄)는 **1회만** — GAME.Feel.errorGate. 루프가 살아 있는 채
+//    같은 줄이 매 프레임 터지면 오버레이가 프레임마다 다시 뜨는 것을 막는다.
+//  · `?diag=1` 이면 에러 문구·위치를 오버레이에 그대로 적는다(실기기 원격 진단 —
+//    "안 되는 기기가 내 손에 없다"의 해법, api/apiErr 줄과 같은 취지).
+//  · unhandledrejection 은 **프로그래밍 오류로 보이는 것만**(TypeError·ReferenceError·
+//    RangeError 이고 fetch/network 문구가 아닌 것). 네트워크 실패까지 잡으면 랭킹 서버가
+//    잠깐 안 붙을 때마다 "문제가 생겼어요"가 떠 게임보다 오버레이가 더 자주 보인다.
+(function () {
+  var DIAG = /[?&]diag=1/.test(location.search || '');
+  var gate = (GAME.Feel && GAME.Feel.errorGate) ? GAME.Feel.errorGate()
+    : (function () { var s = {}; return function (k) { if (s[k]) return false; s[k] = true; return true; }; })();
+  var sigOf = (GAME.Feel && GAME.Feel.errorSig) ? GAME.Feel.errorSig
+    : function (m, s, l) { return m + '|' + s + '|' + l; };
+  var box = null;
+
+  function hide() { if (box) { box.remove(); box = null; } }
+
+  function toMenu() {
+    hide();
+    try {
+      if (GAME.NetRoom && GAME.NetRoom.connected) GAME.NetRoom.leave(true);
+    } catch (e) {}
+    try {
+      var g = GAME.game;
+      if (!g || !g.scene) { location.reload(); return; }
+      //  순서가 중요하다. ① 죽은 씬을 먼저 내린다(stop 은 즉시 shutdown — 전투의
+      //  shutdown 핸들러가 방·콜백을 정리한다). ② Menu start — SceneManager 가 예외
+      //  순간 isProcessing 에 갇혀 있으면 큐에 들어가고 다음 프레임 첫머리
+      //  (processQueue)에서 실행된다. ③ 루프를 되살린다 — wake 는 즉시 한 스텝을 도는데
+      //  그때 죽은 씬이 아직 살아 있으면 같은 예외로 다시 죽는다. 그래서 ①②가 먼저다.
+      var live = g.scene.getScenes(true) || [];
+      for (var i = 0; i < live.length; i++) {
+        try { g.scene.stop(live[i].scene.key); } catch (e3) {}
+      }
+      g.scene.start('Menu');
+      try { if (g.loop) { g.loop.sleep(); g.loop.wake(); } } catch (e2) {}
+    } catch (e4) {
+      location.reload();
+    }
+  }
+
+  function show(detail) {
+    if (box) return;                      // 이미 떠 있으면 하나만
+    var el = document.createElement('div');
+    el.id = 'crash';
+    el.style.cssText =
+      'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(6,4,2,0.72);font:15px/1.5 system-ui,-apple-system,"Malgun Gothic",sans-serif;';
+    var card = document.createElement('div');
+    card.style.cssText =
+      'max-width:min(92vw,420px);padding:22px 22px 18px;border-radius:14px;color:#f4ead6;' +
+      'background:#1e1510;border:1px solid #6b5535;box-shadow:0 8px 30px rgba(0,0,0,0.55);text-align:center;';
+    var h = document.createElement('div');
+    h.textContent = '문제가 생겼어요';
+    h.style.cssText = 'font-size:20px;font-weight:700;margin-bottom:6px;color:#ffbf5a;';
+    var p = document.createElement('div');
+    p.textContent = '게임이 잠시 멈췄습니다. 메뉴로 돌아가면 이어서 할 수 있어요.';
+    p.style.cssText = 'color:#d8c9ac;margin-bottom:16px;';
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:10px;justify-content:center;flex-wrap:wrap;';
+    var go = document.createElement('button');
+    go.textContent = '메뉴로 돌아가기';
+    go.style.cssText = 'cursor:pointer;border:0;border-radius:9px;padding:10px 16px;' +
+      'font:inherit;font-weight:700;color:#1b1208;background:#ffbf5a;min-width:44%;';
+    go.onclick = toMenu;
+    var re = document.createElement('button');
+    re.textContent = '새로고침';
+    re.style.cssText = 'cursor:pointer;border:1px solid #6b5535;border-radius:9px;padding:10px 16px;' +
+      'font:inherit;color:#f4ead6;background:transparent;min-width:36%;';
+    re.onclick = function () { location.reload(); };
+    row.appendChild(go); row.appendChild(re);
+    card.appendChild(h); card.appendChild(p); card.appendChild(row);
+    if (DIAG && detail) {
+      var pre = document.createElement('pre');
+      pre.textContent = detail;
+      pre.style.cssText = 'margin:14px 0 0;padding:8px;text-align:left;white-space:pre-wrap;word-break:break-all;' +
+        'font:11px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#7ef0d0;background:rgba(0,0,0,0.35);' +
+        'border-radius:8px;max-height:30vh;overflow:auto;';
+      card.appendChild(pre);
+    }
+    el.appendChild(card);
+    (document.body || document.documentElement).appendChild(el);
+    box = el;
+  }
+
+  function report(msg, src, line, err) {
+    var sig = sigOf(msg, src, line);
+    if (!gate(sig)) return;
+    var detail = String(msg || '') + (src ? '\n' + src + ':' + (line || '?') : '') +
+      (err && err.stack ? '\n' + String(err.stack).split('\n').slice(0, 6).join('\n') : '');
+    GAME.lastCrash = detail;              // ?diag=1 이 아니어도 콘솔·도구가 읽을 수 있게
+    try { show(detail); } catch (e) { /* 오버레이마저 실패하면 조용히 */ }
+  }
+
+  window.addEventListener('error', function (ev) {
+    if (!ev) return;
+    //  리소스 로드 실패(<img>/<script>)는 여기로 안 온다(버블 안 함). 스크립트 예외만.
+    report(ev.message, ev.filename, ev.lineno, ev.error);
+  });
+  window.addEventListener('unhandledrejection', function (ev) {
+    var r = ev && ev.reason;
+    if (!r || typeof r !== 'object') return;
+    var name = r.name || '';
+    var msg = String(r.message || '');
+    if (!/^(TypeError|ReferenceError|RangeError|SyntaxError)$/.test(name)) return;
+    if (/fetch|network|load failed|NetworkError|abort/i.test(msg)) return;
+    var where = '';
+    if (r.stack) { var m = /\(?([^\s()]+\.js):(\d+)/.exec(String(r.stack)); if (m) where = m[1] + ':' + m[2]; }
+    report(name + ': ' + msg, where, '', r);
+  });
+  GAME.crashGuard = { show: show, hide: hide, toMenu: toMenu };
+})();
 
 window.addEventListener('load', function () {
   if (typeof Phaser === 'undefined') {
@@ -87,6 +210,7 @@ window.addEventListener('load', function () {
       GAME.DraftScene,
       GAME.TowerScene,
       GAME.BattleScene,
+      GAME.GuideScene,         // 첫 전투 가이드 오버레이 — Battle 위 병렬 (v3.0)
       GAME.DefendScene,
       GAME.DefendTowerScene,
       GAME.VersusScene,
@@ -96,6 +220,7 @@ window.addEventListener('load', function () {
       GAME.TowerShopScene,
       GAME.TowerLoadingScene,
       GAME.RankScene,
+      GAME.ProfileScene,       // 프로필·업적·일일 과제 (v3.0, 2026-09-02)
       GAME.AdminScene,
       GAME.FitScene            // 피팅 도구 — ?fit=1 로만 진입(2026-08-21)
     ]
@@ -108,15 +233,22 @@ window.addEventListener('load', function () {
   //
   // 같은 훅에서 **뒤로가기용 씬 이력**도 쌓는다(`js/pwa.js` 의 GAME.Nav).
   // 씬마다 코드를 넣지 않는 이유가 그대로다 — 전이를 한 곳에서만 관찰한다.
+  //
+  //  2026-09-02(C 갈래): 180ms 로 맞추고 **전투·로딩은 뺀다.** 전투(Battle/Defend)는
+  //  들어가는 순간 시뮬이 시작되므로 어두운 막이 첫 프레임(예고·스폰)을 가린다 —
+  //  전투는 즉시. Loading 은 첫 화면이라 검은 캔버스에서 또 검게 페이드하면 '지연'으로
+  //  읽힌다. 자산 로더가 없는 게임이라 페이드는 '전환' 신호 하나로 충분하다.
   (function () {
-    var FADE = 160;
+    var FADE = 180;
+    var NO_FADE = { Battle: 1, Defend: 1, Loading: 1 };
     GAME.game.events.on('ready', function () { hook(); });
     function hook() {
       GAME.game.scene.scenes.forEach(function (sc) {
         if (sc.__fadeHooked) return;
         sc.__fadeHooked = true;
         sc.events.on('create', function () {
-          if (sc.cameras && sc.cameras.main) sc.cameras.main.fadeIn(FADE, 0, 0, 0);
+          var key = sc.scene && sc.scene.key;
+          if (!NO_FADE[key] && sc.cameras && sc.cameras.main) sc.cameras.main.fadeIn(FADE, 0, 0, 0);
           if (GAME.Nav) GAME.Nav.onScene(sc);
         });
       });

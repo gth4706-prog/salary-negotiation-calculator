@@ -359,9 +359,58 @@ GAME.ArenaBuild = {
     return false;
   },
 
+  //  ── 실시간 전용 영웅 보정표 (2026-09-02 · 대격변 v3 W3) ─────────────────────
+  //  heroes.js 는 탑·수성·비동기 대전이 같이 쓰는 한 벌이라 못 깎는다. 실시간 1:1 은
+  //  진형 없이 영웅끼리 붙는 판이라 축이 다르다 — 파수꾼은 "여럿을 오래 버틴다"로
+  //  잡힌 영웅인데 1:1 에서는 최고 유효체력(1340) + 최고 스킬 dps(24.6) + 흡혈이
+  //  전부 이득이 된다. 실측(tools/rt-balance-audit.js 스킬 결투, 보정 1.0):
+  //    같은 빌드 영웅 대진 12/12 파수꾼 승 · 파수꾼 vs 광전사 잔여 30~42% ·
+  //    무장비 상대 최악 잔여 76%(warden/balanced vs vanguard/none) → 기준 ② 실패.
+  //  값은 그 감사가 정한다 — 여기 숫자를 바꾸면 반드시 다시 돌릴 것. 기본 1.0.
+  //  applyToHeroRt 첫머리에서만 곱한다(실시간 영웅에게만 — 다른 모드는 이 함수를 안 부른다).
+  //
+  //  2026-09-02 채택 근거(스킬 결투 156판, 양쪽 소진 빌드 90판 기준 ②):
+  //    hp·damage 축은 안 듣는다 — hp 0.85 → 초과 10판 그대로, damage 0.85 → 방어 몰빵
+  //    거울전이 88초 무승부(더 못 잡게 된다). 초과 대진이 전부 "방어 몰빵 vs 파수꾼 공격/
+  //    균형"이라 원인은 화력이 아니라 **유지력**(흡혈 0.15 이 공격 능력치를 타고 자란다).
+  //    | 손잡이                                   | ② 초과 | 최악 잔여 | 같은 빌드 승수(광/사/파) | 파수꾼 방어 거울전 TTK |
+  //    | 없음(연계막 RT_SUSTAIN 전)                |  10판 |   73%   | 8 / 0 / 16              | 84초 |
+  //    | 연계막 RT_SUSTAIN 만(combat.js)           |   3판 |   59%   | 10 / 0 / 14             | 59초 |
+  //    | + lifesteal 0.6                          |   1판 |   58%   | 13 / 0 / 11             | 49초 |
+  //    | + lifesteal 0.6 · armor 1.1              |   0판 |   55%   | 12 / 0 / 12             | 51초 |
+  //    | **+ lifesteal 0.5 · armor 1.1 (채택)**    |   0판 |   53%   | 12 / 0 / 12             | 50초 |
+  //    흡혈을 깎은 만큼 방어를 조금 돌려줘 정체성('안 죽는 것')은 두께로 남긴다.
+  //  ⚠ 사냥꾼 0승은 하네스가 사냥꾼을 근접 거리에 **세워 두고**(카이팅 없음) 재기 때문 —
+  //    실전 사냥꾼의 축은 '안 맞는 것'이라 여기 숫자로 사냥꾼을 버프하면 안 된다.
+  RT_HERO_MOD: {
+    vanguard: { hp: 1.0, damage: 1.0, armor: 1.0, speed: 1.0, lifesteal: 1.0 },
+    ranger:   { hp: 1.0, damage: 1.0, armor: 1.0, speed: 1.0, lifesteal: 1.0 },
+    warden:   { hp: 1.0, damage: 1.0, armor: 1.1, speed: 1.0, lifesteal: 0.5 }
+  },
+
+  //  실시간 전용 스킬 배율표 — 스킬 이름 → { damage, shield, heal, dps }. combat.js
+  //  `_castSkillInner` 가 **pvpRealtime 일 때만** 읽는다(궁극 하한 뒤, 표에 없으면 1.0).
+  //  heroes.js 의 표는 탑 밸런스가 그 위에 서 있어 못 깎으므로 실시간만 여기서 만진다.
+  //  값은 tools/rt-balance-audit.js 스킬 결투가 정한다(근거는 그 항목 주석에).
+  RT_SKILL_MOD: {},
+
   //  실시간 전투에 아이템을 얹는다 — battle.js(_rtApplyItems)와 감사 도구가 **같은
   //  함수**를 쓴다(두 벌이면 조용히 갈라진다). 결정론: itemBonus 는 items 의 순수 함수.
   applyToHeroRt: function (hu, items) {
+    //  영웅 보정(RT_HERO_MOD) — 아이템·능력치보다 **먼저** 곱한다(기본 스펙만 보정,
+    //  산 것은 표기 그대로). 이 함수는 판마다 새 영웅에 한 번 불리므로 중복 적용 없음.
+    var M = this.RT_HERO_MOD && this.RT_HERO_MOD[hu.def && hu.def.key];
+    if (M) {
+      var d0 = hu.def;
+      if (M.hp !== undefined && M.hp !== 1) { d0.hp = Math.round(d0.hp * M.hp); hu.maxHp = d0.hp; hu.hp = d0.hp; }
+      if (M.damage !== undefined && M.damage !== 1) d0.damage = Math.round(d0.damage * M.damage);
+      if (M.armor !== undefined && M.armor !== 1) d0.armor = Math.round(d0.armor * M.armor);
+      if (M.speed !== undefined && M.speed !== 1) d0.speed = Math.round(d0.speed * M.speed);
+      //  흡혈 — 1:1 에서 "못 잡는다"의 실체는 유지력이라 이 축이 있어야 잡힌다.
+      if (M.lifesteal !== undefined && M.lifesteal !== 1 && d0.lifesteal) {
+        d0.lifesteal = Math.round(d0.lifesteal * M.lifesteal * 1000) / 1000;
+      }
+    }
     //  단계 상한 위 아이템은 **적용 단계에서도** 거른다 — 상대가 보낸 세팅 스냅샷을
     //  그대로 믿으면 조작된 클라이언트가 지수 아이템을 실어 보낼 수 있다.
     //  양쪽이 같은 규칙으로 거르므로 결정론은 유지된다.

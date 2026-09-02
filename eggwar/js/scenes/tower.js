@@ -1083,6 +1083,9 @@ GAME.TowerScene.prototype._enterBattle = function (floor, replay) {
   //  진형은 그 층 것으로 새로 뽑는다. 현재 층 진형은 씬이 이미 들고 있지만
   //  재도전 층은 매번 새로 굴린다(같은 층도 배치가 섞이는 탑의 원칙 그대로).
   if (replay) this.formation = GAME.Tower.formationFor(floor, this.heroKey);
+  //  첫 경험 가이드(2026-09-02 갈래 B) — 처음 온 계정(최고층 0 · 가이드 미완료)의 1층
+  //  전투에 Guide 오버레이를 건다. 실제 launch 는 Battle create 이벤트에서(js/guide.js).
+  if (GAME.Guide && GAME.Guide.shouldShow(floor)) GAME.Guide.arm('tower1');
   this._equipSkillsThenBattle(floor, 0, replay);
 };
 
@@ -1555,7 +1558,11 @@ GAME.TowerScene.prototype._setPin = function () {
             onSubmit: function (oldPin, say2, done2) {
               say2('처리 중…');
               GAME.Auth.set(me, pin, oldPin).then(function (r) {
-                if (r.ok) { done2(); self._pinToast('PIN 을 바꿨습니다.'); return; }
+                if (r.ok) {
+                  done2(); self._pinToast('PIN 을 바꿨습니다.');
+                  if (GAME.CloudSave) GAME.CloudSave.begin(me, pin);   //  새 PIN 으로 동기화(v3.0)
+                  return;
+                }
                 say2('⚠ ' + (r.why || '변경에 실패했습니다.'));
               });
             }
@@ -1564,7 +1571,11 @@ GAME.TowerScene.prototype._setPin = function () {
         }
         say('처리 중…');
         GAME.Auth.set(me, pin).then(function (r) {
-          if (r.ok) { done(); self._pinToast('이제 이 닉네임은 PIN 으로 잠깁니다.'); return; }
+          if (r.ok) {
+            done(); self._pinToast('이제 이 닉네임은 PIN 으로 잠깁니다 — 다른 기기에서도 이어집니다.');
+            if (GAME.CloudSave) GAME.CloudSave.begin(me, pin);       //  첫 동기화(v3.0)
+            return;
+          }
           say('⚠ ' + (r.why || '설정에 실패했습니다.'));
         });
       }

@@ -333,7 +333,7 @@ GAME.Font = (function () {
   var style2 = d.createElement('style');
   style2.textContent =
     '@font-face{font-family:"Black Han Sans";' +
-    'src:url("fonts/blackhansans-subset.woff2?v=1.37") format("woff2");' +
+    'src:url("fonts/blackhansans-subset.woff2?v=3.00") format("woff2");' +
     'font-weight:400;font-style:normal;font-display:swap}';
   head.appendChild(style2);
 

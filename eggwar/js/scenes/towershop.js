@@ -285,16 +285,36 @@ GAME.TowerShopScene.prototype._buildBody = function (bump) {
   else this._buildStatsTab();       //  arena 모드도 같은 탭(TC 어댑터) — 2026-09-01
 };
 
+//  가죽 원단 패널(2026-09-02, #119 ③ 잔여) — 큰 면은 원본, 카드는 저해상판.
+//  ⚠ 라이트 테마에서만 쓴다 — 원단 중앙이 밝은 양피지라 야간 테마의 밝은 글자가
+//    그 위에서 증발한다(메뉴 카드가 α0.38 로 눌러 쓴 것과 같은 계열의 함정).
+//  ⚠ inset 은 텍스처 px(v2.93 버튼 원단 교훈) — 모서리 불성립 크기·로드 전엔 null
+//    을 돌려주고 호출부가 절차 그리기로 폴백한다. 표시목록에 **먼저** 넣을 것
+//    (뒤에 넣으면 상태 테두리를 덮는다).
+GAME.TowerShopScene.prototype._leatherImg = function (x, y, w, h) {
+  var UB = GAME.UIBank;
+  if (!UB || !GAME.UI.IS_LIGHT) return null;
+  //  큰 패널도 카드판을 쓴다 — 원본(inset 55)은 nineslice 모서리가 화면 55px 로
+  //  박혀 폰 패널에서 테두리가 면적의 40%를 먹고 제목을 삼켰다(스크린샷 실측).
+  var ins = 28;
+  if (w < ins * 2 + 10 || h < ins * 2 + 10) return null;
+  return UB.nineSlice(this, 'texPanelCard', x + w / 2, y + h / 2, w, h, ins);
+};
+
 // ── 우측 캐릭터 미리보기 + 장비 슬롯 박스 (요청 16) ─────────────────────────
 GAME.TowerShopScene.prototype._drawCharPanel = function (x, y, w, h) {
   var C = GAME.CONFIG.COLORS;
   var self = this;
+  var lp = this._leatherImg(x, y, w, h);
+  if (lp) this._body.push(lp);
   var g = this.add.graphics();
   this._body.push(g);
-  g.fillStyle(GAME.UI.COL.surfaceAlt, 1);
-  g.fillRoundedRect(x, y, w, h, 12);
-  g.lineStyle(1, GAME.UI.COL.border, 1);
-  g.strokeRoundedRect(x, y, w, h, 12);
+  if (!lp) {
+    g.fillStyle(GAME.UI.COL.surfaceAlt, 1);
+    g.fillRoundedRect(x, y, w, h, 12);
+    g.lineStyle(1, GAME.UI.COL.border, 1);
+    g.strokeRoundedRect(x, y, w, h, 12);
+  }
 
   // 무대(캐릭터)는 **장비 박스가 쓰고 남은 위쪽 전부**를 받는다. 예전엔 패널 높이의
   // 고정 비율(55%)이었는데, 아이템 격자가 들어오며 패널이 세로로 길어지자 그 비율이
@@ -744,9 +764,14 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
     var price = self.src.priceOf(self.char, self.itemSlot, it);
     var afford = self.src.afford(self.char, price, self.itemSlot);
 
+    //  장착 중 카드는 진영색 채움이 상태 신호라 원단을 안 깐다.
+    var limg = equipped ? null : self._leatherImg(cx0, cy0, cardW, cardH);
+    if (limg) sc.add(limg);
     var g = sc.add(self.add.graphics());
-    g.fillStyle(equipped ? GAME.UI.COL.panelTeal : GAME.UI.COL.surfaceAlt, 1);
-    g.fillRoundedRect(cx0, cy0, cardW, cardH, 10);
+    if (!limg) {
+      g.fillStyle(equipped ? GAME.UI.COL.panelTeal : GAME.UI.COL.surfaceAlt, 1);
+      g.fillRoundedRect(cx0, cy0, cardW, cardH, 10);
+    }
     // 테두리 세 상태: 고른 것(강조) > 장착 중(진영색) > 평소.
     g.lineStyle(picked ? 3 : (equipped ? 2 : 1),
                 picked ? C.accent : (equipped ? C.controller : GAME.UI.COL.border), 1);
@@ -1036,13 +1061,17 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
   });
 
   // ── 미리보기 창 — 넓어진 폭을 실제로 쓴다 ──
+  var pTop = top, pH = H - top - (P ? 12 : 20) - this._bottomPad;
+  var plp = this._leatherImg(rightX, pTop, rightW, pH);
+  if (plp) this._body.push(plp);
   var pg = this.add.graphics();
   this._body.push(pg);
-  var pTop = top, pH = H - top - (P ? 12 : 20) - this._bottomPad;
-  pg.fillStyle(GAME.UI.COL.surfaceAlt, 1);
-  pg.fillRoundedRect(rightX, pTop, rightW, pH, 12);
-  pg.lineStyle(1, GAME.UI.COL.border, 1);
-  pg.strokeRoundedRect(rightX, pTop, rightW, pH, 12);
+  if (!plp) {
+    pg.fillStyle(GAME.UI.COL.surfaceAlt, 1);
+    pg.fillRoundedRect(rightX, pTop, rightW, pH, 12);
+    pg.lineStyle(1, GAME.UI.COL.border, 1);
+    pg.strokeRoundedRect(rightX, pTop, rightW, pH, 12);
+  }
 
   if (!this.previewSkill || this.previewSkill.slot !== slot) {
     this.previewSkill = { slot: slot, idx: this.char.picks[slot] };
@@ -1057,7 +1086,9 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
   var shown = this.src.shownSkill(o, this.char);
   var ownedP = this.src.skillOwned(ps.slot, ps.idx, this.char);
 
-  var ty = pTop + (P ? 10 : 16);
+  //  가죽 원단이 깔렸으면 테두리(28px) 안쪽으로 내용을 민다 — 제목이 스티치에 먹혀다(실측).
+  var pPad = plp ? 22 : 0;
+  var ty = pTop + pPad + (P ? 10 : 16);
   var titleLbl = GAME.UI.label(this, rightX + rightW / 2, ty,
     o.name, P ? 16 : 22, C.accent, 0.5).setOrigin(0.5, 0).setWordWrapWidth(rightW - 28);
   this._body.push(titleLbl);
@@ -1069,7 +1100,7 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
   // 스킬 모양 — 그 슬롯의 전투 모션 포즈를 그대로 보여준다(js/eggart.js 의 `UI.actPose`).
   // 글만 있으면 "돌진"과 "강타"가 같은 문장으로 읽힌다(이 폴더가 이미 겪은 실패).
   var stageTop = subLbl.y + subLbl.height + (P ? 8 : 14);
-  var descTop = pTop + pH - (P ? 92 : 140);
+  var descTop = pTop + pH - pPad - (P ? 92 : 140);
   var stageH = Math.max(40, descTop - stageTop - 10);
   // 무기까지 담는 계수 — 위 `_drawCharPanel` 과 같은 이유로 몸통 기준(5.2)보다 작다.
   var sr = Math.min(rightW * 0.16, stageH / 6.2);
@@ -1390,10 +1421,15 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
     var can = chr.gold >= cost;
     var total = totalOf(d);
 
+    var slp = self._leatherImg(cx0, cardTop, cw, cardH);
+    if (slp) self._body.push(slp);
     var g = self.add.graphics();
     self._body.push(g);
-    g.fillStyle(GAME.UI.COL.surfaceAlt, 1);
-    g.fillRoundedRect(cx0, cardTop, cw, cardH, 10);
+    if (!slp) {
+      g.fillStyle(GAME.UI.COL.surfaceAlt, 1);
+      g.fillRoundedRect(cx0, cardTop, cw, cardH, 10);
+    }
+    //  구매 가능 강조 테두리는 원단 위에도 그린다 — 상태 신호는 소재보다 우선.
     g.lineStyle(can ? 2 : 1, can ? C.controller : GAME.UI.COL.border, 1);
     g.strokeRoundedRect(cx0, cardTop, cw, cardH, 10);
 

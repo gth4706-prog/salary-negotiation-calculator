@@ -27,7 +27,8 @@
     cardVersus: { src: 'assets/ui/card-versus.png?v=2.93' },   // 800×480 대전 카드
     bannerShop: { src: 'assets/ui/banner-shop.png?v=2.93' },   // 1600×240 상점 배너
     texButton:  { src: 'assets/ui/tex-button-stone.png?v=2.93' },   // 600×240 돌판 버튼 원단 (9-slice)
-    texPanel:   { src: 'assets/ui/tex-panel-leather.png?v=2.93' },   // 600×240 가죽 패널 원단 (9-slice)
+    texPanel:   { src: 'assets/ui/tex-panel-leather.png?v=2.93' },   // 355×486 가죽 패널 원단 (9-slice, inset ~55)
+    texPanelCard: { src: 'assets/ui/tex-panel-card.png?v=2.96' },    // 178×244 카드용 저해상판 (inset 28 — 폰 카드 폭 110 에서도 모서리 성립)
     texRibbon:  { src: 'assets/ui/tex-ribbon-bone.png?v=2.93' },   // 600×240 뼈 리본 원단 (9-slice)
     stampWin:   { src: 'assets/ui/stamp-win.png?v=2.93' },   // 700×700 승리 도장
     stampLose:  { src: 'assets/ui/stamp-lose.png?v=2.93' }    // 700×700 패배 도장

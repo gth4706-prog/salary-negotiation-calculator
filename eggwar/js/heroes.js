@@ -485,9 +485,13 @@ GAME.HEROES = {
       //  E — 보조유닛 소환(늪지기·족장). Q(근접)와 역할을 가르기 위해 둘 다
       //  투사체/지원형 유닛이다 — 늪지기는 둔화로 발을 묶고, 족장은 곁을 강화한다.
       E: [
-        { name: '늪지기 소환', type: 'summon', motif: 'bog', unit: 'chemtrooper', count: 1, life: 8000, range: 150, unitMods: { hp: 0.8, damage: 0.7 }, cooldown: 12000, cost: 0,
+        //  ⚠ E 1·2단은 소환 전체에서 가장 얇았다(늪지기 유효체력 121 · 족장 140 —
+        //    Q 1단 전사 250 의 절반). 보조형이라 약한 것은 맞지만 서서 둔화·버프를
+        //    걸기도 전에 죽으면 역할 자체가 성립하지 않는다. 원본 유닛 체력 그대로
+        //    (hp 1.0)로 올리고 공격만 낮게 유지해 '보조'라는 성격은 지킨다.
+        { name: '늪지기 소환', type: 'summon', motif: 'bog', unit: 'chemtrooper', count: 1, life: 8000, range: 150, unitMods: { hp: 1.0, damage: 0.7 }, cooldown: 12000, cost: 0,
           evo: { at: { floor: 10 }, name: '깨어난 늪지기 소환', patch: { count: 2, spread: 40, life: 11000, unitMods: { hp: 1.0, damage: 0.85 } } } },
-        { name: '족장 소환', type: 'summon', motif: 'totem', unit: 'sergeant', count: 1, life: 8000, range: 150, unitMods: { hp: 0.8, damage: 0.7 }, cooldown: 12500, cost: 250,
+        { name: '족장 소환', type: 'summon', motif: 'totem', unit: 'sergeant', count: 1, life: 8000, range: 150, unitMods: { hp: 1.0, damage: 0.7 }, cooldown: 12500, cost: 250,
           evo: { at: { floor: 20 }, name: '깨어난 족장 소환', patch: { life: 11000, unitMods: { hp: 1.0, damage: 0.85 } } } },
         { name: '늪지기 무리 소환', type: 'summon', motif: 'bog', unit: 'chemtrooper', count: 2, life: 9500, range: 160, spread: 55, unitMods: { hp: 0.9, damage: 0.8 }, cooldown: 13000, cost: 900,
           evo: { at: { floor: 35 }, name: '늪지기 떼 소환', patch: { count: 3, spread: 65, life: 12000 } } },
@@ -498,29 +502,40 @@ GAME.HEROES = {
       ],
       //  R — 보스 소환. 신설 타입 `type:'summonBoss'`(combat.js) — 진짜 보스 def 를
       //  빌리되 isBoss 를 지우고 phases 를 없애고 abilities 를 1개로 줄인 뒤 hp·damage 를
-      //  크게 깎아 미니어처로 세운다(`eliteDraw` 로 그리는 크기만 축소). 낮은 층 보스 →
+      //  깎아 미니어처로 세운다(`eliteDraw` 로 그리는 크기만 축소). 낮은 층 보스 →
       //  높은 층 보스 순으로 진화한다. **용의 알 계열은 지시대로 후보에서 뺐다.**
+      //
+      //  ⚠⚠ 2026-09-04 체급 재조정 — **궁극기가 기본 스킬보다 약했다.**
+      //  처음 값(hpMul 0.05·dmgMul 0.30)은 "미니어처니까 작게"만 보고 Q 와 맞대 보지
+      //  않고 정했다. 실측하니 R 1단 hp 119·dmg 11 인데 Q 1단(전사)이 hp 192·dmg 25 —
+      //  **쿨은 34초 대 11초로 3배 긴데 체급은 절반**이었다. 궁극기 자리에 놓을 이유가
+      //  없는 스킬이다. 원본 보스 대비가 아니라 **Q 소환수 대비**로 다시 잡았다:
+      //  체력은 Q 최고단(210)의 2~3배, 공격은 Q 중간단 수준.
+      //  ⚠ `dmgMul` 이 1 을 넘는 것이 "원본 보스보다 세다"는 뜻이 아니다 — 미니보스는
+      //    phases 가 없고 abilities 가 1개로 잘려 **원본의 주 무기인 스킬을 잃는다.**
+      //    보스 평타는 CLAUDE.md v1.15 에서 "평타 약·스킬 강" 규율로 55~65% 깎인 값이라
+      //    (원본 dmg 31~45) 스킬을 뺏긴 몫을 평타로 돌려주지 않으면 아무것도 못 한다.
       R: [
         //  10층 보스 — 부족을 이끄는 거대 족장. 가장 이르게 나타나는 보스라 가장 약하다.
         { name: '조상의 족장 소환', type: 'summonBoss', motif: 'totem', bossKey: 'bossChief',
-          hpMul: 0.05, dmgMul: 0.30, sizeMul: 0.44, life: 16000, range: 150, cooldown: 34000, cost: 0,
-          evo: { at: { floor: 10 }, name: '태초의 족장 소환', patch: { hpMul: 0.06, dmgMul: 0.33, life: 19000 } } },
+          hpMul: 0.19, dmgMul: 1.05, sizeMul: 0.44, life: 16000, range: 150, cooldown: 34000, cost: 0,
+          evo: { at: { floor: 10 }, name: '태초의 족장 소환', patch: { hpMul: 0.23, dmgMul: 1.18, life: 19000 } } },
         //  20층 보스 — 두꺼운 껍질 골렘. 족장보다 한 걸음 더 단단하다.
         { name: '조상의 골렘 소환', type: 'summonBoss', motif: 'earth', bossKey: 'bossShell',
-          hpMul: 0.055, dmgMul: 0.30, sizeMul: 0.45, life: 17000, range: 150, cooldown: 34000, cost: 250,
-          evo: { at: { floor: 20 }, name: '태초의 골렘 소환', patch: { hpMul: 0.065, dmgMul: 0.33, life: 20000 } } },
+          hpMul: 0.21, dmgMul: 1.05, sizeMul: 0.45, life: 17000, range: 150, cooldown: 34000, cost: 250,
+          evo: { at: { floor: 20 }, name: '태초의 골렘 소환', patch: { hpMul: 0.25, dmgMul: 1.18, life: 20000 } } },
         //  40층 보스 — 재를 뒤집어쓴 파수병. 용의 첫 그림자가 드리우기 시작한 자리.
         { name: '조상의 파수병 소환', type: 'summonBoss', motif: 'ember', bossKey: 'bossAshSentry',
-          hpMul: 0.065, dmgMul: 0.32, sizeMul: 0.47, life: 18000, range: 160, cooldown: 35000, cost: 900,
-          evo: { at: { floor: 35 }, name: '태초의 파수병 소환', patch: { hpMul: 0.075, dmgMul: 0.35, life: 21000 } } },
+          hpMul: 0.24, dmgMul: 1.20, sizeMul: 0.47, life: 18000, range: 160, cooldown: 35000, cost: 900,
+          evo: { at: { floor: 35 }, name: '태초의 파수병 소환', patch: { hpMul: 0.28, dmgMul: 1.33, life: 21000 } } },
         //  80층 보스 — 용이 거느린 잿날개. 처음으로 '용의 부하'를 직접 부린다.
         { name: '조상의 잿날개 소환', type: 'summonBoss', motif: 'ember', bossKey: 'bossDrakeAsh',
-          hpMul: 0.075, dmgMul: 0.34, sizeMul: 0.49, life: 19000, range: 160, cooldown: 36000, cost: 3000,
-          evo: { at: { rtWins: 5 }, name: '태초의 잿날개 소환', patch: { hpMul: 0.085, dmgMul: 0.37, life: 22000 } } },
+          hpMul: 0.27, dmgMul: 1.35, sizeMul: 0.49, life: 19000, range: 160, cooldown: 36000, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '태초의 잿날개 소환', patch: { hpMul: 0.31, dmgMul: 1.48, life: 22000 } } },
         //  200층 보스 — 폭풍 하늘의 주인. 이 사다리의 정점 — 가장 늦게, 가장 강하게.
         { name: '조상의 폭풍왕 소환', type: 'summonBoss', motif: 'totem', bossKey: 'bossStormKing',
-          hpMul: 0.09, dmgMul: 0.38, sizeMul: 0.52, life: 21000, range: 170, cooldown: 38000, cost: 9000,
-          evo: { at: { floor: 80 }, name: '태초의 폭풍왕 소환', patch: { hpMul: 0.11, dmgMul: 0.42, life: 25000, sizeMul: 0.55 } } }
+          hpMul: 0.31, dmgMul: 1.55, sizeMul: 0.52, life: 21000, range: 170, cooldown: 38000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '태초의 폭풍왕 소환', patch: { hpMul: 0.36, dmgMul: 1.72, life: 25000, sizeMul: 0.55 } } }
       ]
     }
   },

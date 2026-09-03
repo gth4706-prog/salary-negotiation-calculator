@@ -1367,6 +1367,23 @@ GAME.Combat = {
   //  onKill 이 `unit.summoned` 로 걸러야 한다, 보고서 참조).
   //  수명 만료는 update 가 `alive=false` 로만 끝낸다 — 노른자·처치 훅·구슬 없음.
   //  반환: 실제로 세운 수(모르는 키면 0).
+  //  소환수에 얹을 최종 배수 — 스킬의 `unitMods` × 그 층의 추종 배수(`state.summonMods`).
+  //
+  //  ⚠ **전략가(적) 쪽 소환은 일부러 안 받는다.** js/units.js 가 보스 소환 능력에
+  //    "소환수는 그 층의 선형 배수 근처로 맞춘 **정적** 값 … 압박용이지 벽이 아니다"
+  //    라고 못박아 뒀다 — 적 소환수까지 같이 키우면 그건 밸런스 수정이 아니라
+  //    요청 없는 난이도 상승이다. 여기서 고치는 것은 **내 소환수만**이다.
+  //  ⚠ `state.summonMods` 가 없으면(실시간·대전·방어전) 스킬 값 그대로 — 옛 동작과 동일.
+  _summonMods: function (state, owner, skillMods) {
+    var sm = state && state.summonMods;
+    if (!sm || !owner || owner.side === 'strategist') return skillMods;
+    var out = {}, k;
+    for (k in (skillMods || {})) out[k] = skillMods[k];
+    out.hp = (out.hp || 1) * (sm.hp || 1);
+    out.damage = (out.damage || 1) * (sm.damage || 1);
+    return out;
+  },
+
   spawnSummons: function (state, owner, unitKey, count, lifeMs, cx, cy, spread, opts) {
     var base = GAME.UNITS && GAME.UNITS[unitKey];
     if (!base || !(count > 0)) return 0;
@@ -1376,7 +1393,8 @@ GAME.Combat = {
     for (var i = 0; i < count; i++) {
       var ang = (count === 1) ? 0 : (i / count) * Math.PI * 2;
       var x = cx + GAME.DetMath.cos(ang) * r, y = cy + GAME.DetMath.sin(ang) * r;
-      var su = this.createUnit(unitKey, x, y, owner.side, opts.mods);
+      var su = this.createUnit(unitKey, x, y, owner.side,
+                               this._summonMods(state, owner, opts.mods));
       //  def 는 UNITS 원본을 그대로 참조할 수 있다(WORLD_SCALE 1) — 사본에만 표시를 단다.
       var nd = {}, k;
       for (k in su.def) nd[k] = su.def[k];
@@ -2427,7 +2445,8 @@ GAME.Combat = {
       var bsgo = Math.min(bsdl, bsReach);
       var bx = u.x + (bsdx / bsdl) * bsgo, by = u.y + (bsdy / bsdl) * bsgo;
       var bsu = this.createUnit(sk.bossKey, bx, by, u.side,
-                                { hp: sk.hpMul || 0.06, damage: sk.dmgMul || 0.35 });
+                                this._summonMods(state, u,
+                                  { hp: sk.hpMul || 0.06, damage: sk.dmgMul || 0.35 }));
       var bnd = {}, bk3;
       for (bk3 in bsu.def) bnd[bk3] = bsu.def[bk3];
       bnd.isBoss = false;                           // ② HUD·인트로·회복구역·업적이 안 속게

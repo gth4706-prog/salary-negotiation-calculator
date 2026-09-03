@@ -191,6 +191,24 @@ GAME.BattleScene.prototype.create = function () {
   // 처치 기반 드랍은 보스 층에서 사실상 0개라 근접 영웅이 버틸 방법이 없었다.
   this.state.bossHealOn = !!(this.tower && GAME.Tower.isBossFloor &&
                              GAME.Tower.isBossFloor(this.tower));
+  //  ── 소환수 층 추종 (2026-09-04 태현님: "주술사 유닛이 너무 약해 나오자마자 1방에 죽어") ──
+  //  적 유닛은 `unitModsFor` 로 층·성장 배수를 받는데 **내 소환수는 UNITS 원본 그대로**였다.
+  //  실측(고성장 90층): 적 한 대가 195, 소환한 전사 체력이 192 — 정확히 한 대에 죽는다.
+  //  적 체력은 13.3배로 자라는 동안 소환수는 1.0배에 묶여 있었다.
+  //  ⚠ **두 축을 엇갈려 곱한다.** 소환수 체력은 `적 공격 배수`를, 소환수 공격은 `적 체력
+  //    배수`를 따라간다 — 그래야 "몇 대 버티는가 / 몇 대에 죽이는가"가 층·성장과 무관하게
+  //    보존된다(js/tower.js 의 hpMul/dmgMul 이 적을 나에게 맞추는 것의 거울). 같은 축끼리
+  //    곱하면(체력↔체력) 한쪽으로 몰아준 빌드에서 소환수가 같이 기울어 무의미해진다.
+  //  ⚠ 질 배수(qualityMul)도 적과 **같은 지수**로 싣는다 — 아래 유닛 루프가 적 체력에
+  //    ^1.25, 공격에 ^0.75 를 쓰므로 거울도 그 짝을 그대로 따라야 한다.
+  //  ⚠ 계산식은 `js/tower.js summonModsFor` 한 곳에만 둔다 — 여기와 tools/sim.js 가
+  //    같은 함수를 부른다. 손으로 베끼면 도구가 실제 게임과 다른 것을 재게 된다.
+  //  ⚠ 탑에서만 싣는다. 실시간·대전은 이 값이 없으면 combat.js 가 1 로 본다 — 록스텝은
+  //    양쪽이 같은 값을 봐야 하는데 캐릭터 성장은 사람마다 달라 끼면 즉시 갈라진다.
+  if (this.tower && GAME.Tower.summonModsFor) {
+    this.state.summonMods =
+      GAME.Tower.summonModsFor(this.tower, this.formation.qualityMul);
+  }
   this.towerRuleInfo = this.tower && GAME.TowerRule
     ? GAME.TowerRule.ruleFor(this.tower) : null;
   //  전장 규칙(시즌2 S-W · 다섯 세계) — 세계마다 다른 `state.towerField`. 초원은 null,

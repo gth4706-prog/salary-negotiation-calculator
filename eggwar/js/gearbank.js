@@ -83,7 +83,28 @@
     glow:        { src: 'assets/fx/glow.png?v=2.27' },
     slash:       { src: 'assets/fx/slash.png?v=2.27' },
     impact:      { src: 'assets/fx/impact.png?v=2.27' },
-    ring:        { src: 'assets/fx/ring.png?v=2.27' }
+    ring:        { src: 'assets/fx/ring.png?v=2.27' },
+
+    //  ── 시즌2 「다섯 세계」 (2026-09-03 S-A) — 자리만. src 가 null 이면 ready() 가 false 라
+    //  eggart(S-H)의 벡터 장비가 그린다(uibank 와 같은 계약: **null 이면 요청 자체를 안 한다**
+    //  — 없는 URL 을 GET 하면 404 가 CDN 에 눌어붙는다). 도착하면 src 를 채운다:
+    //    'assets/gear/<파일>.png?v=<배포 버전>'  (브리프 §3·§4 파일명 그대로)
+    //  gripF 는 이미지 세로에서 손잡이 중심(0=끝,1=자루끝) — 도착한 실물에서 실측해 적는다.
+    boneStaff:      { src: null, gripF: 0.68 },   // 주술사 Q/E/R — 뼈 지팡이 (옆모습, 끝이 위)
+    featherHelm:    { src: null },                // 주술사 투구 — 깃털 관 (정면 단독컷)
+    totemimg:       { src: null },                // 주술사 토템 기둥 (summon 유닛 몸 — 정면)
+    obsidianDagger: { src: null, gripF: 0.78 },   // 암살자 — 흑요석 단검(양손 같은 그림, 좌우 거울)
+    hoodAssassin:   { src: null },                // 암살자 투구 — 검은 두건 (정면 단독컷)
+    //  장비 사다리 5(브리프 §5 — 영웅 브리프 6번 재수록): 무기 5단 시트 → 잘라서 등록
+    ladderSword:    { src: null, gripF: 0.80 },
+    ladderBow:      { src: null },
+    ladderSpear:    { src: null, gripF: 0.62 },
+    ladderStaff:    { src: null, gripF: 0.68 },
+    ladderDagger:   { src: null, gripF: 0.78 },
+    //  스킬 이펙트 시트 3(브리프 §6 — 흰색 원본, 5×2 그리드): 코드가 틴트로 색을 입힌다
+    fxTotem:        { src: null },
+    fxMark:         { src: null },
+    fxChain:        { src: null }
   };
 
   G.GearBank = {
@@ -98,7 +119,7 @@
     //  이중으로 깔린다 — 텍스처가 있으면 true 를 주되 그리기는 실제 패스에서만 한다.
     ready: function (key, scene) {
       var d = DATA[key];
-      if (!d) return false;
+      if (!d || !d.src) return false;      // src null = 아직 없음(시즌2 자리) → 벡터 폴백
       var tm = (scene && scene.textures) || (G.game && G.game.textures);
       if (tm && tm.exists('gear-' + key)) return true;
       this._ensure(key, scene);
@@ -107,6 +128,7 @@
 
     _ensure: function (key, scene) {
       if (!scene || !scene.load || this._loading[key]) return;
+      if (!DATA[key] || !DATA[key].src) return;   // 404 프로브 금지 — src 가 채워질 때까지 요청하지 않는다
       this._loading[key] = true;
       scene.load.image('gear-' + key, DATA[key].src);
       scene.load.start();

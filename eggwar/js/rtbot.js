@@ -84,13 +84,25 @@ GAME.RtBot = {
 
   //  ── 두뇌 ──────────────────────────────────────────────────────────────────
   //  state: 시뮬 상태 · session: Lockstep 세션 · side: 봇 팀 라벨 · level: 난이도
-  create: function (state, session, side, level) {
+  //  opts(협동, 시즌 2 S-C): { coop: true, heroId: 1 } — `side` 는 록스텝 **자리**(큐 라벨)이고
+  //  영웅은 같은 팀('controller')의 `_coopIdx === heroId` 인 영웅이다. 명령마다 h 를 싣는다.
+  create: function (state, session, side, level, opts) {
     var L = this.LEVELS[level] || this.LEVELS.normal;
-    return new GAME.RtBot.Brain(state, session, side, L);
+    return new GAME.RtBot.Brain(state, session, side, L, opts);
   }
 };
 
-GAME.RtBot.Brain = function (state, session, side, L) {
+//  협동 파트너 봇 상수 — 예고 반경 회피·후퇴 문턱. tools/rt-coop-audit.js 가 회피 횟수를 센다.
+GAME.RtBot.COOP = {
+  DODGE_PAD: 26,        //  예고 원 밖으로 얼마나 더 나가나(px)
+  ESCORT_NEAR: 150,     //  호위가 이 거리 안이면 호위 먼저
+  RETREAT_HP: 0.30,     //  체력 비율 미만이면 후퇴
+  RETREAT_UNTIL: 0.45,  //  이 비율까지 회복(물약·회복)되거나 RETREAT_MS 가 지나면 복귀
+  RETREAT_MS: 3200,
+  RETREAT_DIST: 170
+};
+
+GAME.RtBot.Brain = function (state, session, side, L, opts) {
   this.state = state;
   this.session = session;
   this.side = side;
@@ -100,25 +112,74 @@ GAME.RtBot.Brain = function (state, session, side, L) {
   this.casts = 0;              //  진단용 — 스킬 시전 횟수
   this.moves = 0;
   this.fleeUntil = 0;
+  //  협동(같은 팀 영웅을 조종) — 없으면 예전 1:1 두뇌 그대로.
+  this.coop = !!(opts && opts.coop);
+  this.heroId = (opts && opts.heroId !== undefined) ? opts.heroId : 1;
+  this.team = this.coop ? 'controller' : side;
+  this.dodges = 0;             //  진단용 — 예고 반경 회피 명령 횟수
+  this.retreats = 0;           //  진단용 — 저체력 후퇴 진입 횟수
+  this._retreatUntil = 0;
 };
 
 GAME.RtBot.Brain.prototype._hero = function () {
   var us = this.state.units;
+  if (this.coop) {
+    for (var j = 0; j < us.length; j++) {
+      if (us[j].isHero && us[j].side === 'controller' && us[j]._coopIdx === this.heroId) return us[j];
+    }
+    return null;
+  }
   for (var i = 0; i < us.length; i++) if (us[i].isHero && us[i].side === this.side) return us[i];
   return null;
 };
 
 GAME.RtBot.Brain.prototype._enemy = function (h) {
   var us = this.state.units, best = null, bd = Infinity, bestHero = null, bhd = Infinity;
+  var boss = null, bossD = Infinity, escort = null, escortD = Infinity;
+  var team = this.team;
   for (var i = 0; i < us.length; i++) {
     var u = us[i];
-    if (!u.alive || u.side === this.side || (GAME.Combat.isHazard && GAME.Combat.isHazard(u))) continue;
+    if (!u.alive || u.side === team || (GAME.Combat.isHazard && GAME.Combat.isHazard(u))) continue;
+    if (GAME.Combat.isStealthed && GAME.Combat.isStealthed(u)) continue;   // 은신(시즌2) — 조준 제외
     var d = GAME.Combat.dist(h, u);
     if (u.isHero) { if (d < bhd) { bhd = d; bestHero = u; } }
+    if (u.def && u.def.isBoss) { if (d < bossD) { bossD = d; boss = u; } }
+    else if (d < escortD) { escortD = d; escort = u; }
     if (d < bd) { bd = d; best = u; }
+  }
+  if (this.coop) {
+    //  협동 — 목표는 보스. 호위가 코앞이면 호위 먼저(등 뒤에 두면 맞기만 한다).
+    if (escort && escortD <= GAME.RtBot.COOP.ESCORT_NEAR) return escort;
+    return boss || best;
   }
   //  영웅이 있으면 영웅을 노린다(사람 상대와 같다) — 없으면 가장 가까운 유닛.
   return bestHero || best;
+};
+
+//  협동 — 적 예고(telegraph) 원 안에 서 있으면 가장 가까운 밖으로 나가는 점. 없으면 null.
+//  예고 이펙트는 combat 이 `{kind:'telegraph', x, y, r, t, side}` 로 남긴다(렌더 데이터지만
+//  시뮬 상태라 양쪽 같다). 남은 시간이 아주 짧으면(맞기 직전) 어차피 못 나간다 — 건너뛴다.
+GAME.RtBot.Brain.prototype._dodgePoint = function (h) {
+  var fx = this.state.effects;
+  if (!fx || !fx.length) return null;
+  var pad = GAME.RtBot.COOP.DODGE_PAD, r0 = (h.def.radius || 16);
+  var worst = null, worstT = Infinity;
+  for (var i = 0; i < fx.length; i++) {
+    var e = fx[i];
+    if (!e || e.kind !== 'telegraph' || e.side === this.team) continue;
+    if (!(e.t > 90)) continue;
+    var dx = h.x - e.x, dy = h.y - e.y;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    if (d > (e.r || 0) + r0) continue;
+    if (e.t < worstT) { worstT = e.t; worst = e; }
+  }
+  if (!worst) return null;
+  var ddx = h.x - worst.x, ddy = h.y - worst.y;
+  var dl = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
+  //  중심에 서 있으면(dl≈0) 아래쪽(내 진영)으로 나간다.
+  var ux = dl < 1 ? 0 : ddx / dl, uy = dl < 1 ? 1 : ddy / dl;
+  var want = (worst.r || 0) + r0 + pad;
+  return { x: worst.x + ux * want, y: worst.y + uy * want };
 };
 
 //  지형 회피 — 목표점이 가시밭/균열 안이면 가장 가까운 밖으로 밀어낸다.
@@ -147,6 +208,7 @@ GAME.RtBot.Brain.prototype._queue = function (cmd) {
   var at = s.tick + s.delay;
   var q = s.cmdsBySide[this.side];
   if (!q[at]) q[at] = [];
+  if (this.coop) cmd.h = this.heroId;          //  협동 — 내 영웅 번호(heroOf(seat, h) 라우팅)
   q[at].push(cmd);
 };
 
@@ -162,10 +224,43 @@ GAME.RtBot.Brain.prototype.update = function (dtMs) {
   if (!e) return;
   var C = GAME.Combat;
   var d = C.dist(h, e);
-  var range = h.def.range || 60;
+  //  실효 사거리 — 세계 전장 규칙(안개 fog 등, 시즌2 S-E `effRange`)이 사거리를 깎으면
+  //  봇도 그 사거리로 싸운다. 없으면 def.range 그대로.
+  var range = (C.effRange ? C.effRange(h, this.state) : h.def.range) || 60;
   var ranged = range >= 150;
   var hpPct = h.hp / h.maxHp;
   var now = this.state.elapsed;
+
+  //  ── 협동 파트너 — 예고 반경 밖으로 · 저체력 후퇴 (스킬보다 먼저) ─────────────
+  if (this.coop) {
+    var CO = GAME.RtBot.COOP;
+    var dp = this._dodgePoint(h);
+    if (dp) {
+      var sp = this._safePoint(dp.x, dp.y, h.def.radius || 16);
+      this.dodges++;
+      this.lastMove = { x: sp.x, y: sp.y };
+      this._queue({ kind: 'order', order: { type: 'move', x: sp.x, y: sp.y } });
+      this.moves++;
+      return;
+    }
+    if (now < this._retreatUntil && hpPct < CO.RETREAT_UNTIL) {
+      //  후퇴 중 — 적에게서 멀어지되 아레나 안에서.
+      var rdx = h.x - e.x, rdy = h.y - e.y, rl = Math.sqrt(rdx * rdx + rdy * rdy) || 1;
+      var rp = this._safePoint(h.x + rdx / rl * CO.RETREAT_DIST, h.y + rdy / rl * CO.RETREAT_DIST, h.def.radius || 16);
+      if (!this.lastMove || Math.abs(this.lastMove.x - rp.x) > 12 || Math.abs(this.lastMove.y - rp.y) > 12) {
+        this.lastMove = { x: rp.x, y: rp.y };
+        this._queue({ kind: 'order', order: { type: 'move', x: rp.x, y: rp.y } });
+        this.moves++;
+      }
+      //  후퇴 중에도 회복/보호막·물약은 쓴다.
+      if (h.potionCharges > 0 && C.usePotion) { this._queue({ kind: 'potion' }); }
+      return;
+    }
+    if (hpPct < CO.RETREAT_HP && now >= this._retreatUntil) {
+      this._retreatUntil = now + CO.RETREAT_MS;
+      this.retreats++;
+    }
+  }
 
   //  ── 스킬 ──────────────────────────────────────────────────────────────
   var slots = ['Q', 'W', 'E', 'R'];
@@ -201,8 +296,9 @@ GAME.RtBot.Brain.prototype.update = function (dtMs) {
   var ux = dx / len, uy = dy / len;
   //  45초가 넘으면 공격적으로 — 서로 물러나기만 하는 교착(실측 6판 중 2판 90초
   //  무승부)을 끊는다. 후퇴·카이팅 후퇴를 접고 붙어서 끝낸다(광란 조건과 같은 발상).
-  var late = now > 45000;
-  if (!late && hpPct < 0.35 && now - (this.lastFlee || -99999) > 8000 && Math.random() < 0.7) {
+  //  협동은 45초 규칙이 없다 — 상대는 보스라 교착이 아니라 정면 승부고, 후퇴는 위에서 따로 한다.
+  var late = !this.coop && now > 45000;
+  if (!this.coop && !late && hpPct < 0.35 && now - (this.lastFlee || -99999) > 8000 && Math.random() < 0.7) {
     this.fleeUntil = now + 1800; this.lastFlee = now;
   }
   var flee = !late && now < this.fleeUntil;

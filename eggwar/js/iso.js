@@ -109,5 +109,17 @@ GAME.Iso = {
   // 깊이 정렬용 키 — 큰 값일수록 화면 앞쪽(나중에 그린다)
   depth: function (worldY) {
     return worldY;
+  },
+
+  //  ── 렌더 시계 `Iso.now` (2026-09-03 시즌2 S-E 버그 수정) ─────────────────────
+  //  eggart(황금알·보스 벡터 애니)와 battle(방어 태세 맥동)이 `GAME.Iso.now` 를 읽는데
+  //  **아무도 대입하지 않았다** → 언제나 0 이라 벡터 보스 애니가 정지해 있었다.
+  //  battle.js `update(time, delta)` 첫 줄에서 `GAME.Iso.tick(time)` 을 부른다(배선은
+  //  battle 몫 — 이 파일은 헬퍼만 둔다). 렌더 전용 값이라 시뮬·록스텝에는 안 닿는다.
+  //  ⚠ 씬 시간이 아니라 Phaser 의 `time`(ms, 단조 증가)을 넣는다 — 씬을 오가도 뒤로 안 간다.
+  now: 0,
+  tick: function (time) {
+    if (typeof time === 'number' && time >= 0) this.now = time;
+    return this.now;
   }
 };

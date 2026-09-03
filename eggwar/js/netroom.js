@@ -79,6 +79,29 @@ GAME.NetRoom = {
     }).then(function (j) { cb(null, j); }, function (e) { cb(e); });
   },
 
+  //  내 닉네임 — ⚠ 예전엔 `GAME.Account.currentId()` 를 불렀는데 **그런 함수가 없어서**
+  //  전원이 '손님' 으로 입장하고 있었다(2026-09-03 rt-audit 실측: 방장·손님 둘 다 '손님').
+  //  서버가 같은 이름을 회수하게 되자 두 번째 입장자가 방장을 밀어냈다. `current()` 가 정본.
+  _myName: function () {
+    var A = GAME.Account;
+    var c = A && A.current ? A.current() : null;
+    var n = (c && typeof c === 'object') ? (c.id || c.name) : c;
+    return (n && String(n)) || '손님';
+  },
+  //  기기 토큰 — 백그라운드 복귀·새로고침 뒤 **같은 기기의 같은 이름**만 서버가 자리를
+  //  회수한다. 다른 기기가 같은 닉네임으로 들어오면 예전처럼 '이름#2' 다.
+  _cid: function () {
+    if (this._cidVal) return this._cidVal;
+    var v = null;
+    try { v = localStorage.getItem('eggwar.cid'); } catch (e) {}
+    if (!v) {
+      v = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      try { localStorage.setItem('eggwar.cid', v); } catch (e2) {}
+    }
+    this._cidVal = v;
+    return v;
+  },
+
   // 방 만들기 → cb(err, { code, host, mode })
   createRoom: function (opts, cb) {
     opts = opts || {};
@@ -86,7 +109,7 @@ GAME.NetRoom = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id: opts.id || (GAME.Account && GAME.Account.currentId && GAME.Account.currentId()) || '손님',
+        id: opts.id || this._myName(),
         name: opts.name || '',
         mode: opts.mode || 'race'
       })
@@ -113,9 +136,10 @@ GAME.NetRoom = {
   _openSocket: function (id) {
     var self = this;
     var base = this.BASE.replace(/^http/, 'ws');
-    var name = id || (GAME.Account && GAME.Account.currentId && GAME.Account.currentId()) || '손님';
+    var name = id || this._myName();
     var url = base + '/ws?code=' + encodeURIComponent(this.code) +
               '&id=' + encodeURIComponent(name) +
+              '&cid=' + encodeURIComponent(this._cid()) +          //  기기 토큰 — 같은 이름·같은 기기만 자리 회수
               '&v=' + encodeURIComponent(GAME.VERSION || '');   //  버전 악수(록스텝 보호)
     var ws;
     try { ws = new WebSocket(url); }

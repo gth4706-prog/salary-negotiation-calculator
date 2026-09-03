@@ -53,5 +53,30 @@ GAME.RtScore = {
       }
     }
     return { delta: delta, score: rec.score };
+  },
+
+  // ── 협동 보스전 기록 (시즌 2 S-C) — 세계별 승수·판수·최단 시간, 로컬만 ──────────
+  //  실시간 점수와 **다른 축**이다(협동은 점수가 오르내리지 않는다). 서버 필드는 요청만
+  //  (통합자 보고서: agg.coop = { [world]: { wins, best } }) — 지금은 보고하지 않는다.
+  coopGet: function (world) {
+    var rec = this.get();
+    if (!rec.coop) rec.coop = {};
+    if (world) return rec.coop[world] || { wins: 0, plays: 0, best: 0 };
+    return rec.coop;
+  },
+  //  판이 끝나면 한 번. sec = 판 길이(초). 반환: 그 세계의 갱신된 기록.
+  coopRecord: function (world, won, sec) {
+    var rec = this.get();
+    if (!rec.coop) rec.coop = {};
+    var w = rec.coop[world] || { wins: 0, plays: 0, best: 0 };
+    w.plays++;
+    if (won) {
+      w.wins++;
+      var s = Math.max(1, Math.round(sec || 0));
+      if (!w.best || s < w.best) w.best = s;
+    }
+    rec.coop[world] = w;
+    this._save(rec);
+    return { wins: w.wins, plays: w.plays, best: w.best };
   }
 };

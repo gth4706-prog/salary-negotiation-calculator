@@ -76,7 +76,8 @@ GAME.Sound = {
   //  파일 재생도 절차 합성과 **같은 쿨다운**을 지킨다(_gate 값 미러 — 파일이라고
   //  겹쳐 재생하면 더 지저분하다). 표에 없는 키는 게이트 없이 낸다(원래도 없었다).
   FILE_GATES: { hit: 45, critHit: 90, arrowHit: 60, skillBurst: 120,
-                bossStep: 230, bossBreath: 300, bossSlam: 300, bossCharge: 500 },
+                bossStep: 230, bossBreath: 300, bossSlam: 300, bossCharge: 500,
+                bossRoar: 1200 },
   _fbuf: null,
 
   _loadFiles: function () {
@@ -197,45 +198,98 @@ GAME.Sound = {
     catch (e) {}
   },
 
-  // 짧은 노이즈 버퍼 — 타격·폭발의 재료
-  _noise: function (dur) {
-    var n = Math.max(1, Math.floor(this.ctx.sampleRate * dur));
+  // ── 노이즈 — 타격·폭발·바람의 재료 (2026-09-03 시즌2: **캐시 버퍼**) ────────
+  //  예전엔 소리마다 버퍼를 새로 만들었다(`createBuffer` + 표본 채우기). 난전에서
+  //  초당 수십 번이라 GC 쓰레기가 됐다(v1.66 타원 할당과 같은 계열). 이제 2초짜리
+  //  백색 노이즈 하나를 컨텍스트마다 한 번만 만들고, 재생할 때 **랜덤 오프셋**에서
+  //  잘라 쓴다 — 같은 구간이 반복되면 귀가 패턴을 잡는데, 오프셋이 그걸 흩는다.
+  //  ⚠ 버퍼는 컨텍스트에 묶어 둔다(bake·감사가 ctx 를 오프라인으로 갈아끼운다).
+  //  ⚠ 예전 버퍼의 선형 페이드(1 - i/n)는 없앴다 — 포락선은 게인이 맡는다.
+  NOISE_SEC: 2,
+  _noiseBuf: null, _noiseCtx: null,
+  _noise: function () {
+    if (this._noiseBuf && this._noiseCtx === this.ctx) return this._noiseBuf;
+    var n = Math.max(1, Math.floor(this.ctx.sampleRate * this.NOISE_SEC));
     var buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
     var d = buf.getChannelData(0);
-    for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    this._noiseBuf = buf; this._noiseCtx = this.ctx;
     return buf;
+  },
+  //  캐시 버퍼를 물린 소스 + 시작 오프셋. 호출부가 `src.start(t, off, len)` 한다.
+  _noiseSrc: function (dur) {
+    var src = this.ctx.createBufferSource();
+    src.buffer = this._noise();
+    var span = Math.max(0, this.NOISE_SEC - dur - 0.05);
+    return { src: src, off: Math.random() * span };
   },
 
   // 톤 하나 — type/주파수/길이/볼륨, 그리고 주파수 스윕(끝 주파수)
+  //  `at`: 시작 오프셋(초, ctx.currentTime 기준). `_later`(setTimeout)와 달리
+  //  오디오 시계에 예약되므로 박자가 안 밀리고 오프라인 렌더(감사)에도 잡힌다.
+  //  `bp`: {f, q} 대역필터 — 구호(chant) 모음 흉내 등 포먼트가 필요할 때만.
   _tone: function (opt) {
     if (!this._ready || !this.enabled) return;
-    var t = this.ctx.currentTime;
+    var t = this.ctx.currentTime + (opt.at || 0);
     var o = this.ctx.createOscillator();
     var g = this.ctx.createGain();
+    g.gain.value = 0.0001;             // ⚠ 아래 `_burst` 주석 — 첫 표본 누수 방지
     o.type = opt.type || 'sine';
     o.frequency.setValueAtTime(opt.f0, t);
     if (opt.f1 && opt.f1 !== opt.f0) o.frequency.exponentialRampToValueAtTime(Math.max(1, opt.f1), t + opt.dur);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002, opt.vol), t + (opt.attack || 0.005));
     g.gain.exponentialRampToValueAtTime(0.0001, t + opt.dur);
-    o.connect(g); g.connect(this.master);
+    if (opt.bp) {
+      var bf = this.ctx.createBiquadFilter();
+      bf.type = 'bandpass'; bf.frequency.value = opt.bp.f; bf.Q.value = opt.bp.q || 3;
+      o.connect(bf); bf.connect(g);
+    } else {
+      o.connect(g);
+    }
+    g.connect(this.master);
     o.start(t); o.stop(t + opt.dur + 0.02);
   },
 
   _burst: function (opt) {
     if (!this._ready || !this.enabled) return;
-    var t = this.ctx.currentTime;
-    var src = this.ctx.createBufferSource();
-    src.buffer = this._noise(opt.dur);
+    var t = this.ctx.currentTime + (opt.at || 0);
+    var ns = this._noiseSrc(opt.dur);
     var f = this.ctx.createBiquadFilter();
     f.type = opt.filter || 'bandpass';
     f.frequency.value = opt.freq || 900;
     f.Q.value = opt.q || 1.2;
     var g = this.ctx.createGain();
+    //  ⚠⚠ **게인의 초기값을 먼저 박는다** (2026-09-03 실측 결함). 노이즈 소스가 자동화
+    //    이벤트(setValueAtTime)보다 **한 표본 먼저** 시작하는 시각이 있다(부동소수 시각의
+    //    표본 반올림). 그 한 표본이 기본 게인 1.0 으로 새어 나가 vol 의 5~10배 스파이크가
+    //    됐다(오프라인 렌더 63회 중 11회, 최고 0.96 — 오실레이터는 위상 0 에서 시작해
+    //    첫 표본이 0 이라 안 보였고 노이즈만 걸렸다). 초기값을 vol 로 두면 새어도 vol 이다.
+    g.gain.value = opt.vol;
     g.gain.setValueAtTime(opt.vol, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + opt.dur);
-    src.connect(f); f.connect(g); g.connect(this.master);
-    src.start(t); src.stop(t + opt.dur + 0.02);
+    ns.src.connect(f); f.connect(g); g.connect(this.master);
+    ns.src.start(t, ns.off, opt.dur + 0.02);
+  },
+
+  //  스윕 — 노이즈를 대역필터로 **훑어 내리는/올리는** 소리. 화살 '슝'(3.2k→700),
+  //  바람, 암살자의 그림자 걸음(올라가는 스윕)이 전부 이 하나다.
+  //  예전엔 `bow` 케이스 안에 인라인이었다 — 두 번째 사용처(사냥꾼 팔레트)가 생기며
+  //  함수로 뺐다. {dur, f0, f1, q, vol, at, filter}
+  _sweep: function (opt) {
+    if (!this._ready || !this.enabled) return;
+    var t = this.ctx.currentTime + (opt.at || 0);
+    var ns = this._noiseSrc(opt.dur);
+    var f = this.ctx.createBiquadFilter();
+    f.type = opt.filter || 'bandpass'; f.Q.value = opt.q || 1.6;
+    f.frequency.setValueAtTime(opt.f0, t);
+    f.frequency.exponentialRampToValueAtTime(Math.max(20, opt.f1), t + Math.max(0.01, opt.dur - 0.01));
+    var g = this.ctx.createGain();
+    g.gain.value = opt.vol;            // ⚠ `_burst` 주석 — 첫 표본 누수 방지
+    g.gain.setValueAtTime(opt.vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + opt.dur);
+    ns.src.connect(f); f.connect(g); g.connect(this.master);
+    ns.src.start(t, ns.off, opt.dur + 0.02);
   },
 
   //  ── 킬스트릭 (2026-08-23 태현님 승인 ④) — 2연킬부터, 톤이 한 단계씩 오른다.
@@ -312,18 +366,8 @@ GAME.Sound = {
           //  시위 '텅'(저역 튕김)을 버리고 **바람 가르는 소리**만 남긴다: 노이즈를
           //  대역필터로 3.2k→700Hz 훑어 내리면 화살이 지나가는 결이 된다.
           //  작게(0.13) · 짧게(0.11s) — 연사로 깔려도 안 쌓인다.
-          var tB = this.ctx.currentTime;
-          var sB = this.ctx.createBufferSource();
-          sB.buffer = this._noise(0.11);
-          var fB = this.ctx.createBiquadFilter();
-          fB.type = 'bandpass'; fB.Q.value = 1.6;
-          fB.frequency.setValueAtTime(3200, tB);
-          fB.frequency.exponentialRampToValueAtTime(700, tB + 0.10);
-          var gB = this.ctx.createGain();
-          gB.gain.setValueAtTime(0.13, tB);
-          gB.gain.exponentialRampToValueAtTime(0.0001, tB + 0.11);
-          sB.connect(fB); fB.connect(gB); gB.connect(this.master);
-          sB.start(tB); sB.stop(tB + 0.13);
+          //  (2026-09-03 인라인 → `_sweep`. 값은 그대로다.)
+          this._sweep({ dur: 0.11, f0: 3200, f1: 700, q: 1.6, vol: 0.13 });
           break;
         }
         //  화살이 박히는 소리 — 짧고 마른 '탁'. 살에 박히는 것이지 금속끼리가 아니다.
@@ -392,7 +436,12 @@ GAME.Sound = {
         //    발톱이 긁는 순간의 트랜지언트, 중역 사각파가 포효의 거친 결이다.
         //    `boom`(폭발)과 겹치지 않도록 스윕 길이를 훨씬 길게(0.34→0.5) 잡아
         //    "터진다"가 아니라 "울린다"로 다르게 읽히게 했다.
+        //  ⚠ 게이트 1200ms (2026-09-03) — battle.js 가 `create`(L113)와 `_setupBossIntro`
+        //    (L1197)에서 **같은 프레임에 두 번** 부른다. 호출부가 하나로 정리되기 전까지
+        //    여기서 막는다(파일 재생도 FILE_GATES 로 같은 값을 지킨다). 포효는 한 판에
+        //    한 번이라 1.2초 게이트가 정상 재생을 막을 일은 없다.
         case 'bossRoar':
+          if (!this._gate('bossRoar', 1200)) return;
           this._burst({ dur: 0.09, freq: 1500, q: 1.0, vol: 0.18, filter: 'highpass' });
           this._tone({ type: 'sawtooth', f0: 70, f1: 38, dur: 0.50, vol: 0.30 });
           this._later(0.05, function (s) {
@@ -425,6 +474,44 @@ GAME.Sound = {
           if (!this._gate('bossCharge', 500)) return;
           this._tone({ type: 'sawtooth', f0: 60, f1: 120, dur: 0.42, vol: 0.15 });
           this._burst({ dur: 0.30, freq: 700, q: 1.6, vol: 0.08, filter: 'bandpass' });
+          break;
+        //  ── 시즌2 「다섯 세계」 사건음 (2026-09-03 2차 S-A) ─────────────────────
+        //  시전음은 `playHeroFor('skill')` 로 통일됐다 — 여기는 **사건**(표식이 맞았다·
+        //  사슬이 옮겨 붙었다·보스가 변했다·하늘이 쳤다·땅이 울렸다)만. 전부 합성이며
+        //  tools/sfx-audit.js 규격(peak 0.05~0.29 · ≤0.7초) 안이다. 세계관 규율대로
+        //  전자음 없음 — 뼈·바람·북·번개·흙.
+        //  ⚠ 부르는 쪽은 battle.js 의 **렌더 관측**(이펙트·fieldFx 가 새로 생긴 프레임)이다.
+        //    combat.js 에 호출을 심지 않는다 — 록스텝 시뮬은 소리를 몰라야 한다.
+        case 'markHit':      // 표식 대상 적중 — 뼈 틱 + 짧은 하강 바람(찍힌 자리가 '터진다')
+          if (!this._gate('markHit', 110)) return;
+          this._burst({ dur: 0.035, freq: 1900, q: 2.4, vol: 0.13, filter: 'highpass' });
+          this._sweep({ dur: 0.12, f0: 2600, f1: 900, q: 1.6, vol: 0.10 });
+          this._tone({ type: 'triangle', f0: 420, f1: 210, dur: 0.08, vol: 0.08 });
+          break;
+        case 'chainHop':     // 영혼 사슬이 다음 대상으로 — 방울 한 톨 + 올라가는 바람(옮겨 붙었다)
+          if (!this._gate('chainHop', 60)) return;
+          this._tone({ type: 'triangle', f0: 1480, f1: 1400, dur: 0.06, vol: 0.07, attack: 0.002 });
+          this._sweep({ dur: 0.09, f0: 900, f1: 2600, q: 1.8, vol: 0.09 });
+          break;
+        case 'phaseShift':   // 보스 페이즈 전환 — 낮은 북 + 위로 긁는 결(Music.sting 이 화음을 맡는다)
+          if (!this._gate('phaseShift', 900)) return;
+          this._burst({ dur: 0.05, freq: 1700, q: 1.2, vol: 0.14, filter: 'highpass' });
+          this._tone({ type: 'sine', f0: 110, f1: 44, dur: 0.42, vol: 0.22 });
+          this._sweep({ dur: 0.30, f0: 400, f1: 2400, q: 1.4, vol: 0.09, at: 0.05 });
+          break;
+        case 'bolt':         // 낙뢰 — 찢는 고역 트랜지언트 + 우르릉(폰에서는 앞 겹만 들린다)
+          if (!this._gate('bolt', 300)) return;
+          this._burst({ dur: 0.03, freq: 4200, q: 1.0, vol: 0.20, filter: 'highpass' });
+          this._burst({ dur: 0.12, freq: 1300, q: 0.8, vol: 0.16 });
+          this._burst({ dur: 0.42, freq: 140, q: 0.6, vol: 0.20, filter: 'lowpass', at: 0.06 });
+          break;
+        case 'quake':        // 지진 — 낮게 굴러가는 땅 + 돌 부딪는 고역 알갱이 둘
+          if (!this._gate('quake', 700)) return;
+          this._burst({ dur: 0.05, freq: 900, q: 1.2, vol: 0.12 });
+          this._tone({ type: 'sine', f0: 70, f1: 38, dur: 0.48, vol: 0.22 });
+          this._burst({ dur: 0.40, freq: 160, q: 0.5, vol: 0.14, filter: 'lowpass' });
+          this._burst({ dur: 0.04, freq: 1500, q: 2.0, vol: 0.09, at: 0.18 });
+          this._burst({ dur: 0.04, freq: 1200, q: 2.0, vol: 0.08, at: 0.31 });
           break;
         //  ── 보스 격파 — 크게 터진 뒤 상행 팡파르 (2026-08-12) ────────────────
         //  ⚠ `win`(일반 승리, 최고음 784Hz)과 **일부러 다르게** 잡았다 — 보스를
@@ -588,16 +675,32 @@ GAME.Sound = {
     //  ⚠ 매번 ±4% 흔든다. 안 흔들면 같은 유닛이 연속으로 때릴 때 기계 반복음이 된다
     //    (이 파일이 `coinPick` 에서 이미 배운 것).
     var j = 1 + (Math.random() * 2 - 1) * 0.04;
-    var parts = v[kind];
+    this._parts(v[kind], p * j, 1, 0);
+  },
+
+  //  parts 해석기 — VOICE 와 HERO 가 **같은 문법**을 쓴다(두 벌이면 조용히 갈라진다).
+  //   { t: { w, f0, f1, d, v, a(attack), at, bp:{f,q} } }   톤
+  //   { b: { d, f, q, v, hp|lp, at } }                        버스트(노이즈+필터)
+  //   { s: { d, f0, f1, q, v, at, hp|lp } }                   스윕(노이즈+필터 훑기)
+  //  `pm` 은 피치 배수(체급 × 지터), `vm` 은 음량 배수, `at0` 은 전체 시작 오프셋.
+  //  ⚠ 어떤 항목이 이상해도 조용히 넘어간다 — 소리 때문에 전투가 멈추면 안 된다.
+  _parts: function (parts, pm, vm, at0) {
+    if (!parts) return;
+    var p = pm || 1, vmul = vm || 1, a0 = at0 || 0;
     try {
       for (var i = 0; i < parts.length; i++) {
         var q = parts[i];
         if (q.t) {
-          this._tone({ type: q.t.w, f0: q.t.f0 * p * j, f1: (q.t.f1 || q.t.f0) * p * j,
-                       dur: q.t.d, vol: q.t.v });
+          this._tone({ type: q.t.w, f0: q.t.f0 * p, f1: (q.t.f1 || q.t.f0) * p,
+                       dur: q.t.d, vol: q.t.v * vmul, attack: q.t.a, at: a0 + (q.t.at || 0),
+                       bp: q.t.bp ? { f: q.t.bp.f * p, q: q.t.bp.q } : undefined });
         } else if (q.b) {
-          this._burst({ dur: q.b.d, freq: q.b.f * p * j, q: q.b.q, vol: q.b.v,
+          this._burst({ dur: q.b.d, freq: q.b.f * p, q: q.b.q, vol: q.b.v * vmul, at: a0 + (q.b.at || 0),
                         filter: q.b.hp ? 'highpass' : (q.b.lp ? 'lowpass' : 'bandpass') });
+        } else if (q.s) {
+          this._sweep({ dur: q.s.d, f0: q.s.f0 * p, f1: q.s.f1 * p, q: q.s.q, vol: q.s.v * vmul,
+                        at: a0 + (q.s.at || 0),
+                        filter: q.s.hp ? 'highpass' : (q.s.lp ? 'lowpass' : 'bandpass') });
         }
       }
     } catch (e) { /* 소리 때문에 게임이 멈추면 안 된다 */ }
@@ -607,6 +710,161 @@ GAME.Sound = {
   playFor: function (kind, def) {
     if (!def || !def.voice) return;
     this.playUnit(kind, def.voice, def.voicePitch);
+  },
+
+  // ══ 영웅 팔레트 (2026-09-03 시즌2 S-S) ═══════════════════════════════════════
+  //
+  //  지금까지 영웅은 `hit`/`skill`/`heroHurt` 하나씩을 셋이 나눠 썼다 — 광전사의 대검과
+  //  파수꾼의 창이 같은 '탁'이었다. 시즌2 에서 영웅이 다섯이 되며, **영웅 × 사건**
+  //  25칸을 표로 갖는다. VOICE 와 같은 parts 문법이라 `_parts` 하나가 다 낸다.
+  //
+  //  재료 배정(영웅의 정체성이 소리에서도 읽혀야 한다):
+  //   berserker 광전사 — stone/leather 둔탁. 돌이 살을 치는 '쿵'과 가죽의 '퍽'.
+  //   hunter    사냥꾼 — 활 스윕. 시위 '텅' 없이(2026-08-23 결정) 바람만 겹으로.
+  //   guardian  파수꾼 — bronze. 청동 창날·방패의 '텅~' 삼각파.
+  //   shaman    주술사 — kick 형 sine 피치드롭(북) + 짧은 구호(포먼트) + 방울(고역 삼각파).
+  //   stalker   암살자 — bone 고역 틱 + `_sweep` 바람(그림자 걸음은 **올라가는** 스윕).
+  //
+  //  ⚠ 폰 스피커 규율(위 `hit` 주석): 모든 칸에 **고역 트랜지언트 한 겹**이 있고,
+  //    100Hz 아래는 헤드폰·진동 몫이지 폰에서 들릴 것으로 기대하지 않는다.
+  //  ⚠ 길이 ≤0.9초(궁극 포함) — 전투 중 소리가 화면보다 오래 남으면 다음 사건을 덮는다.
+  //  ⚠ hurt 의 주역 음량은 유닛 최대 v(0.20)÷1.35 이상이어야 한다 — "내가 맞고 있다"가
+  //    유닛 소리에 묻히면 안 된다(tools/sfx-audit.js 가 잰다).
+  //  ⚠ 게이트 키는 `h:art:kind` — `play()` 의 이름·FILES 와 절대 안 겹친다(파일이 합성을
+  //    덮는 경로는 `play()` 뿐이고 playHero 는 그 경로를 안 탄다).
+  HERO: {
+    berserker: {
+      hit:  [{ b: { d: 0.014, f: 2600, q: 2.2, v: 0.13, hp: 1 } },
+             { b: { d: 0.09, f: 360, q: 0.8, v: 0.28, lp: 1 } },
+             { t: { w: 'sine', f0: 155, f1: 70, d: 0.10, v: 0.16 } }],
+      skill:[{ b: { d: 0.03, f: 1900, q: 1.2, v: 0.14, hp: 1 } },
+             { b: { d: 0.16, f: 300, q: 0.7, v: 0.26, lp: 1 } },
+             { t: { w: 'triangle', f0: 190, f1: 95, d: 0.18, v: 0.16 } }],
+      //  궁극 — 돌 한 방 뒤에 가죽 북이 한 번 더 받는다(두 박)
+      ult:  [{ b: { d: 0.04, f: 2100, q: 1.3, v: 0.16, hp: 1 } },
+             { b: { d: 0.30, f: 220, q: 0.6, v: 0.30, lp: 1 } },
+             { t: { w: 'sine', f0: 120, f1: 40, d: 0.36, v: 0.22 } },
+             { b: { d: 0.12, f: 700, q: 0.9, v: 0.12, lp: 1, at: 0.18 } },
+             { t: { w: 'triangle', f0: 160, f1: 80, d: 0.14, v: 0.12, at: 0.34 } }],
+      hurt: [{ t: { w: 'square', f0: 190, f1: 120, d: 0.13, v: 0.16 } },
+             { t: { w: 'triangle', f0: 520, f1: 300, d: 0.10, v: 0.09 } },
+             { b: { d: 0.05, f: 600, q: 0.8, v: 0.08, lp: 1 } }],
+      die:  [{ t: { w: 'sine', f0: 320, f1: 90, d: 0.30, v: 0.16 } },
+             { b: { d: 0.20, f: 240, q: 0.5, v: 0.14, lp: 1 } },
+             { b: { d: 0.08, f: 1400, q: 2.0, v: 0.06, at: 0.12 } }]
+    },
+    hunter: {
+      hit:  [{ s: { d: 0.11, f0: 3200, f1: 700, q: 1.6, v: 0.13 } }],
+      skill:[{ s: { d: 0.18, f0: 2400, f1: 900, q: 1.4, v: 0.14 } },
+             { t: { w: 'triangle', f0: 480, f1: 720, d: 0.14, v: 0.09 } }],
+      //  궁극 — 화살비: 스윕 세 겹이 시차를 두고 떨어진다
+      ult:  [{ b: { d: 0.05, f: 1600, q: 1.1, v: 0.12, hp: 1 } },
+             { s: { d: 0.30, f0: 4200, f1: 600, q: 1.2, v: 0.16 } },
+             { s: { d: 0.26, f0: 3600, f1: 500, q: 1.4, v: 0.12, at: 0.10 } },
+             { s: { d: 0.24, f0: 3000, f1: 450, q: 1.4, v: 0.10, at: 0.20 } },
+             { t: { w: 'triangle', f0: 330, f1: 140, d: 0.12, v: 0.10, at: 0.30 } }],
+      hurt: [{ t: { w: 'square', f0: 190, f1: 120, d: 0.13, v: 0.16 } },
+             { t: { w: 'triangle', f0: 560, f1: 320, d: 0.09, v: 0.09 } },
+             { s: { d: 0.06, f0: 2000, f1: 900, q: 1.6, v: 0.07 } }],
+      die:  [{ t: { w: 'triangle', f0: 520, f1: 170, d: 0.22, v: 0.14 } },
+             { s: { d: 0.24, f0: 1800, f1: 300, q: 1.2, v: 0.09 } }]
+    },
+    guardian: {
+      hit:  [{ t: { w: 'triangle', f0: 660, f1: 430, d: 0.11, v: 0.15 } },
+             { b: { d: 0.03, f: 1800, q: 2.4, v: 0.10, hp: 1 } },
+             { t: { w: 'sine', f0: 160, f1: 90, d: 0.08, v: 0.10 } }],
+      skill:[{ t: { w: 'triangle', f0: 520, f1: 380, d: 0.20, v: 0.14 } },
+             { b: { d: 0.03, f: 2200, q: 2.0, v: 0.10, hp: 1 } },
+             { t: { w: 'sine', f0: 260, f1: 130, d: 0.18, v: 0.10 } }],
+      //  궁극 — 청동이 크게 울리고 두 번 되울린다
+      ult:  [{ b: { d: 0.04, f: 2000, q: 1.3, v: 0.14, hp: 1 } },
+             { t: { w: 'triangle', f0: 600, f1: 200, d: 0.34, v: 0.16 } },
+             { b: { d: 0.28, f: 200, q: 0.7, v: 0.26, lp: 1 } },
+             { t: { w: 'triangle', f0: 660, f1: 430, d: 0.12, v: 0.10, at: 0.16 } },
+             { t: { w: 'triangle', f0: 660, f1: 430, d: 0.12, v: 0.10, at: 0.30 } }],
+      hurt: [{ t: { w: 'square', f0: 190, f1: 120, d: 0.13, v: 0.16 } },
+             { t: { w: 'triangle', f0: 520, f1: 380, d: 0.08, v: 0.09 } },
+             { b: { d: 0.03, f: 1900, q: 2.0, v: 0.06, hp: 1 } }],
+      die:  [{ t: { w: 'triangle', f0: 600, f1: 200, d: 0.30, v: 0.14 } },
+             { b: { d: 0.20, f: 260, q: 0.6, v: 0.12, lp: 1 } },
+             { t: { w: 'triangle', f0: 400, f1: 150, d: 0.16, v: 0.07, at: 0.14 } }]
+    },
+    shaman: {
+      //  북(sine 피치드롭) + 방울 한 톨. 마법음이 아니라 **물건 소리**여야 한다.
+      hit:  [{ t: { w: 'sine', f0: 150, f1: 46, d: 0.14, v: 0.18 } },
+             { b: { d: 0.02, f: 2200, q: 1.0, v: 0.10, hp: 1 } },
+             { t: { w: 'triangle', f0: 1980, f1: 1880, d: 0.05, v: 0.06, a: 0.002 } }],
+      //  스킬 — 북 + 짧은 구호('아' 포먼트 720Hz) + 방울 둘
+      skill:[{ t: { w: 'sine', f0: 140, f1: 50, d: 0.18, v: 0.16 } },
+             { b: { d: 0.02, f: 2400, q: 1.0, v: 0.08, hp: 1 } },
+             { t: { w: 'sawtooth', f0: 196, d: 0.18, v: 0.10, a: 0.04, bp: { f: 720, q: 3.0 } } },
+             { t: { w: 'triangle', f0: 2960, f1: 2860, d: 0.06, v: 0.06, a: 0.002, at: 0.06 } },
+             { t: { w: 'triangle', f0: 1980, f1: 1900, d: 0.06, v: 0.05, a: 0.002, at: 0.11 } }],
+      //  궁극 — 큰 북 + 두 포먼트 구호 + 방울 셋 + 북 되울림
+      ult:  [{ t: { w: 'sine', f0: 130, f1: 40, d: 0.36, v: 0.22 } },
+             { b: { d: 0.03, f: 1900, q: 1.2, v: 0.14, hp: 1 } },
+             { t: { w: 'sawtooth', f0: 165, d: 0.40, v: 0.12, a: 0.05, bp: { f: 720, q: 3.0 } } },
+             { t: { w: 'sawtooth', f0: 165, d: 0.40, v: 0.06, a: 0.05, bp: { f: 1180, q: 4.0 } } },
+             { t: { w: 'triangle', f0: 1980, f1: 1900, d: 0.07, v: 0.06, a: 0.002, at: 0.18 } },
+             { t: { w: 'triangle', f0: 2960, f1: 2860, d: 0.07, v: 0.06, a: 0.002, at: 0.30 } },
+             { t: { w: 'triangle', f0: 2480, f1: 2400, d: 0.07, v: 0.05, a: 0.002, at: 0.42 } },
+             { t: { w: 'sine', f0: 110, f1: 40, d: 0.30, v: 0.16, at: 0.40 } }],
+      hurt: [{ t: { w: 'square', f0: 190, f1: 120, d: 0.13, v: 0.16 } },
+             { t: { w: 'triangle', f0: 520, f1: 300, d: 0.10, v: 0.09 } },
+             { t: { w: 'triangle', f0: 2400, f1: 2100, d: 0.04, v: 0.05, a: 0.002 } }],
+      //  죽음 — 북이 미끄러지고 구호가 꺼지고 방울이 흩어진다
+      die:  [{ t: { w: 'sine', f0: 400, f1: 70, d: 0.32, v: 0.14 } },
+             { t: { w: 'sawtooth', f0: 147, f1: 110, d: 0.30, v: 0.09, a: 0.03, bp: { f: 720, q: 3.0 } } },
+             { t: { w: 'triangle', f0: 2600, f1: 2500, d: 0.06, v: 0.05, a: 0.002, at: 0.10 } },
+             { t: { w: 'triangle', f0: 2100, f1: 2000, d: 0.06, v: 0.05, a: 0.002, at: 0.18 } },
+             { t: { w: 'triangle', f0: 1700, f1: 1600, d: 0.06, v: 0.04, a: 0.002, at: 0.28 } }]
+    },
+    stalker: {
+      hit:  [{ b: { d: 0.03, f: 1600, q: 2.6, v: 0.14, hp: 1 } },
+             { s: { d: 0.07, f0: 2600, f1: 1200, q: 1.8, v: 0.10 } },
+             { t: { w: 'triangle', f0: 300, f1: 140, d: 0.06, v: 0.09 } }],
+      //  그림자 걸음 — **올라가는** 바람. 내려가는 것(화살)과 반대라 서로 안 헷갈린다.
+      skill:[{ s: { d: 0.16, f0: 900, f1: 4200, q: 1.6, v: 0.13 } },
+             { b: { d: 0.02, f: 3000, q: 2.0, v: 0.08, hp: 1 } }],
+      //  처형 — 뼈 틱 → 바람 → 한 방(critHit 재료) → 바람 꼬리
+      ult:  [{ b: { d: 0.04, f: 1600, q: 2.6, v: 0.16, hp: 1 } },
+             { s: { d: 0.12, f0: 3800, f1: 800, q: 1.6, v: 0.14 } },
+             { t: { w: 'sawtooth', f0: 260, f1: 55, d: 0.16, v: 0.18, at: 0.08 } },
+             { b: { d: 0.045, f: 3600, q: 2.4, v: 0.14, hp: 1, at: 0.08 } },
+             { s: { d: 0.20, f0: 1800, f1: 400, q: 1.2, v: 0.09, at: 0.20 } }],
+      hurt: [{ t: { w: 'square', f0: 190, f1: 120, d: 0.13, v: 0.16 } },
+             { b: { d: 0.04, f: 1300, q: 2.2, v: 0.08, hp: 1 } },
+             { t: { w: 'triangle', f0: 520, f1: 300, d: 0.08, v: 0.08 } }],
+      die:  [{ b: { d: 0.10, f: 1100, q: 1.6, v: 0.10, hp: 1 } },
+             { s: { d: 0.30, f0: 2400, f1: 300, q: 1.2, v: 0.11 } },
+             { t: { w: 'triangle', f0: 420, f1: 120, d: 0.22, v: 0.11 } }]
+    }
+  },
+  //  사건별 게이트(ms) — hit/hurt 는 기존 `hit`(45)·`heroHurt`(220)와 같은 값.
+  //  ult 는 한 판에 몇 번 안 나오지만 다단히트 예고가 겹쳐 두 번 부를 수 있어 400.
+  HERO_GATES: { hit: 45, skill: 120, ult: 400, hurt: 220, die: 300 },
+
+  //  영웅 소리. kind ∈ hit|skill|ult|hurt|die, art = def.art(berserker|hunter|guardian|
+  //  shaman|stalker). `extra` = { pitch, vol, at } (전부 선택 — 협동전에서 파트너 영웅을
+  //  vol 0.6 으로 낮추는 식). 모르는 art·kind 는 **조용히** 무시한다(폴백 없음 —
+  //  폴백을 두면 새 영웅에 표를 안 채워도 소리가 나서 누락을 못 잡는다; sfx-audit 가 센다).
+  playHero: function (kind, art, extra) {
+    if (!this._ready || !this.enabled) return false;
+    var h = this.HERO[art];
+    if (!h || !h[kind]) return false;
+    var gap = this.HERO_GATES[kind] || 100;
+    if (!this._gate('h:' + art + ':' + kind, gap)) return false;
+    var x = extra || {};
+    //  ±3% 지터 — 영웅은 유닛(±4%)보다 살짝 덜 흔든다(주인공 소리는 안정감이 있어야 한다).
+    var j = 1 + (Math.random() * 2 - 1) * 0.03;
+    this._parts(h[kind], (x.pitch || 1) * j, x.vol || 1, x.at || 0);
+    return true;
+  },
+
+  //  유닛 def 에서 바로 — `playFor` 의 영웅판. def.art 가 HERO 에 없으면 false.
+  playHeroFor: function (kind, def, extra) {
+    if (!def || !def.art) return false;
+    return this.playHero(kind, def.art, extra);
   }
 };
 

@@ -841,6 +841,7 @@ GAME.DefendTower = {
       if (GAME.Achievements && GAME.Achievements.emit) GAME.Achievements.emit('dtowerClear', { run: floor });
       if (GAME.Daily && GAME.Daily.emit) GAME.Daily.emit('dtowerClear', { run: floor });
       if (GAME.Progress && GAME.Progress.emit) GAME.Progress.emit('dtowerClear', { run: floor });
+      if (GAME.Season && GAME.Season.emit) GAME.Season.emit('dtowerClear', { run: floor });
     } catch (e) {}
     // 다음 층에서 같은 배치로 이어갈 수 있게 남긴다(고칠 수도 있다)
     if (placed) { rec.placed = placed; rec.tier = tier || null; }

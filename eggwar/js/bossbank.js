@@ -11,8 +11,15 @@ window.GAME = window.GAME || {};
 //  · 접지점 앵커 = 타일 아래-가운데(유니티 기본과 동일. pivot 메타가 오면 그 값).
 //  · 로드는 판마다 필요한 한 장만(scene.load.image, 비동기) — 준비 전엔 호출부가
 //    벡터 폴백으로 그린다(화면이 비지 않는 것이 우선).
-//  · phases>1(애니메이션 시트)은 아직 전부 1 이라 정지 프레임만 그린다. 다칸이
-//    들어오면 왕복 재생(pingpong)을 여기 더한다 — 유니티 BossView 와 같은 규칙.
+//  · phases>1(애니메이션 시트)은 **왕복 재생**(pingpong, 2026-09-03 시즌2 S-A) —
+//    유니티 BossView 와 같은 규칙: 한 바퀴 = 2×(N−1) 칸, loopMs 가 한 바퀴 길이.
+//    시계는 **렌더 시계**(scene.time.now)다. 시뮬 시계(state.elapsed)를 쓰면 배속·
+//    히트스톱·록스텝 지연이 그림에 섞이고, 시뮬이 멈춘 프레임(결과 화면 직전)에
+//    그림도 얼어붙는다 — 이 게임의 절차 모션(호흡·걸음)이 렌더 시계를 쓰는 것과 같다.
+//    칸은 텍스처 **프레임**으로 등록한다(`_ensureFrames`) — `setCrop` 은 표시 크기를
+//    안 줄이는 함정(CLAUDE.md, dragonasset 사고)이라 쓰지 않는다.
+//    ⚠ 관절 리깅(BossRig)은 시트 **전체**를 굽는다 — 다칸 시트는 리그를 타지 않는다
+//      (칸 재생이 리그를 대신한다). 두 개를 겹치면 부위마다 이웃 칸이 비친다.
 // ============================================================================
 GAME.BossBank = (function () {
   'use strict';
@@ -33,7 +40,34 @@ GAME.BossBank = (function () {
     "bossDrakeFrost": {"art":"beast:drake:frost","tileW":1412,"tileH":642,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.7326,"pivotY":628},
     "bossDrakeStorm": {"art":"beast:drake:storm","tileW":1411,"tileH":671,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.9012,"pivotY":658},
     "bossNest": {"art":"ballista","tileW":1298,"tileH":734,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.2674},
-    "bossShell": {"art":"guardian","tileW":1055,"tileH":874,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":5.0814,"pivotY":858}
+    "bossShell": {"art":"guardian","tileW":1055,"tileH":874,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":5.0814,"pivotY":858},
+
+    //  ── 시즌2 「다섯 세계」 세계 보스 (2026-09-03 S-A) ─────────────────────────
+    //  초원(1~30)은 현행 셋(bossChief·bossShell·bossNest)이 그대로 맡는다.
+    //  아래 넷은 **자리만** 잡아 둔 것이다 — `pending: true` 인 동안은 ensure() 가
+    //  파일을 요청하지 않는다(없는 URL 을 매 프레임 GET 하면 404 가 CDN 에 눌어붙는다 —
+    //  CLAUDE.md 배포 함정). 그동안은 bossart 벡터 폴백이 그린다(화면이 비지 않는다).
+    //  규격(브리프 docs/proposals/2026-09-03-season2-art-brief.md §2): 시트 1행 × 3칸
+    //  왕복, 1536×512 검은 배경, 옆모습 1방향. 도착하면
+    //    tools/import-boss-art.ps1 -In <파일> -Key w_mist_boss -Cols 3 -Web
+    //  가 잘라 assets/boss/ 에 넣고 **이 줄을 실측값으로 덮어쓴다**(pending 이 빠진다).
+    //  tileW/tileH/drawScale 은 그때까지 브리프 규격의 계산값(512×512, 512/172).
+    //  ⚠ art 문자열은 S-W(units.js)가 def.art 에 적는 값과 같아야 벡터 폴백이 결을 탄다
+    //    (bossart.parse 가 모르는 결은 ash 로, 모르는 종류는 drake 골격으로 그린다)
+    //  2차 S-A(2026-09-03) 대조 — units.js 의 세계 보스 키 ↔ 이 표의 키(metaOf 는 def.key 가
+    //  표에 없으면 **art 문자열**로 찾는다 — 그래서 units 키와 표 키가 달라도 시트가 붙는다):
+    //    bossSwampMother(늪의 어미)  → w_mist_boss  (beast:bogmother:frost)
+    //    bossAshLord(재의 군주)      → w_ash_boss   (beast:ashlord:ember)
+    //    bossRiftGiant(균열 거인)    → w_rift_boss  (beast:riftgiant:ash)
+    //    bossStormKing(폭풍의 왕)    → w_storm_boss (beast:stormking:storm)
+    //    초원(1~30) 보스 셋은 위 bossChief/bossShell/bossNest 그대로.
+    //  boss-shot 35/60/100/150 실측(2026-09-03): pending 넷은 drake 골격 벡터 폴백으로 뜬다(예외 0).
+    //  phases>1 왕복 재생은 `frameIndex` 를 tools/render-audit.js 가 0 1 2 1 0… 으로 검사한다 —
+    //  실제 시트가 오면 `-Cols 3 -Phases 3 -Web` 로 들여온 뒤 boss-shot 으로 칸이 도는지 다시 볼 것..
+    "w_mist_boss":  {"art":"beast:bogmother:frost","tileW":512,"tileH":512,"cols":3,"rows":1,"phases":3,"loopMs":900,"play":"pingpong","drawScale":2.977,"pending":true},
+    "w_ash_boss":   {"art":"beast:ashlord:ember","tileW":512,"tileH":512,"cols":3,"rows":1,"phases":3,"loopMs":820,"play":"pingpong","drawScale":2.977,"pending":true},
+    "w_rift_boss":  {"art":"beast:riftgiant:ash","tileW":512,"tileH":512,"cols":3,"rows":1,"phases":3,"loopMs":1100,"play":"pingpong","drawScale":2.977,"pending":true},
+    "w_storm_boss": {"art":"beast:stormking:storm","tileW":512,"tileH":512,"cols":3,"rows":1,"phases":3,"loopMs":700,"play":"pingpong","drawScale":2.977,"pending":true}
   };
 
   //  보스 인트로 대사 (2026-08-23 4차 — battle._setupBossIntro 가 읽는다).
@@ -80,12 +114,28 @@ GAME.BossBank = (function () {
       return null;
     },
 
+    //  파일이 없어 로드에 실패한 키. **한 번 실패하면 다시 안 묻는다** — 안 그러면
+    //  draw() 가 매 프레임 ensure() 를 불러 같은 URL 을 초당 60번 GET 한다.
+    _missing: {},
+    _hookLoadError: function (scene) {
+      if (scene._bossbankLoadErr || !scene.load || !scene.load.on) return;
+      scene._bossbankLoadErr = true;
+      var self = this;
+      scene.load.on('loaderror', function (file) {
+        if (file && file.key && String(file.key).indexOf('bossbank:') === 0) self._missing[file.key] = true;
+      });
+      scene.events.once('shutdown', function () { scene._bossbankLoadErr = false; });
+    },
+
     //  이 판의 보스 시트를 미리 불러 둔다 — battle 씬 create 에서 부른다.
     ensure: function (scene, def) {
       var e = this.metaOf(def);
       if (!e || !scene || !scene.load) return;
+      //  자리만 잡힌 키(pending) — 파일이 아직 없다. 요청 자체를 안 한다(벡터 폴백).
+      if (e.m.pending) return;
       var texKey = 'bossbank:' + e.key;
-      if (scene.textures.exists(texKey)) return;
+      if (scene.textures.exists(texKey) || this._missing[texKey]) return;
+      this._hookLoadError(scene);
       scene.load.image(texKey, 'assets/boss/' + e.key + '.png?v=' + (GAME.VERSION || '').replace('v', ''));
       scene.load.start();
     },
@@ -93,7 +143,44 @@ GAME.BossBank = (function () {
     //  준비됐는가 — 그림자를 먼저 그릴지 판단할 때 쓴다(로드 전이면 벡터 폴백).
     ready: function (scene, def) {
       var e = this.metaOf(def);
-      return !!(e && scene && scene.textures && scene.textures.exists('bossbank:' + e.key));
+      return !!(e && !e.m.pending && scene && scene.textures && scene.textures.exists('bossbank:' + e.key));
+    },
+
+    //  ── 다칸 시트의 칸을 텍스처 프레임으로 등록한다 (시즌2 S-A) ────────────────
+    //  프레임 이름 'p0'..'p{N-1}'. 한 텍스처에 한 번만. cols×rows 격자, 위상 i 는
+    //  (i % cols, floor(i / cols)) 칸 — bake-boss-art.js `tileRect` 와 같은 식이다.
+    //  ⚠ 시트 실물 크기가 표(tileW×cols)와 안 맞으면 등록하지 않고 정지 그림으로 둔다
+    //    (잘못 잘린 칸이 번갈아 나오는 것보다 한 장이 낫다). 콘솔에 한 번만 알린다.
+    _ensureFrames: function (scene, texKey, m) {
+      var tex = scene.textures.get(texKey);
+      if (!tex || tex.frames.p0) return !!(tex && tex.frames.p0);
+      var src = tex.getSourceImage();
+      var cols = m.cols || 1, rows = m.rows || 1, n = m.phases || 1;
+      if (!src || src.width < m.tileW * cols - 1 || src.height < m.tileH * rows - 1) {
+        if (!m._sizeWarned && window.console) {
+          m._sizeWarned = true;
+          console.warn('[bossbank] ' + texKey + ' 시트 크기가 표와 다르다 — 정지 그림으로 둔다',
+                       src && (src.width + 'x' + src.height), '표 ' + (m.tileW * cols) + 'x' + (m.tileH * rows));
+        }
+        return false;
+      }
+      for (var i = 0; i < n; i++) {
+        tex.add('p' + i, 0, (i % cols) * m.tileW, Math.floor(i / cols) * m.tileH, m.tileW, m.tileH);
+      }
+      return true;
+    },
+
+    //  왕복 재생 위상 → 칸 번호. 순수 함수(도구가 직접 검사한다).
+    //    nowMs  렌더 시계 · loopMs 한 바퀴(0..N-1..1) · n 칸 수 · play 'pingpong'|'once'|'static'
+    //    offset 보스마다 다른 위상 시작(둘이 같은 박자로 움직이면 인형극이 된다)
+    frameIndex: function (nowMs, loopMs, n, play, offset) {
+      if (!n || n <= 1 || !loopMs || play === 'static') return 0;
+      var t = (nowMs + (offset || 0)) / loopMs;
+      if (play === 'once') return Math.min(n - 1, Math.floor(Math.max(0, t) * n));
+      var seq = 2 * (n - 1);
+      var k = Math.floor(t * seq) % seq;
+      if (k < 0) k += seq;
+      return k < n ? k : seq - k;
     },
 
     //  씬마다 한 번, 매 프레임 끝에 「이번 프레임에 안 그린 시트」를 숨기는 스윕을
@@ -205,11 +292,13 @@ GAME.BossBank = (function () {
     //  unit: 렌더 전용 참조(공격 모션 위상) — 없으면(카드·로딩 화면) 숨쉬기만 한다.
     draw: function (scene, def, sx, sy, rScaled, alpha, facing, depth, unit) {
       var e = this.metaOf(def);
-      if (!e) return false;
+      if (!e || e.m.pending) return false;
       var texKey = 'bossbank:' + e.key;
       if (!scene.textures.exists(texKey)) { this.ensure(scene, def); return false; }
 
       var m = e.m;
+      //  다칸 시트인가 — 프레임이 등록돼야 참이다(크기가 어긋나면 정지 그림으로 남는다).
+      var multi = (m.phases || 1) > 1 && this._ensureFrames(scene, texKey, m);
       var base = (GAME.UNITS && GAME.UNITS[e.key] && GAME.UNITS[e.key].radius) || rScaled;
       //  sizeMul: 표시 전용 확대(태초의 용 1.4 — 태현님: "화면에 잘려도 된다").
       //  판정 반지름은 안 건드린다.
@@ -230,7 +319,8 @@ GAME.BossBank = (function () {
       this._strikeFx(scene, e.key, def, sx, sy + yFix, w, h, py, flip, depth || 0, atk);
 
       //  ── 관절 리깅 보스(태초의 용 등) — 부위 층으로 그린다 ──────────────────
-      if (GAME.BossRig && GAME.BossRig.has(e.key)) {
+      //  ⚠ 다칸 시트는 리그를 타지 않는다(파일 머리 주석) — 칸 재생이 리그를 대신한다.
+      if (!multi && GAME.BossRig && GAME.BossRig.has(e.key)) {
         if (GAME.BossRig.draw(scene, e.key, texKey,
               { sx: sx, sy: sy + yFix, w: w, h: h, px: px, py: py,
                 flip: flip, alpha: a, depth: (depth || 0) }, atk)) {
@@ -257,6 +347,16 @@ GAME.BossBank = (function () {
         scene.worldLayer.bringToTop(this._fxg[e.key].g);
       img.setVisible(true);
       img._bbStamp = scene.game.loop.frame;
+      //  ── 왕복 재생 (시즌2 S-A) — 렌더 시계로 칸을 고른다. 절차 모션(아래 호흡·
+      //  젖힘·런지)은 그 위에 그대로 얹힌다 — 칸이 셋뿐이어도 그래서 살아 보인다.
+      //  이동 중에는 걸음 위상(atk.walk)에 맞춰 조금 빨리 돈다(발과 그림이 맞물리게).
+      if (multi) {
+        var seedMs = ((e.key.charCodeAt(2) || 0) * 37 + (e.key.charCodeAt(e.key.length - 1) || 0) * 11) % 700;
+        var loopNow = m.loopMs * (1 - 0.25 * (atk.moving || 0));
+        var fi = this.frameIndex(scene.time.now, loopNow, m.phases, m.play || 'pingpong', seedMs);
+        var fname = 'p' + fi;
+        if (!img.frame || img.frame.name !== fname) img.setFrame(fname);
+      }
       img.setOrigin(px, py);
 
       //  ── 절차 모션 (2026-08-22 태현님: "판넬이면 안 된다") ────────────────────

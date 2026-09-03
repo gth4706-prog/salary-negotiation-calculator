@@ -137,6 +137,36 @@ GAME.UI = {
     g.fillStyle(UI.mix(baseFill, 0xffffff, 0.14), 1);
     g.fillRect(R.x, R.y, R.w, farH);
 
+    // ── 세계 바닥 (시즌2 「다섯 세계」, 2026-09-03 S-A) ───────────────────────
+    //  바닥색 자체는 BIOMES 의 hue/sat/dark 가 이미 세계마다 갈라 놓았다(잿더미=붉은 흙 ·
+    //  균열=갈라진 회색 · 폭풍=어두운 하늘). 여기서는 **원경 띠(상단 10%) 안에서만**
+    //  세계의 한 획을 더 얹는다 — 유닛이 서는 구간은 조용히(v1.6x 함정 1: 그 띠에도
+    //  유닛이 서므로 전부 저알파·저대비다).
+    var world = B && B.world;
+    if (world === 'ash') {
+      //  잿더미 — 지평선 아래 잉걸 기운 한 줄(붉은 흙이 달아오른다)
+      g.fillStyle(UI.mix(baseFill, 0xff6a2e, 0.35), 0.22);
+      g.fillRect(R.x, R.y + farH * 0.55, R.w, farH * 0.45);
+    } else if (world === 'rift') {
+      //  균열 — 원경에 가로로 갈라진 실금 두 줄(회색 판이 쪼개진다)
+      g.lineStyle(1.4, UI.mix(baseFill, 0x000000, 0.42), 0.32);
+      g.lineBetween(R.x + R.w * 0.08, R.y + farH * 0.62, R.x + R.w * 0.41, R.y + farH * 0.74);
+      g.lineBetween(R.x + R.w * 0.41, R.y + farH * 0.74, R.x + R.w * 0.53, R.y + farH * 0.58);
+      g.lineBetween(R.x + R.w * 0.60, R.y + farH * 0.80, R.x + R.w * 0.93, R.y + farH * 0.66);
+    } else if (world === 'storm') {
+      //  폭풍 하늘 — 원경 띠를 밝히지 않고 **먹구름 결**로 갈아 낀다(유일하게 어두운 원경).
+      //  단, 어두운 정도는 바닥보다 10% 만 — 그 띠에도 유닛이 선다.
+      g.fillStyle(UI.mix(baseFill, 0x1c1830, 0.30), 1);
+      g.fillRect(R.x, R.y, R.w, farH);
+      g.fillStyle(UI.mix(baseFill, 0xffffff, 0.16), 0.55);
+      g.fillEllipse(R.x + R.w * 0.22, R.y + farH * 0.5, R.w * 0.34, farH * 0.55, 12);
+      g.fillEllipse(R.x + R.w * 0.66, R.y + farH * 0.42, R.w * 0.40, farH * 0.50, 12);
+    } else if (world === 'mist') {
+      //  안개늪 — 원경 띠를 한 번 더 밝힌다(안개 = 공기원근의 극단)
+      g.fillStyle(UI.mix(baseFill, 0xffffff, 0.30), 0.55);
+      g.fillRect(R.x, R.y, R.w, farH * 0.8);
+    }
+
     //  먼 능선 — 톱니 실루엣. **좌표를 캐시한다**: 매 프레임 새로 뽑으면 언덕이 춤춘다
     //  (`drawBiomeProps` 가 같은 이유로 캐시한다).
     var ridgeKey = (B ? B.key || B.name || '' : '') + '|' + Math.round(R.w) + '|' + Math.round(farH);
@@ -502,12 +532,13 @@ GAME.UI = {
 //      (근거: docs/proposals/2026-07-29-worldbuilding-review.md 3-1 / 6장)
 //
 //  ── 구간을 새로 발명하지 않았다 ──────────────────────────────────────────
-//  층 배지가 이미 쓰는 `UI.tierForFloor` 의 구간 [4,10,20,30,40] 을 그대로 쓴다.
-//  즉 화면의 등급 배지와 바닥이 **같은 순간에** 바뀐다. 새 사다리를 만들면
-//  "이 층은 정예인데 바닥은 아직 늪"처럼 두 사다리가 어긋난다.
-//    0: 1~3   여린 풀숲 (연습 구간)      3: 20~29 늪
-//    1: 4~9   풀숲                        4: 30~39 잿바닥
-//    2: 10~19 돌담                        5: 40+   모래벌
+//  층 배지가 이미 쓰는 `UI.tierForFloor` 의 구간을 그대로 쓴다. 즉 화면의 등급 배지와
+//  바닥이 **같은 순간에** 바뀐다. 새 사다리를 만들면 "이 층은 정예인데 바닥은 아직
+//  늪"처럼 두 사다리가 어긋난다.
+//  시즌2 「다섯 세계」(2026-09-03)부터 그 구간 = **세계 경계** `UI.WORLD_BOUNDS` [31,61,101,151]:
+//    0: 1~30   초원        3: 101~150 균열
+//    1: 31~60  안개늪      4: 151+    폭풍 하늘
+//    2: 61~100 잿더미
 //  보스 층은 `Tower.BOSS_EVERY` 로 유도해 **밴드 위에 덧칠**한다(밴드를 건너뛰지 않는다).
 //
 //  ── 모드별 판단 ──────────────────────────────────────────────────────────
@@ -544,14 +575,20 @@ GAME.UI = {
   //  sat  : 채도 배수     dark/light : 명도 배수(어두운 테마 / 라이트 테마)
   //  kind : 소품 종류     n : 소품 개수
   var HUE_PULL = 0.78;
+  //  ── 시즌2 「다섯 세계」 (2026-09-03 S-A) — 밴드 = 세계 ────────────────────────
+  //  경계는 `UI.tierForFloor`/`UI.WORLD_BOUNDS`([31,61,101,151]) 한 곳이다. 여기 순서는
+  //  그 인덱스(0..4)와 같아야 한다. 옛 6밴드(풀숲·돌담·늪·잿바닥·모래벌)는 폐기 —
+  //  40층 이후가 평평했고(플랜 §0), 세계는 층대가 아니라 **규칙**이 바뀌는 단위다.
+  //  kind: 0 풀 다발 · 5 늪 갈대 · 6 잿더미 돌 · 7 균열 바위 · 8 폭풍 깃발 (1~4 는 옛 소품 — 남겨 둔다)
+  //  ⚠ 유닛 자리는 조용히 — 소품 알파·개수 상한은 옛 밴드와 같은 급이다(v1.6x 함정 1).
   var BIOMES = [
-    { hue:  96, sat: 1.00, dark: 1.18, light: 1.07, kind: 0, n:  8 },  // 1~3   여린 풀숲
-    { hue: 108, sat: 1.00, dark: 1.04, light: 1.00, kind: 0, n: 12 },  // 4~9   풀숲
-    { hue:  92, sat: 0.40, dark: 0.96, light: 0.89, kind: 1, n: 12 },  // 10~19 돌담(회녹)
-    { hue: 192, sat: 1.05, dark: 0.90, light: 0.85, kind: 2, n: 11 },  // 20~29 늪(청록)
-    { hue:  20, sat: 0.42, dark: 0.86, light: 0.83, kind: 3, n: 13 },  // 30~39 잿바닥
-    { hue:  40, sat: 0.70, dark: 1.00, light: 0.94, kind: 4, n: 13 }   // 40+   모래벌
+    { key: 'meadow', hue: 104, sat: 1.00, dark: 1.06, light: 1.00, kind: 0, n: 12 },  // 1~30   초원
+    { key: 'mist',   hue: 178, sat: 0.80, dark: 0.92, light: 0.88, kind: 5, n: 12 },  // 31~60  안개늪(청록 이끼물)
+    { key: 'ash',    hue:  14, sat: 0.62, dark: 0.90, light: 0.86, kind: 6, n: 13 },  // 61~100 잿더미(붉은 흙)
+    { key: 'rift',   hue: 222, sat: 0.22, dark: 0.84, light: 0.82, kind: 7, n: 13 },  // 101~150 균열(갈라진 회색)
+    { key: 'storm',  hue: 246, sat: 0.55, dark: 0.78, light: 0.80, kind: 8, n: 11 }   // 151+   폭풍 하늘(어두운 하늘)
   ];
+  UI.BIOMES = BIOMES;
 
   // 어두운 테마(stock·B·C)는 전장 명도가 0.17~0.25 밖에 안 된다.
   // 거기서 명도를 더 깎으면 여섯 구간이 전부 '검정'으로 수렴한다 — 실측으로 확인했다.
@@ -650,6 +687,7 @@ GAME.UI = {
       i: idx,
       boss: boss,
       kind: S.kind,
+      world: S.key,              // 'meadow'|'mist'|'ash'|'rift'|'storm' — drawArena 의 세계 바닥 분기
       fill: fill,
       dark: mixTo(fill, 0x000000, 0.24),
       lite: mixTo(fill, 0xffffff, 0.24),
@@ -751,7 +789,7 @@ GAME.UI = {
         g.fillStyle(B.lite, 0.30);
         g.fillEllipse(x + s * 2.4, y + s * 1.0, s * 1.3, s * 0.55, 7);
 
-      } else {
+      } else if (B.kind === 4) {
         // 모래 결 + 껍질 조각
         g.lineStyle(1.6, B.lite, 0.34);
         g.lineBetween(x - s * 2.7, y, x - s * 0.9, y - s * 0.6);
@@ -760,6 +798,54 @@ GAME.UI = {
         if (p.v > 0.45) {
           g.fillStyle(B.dark, 0.30);
           g.fillEllipse(x + s * 1.1, y + s * 1.0, s * 1.2, s * 0.6, 7);
+        }
+
+      // ── 시즌2 다섯 세계 소품 (2026-09-03 S-A) — 알파는 옛 소품과 같은 급(0.28~0.44) ──
+      } else if (B.kind === 5) {
+        // 늪 갈대 — 물웅덩이 가장자리에 세 가닥, 이삭 하나
+        g.fillStyle(B.dark, 0.36);
+        g.fillEllipse(x, y, s * 3.0, s * 1.3, 10);
+        g.lineStyle(1.5, B.lite, 0.40);
+        g.lineBetween(x + s * 1.2, y + s * 0.2, x + s * 1.4, y - s * 2.4);
+        g.lineBetween(x + s * 1.7, y + s * 0.3, x + s * 2.1, y - s * 1.9);
+        if (p.v > 0.4) {
+          g.lineBetween(x + s * 0.8, y + s * 0.1, x + s * 0.7, y - s * 2.0);
+          g.fillStyle(B.dark, 0.44);
+          g.fillEllipse(x + s * 1.42, y - s * 2.4, s * 0.5, s * 1.0, 6);   // 이삭
+        }
+
+      } else if (B.kind === 6) {
+        // 잿더미 돌 — 그을린 돌 두 개 + 잉걸 실금 하나(아주 옅게)
+        g.fillStyle(B.dark, 0.40);
+        g.fillEllipse(x, y, s * 2.4, s * 1.3, 8);
+        g.fillStyle(B.lite, 0.26);
+        g.fillEllipse(x - s * 0.5, y - s * 0.35, s * 1.2, s * 0.6, 8);
+        g.fillStyle(B.dark, 0.34);
+        g.fillEllipse(x + s * 1.9, y + s * 0.5, s * 1.1, s * 0.6, 7);
+        if (p.v > 0.6) {
+          g.lineStyle(1.2, 0xff8c2e, 0.22);
+          g.lineBetween(x - s * 0.6, y + s * 0.2, x + s * 0.4, y + s * 0.45);
+        }
+
+      } else if (B.kind === 7) {
+        // 균열 바위 — 각진 돌판 + 사이로 갈라진 실금
+        g.fillStyle(B.dark, 0.40);
+        g.fillTriangle(x - s * 1.6, y + s * 0.5, x + s * 0.2, y - s * 1.1, x + s * 1.8, y + s * 0.4);
+        g.fillStyle(B.lite, 0.24);
+        g.fillTriangle(x - s * 0.9, y + s * 0.2, x + s * 0.2, y - s * 0.9, x + s * 0.9, y + s * 0.1);
+        g.lineStyle(1.6, B.crack, 0.30);
+        g.lineBetween(x - s * 2.6, y + s * 0.9, x - s * 1.0, y + s * 0.6);
+        if (p.v > 0.5) g.lineBetween(x + s * 1.8, y + s * 0.4, x + s * 3.0, y + s * 1.0);
+
+      } else {
+        // 폭풍 깃발 — 꺾인 장대에 바람에 찢긴 천 조각. 장대는 어둡고 천은 밝게
+        g.lineStyle(1.8, B.dark, 0.46);
+        g.lineBetween(x, y, x + s * 0.3, y - s * 3.0);
+        g.fillStyle(B.lite, 0.34);
+        g.fillTriangle(x + s * 0.3, y - s * 3.0, x + s * 2.4, y - s * 2.5, x + s * 0.25, y - s * 2.0);
+        if (p.v > 0.45) {
+          g.fillStyle(B.dark, 0.32);
+          g.fillEllipse(x, y + s * 0.2, s * 1.4, s * 0.6, 7);           // 발밑 돌무더기
         }
       }
     }

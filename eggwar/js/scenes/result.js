@@ -120,6 +120,15 @@ GAME.ResultScene.prototype._rtWire = function () {
 };
 
 GAME.ResultScene.prototype._rtAgainClick = function () {
+  //  협동 봇 파트너 판(S-C) — 같은 세계로 곧장 다시. 방·서버 없음.
+  if (this.rtResult && this.rtResult.coop && this.rtResult.partnerBot) {
+    if (this._rtGoing) return;
+    this._rtGoing = true;
+    GAME.RtFlow.beginLocalCoop({ world: this.rtResult.world, floor: this.rtResult.floor },
+                               this.rtResult.botLevel || (GAME.RtCoop && GAME.RtCoop.BOT_LEVEL));
+    this.scene.start('RtPrep');
+    return;
+  }
   //  연습 대전 — 같은 난이도로 곧장 다시(준비 화면부터). 방·서버 없음.
   if (this.rtResult && this.rtResult.practice) {
     if (this._rtGoing) return;
@@ -154,7 +163,9 @@ GAME.ResultScene.prototype._rtGo = function (seed) {
   if (this._rtGoing || !this.rtLive) return;
   this._rtGoing = true;
   if (this._rtVoteTimer) { clearInterval(this._rtVoteTimer); this._rtVoteTimer = null; }
-  GAME.RtFlow.begin(this.rtLive.myRole, this.rtLive.theirRole, { seed: seed >>> 0 });
+  //  협동(S-C)은 같은 세계·층으로 다시 — 시드만 새로(진형이 새로 섞인다).
+  if (this.rtLive.coop) GAME.RtFlow.beginCoop(this.rtLive.coop, { seed: seed >>> 0 });
+  else GAME.RtFlow.begin(this.rtLive.myRole, this.rtLive.theirRole, { seed: seed >>> 0 });
   var sm = GAME.game.scene;
   sm.getScenes(true).forEach(function (s) { sm.stop(s.scene.key); });
   sm.start('RtPrep');
@@ -217,7 +228,12 @@ GAME.ResultScene.prototype.create = function () {
     this.time.delayedCall(250, function () { GAME.DropPopup.flush(self); });
   }
   // 결과 화면에는 배경음악을 깔지 않는다 — 스팅어가 이 화면의 주인공이다.
-  if (GAME.Music) { GAME.Music.stop(); GAME.Music.sting(good ? 'win' : 'lose'); }
+  //  협동 승리 스팅어(S-S `coopWin`) — 세계 변주는 world 로.
+  var coopRr = (this.rtResult && this.rtResult.coop) ? this.rtResult : null;
+  if (GAME.Music) {
+    GAME.Music.stop();
+    GAME.Music.sting(good ? (coopRr ? 'coopWin' : 'win') : 'lose', coopRr ? { world: coopRr.world } : undefined);
+  }
 
   var title, sub, color;
   if (this.tower) {
@@ -303,7 +319,27 @@ GAME.ResultScene.prototype.create = function () {
     //  실시간 대전 — 승패보다 **실시간 점수가 얼마나 움직였는지**가 결과다.
     //  공성 트로피와 다른 축이라는 것이 문구에서도 읽혀야 한다.
     var rr = this.rtResult;
-    if (rr.invalid) {
+    if (rr.coop) {
+      //  협동 보스전(S-C) — 승 = 세계 포인트·골드, 패 = 사유(둘 다 쓰러짐 / 180초 / 파트너 이탈).
+      var cwl = GAME.RtCoop ? GAME.RtCoop.label(rr.world) : rr.world;
+      var cbk = GAME.RtCoop ? GAME.RtCoop.bossKeyFor(rr.floor) : null;
+      var cbn = (cbk && GAME.UNITS[cbk]) ? GAME.UNITS[cbk].name : '보스';
+      if (rr.invalid) {
+        title = '협동 판 무효'; color = C.warn;
+        sub = '동기화가 어긋나 이 판은 기록되지 않았습니다. 보상 없음.';
+      } else if (rr.won) {
+        title = '🤝 ' + cwl + ' 보스 처치!'; color = C.accent;
+        sub = cbn + '을(를) ' + rr.sec + '초 만에 쓰러뜨렸습니다. 세계 포인트 +' + (rr.points || 0) +
+              (rr.gold > 0 ? ' · 골드 +' + rr.gold : ' · 골드는 탑 캐릭터를 만들면 지급됩니다') +
+              (rr.partnerBot ? ' (봇 파트너)' : '') + '.';
+      } else {
+        title = '🤝 ' + cwl + ' 보스전 실패'; color = C.accentAlt;
+        sub = (rr.note ? rr.note + '. '
+               : (rr.timeUp ? '180초 안에 ' + cbn + '을(를) 쓰러뜨리지 못했습니다. '
+                            : '두 영웅이 모두 쓰러졌습니다. ')) +
+              '예고 원 밖으로 나가고, 호위부터 정리한 뒤 보스를 같이 치세요.';
+      }
+    } else if (rr.invalid) {
       title = '판 무효'; color = C.warn;
       sub = '동기화가 어긋나 이 판은 기록되지 않았습니다. 점수 변동 없음.';
     } else if (rr.practice) {
@@ -423,8 +459,10 @@ GAME.ResultScene.prototype.create = function () {
   else if (this.rtResult) {
     //  실시간(2026-08-31 태현님 ①) — 예전 기본 갈래('같은 진형에 다시 도전' →
     //  Draft('__rt'))는 **없는 진형으로 가는 막다른 화면**이었다(판 끝 멈춤의 정체).
-    b1 = this.rtResult.practice ? '🔁 다시 (연습 대전)'
-       : (this.rtLive && GAME.NetRoom.connected) ? '🔄 한판 더 (상대 동의 시)' : null;
+    var rrC = this.rtResult.coop;
+    b1 = (rrC && this.rtResult.partnerBot) ? '🔁 다시 (협동 · 봇 파트너)'
+       : this.rtResult.practice ? '🔁 다시 (연습 대전)'
+       : (this.rtLive && GAME.NetRoom.connected) ? (rrC ? '🔄 한판 더 (파트너 동의 시)' : '🔄 한판 더 (상대 동의 시)') : null;
   }
   else if (this.versus) b1 = '다음 상대';
   else if (this.defendMode) b1 = '배치 고쳐 다시';
@@ -436,7 +474,8 @@ GAME.ResultScene.prototype.create = function () {
         { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
           hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 16 : 17 });
     } else {
-      GAME.UI.text(this, W / 2, btnTop, '(상대가 방을 떠나 재대결할 수 없습니다)',
+      GAME.UI.text(this, W / 2, btnTop,
+        this.rtResult.coop ? '(파트너가 방을 떠나 다시 할 수 없습니다)' : '(상대가 방을 떠나 재대결할 수 없습니다)',
         { size: 'caption', color: C.textDim, origin: 0.5 });
     }
     GAME.UI.button(this, W / 2, btnTop + u * 9, bw, u * 6, '🚪 대전 나가기', function () {
@@ -543,7 +582,35 @@ GAME.ResultScene.prototype._rewards = function (bx, ry, bw, tierObj) {
     }
   }
 
-  if (this.tower) {
+  if (this.rtResult && this.rtResult.coop && !this.rtResult.invalid) {
+    //  협동(S-C) — 둘의 피해 기여·시간·보상. 점수 줄은 없다(협동은 점수 축이 아니다).
+    var cr = this.rtResult, dl = cr.dealt || [0, 0];
+    var meI = cr.mine || 0, pI = meI === 0 ? 1 : 0;
+    var tot = Math.max(1, (dl[0] || 0) + (dl[1] || 0));
+    var pct = function (v) { return Math.round((v || 0) / tot * 100); };
+    var hk = cr.heroKeys || [];
+    var hn = function (i) { var hd = GAME.HEROES && GAME.HEROES[hk[i]]; return hd ? hd.name : (i === meI ? '나' : '파트너'); };
+    //  폰(오른쪽 열 ~380px)은 이름·수치를 다 적으면 넘친다 — 비율만. PC 는 수치까지.
+    var PHc = GAME.CONFIG.PHONE;
+    var rC1 = GAME.UI.rewardRow(this, bx, ry, bw, '피해 기여',
+      PHc ? ('나 ' + pct(dl[meI]) + '%  ·  ' + (cr.partnerBot ? '🤖 ' : '') + '파트너 ' + pct(dl[pI]) + '%')
+          : ('나 ' + hn(meI) + ' ' + GAME.UI.numAbbr(Math.round(dl[meI] || 0)) + ' (' + pct(dl[meI]) + '%)  ·  ' +
+             (cr.partnerBot ? '🤖 ' : '') + hn(pI) + ' ' + GAME.UI.numAbbr(Math.round(dl[pI] || 0)) + ' (' + pct(dl[pI]) + '%)'),
+      { valueSize: 'caption', valueColor: GAME.UI.TXT.text, accent: tierObj.hex });
+    blocks.push(rC1); ry = rC1.bottom + 8;
+    var bestS = cr.best && cr.best.best ? ('  ·  최단 ' + cr.best.best + '초') : '';
+    var rC2 = GAME.UI.rewardRow(this, bx, ry, bw, '걸린 시간',
+      cr.sec + '초' + (cr.won ? bestS : '') +
+      (cr.best ? ('  ·  이 세계 ' + cr.best.wins + '승/' + cr.best.plays + '판') : ''),
+      { valueSize: 'body', valueColor: GAME.UI.TXT.textMid });
+    blocks.push(rC2); ry = rC2.bottom + 8;
+    if (cr.won) {
+      var rC3 = GAME.UI.rewardRow(this, bx, ry, bw, '보상',
+        '세계 포인트 +' + (cr.points || 0) + (cr.gold > 0 ? '  ·  골드 +' + cr.gold : ''),
+        { accent: 0xffd166, valueSize: 'heading', valueColor: GAME.UI.TXT.crit });
+      blocks.push(rC3); ry = rC3.bottom + 8;
+    }
+  } else if (this.tower) {
     // 도전 보상 — 골드가 올랐다는 걸 점수와 같은 무게로 보여준다
     if (this.goldGained > 0 && this.runRec) {
       var gr = GAME.UI.rewardRow(this, bx, ry, bw, '획득 골드',
@@ -621,13 +688,16 @@ GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
 
   //  실시간(폰) — 큰 버튼 = [한판 더], 아랫줄 = 나가기·랭킹·메뉴 (2026-08-31 ①).
   if (this.rtResult) {
-    if (this.rtResult.practice || (this.rtLive && GAME.NetRoom.connected)) {
+    var againLocal = this.rtResult.practice || (this.rtResult.coop && this.rtResult.partnerBot);
+    if (againLocal || (this.rtLive && GAME.NetRoom.connected)) {
       this._rtAgainBtn = UI.button(this, rx + rw / 2, mainTop + mainH / 2, rw, mainH,
-        this.rtResult.practice ? '🔁 다시 (연습)' : '🔄 한판 더', function () { self._rtAgainClick(); },
+        againLocal ? (this.rtResult.coop ? '🔁 다시 (협동)' : '🔁 다시 (연습)') : '🔄 한판 더',
+        function () { self._rtAgainClick(); },
         { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
           hover: UI.COL.panelTealHi, color: C.accent, fontSize: 18 });
     } else {
-      UI.text(this, rx + rw / 2, mainTop + mainH / 2, '(상대가 방을 떠났습니다)',
+      UI.text(this, rx + rw / 2, mainTop + mainH / 2,
+        this.rtResult.coop ? '(파트너가 방을 떠났습니다)' : '(상대가 방을 떠났습니다)',
         { size: 'caption', color: C.textDim, origin: 0.5 });
     }
     var bcR = GAME.Layout.cols(3, { gap: 10, width: rw, left: rx, pad: 0 });

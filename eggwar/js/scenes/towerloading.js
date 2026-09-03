@@ -260,9 +260,58 @@ GAME.TowerLoadingScene.prototype.init = function (data) {
   this.replay = !!data.replay;      // 지난 층 다시(2026-08-31) — Battle 에 그대로 전달
   this._t = 0;
   this._meter = null;
-  // 데뷔 층이면 읽을 시간을 더 준다.
-  this._dur = GAME.TowerLoadingScene.DURATION +
-    ((GAME.TowerCurriculum && GAME.TowerCurriculum.debutOf(this.tower)) ? GAME.TowerLoadingScene.DEBUT_EXTRA : 0);
+  // 데뷔 층이면 읽을 시간을 더 준다. 세계 진입 층(시즌2)도 같은 이유로 더 준다.
+  var TC0 = GAME.TowerCurriculum;
+  var extra = (TC0 && TC0.debutOf(this.tower)) ? GAME.TowerLoadingScene.DEBUT_EXTRA : 0;
+  if (!extra && TC0 && TC0.isWorldEntry && TC0.isWorldEntry(this.tower)) extra = GAME.TowerLoadingScene.DEBUT_EXTRA;
+  this._dur = GAME.TowerLoadingScene.DURATION + extra;
+};
+
+// ── 세계 진입 (시즌2 「다섯 세계」, 2026-09-03 S-W) ──────────────────────────
+//  세계 진입 층(31·61·101·151, 폭풍 하늘은 50주기)에 **세계 이름·규칙을 크게** 알린다.
+//  스팅어(`Music.sting('worldEnter')`)와 세계 포인트(`Season.earnWorldPoint`)는 세계 키당
+//  **최초 1회**만 — 저장 키 `eggwar.towerworld.v1`(계정별)로 막는다. TowerChar 는 S-H
+//  소유라 건드리지 않는다.
+//  ⚠ Season(S-F)도 층을 **깼을 때** `_applyFloor` 로 진입 포인트를 준다(31층을 깨면
+//    안개늪 진입 +1). 여기서 먼저 주고 Season 기록에 '진입'을 표시해 두지 않으면 같은
+//    세계에 두 번 준다 — 그래서 준 뒤 `worlds[key].entered` 를 함께 세운다(계약:
+//    Season._rec/_save 는 S-F 의 저장 관문이고 스키마는 season.js 머리 주석 그대로).
+GAME.TowerLoadingScene.WORLD_KEY = 'eggwar.towerworld.v1';
+GAME.TowerLoadingScene.prototype._noteWorldEntry = function (w) {
+  if (!w || !w.key || !GAME.Store) return false;
+  var KEY = GAME.TowerLoadingScene.WORLD_KEY;
+  var acct = (GAME.Account && GAME.Account.current && GAME.Account.current()) || 'guest';
+  var all = GAME.Store.get(KEY, {}) || {};
+  var rec = all[acct];
+  if (!rec) rec = all[acct] = { entered: {} };
+  if (!rec.entered) rec.entered = {};
+  if (rec.entered[w.key]) return false;
+  rec.entered[w.key] = Date.now();
+  GAME.Store.set(KEY, all);
+  try {
+    if (GAME.Music && GAME.Music.sting) GAME.Music.sting('worldEnter', { world: w.key });
+  } catch (e) {}
+  try {
+    var S = GAME.Season;
+    if (S && S.earnWorldPoint && S.POINTS) {
+      var already = false;
+      if (S.progress) {
+        var pr = S.progress(w.from);
+        for (var i = 0; i < pr.length; i++) if (pr[i].key === w.key && pr[i].entered) already = true;
+      }
+      if (!already) {
+        S.earnWorldPoint(S.POINTS.enter, 'enter:' + w.key);
+        if (S._rec && S._save) {
+          var r = S._rec();
+          if (r && r.worlds && r.worlds[w.key] && !r.worlds[w.key].entered) {
+            r.worlds[w.key].entered = S.now ? S.now() : Date.now();
+            S._save(r);
+          }
+        }
+      }
+    }
+  } catch (e2) {}
+  return true;
 };
 
 GAME.TowerLoadingScene.prototype.create = function () {
@@ -281,8 +330,16 @@ GAME.TowerLoadingScene.prototype.create = function () {
   var bossNumeric = bossDef ? (GAME.UI.IS_LIGHT ? 0xB01F35 : 0xef4444) : C.controller;
   var titleColor = bossDef ? GAME.UI.TXT.danger : C.text;
 
-  var titleLbl = GAME.UI.label(this, W / 2, H * 0.10, this.tower + '층 진입', GAME.CONFIG.SMALL ? 26 : 34,
-    titleColor, 0.5).setOrigin(0.5, 0);
+  //  세계 진입 층(시즌2 S-W) — 제목 자체가 세계 이름이 된다. 층 번호는 뒤로.
+  var TC = GAME.TowerCurriculum;
+  var worldEntry = (TC && TC.isWorldEntry && this.tower && TC.isWorldEntry(this.tower))
+    ? TC.worldFor(this.tower) : null;
+  if (worldEntry) this._noteWorldEntry(worldEntry);
+  var titleText = worldEntry
+    ? ((worldEntry.icon ? worldEntry.icon + ' ' : '') + worldEntry.name + '  ·  ' + this.tower + '층')
+    : (this.tower + '층 진입');
+  var titleLbl = GAME.UI.label(this, W / 2, H * 0.10, titleText, GAME.CONFIG.SMALL ? 26 : 34,
+    worldEntry ? GAME.UI.TXT.accent || titleColor : titleColor, 0.5).setOrigin(0.5, 0);
   var subLbl = GAME.UI.label(this, W / 2, titleLbl.y + titleLbl.height + 6,
     hero ? hero.name + ' 출전' : '', GAME.CONFIG.SMALL ? 15 : 17, C.textDim, 0.5).setOrigin(0.5, 0);
 
@@ -323,7 +380,7 @@ GAME.TowerLoadingScene.prototype.create = function () {
   //    뜻이 아니다.
   //  ⚠ 데뷔 층이면 데뷔가 우선이다 — 그 층의 '새로운 것'은 그 적이다.
   var lesson = null;
-  if (!debutDef && GAME.Onboard) {
+  if (!debutDef && !worldEntry && GAME.Onboard) {
     lesson = GAME.Onboard.pick({
       floor: this.tower || 0,
       isBoss: !!(GAME.Tower && GAME.Tower.isBossFloor && this.tower &&
@@ -336,7 +393,13 @@ GAME.TowerLoadingScene.prototype.create = function () {
 
   var lines = [];
   if (objective) lines.push('🎯 ' + objective.label + ' — ' + objective.desc);
-  if (lesson) {
+  if (worldEntry) {
+    //  세계 진입 — **세계 이름과 규칙만** 크게. 데뷔 층과 같은 문법("가르칠 게 있으면
+    //  그것만"). 규칙 줄은 표(WORLD_INFO.rule)를, 전장 줄은 이 층의 실제 def 를 읽는다.
+    lines.push('🌍 새로운 세계 — ' + worldEntry.name);
+    if (worldEntry.rule) lines.push('규칙: ' + worldEntry.rule);
+    if (formation && formation.fieldLabel) lines.push((worldEntry.icon || '') + ' ' + formation.fieldLabel);
+  } else if (lesson) {
     //  가르칠 게 있으면 **이것만.** 배치 원형·층 조건·AI 가 읽은 내용·랜덤 팁은 뺀다.
     lines.push(lesson.title);
     lines.push(lesson.body);
@@ -365,6 +428,8 @@ GAME.TowerLoadingScene.prototype.create = function () {
     //  정보량은 유지하되 한 화면에는 한 종류만 온다. 못 만드는 종류면 다음으로 순환.
     var infoCand = [];
     if (bossDef) infoCand.push('☠ ' + bossDef.name + ' — ' + bossDef.desc);
+    //  전장 규칙(시즌2) — 보스 다음, 조건 앞. 이 층에 실제로 걸리는 def 를 읽은 한 줄이다.
+    if (formation && formation.fieldLabel) infoCand.push((formation.worldIcon || '🌍') + ' ' + formation.fieldLabel);
     if (formation && formation.ruleLabel) infoCand.push('⚠ ' + formation.ruleLabel + ' — ' + formation.ruleDesc);
     if (formation && formation.themeLabel) infoCand.push('🎪 ' + formation.themeLabel + ' — ' + (formation.themeHint || ''));
     for (var ic = 0; ic < infoCand.length && lines.length < 2; ic++) lines.push(infoCand[ic]);

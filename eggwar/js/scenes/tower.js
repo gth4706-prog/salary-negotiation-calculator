@@ -482,9 +482,11 @@ GAME.TowerScene.prototype._buildHeroSelect = function () {
   var sub = GAME.UI.label(this, W / 2, title.y + title.height + 4,
     '캐릭터를 삭제할 때까지 함께 갈 영웅을 선택해주세요.', 15, C.textDim, 0.5).setOrigin(0.5, 0);
 
-  var slots = GAME.HERO_ORDER.length + 1;   // +1 = 준비 중 슬롯
+  //  시즌2(2026-09-03): 영웅 다섯 — '준비 중' 빈 슬롯은 뺐다(카드 6장은 폰 가로에서
+  //  121px 로 좁아진다). 산수: PC 1340 → (1228 − 18×4)/5 = 231px · 폰 820 → (780 − 40)/5 = 148px.
+  var slots = GAME.HERO_ORDER.length;
   GAME.UI.label(this, W - PAD, u * 3.0,
-    GAME.HERO_ORDER.length + ' / ' + slots, 20, C.accent, 1).setOrigin(1, 0);
+    '영웅 ' + GAME.HERO_ORDER.length, 20, C.accent, 1).setOrigin(1, 0);
 
   // ── 탑 설명 패널 ──
   var panelY = sub.y + sub.height + u * 1.8;
@@ -616,7 +618,7 @@ GAME.TowerScene.prototype._buildHeroSelectPhone = function () {
   var panelW = W - PAD * 2;
   var bossDef = GAME.Tower.bossFor(floor);
   var E = GAME.Tower.EARLY_FLOORS;
-  var slots = GAME.HERO_ORDER.length + 1;
+  var slots = GAME.HERO_ORDER.length;       // 시즌2: 빈 '준비 중' 슬롯 없음(위 PC 판 주석)
 
   // ── ① 머리 ──
   UI.label(this, PAD, 12, '←  탑 소개', 15, C.textDim, 0)
@@ -624,7 +626,7 @@ GAME.TowerScene.prototype._buildHeroSelectPhone = function () {
     .on('pointerdown', function () { self.scene.restart({ step: 'landing' }); });
 
   UI.label(this, W / 2, 6, '캐릭터 선택', 26, C.text, 0.5).setOrigin(0.5, 0);
-  UI.label(this, W - PAD, 12, GAME.HERO_ORDER.length + ' / ' + slots, 17, C.accent, 1)
+  UI.label(this, W - PAD, 12, '영웅 ' + GAME.HERO_ORDER.length, 17, C.accent, 1)
     .setOrigin(1, 0);
 
   var infoY = 44;
@@ -848,6 +850,14 @@ GAME.TowerScene.prototype._buildChallenge = function () {
       : ('적 진형 ' + budget + '   ·   영웅만 고르면 시작   ·   최고 ' + (rec.best || 0) + '층'),
     P ? 15 : 19, C.text, 0.5)
     .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 30));
+
+  //  🌍 세계 한 줄 (시즌 2, S-F) — 지금 세계와 다음 세계까지 남은 층. 흐름(stack)에 들어가므로
+  //  아래 패널은 실측 높이만큼 내려가고, 넘치면 기존 축소 로직(panelMaxBottom)이 받는다.
+  var worldLine = this._worldLine(floor);
+  if (worldLine) {
+    stack(GAME.UI.label(this, W / 2, y, worldLine, P ? 13 : 14, C.accentAlt, 0.5)
+      .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(W - 30), u * 0.8);
+  }
 
   // 연습 구간 안내는 **1~3층에서만** 보여준다.
   var E = GAME.Tower.EARLY_FLOORS;
@@ -1184,6 +1194,13 @@ GAME.TowerScene.prototype._buildChallengePhone = function () {
     '적 진형 ' + budget + '   ·   최고 ' + (rec.best || 0) + '층',
     15, C.text, 0.5).setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(LW);
   ly = bl2.y + bl2.height + 4;
+  //  🌍 세계 한 줄 (시즌 2, S-F) — 폰은 짧은 형태('🌫 안개늪 · 잿더미까지 12층', 250px 기둥).
+  var wl = this._worldLine(floor);
+  if (wl) {
+    var wlt = UI.label(this, lcx, ly, wl, 15, C.accentAlt, 0.5)
+      .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(LW);
+    ly = wlt.y + wlt.height + 4;
+  }
 
   // 이 층의 원형·조건 — 도전 중에도 항상 뜬다(위 PC 레이아웃 주석 참조).
   this.floorTagText = UI.label(this, PAD, ly, '', 15, C.accent, 0).setWordWrapWidth(LW);
@@ -1263,6 +1280,32 @@ GAME.TowerScene.prototype._buildChallengePhone = function () {
   }
 
   this._refresh();
+};
+
+//  🌍 허브의 세계 한 줄 (시즌 2, S-F). 이름은 S-W 의 `GAME.TowerWorld.worldFor` 가 있으면
+//  그것을, 없으면 js/season.js 의 경계표(같은 값)를 쓴다. "다음 세계까지 남은 층"은 언제나
+//  Season 의 경계표로 센다. 둘 다 없으면 빈 문자열 — 호출부가 줄을 아예 안 만든다.
+GAME.TowerScene.prototype._worldLine = function (floor) {
+  var short = !!GAME.CONFIG.PHONE;
+  var TW = GAME.TowerWorld, S = GAME.Season;
+  try {
+    if (TW && TW.worldFor) {
+      var w = TW.worldFor(floor);
+      var name = w && (w.name || w.label);
+      if (name) {
+        var nf = (S && S.nextWorldFloor) ? S.nextWorldFloor(floor) : null;
+        var icon = w.icon || (S && S.worldOf ? S.worldOf(floor).icon : '');
+        var s = (icon ? icon + ' ' : '') + name;
+        //  세계 규칙 한 줄(S-W) — PC 만. 폰 250px 기둥에는 이름·다음 세계만 들어간다.
+        if (!short && w.short && w.key !== 'meadow') s += '  ·  ' + w.short;
+        if (nf && S) s += (short ? ' · ' : '  ·  다음 세계 ') + S.worldOf(nf).name + '까지 ' + Math.max(1, nf - floor) + '층';
+        else if (S) s += (short ? ' · ' : '  ·  ') + '마지막 세계';
+        return s;
+      }
+    }
+    if (S && S.hubLine) return S.hubLine(floor, { short: short });
+  } catch (e) {}
+  return '';
 };
 
 // 허브의 골드 표시 갱신. bump=true 면 골드 숫자가 튕기는 연출을 준다.

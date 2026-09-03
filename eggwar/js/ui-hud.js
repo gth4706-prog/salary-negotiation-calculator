@@ -114,11 +114,19 @@ window.GAME = window.GAME || {};
     return bands.length;
   }
 
-  // 통곡의 탑 — CLAUDE.md 의 실측 곡선을 그대로 구간으로 옮겼다.
-  //   1~3 연습 / 4~9 진짜 시작 / 10·20·30… 보스
+  // 통곡의 탑 — **세계 경계**(시즌2 「다섯 세계」, 2026-09-03 S-A).
+  //   0: 1~30 초원 · 1: 31~60 안개늪 · 2: 61~100 잿더미 · 3: 101~150 균열 · 4: 151+ 폭풍 하늘
+  //   보스 층은 한 단 위 색(최대 5). `UI.biomeFor`(바닥)·`floorBadge`(배지)·결과 화면이
+  //   전부 이 함수를 지나므로 **경계는 여기 한 곳**이다. 옛 [4,10,20,30,40] 은 폐기 —
+  //   플랜 §1 S-W: "UI.tierForFloor 경계 = 세계 경계". 이름(입문…초월)은 TIER 표 그대로다
+  //   (escalation·cost 도 같은 표를 쓴다). 세계 이름은 `UI.WORLD_BOUNDS` 로 따로 읽는다.
+  UI.WORLD_BOUNDS = [31, 61, 101, 151];
+  UI.WORLD_NAMES = ['초원', '안개늪', '잿더미', '균열', '폭풍 하늘'];
+  UI.worldIndexForFloor = function (floor) {
+    return band(Math.max(1, num(floor, 1)), UI.WORLD_BOUNDS);   // 0..4
+  };
   UI.tierForFloor = function (floor, isBoss) {
-    var f = Math.max(1, num(floor, 1));
-    var t = band(f, [4, 10, 20, 30, 40]);        // 0..5
+    var t = UI.worldIndexForFloor(floor);        // 0..4
     if (isBoss) t = Math.min(TIER.length - 1, t + 1);
     return UI.tier(t);
   };

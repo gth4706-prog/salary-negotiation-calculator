@@ -40,6 +40,7 @@ GAME.RtLobbyScene.prototype.init = function () {
   this._quickAt = 0;            // 빠른 대전 시작 시각 — 60초 넘으면 연습 대전 제안
   this._quickTxt = null;
   this._quickEv = null;
+  this._coop = null;            // 협동 보스전(S-C) — { world, floor }. 방장이 만들거나 방 이름에서 읽는다
 };
 
 GAME.RtLobbyScene.prototype.create = function () {
@@ -125,6 +126,12 @@ GAME.RtLobbyScene.prototype.create = function () {
     this._mkBtns.push(UI.button(this, W / 2 + qw2 / 2 + 4, qy, qw2, bh, '🤖 연습 대전',
       function () { self._practice(); }));
   }
+  //  ── 협동 보스전 (시즌 2 S-C) — 세계 선택 → 봇 파트너로 바로 / 방 만들어 초대 ──
+  //  빠른·연습 줄 **위** 한 줄. 폰(390 높이): 목록 2행 바닥 209 · 이 줄 윗변 215 — 겹치지 않는다.
+  var cy2 = qy - bh - 8;
+  this._mkBtns.push(UI.button(this, W / 2, cy2, PH ? Math.min(W - 60, 696) : qw, bh,
+    '🤝 협동 보스전 (2인 · 혼자면 봇 파트너)', function () { self._coopStart(); },
+    { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller, fontSize: PH ? 14 : 16 }));
 
   var mh = PH ? 40 : Math.max(UI.BTN_H_SM || 52, u * 7);
   UI.button(this, PH ? 64 : 76, PH ? 26 : Math.max(mh / 2 + 6, u * 3.4), PH ? 100 : 120, mh,
@@ -177,9 +184,12 @@ GAME.RtLobbyScene.prototype._refreshList = function () {
     var maxRows = GAME.CONFIG.PHONE ? 2 : 4;
     res.rooms.slice(0, maxRows).forEach(function (r, i) {
       var rh = GAME.CONFIG.PHONE ? 46 : 58;
+      //  협동 방(S-C)은 이름에 세계를 싣는다 — 목록에서 보이고, 들어가면 그 세계로 굳는다.
+      var cp = GAME.RtCoop ? GAME.RtCoop.parseRoomName(r.name) : null;
+      var tag = cp ? ('🤝 ' + GAME.RtCoop.label(cp.world) + '   ·   ') : '';
       var b = UI.button(self, W / 2, self._listTop + 36 + i * (rh + 8), Math.min(W - 30, 560), rh,
-        '방 ' + r.code + '   ·   ' + r.host + '   ·   ' + r.members + '/2명',
-        function () { GAME.NetRoom.join(r.code); }, { fontSize: 14 });
+        tag + '방 ' + r.code + '   ·   ' + r.host + '   ·   ' + r.members + '/2명',
+        function () { self._coop = cp; GAME.NetRoom.join(r.code); }, { fontSize: 14 });
       self._rows.push(b.rect || b); if (b.text) self._rows.push(b.text);
     });
   });
@@ -256,6 +266,15 @@ GAME.RtLobbyScene.prototype._onRoom = function () {
     (NR.peers.length < 2 ? '\n상대를 기다리는 중 — 코드를 알려주세요' :
       (bestRt != null ? '\n왕복 지연 ' + Math.round(bestRt) + 'ms' +
         (GAME.NetRtc && GAME.NetRtc.ready() ? ' (직결)' : ' (서버 경유)') : '')));
+  //  협동(S-C) — 역할은 둘 다 컨트롤러로 굳는다. 방장은 세계를 상대에게 매번 알린다(입장
+  //  시점이 달라 한 번만 보내면 놓친다 — rtRole 과 같은 멱등 재전송).
+  if (this._coop) {
+    this._myRole = 'controller';
+    if (NR.me === NR.host) NR.relay({ type: 'rtCoop', world: this._coop.world, floor: this._coop.floor });
+    if (this._roleBtnS) [this._roleBtnS, this._roleBtnC].forEach(function (b) {
+      [b.gfx, b.rect, b.text].forEach(function (e) { if (e && e.setVisible) e.setVisible(false); });
+    });
+  }
   //  빠른 대전 — 상대가 들어오면 역할·준비를 자동으로 잡는다(사람이 누를 것이 없다).
   //  방장=컨트롤러 · 손님=전략가(저장 배치가 있을 때만, 없으면 컨트롤러). 상대가
   //  수동으로 들어온 사람이어도 내 쪽만 자동이면 충분하다.
@@ -285,6 +304,8 @@ GAME.RtLobbyScene.prototype._pickRole = function (role) {
 GAME.RtLobbyScene.prototype._roleOk = function () {
   //  2026-08-21 태현님: 컨트롤러끼리도, 전략가가 손님이어도 싸울 수 있어야 한다.
   //  전략가 vs 전략가만 아직 막는다 — 영웅 없는 화면(HUD·시점)이 준비되지 않았다.
+  //  협동(S-C) — 역할 검사가 없다. 둘 다 컨트롤러.
+  if (this._coop) return GAME.NetRoom.peers.length < 2 ? '파트너를 기다리는 중' : null;
   if (!this._myRole) return '역할을 고르세요';
   if (this._theirRole === 'strategist' && this._myRole === 'strategist')
     return '전략가끼리의 대전은 다음 업데이트에서 — 한쪽은 컨트롤러로';
@@ -305,6 +326,13 @@ GAME.RtLobbyScene.prototype._refreshRoleUi = function () {
   mark(this._roleBtnS, this._myRole === 'strategist', GAME.CONFIG.COLORS.strategist);
   mark(this._roleBtnC, this._myRole === 'controller', GAME.CONFIG.COLORS.controller);
   var why = this._roleOk();
+  if (this._coop) {
+    //  협동 — 역할 줄 대신 세계·보스 층을 말한다.
+    var cl = GAME.RtCoop ? GAME.RtCoop.label(this._coop.world) : this._coop.world;
+    this._roleTxt.setText('🤝 협동 보스전 — ' + cl + ' ' + this._coop.floor + '층 보스' +
+      (why ? ('\n' + why) : '\n둘 다 컨트롤러 · 준비를 누르면 시작됩니다'));
+    return;
+  }
   var mine = this._myRole === 'strategist' ? '나: 🛡 전략가' :
              this._myRole === 'controller' ? '나: ⚔ 컨트롤러' : '나: (선택 전)';
   var theirs = this._theirRole === 'strategist' ? '상대: 🛡 전략가' :
@@ -333,6 +361,13 @@ GAME.RtLobbyScene.prototype._onRelay = function (from, data) {
   if (data.type === 'rtRole') {
     this._theirRole = data.role || null;
     this._refreshRoleUi();
+  } else if (data.type === 'rtCoop' && data.world) {
+    //  협동 방(S-C) — 방장이 알린 세계로 굳는다(코드 입장이라 목록을 안 거친 손님도 안다).
+    var fl = parseInt(data.floor, 10) || (GAME.RtCoop ? GAME.RtCoop.floorOf(data.world) : 30);
+    this._coop = { world: String(data.world), floor: fl };
+    this._myRole = 'controller';
+    this._theirRole = 'controller';
+    this._onRoom();
   }
 };
 
@@ -340,8 +375,66 @@ GAME.RtLobbyScene.prototype._onRelay = function (from, data) {
 GAME.RtLobbyScene.prototype._onStart = function (msg) {
   if (this._started) return;
   this._started = true;
-  GAME.RtFlow.begin(this._myRole, this._theirRole, msg);
+  if (this._coop) GAME.RtFlow.beginCoop(this._coop, msg);
+  else GAME.RtFlow.begin(this._myRole, this._theirRole, msg);
   this.scene.start('RtPrep');
+};
+
+// ── 협동 보스전 (시즌 2 S-C) — 세계 고르기 → 봇 파트너로 바로 / 방 만들기 / 코드 입장 ──
+//  세계는 **도달한 곳까지**만 열린다(RtCoop.worlds — 탑 최고층·시즌 진입). 잠긴 세계는
+//  숨기지 않고 회색 + 🔒(수성의 탑 해금 사다리와 같은 규율: 숨기면 목표가 안 된다).
+GAME.RtLobbyScene.prototype._coopStart = function () {
+  var self = this;
+  if (this._joined || !GAME.RtCoop || !GAME.Modal) return;
+  var ws = GAME.RtCoop.worlds();
+  if (!ws.length) { this._setStatus('⚠ 시즌 세계 표가 없습니다'); return; }
+  GAME.Modal.open(this, {
+    title: '🤝 협동 보스전 — 세계',
+    items: ws.map(function (w) {
+      var bk = GAME.RtCoop.bossKeyFor(w.floor), bd = GAME.UNITS[bk];
+      return { key: w.key, disabled: !w.open,
+               name: (w.open ? '' : '🔒 ') + w.icon + ' ' + w.name + '  ·  ' + w.floor + '층',
+               note: w.open ? ('보스: ' + (bd ? bd.name : '?') + ' · 둘이서 180초 안에 처치')
+                            : ('통곡의 탑 ' + w.from + '층에 닿으면 열립니다') };
+    }),
+    onPick: function (it) {
+      var w = GAME.RtCoop.worldOf(it.key);
+      if (!w || !w.open) return;
+      GAME.Modal.close();
+      self._coopMode(w);
+    }
+  });
+};
+
+GAME.RtLobbyScene.prototype._coopMode = function (w) {
+  var self = this;
+  var coop = { world: w.key, floor: w.floor };
+  GAME.Modal.open(this, {
+    title: '🤝 ' + w.icon + ' ' + w.name + ' ' + w.floor + '층 — 누구와?',
+    items: [
+      { key: 'bot',  name: '🤖 바로 시작 (봇 파트너)', note: '혼자여도 됩니다 — 봇이 같은 편 영웅을 맡습니다' },
+      { key: 'room', name: '🏟 방 만들기 (친구 초대)', note: '방 코드를 알려주면 친구가 파트너로 들어옵니다' },
+      { key: 'code', name: '🔑 코드로 입장',            note: '친구가 만든 협동 방에 들어갑니다' }
+    ],
+    onPick: function (it) {
+      GAME.Modal.close();
+      if (it.key === 'bot') {
+        GAME.RtFlow.beginLocalCoop(coop, GAME.RtCoop.BOT_LEVEL);
+        self._started = true;             //  shutdown 이 방을 정리하지 않게(방 없음)
+        self.scene.start('RtPrep');
+      } else if (it.key === 'room') {
+        if (self._joined) return;
+        self._coop = coop;
+        self._setStatus('협동 방을 만드는 중…');
+        GAME.NetRoom.createRoom({ name: GAME.RtCoop.roomName(coop.world, coop.floor) }, function (err, room) {
+          if (err) { self._coop = null; self._setStatus('⚠ 방 만들기 실패: ' + err.message); return; }
+          GAME.NetRoom.join(room.code);
+        });
+      } else {
+        self._askCode();
+      }
+    }
+  });
 };
 
 // ── 연습 대전(봇) — 난이도를 고르고 준비 화면으로 (v3.0, 2026-09-02) ──────────
@@ -371,7 +464,10 @@ GAME.RtLobbyScene.prototype._quickMatch = function () {
   this._setStatus('⚡ 상대를 찾는 중…');
   GAME.NetRoom.listRooms(function (err, res) {
     if (!self.scene || !self.scene.isActive()) return;
-    var open = (res && res.rooms || []).filter(function (r) { return (r.members || 0) < 2; });
+    //  협동 방(S-C)은 빠른 대전 짝이 아니다 — 목록에서 뺀다.
+    var open = (res && res.rooms || []).filter(function (r) {
+      return (r.members || 0) < 2 && !(GAME.RtCoop && GAME.RtCoop.parseRoomName(r.name));
+    });
     if (!err && open.length) { GAME.NetRoom.join(open[0].code); return; }
     GAME.NetRoom.createRoom({}, function (e2, room) {
       if (!self.scene || !self.scene.isActive()) return;

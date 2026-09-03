@@ -63,6 +63,10 @@ GAME.BattleScene.prototype.init = function (data) {
   //  실시간 점수 정산이 조용히 빠지고(_rtScored 잔류) 방 유지 플래그가 샌다.
   this._rtScored = false;
   this._rtKeepRoom = false;
+  //  협동(S-C) — 피해 추적 원복 함수·파트너 체력바. 씬 재사용이라 여기서 되돌린다.
+  this._coopRestore = null;
+  this._coopBar = null;
+  this._coopFormation = null;
   this.markers = [];
 
   // 휠 줌 상태 — **씬 인스턴스는 재사용된다.** 여기서 되돌리지 않으면 다음 판이
@@ -107,10 +111,18 @@ GAME.BattleScene.prototype.init = function (data) {
 };
 
 GAME.BattleScene.prototype.create = function () {
-  if (GAME.Music) GAME.Music.stop();
-  // 보스 등장 스팅어 — 통곡의 탑 보스 층 전투가 시작되는 순간에만 운다.
-  // `this.formation.boss` 는 js/tower.js 가 보스 층 진형에만 심는 키다(일반 층엔 없다).
-  if (this.formation && this.formation.boss && GAME.Sound) GAME.Sound.play('bossRoar');
+  //  ── 전투 음악 (2026-09-03 시즌2 S-S/S-A) ─────────────────────────────────────
+  //  통곡의 탑은 **세계 곡의 base 레이어만 0.15** 로 깔고(playBattle — 타격 대역은 EQ 로
+  //  비운다), 긴장 겹(tense)은 updateHud 가 영웅 체력·보스 페이즈로 올린다. 협동 판은
+  //  S-C 가 `coop.world` 를 들고 온다. 그 밖(대전·수성·실시간)은 예전대로 음악을 끈다 —
+  //  타격·경고음이 이 게임의 신호다.
+  if (GAME.Music) {
+    var _wk = this.tower ? GAME.Music.worldKeyFor(this.tower)
+            : (this.rt && this.rt.coop && this.rt.coop.world) ? this.rt.coop.world : null;
+    if (_wk && GAME.Music.playBattle) GAME.Music.playBattle(_wk); else GAME.Music.stop();
+  }
+  //  보스 포효는 `_setupBossIntro` 한 곳에서만 낸다(예전엔 여기서도 불러 같은 프레임에
+  //  두 번 울렸다 — sound.js 가 1.2초 게이트로 막고 있었지만 호출부를 하나로 정리했다).
   var C = GAME.CONFIG.COLORS;
   var self = this;
 
@@ -126,6 +138,13 @@ GAME.BattleScene.prototype.create = function () {
   this._zoomOn = !GAME.isTouch;
   this.worldLayer = this.add.container(0, 0);
   this.worldLayer.add(this.g);
+  //  전장 규칙의 **유닛 위** 겹(시즌2 S-A) — 안개 마스크·바람 줄기·낙뢰 번쩍. 유닛 g 뒤에
+  //  더해 위에 오게 하고, draw 의 마지막에서 bringToTop 으로 매 프레임 맨 위를 보증한다
+  //  (보스 시트 Image 가 나중에 worldLayer 에 mount 되므로 순서만으로는 못 지킨다).
+  this._overG = this.add.graphics();
+  this.worldLayer.add(this._overG);
+  this._fieldOpts = { focus: { x: 0, y: 0 }, sightR: 0 };   // drawField 에 넘길 모듈 버퍼(매 프레임 할당 금지)
+  this._tenseAt = 0;
 
   this.state = GAME.Combat.createState();
   //  전투 속도(PACE)는 통곡의 탑 전용 — createState 가 끄고, 여기서만 켠다.
@@ -140,8 +159,9 @@ GAME.BattleScene.prototype.create = function () {
     GAME.Combat.seedRng(this.rt.seed);
     this.state.pvpRealtime = true;
     //  맵 변형(2026-08-31 태현님 ④) — 같은 시드라 양쪽이 같은 맵을 고른다.
-    if (GAME.RtMaps) this.state.rtMap = GAME.RtMaps.forSeed(this.rt.seed);
-    this._rtCompose();
+    //  협동(S-C)은 세계 보스 층 전장이라 대전 맵을 안 깐다(전장 규칙은 RtCoop.spawn 이 얹는다).
+    if (GAME.RtMaps && !this.rt.coop) this.state.rtMap = GAME.RtMaps.forSeed(this.rt.seed);
+    if (this.rt.coop) this._rtComposeCoop(); else this._rtCompose();
   }
 
   // 난이도 — 탑은 층수로, 일반 대전은 격파 횟수(escalation)로 강해진다
@@ -173,6 +193,12 @@ GAME.BattleScene.prototype.create = function () {
                              GAME.Tower.isBossFloor(this.tower));
   this.towerRuleInfo = this.tower && GAME.TowerRule
     ? GAME.TowerRule.ruleFor(this.tower) : null;
+  //  전장 규칙(시즌2 S-W · 다섯 세계) — 세계마다 다른 `state.towerField`. 초원은 null,
+  //  보너스 판은 싣지 않는다. 그리기는 S-A(`state.fieldFx`), 갱신은 Combat.update 가 한다.
+  if (this.tower && !this.towerBonus && GAME.TowerCurriculum && GAME.TowerCurriculum.fieldFor) {
+    var fdW = GAME.TowerCurriculum.fieldFor(this.tower);
+    if (fdW) GAME.Combat.setField(this.state, fdW);
+  }
   // 층 목표는 **유닛이 다 만들어진 뒤** 붙여야 한다(우두머리를 고르려면 적이 있어야 한다).
   // → 아래 진형 생성이 끝난 자리에서 `TowerObjective.attach` 를 부른다.
   var bias = (lrec.adapt && lrec.adapt.rallyBias) || 0;
@@ -296,6 +322,8 @@ GAME.BattleScene.prototype.create = function () {
     // 단위 자체가 없어졌으니 "이번 판에서 주운 것만 이번 판에 듣는다"로 자연히
     // 단순해졌다 — orb.js/towerboon.js 는 한 줄도 안 건드렸다.
     if (GAME.TowerBoon) this.state.boons = GAME.TowerBoon.hooksFor({ boons: [] });
+    // 시즌2 특성(js/traits.js) — 축복과 같은 훅 묶음에 영구로 얹는다(S-H 통합 항목).
+    if (GAME.Traits && GAME.Traits.attach) GAME.Traits.attach(this.state, tc);
   }
   // ── 대전 컨트롤러 (2026-08-01 개편) ────────────────────────────────────────
   //  **능력치 강화는 없앴다**(사용자 지시). 강해지는 길은 아이템 하나뿐이다.
@@ -534,12 +562,19 @@ GAME.BattleScene.prototype.create = function () {
         }
       },
       //  팀 라벨(controller/strategist)마다 그 팀의 영웅 — 없으면 null(진형만인 팀).
-      heroOf: function (side) { return (rtSelf._rtHeroes && rtSelf._rtHeroes[side]) || null; },
+      //  협동은 자리(seat)+영웅 번호(h)로 고른다(_rtHeroOf 주석).
+      heroOf: function (side, h) { return rtSelf._rtHeroOf(side, h); },
       onDesync: function (t) {
         rtSelf.state.over = true; rtSelf.state.winner = null;
         rtSelf._rtNote = '동기화가 어긋나 판이 무효가 되었습니다';
       }
     });
+    //  협동(S-C) — 내 입력에는 언제나 내 영웅 번호를 싣는다(입력 경로 셋: order·skill·potion).
+    //  1:1 판은 이 줄을 안 지나므로 queueLocal 이 예전과 한 비트도 안 다르다.
+    if (this.rt.coop) {
+      var ql0 = this._rtSession.queueLocal.bind(this._rtSession), myHid = this._rtMyHeroId;
+      this._rtSession.queueLocal = function (cmd, h) { return ql0(cmd, h === undefined ? myHid : h); };
+    }
     //  order.target 은 유닛 참조라 직렬화 불가 — 인덱스로 보내고 여기서 되살린다.
     var apply0 = this._rtSession._apply.bind(this._rtSession);
     this._rtSession._apply = function (hero, cmd) {
@@ -559,7 +594,11 @@ GAME.BattleScene.prototype.create = function () {
       }
       apply0(hero, cmd);
     };
-    if (this.rt.local) {
+    if (this.rt.local && this.rt.coop) {
+      //  협동 봇 파트너(S-C) — 같은 팀 영웅 h:1 을 'controller' 자리 큐에 h 를 실어 조종한다.
+      this._rtBot = GAME.RtBot.create(this.state, this._rtSession, 'controller', this.rt.botLevel,
+                                      { coop: true, heroId: 1 });
+    } else if (this.rt.local) {
       //  연습 대전(봇, v3.0) — 네트워크 콜백을 걸지 않는다. 상대 영웅은 봇 두뇌가
       //  록스텝 명령 큐로 조종하고, update 가 매 프레임 상대 확정 틱을 밀어 준다.
       var botTeam = this.rt.meTeam === 'controller' ? 'strategist' : 'controller';
@@ -573,9 +612,9 @@ GAME.BattleScene.prototype.create = function () {
       GAME.NetRoom.on.close = function (info) {
         if (!rtSelf.state.over) {
           rtSelf.state.over = true;
-          //  상대가 나가면 남은 쪽(내 팀) 승리.
-          rtSelf.state.winner = rtSelf.rt.meTeam;
-          rtSelf._rtNote = '상대의 연결이 끊겼습니다';
+          //  상대가 나가면 남은 쪽(내 팀) 승리. 협동은 파트너가 나가면 판이 안 선다 — 패(보상 없음).
+          rtSelf.state.winner = rtSelf.rt.coop ? 'strategist' : rtSelf.rt.meTeam;
+          rtSelf._rtNote = rtSelf.rt.coop ? '파트너의 연결이 끊겼습니다' : '상대의 연결이 끊겼습니다';
         }
       };
     }
@@ -609,6 +648,7 @@ GAME.BattleScene.prototype.create = function () {
       rtSelf._rtBot = null;
       rtSelf._rtShadow = null;
       rtSelf._rtSession = null;
+      if (rtSelf._coopRestore) { rtSelf._coopRestore(); rtSelf._coopRestore = null; }
     });
     //  스킬·물약 — 그림자를 겨눈 호출만 큐로 돌린다(락스텝 _apply 의 진짜 호출은 통과).
     if (!GAME.Combat._rtWrapped) {
@@ -676,7 +716,7 @@ GAME.BattleScene.prototype.create = function () {
           GAME.NetRoom.send({ t: 'relay', data: pkt });
         }
       },
-      heroOf: function (side) { return (rtSelf2._rtHeroes && rtSelf2._rtHeroes[side]) || null; },
+      heroOf: function (side, h) { return rtSelf2._rtHeroOf(side, h); },
       onDesync: function () {
         rtSelf2.state.over = true; rtSelf2.state.winner = null;
         rtSelf2._rtNote = '동기화가 어긋나 판이 무효가 되었습니다';
@@ -775,6 +815,8 @@ GAME.BattleScene.prototype.create = function () {
     tierIndex: tierObj.i,
     tierLabel: tierLabel
   });
+  //  협동(S-C) — 파트너 영웅 체력바(내 것 옆 작게). 자리는 updateHud 가 실측한다.
+  if (this.rt && this.rt.coop) this._buildCoopHud();
 
   // HUD 를 위에 깔았으니 그 **실측 바닥** 아래부터 아레나를 펼친다.
   // 보스 층은 HUD 가 30px 더 높다 — 고정값으로 잡으면 그때만 전장이 HUD 를 파고든다.
@@ -1195,6 +1237,8 @@ GAME.BattleScene.prototype._setupBossIntro = function () {
   this._introHold = HOLD;
 
   if (GAME.Sound) GAME.Sound.play('bossRoar');
+  //  보스 등장 스팅어(시즌2 S-S) — 포효(짐승의 소리) 위에 북과 뿔이 그 존재를 알린다. 2.6초 = HOLD.
+  if (GAME.Music && GAME.Music.sting) { try { GAME.Music.sting('bossAppear'); } catch (e) {} }
 
   //  줌 — 보스의 화면 좌표를 닻으로 확대했다가 돌아온다. worldLayer 밖(HUD·바·
   //  글자)은 구조적으로 같이 커질 수 없다(휠 줌과 같은 경로).
@@ -1899,6 +1943,10 @@ GAME.BattleScene.prototype.drawNumbers = function () {
 };
 
 GAME.BattleScene.prototype.update = function (time, delta) {
+  //  렌더 시계(GAME.Iso.now) — eggart 의 벡터 보스 애니·방어 태세 맥동·표식 부적이 읽는다.
+  //  시즌2 S-E 버그 수정: 지금까지 아무도 대입하지 않아 0 에 멈춰 있었다. Phaser `time`
+  //  (단조 증가)을 넣는다 — 씬을 오가도 뒤로 안 간다. 시뮬·록스텝에는 안 닿는다.
+  if (GAME.Iso && GAME.Iso.tick) GAME.Iso.tick(time);
   var dt = Math.min(delta, 50);
 
   //  ── 결정타 슬로모 (2026-09-02 C 갈래) ──────────────────────────────────────
@@ -2006,7 +2054,8 @@ GAME.BattleScene.prototype.update = function (time, delta) {
           Math.min(GAME.CONFIG.WIDTH - 60, 360), 54, '🚪 대전 나가기 (상대 응답 없음)', function () {
             if (exSelf.state.over) return;
             exSelf.state.over = true;
-            exSelf.state.winner = exSelf.rt.meTeam;   // 잠수는 남은 쪽 승리 — 연결 끊김과 같은 규칙
+            //  잠수는 남은 쪽 승리 — 연결 끊김과 같은 규칙. 협동은 파트너 잠수 = 판 불성립(패).
+            exSelf.state.winner = exSelf.rt.coop ? 'strategist' : exSelf.rt.meTeam;
             exSelf._rtNote = '상대가 응답하지 않아 판을 끝냈습니다';
           });
         [this._rtExitBtn.gfx, this._rtExitBtn.rect, this._rtExitBtn.text].forEach(function (e) {
@@ -2193,6 +2242,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   }
 
   this._dt = dt;          // 걸음걸이·공격 모션 위상 계산용 (렌더에서만 쓴다)
+  this._seasonFx();       // 시즌2 렌더 관측 — 페이즈 핑·전장 규칙 사건의 소리·흔들림·리본(렌더 전용)
   this.draw();
   this.drawNumbers();
   this.updateHud();
@@ -2206,7 +2256,8 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     if (GAME.Sound && GAME.Sound.haptic) {
       var wn = this.state.winner;
       if (wn === 'controller' || wn === 'strategist') {
-        var mySide = this.rt ? this.rt.meTeam : 'controller';
+        //  협동은 둘 다 'controller' 팀(meTeam 은 록스텝 자리).
+        var mySide = this.rt ? (this.rt.coop ? 'controller' : this.rt.meTeam) : 'controller';
         GAME.Sound.haptic(wn === mySide ? 'win' : 'lose');
       }
     }
@@ -2465,7 +2516,40 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
       this._rtKeepRoom = true;
     }
     var rtResult = null;
-    if (this.rt && this.rt.local && !this._rtScored) {
+    if (this.rt && this.rt.coop && !this._rtScored) {
+      //  ── 협동 보스전 (S-C) — 실시간 점수와 다른 축. 승 = 세계 포인트 + 골드 ─────
+      //  둘 다 'controller' 팀이라 승패는 팀으로 본다(meTeam 은 록스텝 자리).
+      //  데싱크(승자 null)는 무효 — 보상 없음. 봇 파트너 판도 정식 협동 승이다(태현님: 혼자여도 됨).
+      this._rtScored = true;
+      var coopHs = (this._rtHeroes && this._rtHeroes.controller) || [];
+      var coopWon = this.state.winner === 'controller';
+      var coopInvalid = this.state.winner === null;
+      var dealt = [];
+      for (var chi = 0; chi < coopHs.length; chi++) dealt.push(Math.round(coopHs[chi]._coopDealt || 0));
+      rtResult = {
+        coop: true, won: coopWon && !coopInvalid, invalid: coopInvalid,
+        world: this.rt.coop.world, floor: this.rt.coop.floor,
+        sec: Math.round((this.state.elapsed || 0) / 1000),
+        timeUp: !!this.state.timeUp,
+        mine: this._rtMyHeroId || 0, dealt: dealt,
+        heroKeys: coopHs.map(function (hh) { return hh.hero ? hh.hero.key : ''; }),
+        partnerBot: !!this.rt.local, botLevel: this.rt.local ? (this.rt.botLevel || 'normal') : null,
+        gold: 0, points: 0, delta: 0, note: this._rtNote || null
+      };
+      if (rtResult.won) {
+        //  골드 — TowerChar 가 있을 때만(캐릭터가 없으면 줄 곳이 없다 — 결과가 그렇게 말한다).
+        try {
+          if (GAME.RtCoop && GAME.TowerChar && GAME.TowerChar.exists && GAME.TowerChar.exists()) {
+            rtResult.gold = GAME.RtCoop.goldFor(this.rt.coop.floor);
+            if (rtResult.gold > 0) GAME.TowerChar.addGold(rtResult.gold);
+          }
+        } catch (e) { rtResult.gold = 0; }
+        rtResult.points = (GAME.Season && GAME.Season.POINTS) ? (GAME.Season.POINTS.coop || 0) : 0;
+      }
+      if (GAME.RtScore && GAME.RtScore.coopRecord && !coopInvalid) {
+        try { rtResult.best = GAME.RtScore.coopRecord(this.rt.coop.world, rtResult.won, rtResult.sec); } catch (e2) {}
+      }
+    } else if (this.rt && this.rt.local && !this._rtScored) {
       //  연습 대전 — 점수 무정산. 결과 화면이 "연습" 으로 말하고 [다시] 를 준다.
       this._rtScored = true;
       rtResult = { won: this.state.winner === this.rt.meTeam, delta: 0,
@@ -2526,14 +2610,24 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         if (orbN > 0) AE.emit('orb', { n: orbN });
         if (this.tower && won && !this.towerReplay) AE.emit('towerClear', { floor: this.tower });
         if (this.versus && won) AE.emit('siegeWin', {});
-        if (rtResult && !rtResult.invalid && !rtResult.practice)
+        if (rtResult && !rtResult.invalid && !rtResult.practice && !rtResult.coop)
           AE.emit('rtResult', { won: !!rtResult.won, practice: false });
+        //  ── 시즌 2 (S-C 배선) — 같은 자리에서 한 번. Season.emit 이 세계 포인트를 스스로
+        //  적립한다(towerClear → 진입/보스, coopWin → +POINTS.coop) — earnWorldPoint 를
+        //  따로 부르면 두 번 센다(season-audit 가 +1 을 못박는다).
+        if (this.tower && won && !this.towerReplay && GAME.Season && GAME.Season.emit)
+          GAME.Season.emit('towerClear', { floor: this.tower });
+        if (rtResult && rtResult.coop && rtResult.won && !rtResult.invalid) {
+          AE.emit('coopWin', { world: rtResult.world });
+          if (GAME.Season && GAME.Season.emit) GAME.Season.emit('coopWin', { world: rtResult.world });
+        }
         if (GAME.Daily && GAME.Daily.emit) {
           if (kills > 0) GAME.Daily.emit('kill', { n: kills });
           if (bossDead && won) GAME.Daily.emit('bossKill', {});
           if (orbN > 0) GAME.Daily.emit('orb', { n: orbN });
           if (this.tower && won && !this.towerReplay) GAME.Daily.emit('towerClear', { floor: this.tower });
-          if (rtResult && !rtResult.invalid) GAME.Daily.emit('rtResult', { won: !!rtResult.won, practice: !!rtResult.practice });
+          if (rtResult && !rtResult.invalid && !rtResult.coop) GAME.Daily.emit('rtResult', { won: !!rtResult.won, practice: !!rtResult.practice });
+          if (rtResult && rtResult.coop && rtResult.won && !rtResult.invalid) GAME.Daily.emit('coopWin', { world: rtResult.world });
         }
         //  플레이어 XP(v3.0 A) — 같은 이벤트를 나란히.
         if (GAME.Progress && GAME.Progress.emit) {
@@ -2543,8 +2637,9 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
           if (orbN > 0) PG.emit('orb', { n: orbN });
           if (this.tower && won && !this.towerReplay) PG.emit('towerClear', { floor: this.tower });
           if (this.versus && won) PG.emit('siegeWin', {});
-          if (rtResult && !rtResult.invalid && !rtResult.practice)
+          if (rtResult && !rtResult.invalid && !rtResult.practice && !rtResult.coop)
             PG.emit('rtResult', { won: !!rtResult.won, practice: false });
+          if (rtResult && rtResult.coop && rtResult.won && !rtResult.invalid) PG.emit('coopWin', { world: rtResult.world });
         }
       } catch (e) { /* 메타는 전투를 절대 막지 않는다 */ }
     }
@@ -2586,9 +2681,10 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         test: self.test,
         arenaResult: arenaResult,
         rtResult: rtResult,
-        //  재대결용 — 방이 살아 있을 때만. 역할은 지난 판 그대로 잇는다.
+        //  재대결용 — 방이 살아 있을 때만. 역할은 지난 판 그대로 잇는다(협동은 세계·층도).
         rtLive: (self._rtKeepRoom && self.rt && self.rt.my) ? {
-          myRole: self.rt.my.role, theirRole: self.rt.their.role
+          myRole: self.rt.my.role, theirRole: self.rt.their.role,
+          coop: self.rt.coop ? { world: self.rt.coop.world, floor: self.rt.coop.floor } : null
         } : null,
         //  ⚠ 이 콜백의 this 는 씬이 아니라 타이머다 — this.state 로 썼다가 결과 전환이
         //  통째로 죽어 **모든 전투가 끝나는 순간 얼어붙었다**(v2.43~46 회귀, RT 실측이 잡음).
@@ -2650,7 +2746,8 @@ GAME.BattleScene.prototype._juice = function (dt) {
       //  얼굴 방향으로 벤다. 8방향 스냅은 그림용이고 여기는 연속값이 자연스럽다.
       this._swings.push({
         x: h.x, y: h.y, ang: (h.facing === undefined ? -Math.PI / 2 : h.facing),
-        r: (h.def.range || 90) * 1.30, t: 170, total: 170, key: h.type
+        r: ((GAME.Combat.effRange ? GAME.Combat.effRange(h, this.state) : h.def.range) || 90) * 1.30,
+        t: 170, total: 170, key: h.type
       });
       if (this._swings.length > 4) this._swings.shift();   // 연타에서 쌓이지 않게
     }
@@ -2861,8 +2958,23 @@ GAME.BattleScene.prototype._onEmote = function (k) {
   var F = GAME.Feel;
   if (!F || !F.emoteValid(k) || !this.rt) return;
   var theirs = this.rt.meTeam === 'controller' ? 'strategist' : 'controller';
-  var hero = (this._rtHeroes && this._rtHeroes[theirs]) || null;
+  var hero = this._rtHeroOf(theirs);
   this._showBubble(hero, F.EMOTES[k]);
+};
+
+//  자리(seat)·영웅 번호(h) → 시뮬 영웅. 록스텝 heroOf(side, heroId) 계약의 battle 쪽 구현.
+//  1:1 판: `_rtHeroes[seat]`(예전 그대로 — h 는 안 실린다). 협동: `_rtHeroes.controller` 가
+//  [방장 영웅, 손님/봇 영웅] 배열이고 h 로 고른다. h 가 없으면 자리로 — 'controller' 자리 = 0,
+//  'strategist' 자리 = 1(손님). 모르는 h 는 첫 영웅(엔진 계약).
+GAME.BattleScene.prototype._rtHeroOf = function (seat, h) {
+  var H = this._rtHeroes;
+  if (!H) return null;
+  if (H.coop) {
+    var arr = H.controller || [];
+    var idx = (h === undefined || h === null) ? (seat === 'controller' ? 0 : 1) : (h | 0);
+    return arr[idx] || arr[0] || null;
+  }
+  return H[seat] || null;
 };
 
 //  말풍선 하나를 띄운다. 같은 주인의 것이 떠 있으면 바꿔 단다(겹쳐 쌓이지 않게).
@@ -3226,8 +3338,9 @@ GAME.BattleScene.prototype.updateHud = function () {
   var h = this.hero;
   var TOTAL = this.state.dodgeMode
     ? (this.state.dodgeUntil || 45000) / 1000
-    : GAME.CONFIG.BATTLE_TIME;
+    : (this.state.coop ? (this.state.coopTimeMs || 180000) / 1000 : GAME.CONFIG.BATTLE_TIME);
   var remain = Math.max(0, TOTAL - this.state.elapsed / 1000);
+  if (this._coopBar) this._updateCoopHud();
 
   // 보스가 살아 있으면 전용 바로 보여준다 — 보스 층의 목표가 눈에 박힌다
   var bossU = null;
@@ -3255,6 +3368,18 @@ GAME.BattleScene.prototype.updateHud = function () {
     bossFrac:   (bossAlive && bossU.maxHp) ? bossU.hp / bossU.maxHp : 0,
     bossText:   bossAlive ? (GAME.UI.numAbbr(Math.ceil(bossU.hp)) + ' / ' + GAME.UI.numAbbr(bossU.maxHp)) : '처치'
   });
+
+  //  ── 긴장 겹(시즌2 S-S) — 영웅 체력이 깎일수록·보스가 2페이즈 이후면 tense 레이어를 올린다.
+  //  250ms 스로틀(램프 0.6초라 더 자주 불러도 뜻이 없다). 전투 곡이 도는 판(playBattle)에서만.
+  if (GAME.Music && GAME.Music._battle && GAME.Music.setLayer) {
+    var _tn = (GAME.Iso && GAME.Iso.now) || 0;
+    if (_tn - (this._tenseAt || 0) >= 250) {
+      this._tenseAt = _tn;
+      var _hf = (h.alive && h.maxHp) ? h.hp / h.maxHp : 0;
+      var _bp = (bossAlive && bossU._phaseIdx > 0) ? 0.6 : 0;
+      GAME.Music.setLayer('tense', Math.max(1 - _hf, _bp), 0.6);
+    }
+  }
 
   for (var i = 0; i < this.skillBoxes.length; i++) {
     var b = this.skillBoxes[i];
@@ -3449,6 +3574,16 @@ GAME.BattleScene.prototype.draw = function () {
 
   // ── 실시간 맵 지형 (js/rtmaps.js) — 유닛·이펙트보다 먼저(지면) ──
   if (s.rtMap) this._drawRtMap(g, s.rtMap);
+
+  // ── 전장 규칙 지면 겹 (시즌2 S-A) — 늪 구역·용암 링·지진 예고/균열·용암 불티 ──
+  //  반환의 shake 는 지진 충격(fieldFx quake) 감쇠값 — 카메라를 그만큼 흔든다(렌더 전용).
+  var tRender = (GAME.Iso && GAME.Iso.now) || this.time.now || 0;
+  if (FXS && FXS.drawField) {
+    var fOut = FXS.drawField(g, s, tRender, Iso, 'ground', this._fieldOptsFor());
+    if (fOut && fOut.shake > 0.03 && this.cameras && this.cameras.main) {
+      this.cameras.main.shake(80, 0.002 + fOut.shake * 0.007);
+    }
+  }
 
   // ── 지면 레이어: 마커·덫·이펙트 ──
   for (i = 0; i < this.markers.length; i++) {
@@ -3783,6 +3918,8 @@ GAME.BattleScene.prototype.draw = function () {
   // (`_heroIsPlayer` 는 방어전에서 뒤집힌다: 거기서는 영웅이 적이고 내가 전략가다.)
   var myMineSide = ((this._heroIsPlayer === undefined) ? true : this._heroIsPlayer)
     ? 'controller' : 'strategist';
+  //  은신 판정의 '내 편' — 실시간은 내 팀(rt.meTeam), 그 외는 가시덫과 같은 기준.
+  var stealthSide = (this.rt && this.rt.meTeam) ? this.rt.meTeam : myMineSide;
 
   for (i = 0; i < alive.length; i++) {
     var u = alive[i];
@@ -3901,7 +4038,10 @@ GAME.BattleScene.prototype.draw = function () {
     //  반전 화면에서는 바라보는 방향의 세로 성분도 거울이어야 한다 — 안 뒤집으면
     //  위로 걸어가는 유닛이 아래를 보며 걷는다(각 부호 반전 = y 성분만 거울).
     var drawFacing = GAME.Iso.rtFlip ? -u.facing : u.facing;
-    var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, 1, drawFacing, walk,
+    //  은신 알파(시즌2 S-A) — 내 편(내 팀)은 반투명 일렁임, 적 눈에는 0.10. 은신이 아니면 정확히 1.
+    var uAlpha = (FXS && FXS.stealthAlpha && u.buffs && u.buffs.length)
+      ? FXS.stealthAlpha(u, tRender, u.side === stealthSide) : 1;
+    var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, uAlpha, drawFacing, walk,
                                undefined, { footRing: false, sizeMul: u.eliteDraw || 1,
                                             act: act, gearTier: u._gearTier, kit: u._kit,
                                             refine: u._rfStep,
@@ -4028,7 +4168,8 @@ GAME.BattleScene.prototype.draw = function () {
       //  황금알(noHpBar): 체력바 대신 균열 5단계가 상태를 말한다(태현님 지시).
       noBar: !!u.def.noHpBar,
       ratio: u.hp / u.maxHp,
-      shield: u.shield > 0 ? Math.min(1, u.shield / u.maxHp) : 0
+      shield: u.shield > 0 ? Math.min(1, u.shield / u.maxHp) : 0,
+      unit: u                    // 시즌2 표식·소환 수명·페이즈 링이 오버레이에서 읽는다
     });
   }
 
@@ -4086,6 +4227,20 @@ GAME.BattleScene.prototype.draw = function () {
     // 머리 위 마커 — 화살촉이 **체력바 바로 위**를 찍게 한다. 4px 만 띄우면 체력바를
     // 안 덮고, 알과 붙어 있어 '누구 것인지' 헷갈리지 않는다.
     GAME.UI.selectArrow(g, mk2.sx, mk2.by - 4, mk2.r, s.elapsed);
+  }
+
+  // ── ⑤ 시즌2 표식 (S-A) — 표식 부적(머리 위) · 소환수 수명 호(발밑) · 보스 페이즈 링 ──
+  //  전부 오버레이 층이다 — 몸통이 덮으면 "찍혔다"를 못 본다. 좌표는 marks 의 값(휘청임 반영).
+  if (FXS) {
+    for (i = 0; i < marks.length; i++) {
+      var mk3 = marks[i], mu = mk3.unit;
+      if (!mu) continue;
+      if (mu._markUntil && mu._markUntil > s.elapsed && FXS.drawMark) {
+        FXS.drawMark(g, mk3.sx, mk3.by - (mk3.mine ? 14 : 4), mk3.r, tRender);
+      }
+      if (mu.summoned && mu.lifeMs > 0 && FXS.lifeRing) FXS.lifeRing(g, mu, mk3.wx, mk3.wy, mk3.r);
+      if (mu._phaseIdx !== undefined && mu._phaseIdx >= 0 && FXS.phaseRing) FXS.phaseRing(g, mu, mk3.wx, mk3.wy, mk3.r, tRender);
+    }
   }
 
   // ── 동전 ──
@@ -4198,10 +4353,121 @@ GAME.BattleScene.prototype.draw = function () {
     }
   }
 
+  // ── 전장 규칙 위 겹 (시즌2 S-A) — 안개 마스크·바람 줄기·돌풍·규칙 교체 물듦·낙뢰 번쩍 ──
+  //  유닛·투사체 **위**의 별도 Graphics. 매 프레임 비우고, 그릴 것이 있을 때만 맨 위로 올린다.
+  if (this._overG) {
+    var og = this._overG;
+    og.clear();
+    if (FXS && FXS.drawField) {
+      var oOut = FXS.drawField(og, s, tRender, Iso, 'over', this._fieldOptsFor());
+      if (oOut && this.worldLayer && og.parentContainer === this.worldLayer) this.worldLayer.bringToTop(og);
+    }
+  }
+
   if (this.state.over) {
     g.fillStyle(0x000000, 0.45);
     g.fillRect(0, 0, GAME.CONFIG.WIDTH, GAME.CONFIG.HEIGHT);
   }
+};
+
+//  ── 시즌2 렌더 보조 (2026-09-03 S-A) — 전부 렌더 전용, 시뮬·록스텝에 안 닿는다 ─────────
+
+//  안개 시야의 초점 — 내가 모는 유닛(없으면 플레이어 영웅). 반지름은 아레나 폭 30% 와
+//  실효 사거리×1.15 중 큰 쪽(원거리 영웅은 제 사거리만큼은 본다). 버퍼를 돌려 쓴다.
+GAME.BattleScene.prototype._fieldOptsFor = function () {
+  var o = this._fieldOpts;
+  if (!o) o = this._fieldOpts = { focus: { x: 0, y: 0 }, sightR: 0 };
+  var fu = this.arrowOn || (this._heroIsPlayer === false ? null : this.hero);
+  if (!fu || !fu.alive) { o.focus = null; return o; }
+  if (!o.focus) o.focus = { x: 0, y: 0 };
+  o.focus.x = fu.x; o.focus.y = fu.y;
+  var A = GAME.CONFIG.ARENA;
+  var er = (GAME.Combat.effRange ? GAME.Combat.effRange(fu, this.state) : (fu.def.range || 0));
+  o.sightR = Math.max(A ? A.w * 0.22 : 160, er * 1.1);
+  return o;
+};
+
+//  페이즈 핑·전장 규칙 사건의 소리·흔들림·리본. **관측만 한다** — state 는 phasePing 을
+//  소비(null)하는 것과 렌더 캐시 플래그(__sfx) 외에 안 건드린다(엔진 계약: ping 은 소비 후 null).
+//  헤드리스(도구)에서는 GAME.Sound/Music 이 없을 수 있다 — 전부 가드.
+GAME.BattleScene.prototype._seasonFx = function () {
+  var s = this.state;
+  if (!s) return;
+  var Snd = GAME.Sound, Mus = GAME.Music, cam = this.cameras && this.cameras.main;
+  var i;
+  //  ① 보스 페이즈 진입 — 흔들림 + 이름 리본 + 스팅어 + 차징음
+  if (s.phasePing) {
+    var pp = s.phasePing; s.phasePing = null;
+    if (cam) cam.shake(280, 0.007);
+    if (Mus && Mus.sting) { try { Mus.sting('phaseShift'); } catch (e) {} }
+    if (Snd) { try { Snd.play('bossCharge'); Snd.play('phaseShift'); } catch (e2) {} }
+    var bossNm = (pp.unit && pp.unit.def && pp.unit.def.name) || '보스';
+    this._seasonRibbon((pp.name ? pp.name : (bossNm + ' · ' + (pp.phase + 1) + '단계')), 0xff8c2e);
+  }
+  //  ② 전장 규칙 사건(fieldFx) — 처음 본 프레임에 한 번
+  var fx = s.fieldFx;
+  if (fx && fx.length) {
+    for (i = 0; i < fx.length; i++) {
+      var f = fx[i];
+      if (!f.__sfx) {
+        f.__sfx = true;
+        if (f.kind === 'quake') {
+          if (Snd) { try { Snd.play('quake'); } catch (e3) {} }
+          if (cam) cam.shake(420, 0.009);
+        } else if (f.kind === 'fieldShift') {
+          var nm = GAME.BattleScene.FIELD_NAMES[f.field] || f.field;
+          if (nm) this._seasonRibbon('전장 규칙 · ' + nm, 0xdfe8e4);
+        } else if (f.kind === 'quakeWarn') {
+          if (Snd) { try { Snd.play('bossCharge'); } catch (e4) {} }
+        }
+      }
+      //  낙뢰 — 예고가 끝나는 순간(마지막 90ms)에 한 번
+      if (f.kind === 'boltWarn' && !f.__bolt && f.t <= 90) {
+        f.__bolt = true;
+        if (Snd) { try { Snd.play('bolt'); } catch (e5) {} }
+        if (cam) cam.shake(140, 0.004);
+      }
+    }
+  }
+  //  ③ 사슬이 옮겨 붙는 소리 — beam.chain 이펙트가 새로 생긴 프레임(hop 0 은 시전음이 맡는다)
+  var ef = s.effects;
+  if (ef && ef.length) {
+    for (i = 0; i < ef.length; i++) {
+      var e = ef[i];
+      if (e.__sfx) continue;
+      e.__sfx = true;
+      if (e.kind === 'beam' && e.chain && e.hop > 0 && Snd) { try { Snd.play('chainHop'); } catch (e6) {} }
+    }
+  }
+  //  ④ 표식 적중 — 표식이 살아 있는 유닛의 체력이 줄어든 프레임
+  var us = s.units;
+  for (i = 0; i < us.length; i++) {
+    var u = us[i];
+    if (u._markUntil && u._markUntil > s.elapsed && u.alive) {
+      if (u.__mkHp !== undefined && u.hp < u.__mkHp - 0.01 && Snd) { try { Snd.play('markHit'); } catch (e7) {} }
+      u.__mkHp = u.hp;
+    } else if (u.__mkHp !== undefined) u.__mkHp = undefined;
+  }
+};
+
+GAME.BattleScene.FIELD_NAMES = { fog: '안개', swamp: '늪', lava: '용암', quake: '지진', storm: '폭풍' };
+
+//  화면 상단 리본 한 줄(1.5초) — 페이즈 이름·전장 규칙 교체. 타임 오버 연출과 같은 문법.
+//  Text 하나뿐이라 겹침 감사 대상이 아니고, 끝나면 스스로 파괴된다.
+GAME.BattleScene.prototype._seasonRibbon = function (text, color) {
+  if (!this.add || !this.tweens) return;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT, P = GAME.CONFIG.SMALL;
+  var hex = '#' + ('000000' + ((color === undefined ? 0xffffff : color) >>> 0).toString(16)).slice(-6);
+  if (this._seasonRib && this._seasonRib.scene) { try { this._seasonRib.destroy(); } catch (e) {} }
+  var txt = this.add.text(W / 2, H * (P ? 0.30 : 0.26), text, {
+    fontFamily: GAME.CONFIG.FONT, fontSize: (P ? 26 : 34) + 'px', fontStyle: 'bold',
+    color: hex, stroke: '#1a1208', strokeThickness: P ? 5 : 7
+  }).setOrigin(0.5).setDepth(3001).setAlpha(0).setScale(1.6);
+  this._seasonRib = txt;
+  var self = this;
+  this.tweens.add({ targets: txt, alpha: 1, scale: 1, duration: 260, ease: 'Back.easeOut' });
+  this.tweens.add({ targets: txt, alpha: 0, y: txt.y - 18, delay: 1150, duration: 380,
+    onComplete: function () { if (self._seasonRib === txt) self._seasonRib = null; try { txt.destroy(); } catch (e) {} } });
 };
 
 
@@ -4302,4 +4568,79 @@ GAME.BattleScene.prototype._rtApplyItems = function (hu, su) {
   hu._kit = { armor: GAME.UI.gearTierOf(su.items.armor),
               boots: GAME.UI.gearTierOf(su.items.boots),
               acc: GAME.UI.gearTierOf(su.items.accessory) };
+};
+
+// ── 협동 보스전 조립 (시즌 2 S-C) ──────────────────────────────────────────────
+//  전략가 편 = 세계 보스 층 진형(`RtCoop.formationFor` — 시드 결정적, 양쪽 같은 진형).
+//  컨트롤러 편 = 영웅 둘(같은 팀). `_rtHeroes.controller` 가 **배열** [h0, h1] 이 되고
+//  `coop:true` 표식으로 `_rtHeroOf` 가 h 로 고른다. 1:1 경로(_rtCompose)는 한 줄도 안 바뀐다.
+//  자리: 방장(로컬은 나) = 'controller' 자리 = h0 · 손님/봇 = 'strategist' 자리 = h1.
+GAME.BattleScene.prototype._rtComposeCoop = function () {
+  var rt = this.rt, CO = rt.coop, RC = GAME.RtCoop;
+  var f = RC.formationFor(CO.world, CO.floor, rt.seed);
+  this._coopFormation = f;
+  //  진형 스텁은 비워 둔다(공용 진형 루프가 다시 세우지 않게) — 보스 키만 HUD 를 위해 싣는다.
+  this.formation.boss = f.boss;
+  this.formation.name = RC.label(CO.world) + ' 협동 보스전';
+  RC.spawn(this.state, f);
+  if (GAME.Sound && this.formation.boss) { try { GAME.Sound.play('bossRoar'); } catch (e) {} }
+
+  var setups = {};
+  setups[rt.meTeam] = rt.my;
+  setups[rt.meTeam === 'controller' ? 'strategist' : 'controller'] = rt.their;
+  var seats = ['controller', 'strategist'];
+  var arr = [];
+  for (var i = 0; i < 2; i++) {
+    var su = setups[seats[i]] || {};
+    var hx = this.startPos.x + (i === 0 ? -54 : 54);
+    var hu = GAME.Combat.createHero(su.heroKey || 'vanguard', hx, this.startPos.y, 'controller',
+                                    {}, su.picks || GAME.defaultSkillPicks());
+    this._rtApplyItems(hu, su);
+    RC.scaleHero(hu, CO.world);     //  세계 배율(RtCoop.HERO_WORLD_MUL) — 양쪽 같은 상수라 결정론 무관
+    hu._coopIdx = i;                //  봇·HUD 가 영웅을 찾는 표식(렌더/조종용, 시뮬 무관)
+    hu._sfxPartner = (i !== (rt.meTeam === 'controller' ? 0 : 1));  //  파트너 영웅 소리 0.6 (S-A 배선)
+    arr.push(hu);
+    this.state.units.push(hu);
+  }
+  this._rtHeroes = { controller: arr, strategist: null, coop: true };
+  this._rtMyHeroId = rt.meTeam === 'controller' ? 0 : 1;
+  this.hero = arr[this._rtMyHeroId];
+  this._heroIsPlayer = true;
+  if (GAME.Iso) GAME.Iso.rtFlip = false;          //  둘 다 아래 진영 — 뒤집지 않는다
+  //  피해 기여(결과 화면) — applyDamage 를 감싼다. shutdown 이 원복한다.
+  this._coopRestore = RC.trackDamage();
+};
+
+//  파트너 체력바 — HUD 띠 안, '남은 적' 글자 왼쪽(hud.goldSlot 실측 자리). 골드 배지는
+//  탑 전용이라 협동에서는 그 자리가 비어 있다. 타이머 글자와 겹칠 폭이면 안 그린다(세로 420).
+GAME.BattleScene.prototype._buildCoopHud = function () {
+  var SM = GAME.CONFIG.SMALL, P = GAME.CONFIG.PORTRAIT;
+  var w = P ? 72 : (SM ? 124 : 168), h = SM ? 14 : 16;
+  var partner = this._rtHeroOf(this.rt.meTeam === 'controller' ? 'strategist' : 'controller');
+  var name = partner && partner.hero ? partner.hero.name : '파트너';
+  this._coopBar = GAME.UI.meter(this, -999, -999, w, h, {
+    color: GAME.UI.COL.hpGood, seg: 2, danger: 0.3, radius: 5,
+    label: { size: 'micro', align: 'center' }
+  });
+  this._coopBar.setText('🤝 ' + GAME.UI.ellipsize(name, P ? 4 : 6));
+  if (this._coopBar.gfx && this._coopBar.gfx.setDepth) this._coopBar.gfx.setDepth(8000);
+  if (this._coopBar.text && this._coopBar.text.setDepth) this._coopBar.text.setDepth(8001);
+  this._coopBarW = w; this._coopBarH = h; this._coopBarX = -1;
+  this._coopPartner = partner;
+};
+
+GAME.BattleScene.prototype._updateCoopHud = function () {
+  var bar = this._coopBar, p = this._coopPartner;
+  if (!bar || !bar.gfx || !bar.gfx.scene || !p) return;
+  var slot = this.hud && this.hud.goldSlot ? this.hud.goldSlot() : null;
+  if (slot) {
+    var x = slot.right - this._coopBarW, y = Math.round(slot.cy - this._coopBarH / 2);
+    //  타이머(정중앙 큰 숫자) 오른쪽 여백 안에 들어갈 때만 — 아니면 숨긴다(겹침보다 낫다).
+    var minX = GAME.CONFIG.WIDTH / 2 + (GAME.CONFIG.SMALL ? 62 : 84);
+    var ok = x >= minX;
+    if (bar.gfx.setVisible) bar.gfx.setVisible(ok);
+    if (bar.text && bar.text.setVisible) bar.text.setVisible(ok);
+    if (ok && x !== this._coopBarX) { this._coopBarX = x; bar.setPosition(x, y); }
+  }
+  bar.set(p.alive && p.maxHp ? p.hp / p.maxHp : 0, p.maxHp ? (p.shield || 0) / p.maxHp : 0);
 };

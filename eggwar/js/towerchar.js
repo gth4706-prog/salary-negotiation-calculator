@@ -73,7 +73,10 @@ GAME.TowerChar = {
   HERO_BASE: {
     vanguard: { damage: 20 },
     ranger:   { speed: 20 },
-    warden:   { hp: 20, armor: 20 }
+    warden:   { hp: 20, armor: 20 },
+    //  시즌2 신규 (2026-09-03 S-H) — 같은 규칙: 정체성 축에 20.
+    shaman:   { hp: 20, speed: 10 },
+    assassin: { speed: 20, damage: 10 }
   },
 
   statDef: function (key) {
@@ -131,6 +134,11 @@ GAME.TowerChar = {
         rec.statGain[gd.key] = gd.add * (rec.stats[gd.key] || 0);
       }
     }
+    //  시즌2 S-H — 특성·진화(구버전 캐릭터 방어적 채움). `picks._evo` 는 `evo` 의 미러다
+    //  (towerloading 이 rec.picks 를 그대로 Battle 에 넘기므로 buildSkills 가 거기서 읽는다).
+    if (!rec.traits) rec.traits = {};
+    if (!rec.evo) rec.evo = {};
+    rec.picks._evo = rec.evo;
     return rec;
   },
 
@@ -146,10 +154,98 @@ GAME.TowerChar = {
       items: { weapon: null, armor: null, boots: null, accessory: null },
       ownedSkills: { Q: [0], W: [0], E: [0], R: [0] },
       picks: { Q: 0, W: 0, E: 0, R: 0 },
+      traits: {},                       // 시즌2 특성 { 갈래키: 단 }  (js/traits.js)
+      evo: {},                          // 시즌2 스킬 진화 { 'Q:2': 1 } (heroes.js evoOf)
       climbSeed: this._rollSeed()
     };
+    rec.picks._evo = rec.evo;
     this._save(rec);
     return rec;
+  },
+
+  // ── 시즌2 S-H · 특성 저장 ──────────────────────────────────────────────
+  //  포인트 차감·단 계산은 js/traits.js 가 한다. 여기는 **쓰기만**.
+  setTrait: function (key, tier) {
+    var rec = this.get();
+    if (!rec || !key) return null;
+    rec.traits[key] = Math.max(0, Math.round(tier || 0));
+    this._save(rec);
+    return rec;
+  },
+  traitTier: function (key, rec) {
+    rec = rec || this.get();
+    return (rec && rec.traits && rec.traits[key]) || 0;
+  },
+
+  // ── 시즌2 S-H · 스킬 진화 ─────────────────────────────────────────────
+  //  스키마·patch 규칙은 js/heroes.js `GAME.evoOf` 주석. 여기는 조건 판정·포인트·저장.
+  hasEvo: function (slot, idx, rec) {
+    rec = rec || this.get();
+    return !!(rec && rec.evo && rec.evo[GAME.evoKey(slot, idx)]);
+  },
+  //  조건 충족 여부 — floor 는 통곡의 탑 최고층, rtWins 는 실시간 대전 승수.
+  evoReady: function (slot, idx, rec) {
+    rec = rec || this.get();
+    if (!rec) return false;
+    var h = GAME.HEROES[rec.heroKey];
+    var opt = h && h.skillOptions[slot] && h.skillOptions[slot][idx];
+    var evo = opt && GAME.evoOf(opt);
+    if (!evo || !evo.at) return false;
+    var at = evo.at;
+    if (at.floor) {
+      var best = 0;
+      try { if (GAME.Tower && GAME.Tower.get) best = GAME.Tower.get().best || 0; } catch (e) {}
+      return best >= at.floor;
+    }
+    if (at.rtWins) {
+      var wins = 0;
+      try { if (GAME.RtScore && GAME.RtScore.get) wins = GAME.RtScore.get().wins || 0; } catch (e2) {}
+      return wins >= at.rtWins;
+    }
+    return false;
+  },
+  EVO_COST: 1,
+  //  진화 — 보유한 스킬 + 조건 충족 + 세계 포인트. 성공하면 rec, 아니면 null(아무것도 안 바꿈).
+  evolveSkill: function (slot, idx) {
+    var rec = this.get();
+    if (!rec || !this.ownsSkill(slot, idx, rec)) return null;
+    if (this.hasEvo(slot, idx, rec)) return null;
+    if (!this.evoReady(slot, idx, rec)) return null;
+    if (!GAME.Season || !GAME.Season.spendWorldPoint || !GAME.Season.spendWorldPoint(this.EVO_COST)) return null;
+    rec.evo[GAME.evoKey(slot, idx)] = 1;
+    rec.picks._evo = rec.evo;
+    this._save(rec);
+    return rec;
+  },
+  //  진화가 화력을 얼마나 키웠나 — 장착 4칸의 (피해 배수 ÷ 쿨 배수) 기하평균, 1 이상.
+  //  `Tower.atkIndex` 가 곱해 쓴다("추종 지수" — CLAUDE.md 성장에 맞춘 압박 절: 진화로
+  //  세진 만큼 진형이 따라와야 42층 3초 사고가 재발하지 않는다). 유틸 진화(은신 시간·
+  //  토템 수명)는 1 로 친다 — 화력이 아니므로 적 체력이 따라올 이유가 없다.
+  evoAtkMul: function (rec) {
+    rec = rec || this.get();
+    if (!rec || !rec.evo || !GAME.evoOf) return 1;
+    var h = GAME.HEROES[rec.heroKey];
+    if (!h) return 1;
+    var logSum = 0, n = 0;
+    for (var s = 0; s < GAME.SKILL_SLOTS.length; s++) {
+      var slot = GAME.SKILL_SLOTS[s];
+      var idx = rec.picks[slot] || 0;
+      var opt = h.skillOptions[slot] && h.skillOptions[slot][idx];
+      if (!opt) continue;
+      n++;
+      if (!rec.evo[GAME.evoKey(slot, idx)]) continue;
+      var e = GAME.evoOf(opt), p = (e && e.patch) || {};
+      var d0 = opt.damage || opt.dps || 0, d1 = (p.damage !== undefined ? p.damage : (p.dps !== undefined ? p.dps : d0));
+      var c0 = opt.cooldown || 1, c1 = p.cooldown || c0;
+      var m = 1;
+      if (d0 > 0 && d1 > 0) m = d1 / d0;
+      m *= c0 / c1;
+      //  소환 수·연쇄 수는 화력이다(토템 2기 = 두 배).
+      if (opt.count && p.count) m *= p.count / opt.count;
+      if (opt.jumps && p.jumps) m *= 1 + 0.5 * (p.jumps / opt.jumps - 1);
+      if (m > 1) logSum += Math.log(m);
+    }
+    return n ? Math.exp(logSum / n) : 1;
   },
 
   // 캐릭터 삭제 — 요청 4번: "캐릭터를 삭제하고 다시 1층부터 진행할 수 있다."

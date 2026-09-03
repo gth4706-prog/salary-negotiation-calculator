@@ -45,7 +45,9 @@ GAME.TowerShopScene.SOURCES = {
     title: '통곡의 탑 상점',
     backLabel: '←  허브로',
     purseLabel: '💰 골드  ',
-    tabs: [['item', '🛒 아이템'], ['skill', '📖 스킬'], ['stats', '⚒ 능력치']],
+    //  시즌2(2026-09-03 S-H) — 특성 탭. 탭 폭 산수: PC 420/4 = 99px · 폰 세로 392/4 = 92px,
+    //  '🛒 아이템'(5자·14px ≈ 70px) 이 가장 길다 → 들어간다.
+    tabs: [['item', '🛒 아이템'], ['skill', '📖 스킬'], ['stats', '⚒ 능력치'], ['trait', '✦ 특성']],
     back: function (sc) { sc.scene.start('Tower', { step: 'challenge' }); },
     rec: function () { return GAME.TowerChar.get(); },
     purse: function (rec) { return rec.gold; },
@@ -288,7 +290,93 @@ GAME.TowerShopScene.prototype._buildBody = function (bump) {
   if (this.tab === 'hero') this._buildHeroTab();
   else if (this.tab === 'item') this._buildItemTab();
   else if (this.tab === 'skill') this._buildSkillTab();
+  else if (this.tab === 'trait') this._buildTraitTab();   //  시즌2 특성(탑 전용)
   else this._buildStatsTab();       //  arena 모드도 같은 탭(TC 어댑터) — 2026-09-01
+};
+
+// ── 특성 탭 (시즌2 S-H, 2026-09-03) ──────────────────────────────────────
+//  3갈래 × 3단. 화폐는 세계 포인트(js/season.js). 데이터·규칙은 js/traits.js —
+//  이 화면은 `GAME.Traits` 만 읽고 `buy` 만 부른다(포인트 차감·저장은 그쪽).
+//  레이아웃: 폭 700 이상이면 갈래 3열, 좁으면(폰 세로 420) 3행. 단은 갈래 안에 세 줄.
+//  산수(폰 세로 420): 카드 폭 392 · 단 줄 높이 40 → 카드 높이 46+3×44 = 178,
+//  3행 + 간격 = 570 < 본문 높이 900-98-20 = 782 ✓. 폰 가로(820×390): 3열 × 폭 258,
+//  카드 높이 = 본문 280 안에 46+3×44 = 178 ✓.
+GAME.TowerShopScene.prototype._buildTraitTab = function () {
+  var C = GAME.CONFIG.COLORS;
+  var self = this;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
+  var top = this._bodyTop;
+  var PAD = GAME.CONFIG.SMALL ? 14 : 24;
+  var P = GAME.CONFIG.PHONE;
+  var T = GAME.Traits;
+  if (!T) return;
+  var rec = this.char;
+  var list = T.branches(rec.heroKey);
+  var pts = T.points();
+
+  //  머리 한 줄 — 잔액 + 얻는 법. 포인트가 0 이면 '어디서 얻는지'가 곧 안내다.
+  var head = GAME.UI.label(this, PAD, top,
+    '✦ 세계 포인트 ' + pts + '   ·   갈래마다 3단, 한 단에 1점  ·  세계 진입 +1 · 세계 보스 +2 · 협동 승 +1',
+    P ? 11 : 13, C.accent, 0).setWordWrapWidth(W - PAD * 2);
+  this._body.push(head);
+  var gridTop = head.y + head.height + (P ? 6 : 10);
+  var bottom = H - (P ? 12 : 20) - this._bottomPad;
+
+  var cols = (W >= 700) ? 3 : 1;
+  var gap = P ? 8 : 14;
+  var cw = Math.floor((W - PAD * 2 - gap * (cols - 1)) / cols);
+  var rowH = P ? 40 : 46, titleH = P ? 40 : 50;
+  var ch = titleH + rowH * 3 + (P ? 6 : 10);
+  //  1열이면 세로로 쌓고 남는 높이를 셋이 나눠 갖되 위 산수를 넘지 않게.
+  if (cols === 1) ch = Math.min(ch, Math.floor((bottom - gridTop - gap * 2) / 3));
+
+  list.forEach(function (b, i) {
+    var cx0 = PAD + (cols === 3 ? i * (cw + gap) : 0);
+    var cy0 = gridTop + (cols === 3 ? 0 : i * (ch + gap));
+    var tier = T.tierOf(b.key, rec);
+    var g = self.add.graphics();
+    self._body.push(g);
+    g.fillStyle(tier ? GAME.UI.COL.panelTeal : GAME.UI.COL.surfaceAlt, 1);
+    g.fillRoundedRect(cx0, cy0, cw, ch, 12);
+    g.lineStyle(tier ? 2 : 1, tier ? C.controller : GAME.UI.COL.border, 1);
+    g.strokeRoundedRect(cx0, cy0, cw, ch, 12);
+
+    self._body.push(GAME.UI.label(self, cx0 + 12, cy0 + 8,
+      b.name + (tier ? ('  ·  ' + tier + '단') : ''), P ? 14 : 17, tier ? C.accent : C.text, 0)
+      .setWordWrapWidth(cw - 24));
+    self._body.push(GAME.UI.label(self, cx0 + 12, cy0 + (P ? 24 : 30), b.why, P ? 10 : 11, C.textDim, 0)
+      .setWordWrapWidth(cw - 24));
+
+    var btnW = P ? 64 : 84;
+    b.tiers.forEach(function (tr, k) {
+      var n = k + 1;
+      var ry = cy0 + titleH + k * rowH;
+      var have = tier >= n, next = (tier + 1 === n);
+      var can = next && pts >= T.COST;
+      self._body.push(GAME.UI.label(self, cx0 + 12, ry + 4,
+        (have ? '✓ ' : '') + tr.name, P ? 12 : 13, have ? C.accent : (next ? C.text : C.textDim), 0)
+        .setWordWrapWidth(cw - 24 - btnW - 8));
+      self._body.push(GAME.UI.label(self, cx0 + 12, ry + (P ? 20 : 23), tr.desc,
+        P ? 10 : 11, have ? C.text : C.textDim, 0).setWordWrapWidth(cw - 24 - btnW - 8));
+      var act = have ? '배움' : (next ? (can ? '✦ 1점' : '1점 부족') : '잠김');
+      var bt = GAME.UI.button(self, cx0 + cw - 10 - btnW / 2, ry + rowH / 2, btnW, rowH - (P ? 10 : 12),
+        act, function () {
+          if (!can) return;
+          if (T.buy(b.key)) {
+            if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('coin');
+            self._buildBody(true);
+          }
+        }, { fontSize: P ? 11 : 12 });
+      bt.text.setColor(can ? C.accent : C.textDim);
+      bt.rect.setStrokeStyle(can ? 2 : 1, can ? C.controller : GAME.UI.COL.borderUi);
+      self._body.push(bt);
+    });
+  });
+
+  if (!list.length) {
+    this._body.push(GAME.UI.label(this, W / 2, gridTop + 30, '이 영웅의 특성은 아직 없습니다',
+      P ? 12 : 14, C.textDim, 0.5).setOrigin(0.5, 0));
+  }
 };
 
 //  가죽 원단 패널(2026-09-02, #119 ③ 잔여) — 큰 면은 원본, 카드는 저해상판.
@@ -516,9 +604,13 @@ GAME.TowerShopScene.prototype._buildHeroTab = function () {
       on ? GAME.UI.gearTierOf(self.char.items && self.char.items.weapon) : 0);
 
     // 스탯 요약은 무대 바로 아래, 버튼은 카드 바닥 — 둘 사이가 겹치지 않게 떼어 놨다.
+    //  시즌2(영웅 5) — 카드가 좁아져(폰 152px) 띄어쓴 문구가 옆 카드로 넘쳤다(overlap-audit
+    //  2026-09-03, 4건). 넷 이상이면 붙여 쓰고 한 단계 작게.
+    var many = order.length > 3;
     self._body.push(GAME.UI.label(self, cx0 + cardW / 2, stageTop + stageH + 2,
-      '체력 ' + h.hp + ' · 공격 ' + h.damage + ' · 속도 ' + h.speed,
-      P ? 10 : 12, C.textDim, 0.5).setOrigin(0.5, 0));
+      many ? ('체력' + h.hp + '·공격' + h.damage + '·속도' + h.speed)
+           : ('체력 ' + h.hp + ' · 공격 ' + h.damage + ' · 속도 ' + h.speed),
+      many ? (P ? 9 : 11) : (P ? 10 : 12), C.textDim, 0.5).setOrigin(0.5, 0));
 
     var bw = cardW - (P ? 20 : 32);
     var b = GAME.UI.button(self, cx0 + cardW / 2, top + cardH - (P ? 8 : 12) - btnH / 2, bw, btnH,
@@ -1014,8 +1106,11 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
 
     var btnW = P ? 78 : 104;
     var txtW = leftW - 24 - btnW - 10;
+    //  시즌2 — 진화한 스킬은 이름 앞에 ✦, 진화 뒤 이름(evo.name)으로 뜬다.
+    var evolvedRow = self.mode === 'tower' && GAME.TowerChar.hasEvo && GAME.TowerChar.hasEvo(slot, idx, self.char);
+    var rowName = evolvedRow ? ('✦ ' + ((GAME.evoOf(o) || {}).name || o.name)) : o.name;
     self._body.push(GAME.UI.label(self, leftX + 12, ry + (P ? 5 : 9),
-      (locked ? '🔒 ' : '') + o.name +
+      (locked ? '🔒 ' : '') + rowName +
       (equipped ? '  ✓ 장착 중' : (owned ? '  · 보유' : '')),
       P ? 12 : 15, owned ? C.text : C.textDim, 0).setWordWrapWidth(txtW));
     var typeLabel = GAME.SKILL_TYPE_LABEL[o.type] || o.type;
@@ -1103,6 +1198,10 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
   //   거짓말을 한다. 미리보기 그림도 이 값으로 그린다(아래 drawSkillFx).
   //   ⚠ 반드시 무대 그리기보다 **먼저** 정의해야 한다 — drawSkillFx 가 첫 프레임에
   //     이걸 읽으므로, 아래에 두면 undefined 를 참조해 그 자리에서 터진다.
+  //  시즌2 진화 — 진화한 칸은 **진화 뒤 값**을 보여 준다(전장에 실제로 나가는 값).
+  var evoDef = (this.mode === 'tower' && GAME.evoOf) ? GAME.evoOf(o) : null;
+  var evoOn = !!(evoDef && GAME.TowerChar.hasEvo && GAME.TowerChar.hasEvo(ps.slot, ps.idx, this.char));
+  if (evoOn) { var oE = {}; for (var ek in o) oE[ek] = o[ek]; delete oE.evo; o = GAME.applyEvo(oE, evoDef); }
   var shown = this.src.shownSkill(o, this.char);
   var ownedP = this.src.skillOwned(ps.slot, ps.idx, this.char);
 
@@ -1185,6 +1284,52 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
     } else if (d.type === 'buff') {
       sg.lineStyle(3, fxCol, 0.35 + 0.35 * Math.sin(prog * Math.PI));
       sg.strokeEllipse(scx, sfeet, sr * 3.0, sr * 1.5);
+    //  ── 시즌2 새 타입 5 (2026-09-03 S-H) ──────────────────────────────────
+    } else if (d.type === 'summon') {
+      //  세울 자리 — 앞쪽 원 위에 count 개의 작은 말뚝이 솟는다.
+      var sn = d.count || 1, sy0 = sfeet - sr * 2.2;
+      for (var si = 0; si < sn; si++) {
+        var sa = (sn === 1) ? 0 : (si / sn) * Math.PI * 2;
+        var spx = scx + Math.cos(sa) * (d.spread || 40) * pvScale * (sn === 1 ? 0 : 1);
+        var spy = sy0 + Math.sin(sa) * (d.spread || 40) * pvScale * 0.55;
+        sg.fillStyle(fxCol, 0.25 + 0.5 * prog);
+        sg.fillRect(spx - 3, spy - sr * 0.9 * prog, 6, sr * 0.9 * prog);
+        sg.lineStyle(2, fxCol, 0.6); sg.strokeEllipse(spx, spy, sr * 0.8, sr * 0.4);
+      }
+    } else if (d.type === 'stealth') {
+      //  옅어지는 고리 — 숨는 동안 몸이 흐려진다(실제 렌더의 은신 알파와 같은 뜻).
+      sg.lineStyle(2, fxCol, 0.6 * (1 - prog));
+      sg.strokeEllipse(scx, sfeet, sr * 2.4, sr * 1.2);
+      sg.fillStyle(fxCol, 0.12 * (1 - prog));
+      sg.fillEllipse(scx, sfeet - sr * 1.2, sr * 2.0, sr * 3.0);
+    } else if (d.type === 'blink' && dist > 0) {
+      //  점선 — 지나가지 않고 **건너뛴다**(대시의 실선과 갈라진다).
+      var bdir = d.backward ? 1 : -1;
+      for (var bi = 0; bi < 6; bi++) {
+        var bt = bi / 6;
+        sg.fillStyle(fxCol, 0.25 + 0.45 * (bt < prog ? 1 : 0.2));
+        sg.fillCircle(scx, sfeet + bdir * dist * bt, 3);
+      }
+      sg.lineStyle(2, fxCol, 0.7); sg.strokeEllipse(scx, sfeet + bdir * dist, sr * 1.6, sr * 0.8);
+    } else if (d.type === 'mark') {
+      //  겨눈 자리에 표식 — 과녁 두 겹 + 반경.
+      var my = sfeet - sr * 2.6, mr = Math.max(8, rad * 0.6);
+      sg.lineStyle(2, fxCol, 0.55); sg.strokeEllipse(scx, my, mr * 2, mr * 1.1);
+      sg.lineStyle(2, fxCol, 0.9); sg.strokeEllipse(scx, my, mr * 0.8, mr * 0.45);
+      sg.lineStyle(1.5, fxCol, 0.4 + 0.4 * Math.sin(prog * Math.PI));
+      sg.lineBetween(scx, sfeet - sr * 0.8, scx, my + mr * 0.5);
+    } else if (d.type === 'chain') {
+      //  꺾이는 선 — jumps 개의 점을 잇는다(칸마다 옅어진다 = decay).
+      var jn = Math.min(8, d.jumps || 4), px0 = scx, py0 = sfeet - sr * 0.8, al = 0.9;
+      for (var ji = 0; ji < jn; ji++) {
+        var jx = scx + ((ji % 2) ? 1 : -1) * sr * (0.9 + 0.35 * ji);
+        var jy = sfeet - sr * (1.6 + 0.55 * ji);
+        if (ji / jn <= prog) {
+          sg.lineStyle(2.5, fxCol, al); sg.lineBetween(px0, py0, jx, jy);
+          sg.fillStyle(fxCol, al); sg.fillCircle(jx, jy, 4);
+        }
+        px0 = jx; py0 = jy; al *= (d.decay === undefined ? 0.7 : d.decay);
+      }
     }
   }
 
@@ -1260,11 +1405,45 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
     '쿨타임 ' + (shown.cooldown ? (Math.round(shown.cooldown / 100) / 10) + '초' : '—') +
     (arenaMode ? '' : (o.cost ? ('    ·    ' + o.cost + '골드') : '    ·    기본 내장(무료)')),
     P ? 11 : 13, C.textDim, 0));
-  this._body.push(GAME.UI.label(this, rightX + 14, pTop + pH - (P ? 18 : 28),
-    arenaMode ? '대전에서는 모든 스킬을 값 없이 고를 수 있습니다'
-              : (ownedP ? '보유함 — 오른쪽 [장착] 으로 끼웁니다'
-                        : '미보유 — 먼저 구매해야 장착할 수 있습니다'),
-    P ? 11 : 13, ownedP ? C.accent : C.textDim, 0));
+  //  ── 시즌2 진화 줄 (2026-09-03 S-H) ──────────────────────────────────────
+  //  보유한 스킬이면 마지막 줄이 진화 상태가 된다: 진화됨 / [✦ 진화 — 세계 포인트 1] /
+  //  조건(탑 N층 · 실시간 N승) 미달. 미보유면 예전 문구 그대로.
+  var evoLineY = pTop + pH - (P ? 18 : 28);
+  if (!arenaMode && ownedP && evoDef) {
+    var TC = GAME.TowerChar;
+    var evoReady = TC.evoReady && TC.evoReady(ps.slot, ps.idx, this.char);
+    var evoPts = (GAME.Season && GAME.Season.worldPoints) ? GAME.Season.worldPoints() : 0;
+    if (evoOn) {
+      this._body.push(GAME.UI.label(this, rightX + 14, evoLineY,
+        '✦ 진화됨 — ' + (evoDef.name || ''), P ? 11 : 13, C.accent, 0).setWordWrapWidth(rightW - 28));
+    } else if (evoReady) {
+      var canEvo = evoPts >= (TC.EVO_COST || 1);
+      var ebW = rightW - 28, ebH = P ? 20 : 26;
+      var eb = GAME.UI.button(this, rightX + rightW / 2, evoLineY + ebH / 2 - (P ? 2 : 0), ebW, ebH,
+        canEvo ? ('✦ 진화 — 세계 포인트 ' + (TC.EVO_COST || 1) + '  →  ' + (evoDef.name || ''))
+               : ('✦ 진화 가능 — 세계 포인트 부족 (' + evoPts + '/' + (TC.EVO_COST || 1) + ')'),
+        function () {
+          if (!canEvo) return;
+          if (TC.evolveSkill(ps.slot, ps.idx)) {
+            if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('coin');
+            self._buildBody(true);
+          }
+        }, { fontSize: P ? 10 : 12 });
+      eb.text.setColor(canEvo ? C.accent : C.textDim);
+      eb.rect.setStrokeStyle(canEvo ? 2 : 1, canEvo ? C.controller : GAME.UI.COL.borderUi);
+      this._body.push(eb);
+    } else {
+      this._body.push(GAME.UI.label(this, rightX + 14, evoLineY,
+        '✦ 진화 조건: ' + GAME.evoAtText(evoDef.at) + '  →  ' + (evoDef.name || ''),
+        P ? 11 : 13, C.textDim, 0).setWordWrapWidth(rightW - 28));
+    }
+  } else {
+    this._body.push(GAME.UI.label(this, rightX + 14, evoLineY,
+      arenaMode ? '대전에서는 모든 스킬을 값 없이 고를 수 있습니다'
+                : (ownedP ? '보유함 — 오른쪽 [장착] 으로 끼웁니다'
+                          : '미보유 — 먼저 구매해야 장착할 수 있습니다'),
+      P ? 11 : 13, ownedP ? C.accent : C.textDim, 0));
+  }
 };
 
 // ── 능력치 탭 ────────────────────────────────────────────────────────────

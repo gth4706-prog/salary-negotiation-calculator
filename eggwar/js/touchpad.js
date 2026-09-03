@@ -341,13 +341,15 @@ GAME.TouchPad.prototype._attack = function () {
   var h = this.hero;
   if (!h.alive || h.cd > 0) return;
   var tgt = GAME.Combat.nearestEnemy(h, this.ctrl.state.units);
-  if (tgt && GAME.Combat.dist(h, tgt) <= h.def.range) {
+  //  사거리는 `effRange`(전장 규칙 fog 반영) — def.range 를 직접 읽으면 안개에서 헛방을 쏜다.
+  var rng = GAME.Combat.effRange(h, this.ctrl.state);
+  if (tgt && GAME.Combat.dist(h, tgt) <= rng) {
     GAME.Combat.fire(h, tgt.x, tgt.y, tgt, this.ctrl.state);
     h.cd = h.def.cooldown;
   } else if (h.def.attack !== 'melee') {
     // 원거리는 바라보는 방향으로 쏜다 (사거리 밖이어도 견제가 된다)
-    GAME.Combat.fire(h, h.x + Math.cos(h.facing) * h.def.range,
-      h.y + Math.sin(h.facing) * h.def.range, null, this.ctrl.state);
+    GAME.Combat.fire(h, h.x + Math.cos(h.facing) * rng,
+      h.y + Math.sin(h.facing) * rng, null, this.ctrl.state);
     h.cd = h.def.cooldown;
   } else if (tgt) {
     // 근접인데 멀면 그쪽으로 붙는다
@@ -627,7 +629,7 @@ GAME.TouchPad.prototype.update = function (dtMs) {
   if (this.scene && this.scene.rt) return true;
   // 걷는 중에도 사거리 안의 적은 자동으로 친다 (키보드 조작과 같은 감각)
   var tgt = GAME.Combat.nearestEnemy(h, this.ctrl.state.units);
-  if (tgt && h.cd <= 0 && GAME.Combat.dist(h, tgt) <= h.def.range) {
+  if (tgt && h.cd <= 0 && GAME.Combat.dist(h, tgt) <= GAME.Combat.effRange(h, this.ctrl.state)) {
     GAME.Combat.fire(h, tgt.x, tgt.y, tgt, this.ctrl.state);
     h.cd = h.def.cooldown;
   } else {

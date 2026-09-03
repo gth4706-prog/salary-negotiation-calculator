@@ -207,7 +207,8 @@ GAME.InputController.prototype.update = function (dtMs) {
 
     // 직접 이동 중에도 사거리 안의 적은 자동으로 친다 (롤과 같은 감각)
     var tgt = GAME.Combat.nearestEnemy(h, this.state.units);
-    if (tgt && h.cd <= 0 && GAME.Combat.dist(h, tgt) <= h.def.range) {
+    //  사거리는 `effRange`(전장 규칙 fog 반영) — def.range 를 직접 읽으면 안개에서 헛방을 쏜다.
+    if (tgt && h.cd <= 0 && GAME.Combat.dist(h, tgt) <= GAME.Combat.effRange(h, this.state)) {
       GAME.Combat.fire(h, tgt.x, tgt.y, tgt, this.state);
       h.cd = h.def.cooldown;
     } else {
@@ -221,7 +222,7 @@ GAME.InputController.prototype.update = function (dtMs) {
   // 위의 '직접 이동 중 자동공격'은 이동할 때만 돌아서, 멈춰 있으면 안 쐈다.
   if (!dx && !dy && h.cd <= 0) {
     var near = GAME.Combat.nearestEnemy(h, this.state.units);
-    if (near && GAME.Combat.dist(h, near) <= h.def.range) {
+    if (near && GAME.Combat.dist(h, near) <= GAME.Combat.effRange(h, this.state)) {
       GAME.Combat.fire(h, near.x, near.y, near, this.state);
       h.cd = h.def.cooldown;
     }

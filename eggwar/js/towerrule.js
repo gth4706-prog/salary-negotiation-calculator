@@ -136,6 +136,50 @@ GAME.TowerRule = (function () {
     }
   ];
 
+  // ── 세계 조건 (시즌2 「다섯 세계」, 2026-09-03 S-W) ────────────────────────
+  //  세계마다 **상시로 걸리는 조건** 하나. 돌아가는 조건(RULES)과 다른 축이다 —
+  //  RULES 는 층마다 답을 바꾸고, 세계 조건은 그 세계에 있는 동안 **같은 답을 계속
+  //  요구**한다(그래서 "세계"로 읽힌다). 값은 기본 조건의 강화판이고, 그 세계에서는
+  //  같은 훅의 기본 조건을 돌림표에서 뺀다(`excludes`) — 같은 훅이 두 번 걸리면
+  //  hooksFor 가 하나를 버려 화면과 전투가 어긋난다.
+  //  ⚠ 초원(meadow)은 없다 — R-3·1~30층 곡선 기준선. 보스 층도 없다(ruleFor 와 같은
+  //    이유: 보스 기제가 그 층의 조건이고, 세계 보스는 페이즈·전장까지 들고 있다).
+  //  ⚠ 폭풍 하늘은 **조합**이다(`hooks` 복수) — 플랜 §1 S-W "둘 조합".
+  var WORLD_RULES = {
+    mire: {
+      key: 'mireNarrow', label: '안개의 눈', world: 'mire',
+      desc: '안개 속에서는 늦게 알아채지만 알아채면 아프다 — 한꺼번에 끌어모으면 위험하다',
+      mods: { damage: 1.12 }, hook: 'narrow', hookArg: { aggroMul: 0.62 },
+      excludes: ['narrow'], forbids: '뭉텅이로 끌어모으기'
+    },
+    ash: {
+      key: 'ashFrenzy', label: '잿불 광란', world: 'ash',
+      desc: '재가 쌓일수록 적이 거세진다 — 오래 끌면 진다',
+      mods: {}, hook: 'frenzy', hookArg: { per: 12000, add: 0.12, max: 0.80 },
+      excludes: ['frenzy'], forbids: '무한 카이팅'
+    },
+    rift: {
+      key: 'riftBond', label: '균열의 결속', world: 'rift',
+      desc: '한 기가 쓰러지면 곁의 동료가 더 세진다 — 순서를 골라야 한다',
+      mods: {}, hook: 'bond', hookArg: { radius: 140, dmg: 0.22, max: 6 },
+      excludes: ['bond'], forbids: '아무 순서로나 처치'
+    },
+    storm: {
+      key: 'stormCrown', label: '폭풍의 관', world: 'storm',
+      desc: '시간이 갈수록 거세지고, 한번 붙으면 끝까지 따라온다',
+      mods: {},
+      hooks: { frenzy: { per: 15000, add: 0.10, max: 0.60 },
+               tenacious: { chaseMul: 2.0, aggroMul: 1.25 } },
+      excludes: ['frenzy', 'tenacious'], forbids: '무한 카이팅 · 끌고 다니기'
+    }
+  };
+
+  function worldOf(floor) {
+    var TC = GAME.TowerCurriculum;
+    if (TC && TC.worldFor) return TC.worldFor(floor);
+    return { key: 'meadow', idx: 0, from: 1 };
+  }
+
   function rng(seed) {
     var s = seed | 0; if (!s) s = 1;
     return function () {
@@ -144,14 +188,27 @@ GAME.TowerRule = (function () {
     };
   }
 
-  var CYCLE = RULES.length;
+  //  이 세계에서 돌아가는 조건 풀. `worlds` 태그가 있으면 그 세계에서만, 세계 조건이
+  //  `excludes` 한 것은 뺀다. 초원은 RULES 전부(= 예전 그대로).
+  function poolFor(world) {
+    var wr = WORLD_RULES[world.key];
+    var ex = (wr && wr.excludes) || [];
+    var out = [];
+    for (var i = 0; i < RULES.length; i++) {
+      var r = RULES[i];
+      if (r.worlds && r.worlds.indexOf(world.key) < 0) continue;
+      if (ex.indexOf(r.key) >= 0) continue;
+      out.push(r);
+    }
+    return out.length ? out : RULES;
+  }
 
-  // 같은 구간 안에서 조건이 한 번씩 돌게 섞는다(원형과 같은 방식).
-  function shuffled(seed, cycleIdx) {
+  // 같은 구간 안에서 조건이 한 번씩 돌게 섞는다(원형과 같은 방식). 길이는 풀 기준.
+  function shuffled(seed, cycleIdx, n) {
     var r = rng((seed ^ (cycleIdx * 0x85ebca6b)) | 0);
     var a = [];
-    for (var i = 0; i < CYCLE; i++) a.push(i);
-    for (var j = CYCLE - 1; j > 0; j--) {
+    for (var i = 0; i < n; i++) a.push(i);
+    for (var j = n - 1; j > 0; j--) {
       var k = Math.floor(r() * (j + 1));
       var t = a[j]; a[j] = a[k]; a[k] = t;
     }
@@ -170,21 +227,58 @@ GAME.TowerRule = (function () {
 
   return {
     RULES: RULES,
+    WORLD_RULES: WORLD_RULES,
     FROM_FLOOR: FROM_FLOOR,
+    poolFor: function (floor) { return poolFor(worldOf(floor)); },
+
+    // ── 세계 조건 — 그 세계에 있는 동안 상시 (보스 층·초원 제외) ─────────────
+    worldRuleFor: function (floor) {
+      if (floor < FROM_FLOOR) return null;
+      if (GAME.Tower && GAME.Tower.isBossFloor && GAME.Tower.isBossFloor(floor)) return null;
+      return WORLD_RULES[worldOf(floor).key] || null;
+    },
 
     // 이 층의 조건. 없으면 null.
     // ⚠ 보스 층에는 조건을 붙이지 않는다 — 보스 기제 자체가 그 층의 '조건' 이고,
     //   둘을 겹치면 보스 층이 벽이 된다(BOSS_ESCORT 를 잡느라 겪은 일과 같은 계열).
+    // ⚠ 시즌2 — 풀은 **세계 기준**이다(poolFor). 초원은 옛 표·옛 순번 그대로라
+    //   1~30층 결과가 한 층도 안 바뀐다. 다른 세계는 세계 첫 층부터 순번을 새로 센다
+    //   (한 세계 안에서 풀이 한 번씩 돌게 — 9층 유일성의 세계판).
     ruleFor: function (floor, seed) {
       if (floor < FROM_FLOOR) return null;
       if (GAME.Tower && GAME.Tower.isBossFloor && GAME.Tower.isBossFloor(floor)) return null;
-      var n = floor - FROM_FLOOR;
+      var w = worldOf(floor);
+      var pool = poolFor(w);
+      var C = pool.length;
+      var n = (w.idx === 0) ? (floor - FROM_FLOOR) : (floor - w.from);
       if (n % REST_EVERY === (REST_EVERY - 1)) return null;   // 쉬어 가는 층
       var s = (seed === undefined) ? seedNow() : (seed | 0);
+      if (w.idx > 0) s = (s ^ (w.idx * 0x51ed27d)) | 0;
       // 쉬는 층을 뺀 순번으로 세야 조건이 골고루 돈다
       var idx = n - Math.floor((n + 1) / REST_EVERY);
-      var order = shuffled(s, Math.floor(idx / CYCLE));
-      return RULES[order[((idx % CYCLE) + CYCLE) % CYCLE]];
+      var order = shuffled(s, Math.floor(idx / C), C);
+      return pool[order[((idx % C) + C) % C]];
+    },
+
+    // 이 층에 걸리는 조건 전부 — [세계 조건, 첫째, 둘째] 순(있는 것만).
+    rulesFor: function (floor, seed) {
+      var out = [];
+      var wr = this.worldRuleFor(floor);
+      if (wr) out.push(wr);
+      var r = this.ruleFor(floor, seed);
+      if (r) out.push(r);
+      var r2 = this.ruleFor2(floor, seed);
+      if (r2) out.push(r2);
+      return out;
+    },
+
+    //  화면용 — '안개의 눈 + 철벽' / 설명은 ' / ' 로 잇는다. 없으면 null.
+    labelFor: function (floor, seed) {
+      var rs = this.rulesFor(floor, seed);
+      if (!rs.length) return null;
+      return { label: rs.map(function (r) { return r.label; }).join(' + '),
+               desc: rs.map(function (r) { return r.desc; }).join(' / '),
+               keys: rs.map(function (r) { return r.key; }) };
     },
 
     // ── 조건의 세기가 층을 따라간다 (2026-08-08, 사용자 지시) ────────────────
@@ -229,26 +323,42 @@ GAME.TowerRule = (function () {
       if (floor < this.SECOND_FROM) return null;
       var first = this.ruleFor(floor, seed);
       if (!first) return null;               // 쉬는 층·보스 층은 그대로 쉰다
+      var pool = poolFor(worldOf(floor));
       var s = (seed === undefined) ? seedNow() : (seed | 0);
       var r = rng((s ^ (floor * 0x27d4eb2d)) | 0);
       for (var tries = 0; tries < 8; tries++) {
-        var cand = RULES[Math.floor(r() * RULES.length) % RULES.length];
+        var cand = pool[Math.floor(r() * pool.length) % pool.length];
         if (cand.key !== first.key) return cand;
       }
       return null;
     },
 
+    //  이 층의 조건 배수를 **전부** 곱한다(세계 조건 → 첫째 → 둘째). Tower.modsFor 계열이
+    //  부른다. ⚠ 예전엔 첫째 조건의 배수만 곱했다 — 둘째(철벽·질풍·좁은눈이 둘째로
+    //  걸린 경우)는 화면에 이름만 뜨고 값은 안 걸렸다. 화면과 전투가 갈라지면 안 되므로
+    //  둘째도 곱한다(35층부터라 R-3 10·20층 기준선과 무관).
+    applyAll: function (mods, floor, seed) {
+      var out = mods;
+      var rs = this.rulesFor(floor, seed);
+      for (var i = 0; i < rs.length; i++) out = this.applyMods(out, rs[i], floor);
+      return out;
+    },
+
     // 전투가 읽을 훅 묶음. 조건이 없으면 null 이라 전투는 아무 일도 하지 않는다.
+    //  순서: 세계 조건(상시) → 첫째 → 둘째. 세계 조건은 `hooks`(복수)일 수 있다.
     hooksFor: function (floor, seed) {
-      var r = this.ruleFor(floor, seed);
-      var r2 = this.ruleFor2(floor, seed);
-      if ((!r || !r.hook) && (!r2 || !r2.hook)) return null;
-      var h = {};
-      if (r && r.hook) h[r.hook] = r.hookArg || true;
-      //  ⚠ 훅이 겹치면 **덮어쓰지 않는다** — 첫째를 남긴다. 정예 훅이 두 번 걸리면
-      //    한 유닛에 정예가 둘 붙어 그림도 판정도 꼬인다.
-      if (r2 && r2.hook && h[r2.hook] === undefined) h[r2.hook] = r2.hookArg || true;
-      return h;
+      var rs = this.rulesFor(floor, seed);
+      var h = {}, any = false;
+      for (var i = 0; i < rs.length; i++) {
+        var r = rs[i];
+        //  ⚠ 훅이 겹치면 **덮어쓰지 않는다** — 먼저 온 것을 남긴다. 정예 훅이 두 번 걸리면
+        //    한 유닛에 정예가 둘 붙어 그림도 판정도 꼬인다.
+        if (r.hooks) {
+          for (var k in r.hooks) { if (h[k] === undefined) { h[k] = r.hooks[k] || true; any = true; } }
+        }
+        if (r.hook && h[r.hook] === undefined) { h[r.hook] = r.hookArg || true; any = true; }
+      }
+      return any ? h : null;
     }
   };
 })();

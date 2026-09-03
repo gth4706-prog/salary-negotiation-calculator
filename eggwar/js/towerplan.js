@@ -308,21 +308,83 @@ GAME.TowerPlan = (function () {
         row(out, g.trap, 0.42, ccx, 0.40, 0.03, ctx.rand);
         return out;
       }
+    },
+
+    // ── 세계 전용 원형 (시즌2 「다섯 세계」, 2026-09-03 S-W) ────────────────────
+    //  `worlds` 태그가 있는 원형은 그 세계에서만 돈다(poolFor). 세계의 전장 규칙이
+    //  요구하는 답을 **공간으로 한 번 더** 말한다 — 규칙과 원형이 같은 방향을 가리켜야
+    //  "이 세계는 이렇다"가 몸에 남는다.
+    {
+      key: 'lavaPress', label: '용암 밀집', worlds: ['ash'],
+      hint: '용암을 피해 앞으로 밀려 나온 밀집 — 앞이 두껍고 뒤가 텅 비었다',
+      why: '잿더미 전용. 뒤가 용암이라 진형이 통째로 앞에 몰린다. 붙으면 한꺼번에 맞고, 뒤로 돌면 용암이다 — 광역기와 서 있을 자리를 같이 시험한다.',
+      place: function (g, ctx) {
+        var out = [];
+        var c = 0.5 + ctx.bias * 0.05;
+        // 전부 앞으로 — 근접 0.40, 중거리 0.33, 뒤 0.27. 폭은 좁게(밀집).
+        row(out, g.wall, 0.40, c, 0.52, 0.02, ctx.rand);
+        row(out, g.mid, 0.33, c, 0.46, 0.02, ctx.rand);
+        row(out, g.back, 0.27, c, 0.40, 0.02, ctx.rand);
+        row(out, g.trap, 0.45, c, 0.36, 0.02, ctx.rand);
+        return out;
+      }
+    },
+    {
+      key: 'bulwarkRing', label: '원형 방벽', worlds: ['storm'],
+      hint: '바람을 등진 원형 방벽 — 근접이 빙 둘러싸고 원거리는 그 안에서 쏜다',
+      why: '폭풍 하늘 전용. 고리(ring)와 달리 근접만 고리를 이루고 화력은 전부 안쪽이다. 바람에 밀리며 방벽을 뚫을지, 낙뢰를 피하며 밖에서 갉을지를 고르게 한다.',
+      place: function (g, ctx) {
+        var out = [];
+        var ccx = 0.5 + ctx.bias * 0.04, ccy = 0.22;
+        var n = g.wall.length;
+        for (var i = 0; i < n; i++) {
+          var ang = Math.PI * 0.5 + (n === 1 ? 0 : (i / n) * Math.PI * 2);
+          put(out, g.wall[i], ccx + Math.cos(ang) * 0.28, ccy + Math.sin(ang) * 0.16);
+        }
+        // 안쪽 — 중거리·뒤를 촘촘한 격자로
+        var inner = g.mid.concat(g.back);
+        var cols = Math.max(2, Math.ceil(Math.sqrt(inner.length)));
+        for (var j = 0; j < inner.length; j++) {
+          var rr = Math.floor(j / cols), cc = j % cols;
+          put(out, inner[j], ccx - 0.09 + (cols === 1 ? 0 : (cc / (cols - 1)) * 0.18),
+              ccy - 0.05 + rr * 0.045);
+        }
+        row(out, g.trap, 0.43, ccx, 0.40, 0.03, ctx.rand);
+        return out;
+      }
     }
   ];
+
+  //  세계 → 이 세계에서 돌아가는 원형 풀. 태그 없는 원형은 어디서나, 태그 있는 것은
+  //  그 세계에서만. 초원은 옛 9종 그대로라 1~30층이 한 층도 안 바뀐다.
+  function worldOf(floor) {
+    var TC = GAME.TowerCurriculum;
+    if (TC && TC.worldFor) return TC.worldFor(floor);
+    return { key: 'meadow', idx: 0, from: 1 };
+  }
+  function poolFor(world) {
+    var out = [];
+    for (var i = 0; i < PLANS.length; i++) {
+      var p = PLANS[i];
+      if (p.worlds && p.worlds.indexOf(world.key) < 0) continue;
+      out.push(p);
+    }
+    return out;
+  }
 
   // ── 층 → 원형 ──────────────────────────────────────────────────────────────
   //  같은 9층 구간 안에서 **9종이 한 번씩** 나오게 시드로 섞는다. 순수 난수로 뽑으면
   //  같은 원형이 연달아 나와 "또 이거야"가 되고, 고정 순서면 외워진다.
   //  1~3층은 연습 구간이라 늘 `line` 이다(CLAUDE.md 의 "1~3층은 쉬워도 된다" 약속).
-  var CYCLE = PLANS.length;
   var PRACTICE_FLOORS = 3;
 
-  function shuffledCycle(seed, cycleIdx) {
+  //  주기 길이는 **풀 기준**이다(초원 9 · 잿더미 10 · 폭풍 10 …). 시즌2 이전 상수 CYCLE=9
+  //  는 초원 풀 길이와 같아 초원 결과가 그대로다.
+  function shuffledCycle(seed, cycleIdx, n) {
     var r = rng((seed ^ (cycleIdx * 0x9e3779b1)) | 0);
     var a = [];
-    for (var i = 0; i < CYCLE; i++) a.push(i);
-    for (var j = CYCLE - 1; j > 0; j--) {
+    for (var i = 0; i < n; i++) a.push(i);
+    for (var j = n - 1; j > 0; j--) {
       var k = Math.floor(r() * (j + 1));
       var t = a[j]; a[j] = a[k]; a[k] = t;
     }
@@ -356,7 +418,17 @@ GAME.TowerPlan = (function () {
     //  이미 배운 것과 같은 함정이다. 게임 안에서 이 값을 세우는 코드는 없다.
     FORCE: null,
 
+    //  이 층(세계)의 원형 풀 — 도구(tools/tower-variety.js)가 유일성을 풀 기준으로 잰다.
+    poolFor: function (floor) { return poolFor(worldOf(floor)); },
+    //  이 세계의 주기 시작 층(초원 4 · 그 밖은 세계 첫 층) — 유일성 블록의 기준점.
+    cycleStartFor: function (floor) {
+      var w = worldOf(floor);
+      return w.idx === 0 ? PRACTICE_FLOORS + 1 : w.from;
+    },
+
     // 이 층의 원형. `seed` 를 주면 그걸 쓴다(도구·테스트용).
+    //  ⚠ 시즌2 — 풀·순번이 세계 기준이다. 초원은 옛 식 그대로(n = floor-4, 9종),
+    //    다른 세계는 세계 첫 층부터 0 으로 세어 그 세계의 풀이 한 번씩 돈다.
     planFor: function (floor, seed) {
       if (this.FORCE) {
         for (var fi = 0; fi < PLANS.length; fi++) {
@@ -365,10 +437,14 @@ GAME.TowerPlan = (function () {
       }
       if (floor <= PRACTICE_FLOORS) return PLANS[0];
       var s = (seed === undefined) ? seedNow() : (seed | 0);
-      var n = floor - PRACTICE_FLOORS - 1;          // 0부터
-      var cycleIdx = Math.floor(n / CYCLE);
-      var order = shuffledCycle(s, cycleIdx);
-      return PLANS[order[n % CYCLE]];
+      var w = worldOf(floor);
+      var pool = poolFor(w);
+      var C = pool.length;
+      var n = floor - this.cycleStartFor(floor);          // 0부터
+      if (w.idx > 0) s = (s ^ (w.idx * 0x2545f491)) | 0;  // 세계마다 다른 섞임
+      var cycleIdx = Math.floor(n / C);
+      var order = shuffledCycle(s, cycleIdx, C);
+      return pool[order[n % C]];
     },
 
     // 진형의 좌표만 다시 정한다. 구성(units 의 type 목록)은 손대지 않는다.

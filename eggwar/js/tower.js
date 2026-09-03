@@ -147,6 +147,9 @@ GAME.Tower = {
     // 쿨감(cdrMul, 1보다 작을수록 빠르다)도 실제 dps 다 — 안 넣으면 쿨감 아이템으로
     // 찍은 빌드의 진짜 화력이 과소평가된다.
     var p = (atk / (ib.cdrMul || 1)) / atk0;
+    //  시즌2 스킬 진화(S-H) — 진화한 스킬의 화력 배수도 성장이다. 안 넣으면 진화 빌드가
+    //  "42층을 3초만에" 계열(성장을 못 따라오는 진형)을 다시 만든다.
+    if (TC.evoAtkMul) p *= TC.evoAtkMul(rec);
     return p > 1 ? p : 1;
   },
 
@@ -294,7 +297,16 @@ GAME.Tower = {
     var dmgM = skipPower ? 1 : this.dmgMul();
     var m = { hp: (1 + 0.012 * t) * hpM, damage: (1 + 0.010 * t) * dmgM };
     if (skipRule || !GAME.TowerRule) return m;
-    return GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor), floor);
+    return this._applyRules(m, floor);
+  },
+
+  //  층 조건 배수 — 세계 조건·첫째·둘째를 전부 곱한다(js/towerrule.js `applyAll`).
+  //  옛 towerrule(applyAll 없음)이 캐시로 섞여도 첫째만 곱하던 예전 동작으로 돈다.
+  _applyRules: function (m, floor) {
+    var R = GAME.TowerRule;
+    if (!R) return m;
+    if (R.applyAll) return R.applyAll(m, floor);
+    return R.applyMods(m, R.ruleFor(floor), floor);
   },
 
   // ── 유닛별 편차 (2026-08-02 사용자 지시) ─────────────────────────────────────
@@ -368,7 +380,7 @@ GAME.Tower = {
     var dmgM = 1 + (dmgFollow - 1) * prof.dmgW;
     var m = { hp: (1 + 0.012 * t) * hpM, damage: (1 + 0.010 * t) * dmgM };
     if (skipRule || !GAME.TowerRule) return m;
-    return GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor), floor);
+    return this._applyRules(m, floor);
   },
 
   // ── 보스 전용 성장 (2026-08-01 사용자 지시: "보스가 너무 약해") ────────────────
@@ -440,6 +452,23 @@ GAME.Tower = {
 
   BOSS_HP_PREMIUM: 2.4,
   BOSS_DMG_PREMIUM: 1.65,
+
+  //  ── 보스 배수의 **층항** (시즌2 「다섯 세계」, 2026-09-03 S-W) ─────────────────
+  //  진단: 보스 배수에 층항이 없어 110층 서리 권속 = 270층 서리 권속이었다(권속이 돌아올
+  //  때마다 정확히 같은 싸움). 위 주석("층당 선형 성장을 뺐다")의 이유 — 300층이 10층의
+  //  4.6배 길어진다 — 는 그대로 유효하므로 **선형이 아니라 완만한 항**을 30층 뒤에만 건다:
+  //    hp     1 + 0.005×(층−30), 상한 2.5   → 60층 1.15 · 110층 1.40 · 270층 2.20 · 300층 2.35
+  //    damage 1 + 0.0025×(층−30), 상한 1.75 → 60층 1.08 · 110층 1.20 · 270층 1.60
+  //  30층 이하는 정확히 1 이다 — 초원(R-3 10·20층, 1~30층 곡선) 기준선은 안 움직인다.
+  //  체력 쪽을 두 배 세게 두는 이유: 같은 보스를 다시 만났을 때 "더 오래 버틴다"가
+  //  "한 대가 더 아프다"보다 안전하다(한 방 회피 규격이 있어도 평타는 예고가 없다).
+  BOSS_FLOOR_TERM: { from: 30, hpPer: 0.005, hpCap: 2.5, dmgPer: 0.0025, dmgCap: 1.75 },
+  bossFloorMul: function (floor) {
+    var T = this.BOSS_FLOOR_TERM;
+    var t = Math.max(0, (Number(floor) || 0) - T.from);
+    return { hp: Math.min(T.hpCap, 1 + T.hpPer * t), damage: Math.min(T.dmgCap, 1 + T.dmgPer * t) };
+  },
+
   bossModsFor: function (floor) {
     //  ⚠ `modsFor` 를 그대로 쓰면 안 된다 — 거기엔 유닛용 지수 0.75 가 이미 들어 있다.
     //    층 조건(towerrule)은 그대로 타되 **추종 배수만** 갈아 끼운다.
@@ -450,15 +479,17 @@ GAME.Tower = {
     //    표를 읽을 수 없게 된다(교정 도구가 실제로 그런 표를 뱉었다).
     //    지금은 `def.hp` 하나가 곧 **그 보스와 몇 초 싸우는가**를 뜻한다 — 층별
     //    난이도 상승은 진형·호위가 맡는다(보스는 '위협', 진형은 '난이도').
+    //    (시즌2: 그 위에 위 `bossFloorMul` 의 완만한 층항만 얹는다. 30층까지는 1.)
     var m = { hp: this._bossFollow(this.atkIndex()),
               damage: this._bossFollow(this.ehpIndex()) };
-    if (GAME.TowerRule) m = GAME.TowerRule.applyMods(m, GAME.TowerRule.ruleFor(floor), floor);
+    if (GAME.TowerRule) m = this._applyRules(m, floor);
     //  막힌 층 완화는 **보스에게도** 걸린다. 사람이 벽으로 느끼는 층은 대개 보스 층인데
     //  거기만 빼면 정작 필요한 자리에서 안 듣는다(js/towerchar.js `noteFloorFail` 참조).
     var rf = (GAME.TowerChar && GAME.TowerChar.reliefFor) ? GAME.TowerChar.reliefFor(floor) : 1;
+    var ft = this.bossFloorMul(floor);
     return {
-      hp: m.hp * this.BOSS_HP_PREMIUM * rf,
-      damage: m.damage * this.BOSS_DMG_PREMIUM * rf
+      hp: m.hp * this.BOSS_HP_PREMIUM * rf * ft.hp,
+      damage: m.damage * this.BOSS_DMG_PREMIUM * rf * ft.damage
     };
   },
 
@@ -536,31 +567,50 @@ GAME.Tower = {
   //  ⚠ 부위 간격이 50 이 아니라 **30**(200·230·260)인 이유: 셋을 50 간격으로 두면
   //    350 까지 밀려 본체가 300 에서 벗어난다. 30 간격으로 당겨 270~290 을 권속에게
   //    주면 **본체 직전에 숨 고르는 구간**이 생겨 오히려 300 층이 사건이 된다.
+  //  ── 시즌2 「다섯 세계」(2026-09-03 S-W) — **세계 보스가 30·60·100·150·200 을 맡는다.**
+  //    30 둥지 포탑(초원, 현행) · 60 늪의 어미 · 100 재의 군주 · 150 균열 거인 · 200 폭풍의 왕.
+  //    그 뒤 폭풍 하늘은 50마다(250·300·350…) 폭풍의 왕 ↔ 태초의 용이 번갈아 나온다
+  //    (`TowerCurriculum.worldBossKeyFor` 가 정본, 이 표는 도구가 읽는 사본이다).
+  //    용의 알 사다리(알→금 간 알→깨어지는 알→발→손→날개→본체)는 **순서를 지킨 채**
+  //    세계 보스 층을 비켜 한 칸씩 앞으로 당겼다: 금 간 알 100→90 · 깨어지는 알 150→140 ·
+  //    발 200→180. 손 230·날개 260·본체 300 은 그대로다("얼굴은 300층" 8차 결론 유지).
   BOSS_SCHEDULE: {
-    10: 'bossChief', 20: 'bossShell', 30: 'bossNest',
+    10: 'bossChief', 20: 'bossShell', 30: 'bossNest',        // ← 30 초원 세계 보스(현행)
     40: 'bossAshSentry',
     50: 'bossDragonEgg',                                    // ← 알(정체 회수)
-    60: 'bossDrakeAsh', 70: 'bossDrakeFrost',
-    80: 'bossAshSentry', 90: 'bossDrakeStorm',
-    100: 'bossDragonEggCracked',                            // ← 금 간 알
+    60: 'bossSwampMother',                                  // ← 안개늪 세계 보스
+    70: 'bossDrakeFrost', 80: 'bossDrakeAsh',
+    90: 'bossDragonEggCracked',                             // ← 금 간 알 (100→90)
+    100: 'bossAshLord',                                     // ← 잿더미 세계 보스
     110: 'bossDrakeFrost', 120: 'bossDrakeStorm',
-    130: 'bossDrakeAsh',  140: 'bossDrakeFrost',
-    150: 'bossDragonCrack',                                 // ← 깨어지는 알(눈만)
-    160: 'bossDrakeStorm', 170: 'bossDrakeFrost',
-    180: 'bossDrakeStorm', 190: 'bossDrakeAsh',
-    200: 'bossDragonFoot',                                  // ← 발이 먼저 나온다
-    210: 'bossDrakeFrost', 220: 'bossDrakeStorm',
+    130: 'bossDrakeAsh',
+    140: 'bossDragonCrack',                                 // ← 깨어지는 알(눈만) (150→140)
+    150: 'bossRiftGiant',                                   // ← 균열 세계 보스
+    160: 'bossDrakeStorm', 170: 'bossAshSentry',
+    180: 'bossDragonFoot',                                  // ← 발이 먼저 나온다 (200→180)
+    190: 'bossDrakeFrost',
+    200: 'bossStormKing',                                   // ← 폭풍 하늘 세계 보스(첫 50주기)
+    210: 'bossDrakeStorm', 220: 'bossDrakeAsh',
     230: 'bossDragonClaw',                                  // ← 손
-    240: 'bossDrakeAsh',  250: 'bossAshSentry',
+    240: 'bossDrakeFrost',
+    250: 'bossStormKing',                                   // ← 50주기
     260: 'bossDragonWing',                                  // ← 날개
-    300: 'bossDragonLord'                                   // ← 본체(얼굴 공개)
+    300: 'bossDragonLord'                                   // ← 본체(얼굴 공개) — 이후 100마다
   },
   //  표에 없는 10의 배수 층은 이 목록이 돈다.
   BOSS_LATE: ['bossDrakeFrost', 'bossDrakeStorm', 'bossDrakeAsh', 'bossAshSentry'],
-  //  300층을 넘어가면 본체가 50층마다 다시 나온다 — 꼭대기가 없는 탑이므로
-  //  '마지막 보스'는 끝이 아니라 **가장 무거운 주기**가 된다.
+  //  300층을 넘어가면 본체가 **100층마다**(300·400…) 다시 나오고 그 사이 50주기(350·450…)는
+  //  폭풍의 왕이다 — 꼭대기가 없는 탑이므로 '마지막 보스'는 끝이 아니라 **가장 무거운 주기**다.
   DRAGON_FROM: 300,
-  DRAGON_EVERY: 50,
+  DRAGON_EVERY: 100,
+  DRAGON_KEY: 'bossDragonLord',
+
+  //  세계 보스 층인가(30·60·100·150·200 + 폭풍 50주기). 배틀 종료 블록(S-C 소유)이
+  //  세계 보스 처치 포인트(Season.POINTS.boss)를 걸 때 이걸 묻는다.
+  isWorldBossFloor: function (floor) {
+    var TC = GAME.TowerCurriculum;
+    return !!(TC && TC.worldBossKeyFor && TC.worldBossKeyFor(floor));
+  },
 
   //  ── 보너스 판 (2026-08-23 태현님: "20% 확률로 보너스 판 — 알지키기·알깨기") ──
   //  결정적 난수(climbSeed+층)라 재도전해도 같은 층은 같은 판이다(외워지는 건
@@ -603,8 +653,12 @@ GAME.Tower = {
 
   bossKeyFor: function (floor) {
     if (!this.isBossFloor(floor)) return null;
+    //  세계 보스가 먼저다(시즌2). 300·400… 의 태초의 용도 이 안에서 정해진다.
+    var TC = GAME.TowerCurriculum;
+    var wk = TC && TC.worldBossKeyFor ? TC.worldBossKeyFor(floor) : null;
+    if (wk && GAME.UNITS[wk]) return wk;
     if (floor >= this.DRAGON_FROM && (floor - this.DRAGON_FROM) % this.DRAGON_EVERY === 0) {
-      return 'bossDragonLord';
+      return this.DRAGON_KEY;
     }
     if (this.BOSS_SCHEDULE[floor]) return this.BOSS_SCHEDULE[floor];
     var n = Math.floor(floor / this.BOSS_EVERY) - 11;      // 110층이 0 번
@@ -657,6 +711,9 @@ GAME.Tower = {
     //  9층 ≈ 6, 이후 아주 완만히 는다. 예산 초과분은 generate 가 레벨로 태운다.
     var unitCap = GAME.Tower.unitCapFor(floor);
     if (!maxUnits || maxUnits > unitCap) maxUnits = unitCap;
+    //  세계(시즌2) — 편성 가중·풀이 세계를 따른다(js/autoformation.js WORLD_WEIGHTS).
+    var world = (GAME.TowerCurriculum && GAME.TowerCurriculum.worldFor)
+      ? GAME.TowerCurriculum.worldFor(floor) : null;
     var f = GAME.AutoFormation.generate(budget, useProfile ? prof : null, {
       id: 'tower-' + floor,
       name: floor + '층',
@@ -665,6 +722,7 @@ GAME.Tower = {
       allowTypes: allowTypes,
       maxUnits: maxUnits,
       capUnits: unitCap,
+      world: world ? world.key : null,
       // 층이 오를수록 **더 세게 읽는다**(js/autoformation.js 의 readMul 주석).
       // 3층에서 1.0 으로 시작해 층당 +8%, 상한 3.5배(≈35층). 예산은 '많아진다'를,
       // 이 값은 '읽힌다'를 담당한다 — 둘이 갈라져 있어야 후자가 느껴진다.
@@ -831,6 +889,24 @@ GAME.Tower = {
           f.ruleDesc = rule.desc + ' / ' + rule2.desc;
         }
       }
+      //  세계 조건(시즌2, 상시) — 맨 앞에 적는다. 그 세계에 있는 동안 늘 걸리는 것이라
+      //  층마다 바뀌는 조건보다 먼저 읽혀야 한다("보고 피할 수 있다"의 같은 규율).
+      var wrule = GAME.TowerRule.worldRuleFor ? GAME.TowerRule.worldRuleFor(floor) : null;
+      if (wrule) {
+        f.worldRule = wrule.key;
+        f.ruleLabel = wrule.label + (f.ruleLabel ? ' + ' + f.ruleLabel : '');
+        f.ruleDesc = wrule.desc + (f.ruleDesc ? ' / ' + f.ruleDesc : '');
+      }
+    }
+    //  세계·전장 규칙(시즌2) — 로딩·허브가 읽는다. 전장 def 자체는 battle.js 가
+    //  `TowerCurriculum.fieldFor` 로 다시 만든다(같은 시드라 같은 값이다).
+    if (world) {
+      f.world = world.key;
+      f.worldName = world.name;
+      f.worldIcon = world.icon;
+      var fdef = GAME.TowerCurriculum.fieldFor ? GAME.TowerCurriculum.fieldFor(floor) : null;
+      f.field = fdef ? fdef.kind : null;
+      f.fieldLabel = fdef && GAME.TowerCurriculum.fieldLabel ? GAME.TowerCurriculum.fieldLabel(fdef) : null;
     }
 
     // 화면이 "이 층은 뭐가 다른가"를 말할 수 있게 설명에 한 줄 얹는다.
@@ -890,10 +966,15 @@ GAME.Tower = {
       var pCap = (GAME.TowerCurriculum && floor <= GAME.TowerCurriculum.fullFloor())
         ? GAME.TowerCurriculum.maxUnitsFor(floor) : 0;
       if (pCap && pCap <= GAME.Tower.unitCapFor(floor)) { f.qualityMul = 1; return; }
+      //  시즌2 S-W — 확장 유닛은 **AI 회계 단가(스탯 몫)** 로 센다(js/autoformation.js
+      //  `AI_STAT_COST` 주석). 기제 값은 '안 쓴 돈'이 되어 질 배수로 돌아온다 — 안 그러면
+      //  세계 유닛이 든 층이 실측 3~7배 쉬워진다. 초원엔 확장 유닛이 없어 기존과 같다.
       var spent2 = 0;
+      var AFc = GAME.AutoFormation;
       (f.units || []).forEach(function (u) {
         var d2 = GAME.UNITS[u.type];
-        if (d2 && d2.cost) spent2 += d2.cost;
+        if (!d2 || !d2.cost) return;
+        spent2 += (AFc && AFc.statCostOf) ? AFc.statCostOf(u.type) : d2.cost;
       });
       //  초보 구간(≤10층)은 보상 상한을 낮게(1.6) — 교육 과정이 싼 유닛만 허용해
       //  잔액이 커지는 구간이라, 다 보상하면 5층이 ×4.4 정예가 되어 벽이 된다(실측:

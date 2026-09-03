@@ -21,6 +21,9 @@ GAME.MenuScene.prototype.create = function () {
   //  메타(v3.0) — 보류된 일일 과제 골드 정산 + 못 띄운 업적 토스트를 여기서 흘린다.
   if (GAME.Daily && GAME.Daily.settle) { try { GAME.Daily.settle(); } catch (e) {} }
   if (GAME.Progress && GAME.Progress.settle) { try { GAME.Progress.settle(); } catch (e) {} }   //  출석·보류 보상
+  //  시즌 2(js/season.js) — 탑 최고층으로 세계 정복을 맞추고 시즌 보상을 지급한다. 토스트는
+  //  아래 delayedCall 의 Achievements.flush 가 함께 흘린다(같은 MetaToast 큐).
+  if (GAME.Season && GAME.Season.settle) { try { GAME.Season.settle(); } catch (e) {} }
   if (GAME.CloudSave && GAME.CloudSave.push) { try { GAME.CloudSave.push(); } catch (e) {} }   //  진행 밀어 올리기(디바운스)
   this.time.delayedCall(900, function () {
     if (!self.scene.isActive()) return;
@@ -86,12 +89,18 @@ GAME.MenuScene.prototype.create = function () {
   //  ── 이어하기를 **찾을 수 있게** 한다 (2026-08-05 사용자 지시) ────────────────
   //  기능을 만들어 두고 탑 허브 안쪽에만 두면 아무도 못 찾는다. 닉네임 바로 아래가
   //  "이 계정은 이 기기 것"이라는 사실을 읽는 자리라, 그 한계를 말할 자리도 여기다.
-  GAME.UI.label(this, W / 2, u * 28,
+  var carryLbl = GAME.UI.label(this, W / 2, u * 28,
     '기기를 바꾸려면  통곡의 탑 → 이어하기', P ? 13 : 13, C.textFaint, 0.5);
   this._carryNotice();
   this._dailyReward();
 
   var bw = Math.min(W - 60, 440);
+
+  //  🌋 시즌 배너 + 세계 진행 5칸 (시즌 2 · js/season.js) — 이어하기 줄 아래에 **실측 높이로**
+  //  이어 내리고, 모드 버튼 흐름(by)은 그 바닥에서 시작한다. Season 이 없으면 by 는 예전 값
+  //  그대로다(u*31). 아래 안내 두 줄은 바닥을 넘으면 버튼 줄 아래로만 당겨진다(기존 로직).
+  //  (carryLbl 은 origin 0.5 — 바닥 = y + height/2)
+  var seasonBottom = this._seasonStrip(W / 2, carryLbl.y + carryLbl.height / 2 + u * 0.7, bw, { small: P });
 
   var tower = GAME.Tower.get();
   var dtower = GAME.DefendTower.get();
@@ -101,7 +110,7 @@ GAME.MenuScene.prototype.create = function () {
   // → **위에서 아래로 흐르는 배치**로 바꾼다. 버튼 높이가 바뀌어도 안 겹친다.
   var BH = GAME.UI.BTN_H || 58;            // 설계 px
   var SUB = u * 4.6;                       // 버튼 아래 설명 한 줄이 차지하는 여백
-  var by = u * 31 + BH / 2;
+  var by = Math.max(u * 31, seasonBottom ? seasonBottom + u * 0.9 : 0) + BH / 2;
   //  ⚠ 만든 버튼을 **돌려준다**. 표식(js/lobbyart.js `markFor`)이 라벨 폭을 읽어
   //    왼쪽에 붙는데, 그러려면 버튼을 만든 뒤의 `text` 를 잡을 수 있어야 한다.
   function modeButton(label, desc, opts, onTap, mark) {
@@ -426,6 +435,11 @@ GAME.MenuScene.prototype._buildPhone = function () {
   UI.button(this, W - PAD - topW * 2 - 20 - 60 - 10 - topW / 2, 14 + topH / 2, topW, topH, '👤 프로필',
     function () { self.scene.start('Profile', { tab: 'main', page: 0 }); }, { fontSize: 16 });
 
+  //  🌋 시즌 배너 + 세계 진행 (시즌 2 · js/season.js) — 우측 레일의 빈 곳: 상단 버튼 줄
+  //  (바닥 ≈ 66) 아래 ~ 왕좌 줄(≈ 258, 카드 위) 위. 폭 300 을 오른쪽 끝에 붙이면 W=820 에서
+  //  x ∈ [504, 804] 라 왼쪽 간판(≈ 260 까지)·퍼레이드와 안 만난다. 높이 ≈ 44.
+  this._seasonStrip(W - PAD - 150, 14 + topH + 10, 300, { small: true });
+
   // ── 하단 모드 카드 한 줄 — 대전이 가장 크다 ──
   var cardH = 96, cy = H - PAD - cardH / 2;
   var gap = 10;
@@ -496,6 +510,48 @@ GAME.MenuScene.prototype._buildPhone = function () {
       if (top.id === me) t.setColor(C.accent);
     });
   });
+};
+
+//  🌋 시즌 배너 한 줄 + 세계 진행 5칸 (시즌 2 「다섯 세계」, js/season.js).
+//  반환: 그린 것의 바닥 y — Season 이 안 실려 있으면 null(호출부는 예전 좌표를 쓴다).
+//  · 배너는 caption/micro(간판체 아님) — 로비의 위계는 로고 > 모드 버튼 > 나머지다.
+//  · 칸: 정복 = 세계 색으로 채움 · 진입 = 밝은 면 · 미도달 = 회색(meterTrack) · 현재 = focus 테두리.
+//    이름은 칸 폭에 맞춰 축소한다(폰 300px 에서 '폭풍 하늘'이 넘친다).
+//  · 탭하면 프로필(세계 정복·포인트 상세). 보이지 않는 사각형 하나가 띠 전체를 받는다.
+GAME.MenuScene.prototype._seasonStrip = function (cx, top, w, opts) {
+  var S = GAME.Season;
+  if (!S || !S.progress) return null;
+  opts = opts || {};
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI, self = this;
+  var small = !!opts.small;
+  var prog, banner;
+  try { prog = S.progress(); banner = S.bannerText(); } catch (e) { return null; }
+  var txt = UI.text(this, cx, top, banner,
+    { size: small ? 'micro' : 'caption', color: C.warn, origin: 0.5, originY: 0 });
+  if (txt.width > w) txt.setScale(w / txt.width);
+  var y = top + txt.height + (small ? 3 : 4);
+  var gap = 4, n = prog.length;
+  var cw = (w - gap * (n - 1)) / n;
+  var ch = small ? 20 : 22;
+  var x0 = cx - w / 2;
+  var g = this.add.graphics();
+  for (var i = 0; i < n; i++) {
+    var p = prog[i];
+    var x = x0 + i * (cw + gap);
+    g.fillStyle(p.conquered ? p.color : (p.entered ? UI.COL.surfaceHi : UI.COL.meterTrack), 1);
+    g.fillRoundedRect(x, y, cw, ch, 4);
+    if (p.current) { g.lineStyle(2, UI.COL.focus, 1); g.strokeRoundedRect(x + 1, y + 1, cw - 2, ch - 2, 4); }
+    else { g.lineStyle(1, p.conquered ? p.color : UI.COL.border, 1); g.strokeRoundedRect(x + 0.5, y + 0.5, cw - 1, ch - 1, 4); }
+    //  정복 칸은 밝은 세계 색 위라 어두운 글자(테마 무관) — 나머지는 테마 글자색.
+    var nt = UI.text(this, x + cw / 2, y + ch / 2, p.name,
+      { size: 'micro', color: p.conquered ? '#101018' : (p.entered ? C.text : C.textFaint), origin: 0.5 });
+    if (nt.width > cw - 6) nt.setScale((cw - 6) / nt.width);
+  }
+  var bottom = y + ch;
+  var hit = this.add.rectangle(cx, (top + bottom) / 2, w, bottom - top, 0x000000, 0)
+    .setInteractive({ useHandCursor: true });
+  hit.on('pointerdown', function () { self.scene.start('Profile', { tab: 'main', page: 0 }); });
+  return bottom;
 };
 
 //  각 분야 전체 1위 — 5분 캐시(메뉴 재진입이 잦다). 실패한 분야는 그냥 빈다.

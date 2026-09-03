@@ -31,6 +31,15 @@ GAME.Combat = {
   //  0.20 + 보호막 동배율에서 공격 쪽이 잡아낸다. 탑/수성/비동기는 무영향.
   RT_SUSTAIN: 0.20,
 
+  //  ── 궁극 하한(평타 10대) 스위치 (2026-09-03 시즌2 S-E) ─────────────────────────
+  //  2026-08-23 에 넣은 하한이 `u.damage` 미정의(NaN 비교)로 **한 번도 안 걸린 채** 그 뒤의
+  //  모든 밸런스(RT_SKILL_MOD·rt-balance-audit·regress 기준선)가 잡혔다. 접근자를 정의해
+  //  NaN 을 고치는 순간 하한이 살아나 기준선이 통째로 움직인다(실측: rt-balance ②·⑤ 실패,
+  //  무조작 돌파율 18층 25→67% · 37층 0→75%). 그래서 하한은 **스위치 뒤**에 두고 기본은
+  //  끈다 — 켜는 것은 밸런스 갈래(S-H 3단계 매트릭스)가 기준선을 다시 뽑으며 결정한다.
+  //  ⚠ 파수꾼 aura R 의 NaN(피해 0) 수정은 이 스위치와 무관하게 언제나 적용된다.
+  ULT_FLOOR_ON: false,
+
   RT_ORBS: {
     rtMight: { name: '맹공의 구슬', desc: '공격력 +10%', dmgMul: 1.10 },
     rtStone: { name: '단단함의 구슬', desc: '방어력 +6', armorAdd: 6 },
@@ -143,6 +152,23 @@ GAME.Combat = {
       for (var bi = 0; bi < out.abilities.length; bi++) arr.push(scaleAbil(out.abilities[bi]));
       out.abilities = arr;
     }
+    //  시즌2 S-E — 페이즈(def.phases)의 능력 배열도 **똑같이** 환산한다. 빠뜨리면 폰
+    //  프로필에서만 2페이즈부터 예고 반경이 안 줄어 조용히 어긋난다(abilities 사고의 재판).
+    //  field(전장 규칙)는 아레나 비율 좌표라 환산 대상이 아니다(_buildField 가 월드로 푼다).
+    if (out.phases && out.phases.length) {
+      var phs = [];
+      for (var pi = 0; pi < out.phases.length; pi++) {
+        var ph = {}, pk;
+        for (pk in out.phases[pi]) ph[pk] = out.phases[pi][pk];
+        if (ph.abilities && ph.abilities.length) {
+          var pa = [];
+          for (var pj = 0; pj < ph.abilities.length; pj++) pa.push(scaleAbil(ph.abilities[pj]));
+          ph.abilities = pa;
+        }
+        phs.push(ph);
+      }
+      out.phases = phs;
+    }
     return out;
   },
 
@@ -237,6 +263,18 @@ GAME.Combat = {
 
     var u = this._baseUnit(this.scaleDef(def), x, y, side, heroKey);
     u.isHero = true;
+    //  ── `hero.damage` (2026-09-03 시즌2 S-E) ──────────────────────────────────
+    //  궁극 하한(R = 평타 10대)이 `u.damage` 를 읽는데 유닛 객체에는 그 필드가
+    //  **없었다** → NaN 비교는 언제나 거짓이라 하한이 한 번도 안 걸렸고, 파수꾼
+    //  구역(aura) R 은 `Math.max(dps, NaN)` = NaN 으로 **피해 0**(체력이 NaN 이 된다).
+    //  현재 공격력을 돌려주는 접근자로 둔다 — 아이템·구슬·탑 보정이 `def.damage` 를
+    //  바꾸므로 값을 복사해 두면 그 순간의 값에 굳는다. 열거 불가(enumerable:false)라
+    //  `for..in` 복사·digest 에는 안 잡힌다.
+    Object.defineProperty(u, 'damage', {
+      get: function () { return this.def.damage || 0; },
+      set: function (v) { this.def.damage = v; },
+      enumerable: false, configurable: true
+    });
     //  ⚠⚠ 영웅은 목줄이 없다 (2026-08-21 실사용 신고 "위쪽 구석으로 못 간다"의 진범).
     //  P1(2026-08-19)이 실시간 대칭 전장을 위해 `_baseUnit` 의 leash 진영 조건을
     //  없애면서 영웅에게도 leash 가 붙었고, update 말미의 전 유닛 clampToLeash 가
@@ -473,11 +511,58 @@ GAME.Combat = {
     return n;
   },
 
+  // ── 은신 (2026-09-03 시즌2 S-E · 암살자) ─────────────────────────────────────
+  //  버프 태그 `stealthTag` 가 살아 있는 동안:
+  //   · **조준 대상에서 빠진다** — nearestEnemy / unitAt / 유도탄(homing) / aihero / rtbot.
+  //     논타겟(투사체·예고·오라·구역)은 그대로 맞는다 — 이 게임의 스킬 타입 경제
+  //     ("타겟은 비싸고 회피 불가, 논타겟은 싸고 회피 가능")를 은신이 뒤집지 않는다.
+  //   · 이동 중 받는 피해 ×0.6 (applyDamage).
+  //   · **공격하면 풀린다** — 피해를 주는 순간(applyDamage 의 source) 한 곳에서 해제한다.
+  //     평타·스킬·오라·덫이 전부 그 문을 지나므로 빠뜨릴 자리가 없다.
+  //  ⚠ 상태만 읽는다(난수 없음) — 록스텝 안전.
+  isStealthed: function (u) {
+    if (!u || !u.buffs) return false;
+    for (var i = 0; i < u.buffs.length; i++) if (u.buffs[i].stealthTag) return true;
+    return false;
+  },
+  breakStealth: function (u, state) {
+    if (!u || !u.buffs) return false;
+    var did = false;
+    for (var i = u.buffs.length - 1; i >= 0; i--) {
+      if (u.buffs[i].stealthTag) { u.buffs.splice(i, 1); did = true; }
+    }
+    if (did) {
+      u._stealthUntil = 0;
+      if (state && state.effects) {
+        state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: (u.def.radius || 14) + 18,
+                             t: 200, total: 200, side: u.side, stealthBreak: true });
+      }
+    }
+    return did;
+  },
+
+  // ── 실효 사거리 (2026-09-03 시즌2 S-E · 전장 규칙 `fog`) ────────────────────
+  //  `def.range` 를 **교전 판정에 쓰는 자리는 전부 여기를 지난다.** 안개 규칙이
+  //  사거리 배율을 걸 때 한 곳만 고치면 되게 하기 위해서다(직접 `def.range` 를 읽는
+  //  자리가 남으면 그 경로만 안개를 무시한다 — abilities 복수형 사고와 같은 계열).
+  //  ⚠ "원거리인가"를 가르는 분류 비교(`range > 150`)는 그대로 def.range 다 —
+  //    그건 사거리가 아니라 유닛의 **종류**를 묻는 것이라 안개와 무관하다.
+  effRange: function (u, state) {
+    var r = (u && u.def && u.def.range) || 0;
+    var F = state && state.towerField;
+    if (F && F.kind === 'fog' && typeof F.rangeMul === 'number' && r > 0) {
+      //  근접은 안개가 무의미하다(팔 길이는 안 보여도 같다) — 원거리만 줄인다.
+      if (r > (F.meleeBelow === undefined ? 130 : F.meleeBelow)) r *= F.rangeMul;
+    }
+    return r;
+  },
+
   nearestEnemy: function (unit, units) {
     var best = null, bestD = Infinity;
     for (var i = 0; i < units.length; i++) {
       var o = units[i];
       if (!o.alive || o.side === unit.side || this.isHazard(o)) continue;
+      if (o.buffs && o.buffs.length && this.isStealthed(o)) continue;   // 은신 — 조준 제외
       var d = this.dist(unit, o);
       if (d < bestD) { bestD = d; best = o; }
     }
@@ -489,6 +574,7 @@ GAME.Combat = {
       var u = state.units[i];
       if (!u.alive || this.isHazard(u)) continue;
       if (side && u.side !== side) continue;
+      if (u.buffs && u.buffs.length && this.isStealthed(u)) continue;   // 은신 — 클릭 조준 제외
       var dx = u.x - x, dy = u.y - y;
       if (Math.sqrt(dx * dx + dy * dy) <= u.def.radius + 6) return u;
     }
@@ -514,6 +600,24 @@ GAME.Combat = {
     }
     // 지뢰는 피해로 제거할 수 없다. 밟아서 터뜨리거나, 피해서 지나가는 수밖에.
     if (this.isHazard(unit)) return 0;
+
+    //  ── 시즌2 S-E: 은신·표식 (2026-09-03) ──────────────────────────────────
+    //  · 은신한 쪽이 **때리면** 풀린다 — 모든 피해가 이 문을 지나므로 여기 한 곳.
+    //  · 표식(`_markUntil`) 대상이 적에게 받는 피해 ×markMul(기본 1.35). 크리 앞에서
+    //    곱해 치명타와 곱연산이 된다. `_markSrc` 는 처형 조건용(assassin R)으로 남긴다.
+    //  · 은신 중 **이동하면서** 받는 피해 ×0.6 — 멈춰 서면 그대로 맞는다.
+    if (source && dmg > 0 && source !== unit && source.side !== unit.side &&
+        source.buffs && source.buffs.length && this.isStealthed(source)) {
+      this.breakStealth(source, state);
+    }
+    if (unit._markUntil && state && state.elapsed < unit._markUntil &&
+        source && source.side !== unit.side && dmg > 0) {
+      dmg *= (unit._markMul || 1.35);
+      state.markHits = (state.markHits || 0) + 1;      // 감사용 — 표식이 실제로 들었는가
+    }
+    if (dmg > 0 && unit.buffs && unit.buffs.length && this.isStealthed(unit) && this.isCharging(unit)) {
+      dmg *= 0.6;
+    }
 
     //  ── 연계 콤보 — **맞은 유닛에게만** (2026-08-23 태현님: "맞은 유닛들에 대해서만
     //  추가 데미지가 적용되어야 해") ─────────────────────────────────────────────
@@ -887,7 +991,8 @@ GAME.Combat = {
       // 구슬 — 전략가 유닛을 잡았을 때만. 위험물(가시덫)은 '잡았다'로 안 친다.
       //  ⚠ 실시간 판은 아래 전용 경로(rtOrb)가 맡는다 — 탑 구슬은 Math.random +
       //    TowerRun 저장이라 록스텝에서 desync 다.
-      if (state && GAME.Orb && !state.pvpRealtime &&
+      //  ⚠ 소환수(시즌2 S-E)는 '잡았다'로 안 친다 — 구슬·회복 구역·처치 훅(골드) 전부 제외.
+      if (state && GAME.Orb && !state.pvpRealtime && !unit.summoned &&
           unit.side === 'strategist' && !this.isHazard(unit)) {
         GAME.Orb.maybeDrop(state, unit.x, unit.y);
       }
@@ -911,7 +1016,8 @@ GAME.Combat = {
                             x: unit.x, y: unit.y, t: 0, taken: false, owner: rtOwner });
         }
       }
-      if (state && state.towerHealOn && GAME.HealZone && unit.side === 'strategist' && !this.isHazard(unit)) {
+      if (state && state.towerHealOn && GAME.HealZone && !unit.summoned &&
+          unit.side === 'strategist' && !this.isHazard(unit)) {
         GAME.HealZone.maybeDrop(state, unit.x, unit.y);
       }
       //  ── 돌쌓이 (2026-08-08) ──────────────────────────────────────────────
@@ -944,7 +1050,8 @@ GAME.Combat = {
           sb.armorAdd += (pc.armor || 4);
         }
       }
-      if (state && state.onKill) state.onKill(unit, state);
+      //  소환수는 처치 훅(골드·기록)을 안 탄다 — 골드 가중 0 이 여기서 구조적으로 보장된다.
+      if (state && state.onKill && !unit.summoned) state.onKill(unit, state);
       // 관측: 원거리 유닛이 근접 공격에 죽었나 (kite 학습 신호)
       if (state && unit.side === 'strategist' && (unit.def.range || 0) > 150 &&
           source && source.def && source.def.attack === 'melee') {
@@ -976,13 +1083,23 @@ GAME.Combat = {
         state.telemetry.heroDamageDealt += eff;
         if ((unit.def.range || 0) > 150) state.telemetry.heroDmgToRanged += eff;
         // 내가 맞고 있다는 걸 소리로도 알린다(화면만 보면 놓친다)
-        if (GAME.Sound) GAME.Sound.play('heroHurt');
+        //  시즌2 S-S: 영웅 팔레트(playHeroFor)가 있으면 그 영웅의 피격음, 없으면 공용.
+        //  협동 파트너 영웅은 작게(0.6) — battle(S-C)이 파트너 영웅에 `_sfxPartner=true` 를
+        //  **렌더 쪽에서** 단다(시뮬 필드가 아니다). 소리만 고른다, 판정 무관.
+        if (GAME.Sound) {
+          var _hh = GAME.Sound.playHeroFor &&
+            GAME.Sound.playHeroFor('hurt', unit.def, (state && state.coop && unit._sfxPartner) ? { vol: 0.6 } : undefined);
+          if (!_hh) GAME.Sound.play('heroHurt');
+        }
       } else if (GAME.Sound && GAME.Sound.playFor && !unit.isHero && eff > 0) {
         //  ⚠ 유닛 피격음은 **아플 때만** 낸다. 스치는 피해까지 소리를 내면
         //    전장이 계속 지글거려 정작 중요한 소리(영웅 피격)를 덮는다.
         //    기준은 최대체력 6% — 한두 대로는 안 울리고, 제대로 맞으면 울린다.
         if (eff >= unit.maxHp * 0.06) GAME.Sound.playFor('hurt', unit.def);
-        if (!source.everEngaged) {
+        //  ⚠ source 가 null 일 수 있다(전장 규칙 storm 낙뢰·lava 는 owner 없이 때린다).
+        //    이 가지는 GAME.Sound 가 있을 때만 돌아서 헤드리스 감사가 못 잡았다 —
+        //    tools/render-audit.js(실제 브라우저)가 35층 폭풍에서 처음 잡았다(2026-09-03).
+        if (source && !source.everEngaged) {
           source.everEngaged = true;
           state.telemetry.engagedUnits++;
         }
@@ -1039,7 +1156,10 @@ GAME.Combat = {
       //  ⚠ '퐁'은 **지운 게 아니라 남겼다.** 저건 이 게임에서 "누가 죽었다"를 뜻하는
       //    소리라, 종류별 꼬리로 갈아치우면 죽음 자체를 못 알아듣는다.
       //    재료 소리는 그 뒤에 얹어 "무엇이 죽었는지"만 더한다.
-      if (GAME.Sound.playFor) GAME.Sound.playFor('die', unit.def);
+      //  시즌2 S-S: 영웅은 영웅 팔레트의 죽음(playHeroFor), 유닛은 재료 꼬리(playFor).
+      if (unit.isHero && GAME.Sound.playHeroFor) {
+        if (!GAME.Sound.playHeroFor('die', unit.def) && GAME.Sound.playFor) GAME.Sound.playFor('die', unit.def);
+      } else if (GAME.Sound.playFor) GAME.Sound.playFor('die', unit.def);
     }
     if (!state) return;
     var r = unit.def.radius;
@@ -1233,6 +1353,265 @@ GAME.Combat = {
     }
   },
 
+  // ══════════════════════════════════════════════════════════════════════════
+  //  시즌2 S-E (2026-09-03) — 소환 · 보스 페이즈 · 전장 규칙
+  //  결정론 규칙: Combat.rand · DetMath · state.elapsed 만 쓴다(Math.random·Date 금지).
+  // ══════════════════════════════════════════════════════════════════════════
+
+  //  ── 소환 ─────────────────────────────────────────────────────────────────
+  //  `unitKey` 를 `count` 기, (cx,cy) 둘레 반지름 `spread` 원에 **인덱스 각도**로 세운다
+  //  (난수 없음). 생성 유닛: `summoned:true` · `lifeMs`(0 이면 영구) · `_summonOwner` ·
+  //  def 사본에 `noCount:true`(전멸 판정 제외) · `noGold:true`(골드 가중 0 — towerrun 의
+  //  onKill 이 `unit.summoned` 로 걸러야 한다, 보고서 참조).
+  //  수명 만료는 update 가 `alive=false` 로만 끝낸다 — 노른자·처치 훅·구슬 없음.
+  //  반환: 실제로 세운 수(모르는 키면 0).
+  spawnSummons: function (state, owner, unitKey, count, lifeMs, cx, cy, spread, opts) {
+    var base = GAME.UNITS && GAME.UNITS[unitKey];
+    if (!base || !(count > 0)) return 0;
+    opts = opts || {};
+    var A = GAME.CONFIG.ARENA, made = 0;
+    var r = (spread === undefined || spread === null) ? 40 : spread;
+    for (var i = 0; i < count; i++) {
+      var ang = (count === 1) ? 0 : (i / count) * Math.PI * 2;
+      var x = cx + GAME.DetMath.cos(ang) * r, y = cy + GAME.DetMath.sin(ang) * r;
+      var su = this.createUnit(unitKey, x, y, owner.side, opts.mods);
+      //  def 는 UNITS 원본을 그대로 참조할 수 있다(WORLD_SCALE 1) — 사본에만 표시를 단다.
+      var nd = {}, k;
+      for (k in su.def) nd[k] = su.def[k];
+      nd.noCount = true; nd.noGold = true;
+      su.def = nd;
+      su.summoned = true;
+      su.lifeMs = lifeMs > 0 ? lifeMs : 0;
+      su._summonOwner = owner;
+      su.srcSkill = opts.srcSkill || null;
+      su.phaseTag = opts.phaseTag;
+      //  소환수는 주인 곁이 집이다. 컨트롤러 편이면 stance 를 안 타므로 자유롭게 쫓는다.
+      su.home = { x: x, y: y };
+      su.committed = owner.side !== 'strategist';
+      if (A) this.clampToArena(su);
+      if (state.rtMap && state.rtMap.walls) {
+        for (var w = 0; w < state.rtMap.walls.length; w++) this._pushOutWall(su, state.rtMap.walls[w]);
+      }
+      state.units.push(su);
+      state.effects.push({ kind: 'summon', x: su.x, y: su.y, r: su.def.radius + 12,
+                           t: 360, total: 360, side: su.side, unit: unitKey, owner: owner });
+      made++;
+    }
+    state.summonCount = (state.summonCount || 0) + made;   // 감사용
+    return made;
+  },
+
+  //  ── 보스 페이즈 ───────────────────────────────────────────────────────────
+  //  `def.phases: [{ hpBelow, abilities, mods, field, once }]` — 배열 순서대로, 체력
+  //  비율이 `hpBelow` 이하가 되는 순간 **한 번** 진입한다(되돌아가지 않는다 — `once` 는
+  //  문서용 필드로 받되 언제나 참이다). 진입하면:
+  //   · `abilities` 가 있으면 능력 배열을 교체(_abilList) — 시전 중이던 것은 끝까지 간다
+  //   · `mods`(MOD_KEYS 표) 를 def 사본에 곱한다. hp 는 maxHp·hp 에 같은 배율
+  //   · `field` 가 있으면 state.towerField 를 교체(setField) — 렌더는 fieldFx 로 안다
+  //   · `state.effects` 에 `phaseShift` 이펙트, `state.phaseShifts` 카운트(감사)
+  _tickPhase: function (u, state) {
+    var list = u.def.phases;
+    if (!list || !list.length || !u.alive) return;
+    if (u._phaseIdx === undefined) u._phaseIdx = -1;
+    var next = u._phaseIdx + 1;
+    if (next >= list.length) return;
+    var ph = list[next];
+    var ratio = u.maxHp > 0 ? u.hp / u.maxHp : 1;
+    if (!(ratio <= (ph.hpBelow === undefined ? 0.5 : ph.hpBelow))) return;
+    u._phaseIdx = next;
+    u._phase = ph;
+    if (ph.abilities && ph.abilities.length) {
+      u._phaseAbil = ph.abilities;
+      u._abilIdx = 0; u._abilPicked = undefined;
+      //  새 페이즈의 첫 능력은 곧 나간다(길어야 0.9초) — 진입이 사건으로 읽히게.
+      if (u.abilT <= 0 || u.abilT === undefined) u.abilCd = Math.min(u.abilCd || 0, 900);
+    }
+    if (ph.mods) {
+      var nd = {}, k, i;
+      for (k in u.def) nd[k] = u.def[k];
+      for (i = 0; i < this.MOD_KEYS.length; i++) {
+        k = this.MOD_KEYS[i];
+        var m = ph.mods[k];
+        if (m === undefined || m === 1 || typeof nd[k] !== 'number') continue;
+        if (k === 'hp') {
+          u.maxHp = Math.max(1, Math.round(u.maxHp * m));
+          u.hp = Math.max(1, Math.round(u.hp * m));
+          nd.hp = Math.round(nd.hp * m);
+        } else nd[k] = (k === 'damage') ? Math.round(nd[k] * m) : nd[k] * m;
+      }
+      u.def = nd;
+    }
+    if (ph.field !== undefined) this.setField(state, ph.field);
+    state.phaseShifts = (state.phaseShifts || 0) + 1;
+    state.effects.push({ kind: 'phaseShift', x: u.x, y: u.y, r: (u.def.radius || 20) * 3,
+                         t: 900, total: 900, side: u.side, owner: u, phase: next,
+                         name: ph.name || null });
+    state.phasePing = { n: state.phaseShifts, unit: u, phase: next, name: ph.name || null };
+    if (GAME.Sound) GAME.Sound.play('bossRoar');
+  },
+
+  //  ── 전장 규칙 (state.towerField) ───────────────────────────────────────────
+  //  데이터는 **아레나 비율 좌표**(rtmaps.js 와 같은 이유 — 프로필마다 아레나 크기가
+  //  다르다). `x,y` 0~1 · `r` 은 아레나 **폭** 비율. update 가 처음 볼 때 월드 좌표로
+  //  풀어 `_built` 를 단다(setField 를 안 거치고 state.towerField 에 직접 놓아도 된다).
+  //
+  //   fog   { rangeMul: 0.7, meleeBelow: 130 }        원거리 사거리 배율(effRange)
+  //   swamp { zones: [{x,y,r,slowMul}], slowMs: 400 }  구역 안 둔화(양편)
+  //   lava  { zones: [{x,y,r,maxR,growPx}], dps, tickMs: 500, units: false }
+  //         잉걸불처럼 서 있으면 깎인다. r 이 growPx(px/s)로 maxR 까지 자란다.
+  //         기본은 **영웅만** 태운다(진형이 제 불에 녹으면 배치가 자살이 된다) — units:true 로 확장.
+  //   quake { periodMs: 12000, warnMs: 2000, rootMs: 600, first: periodMs, heroOnly: false }
+  //         주기마다 예고(fieldFx quakeWarn) 뒤 전역 속박. 보스는 면역.
+  //   storm { windDir(rad), windPx(px/s), boltEveryMs, boltRadius, boltTelegraph(≥2000),
+  //           boltPct(최대체력 비율, 0.25), boltDamage(고정, 선택), boltSide:'field' }
+  //         바람은 매 틱 displace(보스 면역), 낙뢰는 영웅 자리에 예고(aimLead 0) 뒤 폭발.
+  //  렌더 신호는 `state.fieldFx` 이펙트 배열로만 낸다(여기서 수명도 관리한다).
+  setField: function (state, def) {
+    if (!def) { state.towerField = null; return null; }
+    var F = {}, k;
+    for (k in def) F[k] = def[k];
+    F._built = false;
+    state.towerField = F;
+    state.fieldFx = state.fieldFx || [];
+    state.fieldFx.push({ kind: 'fieldShift', field: F.kind, t: 900, total: 900 });
+    return F;
+  },
+
+  _buildField: function (F) {
+    var A = GAME.CONFIG.ARENA;
+    function zone(z) {
+      var zw = {}, k;
+      for (k in z) zw[k] = z[k];
+      zw.x = A.x + (z.x || 0) * A.w; zw.y = A.y + (z.y || 0) * A.h;
+      zw.r = (z.r || 0.1) * A.w; zw.r0 = zw.r;
+      if (z.maxR !== undefined) zw.maxR = z.maxR * A.w;
+      return zw;
+    }
+    if (F.zones && F.zones.length) {
+      var zs = [];
+      for (var i = 0; i < F.zones.length; i++) zs.push(zone(F.zones[i]));
+      F.zones = zs;
+    }
+    if (F.kind === 'quake') F._t = (F.first === undefined) ? (F.periodMs || 12000) : F.first;
+    if (F.kind === 'storm') F._bolt = (F.boltFirst === undefined) ? (F.boltEveryMs || 6000) : F.boltFirst;
+    F._built = true;
+    return F;
+  },
+
+  //  매 틱(Combat.update 안에서) — 상태의 순수 함수. 난수 없음.
+  updateArenaRule: function (state, dtMs) {
+    var F = state.towerField;
+    var fx = state.fieldFx;
+    //  fieldFx 수명 — 헤드리스에서도 새지 않게 여기서 늙힌다.
+    if (fx && fx.length) {
+      for (var f = fx.length - 1; f >= 0; f--) { fx[f].t -= dtMs; if (fx[f].t <= 0) fx.splice(f, 1); }
+    }
+    if (!F || !F.kind) return;
+    if (!F._built) this._buildField(F);
+    //  setField 를 안 거치고 state.towerField 에 직접 놓은 경우에도 fieldFx 가 있어야 한다.
+    if (!state.fieldFx) state.fieldFx = [];
+    var i, j, u, dt = dtMs / 1000;
+    state.fieldTicks = state.fieldTicks || {};
+    var hit = 0;
+
+    if (F.kind === 'swamp') {
+      var sMs = F.slowMs || 400;
+      for (i = 0; i < state.units.length; i++) {
+        u = state.units[i];
+        if (!u.alive || this.isHazard(u) || u.def.immobile) continue;
+        for (j = 0; j < F.zones.length; j++) {
+          var Z = F.zones[j];
+          var zdx = u.x - Z.x, zdy = u.y - Z.y;
+          if (zdx * zdx + zdy * zdy <= Z.r * Z.r) {
+            this.applySlow(u, { slowMul: Z.slowMul || F.slowMul || 0.6, slowMs: sMs });
+            hit++; break;
+          }
+        }
+      }
+
+    } else if (F.kind === 'lava') {
+      F._tick = (F._tick || 0) + dtMs;
+      var doTick = F._tick >= (F.tickMs || 500);
+      if (doTick) F._tick -= (F.tickMs || 500);
+      for (j = 0; j < F.zones.length; j++) {
+        var L = F.zones[j];
+        if (L.growPx) L.r = Math.min(L.maxR || L.r, L.r + (L.growPx * ((GAME.CONFIG.WORLD_SCALE) || 1)) * dt);
+      }
+      if (doTick) {
+        var ldps = F.dps || 24;
+        for (i = 0; i < state.units.length; i++) {
+          u = state.units[i];
+          if (!u.alive || this.isHazard(u) || this.isAnchored(u)) continue;
+          if (!u.isHero && !F.units) continue;
+          for (j = 0; j < F.zones.length; j++) {
+            var L2 = F.zones[j];
+            var ldx = u.x - L2.x, ldy = u.y - L2.y;
+            if (ldx * ldx + ldy * ldy <= L2.r * L2.r) {
+              //  비율 피해(최대체력 %)도 받는다 — 층 배수가 커져도 뜻이 같게.
+              var ld = F.pct ? u.maxHp * F.pct : ldps * (F.tickMs || 500) / 1000;
+              this.applyDamage(u, ld, null, state, { noCrit: true, noLs: true, zone: true, noPace: true });
+              state.fieldFx.push({ kind: 'lavaBurn', x: u.x, y: u.y, t: 200, total: 200 });
+              hit++; break;
+            }
+          }
+        }
+      }
+
+    } else if (F.kind === 'quake') {
+      F._t -= dtMs;
+      var warn = F.warnMs || 2000;
+      if (!F._warned && F._t <= warn) {
+        F._warned = true;
+        state.fieldFx.push({ kind: 'quakeWarn', t: warn, total: warn });
+      }
+      if (F._t <= 0) {
+        F._t += (F.periodMs || 12000); F._warned = false;
+        var qr = (F.rootMs === undefined) ? 600 : F.rootMs;
+        for (i = 0; i < state.units.length; i++) {
+          u = state.units[i];
+          if (!u.alive || this.isHazard(u) || this.isAnchored(u) || u.def.immobile) continue;
+          if (F.heroOnly && !u.isHero) continue;
+          u.rootedFor = Math.max(u.rootedFor || 0, qr);
+          hit++;
+        }
+        state.fieldFx.push({ kind: 'quake', t: 520, total: 520 });
+        state.effects.push({ kind: 'quake', x: GAME.CONFIG.ARENA.x + GAME.CONFIG.ARENA.w / 2,
+                             y: GAME.CONFIG.ARENA.y + GAME.CONFIG.ARENA.h / 2,
+                             r: GAME.CONFIG.ARENA.w / 2, t: 520, total: 520, side: 'field' });
+      }
+
+    } else if (F.kind === 'storm') {
+      //  바람 — 매 틱 방향 displace. 보스·고정물 면역. 목줄 안으로 되돌리지 않는다
+      //  (clampToLeash 가 매 프레임 걸어서 돌려보내므로 진형은 자기 자리를 지킨다).
+      var wpx = (F.windPx === undefined ? 40 : F.windPx) * ((GAME.CONFIG.WORLD_SCALE) || 1) * dt;
+      var wdx = GAME.DetMath.cos(F.windDir || 0) * wpx, wdy = GAME.DetMath.sin(F.windDir || 0) * wpx;
+      for (i = 0; i < state.units.length; i++) {
+        u = state.units[i];
+        if (!u.alive || this.isHazard(u) || u.def.immobile) continue;
+        if (this.displace(u, wdx, wdy)) { this.clampToArena(u); hit++; }
+      }
+      //  낙뢰 — 영웅 자리에 예고(aimLead 0: 걸어 나가면 안 맞는다). side 'field' 라 양편 다 맞는다.
+      F._bolt -= dtMs;
+      if (F._bolt <= 0) {
+        F._bolt += (F.boltEveryMs || 6000);
+        var tg = (F.boltTelegraph === undefined) ? 2000 : F.boltTelegraph;
+        var br = (F.boltRadius || 0.11) * GAME.CONFIG.ARENA.w;
+        for (i = 0; i < state.units.length; i++) {
+          u = state.units[i];
+          if (!u.alive || !u.isHero) continue;
+          state.effects.push({ kind: 'telegraph', x: u.x, y: u.y, r: br, t: tg, total: tg,
+                               damage: F.boltDamage || 1, pctMaxHp: F.boltDamage ? undefined : (F.boltPct || 0.25),
+                               side: F.boltSide || 'field', owner: null, abil: true, storm: true,
+                               rootMs: F.boltRootMs });
+          state.fieldFx.push({ kind: 'boltWarn', x: u.x, y: u.y, r: br, t: tg, total: tg });
+          state.stormBolts = (state.stormBolts || 0) + 1;
+        }
+      }
+    }
+    //  fog 는 effRange 가 읽기만 한다 — 여기서 할 일이 없다(감사는 effRange 로 잰다).
+    if (hit) state.fieldTicks[F.kind] = (state.fieldTicks[F.kind] || 0) + hit;
+  },
+
   //  원(유닛) vs AABB(벽) — 겹친 만큼 가장 얕은 축으로 밀어낸다.
   _pushOutWall: function (u, W) {
     var r = u.def.radius;
@@ -1349,8 +1728,12 @@ GAME.Combat = {
     //    (2026-08-04 사용자 요청: "화살은 효과음이라던가 ... 좀 더 멋있으면").
     //  ⚠ 여기는 소리만 고른다 — 판정·피해에는 한 줄도 안 닿는다.
     if (GAME.Sound && u.isHero) {
-      GAME.Sound.play(def.attack === 'melee' ? 'hit'
-                      : (def.art === 'hunter' ? 'bow' : 'shoot'));
+      //  시즌2 S-S: 영웅 팔레트(HERO[def.art].hit)가 있으면 그것, 없으면 예전 공용음.
+      //  협동 파트너 영웅(state.coop, 내 영웅이 아님)은 0.6 으로 낮춘다. 소리만 고른다.
+      var _ph = GAME.Sound.playHeroFor &&
+        GAME.Sound.playHeroFor('hit', def, (state && state.coop && u._sfxPartner) ? { vol: 0.6 } : undefined);
+      if (!_ph) GAME.Sound.play(def.attack === 'melee' ? 'hit'
+                                : (def.art === 'hunter' ? 'bow' : 'shoot'));
     } else if (GAME.Sound && GAME.Sound.playFor && (def.damage || 0) > 0) {
       //  ── 유닛 공격음 (2026-08-08) ────────────────────────────────────────
       //  ⚠ 지금까지 **유닛은 아무 소리도 안 냈다**(위 조건이 `u.isHero` 다).
@@ -1363,6 +1746,8 @@ GAME.Combat = {
       GAME.Sound.playFor('atk', def);
     }
 
+    //  실효 사거리(전장 규칙 fog 반영) — 아래 판정·연출이 전부 이 값을 쓴다.
+    var rng = this.effRange(u, state);
     if (def.attack === 'melee') {
       var half = ((def.coneDeg || 90) * Math.PI / 180) / 2;
       // 달려들며 친 타격이면 밀어내고 피해가 조금 는다. 멈춰 서서 치면 평타 그대로다.
@@ -1374,7 +1759,7 @@ GAME.Combat = {
       for (var i = 0; i < state.units.length; i++) {
         var o = state.units[i];
         if (!o.alive || o.side === u.side) continue;
-        if (this.dist(u, o) > def.range + o.def.radius) continue;
+        if (this.dist(u, o) > rng + o.def.radius) continue;
         var a = GAME.DetMath.atan2(o.y - u.y, o.x - u.x);
         var diff = GAME.DetMath.atan2(GAME.DetMath.sin(a - ang), GAME.DetMath.cos(a - ang));
         if (Math.abs(diff) <= half) {
@@ -1398,13 +1783,13 @@ GAME.Combat = {
       }
       state.effects.push({
         kind: 'slash', x: u.x, y: u.y, angle: ang,
-        range: def.range, half: half, t: 140, total: 140, side: u.side,
+        range: rng, half: half, t: 140, total: 140, side: u.side,
         charged: charged
       });
       // 근접도 '무언가 날아간다'는 게 보이도록 검기를 띄운다 (연출 전용, 피해는 위에서 이미 적용)
       state.effects.push({
         kind: 'slashWave', x: u.x, y: u.y, angle: ang,
-        range: def.range, t: 220, total: 220, side: u.side
+        range: rng, t: 220, total: 220, side: u.side
       });
 
     } else if (def.attack === 'projectile') {
@@ -1464,14 +1849,27 @@ GAME.Combat = {
     if (!sk) return 0;
     var ws = (GAME.CONFIG && GAME.CONFIG.WORLD_SCALE) || 1;
     switch (sk.type) {
-      case 'dash': case 'pull': return Math.round(sk.dist || 0);
+      case 'dash': case 'pull': case 'blink': return Math.round(sk.dist || 0);
       case 'aoeSelf': case 'aura': return Math.round(sk.radius || 0);
       case 'aoeTarget': return Math.round((sk.range || 240) * ws);
       case 'trap': return Math.round((sk.range || 220) * ws);
       case 'projectile': return Math.round((sk.range || 460) * ws);
-      default: return 0;   // buff, strike
+      //  시즌2 S-E — 소환은 앞쪽 지점에 세우고, 표식·연쇄는 그 사거리 안 대상을 고른다.
+      case 'summon': return Math.round((sk.range || 120) * ws);
+      case 'mark': return Math.round((sk.range || 260) * ws);
+      case 'chain': return Math.round((sk.range || 300) * ws);
+      default: return 0;   // buff, strike, stealth
     }
   },
+
+  //  ── 시즌2 S-E 스킬 타입 표 (2026-09-03) ────────────────────────────────────
+  //  heroes.js 의 SKILL_TYPE_LABEL(화면 이름)과 별개로, **엔진이 아는 타입**의 목록이다.
+  //  감사(tools/engine-audit.js)가 이 표와 castSkill 분기를 대조한다.
+  SKILL_TYPES: ['dash', 'aoeSelf', 'aoeTarget', 'projectile', 'strike', 'buff', 'aura',
+                'pull', 'trap', 'summon', 'stealth', 'blink', 'mark', 'chain'],
+  ABILITY_TYPES: ['charge', 'shockwave', 'healBurst', 'warcry', 'ember', 'ashcloud', 'pull',
+                  'barrage', 'summon', 'quake', 'gust'],
+  FIELD_KINDS: ['fog', 'swamp', 'lava', 'quake', 'storm'],
 
   // 영웅이 **바라보는 방향(facing)** 으로 즉시 시전한다. PC·모바일 공통.
   // 조준을 따로 하지 않는다 — 지점 배치 스킬(aoeTarget/trap)은 사거리만큼 앞에 떨어지고,
@@ -1488,7 +1886,7 @@ GAME.Combat = {
     //  뛰기(dash)는 조준이 아니라 **가던 방향**이다 (2026-08-23 태현님).
     //  공격이 facing 을 적 쪽으로 돌려놓아, 적을 때리며 이동하다 뛰면 적에게
     //  뛰어드는 사고가 났다. 이동 명령 방향 > 실제 이동 흐름 > facing 순으로 잡는다.
-    if (sk.type === 'dash') {
+    if (sk.type === 'dash' || sk.type === 'blink') {
       var mvx = 0, mvy = 0;
       if (u.order && u.order.x !== undefined &&
           (u.order.type === 'move' || u.order.type === 'attackmove')) {
@@ -1631,9 +2029,11 @@ GAME.Combat = {
     //  35초짜리 궁극이 평타 1.5대만도 못한 역전이 났다. 시전 한 번의 **총량**이
     //  평타 10대에 못 미치면 끌어올린다(반복 낙하는 반복 수로 나눠 총합 기준).
     //  ⚠ 상한이 아니라 **하한**이다 — 계수 공식이 더 크면 그대로 둔다.
-    if (u.isHero && slot === 'R' && skDmg > 0) {
+    //  ⚠ `u.damage` 는 createHero 가 정의하는 접근자(현재 def.damage)다. 예전엔 그 필드가
+    //    없어 NaN 비교 → 하한이 한 번도 안 걸렸다(2026-09-03 수정). `|| 0` 은 안전망.
+    if (u.isHero && slot === 'R' && skDmg > 0 && GAME.Combat.ULT_FLOOR_ON) {
       var _uHits = sk.repeat || 1;
-      var _uFloor = (u.damage * 10) / _uHits;
+      var _uFloor = ((u.damage || u.def.damage || 0) * 10) / _uHits;
       if (skDmg < _uFloor) skDmg = _uFloor;
     }
     //  ── 실시간 전용 스킬 배율표 (ArenaBuild.RT_SKILL_MOD, 2026-09-02 W3) ──────
@@ -1687,8 +2087,14 @@ GAME.Combat = {
       //  2026-08-23 태현님: "궁극기랑 덫 소리가 거슬려" — 원인은 **소리와 사건의
       //  불일치**였다: 덫 '설치'와 예고형 '시전'에 광역 폭발음(boom)이 울렸다.
       //  폭발음은 실제로 터지는 것(aoeSelf 즉발)에만. 예고형은 차징음, 덫은 설치음.
-      GAME.Sound.play(sk.type === 'aoeSelf' ? 'boom'
-                    : sk.type === 'trap' ? 'trapSet' : 'skill');
+      //  시즌2 S-S: 영웅 팔레트가 있으면 궁극(R)/스킬로 갈라 그 영웅의 소리. 새 타입
+      //  (summon/stealth/blink/mark/chain)도 이 한 줄로 통일된다. 없으면 예전 분기.
+      //  협동 파트너 영웅(state.coop, 내 영웅이 아님)은 0.6. 소리만 고른다 — 판정 무관.
+      var _ps = u.isHero && GAME.Sound.playHeroFor &&
+        GAME.Sound.playHeroFor(isUltCast ? 'ult' : 'skill', u.def,
+                               (state && state.coop && u._sfxPartner) ? { vol: 0.6 } : undefined);
+      if (!_ps) GAME.Sound.play(sk.type === 'aoeSelf' ? 'boom'
+                              : sk.type === 'trap' ? 'trapSet' : 'skill');
     }
 
     if (sk.type === 'dash') {
@@ -1777,7 +2183,7 @@ GAME.Combat = {
 
     } else if (sk.type === 'strike') {
       var tgt = this.nearestEnemy(u, state.units);
-      if (tgt && this.dist(u, tgt) <= u.def.range + 70) {
+      if (tgt && this.dist(u, tgt) <= this.effRange(u, state) + 70) {
         u._lsMul = sk.lifestealMul || 1;
         this.applyDamage(tgt, skDmg, u, state, { srcSkill: sk.name });
         u._lsMul = 1;
@@ -1847,18 +2253,131 @@ GAME.Combat = {
       // 구역 스킬의 초당 피해도 계수를 탄다(`_skillPower` 와 같은 규칙).
       var _auDps = this._skillDps(u, sk);
       //  궁극(R) 구역도 하한을 지킨다 — 지속 총량(dps×초)이 평타 10대에 못 미치면 상향.
-      if (u.isHero && slot === 'R' && _auDps > 0) {
-        _auDps = Math.max(_auDps, u.damage * 10 * 1000 / (sk.duration || 1000));
+      if (u.isHero && slot === 'R' && _auDps > 0 && GAME.Combat.ULT_FLOOR_ON) {
+        _auDps = Math.max(_auDps, (u.damage || u.def.damage || 0) * 10 * 1000 / (sk.duration || 1000));
       }
       //  실시간 전용 배율(RT_SKILL_MOD.dps) — 위 damage 와 같은 자리(하한 뒤).
       if (_rtSk && _rtSk.dps !== undefined && _auDps > 0) _auDps = Math.round(_auDps * _rtSk.dps);
       u.auras.push({ radius: sk.radius, dps: _auDps,
                      t: sk.duration, tick: 0, srcSkill: sk.name });
+
+    // ── 시즌2 S-E 새 스킬 타입 5 (2026-09-03) ──────────────────────────────────
+    //  전부 **상태 난수 없음**(배치 각도는 인덱스에서, 대상 선택은 배열 순서) — 록스텝 안전.
+    //  데이터 필드는 이 파일 상단 SKILL_TYPES 주석과 tools/engine-audit.js 가 문서다.
+    } else if (sk.type === 'summon') {
+      //  소환 — `sk.unit`(UNITS 키) 를 `sk.count` 기 세운다. 수명 `sk.life` ms.
+      //  시전 지점(tx,ty)은 사거리(skillReach)까지만 — 벽 너머·맵 밖은 물린다.
+      var sdx = tx - u.x, sdy = ty - u.y, sdl = Math.sqrt(sdx * sdx + sdy * sdy) || 1;
+      var sReach = this.skillReach(sk) || 120;
+      var sgo = Math.min(sdl, sReach);
+      var made = this.spawnSummons(state, u, sk.unit, sk.count || 1, sk.life || 6000,
+                                   u.x + (sdx / sdl) * sgo, u.y + (sdy / sdl) * sgo,
+                                   sk.spread, { srcSkill: sk.name, mods: sk.unitMods });
+      if (!made) return false;                 // 모르는 유닛 키 — 쿨을 안 태운다
+      state.effects.push({ kind: 'ring', x: u.x + (sdx / sdl) * sgo, y: u.y + (sdy / sdl) * sgo,
+                           r: (sk.spread || 40) + 20, t: 360, total: 360, side: u.side });
+
+    } else if (sk.type === 'stealth') {
+      //  은신 — 조준에서 빠진다(isStealthed 주석). 같은 태그는 갱신만(중첩 없음).
+      var stMs = sk.duration || 3000, stDup = false;
+      for (var sti = 0; sti < u.buffs.length; sti++) {
+        if (u.buffs[sti].stealthTag) { u.buffs[sti].t = stMs; stDup = true; break; }
+      }
+      if (!stDup) u.buffs.push({ stealthTag: true, t: stMs, speedMul: sk.speedMul || 1 });
+      u._stealthUntil = state.elapsed + stMs;   // 렌더(알파)용 — 판정은 buffs 가 한다
+      //  이미 날아오는 유도탄은 표적을 잃는다(update 의 homing 검사가 지운다).
+      state.effects.push({ kind: 'stealth', x: u.x, y: u.y, r: u.def.radius + 22,
+                           t: 320, total: 320, side: u.side, ms: stMs });
+
+    } else if (sk.type === 'blink') {
+      //  점멸 — dash 와 같은 이동, 피해 0. 벽(rtMap) 안에 떨어지면 밀어낸다.
+      var bdir = sk.backward ? ang + Math.PI : ang;
+      var bfx = u.x, bfy = u.y;
+      u.x = u.x + GAME.DetMath.cos(bdir) * sk.dist;
+      u.y = u.y + GAME.DetMath.sin(bdir) * sk.dist;
+      this.clampToArena(u);
+      if (state.rtMap && state.rtMap.walls) {
+        for (var bw = 0; bw < state.rtMap.walls.length; bw++) this._pushOutWall(u, state.rtMap.walls[bw]);
+        this.clampToArena(u);
+      }
+      //  기존 `dashTrail` 렌더를 그대로 타되 `blink:true` 로 표시한다(skillfx 가 갈라 그릴 수 있게).
+      state.effects.push({ kind: 'dashTrail', x1: bfx, y1: bfy, x2: u.x, y2: u.y,
+                           t: 260, total: 260, side: u.side, blink: true });
+      state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: u.def.radius + 16,
+                           t: 220, total: 220, side: u.side });
+
+    } else if (sk.type === 'mark') {
+      //  표식 — 시전 지점 가까이의 적(반경 sk.radius) 우선, 없으면 사거리 안 최근접.
+      //  대상은 `_markUntil` 동안 적에게 받는 피해 ×markMul(applyDamage). `_markSrc` 저장.
+      var mkT = null, mkD = Infinity, mkR = (sk.radius || 70), mkRange = this.skillReach(sk) || 260;
+      for (i2 = 0; i2 < state.units.length; i2++) {
+        o = state.units[i2];
+        if (!o.alive || o.side === u.side || this.isHazard(o) || this.isStealthed(o)) continue;
+        var mdx = o.x - tx, mdy = o.y - ty, mdd = Math.sqrt(mdx * mdx + mdy * mdy);
+        if (mdd <= mkR + o.def.radius && mdd < mkD) { mkD = mdd; mkT = o; }
+      }
+      if (!mkT) {
+        for (i2 = 0; i2 < state.units.length; i2++) {
+          o = state.units[i2];
+          if (!o.alive || o.side === u.side || this.isHazard(o) || this.isStealthed(o)) continue;
+          var mdd2 = this.dist(u, o);
+          if (mdd2 <= mkRange + o.def.radius && mdd2 < mkD) { mkD = mdd2; mkT = o; }
+        }
+      }
+      if (!mkT) return false;                    // 대상이 없으면 쿨다운을 소모하지 않는다
+      mkT._markUntil = state.elapsed + (sk.duration || 5000);
+      mkT._markMul = sk.markMul || 1.35;
+      mkT._markSrc = u;
+      state.markCasts = (state.markCasts || 0) + 1;
+      if (skDmg > 0) this.applyDamage(mkT, skDmg, u, state, { srcSkill: sk.name });
+      state.effects.push({ kind: 'beam', x1: u.x, y1: u.y, x2: mkT.x, y2: mkT.y,
+                           t: 200, total: 200, side: u.side, mark: true });
+      state.effects.push({ kind: 'mark', x: mkT.x, y: mkT.y, r: mkT.def.radius + 10,
+                           t: sk.duration || 5000, total: sk.duration || 5000, side: u.side,
+                           target: mkT });
+
+    } else if (sk.type === 'chain') {
+      //  연쇄 — 사거리 안 최근접 적부터 시작해 `sk.jumps`(기본 4) 대상까지 옮겨 붙는다.
+      //  다음 대상 = 아직 안 맞은 적 중 현재 대상에서 가장 가까운 것(jumpRange 안).
+      //  피해는 한 칸마다 ×decay(0.7). 순서는 배열 인덱스 → 거리 최소 → 인덱스 낮은 쪽.
+      var chRange = this.skillReach(sk) || 300;
+      var chJump = Math.round((sk.jumpRange || 220) * ((GAME.CONFIG && GAME.CONFIG.WORLD_SCALE) || 1));
+      var chMax = sk.jumps || 4, chDecay = (sk.decay === undefined) ? 0.7 : sk.decay;
+      var chHit = [], chFrom = u, chDmg = skDmg, chLs = this._lsBudget(u);
+      var chCur = null, chCurD = Infinity;
+      for (i2 = 0; i2 < state.units.length; i2++) {
+        o = state.units[i2];
+        if (!o.alive || o.side === u.side || this.isHazard(o) || this.isStealthed(o)) continue;
+        var cd0 = this.dist(u, o);
+        if (cd0 <= chRange + o.def.radius && cd0 < chCurD) { chCurD = cd0; chCur = o; }
+      }
+      if (!chCur) return false;                  // 대상이 없으면 쿨다운을 소모하지 않는다
+      while (chCur && chHit.length < chMax) {
+        chHit.push(chCur);
+        this.applyDamage(chCur, chDmg, u, state,
+          { lsScale: this._ls(chHit.length - 1), lsBudget: chLs, srcSkill: sk.name });
+        if (sk.slowMul) this.applySlow(chCur, { slowMul: sk.slowMul, slowMs: sk.slowMs || 1200 });
+        state.effects.push({ kind: 'beam', x1: chFrom.x, y1: chFrom.y, x2: chCur.x, y2: chCur.y,
+                             t: 220 + chHit.length * 40, total: 220 + chHit.length * 40,
+                             side: u.side, chain: true, hop: chHit.length - 1 });
+        chFrom = chCur; chDmg = chDmg * chDecay;
+        var chNext = null, chNextD = Infinity;
+        for (i2 = 0; i2 < state.units.length; i2++) {
+          o = state.units[i2];
+          if (!o.alive || o.side === u.side || this.isHazard(o) || this.isStealthed(o)) continue;
+          if (chHit.indexOf(o) !== -1) continue;
+          var cdn = this.dist(chFrom, o);
+          if (cdn <= chJump + o.def.radius && cdn < chNextD) { chNextD = cdn; chNext = o; }
+        }
+        chCur = chNext;
+      }
+      state.chainHops = (state.chainHops || 0) + chHit.length;
+      if (isUltCast) { state.ultBlast = (state.ultBlast || 0) + 1; state.ultBlastAt = { x: chFrom.x, y: chFrom.y }; }
     }
 
     //  궁극 즉발형(돌진·자기광역·강타·후려치기)은 시전 순간이 곧 착탄이다.
     if (isUltCast && (sk.type === 'dash' || sk.type === 'aoeSelf' ||
-                      sk.type === 'strike' || sk.type === 'pull')) {
+                      sk.type === 'strike' || sk.type === 'pull' || sk.type === 'mark')) {
       state.ultBlast = (state.ultBlast || 0) + 1;
       state.ultBlastAt = { x: u.x, y: u.y };
     }
@@ -2226,7 +2745,8 @@ GAME.Combat = {
     // 움직일 수 없으니 aggro 만 넓어져 '사각지대'가 줄어든다.
     var nearEnemy = this.nearestEnemy(u, state.units);
     var nearD = nearEnemy ? this.dist(u, nearEnemy) : Infinity;
-    var canFight = nearEnemy && nearD <= (u.def.range || 0) + 4;
+    var rngS = this.effRange(u, state);
+    var canFight = nearEnemy && nearD <= rngS + 4;
     if (canFight) u.idleFor = 0;
     else u.idleFor = (u.idleFor || 0) + dt * 1000;
 
@@ -2295,7 +2815,7 @@ GAME.Combat = {
     // 닿을 수 없는 적을 쫓으면 나갔다 돌아오기를 반복할 뿐이다.
     var tgtFromHome = Math.sqrt((tgt.x - u.home.x) * (tgt.x - u.home.x) +
                                 (tgt.y - u.home.y) * (tgt.y - u.home.y));
-    var reachable = tgtFromHome <= chase - u.def.range * 0.5;
+    var reachable = tgtFromHome <= chase - rngS * 0.5;
     var inAggro = this.dist(u, tgt) <= aggro;
 
     if (u.committed) { u.stance = 'chase'; }
@@ -2312,7 +2832,7 @@ GAME.Combat = {
         this.moveToward(u, post.x, post.y, this.effSpeed(u) * dt);
       }
       // 사거리 안에 적이 있으면 제자리에서 쏜다 (아래 runAI 가 처리)
-      return this.dist(u, tgt) <= u.def.range;
+      return this.dist(u, tgt) <= rngS;
     }
     return true;
   },
@@ -2340,8 +2860,12 @@ GAME.Combat = {
   //  ⚠ 시전 중에는 **그때 고른 스킬을 계속 붙잡는다.** 매 프레임 다시 고르면
   //    예고와 실제 폭발이 서로 다른 스킬이 되어 "피할 수가 없다" — 이 파일이
   //    이미 규율로 적어 둔 "예고와 실제가 어긋나면 못 피한다"의 정확한 사례다.
+  //  시즌2 S-E — 페이즈에 들어간 보스는 `u._phaseAbil`(페이즈 능력 배열)이 def 를 덮는다.
+  _abilList: function (u) {
+    return (u._phaseAbil && u._phaseAbil.length) ? u._phaseAbil : u.def.abilities;
+  },
   _abilityOf: function (u) {
-    var list = u.def.abilities;
+    var list = this._abilList(u);
     if (!list || !list.length) return u.def.ability;
     if (u.abilT > 0 && u._abilCur) return u._abilCur;
     return list[(u._abilIdx || 0) % list.length];
@@ -2397,7 +2921,7 @@ GAME.Combat = {
     //  복수 능력에서 이번 차례 능력이 사거리 게이트에 막히면 **다음 능력을 본다.**
     //  안 그러면 돌진(minRange 150)이 첫 번째인 보스에게 영웅이 붙어 있는 동안
     //  차례가 영원히 안 넘어가 궁극기가 한 번도 안 나간다(실측 — 시전 0회 교착).
-    var list0 = u.def.abilities;
+    var list0 = this._abilList(u);
     if (list0 && list0.length) {
       var start0 = (u._abilIdx || 0) % list0.length, picked0 = -1;
       for (var ci0 = 0; ci0 < list0.length; ci0++) {
@@ -2425,12 +2949,14 @@ GAME.Combat = {
     }
     // 이번 시전이 어느 스킬이었는지 붙잡아 두고(예고↔폭발 일치), 다음은 그 다음 것.
     // (후보 순환으로 건너뛴 경우 _abilPicked 가 실제 시전 칸이다)
-    if (u.def.abilities && u.def.abilities.length) {
+    if (list0 && list0.length) {
       u._abilCur = ab;
       var castIdx = (u._abilPicked !== undefined) ? u._abilPicked : (u._abilIdx || 0);
-      u._abilIdx = (castIdx + 1) % u.def.abilities.length;
+      u._abilIdx = (castIdx + 1) % list0.length;
       u._abilPicked = undefined;
     }
+    //  감사용 — 타입별 시전 횟수(렌더·판정 무관 부기).
+    if (state) { state.abilCasts = state.abilCasts || {}; state.abilCasts[ab.type] = (state.abilCasts[ab.type] || 0) + 1; }
     // ── 예측 사격 (2026-07-31, 뺑뺑이의 **진짜 원인**을 고친다) ────────────────
     //  ⚠ 여기가 "22층인데 뺑뺑이만 돌리면 깨진다"의 구조적 원인이었다.
     //    예고를 **대상의 현재 위치**에 박으면, 대상이 예고 시간 동안 이동한 거리가
@@ -2474,9 +3000,13 @@ GAME.Combat = {
       //  ⚠ `pull` 도 **제 자리에서** 퍼진다(덩굴채). 여기 안 넣으면 예고 원이
       //    `u.abilX`(=조준점) 에 떠서 "저기서 온다"고 거짓말을 한다.
       kind: 'telegraph',
-      x: (ab.type === 'shockwave' || ab.type === 'pull') ? u.x : u.abilX,
-      y: (ab.type === 'shockwave' || ab.type === 'pull') ? u.y : u.abilY,
+      //  시즌2 S-E: quake(지진)·gust(돌풍)·summon(소환)도 **제 자리**에서 시작한다.
+      x: (ab.type === 'shockwave' || ab.type === 'pull' || ab.type === 'quake' ||
+          ab.type === 'gust' || ab.type === 'summon') ? u.x : u.abilX,
+      y: (ab.type === 'shockwave' || ab.type === 'pull' || ab.type === 'quake' ||
+          ab.type === 'gust' || ab.type === 'summon') ? u.y : u.abilY,
       r: ab.radius || 60, t: ab.telegraph, total: ab.telegraph, side: u.side,
+      abilType: ab.type,
       // 재료(js/skillfx.js MOTIF_MAT). 없으면 예전처럼 기본 팔레트다.
       motif: ab.motif,
       // 용 보스 원소색 구분(js/scenes/battle.js `bossGlowOf`)이 시전자를 찾을 수
@@ -2668,6 +3198,57 @@ GAME.Combat = {
       state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: ab.dist,
                            t: 300, total: 300, side: u.side });
 
+    // ── 시즌2 S-E 새 능력 타입 3 (2026-09-03) ──────────────────────────────────
+    } else if (ab.type === 'summon') {
+      //  호위 소환 — `ab.unit` 를 `ab.count` 기, 보스 둘레 `ab.spread`(기본 90px) 원에.
+      //  수명 `ab.life`(없으면 영구 — 그래도 noCount 라 전멸 판정엔 안 든다).
+      //  `ab.maxAlive`(기본 6)를 넘게 살아 있으면 더 안 부른다 — 후반에 화면이 호위로 덮이면
+      //  "피할 곳"이 사라진다(잉걸불 상한과 같은 이유).
+      var aliveMine = 0;
+      for (i = 0; i < state.units.length; i++) {
+        o = state.units[i];
+        if (o.alive && o.summoned && o._summonOwner === u) aliveMine++;
+      }
+      var room = Math.max(0, (ab.maxAlive || 6) - aliveMine);
+      var n = Math.min(ab.count || 2, room);
+      if (n > 0) {
+        this.spawnSummons(state, u, ab.unit, n, ab.life || 0, u.x, u.y, ab.spread || 90,
+                          { mods: ab.unitMods, phaseTag: u._phaseIdx });
+        state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: (ab.spread || 90) + 20,
+                             t: 400, total: 400, side: u.side });
+      }
+
+    } else if (ab.type === 'quake') {
+      //  지진 — 예고(≥2000ms, 데이터 규격)가 끝나면 **전역** 속박 `ab.rootMs`(600) +
+      //  예고 원(ab.radius) 안의 적에게만 피해. 피해는 걸어 나가면 피해지고,
+      //  속박은 못 피한다(짧다) — "큰 것은 피할 수 있고 작은 것은 못 피해도 안 죽는다".
+      var qRoot = (ab.rootMs === undefined) ? 600 : ab.rootMs;
+      for (i = 0; i < state.units.length; i++) {
+        o = state.units[i];
+        if (!o.alive || o.side === u.side || this.isHazard(o)) continue;
+        if (qRoot > 0 && !this.isAnchored(o)) o.rootedFor = Math.max(o.rootedFor || 0, qRoot);
+        if (ab.damage && this.dist(u, o) <= (ab.radius || 0) + o.def.radius) bite(o);
+      }
+      state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: ab.radius || 200,
+                           t: 460, total: 460, side: u.side, quake: true });
+      state.effects.push({ kind: 'quake', x: u.x, y: u.y, r: ab.radius || 200,
+                           t: 520, total: 520, side: u.side });
+      state.quakeCasts = (state.quakeCasts || 0) + 1;
+
+    } else if (ab.type === 'gust') {
+      //  돌풍 — 예고가 끝나면 `ab.ms`(2400) 동안 매 틱 적을 방향(예고 지점 쪽)으로
+      //  `ab.push`(px/s) 밀어낸다. 보스는 displace 가 자동으로 면역이다.
+      //  실행은 update 의 `state.gusts` 루프가 맡는다(여기서는 등록만).
+      var gdx = u.abilX - u.x, gdy = u.abilY - u.y, gdl = Math.sqrt(gdx * gdx + gdy * gdy);
+      var gdir = (gdl > 0.5) ? GAME.DetMath.atan2(gdy, gdx) : (u.facing || 0);
+      if (ab.dir !== undefined) gdir = ab.dir;
+      state.gusts = state.gusts || [];
+      state.gusts.push({ owner: u, side: u.side, dir: gdir, push: ab.push || 140,
+                         t: ab.ms || 2400, radius: ab.radius || 0, dps: ab.dps || 0, tick: 0 });
+      state.effects.push({ kind: 'gust', x: u.x, y: u.y, dir: gdir, r: ab.radius || 0,
+                           t: ab.ms || 2400, total: ab.ms || 2400, side: u.side });
+      state.gustCasts = (state.gustCasts || 0) + 1;
+
     } else if (ab.type === 'barrage') {
       // 예고 원을 여러 개 뿌린다. 첫 발은 예고 지점, 나머지는 그 주변으로 흩는다 —
       // 한 점에 겹쳐 떨어지면 '한 발'과 다를 게 없어 피할 거리가 안 생긴다.
@@ -2704,7 +3285,7 @@ GAME.Combat = {
     //  안 됐다 — "자동공격이 안 된다"의 실체. 상태만 읽는 결정론이라 양쪽 동일.
     if (state.pvpRealtime && u.isHero) {
       var rtTgt = this.nearestEnemy(u, state.units);
-      if (rtTgt && u.cd <= 0 && this.dist(u, rtTgt) <= def.range) {
+      if (rtTgt && u.cd <= 0 && this.dist(u, rtTgt) <= this.effRange(u, state)) {
         this.fire(u, rtTgt.x, rtTgt.y, rtTgt, state);
         u.cd = def.cooldown;
       }
@@ -2718,11 +3299,15 @@ GAME.Combat = {
     // ⚠ `abilities`(복수)만 가진 유닛도 여기를 통과해야 한다 — 이 가드가
     //   `def.ability` 만 보고 있어서 알 보스가 **스킬을 한 번도 안 썼다**(실측:
     //   50층 6판에 시전 0회). 복수형을 추가하는 변경에서 가장 놓치기 쉬운 자리다.
-    if ((def.ability || (def.abilities && def.abilities.length)) &&
+    //  시즌2 S-E — 보스 페이즈(def.phases). 체력 비율로 진입하며 능력 배열·배수·전장을 바꾼다.
+    if (def.phases && def.phases.length) this._tickPhase(u, state);
+    if ((def.ability || (def.abilities && def.abilities.length) || (u._phaseAbil && u._phaseAbil.length)) &&
         this.runAbility(u, state, dt)) return;
     var moveTo = null;
     var engage = true;
     var tgt = null;
+    //  실효 사거리(전장 규칙 fog) — 아래 교전 판정 전부가 이 값을 본다.
+    var rngA = this.effRange(u, state);
 
     // 지원·설치 유닛은 교전하지 않으므로 진지 이탈/복귀(stance) 판정을 적용하지 않는다.
     // stance 를 먼저 돌리면 부상자를 따라가려는 이동을 매 프레임 되돌려 상쇄된다.
@@ -2767,7 +3352,8 @@ GAME.Combat = {
       } else if (u.order.type === 'attackmove') {
         moveTo = { x: u.order.x, y: u.order.y };
       } else if (u.order.type === 'attack') {
-        if (u.order.target && u.order.target.alive) tgt = u.order.target;
+        //  은신(시즌2)한 대상은 잡고 있던 공격 명령도 놓친다 — 조준이 끊긴다.
+        if (u.order.target && u.order.target.alive && !this.isStealthed(u.order.target)) tgt = u.order.target;
         else u.order = null;
       }
     }
@@ -2824,7 +3410,7 @@ GAME.Combat = {
             this.moveToward(u, medic.x + GAME.DetMath.cos(ringA) * ringR,
                                medic.y + GAME.DetMath.sin(ringA) * ringR,
                                this.effSpeed(u) * dt * (0.55 + 0.45 * ad2.retreat));
-            if (d <= def.range) {
+            if (d <= rngA) {
               this.faceAttack(u, GAME.DetMath.atan2(tgt.y - u.y, tgt.x - u.x));
               if (u.cd <= 0) { this.fire(u, tgt.x, tgt.y, tgt, state); u.cd = def.cooldown; }
             }
@@ -2840,7 +3426,7 @@ GAME.Combat = {
       // 진형이 '뭉쳐서 함께' 움직이므로 끌어내기가 통하지 않는다.
       // ⚠ 사거리 안이면 예외다. 닿는데 안 치면 그건 대형 유지가 아니라 태업이다.
       if (ad2 && ad2.cohesion > 0.1 && u.side === 'strategist' && u.stance === 'chase' &&
-          d > def.range && u.rootedFor <= 0 && !def.immobile) {
+          d > rngA && u.rootedFor <= 0 && !def.immobile) {
         var near = 0, cx = 0, cy = 0;
         var band = 190 * (GAME.CONFIG.WORLD_SCALE || 1);
         for (var ci = 0; ci < state.units.length; ci++) {
@@ -2857,7 +3443,7 @@ GAME.Combat = {
           var mixX = (cx / near) * ad2.cohesion + tgt.x * (1 - ad2.cohesion);
           var mixY = (cy / near) * ad2.cohesion + tgt.y * (1 - ad2.cohesion);
           this.moveToward(u, mixX, mixY, this.effSpeed(u) * dt);
-          if (d <= def.range && u.cd <= 0) {
+          if (d <= rngA && u.cd <= 0) {
             this.faceAttack(u, GAME.DetMath.atan2(tgt.y - u.y, tgt.x - u.x));
             this.fire(u, tgt.x, tgt.y, tgt, state); u.cd = def.cooldown;
           }
@@ -2872,7 +3458,7 @@ GAME.Combat = {
       //   실측에서 kite 를 켠 쪽이 더 쉬웠던 원인 중 하나다.
       if (ad2 && ad2.kite > 0.1 && u.side === 'strategist' &&
           def.range > 150 && (tgt.def.range || 0) < 150 && u.hp < u.maxHp * 0.55 &&
-          d < def.range * 0.4 && u.rootedFor <= 0) {
+          d < rngA * 0.4 && u.rootedFor <= 0) {
         var away = GAME.DetMath.atan2(u.y - tgt.y, u.x - tgt.x);
         u.x += GAME.DetMath.cos(away) * this.effSpeed(u) * dt * ad2.kite;
         u.y += GAME.DetMath.sin(away) * this.effSpeed(u) * dt * ad2.kite;
@@ -2882,7 +3468,7 @@ GAME.Combat = {
         return;
       }
 
-      if (d <= def.range) {
+      if (d <= rngA) {
         this.faceAttack(u, GAME.DetMath.atan2(tgt.y - u.y, tgt.x - u.x));
         if (u.cd <= 0) {
           this.fire(u, tgt.x, tgt.y, tgt, state);
@@ -3008,7 +3594,34 @@ GAME.Combat = {
     //  벽 밀어내기·가시밭 도트·균열 낙사를 시뮬이 직접 굴린다(양쪽 동일).
     if (state.pvpRealtime && state.rtMap) this.updateRtMap(state, dtMs);
 
+    //  ── 전장 규칙 (시즌2 S-E) — towerField 가 없으면 fieldFx 수명만 늙힌다(비용 0).
+    if (state.towerField || (state.fieldFx && state.fieldFx.length)) this.updateArenaRule(state, dtMs);
+
     var i, u, k;
+
+    //  ── 돌풍(gust 능력) — 등록된 동안 매 틱 적을 방향으로 민다. 보스는 displace 면역.
+    if (state.gusts && state.gusts.length) {
+      for (var gi = state.gusts.length - 1; gi >= 0; gi--) {
+        var G = state.gusts[gi];
+        G.t -= dtMs;
+        if (G.t <= 0 || !G.owner.alive) { state.gusts.splice(gi, 1); continue; }
+        var gpx = G.push * dt;
+        var gvx = GAME.DetMath.cos(G.dir) * gpx, gvy = GAME.DetMath.sin(G.dir) * gpx;
+        G.tick = (G.tick || 0) + dtMs;
+        var gDo = G.dps > 0 && G.tick >= 500;
+        if (gDo) G.tick -= 500;
+        for (i = 0; i < state.units.length; i++) {
+          u = state.units[i];
+          if (!u.alive || u.side === G.side || this.isHazard(u) || u.def.immobile) continue;
+          if (G.radius > 0 && this.dist(u, G.owner) > G.radius + u.def.radius) continue;
+          if (this.displace(u, gvx, gvy)) {
+            this.clampToArena(u);
+            state.gustPushed = (state.gustPushed || 0) + 1;      // 감사용
+          }
+          if (gDo) this.applyDamage(u, G.dps * 0.5, G.owner, state, { noCrit: true, noLs: true, zone: true, abil: true });
+        }
+      }
+    }
 
     //  ── 최후 저항 판정 (2026-08-08) ────────────────────────────────────────
     //  ⚠ **시간 조건을 같이 건다.** 머릿수만 보면 판 초반에 소수로 시작한 진형이
@@ -3064,6 +3677,18 @@ GAME.Combat = {
     for (i = 0; i < state.units.length; i++) {
       u = state.units[i];
       if (!u.alive) continue;
+
+      //  ── 소환수 수명 (시즌2 S-E) — 다하면 조용히 사라진다(노른자·처치 훅·구슬 없음).
+      if (u.summoned && u.lifeMs > 0) {
+        u.lifeMs -= dtMs;
+        if (u.lifeMs <= 0) {
+          u.alive = false; u.hp = 0; u._expired = true;
+          state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: (u.def.radius || 12) + 10,
+                               t: 260, total: 260, side: u.side, summonEnd: true });
+          state.summonExpired = (state.summonExpired || 0) + 1;
+          continue;
+        }
+      }
 
       this.tickGuard(u, dtMs);
       if (u.cd > 0) u.cd -= dtMs;
@@ -3304,8 +3929,11 @@ GAME.Combat = {
       var p = state.projectiles[i];
 
       // 유도탄: 대상을 계속 따라간다 (회피 불가 — 대신 눈에 보인다)
+      //  ⚠ 대상이 **은신**하면 표적을 잃고 사라진다(시즌2 S-E — 타겟 계열은 은신을 못 본다).
       if (p.homing) {
-        if (!p.homing.alive) { state.projectiles.splice(i, 1); continue; }
+        if (!p.homing.alive || (p.homing.buffs && p.homing.buffs.length && this.isStealthed(p.homing))) {
+          state.projectiles.splice(i, 1); continue;
+        }
         var hx = p.homing.x - p.x, hy = p.homing.y - p.y;
         var hd = Math.sqrt(hx * hx + hy * hy) || 1;
         p.vx = (hx / hd) * p.speed;
@@ -3450,8 +4078,10 @@ GAME.Combat = {
           if (!w.alive || w.side === e.side) continue;
           var ex = w.x - e.x, ey = w.y - e.y;
           if (Math.sqrt(ex * ex + ey * ey) <= e.r + w.def.radius) {
-            this.applyDamage(w, e.damage, e.owner, state,
-                             { abil: !!e.abil, srcSkill: e.srcSkill });
+            //  비율 피해(전장 규칙 storm 낙뢰 등) — `pctMaxHp` 가 있으면 대상 최대체력 비율.
+            var eDmg = (e.pctMaxHp > 0) ? w.maxHp * e.pctMaxHp : e.damage;
+            this.applyDamage(w, eDmg, e.owner, state,
+                             { abil: !!e.abil, srcSkill: e.srcSkill, noPace: !!e.pctMaxHp });
             //  착탄음(2026-08-23 효과음 세트) — 예고 원이 터지는 순간. 대상 루프
             //  안이지만 sound 쪽 게이트(120ms)가 같은 폭발의 겹침을 막는다.
             if (GAME.Sound && e.damage) GAME.Sound.play('skillBurst');
@@ -3525,6 +4155,27 @@ GAME.Combat = {
         state.over = true; state.winner = 'strategist'; state.objectiveFailed = true;
         return;
       }
+    }
+
+    // ── 2인 협동 보스전 (시즌2 S-E/S-C, `state.coop`) ────────────────────────
+    //  승 = 적(strategist) 편 **보스 전원 사망**. 패 = 컨트롤러 편 **영웅 전멸**(둘 다 죽음)
+    //  또는 시간 초과(`state.coopTimeMs`, 기본 180초). 호위·소환수는 승패에 안 든다 —
+    //  보스가 답이지 호위를 다 잡는 것이 답이 아니다. pvpRealtime 보다 먼저 본다
+    //  (협동은 록스텝 위에서 돌아 pvpRealtime 도 참일 수 있다).
+    if (state.coop) {
+      var bossAlive = 0, bossSeen = 0, heroAlive = 0;
+      for (i = 0; i < state.units.length; i++) {
+        var cu2 = state.units[i];
+        if (cu2.side === 'strategist' && cu2.def && cu2.def.isBoss) { bossSeen++; if (cu2.alive) bossAlive++; }
+        if (cu2.side === 'controller' && cu2.isHero && cu2.alive) heroAlive++;
+      }
+      if (heroAlive === 0) { state.over = true; state.winner = 'strategist'; }
+      else if (bossSeen > 0 && bossAlive === 0) { state.over = true; state.winner = 'controller'; }
+      else if (bossSeen === 0 && this.aliveCount(state, 'strategist') === 0) { state.over = true; state.winner = 'controller'; }
+      else if (state.elapsed >= (state.coopTimeMs || 180000)) {
+        state.over = true; state.winner = 'strategist'; state.timeUp = true;
+      }
+      return;
     }
 
     // ── 같은 전장 실시간(pvpRealtime) — **영웅이 죽으면 그쪽이 진다** ────────

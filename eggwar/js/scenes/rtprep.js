@@ -38,9 +38,12 @@ GAME.RtPrepScene.prototype.create = function () {
   if (!F || !F.active) { this.scene.start('Versus'); return; }
 
   var isStrat = F.myRole === 'strategist';
+  //  협동(S-C) — 둘 다 컨트롤러라 역할 분기를 안 탄다. 제목이 세계를 말한다.
+  var coopLbl = (F.coop && GAME.RtCoop) ? GAME.RtCoop.label(F.coop.world) : '';
   UI.text(this, W / 2, P ? 10 : 26,
-    F.local ? '🤖 연습 대전 — 영웅과 무기를 고르세요'
-            : (isStrat ? '🛡 전투 준비 — 배치를 고르세요' : '⚔ 전투 준비 — 영웅과 무기를 고르세요'),
+    F.coop ? ('🤝 협동 보스전 — ' + coopLbl + (P ? '' : ' · 영웅과 무기를 고르세요'))
+           : (F.local ? '🤖 연습 대전 — 영웅과 무기를 고르세요'
+            : (isStrat ? '🛡 전투 준비 — 배치를 고르세요' : '⚔ 전투 준비 — 영웅과 무기를 고르세요')),
     { size: P ? 'subhead' : 'head', color: C.accent, origin: 0.5, originY: 0 });
 
   this._timerTxt = UI.text(this, W / 2, P ? 44 : 78, '', {
@@ -51,7 +54,13 @@ GAME.RtPrepScene.prototype.create = function () {
   //    두면 컨트롤러 장비요약(P 70 / PC 124)과 정확히 겹친다(감사 실측 2026-08-31).
   //    설명(desc)은 자리가 남는 전략가 쪽에만 한 줄 띄운다.
   this._mapName = '';
-  if (GAME.RtMaps && F.startMsg && F.startMsg.seed !== undefined) {
+  if (F.coop) {
+    //  협동 — 맵 대신 세계 보스 층. 보스 이름은 시드 없이도 층에서 정해진다.
+    var cbk = GAME.RtCoop ? GAME.RtCoop.bossKeyFor(F.coop.floor) : null;
+    var cbd = cbk && GAME.UNITS[cbk];
+    var hm = (GAME.RtCoop && GAME.RtCoop.HERO_WORLD_MUL[F.coop.world]) || 1;
+    this._mapName = F.coop.floor + '층 ' + (cbd ? cbd.name : '보스') + (hm > 1 ? ' · 영웅 ×' + hm : '');
+  } else if (GAME.RtMaps && F.startMsg && F.startMsg.seed !== undefined) {
     var mp = GAME.RtMaps.forSeed(F.startMsg.seed >>> 0);
     this._mapName = mp.name;
     if (isStrat) {
@@ -101,11 +110,20 @@ GAME.RtPrepScene.prototype.create = function () {
     this._heroBtns = [];
     var hks = GAME.HERO_ORDER || ['vanguard', 'ranger', 'warden'];
     var hbw = Math.min(W - 40, 560), hbh = P ? 46 : 56;
+    //  영웅이 넷 이상이면 2열(시즌2 다섯 영웅) — 폰 가로(H 390)에서 한 열 다섯 줄은
+    //  다섯째 버튼(중심 338)이 준비 버튼(중심 298)을 덮는다(산수: top 96 + 26 + 4×54).
+    //  2열 3행이면 마지막 행 바닥 253 < 준비 버튼 위 272. 문구는 이름·정체성만(폭 276).
+    var twoCol = hks.length > 3;
+    var hcols = twoCol ? GAME.Layout.cols(2, { gap: 8, width: hbw, left: (W - hbw) / 2, pad: 0 }) : null;
     hks.forEach(function (hk, i) {
       var hd = GAME.HEROES[hk];
       if (!hd) return;
-      var b = UI.button(self, W / 2, top + 26 + i * (hbh + 8), hbw, hbh,
-        hd.name + '   ·   ' + (hd.tagline || hd.desc || '').slice(0, 26),
+      var bx = twoCol ? hcols[i % 2].cx : W / 2;
+      var bwid = twoCol ? hcols[i % 2].w : hbw;
+      var brow = twoCol ? Math.floor(i / 2) : i;
+      var b = UI.button(self, bx, top + 26 + brow * (hbh + 8), bwid, hbh,
+        twoCol ? (hd.name + ' · ' + (hd.trait || ''))
+               : (hd.name + '   ·   ' + (hd.tagline || hd.desc || '').slice(0, 26)),
         function () {
           self._pickedHero = hk;
           if (GAME.RtFlow.setHeroPick) GAME.RtFlow.setHeroPick(hk);
@@ -209,14 +227,15 @@ GAME.RtPrepScene.prototype._refresh = function () {
   if (!this._timerTxt || !this._timerTxt.scene) return;
   var s = Math.ceil(F.remainMs() / 1000);
   this._timerTxt.setText('⏳ ' + s + '초' + (this._mapName ? '  ·  🗺 ' + this._mapName : ''));
+  var who = F.coop ? '파트너' : '상대';
   var mine = F.mySetup ? '나: 준비 완료 ✓' : '나: 준비 중…';
   var theirs = F.local
-    ? ('상대: 🤖 봇(' + ((GAME.RtBot && GAME.RtBot.LEVELS[F.botLevel] || {}).name || F.botLevel) + ')')
-    : (F.theirSetup ? '상대: 준비 완료 ✓' : '상대: 준비 중…');
+    ? (who + ': 🤖 봇(' + ((GAME.RtBot && GAME.RtBot.LEVELS[F.botLevel] || {}).name || F.botLevel) + ')')
+    : (F.theirSetup ? who + ': 준비 완료 ✓' : who + ': 준비 중…');
   this._stateTxt.setText(mine + '   ·   ' + theirs +
-    (F.mySetup && !F.theirSetup ? '\n상대가 끝나면 바로 시작됩니다' : ''));
+    (F.mySetup && !F.theirSetup ? '\n' + who + '가 끝나면 바로 시작됩니다' : ''));
   if (F.mySetup && this._readyBtn && this._readyBtn.text) {
-    this._readyBtn.text.setText('⌛ 상대를 기다리는 중…');
+    this._readyBtn.text.setText('⌛ ' + who + '를 기다리는 중…');
   }
 };
 

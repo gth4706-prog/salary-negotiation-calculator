@@ -22,7 +22,8 @@ GAME.RankScene.prototype.constructor = GAME.RankScene;
 
 GAME.RankScene.prototype.init = function (data) {
   data = data || {};
-  this.kind = GAME.Score.kindDef(data.kind).k;
+  //  '시즌' 탭(S-F, js/season.js)은 Score.KINDS 밖이다 — 서버 보드가 없고 이 기기 기록만 보인다.
+  this.kind = (data.kind === 'season' && GAME.Season) ? 'season' : GAME.Score.kindDef(data.kind).k;
   // 예전 진입점이 넘기던 'live' 는 이제 없는 기간이다 → 전체로 받는다
   this.scope = (data.scope === 'week') ? 'week' : 'all';
   this.rowObjects = [];
@@ -43,7 +44,50 @@ GAME.RankScene.prototype._kindStyle = function (k) {
   // 호박색 계열의 숫자 토큰은 UI.COL.focus 하나뿐이라 그걸 쓴다 — 네 테마 모두 대비 검증된 값.
   if (k === 'tower')  return { fill: UI.COL.panelAmber,  hover: UI.COL.panelAmberHi,  line: UI.COL.focus, text: C.crit };
   if (k === 'dtower') return { fill: UI.COL.panelPurple, hover: UI.COL.panelPurpleHi, line: C.strategist, text: C.accentAlt };
+  if (k === 'season') return { fill: UI.COL.panelAmber,  hover: UI.COL.panelAmberHi,  line: UI.COL.focus, text: C.warn };
   return { fill: UI.COL.panelTeal, hover: UI.COL.panelTealHi, line: C.controller, text: C.accent };
+};
+
+//  탭 목록 — Score.KINDS + (Season 이 실려 있으면) '시즌'. 손으로 5 를 박지 않는다.
+GAME.RankScene.prototype._kinds = function () {
+  var ks = GAME.Score.KINDS.slice();
+  if (GAME.Season) ks.push({ k: 'season', n: '시즌', short: '시즌', unit: '' });
+  return ks;
+};
+//  현재 탭의 정의. 시즌은 Score 가 모르므로 여기서 만든다.
+GAME.RankScene.prototype._kindDef = function () {
+  if (this.kind === 'season') return { k: 'season', n: '시즌', short: '시즌', unit: '' };
+  return GAME.Score.kindDef(this.kind);
+};
+
+//  ── 시즌 탭 (S-F, js/season.js) ─────────────────────────────────────────────
+//  서버는 못 바꾸니 **이 기기의 시즌 기록**만 — 첫 줄이 내 줄(세계 정복 수·최고층·포인트),
+//  그 아래 세계 5줄(정복/진입/미도달). rank 는 전부 0('-') — 순위가 아니다.
+GAME.RankScene.prototype._seasonRows = function () {
+  var S = GAME.Season;
+  if (!S || !S.summary) return [];
+  var me = GAME.Account.current() || '나';
+  var sm = S.summary(), prog = S.progress();
+  var rows = [{
+    id: me, rank: 0, mine: true,
+    valueText: '세계 ' + sm.conquered + '/' + sm.total + ' 정복',
+    metaText: '최고 ' + (sm.bestTower || 0) + '층  ·  세계 포인트 ' + sm.points +
+              (sm.coopWins ? ('  ·  협동 ' + sm.coopWins + '승') : '')
+  }];
+  for (var i = 0; i < prog.length; i++) {
+    var p = prog[i];
+    rows.push({
+      id: p.icon + ' ' + p.name, rank: 0, mine: false,
+      valueText: p.conquered ? '정복' : (p.entered ? (p.current ? '도전 중' : '진입') : '미도달'),
+      metaText: p.from + (isFinite(p.to) ? ('~' + p.to) : '+') + '층  ·  세계 보스 ' + p.boss + '층'
+    });
+  }
+  return rows;
+};
+GAME.RankScene.prototype._seasonNote = function () {
+  var sm = GAME.Season.summary();
+  return '시즌 ' + sm.id + ' · ' + sm.name + '  —  ' + sm.start + ' ~ ' + sm.end +
+         (sm.ended ? ' (종료)' : ' (D-' + sm.daysLeft + ')') + '  ·  이 기기 기록';
 };
 
 // 1단계 탭
@@ -80,6 +124,12 @@ GAME.RankScene.prototype._scopePill = function (s, name, cx, cy, w, h, fs) {
 
 GAME.RankScene.prototype._load = function () {
   var self = this;
+  if (this.kind === 'season') {
+    //  시즌 — 서버 없음. 로컬 요약만 그리고 끝.
+    this._setNote(this._seasonNote());
+    this._renderRows(this._seasonRows());
+    return;
+  }
   var local = GAME.Score.kindBoard(this.kind, this.scope);
   this._renderRows(local);
 
@@ -169,6 +219,10 @@ GAME.RankScene.prototype._setNote = function (s) {
 GAME.RankScene.prototype._myText = function () {
   var me = GAME.Account.current();
   if (!me) return '로그인하지 않았습니다';
+  if (this.kind === 'season') {
+    var sm = GAME.Season.summary();
+    return me + ' · 세계 ' + sm.conquered + '/' + sm.total + ' 정복 · 최고 ' + (sm.bestTower || 0) + '층 · 세계 포인트 ' + sm.points;
+  }
   var d = GAME.Score.kindDef(this.kind);
   var mine = GAME.Score.myBest(me, this.kind, this.scope);
   var rank = GAME.Score.kindRankOf(me, this.kind, this.scope);
@@ -203,15 +257,18 @@ GAME.RankScene.prototype.create = function () {
     'micro', C.textDim, 0.5).setOrigin(0.5, 0).setWordWrapWidth(W - 40);
 
   // ── 1단계: 분류 ──
-  var kinds = GAME.Score.KINDS;
+  var kinds = this._kinds();
   // 탭·버튼 높이는 어느 화면에서도 56 — 폰(설계px×0.929=52 CSS px)과 PC 모두
   // 모바일 최소 규격 위에 둔다. 세로 900 이라 데스크톱도 높이가 아깝지 않다.
   var th = 56;
   var tw = Math.min(W - 24, P ? 396 : 640);
   var tcy = this.scopeLabel.y + this.scopeLabel.height + 6 + th / 2;
   var tc = GAME.Layout.cols(kinds.length, { gap: 8, width: tw, left: (W - tw) / 2, pad: 0 });
+  //  세로(396px)에 탭 5개면 칸이 73px — '수성의 탑'(16px ≈ 72px)이 넘친다 → 5개부터 14px.
+  //  UI.button 은 라벨을 스스로 줄이지 않는다(넘침 감사가 잡는 계열).
+  var tfs = P ? (kinds.length >= 5 ? 14 : 16) : 17;
   for (var i = 0; i < kinds.length; i++) {
-    this._kindTab(kinds[i].k, kinds[i].n, tc[i].cx, tcy, tc[i].w, th, P ? 16 : 17);
+    this._kindTab(kinds[i].k, kinds[i].n, tc[i].cx, tcy, tc[i].w, th, tfs);
   }
 
   // ── 2단계: 기간 ──
@@ -220,11 +277,14 @@ GAME.RankScene.prototype.create = function () {
   var scy = tcy + th / 2 + 10 + sh / 2;
   var sLeft = (W - sw) / 2;
   var sc = GAME.Layout.cols(2, { gap: 8, width: sw, left: sLeft, pad: 0 });
-  GAME.UI.label(this, sLeft - 10, scy, '기간', 'micro', C.textFaint || C.textDim, 1)
-    .setOrigin(1, 0.5);
-  for (var s = 0; s < GAME.Score.SCOPES.length; s++) {
-    this._scopePill(GAME.Score.SCOPES[s].k, GAME.Score.SCOPES[s].n,
-      sc[s].cx, scy, sc[s].w, sh, P ? 16 : 16);
+  //  시즌 탭에는 기간이 없다(시즌 자체가 기간) — 줄 자리는 그대로 두고 알약만 안 그린다.
+  if (this.kind !== 'season') {
+    GAME.UI.label(this, sLeft - 10, scy, '기간', 'micro', C.textFaint || C.textDim, 1)
+      .setOrigin(1, 0.5);
+    for (var s = 0; s < GAME.Score.SCOPES.length; s++) {
+      this._scopePill(GAME.Score.SCOPES[s].k, GAME.Score.SCOPES[s].n,
+        sc[s].cx, scy, sc[s].w, sh, P ? 16 : 16);
+    }
   }
 
   // 목록 — 1줄 정체(순위·닉네임·값), 2줄 부연(영웅/장비·리그)
@@ -282,23 +342,29 @@ GAME.RankScene.prototype._buildPhone = function () {
 
   // 1단계 — 분류 탭. 4개가 되면서(실시간 신설, 2026-08-21) 세로 한 줄로는
   // 레일 바닥 버튼이 화면(390) 밖으로 밀린다(실측 잘림) → **2×2 격자**로 접는다.
-  var kinds = GAME.Score.KINDS;
+  //  시즌 탭(5번째, S-F)은 홀수 꼬리라 **셋째 줄에 레일 폭 전체**로 선다.
+  //  레일 예산: 띠 ~61 + 탭 3줄 183 + 기간 20 + 알약 56 + 8 + 버튼 56 = 384 < 390.
+  var kinds = this._kinds();
   var y = Math.ceil(rib.full.bottom) + 4;
   var ktw = Math.floor((RAILW - 6) / 2);
   for (var i = 0; i < kinds.length; i++) {
     var kc = i % 2, kr = Math.floor(i / 2);
+    var lastOdd = (i === kinds.length - 1 && kinds.length % 2 === 1);
     this._kindTab(kinds[i].k, kinds[i].n,
-      PAD + ktw / 2 + kc * (ktw + 6), y + kr * (TH + 5) + TH / 2, ktw, TH, 13);
+      lastOdd ? (PAD + RAILW / 2) : (PAD + ktw / 2 + kc * (ktw + 6)),
+      y + kr * (TH + 5) + TH / 2, lastOdd ? RAILW : ktw, TH, 13);
   }
   y += Math.ceil(kinds.length / 2) * (TH + 5);
 
-  // 2단계 — 기간. 레일 안에서 알약 두 개.
-  UI.label(this, PAD, y + 3, '기간', 'micro', C.textFaint || C.textDim, 0).setOrigin(0, 0);
+  // 2단계 — 기간. 레일 안에서 알약 두 개. 시즌 탭은 기간이 없어 자리만 비운다.
+  if (this.kind !== 'season') UI.label(this, PAD, y + 3, '기간', 'micro', C.textFaint || C.textDim, 0).setOrigin(0, 0);
   y += 20;
   var pw = Math.floor((RAILW - 8) / 2);
-  for (var s = 0; s < GAME.Score.SCOPES.length; s++) {
-    this._scopePill(GAME.Score.SCOPES[s].k, GAME.Score.SCOPES[s].n,
-      PAD + pw / 2 + s * (pw + 8), y + TH / 2, pw, TH, 16);
+  if (this.kind !== 'season') {
+    for (var s = 0; s < GAME.Score.SCOPES.length; s++) {
+      this._scopePill(GAME.Score.SCOPES[s].k, GAME.Score.SCOPES[s].n,
+        PAD + pw / 2 + s * (pw + 8), y + TH / 2, pw, TH, 16);
+    }
   }
   y += TH + 8;
 
@@ -341,6 +407,7 @@ GAME.RankScene.prototype._buildPhone = function () {
 // 단위를 **같은 줄에 붙인다**: 큰 숫자 아래에 작은 단위를 따로 두면 두 글자상자가
 // 세로로 7px 겹친다(실측, 폰 가로 행 높이 56). 붙이면 겹침이 구조적으로 사라진다.
 GAME.RankScene.prototype._valueOf = function (r) {
+  if (r && r.valueText !== undefined) return { value: String(r.valueText), unit: '' };   // 시즌 줄
   var d = GAME.Score.kindDef(this.kind);
   return {
     value: Math.round(r.value || 0).toLocaleString('ko-KR') + (d.unit || ''),
@@ -350,6 +417,7 @@ GAME.RankScene.prototype._valueOf = function (r) {
 
 // 부연 한 줄. **통곡의 탑은 여기에 영웅·장비가 들어간다**(사용자 요구).
 GAME.RankScene.prototype._metaOf = function (r) {
+  if (r && r.metaText !== undefined) return String(r.metaText);   // 시즌 줄
   if (this.kind === 'tower') {
     var hero = GAME.Score.heroName(r.hero);
     if (hero) return hero + (r.gear ? ' · ' + r.gear : '');
@@ -388,6 +456,7 @@ GAME.RankScene.prototype._ago = function (t) {
 };
 
 GAME.RankScene.prototype._empty = function () {
+  if (this.kind === 'season') return '시즌 기록이 아직 없습니다.\n통곡의 탑에서 한 층이라도 오르면 여기에 올라갑니다.';
   var d = GAME.Score.kindDef(this.kind);
   var how = this.kind === 'tower' ? '통곡의 탑에서 한 층이라도 오르면'
           : this.kind === 'dtower' ? '수성의 탑에서 한 층이라도 막아내면'
@@ -412,7 +481,8 @@ GAME.RankScene.prototype._renderRows = function (rows) {
   var P = GAME.CONFIG.PORTRAIT;
   var g = this.geo;
   var me = GAME.Account.current();
-  var d = GAME.Score.kindDef(this.kind);
+  var d = this._kindDef();
+  var season = this.kind === 'season';
 
   this._clearRows();
   var keep = this.rowObjects;
@@ -425,8 +495,8 @@ GAME.RankScene.prototype._renderRows = function (rows) {
   }
 
   var rowW = W - g.pad * 2;
-  add(GAME.UI.label(this, g.pad + 4, g.top - 22, '순위 · 닉네임', 'micro', C.textDim, 0));
-  add(GAME.UI.label(this, W - g.pad - 4, g.top - 22, d.n + ' 기록', 'micro', C.textDim, 1)
+  add(GAME.UI.label(this, g.pad + 4, g.top - 22, season ? '나 · 세계' : '순위 · 닉네임', 'micro', C.textDim, 0));
+  add(GAME.UI.label(this, W - g.pad - 4, g.top - 22, season ? '정복' : (d.n + ' 기록'), 'micro', C.textDim, 1)
     .setOrigin(1, 0));
 
   //  실시간 탭(W4): 내 순위 줄을 **목록 맨 아래에 고정** — 마지막 칸을 그 줄에 비워 둔다.
@@ -440,12 +510,12 @@ GAME.RankScene.prototype._renderRows = function (rows) {
     var r = rows[i];
     var v = this._valueOf(r);
     var row = GAME.UI.rankRow(this, g.pad, g.top + i * g.rowH, rowW, {
-      rank: i + 1,
+      rank: r.rank !== undefined ? r.rank : i + 1,      // 시즌 줄은 0('-') — 순위가 아니다
       id: r.id,
       valueText: v.value,
       unitText: v.unit,
       metaText: this._metaOf(r),
-      mine: r.id === me
+      mine: r.mine !== undefined ? !!r.mine : (r.id === me)
     });
     for (var q = 0; q < row.objs.length; q++) keep.push(row.objs[q]);
   }
@@ -499,12 +569,12 @@ GAME.RankScene.prototype._renderRowsPhone = function (rows) {
     var r = rows[i];
     var v = this._valueOf(r);
     var row = UI.rankRow(this, g.colX[col], g.top + idx * g.rowH, g.colW, {
-      rank: i + 1,
+      rank: r.rank !== undefined ? r.rank : i + 1,      // 시즌 줄은 0('-')
       id: r.id,
       valueText: v.value,
       unitText: v.unit,
       metaText: this._metaOf(r),
-      mine: r.id === me
+      mine: r.mine !== undefined ? !!r.mine : (r.id === me)
     }, { height: g.h });
     for (var q = 0; q < row.objs.length; q++) keep.push(row.objs[q]);
   }

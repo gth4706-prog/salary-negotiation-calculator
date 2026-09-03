@@ -523,7 +523,14 @@ var SM = 10;
     // ── 영웅 3종 ──
     berserker:{ helm: 'onehorn', gear: 'greatsword', back: 'fur',    face: 'open', wide: 0.82, hero: true },
     hunter:   { helm: 'wolf',    gear: 'longbow',    back: 'quiver', face: 'open', wide: 0.72, hero: true },
-    guardian: { helm: 'crest',   gear: 'hookShield', back: 'cape',   face: 'slit', wide: 0.88, hero: true }
+    guardian: { helm: 'crest',   gear: 'hookShield', back: 'cape',   face: 'slit', wide: 0.88, hero: true },
+    // ── 시즌2 영웅 2종 (2026-09-03 S-H) ─────────────────────────────────────
+    //  계란 몸은 그대로, **투구+무기 실루엣**으로 가른다(세계관 제1원칙).
+    //   주술사 = 깃털·뼈 장식 투구(featherbone) + 토템 지팡이(totemStaff — 끝에 해골·구슬)
+    //   암살자 = 눈만 보이는 두건(nighthood, face:'slit') + 쌍단검(twinDaggers)
+    //  wide: 암살자는 다섯 중 가장 좁다(얇다는 정체성) · 주술사는 기본.
+    shaman:   { helm: 'featherbone', gear: 'totemStaff',  back: 'pouch', face: 'open', wide: 0.78, hero: true },
+    stalker:  { helm: 'nighthood',   gear: 'twinDaggers', back: null,    face: 'slit', wide: 0.74, hero: true }
   };
 
   // units.js / heroes.js 에 art 를 아직 안 넣었을 때를 위한 안전망.
@@ -762,6 +769,11 @@ var SM = 10;
     berserker: { wind: 240, dur: 600, A: 0.120 },   // 큰 각 — 대검이 주 신호
     hunter:    { wind: 200, dur: 420, A: 0.092 },   // 가장 얕다 — 몸을 안 쓰는 게 정체성
     guardian:  { wind: 300, dur: 620, A: 0.099 },   // 느리게 감고 버틴다
+    //  시즌2 (2026-09-03 S-H) — 주 신호 하나씩: 주술사 = **지팡이 끝 구슬 높이**(atk 가
+    //  지팡이 각을 세웠다 눕힌다), 암살자 = **단검 각**(가장 빠르고 각이 크다).
+    //  dur 는 쿨(주술사 900 · 암살자 850)의 95% 안(art-motion-audit ⑥).
+    shaman:    { wind: 260, dur: 560, A: 0.095 },   // 지팡이를 세웠다 앞으로 — 몸은 얕게
+    stalker:   { wind: 150, dur: 380, A: 0.110 },   // 짧고 빠르다 — 예비가 거의 없다
     _default:  { wind: 200, dur: 480, A: 0.100 },
 
     //  ── 전략 유닛 (2026-08-07) ──────────────────────────────────────────────
@@ -826,7 +838,11 @@ var SM = 10;
     //  수성의 탑 신규 유닛 3종 (2026-08-20 — art-motion-audit ⑪-2 가 잡아 둔 누락)
     pull: 'pull',            // 덩굴채 — 팔을 뻗어 끌어당긴다(영웅 당기기와 같은 그림)
     ashcloud: 'aoeTarget',   // 잿가루꾼 — 지정 위치에 뿌린다(팔 든 채 유지)
-    ember: 'projectile'      // 불씨꾼 — 던진다(짧고 빠른 무기각)
+    ember: 'projectile',     // 불씨꾼 — 던진다(짧고 빠른 무기각)
+    //  시즌2 S-E 새 능력 3(보스·세계 유닛) — 세계 보스가 units.js 에 실리면 ⑪-2 가 본다.
+    summon: 'summon',        // 호위 소환 — 땅에 꽂기
+    quake: 'aoeSelf',        // 지진 — 눌렸다 펴진다
+    gust: 'pull'             // 돌풍 — 팔을 뻗어 밀어낸다(당기기와 같은 그림, 방향만 반대)
   };
 
   //  ky 는 이 범위를 벗어나면 안 된다. `eggBody` 가 면적을 보존하느라 가로를 1/ky 로
@@ -841,7 +857,7 @@ var SM = 10;
   //  광전사는 정점을 **+0.82** 에 둔다 — `bladeDir(1.55 - atk*1.90)` 이 atk=+1 에서
   //  1.55-1.90 = -0.35 라 칼이 아래로 기울어 화면 최원점이 오히려 짧아진다.
   //  앞뒤축과 정확히 나란해지는 값이 1.55/1.90 = 0.816 이다. +1 은 그 뒤 추종에서 지나간다.
-  var PEAK = { berserker: 0.82, hunter: 1.0, guardian: 1.0 };
+  var PEAK = { berserker: 0.82, hunter: 1.0, guardian: 1.0, shaman: 1.0, stalker: 0.9 };
 
   //  스킬 타입별 모션 길이(ms). 타입이 9종인데 그림이 하나면 "스킬을 썼다"만 알고
   //  **무엇을 썼는지**는 모른다 — 그건 모션이 아니라 깜빡임이다.
@@ -849,7 +865,9 @@ var SM = 10;
   //    (늦추면 그건 아트가 아니라 밸런스다). 그림만 뒤따라간다.
   UI.SKILL_DUR = {
     dash: 320, aoeSelf: 520, aoeTarget: 620, projectile: 240,
-    buff: 520, pull: 520, trap: 460, aura: 480, strike: 560
+    buff: 520, pull: 520, trap: 460, aura: 480, strike: 560,
+    //  시즌2 S-E 새 타입 5 (2026-09-03 S-H) — 아래 skillPose 의 주 신호 매핑 참조.
+    summon: 560, stealth: 440, blink: 300, mark: 480, chain: 520
   };
 
   //  타입마다 **주 신호를 하나씩** 다르게 잡는다. 셋 다 크게 움직이면 셋 다 안 읽힌다.
@@ -902,6 +920,32 @@ var SM = 10;
       var h2 = u < 0.09 ? 0 : (u < 0.23 ? (u - 0.09) / 0.14 : (u < 0.54 ? 1 : fall));
       P.atk = -1 + 2 * h2; P.reach = 0.88 + 0.58 * h2;
       P.drift = -0.06 + 0.32 * h2; P.ky = clampKy(1.06 - 0.20 * h2);
+
+    // ── 시즌2 S-E 새 타입 5 (2026-09-03 S-H) — 타입마다 주 신호 하나 ──────────
+    //    소환 = 땅에 꽂기(gearDrop, 유일하게 무기가 내려간 채 유지) · 은신 = 웅크림(ky 0.80
+    //    유지 + 뒤로 물러남) · 점멸 = 몸이 뒤늦게(drift 음수, 단 dash 와 달리 위로 늘어난다)
+    //    표식 = 팔 뻗음(reach 1.46, 겨눈 채 유지) · 사슬 = 지팡이 휘두름(atk −1→+1 + 약간의 spin)
+    } else if (type === 'summon') {
+      var sm = u < 0.30 ? u / 0.30 : (u < 0.70 ? 1 : 1 - ease((u - 0.70) / 0.30));
+      P.gearDrop = 0.50 * sm; P.ky = clampKy(1 - 0.10 * sm); P.reach = 1 + 0.16 * sm;
+      P.atk = 0.55 * sm; P.rise = 0.04 * sm;
+    } else if (type === 'stealth') {
+      var sc = u < 0.20 ? u / 0.20 : (u < 0.75 ? 1 : 1 - ease((u - 0.75) / 0.25));
+      P.ky = clampKy(1 - 0.20 * sc); P.reach = 1 - 0.18 * sc; P.rise = 0.06 * sc;
+      P.drift = -0.18 * sc; P.atk = -0.35 * sc; P.legSpread = 0.35 * sc;
+    } else if (type === 'blink') {
+      var g2 = (1 - u) * (1 - u);
+      P.drift = -1.35 * g2; P.ky = clampKy(1 + 0.12 * g2); P.reach = 1 - 0.10 * g2;
+      P.atk = 0.30 * g2; P.rise = -0.04 * g2;
+    } else if (type === 'mark') {
+      var mk = u < 0.15 ? u / 0.15 : (u < 0.70 ? 1 : 1 - ease((u - 0.70) / 0.30));
+      P.reach = 1 + 0.46 * mk; P.atk = 0.95 * mk; P.drift = 0.12 * mk; P.ky = clampKy(1 + 0.04 * mk);
+    } else if (type === 'chain') {
+      var ch = u < 0.25 ? -1 + (u / 0.25) * 0.4
+             : (u < 0.55 ? -0.6 + 1.6 * ease((u - 0.25) / 0.30) : 1 - ease((u - 0.55) / 0.45));
+      P.atk = ch; P.reach = 1 + 0.26 * (ch > 0 ? ch : 0);
+      P.spin = 0.25 * clamp01((u - 0.25) / 0.30) * (1 - clamp01((u - 0.6) / 0.4));
+      P.ky = clampKy(1 - 0.06 * Math.abs(ch)); P.drift = 0.18 * (ch > 0 ? ch : 0);
     }
     return P;
   }
@@ -1279,7 +1323,7 @@ var SM = 10;
 
   // ── 얼굴 ──────────────────────────────────────────────────────
   // 투구 틈(슬릿)의 화면상 높이 — 눈을 정확히 그 안에 넣어야 한다
-  UI.SLIT_Y = { bucket: 0.82, crest: 0.84, wedge: 0.80 };
+  UI.SLIT_Y = { bucket: 0.82, crest: 0.84, wedge: 0.80, nighthood: 0.80 };
 
   UI.eggFace = function (g, art, sx, by, r, a, D) {
     if (r < 7 || art.face === 'none') return;
@@ -1871,6 +1915,81 @@ var SM = 10;
       }
       g.lineStyle(lw, UI.tint(M.iron, 0.25), a);
       g.strokeRoundedRect(sx - r * cwr, by - r * 1.34, r * cwr * 2, r * 1.10, r * 0.20);
+
+    // ── 시즌2 영웅 투구 2종 (2026-09-03 S-H) ─────────────────────────────────
+    //  폰 산수(r ≈ 13, UNIT_DRAW_SCALE 1.30 → 17px): 깃털 높이 1.35r = 23px · 뼈 구슬
+    //  지름 0.22r = 3.7px(≥3px 하한) · 두건 틈 두께 0.15r = 2.6px(하한 1.2). 전부 읽힌다.
+    } else if (kind === 'featherbone') {     // 주술사 — 가죽 캡 + 깃털 셋 + 뼈 구슬 이마띠
+      var fdome = function () {
+        g.fillStyle(M.leatherDark, a);
+        g.fillEllipse(sx, by - r * 0.76, r * (prof ? 0.98 : 1.16), r * 0.74, SM);
+        top(sx, by - r * 0.90, r * 0.36, r * 0.24, M.leatherLite);
+      };
+      //  깃털 — 뒤로 눕는 세 장. 옆모습은 뒤쪽(-lat)으로 길게, 정면·배면은 부채꼴.
+      var feather = function (bxo, tipX, tipH, col) {
+        g.fillStyle(col, a);
+        g.fillPoints([
+          { x: bxo, y: by - r * 1.02 },
+          { x: tipX - r * 0.14, y: by - r * (1.02 + tipH * 0.55) },
+          { x: tipX, y: by - r * (1.02 + tipH) },
+          { x: tipX + r * 0.14, y: by - r * (1.02 + tipH * 0.55) }
+        ], true);
+      };
+      if (prof) {
+        feather(sx - lat * r * 0.10, sx - lat * r * 0.70, 1.10, UI.tint(M.quill, -0.22));
+        fdome();
+        feather(sx + lat * r * 0.10, sx - lat * r * 0.40, 1.35, M.quill);
+        feather(sx + lat * r * 0.26, sx - lat * r * 0.05, 1.05, UI.tint(M.quill, 0.18));
+      } else {
+        if (back) feather(sx, sx, 1.35, M.quill);
+        feather(sx - r * 0.30, sx - r * 0.62, 1.10, UI.tint(M.quill, -0.22));
+        feather(sx + r * 0.30, sx + r * 0.62, 1.10, UI.tint(M.quill, -0.22));
+        fdome();
+        if (!back) feather(sx, sx + r * 0.04, 1.35, M.quill);
+      }
+      //  뼈 구슬 이마띠 — 흰 뼈(bone)는 몸통 near-white 와 겹치니 **테를 진하게** 두른다
+      //  (껍질장이 교훈: 몸에서 떨어진 곳에만 흰색을 둔다 — 여기는 투구 위라 괜찮다).
+      if (!back) {
+        g.lineStyle(Math.max(1, r * 0.07), M.leatherDark, a);
+        g.lineBetween(sx - r * (prof ? 0.48 : 0.60), by - r * 0.50, sx + r * (prof ? 0.48 : 0.60), by - r * 0.50);
+        var nb = prof ? 3 : 5;
+        for (i = 0; i < nb; i++) {
+          var bxx = sx + (i - (nb - 1) / 2) * r * (prof ? 0.34 : 0.28);
+          g.fillStyle(M.boneDark, a);
+          g.fillEllipse(bxx, by - r * 0.50, r * 0.26, r * 0.26, SM);
+          g.fillStyle(M.bone, a);
+          g.fillEllipse(bxx, by - r * 0.50, r * 0.18, r * 0.18, SM);
+        }
+      } else {                               // 뒤 — 매듭 끈 두 가닥
+        g.lineStyle(Math.max(1, r * 0.07), M.leatherDark, a);
+        g.lineBetween(sx - r * 0.10, by - r * 0.44, sx - r * 0.30, by + r * 0.10);
+        g.lineBetween(sx + r * 0.10, by - r * 0.44, sx + r * 0.30, by + r * 0.10);
+      }
+
+    } else if (kind === 'nighthood') {       // 암살자 — 눈만 보이는 두건(틈은 SLIT_Y 0.80)
+      var hood = UI.tint(M.leatherDark, -0.34), hoodLite = UI.tint(M.leatherDark, -0.12);
+      var hwr = prof ? 0.94 : 1.12;
+      g.fillStyle(hood, a);
+      //  머리를 통째로 덮는다 — 계란 정수리 위로 살짝 뾰족(두건 접힘).
+      g.fillEllipse(sx, by - r * 0.70, r * hwr, r * 1.08, SM);
+      g.fillTriangle(sx - r * 0.30, by - r * 1.10, sx + r * 0.30, by - r * 1.10, sx + lat * r * 0.10, by - r * 1.42);
+      //  볼까지 내려오는 천 — 턱·입을 가린다(눈만 남는다).
+      g.fillRoundedRect(sx - r * hwr * 0.52, by - r * 0.72, r * hwr * 1.04, r * 0.62, r * 0.14);
+      top(sx - r * 0.20, by - r * 1.02, r * 0.30, r * 0.22, hoodLite);
+      if (!back) {
+        //  눈 틈 — 가로 한 줄. 눈(eggFace slit)은 이 자리(SLIT_Y 0.80)에 뜬다.
+        g.fillStyle(0x0e1014, a);
+        var slw2 = prof ? 0.42 : 0.74;
+        g.fillRoundedRect(sx + lat * r * 0.10 - r * slw2 * 0.5, by - r * 0.88, r * slw2, Math.max(1.2, r * 0.15), r * 0.04);
+        //  천 주름 한 줄 — 단색 덩어리를 두건으로 읽히게(도형 +1).
+        g.lineStyle(Math.max(0.8, r * 0.05), hoodLite, a * 0.8);
+        g.lineBetween(sx - lat * r * 0.30, by - r * 0.60, sx + lat * r * 0.42, by - r * 0.30);
+      } else {                               // 뒤 — 등으로 늘어진 두건 꼬리
+        g.fillStyle(hood, a);
+        g.fillRoundedRect(sx - r * 0.22, by - r * 0.60, r * 0.44, r * 1.00, r * 0.16);
+        g.lineStyle(Math.max(0.8, r * 0.05), hoodLite, a * 0.8);
+        g.lineBetween(sx, by - r * 0.40, sx, by + r * 0.30);
+      }
     }
   };
 
@@ -2000,6 +2119,7 @@ var SM = 10;
     sword: 0.45, bow: 0.95, longbow: 1.02, sling: 0.40, javelin: 0.55,
     leafstaff: 0.20, towerShield: 0.60, handaxe: 0.30, sapjar: 0.35,
     greatsword: 0.35, hookShield: 0.55, crossbowNest: 0,
+    totemStaff: 0.40, twinDaggers: 0.50,
     shellGuard: 0.58, stakes: 0.30, shellPlate: 0.34, stoneMaul: 0.42,
     hive: 0.44, vinelash: 0.86, ashpouch: 0.44, cairn: 0.38, knotrope: 0.36, firepot: 0.40
   };
@@ -2954,6 +3074,79 @@ var SM = 10;
         }
       }
       }  // (하이브리드 폴백 닫기)
+
+    // ── 시즌2 영웅 무기 2종 (2026-09-03 S-H) ─────────────────────────────────
+    } else if (kind === 'totemStaff') {      // 주술사 — 토템 지팡이(끝에 해골 + 구슬)
+      //  주 신호 = **지팡이 끝 구슬의 높이.** 예비(atk −1)에 하늘로 세우고 타격(+1)에
+      //  앞으로 눕힌다. bladeDir 이 정면에서도 세워 주므로 8방향에서 길이가 안 죽는다.
+      //  소환 포즈의 gearDrop 은 Y 헬퍼의 drop 으로 손 자체를 내려 "땅에 꽂는" 그림이 된다.
+      var tsDir = bladeDir(1.60 - atk * 0.95);
+      var tsLen = r * 2.30 * tLen;
+      var tsBaseX = hx - tsDir.x * r * 0.70, tsBaseY = hy - tsDir.y * r * 0.70;
+      var tsTipX = tsBaseX + tsDir.x * tsLen, tsTipY = tsBaseY + tsDir.y * tsLen;
+      g.lineStyle(lw(0.17 * tWide), M.woodDark, a);
+      g.lineBetween(tsBaseX, tsBaseY, tsTipX, tsTipY);
+      g.lineStyle(Math.max(0.8, r * 0.07 * tWide), M.wood, a);
+      g.lineBetween(tsBaseX, tsBaseY, tsTipX, tsTipY);
+      //  가죽 감개 — 손 자리.
+      g.lineStyle(lw(0.22 * tWide), M.leatherDark, a);
+      g.lineBetween(hx - tsDir.x * r * 0.16, hy - tsDir.y * r * 0.16, hx + tsDir.x * r * 0.16, hy + tsDir.y * r * 0.16);
+      //  깃털 하나 — 끝 아래에서 늘어진다(방향 무관 채널: 언제나 화면 아래로).
+      var tsFx = tsTipX - tsDir.x * r * 0.42, tsFy = tsTipY - tsDir.y * r * 0.42;
+      g.fillStyle(M.quill, a);
+      g.fillTriangle(tsFx, tsFy, tsFx - r * 0.12, tsFy + r * 0.50, tsFx + r * 0.16, tsFy + r * 0.44);
+      //  해골 — 뼈색 알에 눈구멍 둘. 몸통과 같은 near-white 라 **테를 진하게**(shell 교훈).
+      var skR = r * 0.30 * tGrd;
+      g.fillStyle(M.boneDark, a);
+      g.fillEllipse(tsTipX, tsTipY, skR * 2.3, skR * 2.3, SM);
+      g.fillStyle(M.bone, a);
+      g.fillEllipse(tsTipX, tsTipY, skR * 1.9, skR * 2.0, SM);
+      if (r >= 9) {
+        g.fillStyle(0x14161c, a);
+        g.fillEllipse(tsTipX - skR * 0.36, tsTipY - skR * 0.10, skR * 0.42, skR * 0.5, SM);
+        g.fillEllipse(tsTipX + skR * 0.36, tsTipY - skR * 0.10, skR * 0.42, skR * 0.5, SM);
+      }
+      //  구슬 — 해골 위에 떠 있는 늪빛 알. 등급이 오르면 커진다(len·grd 만 — 색은 goo 고정).
+      var orbX = tsTipX + tsDir.x * skR * 1.55, orbY = tsTipY + tsDir.y * skR * 1.55;
+      g.fillStyle(M.gooDark, a);
+      g.fillEllipse(orbX, orbY, skR * 1.15, skR * 1.15, SM);
+      g.fillStyle(M.gooLite, a);
+      g.fillEllipse(orbX - skR * 0.14, orbY - skR * 0.14, skR * 0.60, skR * 0.60, SM);
+      if (tOrn >= 2) {                       // 뼈 고리 두 개 — 자루 위쪽
+        g.lineStyle(Math.max(0.8, r * 0.06), M.bone, a);
+        for (var to2 = 0; to2 < 2; to2++) {
+          var tr2 = 0.55 + to2 * 0.22;
+          var tx2 = tsBaseX + tsDir.x * tsLen * tr2, ty2 = tsBaseY + tsDir.y * tsLen * tr2;
+          g.strokeEllipse(tx2, ty2, r * 0.26, r * 0.26, SM);
+        }
+      }
+
+    } else if (kind === 'twinDaggers') {     // 암살자 — 쌍단검(정손 순수·역손 역수)
+      //  주 신호 = **단검 각.** 정손 칼은 atk 로 크게 쓸어내리고(−1 위로 치켜듦 → +1 옆으로),
+      //  역손 칼은 반대로 짧게 되감아 두 날이 가위처럼 열렸다 닫힌다. 날은 짧다(0.95r) —
+      //  대검(2.15r)의 절반도 안 되는 것이 곧 실루엣 차이다.
+      var dgDir = bladeDir(0.70 - atk * 1.30);
+      var dgLen = r * 0.95 * tLen, dgW0 = r * 0.17 * tWide, dgW1 = r * 0.07 * tWide;
+      //  정손 — 자루 뒤로 짧게, 날은 앞으로.
+      g.lineStyle(lw(0.15), M.woodDark, a);
+      g.lineBetween(hx - dgDir.x * r * 0.26, hy - dgDir.y * r * 0.26, hx, hy);
+      taperBlade(hx, hy, dgDir, dgLen, dgW0, dgW1, M.blade);
+      g.lineStyle(lw(0.12 * tGrd), M.bronze, a);   // 짧은 날밑
+      g.lineBetween(hx + dgDir.y * r * 0.20, hy - dgDir.x * r * 0.20, hx - dgDir.y * r * 0.20, hy + dgDir.x * r * 0.20);
+      //  역손 — 반대쪽 손, 날이 아래·뒤로(역수). atk 가 커질수록 몸 쪽으로 감긴다.
+      var ox2 = X(0.50, -0.62), oy2 = Y(0.50, -0.62, 0.00);
+      var rvDir = bladeDir(-0.30 + atk * 0.55);
+      rvDir = { x: -rvDir.x, y: -rvDir.y };
+      g.lineStyle(lw(0.15), M.woodDark, a);
+      g.lineBetween(ox2 - rvDir.x * r * 0.22, oy2 - rvDir.y * r * 0.22, ox2, oy2);
+      taperBlade(ox2, oy2, rvDir, dgLen * 0.85, dgW0 * 0.9, dgW1, M.blade);
+      g.lineStyle(lw(0.12 * tGrd), M.bronze, a);
+      g.lineBetween(ox2 + rvDir.y * r * 0.18, oy2 - rvDir.x * r * 0.18, ox2 - rvDir.y * r * 0.18, oy2 + rvDir.x * r * 0.18);
+      if (tOrn >= 1) {                       // 자루 끝 보석 둘
+        g.fillStyle(M.blade, a);
+        g.fillEllipse(hx - dgDir.x * r * 0.30, hy - dgDir.y * r * 0.30, (Math.max(0.8, r * 0.08 * tGrd)) * 2, (Math.max(0.8, r * 0.08 * tGrd)) * 2, SM);
+        g.fillEllipse(ox2 - rvDir.x * r * 0.26, oy2 - rvDir.y * r * 0.26, (Math.max(0.8, r * 0.08 * tGrd)) * 2, (Math.max(0.8, r * 0.08 * tGrd)) * 2, SM);
+      }
     }
   };
 

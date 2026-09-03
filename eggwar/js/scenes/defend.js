@@ -462,6 +462,8 @@ GAME.DefendScene.prototype._pickItems = function (heroKey, budget) {
 };
 
 GAME.DefendScene.prototype.update = function (time, delta) {
+  //  렌더 시계 — draw 를 BattleScene 에서 빌려 쓰므로 여기서도 대야 벡터 보스 애니가 돈다.
+  if (GAME.Iso && GAME.Iso.tick) GAME.Iso.tick(time);
   var dt = Math.min(delta, 50);
   if (!this.state.over) {
     for (var s = 0; s < this.speed; s++) {

@@ -16,6 +16,12 @@ window.GAME = window.GAME || {};
 //   aura        일정 시간 주변 지속 피해
 //   pull        전방 원뿔 내 적을 끌어당김 + 피해
 //   trap        지면에 설치, 밟으면 피해 + 속박
+//   ── 시즌2 S-E (2026-09-03) — 주술사·암살자 전용 ──
+//   summon      유닛 키(unit)를 count 기, life ms 동안 세운다(noCount·골드 0)
+//   stealth     duration ms 조준 제외(논타겟은 맞음), 때리면 풀린다
+//   blink       dash 와 같은 이동, 피해 0, 벽 밖으로 밀려난다
+//   mark        대상 하나에 표식 — duration 동안 받는 피해 ×markMul
+//   chain       최근접부터 jumps 기 연쇄, 칸마다 ×decay
 //
 // ── 영웅 비용은 **공통 상수 하나**다 (2026-07-28) ─────────────────────────────
 // 예전에는 영웅마다 cost 가 달랐다(광전사 75 / 사냥꾼 85 / 파수꾼 75). 그런데 그 가격차는
@@ -384,10 +390,156 @@ GAME.HEROES = {
         { name: '불굴의 구역', type: 'aura', motif: 'shield', radius: 170, dps: 40, duration: 10000, cooldown: 38750, cost: 9000 }
       ]
     }
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  시즌 2 「다섯 세계」 — 신규 영웅 2 (2026-09-03 S-H)
+  //  엔진(S-E)이 연 새 스킬 타입 다섯(summon·stealth·blink·mark·chain)을 **이 둘이
+  //  전담한다.** 기존 셋은 한 줄도 안 건드렸다(탑 회귀 기준선 보존).
+  //  · 체급 규율: 유효 내구도 hp×(1+armor/100) 를 1032~1161 대역에 맞춘다.
+  //      주술사 900×1.28 = 1152 · 암살자 850×1.22 = 1037 (플랜의 780 은 952 로 대역
+  //      밖이라 hp 만 +70 — 방어력을 올리면 '얇다'는 정체성이 죽는다).
+  //  · dps: 주술사 22/0.9s = 24.4(최저 — 토템이 나머지를 낸다) · 암살자 30/0.85s = 35.3
+  //      (최고지만 사냥꾼 32.0 과 근소 — 일격은 스킬이 낸다).
+  //  · 가격 사다리 0·250·900·3,000·9,000 은 기존 표와 같다(scaleSkillsByPrice 가 탑에서
+  //    가격으로 위력을 맞춘다). 새 필드(life·duration·markMul·jumps·decay)는 값 배수를
+  //    안 타므로 표에서 직접 계단을 준다.
+  //  · 모든 스킬에 `evo`(진화) 를 명시했다 — 형식은 아래 `GAME.evoOf` 주석.
+  //  · 어휘: 순우리말·원시 부족(주술·토템·뼈·그림자). 마법·군대 어휘 없음.
+  //  ⚠ 조상의 알(R): 엔진에 "만료 시 폭발"이 없어 **가시덫(mine) 소환**으로 근사했다 —
+  //    밟으면 0.45초 뒤 최대체력 30% 폭발. 예고가 보이는 논타겟이라 회피 규격도 지킨다.
+  //  ⚠ 처형(R): "표식 대상 ×3 · 처치 시 쿨 초기화"는 엔진에 없다. 표식(×1.35~1.7)과
+  //    곱해지는 큰 strike 로 근사했다. 둘 다 통합 보고서에 적는다.
+  shaman: {
+    key: 'shaman',
+    name: '주술사', art: 'shaman',
+    trait: '설치형',
+    desc: '깃털과 뼈로 꾸민 투구에 토템 지팡이. 토템을 세우고 저주와 사슬로 진형을 묶는다.',
+    hp: 900, armor: 28, damage: 22, cooldown: 900, speed: 150, range: 260,
+    attack: 'projectile', projectileSpeed: 380, projectileRadius: 7, lifesteal: 0,
+    radius: 16, shape: 'star',
+    hint: '토템을 세워 자리를 지킨다',
+    skillOptions: {
+      Q: [
+        { name: '화살 토템', type: 'summon', motif: 'totem', unit: 'rifleman', count: 1, life: 8000, range: 120, unitMods: { hp: 0.7, damage: 0.6 }, cooldown: 12000, cost: 0,
+          evo: { at: { floor: 10 }, name: '깨어난 화살 토템', patch: { life: 11000, unitMods: { hp: 0.9, damage: 0.8 } } } },
+        { name: '늪 토템', type: 'summon', motif: 'bog', unit: 'chemtrooper', count: 1, life: 7000, range: 120, unitMods: { hp: 0.8, damage: 0.7 }, cooldown: 11000, cost: 250,
+          evo: { at: { floor: 20 }, name: '깊은 늪 토템', patch: { life: 10000, unitMods: { hp: 1.0, damage: 0.9 } } } },
+        { name: '약초 토템', type: 'summon', motif: 'bone', unit: 'medic', count: 1, life: 9000, range: 110, unitMods: { hp: 0.9 }, cooldown: 13000, cost: 900,
+          evo: { at: { floor: 35 }, name: '조상의 약초 토템', patch: { life: 13000, count: 2, spread: 46 } } },
+        { name: '쌍 화살 토템', type: 'summon', motif: 'totem', unit: 'rifleman', count: 2, life: 9000, range: 130, spread: 50, unitMods: { hp: 0.8, damage: 0.7 }, cooldown: 12000, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '세 화살 토템', patch: { count: 3, spread: 56, life: 11000 } } },
+        { name: '조상의 토템', type: 'summon', motif: 'totem', unit: 'mgnest', count: 1, life: 10000, range: 130, unitMods: { hp: 0.9, damage: 0.8 }, cooldown: 13000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '태초의 토템', patch: { life: 14000, unitMods: { hp: 1.2, damage: 1.0 } } } }
+      ],
+      W: [
+        { name: '저주 표식', type: 'mark', motif: 'bone', duration: 5000, markMul: 1.35, range: 260, radius: 70, damage: 30, cooldown: 9000, cost: 0,
+          evo: { at: { floor: 10 }, name: '깊은 저주', patch: { duration: 6500, markMul: 1.45 } } },
+        { name: '뼈 저주', type: 'mark', motif: 'bone', duration: 5500, markMul: 1.40, range: 270, radius: 76, damage: 45, cooldown: 9000, cost: 250,
+          evo: { at: { floor: 20 }, name: '갈라진 뼈 저주', patch: { duration: 7000, markMul: 1.5, radius: 90 } } },
+        { name: '늪 저주', type: 'mark', motif: 'bog', duration: 6000, markMul: 1.45, range: 280, radius: 90, damage: 55, cooldown: 9500, cost: 900,
+          evo: { at: { floor: 35 }, name: '늪의 무게', patch: { duration: 7500, markMul: 1.55 } } },
+        { name: '원한 표식', type: 'mark', motif: 'ember', duration: 6500, markMul: 1.50, range: 300, radius: 90, damage: 70, cooldown: 9500, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '타오르는 원한', patch: { duration: 8000, markMul: 1.65 } } },
+        { name: '조상의 저주', type: 'mark', motif: 'totem', duration: 7000, markMul: 1.60, range: 320, radius: 100, damage: 90, cooldown: 10000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '태초의 저주', patch: { duration: 9000, markMul: 1.8, radius: 120 } } }
+      ],
+      E: [
+        { name: '영혼 사슬', type: 'chain', motif: 'bone', damage: 70, jumps: 4, decay: 0.7, range: 300, jumpRange: 220, cooldown: 8000, cost: 0,
+          evo: { at: { floor: 10 }, name: '긴 영혼 사슬', patch: { jumps: 5, decay: 0.75 } } },
+        { name: '늪 사슬', type: 'chain', motif: 'bog', damage: 55, jumps: 4, decay: 0.7, range: 300, jumpRange: 220, slowMul: 0.6, slowMs: 1500, cooldown: 8000, cost: 250,
+          evo: { at: { floor: 20 }, name: '끈끈한 늪 사슬', patch: { slowMul: 0.5, slowMs: 2200, jumps: 5 } } },
+        { name: '뼈 사슬', type: 'chain', motif: 'bone', damage: 90, jumps: 3, decay: 0.8, range: 320, jumpRange: 240, cooldown: 8500, cost: 900,
+          evo: { at: { floor: 35 }, name: '이빨 사슬', patch: { jumps: 4, decay: 0.85 } } },
+        { name: '긴 사슬', type: 'chain', motif: 'rope', damage: 80, jumps: 6, decay: 0.75, range: 320, jumpRange: 260, cooldown: 9000, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '끝없는 사슬', patch: { jumps: 8, jumpRange: 290 } } },
+        { name: '조상의 사슬', type: 'chain', motif: 'totem', damage: 110, jumps: 6, decay: 0.8, range: 340, jumpRange: 280, slowMul: 0.7, slowMs: 1200, cooldown: 9000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '태초의 사슬', patch: { jumps: 8, decay: 0.85, slowMul: 0.6, slowMs: 1600 } } }
+      ],
+      R: [
+        //  가시덫(mine) 을 빌린다 — 밟으면 도화선 뒤 최대체력 30% 폭발(예고 보임·회피 가능).
+        { name: '조상의 알', type: 'summon', motif: 'totem', unit: 'mine', count: 1, life: 15000, range: 140, unitMods: { hp: 3 }, cooldown: 36000, cost: 0,
+          evo: { at: { floor: 10 }, name: '조상의 두 알', patch: { count: 2, spread: 70, life: 18000 } } },
+        { name: '알 무더기', type: 'summon', motif: 'bone', unit: 'mine', count: 3, life: 14000, range: 150, spread: 80, unitMods: { hp: 2 }, cooldown: 36000, cost: 250,
+          evo: { at: { floor: 20 }, name: '알 둥지', patch: { count: 4, spread: 95, life: 17000 } } },
+        { name: '땅울림', type: 'aoeTarget', motif: 'earth', radius: 150, damage: 140, repeat: 1, telegraph: 1200, cooldown: 35000, cost: 900,
+          evo: { at: { floor: 35 }, name: '큰 땅울림', patch: { radius: 175, damage: 165 } } },
+        { name: '조상의 부름', type: 'summon', motif: 'totem', unit: 'sergeant', count: 1, life: 12000, range: 130, unitMods: { hp: 1.5, damage: 1.2 }, cooldown: 37000, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '태초의 부름', patch: { count: 2, spread: 60, life: 15000 } } },
+        { name: '태초의 알', type: 'summon', motif: 'totem', unit: 'mine', count: 3, life: 18000, range: 160, spread: 110, unitMods: { hp: 4 }, cooldown: 38000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '태초의 알 둥지', patch: { count: 5, spread: 130 } } }
+      ]
+    }
+  },
+
+  assassin: {
+    key: 'assassin',
+    name: '암살자', art: 'stalker',
+    trait: '기동형',
+    desc: '눈만 보이는 두건에 쌍단검. 그림자로 들어가 표식을 찍고 한 번에 끝낸다.',
+    //  hp 780 → 850: 유효 내구도 952 → 1037 (체급 대역 하한). 여전히 다섯 중 가장 얇다.
+    hp: 850, armor: 22, damage: 30, cooldown: 850, speed: 172, range: 70,
+    attack: 'melee', coneDeg: 80, lifesteal: 0,
+    radius: 15, shape: 'diamond',
+    hint: '숨었다 나와 한 번에 끝낸다',
+    skillOptions: {
+      Q: [
+        { name: '그림자 걸음', type: 'blink', motif: 'shadow', dist: 200, cooldown: 7000, cost: 0,
+          evo: { at: { floor: 10 }, name: '긴 그림자 걸음', patch: { dist: 240, cooldown: 6500 } } },
+        { name: '되돌기', type: 'blink', motif: 'shadow', dist: 220, backward: true, cooldown: 6500, cost: 250,
+          evo: { at: { floor: 20 }, name: '먼 되돌기', patch: { dist: 270, cooldown: 6000 } } },
+        { name: '단검 돌진', type: 'dash', motif: 'blade', dist: 220, damage: 60, radius: 50, cooldown: 7500, cost: 900,
+          evo: { at: { floor: 35 }, name: '쌍단검 돌진', patch: { damage: 78, radius: 58 } } },
+        { name: '연기 걸음', type: 'blink', motif: 'shadow', dist: 300, cooldown: 6000, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '연기 사이', patch: { dist: 340, cooldown: 5200 } } },
+        { name: '그림자 넘기', type: 'blink', motif: 'shadow', dist: 380, cooldown: 5500, cost: 9000,
+          evo: { at: { floor: 80 }, name: '그림자 그 너머', patch: { dist: 440, cooldown: 4800 } } }
+      ],
+      W: [
+        { name: '표식 투척', type: 'mark', motif: 'bone', duration: 5000, markMul: 1.35, range: 260, radius: 70, damage: 40, cooldown: 9000, cost: 0,
+          evo: { at: { floor: 10 }, name: '깊은 표식', patch: { duration: 6000, markMul: 1.45 } } },
+        { name: '단검 던지기', type: 'projectile', motif: 'blade', damage: 60, speed: 600, pierce: false, radius: 7, cooldown: 7000, cost: 250,
+          evo: { at: { floor: 20 }, name: '쌍단검 던지기', patch: { burst: 2, burstDelay: 120, damage: 48 } } },
+        { name: '뼈 표식', type: 'mark', motif: 'bone', duration: 6000, markMul: 1.50, range: 280, radius: 80, damage: 55, cooldown: 9000, cost: 900,
+          evo: { at: { floor: 35 }, name: '갈라진 뼈 표식', patch: { duration: 7000, markMul: 1.6 } } },
+        { name: '넓은 표식', type: 'mark', motif: 'shadow', duration: 6000, markMul: 1.55, range: 300, radius: 110, damage: 70, cooldown: 9500, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '그림자 표식', patch: { radius: 130, markMul: 1.65 } } },
+        { name: '사냥 표식', type: 'mark', motif: 'shadow', duration: 7000, markMul: 1.70, range: 300, radius: 90, damage: 95, cooldown: 10000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '마지막 표식', patch: { duration: 8500, markMul: 1.9 } } }
+      ],
+      E: [
+        { name: '은신', type: 'stealth', motif: 'shadow', duration: 3000, speedMul: 1.15, cooldown: 14000, cost: 0,
+          evo: { at: { floor: 10 }, name: '긴 은신', patch: { duration: 3800, speedMul: 1.2 } } },
+        { name: '연기', type: 'stealth', motif: 'sand', duration: 2500, speedMul: 1.35, cooldown: 12000, cost: 250,
+          evo: { at: { floor: 20 }, name: '짙은 연기', patch: { duration: 3200, speedMul: 1.45 } } },
+        { name: '그림자 숨기', type: 'stealth', motif: 'shadow', duration: 3500, speedMul: 1.20, cooldown: 13000, cost: 900,
+          evo: { at: { floor: 35 }, name: '깊은 그림자', patch: { duration: 4500, speedMul: 1.3 } } },
+        { name: '풀숲 숨기', type: 'buff', motif: 'blade', armorAdd: 25, speedMul: 1.35, duration: 3200, cooldown: 14000, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '깊은 풀숲', patch: { armorAdd: 35, speedMul: 1.45, duration: 3800 } } },
+        { name: '완전 은신', type: 'stealth', motif: 'shadow', duration: 5500, speedMul: 1.35, cooldown: 13000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '그림자 그 자체', patch: { duration: 7000, speedMul: 1.45 } } }
+      ],
+      R: [
+        { name: '처형', type: 'strike', motif: 'blade', damage: 160, lifestealMul: 1, cooldown: 36000, cost: 0,
+          evo: { at: { floor: 10 }, name: '깔끔한 처형', patch: { damage: 200, cooldown: 33000 } } },
+        { name: '목 베기', type: 'strike', motif: 'blade', damage: 200, rootMs: 800, cooldown: 36000, cost: 250,
+          evo: { at: { floor: 20 }, name: '깊은 목 베기', patch: { damage: 240, rootMs: 1200 } } },
+        { name: '그림자 처형', type: 'strike', motif: 'shadow', damage: 240, cooldown: 35000, cost: 900,
+          evo: { at: { floor: 35 }, name: '그림자 마무리', patch: { damage: 290, cooldown: 32000 } } },
+        { name: '연속 베기', type: 'aoeSelf', motif: 'blade', radius: 96, damage: 200, cooldown: 36000, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '회오리 베기', patch: { radius: 115, damage: 240 } } },
+        { name: '마지막 일격', type: 'strike', motif: 'shadow', damage: 330, lifestealMul: 1.5, cooldown: 37000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '끝맺음', patch: { damage: 400, lifestealMul: 2, cooldown: 34000 } } }
+      ]
+    }
   }
 };
 
-GAME.HERO_ORDER = ['vanguard', 'ranger', 'warden'];
+//  ⚠ 다섯 영웅. 이 배열을 읽는 곳(2026-09-03 grep): scenes/tower.js 카드·세로 버튼,
+//    draft.js/draft-mobile.js 모달, rtprep.js 목록, build.js 저장 메뉴, towershop.js 영웅 탭,
+//    defendtower.js heroKeyFor 순환, rtbot.js 봇 영웅, arenabuild.js DEFAULT, 도구 12곳.
+//    카드 5장이 세로 폰(420)·가로(1340)에 들어가는지는 tower.js 의 산수 주석 참조.
+GAME.HERO_ORDER = ['vanguard', 'ranger', 'warden', 'shaman', 'assassin'];
 GAME.SKILL_SLOTS = ['Q', 'W', 'E', 'R'];
 
 // ── 스킬 라벨 (2026-07-29) ────────────────────────────────────────────────────
@@ -425,7 +577,14 @@ GAME.SKILL_TYPE_LABEL = {
   buff:       '다지기',  // 보호막·방어력·회복·광폭화 — 제 몸을 다진다
   pull:       '끌기',
   aura:       '구역',    // 밟으면 아픈 자리를 남긴다 (지금은 R 전용이라 화면에는 안 나온다)
-  trap:       '덫'
+  trap:       '덫',
+  //  시즌2 S-E 새 타입 5 (2026-09-03) — S-E 보고서의 표기 그대로. 서브셋 대조는
+  //  `node tools/font-audit.js` 가 잡는다(밖이면 통합자가 재굽는다).
+  summon:     '부르기',
+  stealth:    '숨기',
+  blink:      '점멸',
+  mark:       '표식',
+  chain:      '사슬'
 };
 
 // R 은 타입과 무관하게 슬롯 이름을 우선한다.
@@ -448,7 +607,11 @@ GAME.skillLabel = function (sk, slot) {
 GAME.skillDesc = function (sk) {
   if (!sk) return '';
   var D = GAME.DraftScene && GAME.DraftScene.prototype;
-  if (!D || !D._skillDesc) return '';
+  //  씬 없는 곳(헤드리스 도구·towerchar dropCandidates)에서도 새 타입은 문장을 낸다.
+  if (!D || !D._skillDesc) {
+    var ex = GAME.skillDescExtra ? GAME.skillDescExtra(sk) : '';
+    return ex ? (ex + ' · 쿨 ' + ((sk.cooldown || 0) / 1000).toFixed(0) + '초') : '';
+  }
   // ⚠ 준비 화면은 `skillOptions` 의 **원본**(정수)을 넘기지만, 전투 중 `hero.skills` 는
   //   `buildSkills` 가 WORLD_SCALE 을 곱한 뒤라 세로에서 55.974683544303794 같은 실수다.
   //   그대로 찍으면 설명이 소수점 열여섯 자리가 된다(실측으로 걸렸다).
@@ -464,6 +627,85 @@ GAME.skillDesc = function (sk) {
   return D._skillDesc(out);
 };
 
+// 시즌2 새 타입 5 의 한 줄 설명 — draft.js `_skillDesc` 의 `default` 가 이걸 부른다
+// (그 함수는 옛 9타입만 알고, 새 타입의 필드는 여기 표(heroes.js)가 주인이다).
+GAME.skillDescExtra = function (sk) {
+  if (!sk) return '';
+  var UN = GAME.UNITS || {};
+  switch (sk.type) {
+    case 'summon': return (UN[sk.unit] ? UN[sk.unit].name : sk.unit) + ' ' + (sk.count || 1) + '기를 ' +
+                          ((sk.life || 6000) / 1000).toFixed(0) + '초 동안 세운다';
+    case 'stealth': return ((sk.duration || 3000) / 1000).toFixed(1) + '초 숨는다' +
+                           (sk.speedMul && sk.speedMul !== 1 ? ', 이동 x' + sk.speedMul : '') + ' — 때리면 풀린다';
+    case 'blink': return (sk.backward ? '뒤로 ' : '') + '점멸 ' + Math.round(sk.dist || 0) + ' (피해 없음)';
+    case 'mark': return '표식 ' + ((sk.duration || 5000) / 1000).toFixed(0) + '초, 받는 피해 x' + (sk.markMul || 1.35) +
+                        (sk.damage ? ' + ' + sk.damage : '');
+    case 'chain': return '사슬 ' + (sk.jumps || 4) + '기 연쇄 ' + (sk.damage || 0) + ', 칸마다 x' + (sk.decay === undefined ? 0.7 : sk.decay) +
+                         (sk.slowMul ? ' + 둔화' : '');
+  }
+  return '';
+};
+
+// ── 스킬 진화 (시즌2 S-H, 2026-09-03) ────────────────────────────────────────
+//  스키마: 선택지에 `evo: { at: {floor:N} | {rtWins:N}, name, patch: {…} }`.
+//   · at    : 조건. floor = 통곡의 탑 최고층(GAME.Tower.get().best) ≥ N,
+//             rtWins = 실시간 대전 승수(GAME.RtScore.get().wins) ≥ N. 판정은 TowerChar.evoReady.
+//   · patch : **표 단위 값**으로 덮어쓴다(절대값). buildSkills 가 WORLD_SCALE 을 곱하기
+//             **전에** 얹으므로 거리 키도 그냥 표 값으로 적는다. 가격 배수(scaleSkillsByPrice)는
+//             그 뒤에 걸리므로 진화 뒤 값에도 똑같이 곱해진다.
+//   · 명시하지 않은 스킬은 `GAME.evoOf` 가 **가격 단에서 기본 진화**를 만든다(피해·초당·
+//     보호막·회복 ×1.3, 반경·거리 ×1.1, 쿨 ×0.9) — 기존 3영웅 60칸이 여기 해당한다.
+//  전투 적용: `buildSkills(heroKey, picks)` 가 `picks._evo['Q:2']` 를 보고 patch 를 얹는다.
+//  TowerChar 가 `rec.evo` 를 정본으로 두고 `rec.picks._evo` 에 미러링한다(towerloading 이
+//  rec.picks 를 그대로 Battle 에 넘기므로 battle.js 를 안 건드린다). 값어치는
+//  `TowerChar.evoAtkMul` 이 재서 atkIndex 에 넘긴다(추종 지수 — 성장에 맞춘 압박 절).
+GAME.EVO_DEFAULT_AT = [
+  { cost: 0,    at: { floor: 10 } },
+  { cost: 250,  at: { floor: 20 } },
+  { cost: 900,  at: { floor: 35 } },
+  { cost: 3000, at: { rtWins: 5 } },
+  { cost: 9000, at: { floor: 80 } }
+];
+GAME.evoOf = function (sk) {
+  if (!sk) return null;
+  if (sk.evo) return sk.evo;
+  var c = sk.cost || 0, at = null;
+  for (var i = 0; i < GAME.EVO_DEFAULT_AT.length; i++) {
+    if (c >= GAME.EVO_DEFAULT_AT[i].cost) at = GAME.EVO_DEFAULT_AT[i].at;
+  }
+  var p = {};
+  if (sk.damage > 0) p.damage = Math.round(sk.damage * 1.3);
+  if (sk.dps > 0) p.dps = Math.round(sk.dps * 1.3);
+  if (sk.shield > 0) p.shield = Math.round(sk.shield * 1.3);
+  if (sk.healNow > 0) p.healNow = Math.round(sk.healNow * 1.3);
+  if (sk.armorAdd > 0) p.armorAdd = Math.round(sk.armorAdd * 1.3);
+  if (sk.radius > 0) p.radius = Math.round(sk.radius * 1.1);
+  if (sk.dist > 0) p.dist = Math.round(sk.dist * 1.1);
+  if (sk.cooldown > 0) p.cooldown = Math.round(sk.cooldown * 0.9);
+  return { at: at || { floor: 10 }, name: '진화한 ' + sk.name, patch: p, auto: true };
+};
+//  patch 를 사본에 얹는다(원본 표는 안 건드린다). 반환 = 같은 객체.
+GAME.applyEvo = function (sk, evo) {
+  if (!sk || !evo || !evo.patch) return sk;
+  for (var k in evo.patch) {
+    var v = evo.patch[k];
+    if (v && typeof v === 'object') { var c = {}; for (var j in v) c[j] = v[j]; sk[k] = c; }
+    else sk[k] = v;
+  }
+  sk.evolved = true;
+  sk.baseName = sk.name;
+  if (evo.name) sk.name = evo.name;
+  return sk;
+};
+GAME.evoKey = function (slot, idx) { return slot + ':' + idx; };
+//  조건 문구(상점용).
+GAME.evoAtText = function (at) {
+  if (!at) return '';
+  if (at.floor) return '탑 ' + at.floor + '층 돌파';
+  if (at.rtWins) return '실시간 대전 ' + at.rtWins + '승';
+  return '';
+};
+
 // 선택된 인덱스 조합 → 실제 스킬 배열
 GAME.buildSkills = function (heroKey, picks) {
   var h = GAME.HEROES[heroKey];
@@ -475,6 +717,11 @@ GAME.buildSkills = function (heroKey, picks) {
     if (idx < 0 || idx >= list.length) idx = 0;
     var sk = {};
     for (var k in list[idx]) sk[k] = list[idx][k];
+    delete sk.evo;                                  // 전투 스킬에는 진화 정의를 안 싣는다
+    // 진화 — picks._evo['Q:2'] 가 서 있으면 patch 를 얹는다(WORLD_SCALE 전·가격 배수 전).
+    if (picks && picks._evo && picks._evo[GAME.evoKey(slot, idx)]) {
+      GAME.applyEvo(sk, GAME.evoOf(list[idx]));
+    }
     // 스킬의 거리·범위도 전장 크기에 맞춰 환산한다(세로에서만 1 이 아니다)
     var K = GAME.CONFIG.WORLD_SCALE;
     if (K && K !== 1) {

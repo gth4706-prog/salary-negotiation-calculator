@@ -34,12 +34,17 @@ GAME.ProfileScene.prototype.create = function () {
   var C = GAME.CONFIG.COLORS;
   this.cameras.main.setBackgroundColor(C.bg);
   var self = this;
+  //  이 화면은 업적·과제·레벨을 스스로 보여주므로 메타 토스트를 안 띄운다(큐는 다음 씬으로) —
+  //  제목 줄·닉네임과 겹치던 overlap-audit 2건(2026-09-03). js/achievements.js MetaToast.flush 가 읽는다.
+  this._toastMute = true;
 
   //  보류된 과제 보상은 이 화면에 들어올 때 정산한다(캐릭터가 생긴 뒤 처음 보는 화면일 수 있다).
   if (GAME.Daily && GAME.Daily.settle) { try { GAME.Daily.settle(); } catch (e) {} }
   //  진행(A 트랙, js/progress.js) — 오늘 출석 + 보류된 레벨·출석 골드. 화면을 그리기 **전에**
   //  정산해야 스트릭 줄이 오늘 칸을 채운 채로 뜬다.
   if (GAME.Progress && GAME.Progress.settle) { try { GAME.Progress.settle(); } catch (e2) {} }
+  //  시즌 2(S-F, js/season.js) — 세계 정복을 탑 최고층에 맞추고 시즌 보상을 정산한 뒤 그린다.
+  if (GAME.Season && GAME.Season.settle) { try { GAME.Season.settle(); } catch (e3) {} }
 
   if (GAME.CONFIG.PHONE) this._buildPhone(); else this._buildPc();
 
@@ -393,12 +398,119 @@ GAME.ProfileScene.prototype._attCard = function (x, y, w, h, small) {
 //  ⚠ PC 높이 52 는 계산값이다 — 업적 격자가 남는 높이에서 행 수를 역산하므로 이 줄이
 //    60 을 넘으면 PC 격자가 3행에서 2행으로 떨어진다(15칸/쪽 → 10칸/쪽).
 GAME.ProfileScene.prototype._progressRow = function (x, y, w, small) {
-  if (!GAME.Progress || !GAME.Progress.get) return y;
+  var hasP = !!(GAME.Progress && GAME.Progress.get);
+  var hasS = !!(GAME.Season && GAME.Season.progress);
+  if (!hasP && !hasS) return y;
   var h = small ? 64 : 52;
-  var cols = GAME.Layout.cols(2, { gap: 10, width: w, left: x, pad: 0 });
-  this._xpCard(cols[0].x, y, cols[0].w, h, small);
-  this._attCard(cols[1].x, y, cols[1].w, h, small);
+  var P = GAME.CONFIG.PORTRAIT;
+  //  시즌 2(S-F) 카드는 PC 에서 **같은 줄의 세 번째 칸**(1100/3 = 360px)이다 — 줄 높이가
+  //  그대로라 아래 업적 격자 행 수(3)를 안 건드린다. 세로(420)는 세 칸이면 칸이 125px 라
+  //  XP 글자가 넘치므로 시즌만 다음 줄로 내린다(격자가 2행이 되지만 쪽 넘김이 받는다).
+  var slots = [];
+  if (hasP) slots.push('xp', 'att');
+  if (hasS && !P) slots.push('season');
+  if (slots.length) {
+    var cols = GAME.Layout.cols(slots.length, { gap: 10, width: w, left: x, pad: 0 });
+    for (var i = 0; i < slots.length; i++) {
+      if (slots[i] === 'xp') this._xpCard(cols[i].x, y, cols[i].w, h, small);
+      else if (slots[i] === 'att') this._attCard(cols[i].x, y, cols[i].w, h, small);
+      else this._seasonCard(cols[i].x, y, cols[i].w, h, small);
+    }
+    y += h;
+  }
+  if (hasS && P) {
+    if (slots.length) y += 10;
+    this._seasonCard(x, y, w, h, small);
+    y += h;
+  }
+  return y;
+};
+
+// ── 시즌 2 「다섯 세계」(S-F, js/season.js): 세계 정복 5칸 + 세계 포인트 ────────────
+//  ⚠ Season 이 안 실려 있으면 아무것도 안 그린다(호출부가 먼저 본다).
+
+//  세계 5칸 막대. 정복 = 세계 색 · 진입 = 밝은 면 · 미도달 = 회색 · 현재 = focus 테두리. 반환: 아래 끝 y.
+GAME.ProfileScene.prototype._worldCells = function (x, y, w, h, prog) {
+  var UI = GAME.UI;
+  var g = this.add.graphics();
+  var n = prog.length, gap = 3;
+  var cw = (w - gap * (n - 1)) / n;
+  var r = Math.min(3, h / 2 - 1);
+  for (var i = 0; i < n; i++) {
+    var p = prog[i], cx = x + i * (cw + gap);
+    g.fillStyle(p.conquered ? p.color : (p.entered ? UI.COL.surfaceHi : UI.COL.meterTrack), 1);
+    g.fillRoundedRect(cx, y, cw, h, r);
+    if (p.current) { g.lineStyle(2, UI.COL.focus, 1); g.strokeRoundedRect(cx + 1, y + 1, cw - 2, h - 2, r); }
+  }
   return y + h;
+};
+
+//  시즌 카드: 「🌋 시즌 N · 세계 k/5 정복」 왼쪽 · 「세계 포인트 P」 오른쪽 · 아래에 5칸.
+//  탭하면 세계별 상세(층대·상태) 팝업.
+GAME.ProfileScene.prototype._seasonCard = function (x, y, w, h, small) {
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI, self = this;
+  var S = GAME.Season;
+  var sm, prog;
+  try { sm = S.summary(); prog = S.progress(); } catch (e) { return; }
+  UI.panel(this, x, y, w, h, { level: 2, accent: UI.COL.focus, line: UI.COL.border });
+  var padX = small ? 12 : 16, top = small ? 8 : 10;
+  var head = UI.text(this, x + padX, y + top, '🌋 시즌 ' + sm.id + ' · 세계 ' + sm.conquered + '/' + sm.total + ' 정복',
+    { size: small ? 'caption' : 'body', color: C.text, origin: 0, originY: 0 });
+  var rt = UI.text(this, x + w - padX, y + top + head.height / 2, '세계 포인트 ' + sm.points,
+    { size: small ? 'micro' : 'caption', color: C.crit, origin: 1, originY: 0.5 });
+  //  두 글자상자가 한 줄을 나눠 쓴다 — 오른쪽을 먼저 재고 왼쪽은 남는 폭으로(넘치면 축소).
+  var maxHead = w - padX * 2 - rt.width - 10;
+  if (head.width > maxHead) head.setScale(Math.max(0.5, maxHead / head.width));
+  var bh = small ? 8 : 10;
+  this._worldCells(x + padX, y + h - bh - (small ? 9 : 8), w - padX * 2, bh, prog);
+  var hit = this.add.rectangle(x + w / 2, y + h / 2, w, h, 0x000000, 0).setInteractive({ useHandCursor: true });
+  hit.on('pointerdown', function () { self._seasonDetail(); });
+};
+
+//  폰 가로 레일: 배너 줄 + 5칸 + (탭하면 상세). 반환: 아래 끝 y. 자리가 없으면 y 그대로.
+GAME.ProfileScene.prototype._railSeason = function (x, y, w, bottom) {
+  if (!GAME.Season || !GAME.Season.progress) return y;
+  var C = GAME.CONFIG.COLORS, UI = GAME.UI, self = this;
+  var sm, prog;
+  try { sm = GAME.Season.summary(); prog = GAME.Season.progress(); } catch (e) { return y; }
+  var padX = 8;
+  if (y + 36 > bottom) return y;
+  var top = y;
+  var head = UI.text(this, x + padX, y, '🌋 시즌 ' + sm.id + ' · ' + sm.conquered + '/' + sm.total + ' 정복',
+    { size: 'micro', color: C.warn, origin: 0, originY: 0 });
+  var rt = UI.text(this, x + w - padX, y + head.height / 2, '포인트 ' + sm.points,
+    { size: 'micro', color: C.crit, origin: 1, originY: 0.5 });
+  var maxHead = w - padX * 2 - rt.width - 6;
+  if (head.width > maxHead) head.setScale(Math.max(0.5, maxHead / head.width));
+  y += head.height + 4;
+  y = this._worldCells(x + padX, y, w - padX * 2, 8, prog) + 2;
+  var hit = this.add.rectangle(x + w / 2, (top + y) / 2, w, y - top, 0x000000, 0).setInteractive({ useHandCursor: true });
+  hit.on('pointerdown', function () { self._seasonDetail(); });
+  return y;
+};
+
+//  세계별 상세 팝업 — 정보만(고를 것이 없다 → 닫기 한 줄).
+GAME.ProfileScene.prototype._seasonDetail = function () {
+  if (!GAME.Modal || !GAME.Season) return;
+  var S = GAME.Season;
+  var sm = S.summary(), prog = S.progress();
+  var items = [];
+  for (var i = 0; i < prog.length; i++) {
+    var p = prog[i];
+    var floors = p.from + (isFinite(p.to) ? ('~' + p.to) : '+') + '층';
+    var st = p.conquered ? '정복 ✓' : (p.entered ? (p.current ? '도전 중' : '진입') : '미도달');
+    items.push({ key: p.key, name: p.icon + ' ' + p.name + '  ·  ' + floors,
+      note: st + '  ·  세계 보스 ' + p.boss + '층', disabled: true });
+  }
+  items.push({ key: 'pts', name: '세계 포인트 ' + sm.points + (sm.coopWins ? ('  ·  협동 ' + sm.coopWins + '승') : ''),
+    note: '세계 첫 진입 +' + S.POINTS.enter + ' · 세계 보스 처치 +' + S.POINTS.boss + ' · 협동 승 +' + S.POINTS.coop +
+          '  —  스킬 진화·특성에 쓴다', disabled: true });
+  items.push({ key: 'close', name: '닫기' });
+  GAME.Modal.open(this, {
+    title: '🌋 시즌 ' + sm.id + ' · ' + sm.name + (sm.ended ? ' (종료)' : ' — D-' + sm.daysLeft),
+    items: items,
+    onPick: function () {}
+  });
 };
 
 //  폰 가로: 왼쪽 레일의 빈 구간(탭 아래 ~ 메뉴 버튼 위)에 세로로 쌓는다. 반환: 아래 끝 y.
@@ -508,7 +620,10 @@ GAME.ProfileScene.prototype._buildPhone = function () {
   var backCy = H - PAD - TH / 2;
   this._backButton(PAD + RAILW / 2, backCy, RAILW, TH, 16);
   //  레일의 빈 구간(탭 아래 ~ 메뉴 위)에 레벨·출석(A 트랙). 실측 높이로 쌓고 넘치면 멈춘다.
-  this._railProgress(PAD, y + 6, RAILW, backCy - TH / 2 - 8);
+  var railBottom = backCy - TH / 2 - 8;
+  var ry = this._railProgress(PAD, y + 6, RAILW, railBottom);
+  //  그 아래에 시즌 2(S-F) — 배너 + 세계 5칸. 실측 y 에서 이어 쌓는다(≈ 31px).
+  this._railSeason(PAD, ry + 8, RAILW, railBottom);
 
   var lx = PAD + RAILW + 12;
   var lw = W - PAD - lx;

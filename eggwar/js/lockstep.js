@@ -52,6 +52,7 @@ GAME.Lockstep = (function () {
     this.mySide = opts.mySide;
     this.send = opts.send;
     this.onDesync = opts.onDesync || function () {};
+    //  heroOf(side[, heroId]) — 두 번째 인자는 협동용(step 주석). 1인 세션은 무시해도 된다.
     this.heroOf = opts.heroOf;
 
     this.tick = 0;                 // 다음에 실행할 틱
@@ -77,8 +78,10 @@ GAME.Lockstep = (function () {
 
   //  내 입력 — 지금 넣으면 tick+DELAY 에 실행되도록 큐에 넣고 즉시 전송한다.
   //  ⚠ 같은 틱에 여러 번 불릴 수 있다(이동+스킬). 배열로 쌓는다.
-  Session.prototype.queueLocal = function (cmd) {
+  //  협동: `heroId` 를 주면 명령에 `h` 로 실린다(안 주면 예전 그대로 — 첫 영웅).
+  Session.prototype.queueLocal = function (cmd, heroId) {
     if (this.desynced) return;
+    if (heroId !== undefined && heroId !== null && cmd && cmd.h === undefined) cmd.h = heroId;
     var at = this.tick + this.delay;
     var q = this.cmdsBySide[this.mySide];
     if (!q[at]) q[at] = [];
@@ -135,8 +138,15 @@ GAME.Lockstep = (function () {
     for (var s = 0; s < 2; s++) {
       var side = order[s];
       var cmds = this.cmdsBySide[side][t] || [];
-      var hero = this.heroOf(side);
-      for (var i = 0; i < cmds.length; i++) this._apply(hero, cmds[i]);
+      //  ── 협동(시즌2 S-E/S-C): 명령에 `h`(heroId) 가 있으면 그 영웅에게 간다 ──
+      //  `heroOf(side, heroId)` 계약 — battle 이 `_rtHeroes[side]` 를 **배열**(또는 id 맵)로
+      //  넓히면 두 번째 인자로 고른다. 없거나 모르는 id 면 첫 영웅(하위호환: 지금의 1인
+      //  세션은 h 를 안 실으므로 예전과 동일). 같은 틱 안에서 영웅이 달라도 **명령 순서는
+      //  배열 순서 그대로**라 양쪽이 같은 순서로 적용한다.
+      for (var i = 0; i < cmds.length; i++) {
+        var hero = this.heroOf(side, cmds[i] && cmds[i].h);
+        this._apply(hero, cmds[i]);
+      }
       delete this.cmdsBySide[side][t];
     }
     GAME.Combat.update(state, TICK_MS);

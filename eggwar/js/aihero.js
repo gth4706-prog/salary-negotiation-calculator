@@ -39,7 +39,8 @@ GAME.AIHero.prototype.update = function (dtMs) {
   var enemies = [];
   for (var i = 0; i < s.units.length; i++) {
     var u = s.units[i];
-    if (u.alive && u.side === 'strategist' && !C.isHazard(u)) enemies.push(u);
+    //  은신(시즌2 S-E)한 적은 조준 후보에서 뺀다 — 논타겟 회피 판단은 그대로 돈다.
+    if (u.alive && u.side === 'strategist' && !C.isHazard(u) && !(C.isStealthed && C.isStealthed(u))) enemies.push(u);
   }
   if (!enemies.length) return;
 
@@ -192,7 +193,7 @@ GAME.AIHero.prototype.update = function (dtMs) {
       if (sk > 0.45) {
         var near = 0;
         for (i = 0; i < enemies.length; i++) if (C.dist(h, enemies[i]) < 170) near++;
-        worth = near >= 2 || C.dist(h, tgt) <= h.def.range + 60;
+        worth = near >= 2 || C.dist(h, tgt) <= C.effRange(h, s) + 60;   // 안개(fog)면 실효 사거리
       }
       if (worth) { C.castSkill(h, slot, tgt.x, tgt.y, s); break; }
     }

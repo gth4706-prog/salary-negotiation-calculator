@@ -1,6 +1,237 @@
 window.GAME = window.GAME || {};
 
 // ============================================================================
+//  2인 협동 보스전 — 순수 조립 계층 (시즌 2 S-C, 2026-09-03)
+//
+//  둘 다 컨트롤러, 같은 팀('controller')으로 **세계 보스 층**(호위 진형 포함)을 친다.
+//  승 = 보스 사망 · 패 = 둘 다 사망 또는 TIME_MS. 판정은 combat.js `state.coop` 이 한다.
+//
+//  ## 왜 tower.js `formationFor` 를 그대로 못 쓰나
+//  그 함수는 **내 계정**을 읽는다 — Profile(성향), TowerChar(climbSeed·성장 추종),
+//  AutoFormation._recent(교리 기억). 두 클라이언트가 각자 부르면 서로 다른 진형이 나와
+//  첫 digest 부터 갈린다. 여기서는 같은 부품(AutoFormation.generate · TowerPlan.apply ·
+//  Tower.budgetFor/modsFor · 보스 사다리)을 **시드만으로** 부른다:
+//   · 예산·배수는 `skipPower=true`(신선한 캐릭터 기준) — 협동 영웅은 탑 성장이 아니라
+//     실시간 빌드(ArenaBuild/RtStats)를 쓰므로 그게 맞는 기준이다.
+//   · AutoFormation 의 Math.random 은 generate 동안만 시드 난수로 갈아 끼운다(동기,
+//     finally 복구). 교리는 시드로 고른다(_recent 기억을 안 탄다).
+//   · 보스 층은 층 조건이 없다(towerrule.ruleFor 가 보스 층에 null) — 그대로 따른다.
+//   · 세계 전장 규칙은 S-W 의 `TowerCurriculum.fieldFor(floor, seed)` 가 있으면 얹는다.
+//
+//  ## 록스텝 자리(seat)와 영웅 번호(h)
+//  두 사람이 같은 팀이라도 록스텝 큐는 **자리**로 갈린다(방장 = 'controller' 자리 ·
+//  손님 = 'strategist' 자리 — 1:1 대전의 팀 라벨과 같은 값이라 전송 계층이 한 비트도
+//  안 바뀐다). 명령마다 `h`(0=방장 영웅, 1=손님/봇 영웅)를 실어 `heroOf(seat, h)` 가
+//  영웅을 고른다. 봇 파트너(로컬)는 'controller' 자리 큐에 h:1 로 넣는다.
+//
+//  ⚠ Phaser·씬에 의존하지 않는다 — tools/rt-coop-audit.js 가 sim 샌드박스에 얹어 잰다.
+// ============================================================================
+GAME.RtCoop = {
+  TIME_MS: 180000,
+  //  보스 체력 배수(2인 기준). tools/rt-coop-audit.js 가 봇 둘의 승률(목표 60~80%)로 잰다.
+  COOP_BOSS_HP_MUL: 1.0,
+  COOP_BOSS_DMG_MUL: 1.0,
+  //  호위 예산 배율 — 협동 영웅은 신선한 실시간 빌드라 고층 호위를 원래 예산대로 세우면
+  //  보스에 닿기도 전에 녹는다. 세계가 올라갈수록 호위를 조금 눌러 "보스전"으로 남긴다.
+  ESCORT_MUL: 0.35,
+  //  호위 배수는 층 곡선(1+0.012t)을 이 층까지만 태운다 — 200층 폭풍 보스의 호위가
+  //  ×3.4 면 실시간 빌드로는 성립하지 않는다(실측은 감사가 찍는다).
+  ESCORT_FLOOR_CAP: 40,
+  //  호위 공격 배율 — 신선한 실시간 영웅(체력 ~900) 기준. 감사가 승률로 잰다.
+  ESCORT_DMG_MUL: 1.0,
+  //  보상 골드 = 그 층 골드(TowerRun.goldFor, 보스 배수 포함) × 이 비율.
+  GOLD_SHARE: 0.4,
+  BOT_LEVEL: 'normal',
+  //  ── 영웅 세계 배율 — "그 세계까지 올라온 영웅"으로 세운다 ──────────────────────
+  //  협동 영웅은 실시간 빌드(예산 500 드래프트, 성장 없음)라 그대로 두면 60층 보스의
+  //  탄막 한 발(120~190)이 체력의 15~20% 다 — 세계 보스·전장 규칙은 그 세계까지 **성장한**
+  //  영웅을 전제로 설계됐다(탑은 boss hp 가 atkIndex 를 따라간다). 세계 내용(보스 능력·
+  //  전장 규칙·호위)을 깎는 대신 영웅 체력·공격을 세계별 상수로 올린다. 값은
+  //  tools/rt-coop-audit.js 가 봇 둘 승률 60~80% 로 잰다. 세계별 스윕(2026-09-03, rep=4)에서
+  //  0→100% 가 0.5 폭 안에서 뒤집히므로 그 중간값을 택했다(초원 1.5→25%·2.0→100% 등).
+  //  2026-09-03 통합: RT_HERO_MOD 재조정(파수꾼 hp 0.95·ls 0.4·R 오라 0.4) 뒤 봇 둘 승률이
+  //  73%→55% 로 내려와 다섯 값을 약 10% 올렸다(rt-coop-audit (f) 로 재확인).
+  //  +10% 는 85%(초원·폭풍 8/8) 로 넘쳐서 절반만(+5%) → 65%(26/40), 세계마다 승·패 다 있음.
+  HERO_WORLD_MUL: { meadow: 1.9, mire: 2.45, ash: 3.6, rift: 3.9, storm: 3.65 },
+  scaleHero: function (hu, world) {
+    var m = this.HERO_WORLD_MUL[world];
+    if (!(m > 0) || m === 1 || !hu || !hu.def) return hu;
+    hu.def.damage = Math.round(hu.def.damage * m);
+    hu.def.hp = Math.round(hu.def.hp * m);
+    hu.maxHp = hu.def.hp;
+    hu.hp = hu.def.hp;
+    return hu;
+  },
+
+  // ── 세계 표 — 열린 세계까지만 고를 수 있다(잠긴 것은 숨기지 않는다) ─────────
+  //  열림 = 첫 세계 · 탑 최고 기록이 그 세계 첫 층 이상 · 시즌 진행이 '진입' 표시.
+  worlds: function () {
+    var S = GAME.Season;
+    if (!S || !S.WORLDS) return [];
+    var best = 0;
+    try { best = (GAME.Tower && GAME.Tower.get && GAME.Tower.get().best) || 0; } catch (e) {}
+    var prog = null;
+    try { prog = S.progress(1); } catch (e2) {}
+    var out = [];
+    for (var i = 0; i < S.WORLDS.length; i++) {
+      var w = S.WORLDS[i], p = prog && prog[i];
+      out.push({
+        key: w.key, name: w.name, icon: w.icon || '', from: w.from, floor: w.boss, index: i,
+        open: i === 0 || best >= w.from || !!(p && p.entered)
+      });
+    }
+    return out;
+  },
+  worldOf: function (key) {
+    var ws = this.worlds();
+    for (var i = 0; i < ws.length; i++) if (ws[i].key === key) return ws[i];
+    return null;
+  },
+  floorOf: function (key) { var w = this.worldOf(key); return w ? w.floor : 30; },
+  label: function (key) {
+    var w = this.worldOf(key);
+    return w ? (w.icon + ' ' + w.name) : String(key || '');
+  },
+
+  //  세계 보스 키 — S-W 가 `TowerCurriculum.worldBossKeyFor(floor)` 를 주면 그것,
+  //  없으면 탑 보스 사다리(tower.js BOSS_SCHEDULE).
+  bossKeyFor: function (floor) {
+    var TC = GAME.TowerCurriculum;
+    if (TC && typeof TC.worldBossKeyFor === 'function') {
+      try { var k = TC.worldBossKeyFor(floor); if (k && GAME.UNITS[k]) return k; } catch (e) {}
+    }
+    if (GAME.Tower && GAME.Tower.bossKeyFor) {
+      var k2 = GAME.Tower.bossKeyFor(floor);
+      if (k2 && GAME.UNITS[k2]) return k2;
+    }
+    return 'bossChief';
+  },
+  fieldFor: function (floor, seed) {
+    var TC = GAME.TowerCurriculum;
+    if (TC && typeof TC.fieldFor === 'function') {
+      try { return TC.fieldFor(floor, seed) || null; } catch (e) { return null; }
+    }
+    return null;
+  },
+
+  //  방 이름 페이로드 — 서버(arena-room)는 name 을 24자까지 그대로 보관·목록에 싣는다.
+  roomName: function (world, floor) { return 'coop:' + world + ':' + floor; },
+  parseRoomName: function (name) {
+    var m = /^coop:([a-z]+):(\d+)$/.exec(String(name || ''));
+    return m ? { world: m[1], floor: parseInt(m[2], 10) } : null;
+  },
+
+  //  결정적 난수(xorshift) — 시드가 같으면 같은 진형.
+  _rng: function (seed) {
+    var s = (seed | 0) || 1;
+    return function () {
+      s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0;
+      return (s >>> 0) / 4294967296;
+    };
+  },
+
+  // ── 진형 — 그 층의 호위 + 세계 보스 (시드 결정적) ─────────────────────────
+  formationFor: function (world, floor, seed) {
+    var T = GAME.Tower, AF = GAME.AutoFormation, TC = GAME.TowerCurriculum;
+    seed = seed >>> 0;
+    var budget = Math.round(T.budgetFor(floor, true) * T.BOSS_ESCORT * this.ESCORT_MUL);
+    var unitCap = T.unitCapFor(floor);
+    var allowTypes = null, maxUnits = 0;
+    if (TC && TC.fullFloor && floor <= TC.fullFloor()) {
+      allowTypes = TC.typesFor(floor);
+      maxUnits = TC.maxUnitsFor(floor);
+    }
+    if (!maxUnits || maxUnits > unitCap) maxUnits = unitCap;
+    var docs = Object.keys(AF.DOCTRINES || {}).sort();
+    var dr = this._rng(seed ^ 0x5eed);
+    var doctrine = docs.length ? docs[Math.floor(dr() * docs.length) % docs.length] : undefined;
+    var origRandom = Math.random, f;
+    Math.random = this._rng(seed);
+    try {
+      f = AF.generate(budget, null, {
+        id: 'coop-' + world + '-' + floor, name: this.label(world) + ' 보스',
+        tier: '협동 ' + floor + '층', heroKey: null,
+        allowTypes: allowTypes, maxUnits: maxUnits, capUnits: unitCap,
+        readMul: 1, doctrine: doctrine
+      });
+    } finally { Math.random = origRandom; }
+    if (GAME.TowerPlan && GAME.TowerPlan.apply) GAME.TowerPlan.apply(f, floor, seed);
+    //  질 배수 — tower.js formationFor 와 같은 식(머릿수 상한이 남긴 예산을 스탯으로).
+    var spent = 0;
+    for (var i = 0; i < f.units.length; i++) {
+      var d = GAME.UNITS[f.units[i].type];
+      if (d && d.cost) spent += d.cost;
+    }
+    var qCap = floor <= 10 ? 1.6 : 5;
+    f.qualityMul = Math.max(1, Math.min(qCap, budget / Math.max(1, spent)));
+    var bossKey = this.bossKeyFor(floor);
+    f.units.push({ type: bossKey, nx: 0.5, ny: 0.13 });
+    f.boss = bossKey;
+    f.field = this.fieldFor(floor, seed);
+    f.world = world; f.floor = floor; f.seed = seed; f.coop = true;
+    f.escortBudget = budget;
+    return f;
+  },
+
+  //  호위 배수 — 신선 기준·조건 없음(보스 층). 층은 ESCORT_FLOOR_CAP 까지만.
+  escortMods: function (floor) {
+    return GAME.Tower.modsFor(Math.min(floor, this.ESCORT_FLOOR_CAP), true, true);
+  },
+  bossMods: function () {
+    var T = GAME.Tower;
+    return { hp: T.BOSS_HP_PREMIUM * this.COOP_BOSS_HP_MUL,
+             damage: T.BOSS_DMG_PREMIUM * this.COOP_BOSS_DMG_MUL };
+  },
+
+  //  진형을 state 에 세운다(전략가 편) + 협동 판정 스위치. 반환: 보스 유닛.
+  //  ⚠ 유닛 생성 순서가 곧 결정론이다 — 양쪽이 같은 f 를 같은 순서로 민다.
+  spawn: function (state, f) {
+    var C = GAME.Combat, mods = this.escortMods(f.floor), boss = null;
+    var q = f.qualityMul > 1 ? f.qualityMul : 1;
+    var qm = { hp: mods.hp * Math.pow(q, 1.25), damage: mods.damage * Math.pow(q, 0.75) * this.ESCORT_DMG_MUL };
+    for (var i = 0; i < f.units.length; i++) {
+      var e = f.units[i], def = GAME.UNITS[e.type];
+      if (!def) continue;
+      var w = GAME.Formations.toWorld(e);
+      var u = C.createUnit(e.type, w.x, w.y, 'strategist', def.isBoss ? this.bossMods() : qm);
+      state.units.push(u);
+      if (def.isBoss) boss = u;
+    }
+    state.coop = true;
+    state.coopTimeMs = this.TIME_MS;
+    state.coopWorld = f.world;
+    state.coopFloor = f.floor;
+    if (f.field && C.setField) C.setField(state, f.field);
+    return boss;
+  },
+
+  //  피해 기여 추적 — applyDamage 를 감싸 영웅별 `_coopDealt` 를 쌓는다(결과 화면용).
+  //  상태를 바꾸지 않는다(결정론 무관). 반환: 원복 함수.
+  trackDamage: function () {
+    var C = GAME.Combat;
+    if (C._coopDmgWrapped) return function () {};
+    var orig = C.applyDamage;
+    C._coopDmgWrapped = true;
+    C.applyDamage = function (unit, dmg, source, state) {
+      var before = unit ? Math.max(0, unit.hp) : 0;
+      var r = orig.apply(this, arguments);
+      if (state && state.coop && source && source.isHero && source.side === 'controller' &&
+          unit && unit.side !== source.side) {
+        source._coopDealt = (source._coopDealt || 0) + Math.max(0, before - Math.max(0, unit.hp));
+      }
+      return r;
+    };
+    return function () { C.applyDamage = orig; C._coopDmgWrapped = false; };
+  },
+
+  //  보상 골드(승리 시). 캐릭터가 없으면 0(줄 곳이 없다 — 결과 화면이 그렇게 말한다).
+  goldFor: function (floor) {
+    if (!GAME.TowerRun || !GAME.TowerRun.goldFor) return 0;
+    return Math.max(1, Math.round(GAME.TowerRun.goldFor(floor) * this.GOLD_SHARE));
+  }
+};
+
+// ============================================================================
 //  실시간 대전 준비 흐름 (2026-08-22 태현님 사양)
 //
 //  "각각 컨트롤러할지 전략가할지 고른 다음, 둘 다 준비 완료하면 같은 골드 수준에서
@@ -36,6 +267,7 @@ GAME.RtFlow = {
   begin: function (myRole, theirRole, startMsg) {
     this.active = true;
     this.local = false;
+    this.coop = null;
     this.botLevel = null;
     this.myRole = myRole;
     this.theirRole = theirRole;
@@ -75,6 +307,7 @@ GAME.RtFlow = {
   beginLocal: function (level) {
     this.active = true;
     this.local = true;
+    this.coop = null;
     this.botLevel = level || 'normal';
     this.myRole = 'controller';
     this.theirRole = 'controller';
@@ -89,6 +322,19 @@ GAME.RtFlow = {
     var self = this;
     if (this._tickId) clearInterval(this._tickId);
     this._tickId = setInterval(function () { self._check(); }, 500);
+  },
+
+  //  ── 협동 보스전 (시즌 2 S-C) — 둘 다 컨트롤러, 같은 준비 흐름 ──────────────
+  //  coop = { world, floor }. 방 판은 서버 start(seed) 를, 봇 판은 로컬 시드를 쓴다 —
+  //  진형은 `RtCoop.formationFor(world, floor, seed)` 가 그 시드로 결정적으로 만든다.
+  coop: null,
+  beginCoop: function (coop, startMsg) {
+    this.begin('controller', 'controller', startMsg);
+    this.coop = { world: coop.world, floor: coop.floor || GAME.RtCoop.floorOf(coop.world) };
+  },
+  beginLocalCoop: function (coop, level) {
+    this.beginLocal(level || GAME.RtCoop.BOT_LEVEL);
+    this.coop = { world: coop.world, floor: coop.floor || GAME.RtCoop.floorOf(coop.world) };
   },
 
   remainMs: function () { return Math.max(0, this.deadline - Date.now()); },
@@ -205,8 +451,12 @@ GAME.RtFlow = {
       my: this.mySetup,
       their: this.theirSetup,
       local: !!this.local,
-      botLevel: this.local ? this.botLevel : null
+      botLevel: this.local ? this.botLevel : null,
+      //  협동(S-C) — 세계·층·시드. meTeam 은 여기서 **록스텝 자리**다(둘 다 같은 팀).
+      coop: this.coop ? { world: this.coop.world, floor: this.coop.floor,
+                          seed: this.startMsg.seed >>> 0 } : null
     };
+    this.coop = null;
     this.active = false;
     var sm = GAME.game.scene;
     sm.getScenes(true).forEach(function (s) { sm.stop(s.scene.key); });
@@ -218,6 +468,7 @@ GAME.RtFlow = {
     if (GAME.ArenaBuild) GAME.ArenaBuild.rtEnd();
     if (!this.active) return;
     this.active = false;
+    this.coop = null;
     if (!this.local) {
       GAME.NetRoom.on.message = null;
       GAME.NetRoom.on.close = null;

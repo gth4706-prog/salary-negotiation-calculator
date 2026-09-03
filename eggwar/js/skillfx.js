@@ -912,6 +912,562 @@ window.GAME = window.GAME || {};
   }
 
   // ========================================================================
+  //  시즌2 「다섯 세계」 (2026-09-03 S-A) — 새 스킬·페이즈·전장 규칙의 그림
+  //
+  //  ⚠ **엔진(combat.js, S-E)이 정본이다.** 1차 S-A 는 "새 kind 금지 — 필드로 가른다"
+  //    로 짰지만 엔진은 실제로 kind 를 낸다(2차 S-A 가 대조해 맞췄다):
+  //      kind  summon{x,y,r,unit,owner} · stealth{x,y,r,ms} · mark{x,y,r,target} ·
+  //            phaseShift{x,y,r,owner,phase,name} · quake{x,y,r} · gust{x,y,dir,r}
+  //      필드  dashTrail.blink · beam.mark · beam.chain+hop · ring.stealthBreak ·
+  //            ring.summonEnd · ring.quake · telegraph.storm(+pctMaxHp)
+  //    1차의 필드 규약(ring.summon · beam.chainIdx)도 **그대로 받는다** — 어느 쪽이 와도
+  //    같은 그림이 나온다. 렌더러가 모르는 kind 는 조용히 안 그려지므로 여기가 빠지면
+  //    엔진이 낸 사건이 화면에서 증발한다(tools/render-audit.js 가 kind 마다 센다).
+  //  ⚠ 전부 순수 그리기다. state 를 읽기만 하고, 매 프레임 할당이 없다(아래 FOG_PTS·
+  //    FIELD_OUT 은 모듈 수명 버퍼 — v1.66 타원 GC 사고의 규율).
+  // ========================================================================
+
+  //  토템 착지 — 기둥이 땅에 박히는 순간. 링이 **밖으로 밀리고** 먼지가 낮게 깔린다.
+  //  기둥 자체는 소환된 유닛(eggart 의 totem 아트)이 그린다 — 여기는 '박혔다'만.
+  function summonA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var M = S.MAT, sd = seedOf(e.x, e.y);
+    var r = e.r || 30;
+    //  ① 땅에 박힌 자리 — 어두운 흙 원 + 안쪽 밝은 테(파인 흙의 가장자리)
+    gfill(e.x, e.y, r * (0.42 + p * 0.10), M.wood, 0.55 * a * S.FA);
+    gink(e.x, e.y, r * (0.30 + p * 0.85), 2.5 + 2 * a, M.clay, a * 0.9 * S.RA);
+    //  ② 낮게 퍼지는 먼지 — 네 방향, 밖으로
+    for (var i = 0; i < 4; i++) {
+      var ang = sd + i * 1.5708;
+      var d = r * (0.35 + p * 0.9);
+      dust(e.x + Math.cos(ang) * d, e.y + Math.sin(ang) * d * 0.6, 7 + p * 9, a * 0.8);
+    }
+    //  ③ 튄 나무 조각 — 깎을 때 남은 부스러기가 박히는 충격에 튄다
+    var by = syy(e.y);
+    for (var k = 0; k < 5; k++) {
+      var ka = sd + k * 1.2566 + 0.4;
+      var kd = r * (0.2 + p * 0.75);
+      shard(e.x + Math.cos(ka) * kd, by + Math.sin(ka) * kd * S.T - p * 14 + p * p * 20,
+            1.6 + a * 1.8, k % 2 ? M.stone : M.clay, a * 0.95);
+    }
+    //  ④ 진영색은 얇은 보조선 하나 — 누가 세운 토템인지
+    gline(e.x, e.y, r * (0.5 + p * 0.55), 1.5, col, a * 0.5 * S.RA);
+  }
+
+  //  은신 해제 — 검댕이 확 걷히는 순간. 어두운 안개가 바깥으로 흩어진다.
+  function stealthBreakA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var M = S.MAT, sd = seedOf(e.x, e.y);
+    var r = e.r || 30;
+    gfill(e.x, e.y, r * (0.5 + p * 0.5), 0x14101c, 0.35 * a * S.FA);
+    gink(e.x, e.y, r * (0.4 + p * 0.8), 2, 0x3a2e4a, a * 0.8 * S.RA);
+    var by = syy(e.y);
+    for (var k = 0; k < 6; k++) {
+      var ka = sd + k * 1.0472;
+      var kd = r * (0.3 + p * 0.9);
+      shard(e.x + Math.cos(ka) * kd, by + Math.sin(ka) * kd * S.T - p * 10, 2.2 + a * 2, 0x3a2e4a, a * 0.8);
+    }
+    gline(e.x, e.y, r * (0.6 + p * 0.5), 1.5, col, a * 0.6 * S.RA);
+  }
+
+  //  영혼 사슬 — 연쇄 beam. 곧은 광선이 아니라 **마디가 있는 사슬**이 흔들리며 잇는다.
+  //  chainIdx(0,1,2,3)가 커질수록 가늘고 옅다(0.7 감쇠 — combat 의 피해 감쇠와 같은 눈).
+  function chainA(e, col) {
+    var a = e.t / e.total;
+    var M = S.MAT;
+    //  엔진은 `hop`(0..3)을 낸다 — 1차 규약의 `chainIdx` 도 받는다(상태는 안 건드린다).
+    var idx = (e.chainIdx !== undefined && e.chainIdx !== null) ? e.chainIdx : (e.hop || 0);
+    var k = Math.pow(0.8, idx);
+    var x1 = e.x1, y1 = syy(e.y1) - 10, x2 = e.x2, y2 = syy(e.y2) - 10;
+    var dx = x2 - x1, dy = y2 - y1, d = Math.sqrt(dx * dx + dy * dy) || 1;
+    var nx = -dy / d, ny = dx / d;
+    var sd = seedOf(e.x1, e.y1) + idx;
+    var n = 7, g = S.g;
+    //  ① 잉크 뼈대 — 흑백에서도 '이어졌다'가 읽히는 층
+    g.lineStyle((3.4 * k + 1) * (0.5 + 0.5 * a), S.INKA > 0 ? S.INK : M.wood, 0.55 * a);
+    var px = x1, py = y1;
+    for (var i = 1; i <= n; i++) {
+      var f = i / n;
+      var sw = Math.sin(sd + f * 6.28 + (1 - a) * 4) * 6 * k * Math.sin(f * 3.1416);
+      var qx = x1 + dx * f + nx * sw, qy = y1 + dy * f + ny * sw;
+      g.lineBetween(px, py, qx, qy);
+      px = qx; py = qy;
+    }
+    //  ② 마디(고리) — 사슬이라는 물건. 홀수 마디만 밝게
+    px = x1; py = y1;
+    for (var j = 1; j < n; j++) {
+      var fj = j / n;
+      var swj = Math.sin(sd + fj * 6.28 + (1 - a) * 4) * 6 * k * Math.sin(fj * 3.1416);
+      var lx = x1 + dx * fj + nx * swj, ly = y1 + dy * fj + ny * swj;
+      g.fillStyle(j % 2 ? M.stone : M.clay, 0.9 * a);
+      g.fillEllipse(lx, ly, 6 * k + 2, 4 * k + 1.5, 8);
+    }
+    //  ③ 진영색 심 — 얇게 한 번
+    g.lineStyle(1.2 * k + 0.6, col, 0.7 * a * S.RA);
+    g.lineBetween(x1, y1, x2, y2);
+    //  ④ 끝점 — 맞은 자리에 작은 백열
+    gfill(e.x2, e.y2, 5 * k + 3, S.FX.sparkCore, 0.6 * a * S.FA);
+  }
+
+  //  페이즈 전환 — 보스가 '다른 것'이 되는 순간. 이중 링이 밖으로 밀리고 지면에 균열,
+  //  한가운데는 잠깐 어두워졌다 밝아진다(일식). 색은 보스 결(col)로.
+  function phaseShiftA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var M = S.MAT, sd = seedOf(e.x, e.y);
+    var r = e.r || 80;
+    var g = S.g;
+    //  ① 일식 — 처음 30% 동안 중심이 어둡다가 걷힌다
+    var ecl = Math.max(0, 1 - p / 0.3);
+    gfill(e.x, e.y, r * 0.55, S.INKA > 0 ? S.INK : 0x0b0b12, 0.55 * ecl * S.FA);
+    //  ② 이중 링 — 본파와 0.12 늦은 잔파
+    gink(e.x, e.y, r * (0.15 + p * 1.0), 3.5 * a + 1, col, a * 0.95 * S.RA);
+    var p2 = Math.max(0, p - 0.12);
+    gline(e.x, e.y, r * (0.10 + p2 * 0.85), 2, col, Math.max(0, a - 0.1) * 0.7 * S.RA);
+    //  ③ 지면 균열 6갈래 — 방사형, 원근으로 세로를 눌러
+    var cy = syy(e.y);
+    g.lineStyle(2, M.wood, 0.8 * a);
+    for (var i = 0; i < 6; i++) {
+      var ang = sd + i * 1.0472 + Math.sin(sd + i) * 0.3;
+      var len = r * (0.3 + p * 0.6) * (0.7 + 0.3 * Math.sin(sd * 3 + i * 2));
+      var ex = e.x + Math.cos(ang) * len, ey = cy + Math.sin(ang) * len * S.T;
+      g.lineBetween(e.x, cy, ex, ey);
+      g.lineBetween(ex, ey, ex + Math.cos(ang + 0.6) * len * 0.3, ey + Math.sin(ang + 0.6) * len * 0.3 * S.T);
+    }
+    //  ④ 튀어 오르는 돌조각 — 위로 갔다가 떨어진다
+    for (var k = 0; k < 8; k++) {
+      var ka = sd + k * 0.7854;
+      var kd = r * (0.2 + p * 0.7);
+      var rise = Math.sin(Math.min(1, p * 1.2) * 3.1416) * 26;
+      shard(e.x + Math.cos(ka) * kd, cy + Math.sin(ka) * kd * S.T - rise,
+            2 + a * 2.5, k % 2 ? M.stone : M.clay, a * 0.95);
+    }
+    //  ⑤ 백열 코어 — 걷히는 순간에만
+    var flash = Math.max(0, 1 - Math.abs(p - 0.32) / 0.14);
+    if (flash > 0) gfill(e.x, e.y, r * 0.35, S.FX.sparkCore, 0.8 * flash * S.FA);
+  }
+
+  //  ── 2차 S-A: 엔진이 실제로 내는 kind·필드의 그림 ─────────────────────────────
+
+  //  은신 **들어가는** 순간(kind stealth) — 해제의 거울. 검댕이 바깥에서 몸으로 모여든다.
+  function stealthA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var M = S.MAT, sd = seedOf(e.x, e.y);
+    var r = e.r || 30;
+    gfill(e.x, e.y, r * (1.0 - p * 0.45), 0x14101c, 0.30 * (0.4 + p * 0.6) * S.FA);
+    gink(e.x, e.y, r * (1.2 - p * 0.8), 2, 0x3a2e4a, 0.8 * (0.3 + a * 0.7) * S.RA);
+    var by = syy(e.y);
+    for (var k = 0; k < 6; k++) {
+      var ka = sd + k * 1.0472;
+      var kd = r * (1.2 - p * 1.0);                       // 밖 → 안
+      shard(e.x + Math.cos(ka) * kd, by + Math.sin(ka) * kd * S.T - 8 - p * 6, 2.4 - p * 1.2, 0x3a2e4a, 0.85 * a + 0.1);
+    }
+    gline(e.x, e.y, r * (1.1 - p * 0.6), 1.2, col, 0.5 * a * S.RA);
+  }
+
+  //  소환수 수명 만료(ring.summonEnd) — 토템이 흙으로 돌아간다. 링이 안으로 접히고
+  //  부스러기가 **위로** 흩어진다(착지의 반대).
+  function summonEndA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var M = S.MAT, sd = seedOf(e.x, e.y);
+    var r = e.r || 24;
+    gfill(e.x, e.y, r * (0.9 - p * 0.5), M.wood, 0.35 * a * S.FA);
+    gink(e.x, e.y, r * (1.0 - p * 0.55), 2, M.clay, a * 0.8 * S.RA);
+    var by = syy(e.y);
+    for (var k = 0; k < 5; k++) {
+      var ka = sd + k * 1.2566 + 0.9;
+      var kd = r * (0.25 + p * 0.5);
+      shard(e.x + Math.cos(ka) * kd, by + Math.sin(ka) * kd * S.T * 0.6 - p * 22,
+            1.4 + a * 1.4, k % 2 ? M.stone : M.clay, a * 0.9);
+    }
+    gline(e.x, e.y, r * (0.6 - p * 0.3), 1.2, col, a * 0.4 * S.RA);
+  }
+
+  //  지진 능력의 링(ring.quake) — 굵은 흙 테가 밖으로, 뒤따라 잔파. aoeSelf 와 다르게
+  //  **두 겹 + 흙색**이라 "땅이 울렸다"로 읽힌다.
+  function quakeRingA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var M = S.MAT;
+    var r = e.r || 120;
+    gfill(e.x, e.y, r * (0.3 + p * 0.7), M.clay, 0.10 * a * S.FA);
+    gink(e.x, e.y, r * (0.2 + p * 0.95), 4.5 * a + 1.5, M.wood, a * 0.9 * S.RA);
+    var p2 = Math.max(0, p - 0.18);
+    gline(e.x, e.y, r * (0.1 + p2 * 0.85), 2.2, M.clay, Math.max(0, a - 0.1) * 0.7 * S.RA);
+    gline(e.x, e.y, r * (0.2 + p * 0.95), 1.2, col, a * 0.45 * S.RA);
+  }
+
+  //  지진 충격(kind quake — 능력·전장 규칙 둘 다) — 중심에서 방사 균열 + 튀는 돌.
+  //  `phaseShiftA` 와 같은 뼈대지만 일식·백열은 없다(그건 '변한다'의 신호다).
+  function quakeBurstA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var M = S.MAT, sd = seedOf(e.x, e.y);
+    var r = e.r || 120;
+    var g = S.g, cy = syy(e.y);
+    g.lineStyle(2.4, M.wood, 0.85 * a);
+    for (var i = 0; i < 8; i++) {
+      var ang = sd + i * 0.7854 + Math.sin(sd + i) * 0.25;
+      var len = r * (0.25 + p * 0.7) * (0.65 + 0.35 * Math.sin(sd * 2 + i * 3));
+      var mx = e.x + Math.cos(ang) * len * 0.55, my = cy + Math.sin(ang) * len * 0.55 * S.T;
+      var ex = e.x + Math.cos(ang + 0.3) * len, ey = cy + Math.sin(ang + 0.3) * len * S.T;
+      g.lineBetween(e.x, cy, mx, my);
+      g.lineBetween(mx, my, ex, ey);
+    }
+    for (var k = 0; k < 7; k++) {
+      var ka = sd + k * 0.8976;
+      var kd = r * (0.15 + p * 0.55);
+      var rise = Math.sin(Math.min(1, p * 1.3) * 3.1416) * 20;
+      shard(e.x + Math.cos(ka) * kd, cy + Math.sin(ka) * kd * S.T - rise,
+            1.8 + a * 2.2, k % 2 ? M.stone : M.clay, a * 0.9);
+    }
+    dust(e.x, e.y, r * (0.15 + p * 0.25), a * 0.7);
+  }
+
+  //  돌풍(kind gust — 보스 능력) — 시전자에서 dir 방향으로 흐르는 바람 줄기. 긴 이펙트
+  //  (2.4초)라 진행도가 아니라 **시간으로 흐른다**(줄기가 계속 지나간다).
+  var GUST_N = 6;
+  function gustA(e, col) {
+    var a = Math.min(1, e.t / Math.max(1, Math.min(e.total, 500)));   // 마지막 0.5초만 잦아든다
+    var g = S.g, sd = seedOf(e.x, e.y);
+    var dir = e.dir || 0, cx = Math.cos(dir), cyv = Math.sin(dir);
+    var len = e.r > 0 ? e.r : (GAME.CONFIG.ARENA ? GAME.CONFIG.ARENA.w * 0.45 : 260);
+    var t = S.t || 0;
+    var sy0 = syy(e.y) - 10;
+    var tilt = S.T;
+    var M = S.MAT;
+    for (var i = 0; i < GUST_N; i++) {
+      var ph = ((t * 0.0011) + i * 0.167 + sd * 0.05) % 1;
+      var lane = ((i - (GUST_N - 1) / 2) / GUST_N) * len * 0.9;        // 진행 방향에 수직인 오프셋
+      var seg = len * (0.16 + (i % 3) * 0.05);
+      var d0 = ph * (len + seg) - seg;
+      var ox = -cyv * lane, oy = cx * lane * tilt;
+      var x0 = e.x + cx * d0 + ox, y0 = sy0 + cyv * d0 * tilt + oy;
+      var x1 = x0 + cx * seg, y1 = y0 + cyv * seg * tilt;
+      var al = Math.sin(ph * 3.1416) * 0.55 * a;
+      if (S.INKA > 0) { g.lineStyle(3.2, S.INK, al * 0.35 * S.INKA); g.lineBetween(x0, y0, x1, y1); }
+      g.lineStyle(1.8, 0xe4d8ff, al);
+      g.lineBetween(x0, y0, x1, y1);
+      //  줄기 끝의 먼지 알갱이 — 밀려나는 것이 '바람'이라는 물건임을 말한다
+      shard(x1, y1, 1.6, M.clay, al * 0.9);
+    }
+    //  근원 — 시전자 발치의 소용돌이 테
+    gline(e.x, e.y, 26 + Math.sin(t / 90) * 3, 1.6, col, 0.45 * a * S.RA);
+  }
+
+  //  표식 — 대상 **발밑**(kind mark, 수명 = 표식 지속). 머리 위 부적은 battle 이
+  //  `drawMark` 로 따로 그린다. 대상이 움직이면 따라간다(e.target).
+  function markGroundA(e, col) {
+    var tg = e.target;
+    var x = (tg && tg.alive) ? tg.x : e.x, y = (tg && tg.alive) ? tg.y : e.y;
+    if (tg && !tg.alive) return;                        // 죽은 대상의 표식은 안 남긴다
+    var left = Math.min(1, e.t / 600);                  // 마지막 0.6초 페이드
+    var r = e.r || 24;
+    var t = S.t || 0;
+    var pulse = 0.5 + 0.5 * Math.sin(t / 160);
+    gink(x, y, r * (1.05 + pulse * 0.12), 2.2, 0x3a2e4a, (0.55 + pulse * 0.3) * left * S.RA);
+    //  네 방향 눈금 — 표적 십자(마법진이 아니라 사냥꾼의 표시)
+    var g = S.g, cy = syy(y);
+    g.lineStyle(2, 0xd8451a, 0.85 * left);
+    for (var i = 0; i < 4; i++) {
+      var ang = i * 1.5708 + t / 900;
+      var r0 = r * 1.15, r1 = r * 1.45;
+      g.lineBetween(x + Math.cos(ang) * r0, cy + Math.sin(ang) * r0 * S.T,
+                    x + Math.cos(ang) * r1, cy + Math.sin(ang) * r1 * S.T);
+    }
+  }
+
+  //  표식 투척 선(beam.mark) — 광선이 아니라 **던진 부적의 궤적**: 점선 + 끝의 마름모.
+  function markBeamA(e, col) {
+    var a = e.t / e.total;
+    var g = S.g;
+    var x1 = e.x1, y1 = syy(e.y1) - 12, x2 = e.x2, y2 = syy(e.y2) - 12;
+    var dx = x2 - x1, dy = y2 - y1;
+    var n = 9;
+    g.lineStyle(2.2, 0x3a2e4a, 0.8 * a);
+    for (var i = 0; i < n; i += 2) {
+      var f0 = i / n, f1 = (i + 1) / n;
+      g.lineBetween(x1 + dx * f0, y1 + dy * f0, x1 + dx * f1, y1 + dy * f1);
+    }
+    g.fillStyle(0x3a2e4a, 0.95 * a);
+    g.fillTriangle(x2 - 5, y2, x2, y2 - 7, x2 + 5, y2);
+    g.fillTriangle(x2 - 5, y2, x2, y2 + 4, x2 + 5, y2);
+    g.fillStyle(0xd8451a, a);
+    g.fillCircle(x2, y2 + 1, 1.6);
+  }
+
+  //  그림자 걸음(dashTrail.blink) — 돌진 잔상과 다르다: **몸이 지나간 길이 없다.**
+  //  출발점에 검댕 뭉치가 남고 도착점에 검댕이 걷히며, 그 사이는 점선 발자국만.
+  function blinkA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var M = S.MAT;
+    var g = S.g;
+    var x1 = e.x1, y1 = syy(e.y1), x2 = e.x2, y2 = syy(e.y2);
+    //  출발점 — 남은 검댕(옅어진다)
+    gfill(e.x1, e.y1, 16 * (1 + p * 0.4), 0x14101c, 0.35 * a * S.FA);
+    gink(e.x1, e.y1, 14 + p * 14, 1.6, 0x3a2e4a, 0.7 * a * S.RA);
+    //  도착점 — 걷히는 검댕(안에서 밖으로)
+    gline(e.x2, e.y2, 8 + p * 22, 2, 0x3a2e4a, 0.9 * a * S.RA);
+    //  점선 발자국 — 검댕색, 진행도만큼만 그려진다
+    var n = 6, dx = x2 - x1, dy = y2 - y1;
+    var upto = Math.min(1, p * 1.6);
+    for (var i = 1; i <= n; i++) {
+      var f = i / n;
+      if (f > upto) break;
+      var fx = x1 + dx * f, fy = y1 + dy * f - 4;
+      g.fillStyle(0x3a2e4a, 0.75 * a);
+      g.fillEllipse(fx, fy, 6, 3.5, 8);
+    }
+    gline(e.x2, e.y2, 10, 1.2, col, 0.5 * a * S.RA);
+  }
+
+  //  낙뢰 예고(telegraph.storm — 전장 규칙 storm) — 노란 테 + 차오르는 원 + 예고 후반에
+  //  하늘에서 내려오는 번개 결. 일반 예고와 색·결이 다르다: 이건 보스가 아니라 **하늘**이다.
+  function boltTelegraphA(e) {
+    var p = 1 - e.t / e.total; if (p < 0) p = 0;
+    var M = S.MAT, r = e.r || 60;
+    gfill(e.x, e.y, r, M.clay, 0.12 * S.FA);
+    gink(e.x, e.y, r, 2, 0xffe066, (0.45 + p * 0.5) * S.RA);
+    gline(e.x, e.y, r * p, 2.5, 0xffe066, 0.9 * S.RA);
+    if (p > 0.55) {
+      var q = (p - 0.55) / 0.45, cy = syy(e.y);
+      var g = S.g, sd = seedOf(e.x, e.y);
+      var y0 = cy - 170, x0 = e.x + Math.sin(sd) * 24;
+      var segs = 5;
+      if (S.INKA > 0) g.lineStyle(4.5, S.INK, q * 0.5 * S.INKA);
+      for (var pass = (S.INKA > 0 ? 0 : 1); pass < 2; pass++) {
+        if (pass === 1) g.lineStyle(2.5, 0xfff6c0, q);
+        for (var k = 0; k < segs; k++) {
+          var f0 = k / segs, f1 = (k + 1) / segs;
+          if (f0 > q) break;
+          var xa = x0 + (e.x - x0) * f0 + Math.sin(sd + k * 2.1) * 12 * (1 - f0);
+          var xb = x0 + (e.x - x0) * f1 + Math.sin(sd + k * 2.1 + 2.1) * 12 * (1 - f1);
+          g.lineBetween(xa, y0 + (cy - y0) * f0, xb, y0 + (cy - y0) * Math.min(f1, q));
+        }
+      }
+      //  땅에 닿기 직전 — 착지점 백열
+      if (q > 0.85) gfill(e.x, e.y, r * 0.3, S.FX.sparkCore, (q - 0.85) / 0.15 * 0.7 * S.FA);
+    }
+  }
+
+  //  ── 전장 규칙(state.towerField · state.fieldFx · state.gusts) 그림 ─────────────
+  //  엔진 계약(combat.js `setField`/`updateArenaRule`, 2차 S-A 가 대조):
+  //    fog   { rangeMul, meleeBelow }                       — 그림은 이 파일이 다 만든다
+  //    swamp { zones:[{x,y,r,slowMul}] }                    — zones 는 월드 좌표(_buildField 뒤)
+  //    lava  { zones:[{x,y,r,r0,maxR,growPx}] }             — maxR 이 최종 크기
+  //    quake { periodMs, warnMs, _t }                       — 예고·충격은 fieldFx 로 온다
+  //    storm { windDir(rad), windPx }                       — 낙뢰 예고는 effects 의 telegraph.storm
+  //    fieldFx: fieldShift{field} · quakeWarn · quake · lavaBurn{x,y} · boltWarn{x,y,r}  (t/total)
+  //  버퍼는 모듈 수명이다 — 매 프레임 배열을 만들면 그게 곧 GC 렉이다.
+  var FOG_N = 9;
+  var FOG_PTS = (function () { var a = []; for (var i = 0; i < (FOG_N + 1) * 2; i++) a.push({ x: 0, y: 0 }); return a; })();
+  var FIELD_OUT = { shake: 0, kind: null, flash: 0 };
+  var FOG_BANDS = [
+    { y0: 0.05, y1: 0.22, sp: 0.00021, amp: 0.06, a: 0.14 },
+    { y0: 0.30, y1: 0.50, sp: -0.00016, amp: 0.05, a: 0.11 },
+    { y0: 0.58, y1: 0.80, sp: 0.00019, amp: 0.06, a: 0.13 },
+    { y0: 0.84, y1: 0.98, sp: -0.00013, amp: 0.04, a: 0.10 }
+  ];
+  var FOG_ROW = 6;                 // 안개 마스크의 가로 띠 높이(px). 작을수록 구멍이 둥글다
+  var FOG_COL = 0xdfe8e4;          // 밝은 안개(공기원근) — 어두운 안개는 유닛 디테일을 먹는다
+
+  //  안개 마스크 — **내 영웅 둘레만 트인다.** 시야 원(월드 반지름 sightR)을 화면 타원으로
+  //  투영하고, 아레나를 가로 띠로 잘라 원 **바깥**만 채운다(Graphics 에는 구멍이 없다 —
+  //  띠마다 좌·우 두 사각형이 답이다). 두 겹(바깥 진하게·테두리 옅게)이라 가장자리가
+  //  부드럽다. 원 안은 정확히 0 — 내 발치와 예고 원은 한 톨도 안 흐려진다.
+  //  ⚠ 바깥은 알파 합 ≈0.5 로 **유닛이 흐릿하게는 보인다**(안개 규칙은 사거리 0.7 이지
+  //    실명이 아니다). 초점이 없으면(관전·수성) 물결 띠만 얇게 깐다.
+  function fogMask(g, R, fx, fy, rx, ry, a) {
+    var right = R.x + R.w, bottom = R.y + R.h;
+    g.fillStyle(FOG_COL, a);
+    for (var y = R.y; y < bottom; y += FOG_ROW) {
+      var h = Math.min(FOG_ROW, bottom - y);
+      var yc = y + h * 0.5;
+      var dy = (yc - fy) / ry;
+      if (dy > -1 && dy < 1) {
+        var hc = rx * Math.sqrt(1 - dy * dy);
+        var xl = fx - hc, xr = fx + hc;
+        if (xl > R.x) g.fillRect(R.x, y, xl - R.x, h);
+        if (xr < right) g.fillRect(xr, y, right - xr, h);
+      } else {
+        g.fillRect(R.x, y, R.w, h);
+      }
+    }
+  }
+  function fogA(g, F, t, Iso, focus) {
+    var R = Iso.screenRect();
+    if (focus) {
+      //  실측(render-audit 35층): 0.30 폭 + 알파 0.56 은 "옅은 흐림"으로만 읽혔다 → 0.22 폭·0.64.
+      var sr = focus.sightR || R.w * 0.22;
+      var fx = focus.x, fy = Iso.toScreenY(focus.y);
+      var breathe = 1 + Math.sin(t / 700) * 0.02;
+      fogMask(g, R, fx, fy, sr * 1.30 * breathe, sr * 1.30 * breathe * Iso.TILT, 0.34);
+      fogMask(g, R, fx, fy, sr * breathe, sr * breathe * Iso.TILT, 0.30);
+      //  시야 테 — 얇은 잉크 타원 하나. "여기까지 보인다"를 못박는다
+      g.lineStyle(1.4, 0x8fa9a3, 0.35);
+      g.strokeEllipse(fx, fy, sr * 2 * breathe, sr * 2 * breathe * Iso.TILT, 24);
+    }
+    //  물결 띠 — 움직임. 마스크 위에 얇게(초점이 없으면 이것만)
+    for (var b = 0; b < FOG_BANDS.length; b++) {
+      var B = FOG_BANDS[b];
+      var ya = R.y + R.h * B.y0, yb = R.y + R.h * B.y1, amp = R.h * B.amp;
+      var ph = t * B.sp;
+      for (var i = 0; i <= FOG_N; i++) {
+        var f = i / FOG_N, x = R.x + R.w * f;
+        var top = FOG_PTS[i], bot = FOG_PTS[(FOG_N + 1) * 2 - 1 - i];
+        top.x = x; top.y = ya + Math.sin(f * 7.1 + ph * 6.28 + b) * amp;
+        bot.x = x; bot.y = yb + Math.sin(f * 5.3 - ph * 6.28 * 0.7 + b * 2) * amp;
+      }
+      g.fillStyle(FOG_COL, B.a * (focus ? 0.6 : 1));
+      g.fillPoints(FOG_PTS, true);
+    }
+  }
+
+  //  늪 구역 — 어두운 이끼물 원 + 느리게 오르는 거품. 가장자리 잉크 테로 범위를 못박는다.
+  function swampA(F, t) {
+    var zs = F.zones || [];
+    var M = S.MAT;
+    for (var i = 0; i < zs.length; i++) {
+      var z = zs[i];
+      if (!(z.r > 0)) continue;
+      gfill(z.x, z.y, z.r, 0x1f2e1c, 0.34 * S.FA);
+      gfill(z.x + z.r * 0.1, z.y - z.r * 0.1, z.r * 0.72, 0x3f5a3a, 0.26 * S.FA);
+      gink(z.x, z.y, z.r, 2, 0x9ec27a, 0.55 * S.RA);
+      //  거품 5개 — 자리 고정, 시간으로 커졌다 터진다
+      var sd = seedOf(z.x, z.y);
+      for (var k = 0; k < 5; k++) {
+        var ph = ((t * 0.00045) + k * 0.37 + sd * 0.1) % 1;
+        var ang = sd + k * 1.2566;
+        var d = z.r * (0.2 + 0.55 * ((k * 7) % 5) / 5);
+        var br = (2 + ph * 4) * (z.r / 60 + 0.5);
+        gline(z.x + Math.cos(ang) * d, z.y + Math.sin(ang) * d, br, 1.2, 0x9ec27a, (1 - ph) * 0.6 * S.RA);
+      }
+    }
+  }
+
+  //  용암 확장 구역 — 붉은 흙 원, 바깥의 **최종 크기 링**(어디까지 넓어질지 예고), 불씨.
+  //  z.r 이 지금 반지름, z.maxR 이 엔진이 키울 상한(있으면 얇게 예고한다).
+  function lavaA(F, t) {
+    var zs = F.zones || [];
+    for (var i = 0; i < zs.length; i++) {
+      var z = zs[i];
+      if (!(z.r > 0)) continue;
+      var pulse = 0.5 + 0.5 * Math.sin(t * 0.004 + i);
+      //  실측(render-audit): 붉은 속이 0.16 이면 청록 바닥 위에서 갈색 진흙이었다 → 속을 더 뜨겁게.
+      gfill(z.x, z.y, z.r, 0x5e2409, 0.36 * S.FA);
+      gfill(z.x, z.y, z.r * 0.82, 0xd8451a, (0.30 + pulse * 0.12) * S.FA);
+      gfill(z.x, z.y, z.r * 0.45, 0xff8c2e, (0.14 + pulse * 0.10) * S.FA);
+      gink(z.x, z.y, z.r, 2.5, 0xff8c2e, (0.55 + pulse * 0.25) * S.RA);
+      if (z.maxR && z.maxR > z.r + 2) {
+        gline(z.x, z.y, z.maxR, 1.2, 0xff8c2e, (0.18 + pulse * 0.16) * S.RA);
+      }
+      //  불씨 6개 — 원 안에서 떠오른다
+      var sd = seedOf(z.x, z.y), by = syy(z.y);
+      for (var k = 0; k < 6; k++) {
+        var ph = ((t * 0.0006) + k * 0.29 + sd * 0.1) % 1;
+        var ang = sd + k * 1.0472;
+        var d = z.r * (0.15 + 0.6 * ((k * 5) % 4) / 4);
+        shard(z.x + Math.cos(ang) * d, by + Math.sin(ang) * d * S.T - ph * 18,
+              1.4 + (1 - ph) * 1.6, k % 2 ? 0xff8c2e : 0xffd27a, (1 - ph) * 0.9);
+      }
+    }
+  }
+
+  //  용암에 데인 자리(fieldFx lavaBurn) — 작은 불티 세 톨이 위로
+  function lavaBurnA(f) {
+    var a = f.t / f.total, p = 1 - a;
+    var by = syy(f.y), sd = seedOf(f.x, f.y);
+    for (var k = 0; k < 3; k++) {
+      var ka = sd + k * 2.094;
+      shard(f.x + Math.cos(ka) * (4 + p * 10), by - 6 - p * 16 + Math.sin(ka) * 3, 1.4 + a * 1.2,
+            k % 2 ? 0xff8c2e : 0xffd27a, a * 0.9);
+    }
+  }
+
+  //  지진 예고(fieldFx quakeWarn) — 아레나 가장자리 잉크선이 점점 굵어지며 떨린다.
+  function quakeWarnA(g, f, R, t) {
+    var w = 1 - f.t / f.total;
+    var jit = Math.sin(t * 0.06) * 2.5 * w;
+    g.lineStyle(2 + w * 3, S.MAT.wood, 0.22 + w * 0.5);
+    g.strokeRect(R.x + 3 + jit, R.y + 3, R.w - 6, R.h - 6);
+    //  네 모서리에서 안쪽으로 뻗는 실금 — 예고 후반에만
+    if (w > 0.5) {
+      var q = (w - 0.5) * 2, L = R.w * 0.12 * q;
+      g.lineStyle(1.6, S.MAT.wood, 0.6 * q);
+      g.lineBetween(R.x + 4, R.y + 4, R.x + 4 + L, R.y + 4 + L * 0.5);
+      g.lineBetween(R.x + R.w - 4, R.y + 4, R.x + R.w - 4 - L, R.y + 4 + L * 0.5);
+      g.lineBetween(R.x + 4, R.y + R.h - 4, R.x + 4 + L, R.y + R.h - 4 - L * 0.5);
+      g.lineBetween(R.x + R.w - 4, R.y + R.h - 4, R.x + R.w - 4 - L, R.y + R.h - 4 - L * 0.5);
+    }
+  }
+
+  //  지진 충격(fieldFx quake) — 아레나 중심에서 방사 균열. `out.shake` 로 카메라를 흔든다.
+  var QUAKE_E = { x: 0, y: 0, r: 0, t: 0, total: 1 };   // quakeBurstA 에 넘길 모듈 버퍼
+  function quakeHitA(f, R, Iso, out) {
+    var a = f.t / f.total;
+    out.shake = Math.max(out.shake, a * a);
+    QUAKE_E.x = R.x + R.w / 2; QUAKE_E.y = Iso.toWorldY(R.y + R.h / 2);
+    QUAKE_E.r = R.w * 0.42; QUAKE_E.t = f.t; QUAKE_E.total = f.total;
+    quakeBurstA(QUAKE_E, S.MAT.clay);
+  }
+
+  //  폭풍 over — 바람 줄기(얇은 흰 선 몇 가닥이 `windDir` 방향으로 흐른다).
+  //  실측(render-audit): 7가닥·알파 0.42·1.4px 는 900px 화면에서 거의 안 보였다 → 10가닥·잉크 밑줄.
+  var WIND_N = 10;
+  function stormOverA(g, F, t, Iso) {
+    var R = Iso.screenRect();
+    var wd = F.windDir || 0;
+    var wx = Math.cos(wd), wy = Math.sin(wd);
+    if (Iso.rtFlip) wy = -wy;
+    var col = 0xf4eeff;
+    for (var i = 0; i < WIND_N; i++) {
+      var ph = ((t * 0.00042) + i * 0.1) % 1;
+      var lane = R.y + R.h * ((i * 0.097 + 0.05) % 1);
+      var len = R.w * (0.14 + (i % 3) * 0.06);
+      var x0 = R.x + (wx >= 0 ? ph : 1 - ph) * (R.w + len) - (wx >= 0 ? len : 0);
+      var y0 = lane + wy * ph * R.h * 0.3 * Iso.TILT;
+      var a = Math.sin(ph * 3.1416) * 0.75;
+      var x1 = x0 + wx * len, y1 = y0 + wy * len * Iso.TILT;
+      if (S.INKA > 0) { g.lineStyle(3.6, S.INK, a * 0.3 * S.INKA); g.lineBetween(x0, y0, x1, y1); }
+      g.lineStyle(2.0, col, a);
+      g.lineBetween(x0, y0, x1, y1);
+      g.lineStyle(1.0, col, a * 0.6);
+      g.lineBetween(x0 + wx * len * 0.2, y0 + 5, x0 + wx * len * 0.85, y0 + 5 + wy * len * 0.65 * Iso.TILT);
+    }
+  }
+
+  //  낙뢰 직전 하늘 번쩍(fieldFx boltWarn 의 마지막 90ms) — over 레이어 전체 백열.
+  //  낙뢰 자체(예고 원·번개 결)는 effects 의 telegraph.storm 이 그린다 — 여기서 겹쳐 그리면 둘이 된다.
+  function boltFlashA(g, f, R, out) {
+    if (f.t > 90) return;
+    var q = 1 - f.t / 90;
+    var a = Math.sin(q * 3.1416) * 0.28;
+    g.fillStyle(0xfff6c0, a);
+    g.fillRect(R.x, R.y, R.w, R.h);
+    out.flash = Math.max(out.flash, a);
+  }
+
+  //  규칙 교체(fieldFx fieldShift) — 세계 결의 색으로 화면이 한 번 물든다(0.9초).
+  var FIELD_TINT = { fog: 0xdfe8e4, swamp: 0x9ec27a, lava: 0xff8c2e, quake: 0xc9a06a, storm: 0xe4d8ff };
+  function fieldShiftA(g, f, R) {
+    var a = f.t / f.total;
+    g.fillStyle(FIELD_TINT[f.field] || 0xffffff, a * a * 0.22);
+    g.fillRect(R.x, R.y, R.w, R.h);
+  }
+
+  //  돌풍(state.gusts — 보스 능력이 등록한 실행 중 바람) — kind gust 이펙트와 같은 그림을
+  //  실행 주체(owner) 위치에서 낸다. 이펙트는 시전 순간에 한 번, 이건 미는 동안 계속.
+  var GUST_E = { x: 0, y: 0, dir: 0, r: 0, t: 0, total: 1 };
+  function gustsA(state) {
+    var gs = state.gusts;
+    if (!gs || !gs.length) return;
+    for (var i = 0; i < gs.length; i++) {
+      var G = gs[i];
+      if (!G.owner) continue;
+      GUST_E.x = G.owner.x; GUST_E.y = G.owner.y; GUST_E.dir = G.dir || 0;
+      GUST_E.r = G.radius || 0; GUST_E.t = G.t; GUST_E.total = Math.max(1, G.t + 1);
+      gustA(GUST_E, S.FX.sparkCore || 0xfff3cd);
+    }
+  }
+
+  // ========================================================================
   //  공개 API — battle.js 는 이 네 개만 부른다.
   // ========================================================================
   var SkillFX = GAME.SkillFX = {
@@ -979,7 +1535,14 @@ window.GAME = window.GAME || {};
       //  껍질 (2026-08-08) — 껍질장이의 보호막. `bone` 이 이미 흰색이라 그냥 쓰면
       //  둘이 안 갈린다. 껍질은 뼈보다 **살짝 따뜻하고 테가 진하다**(계란 껍질이다).
       //  값은 `UI.MAT` 의 shell/shellLite/shellRim 계열에서 잡았다.
-      shell:   { clay: 0xf6ead6, stone: 0xfffaf0, wood: 0xc0ac8c }    // 계란 껍질
+      shell:   { clay: 0xf6ead6, stone: 0xfffaf0, wood: 0xc0ac8c },   // 계란 껍질
+      //  시즌2 「다섯 세계」 (2026-09-03 S-A) — 주술사·암살자·세계 규칙의 재료 넷.
+      //  ⚠ 여전히 팔레트 키다(kind 아님). 어느 것도 마법빛이 아니다 — 토템은 깎은
+      //    나무와 뼈 물감, 그림자는 재를 먹인 검댕, 폭풍은 먹구름과 번개 결, 늪은 이끼물.
+      totem:   { clay: 0x8a5a33, stone: 0xe0c48a, wood: 0x4a2e16 },   // 깎은 토템 기둥
+      shadow:  { clay: 0x3a2e4a, stone: 0x8a78b8, wood: 0x14101c },   // 검댕·그림자
+      storm:   { clay: 0x6a5a86, stone: 0xe4d8ff, wood: 0x2c2438 },   // 먹구름·번개 결
+      swamp:   { clay: 0x3f5a3a, stone: 0x9ec27a, wood: 0x1f2e1c }    // 늪 이끼물
       // blade — 기본 MAT 그대로(금속). 표에 없으므로 자동으로 원래 색이다.
     },
 
@@ -1018,16 +1581,37 @@ window.GAME = window.GAME || {};
     _drawEffectInner: function (e, col) {
       if (!S.g) return false;
       var k = e.kind;
-      if (k === 'dashTrail') { S.B ? dashB(e, col) : dashA(e, col); return true; }
+      if (k === 'dashTrail') {
+        if (e.blink) { blinkA(e, col); return true; }               // 그림자 걸음(엔진 blink)
+        S.B ? dashB(e, col) : dashA(e, col); return true;
+      }
+      //  시즌2 — 엔진(combat.js)이 내는 kind 그대로. 파일 머리 주석의 대조표 참조.
+      if (k === 'phaseShift') { phaseShiftA(e, col); return true; }
+      if (k === 'summon') { summonA(e, col); return true; }         // 토템·호위 착지
+      if (k === 'stealth') { stealthA(e, col); return true; }       // 은신 진입
+      if (k === 'mark') { markGroundA(e, col); return true; }       // 표식(발밑, 대상 추적)
+      if (k === 'quake') { quakeBurstA(e, col); return true; }      // 지진 충격(능력·전장 규칙)
+      if (k === 'gust') { gustA(e, col); return true; }             // 돌풍 시전
       if (k === 'ring') {
+        if (e.summon) { summonA(e, col); return true; }             // (1차 규약) 토템 착지
+        if (e.summonEnd) { summonEndA(e, col); return true; }       // 소환수 수명 만료
+        if (e.stealthBreak) { stealthBreakA(e, col); return true; } // 은신 해제(combat.breakStealth)
+        if (e.quake) { quakeRingA(e, col); return true; }           // 지진 능력의 링
         // total 400 = buff / 320 = aoeSelf. combat.js 가 박아둔 값이라 안전한 구분자다.
         if (e.total >= 380) { S.B ? buffB(e, col) : buffA(e, col); }
         else { S.B ? aoeSelfB(e, col) : aoeSelfA(e, col); }
         return true;
       }
-      if (k === 'telegraph') { S.B ? telegraphB(e) : telegraphA(e); return true; }
+      if (k === 'telegraph') {
+        if (e.storm) { boltTelegraphA(e); return true; }            // 낙뢰 예고(전장 규칙 storm)
+        S.B ? telegraphB(e) : telegraphA(e); return true;
+      }
       if (k === 'blast') { S.B ? blastB(e) : blastA(e, col); return true; }
-      if (k === 'beam') { S.B ? strikeB(e, col) : strikeA(e, col); return true; }
+      if (k === 'beam') {
+        if (e.chain || (e.chainIdx !== undefined && e.chainIdx !== null)) { chainA(e, col); return true; }  // 영혼 사슬
+        if (e.mark) { markBeamA(e, col); return true; }              // 표식 투척 궤적
+        S.B ? strikeB(e, col) : strikeA(e, col); return true;
+      }
       if (k === 'spark') { S.B ? sparkB(e, col) : sparkA(e, col); return true; }
       if (k === 'slash' && e.total > 180) { S.B ? pullB(e, col) : pullA(e, col); return true; }
       return false;   // slashWave · healPulse · block · yolk · lob 등은 원래 그림 그대로
@@ -1049,6 +1633,179 @@ window.GAME = window.GAME || {};
     drawProjectile: function (p, col) {
       if (!S.g || !p.big) return false;
       S.B ? projB(p, col) : projA(p, col);
+      return true;
+    },
+
+    // ── 시즌2 「다섯 세계」 (2026-09-03 S-A) — battle 이 부를 세 함수 ─────────────
+    //  begin() 없이도 돌아야 한다(헤드리스 스텁·다른 Graphics). 색 토큰이 비어 있으면
+    //  여기서 한 번 채운다 — begin() 이 먼저 불렸으면 아무 일도 안 한다.
+    _ctx: function () {
+      if (S.MAT && S.FX) return;
+      var UI = GAME.UI || {};
+      S.FX = S.FX || UI.FX || {};
+      S.MAT = S.MAT || UI.MAT || { clay: 0xa08060, stone: 0x8b8578, wood: 0x5a452c };
+      S.C = S.C || (GAME.CONFIG && GAME.CONFIG.COLORS) || {};
+      S.RA = S.FX.ringAlpha === undefined ? 1 : S.FX.ringAlpha;
+      S.FA = S.FX.fillAlpha === undefined ? 1 : S.FX.fillAlpha;
+      S.INK = S.FX.ink === undefined ? 0x0b0b12 : S.FX.ink;
+      S.INKA = S.FX.inkAlpha === undefined ? 0 : S.FX.inkAlpha;
+      S.T = (GAME.Iso && GAME.Iso.TILT) || 0.72;
+      if (S.FX.sparkCore === undefined) S.FX.sparkCore = 0xfff3cd;
+    },
+
+    /**
+     * 은신 알파 — **순수 함수**. battle 의 유닛 루프가 `drawUnit` 의 alpha 인자(6번째)에
+     * 그대로 넣는다: `GAME.UI.drawUnit(g, u.def, x, y, color, FXS.stealthAlpha(u, tRender, mine), …)`
+     *   u      유닛. combat(S-E)의 계약대로 `u.buffs[i].stealthTag` 가 살아 있으면 은신.
+     *   tMs    렌더 시계(scene.time.now) — 내 눈에 보이는 일렁임의 위상.
+     *   mine   내가 조종하는 쪽(또는 내 팀)이면 true → 반투명(0.38~0.50 일렁임).
+     *          적 눈(false)에는 0.10 — '거의' 안 보인다. 0 으로 하면 논타겟으로 맞는 순간
+     *          어디서 맞았는지조차 모른다(회피 게임의 정직함). 실시간 대전에서 상대 화면은
+     *          mine=false 로 부른다.
+     * 은신이 아니면 정확히 1 을 돌려준다(기존 그림과 픽셀 단위로 동일).
+     */
+    stealthAlpha: function (u, tMs, mine) {
+      if (!u || !u.buffs || !u.buffs.length) return 1;
+      var on = false;
+      for (var i = 0; i < u.buffs.length; i++) if (u.buffs[i].stealthTag) { on = true; break; }
+      if (!on) return 1;
+      if (mine) return 0.44 + 0.06 * Math.sin((tMs || 0) / 170);
+      return 0.10;
+    },
+
+    /**
+     * 표식 아이콘 — 대상 머리 위. battle 의 유닛 루프가 y 정렬 **밖**(selectArrow 와 같은
+     * 자리)에서 `_markUntil > state.elapsed` 인 유닛마다 부른다:
+     *   drawMark(g, sx, headY, r, tRender)   sx/headY 화면 좌표(headY = 체력바 줄 위),
+     *   r 유닛 반지름, t 렌더 시계. g 를 안 주면 begin() 의 Graphics 를 쓴다.
+     * 그림: 검댕빛 저주 부적(마름모 뼈판 + 흰 눈) — 아래를 향해 떠서 '찍혔다'가 읽힌다.
+     */
+    drawMark: function (g, sx, headY, r, t) {
+      g = g || S.g; if (!g) return false;
+      this._ctx();
+      var tt = t || 0;
+      var bob = Math.sin(tt / 230) * 2.5;
+      var w = Math.max(7, r * 0.55), h = Math.max(9, r * 0.72);
+      var cy = headY - h * 0.9 + bob;
+      var ink = S.INKA > 0 ? S.INK : 0x14101c;
+      //  ① 잉크 마름모(한 겹 크게) — 흰 껍질·밝은 바닥 어디서든 윤곽이 남는다
+      g.fillStyle(ink, 0.9);
+      g.fillTriangle(sx - w - 1.5, cy, sx, cy - h - 1.5, sx + w + 1.5, cy);
+      g.fillTriangle(sx - w - 1.5, cy, sx, cy + h * 0.55 + 1.5, sx + w + 1.5, cy);
+      //  ② 검댕 마름모
+      g.fillStyle(0x3a2e4a, 1);
+      g.fillTriangle(sx - w, cy, sx, cy - h, sx + w, cy);
+      g.fillTriangle(sx - w, cy, sx, cy + h * 0.55, sx + w, cy);
+      //  ③ 흰 눈 + 동공 — '보고 있다'
+      var blink = (tt % 2600) < 120 ? 0.25 : 1;
+      g.fillStyle(0xf2eddc, 1);
+      g.fillEllipse(sx, cy - h * 0.18, w * 1.1, h * 0.42 * blink, 8);
+      g.fillStyle(ink, 1);
+      g.fillCircle(sx, cy - h * 0.18, Math.max(1.2, w * 0.22 * blink));
+      //  ④ 진영색 없이 붉은 점 하나 — 표식 대상 피해 +35% 의 '위험' 신호
+      g.fillStyle(0xd8451a, 0.95);
+      g.fillCircle(sx, cy + h * 0.28, Math.max(1.2, w * 0.18));
+      return true;
+    },
+
+    /**
+     * 전장 규칙 그림 — `state.towerField` + `state.fieldFx` + `state.gusts` 를 읽는다(S-E 계약,
+     * 파일 위 "전장 규칙 그림" 주석의 대조표).
+     *   layer 'ground' : 유닛보다 **먼저**, `this.g` 에. rtMap 바로 뒤(_drawRtMap 다음 줄)가
+     *                    자리다 — 늪 구역·용암 링·지진 예고/균열·용암 불티.
+     *   layer 'over'   : 유닛 **위**, battle 이 만든 별도 Graphics(worldLayer 에 add,
+     *                    유닛 g 뒤에 add 해 위에 오게) — 안개 마스크·바람 줄기·돌풍·규칙 교체
+     *                    물듦·낙뢰 직전 번쩍. 매 프레임 clear 후 호출.
+     *   t    렌더 시계(scene.time.now) · Iso = GAME.Iso
+     *   opts { focus:{x,y}(월드 — 안개 시야의 중심, 보통 내 영웅), sightR(월드 px, 기본 아레나 폭 30%) }
+     * 반환: `{ shake: 0..1, flash: 0..1, kind }` (모듈 버퍼 — 붙들지 말 것). shake 는 지진 충격
+     *       (fieldFx quake, 0.52초) 감쇠값이라 battle 이 카메라 흔들림 세기로 곱해 쓴다.
+     *       규칙도 fieldFx 도 없으면 null. ⚠ 규칙이 없어도 fieldFx(돌풍·소환 등)는 그린다.
+     */
+    drawField: function (g, state, t, Iso, layer, opts) {
+      if (!state || !g) return null;
+      var F = state.towerField;
+      var fx = state.fieldFx;
+      var hasFx = !!(fx && fx.length);
+      var hasG = !!(state.gusts && state.gusts.length);
+      if ((!F || !F.kind) && !hasFx && !hasG) return null;
+      Iso = Iso || GAME.Iso;
+      if (!Iso) return null;
+      this._ctx();
+      var over = layer === 'over';
+      var keep = S.g, keepT = S.t; S.g = g; S.t = t || 0;
+      var out = FIELD_OUT; out.shake = 0; out.flash = 0; out.kind = F ? F.kind : null;
+      var R = Iso.screenRect();
+      try {
+        if (F && F.kind && F._built !== false) {
+          if (F.kind === 'fog') { if (over) fogA(g, F, t || 0, Iso, opts && opts.focus ? { x: opts.focus.x, y: opts.focus.y, sightR: opts.sightR } : null); }
+          else if (F.kind === 'swamp') { if (!over) swampA(F, t || 0); }
+          else if (F.kind === 'lava') { if (!over) lavaA(F, t || 0); }
+          else if (F.kind === 'storm') { if (over) stormOverA(g, F, t || 0, Iso); }
+          //  quake 는 fieldFx(quakeWarn·quake)만 그린다 — 규칙 자체는 그림이 없다
+        }
+        if (hasFx) {
+          for (var i = 0; i < fx.length; i++) {
+            var f = fx[i];
+            if (!f || !f.kind || !(f.total > 0)) continue;
+            if (over) {
+              if (f.kind === 'fieldShift') fieldShiftA(g, f, R);
+              else if (f.kind === 'boltWarn') boltFlashA(g, f, R, out);
+            } else {
+              if (f.kind === 'quakeWarn') quakeWarnA(g, f, R, t || 0);
+              else if (f.kind === 'quake') quakeHitA(f, R, Iso, out);
+              else if (f.kind === 'lavaBurn') lavaBurnA(f);
+            }
+          }
+        }
+        if (over && hasG) gustsA(state);
+      } finally { S.g = keep; S.t = keepT; }
+      return out;
+    },
+
+    /**
+     * 소환수 수명 링 — `u.summoned && u.lifeMs > 0` 인 유닛의 발밑에 남은 수명만큼의 호.
+     * battle 의 오버레이(체력바 자리)에서 부른다: lifeRing(g, u, wx, wy, r).
+     * 총 수명은 엔진이 안 남기므로 **처음 본 값을 상한으로** 기억한다(u.__lifeMax — 렌더 캐시,
+     * 시뮬은 안 읽는다). 호가 줄어들다 사라지면 토템이 곧 흙으로 돌아간다는 뜻이다.
+     */
+    lifeRing: function (g, u, wx, wy, r) {
+      if (!g || !u || !u.summoned || !(u.lifeMs > 0)) return false;
+      if (u.__lifeMax === undefined || u.lifeMs > u.__lifeMax) u.__lifeMax = u.lifeMs;
+      var frac = Math.max(0, Math.min(1, u.lifeMs / u.__lifeMax));
+      this._ctx();
+      var keep = S.g; S.g = g;
+      try {
+        var rr = (r || 12) + 6;
+        var a0 = -Math.PI / 2, a1 = a0 + Math.PI * 2 * frac;
+        gline(wx, wy, rr, 1.2, 0x4a2e16, 0.35 * S.RA);
+        groundArc(wx, wy, rr, a0, a1, 2.4, frac < 0.25 ? 0xd8451a : 0xe0c48a, 0.9 * S.RA);
+      } finally { S.g = keep; }
+      return true;
+    },
+
+    //  보스 페이즈 색 — 진입할수록 뜨거워진다(0 노랑 → 1 주황 → 2 잉걸불 → 3 그림자).
+    PHASE_COL: [0xffd257, 0xff8c2e, 0xd8451a, 0x8a78b8],
+    phaseColor: function (idx) {
+      if (idx === undefined || idx === null || idx < 0) return null;
+      return this.PHASE_COL[Math.min(this.PHASE_COL.length - 1, idx | 0)];
+    },
+    /**
+     * 페이즈 링 — `u._phaseIdx >= 0` 인 보스 발밑. 페이즈가 오를수록 색이 뜨겁고 고리가 는다.
+     * battle 오버레이에서 부른다: phaseRing(g, u, wx, wy, r, t).
+     */
+    phaseRing: function (g, u, wx, wy, r, t) {
+      var col = this.phaseColor(u && u._phaseIdx);
+      if (!g || !col) return false;
+      this._ctx();
+      var keep = S.g; S.g = g;
+      try {
+        var n = Math.min(3, (u._phaseIdx | 0) + 1);
+        var pulse = 1 + Math.sin((t || 0) / 210) * 0.04;
+        for (var i = 0; i < n; i++) {
+          gink(wx, wy, ((r || 20) + 16 + i * 7) * pulse, i === 0 ? 3 : 1.6, col, (0.85 - i * 0.22) * S.RA);
+        }
+      } finally { S.g = keep; }
       return true;
     }
   };

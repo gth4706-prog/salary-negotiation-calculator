@@ -58,7 +58,70 @@ GAME.AutoFormation = {
   //  카운터가 날카로워진다.
   //  ⚠ 영웅 카운터(HERO_COUNTERS)에는 안 곱한다 — 그건 '무엇을 들고 왔나'라는
   //    확정 정보이지 관측으로 배운 것이 아니다. 배운 것만 자라야 학습으로 읽힌다.
-  weights: function (p, heroKey, readMul) {
+  // ── 세계 가중 (시즌2 「다섯 세계」, 2026-09-03 S-W) ─────────────────────────
+  //  진단: 확장 10종이 `weights` 표에 없어 기본값 1 로 뽑혔다 — 1161기 중 18기.
+  //  세계마다 **그 세계의 유닛**을 세게 가중한다(플랜 §1 S-W 표). 초원은 비어 있어
+  //  옛 10종 가중 그대로(R-3·1~30층 기준선). 교육 과정(allowTypes)이 아직 안 푼 종류는
+  //  가중을 줘도 `_pick` 의 allowed 목록에 없어 안 뽑힌다 — 표가 앞서가도 안전하다.
+  //  ⚠ 값이 큰 이유: `_pick` 은 가중치를 **단가^0.75 로 나눈다**(예산 1원당 가치). 전사(10)는
+  //    w=10 이 곧 1.78 인데 확장 유닛(40)은 w=12 가 0.75 라 여전히 전사가 2.4배 더 뽑혔다
+  //    (실측 12·15% — tools/tower-world-audit.js (c)). 단가 40 유닛이 전사와 같은 확률이
+  //    되려면 w≈28 이 필요하고, 종류 상한(maxPerFormation 1~2)까지 겹치므로 그 위로 잡는다.
+  //    세계 밖 기본 유닛(전사·궁수·투석꾼)은 살짝 내린다 — 안 내리면 자리가 안 난다.
+  //  ⚠ 위로도 상한이 있다 — 확장 유닛은 **값이 스탯이 아니라 기제**라(units.js 3단계 주석:
+  //    전사 240hp/10골드 vs 덩굴채 230hp/40골드) 세계 유닛 비중이 오를수록 진형의 **원시
+  //    체력 합**이 준다. tools/tower-power-curve.js(ehp합÷dps 근사치)로 실측: 비중 35~40%
+  //    에서 30→60층 비율이 glass 1.17 → 0.96 으로 떨어졌다(근사치는 기제 — 매듭·보호막·
+  //    되받이·끌기 — 를 못 본다). 비중 ~25% 가 "세계가 읽히되 원시 위협이 덜 빠지는" 선이다.
+  WORLD_WEIGHTS: {
+    meadow: {},
+    mire:   { vinewhip: 18, knotter: 15, shellwright: 12, hivethrower: 10, reflector: 8, chemtrooper: 7,
+              bayonet: -2 },
+    ash:    { emberthrower: 26, ashthrower: 22, hammer: 26, hivethrower: 5,
+              bayonet: -3, grenadier: -3, shieldman: -2 },
+    rift:   { stonepiler: 26, reflector: 20, palisade: 22, hammer: 5, knotter: 4,
+              bayonet: -3, rifleman: -3, sniper: -3 },
+    storm:  { reflector: 10, palisade: 8, shellwright: 8, hammer: 10, hivethrower: 8, vinewhip: 10,
+              ashthrower: 8, stonepiler: 10, knotter: 8, emberthrower: 10, bayonet: -3 }
+  },
+  //  세계에서 교리 핵심(정예)으로 키울 수 있는 확장 종류 — 근접/원거리 풀에 더한다.
+  //  ⚠ `opts.world` 가 있을 때만(통곡의 탑) 넓힌다. 대전·수성의 탑은 이 함수를 안 부르지만,
+  //    기본 풀을 건드리면 옛 측정(formation-diversity)이 갈라진다.
+  MELEE_EXT: ['reflector', 'hammer', 'stonepiler', 'knotter', 'vinewhip', 'hivethrower', 'ashthrower'],
+  RANGED_EXT: ['emberthrower'],
+
+  //  ── AI 회계 단가 — 확장 유닛의 **스탯 몫** (시즌2 S-W, 실측으로 잡음) ─────────────
+  //  확장 10종의 값은 스탯이 아니라 **기제**가 정한다(units.js 3단계 주석: 전사 240hp/10골드 vs
+  //  덩굴채 230hp/40골드). 그 가격은 **사람이 뜻을 갖고 놓는** 수성의 탑 기준이라, AI 진형이
+  //  같은 값으로 사면 예산의 3/4 이 스탯이 아닌 곳으로 간다 — 실측(tools/sim.js A/B, fresh
+  //  영웅 AIHero 0.9): 45층 돌파 13% → **88%**, 75층 0% → 58%. 세계가 층을 **쉽게** 만든다.
+  //  그래서 통곡의 탑의 질 배수(js/tower.js qualityMul — "못 쓴 예산은 질로 태운다")가 지출을
+  //  셀 때 확장 유닛은 이 **스탯 몫 단가**로 센다: 기제 값(단가−스탯 몫)은 예산에서 '안 쓴 돈'
+  //  이 되어 진형 전체의 질로 돌아온다. 총 위협 ≈ 예산이라는 회계가 유지되고, 확장 유닛은
+  //  그 위에 기제를 얹는다. 초원에는 확장 유닛이 없어 1~30층 회계는 한 톨도 안 바뀐다.
+  //  값은 **실측으로 잡았다**(같은 A/B, 단가를 12 → 8 → 5 로 내리며 fresh 영웅 돌파율을 봄):
+  //    45층 46% → 29% → 21%(기본 진형 13%) · 55층 63% → 54% → 38%(기본 38%) · 75층 4% → 4% → 0%(0%)
+  //  즉 AI 손에서 확장 유닛의 스탯 몫은 **5~6골드어치**다(hp×dps 산수 7~8 보다 낮다 — 사거리
+  //  50~58·속도 96~105 라 AIHero 를 못 따라잡는 몫만큼 더 빠진다). 방어 관통(망치)·누적(돌쌓이)
+  //  처럼 스탯으로 직접 듣는 기제만 한 눈금 위.
+  AI_STAT_COST: {
+    reflector: 6, palisade: 5, shellwright: 5, hammer: 8, hivethrower: 6,
+    vinewhip: 6, ashthrower: 5, stonepiler: 8, knotter: 6, emberthrower: 6
+  },
+  //  진형 키(정예 파생 포함)의 AI 회계 단가. 확장 유닛이 아니면 실제 단가 그대로.
+  //  정예 파생은 실제 단가 비율(파생/원본)을 스탯 몫에 그대로 곱한다.
+  statCostOf: function (typeKey) {
+    var d = GAME.UNITS[typeKey];
+    if (!d) return 0;
+    var base = (GAME.UnitLevel && GAME.UnitLevel.baseKeyOf) ? GAME.UnitLevel.baseKeyOf(typeKey) : typeKey;
+    var sc = this.AI_STAT_COST[base];
+    if (sc === undefined) return d.cost || 0;
+    var bd = GAME.UNITS[base];
+    var ratio = (bd && bd.cost) ? (d.cost || bd.cost) / bd.cost : 1;
+    return sc * ratio;
+  },
+
+  weights: function (p, heroKey, readMul, world) {
     var RM = (typeof readMul === 'number' && readMul > 0) ? readMul : 1;
     // ── 2026-07-31 · 기여도 실측 반영 (tools/unit-contribution.js) ─────────────
     //  뺑뺑이 영웅 상대로 재 보니 유닛별 기당 피해가 **519 ~ 13** 으로 40배 벌어졌다.
@@ -77,6 +140,10 @@ GAME.AutoFormation = {
     // 영웅 카운터가 성향보다 우선한다 — 상대가 뭘 들고 오는지가 가장 확실한 정보다
     var ctr = this.counterFor(heroKey);
     if (ctr) for (var ck in ctr.w) w[ck] = (w[ck] || 0) + ctr.w[ck];
+
+    //  세계 가중 — 확정 정보(어느 세계인가)라 readMul 을 안 곱한다(영웅 카운터와 같은 이유).
+    var ww = world && this.WORLD_WEIGHTS[world];
+    if (ww) for (var wk in ww) w[wk] = (w[wk] || 0) + ww[wk];
 
     if (!p) {
       for (var k0 in w) if (w[k0] < 1) w[k0] = 1;
@@ -330,9 +397,14 @@ GAME.AutoFormation = {
   bandOf: function (type) {
     switch (type) {
       case 'bayonet': case 'shieldman': return [0.24, 0.30];   // 앞 벽
+      //  확장 근접(2026-09-03 S-W) — 표에 없으면 기본 [0.15,0.25] 로 떨어져 towerplan 의
+      //  roleOf 가 'mid' 로 접었다: 망치잡이·되받이가 원거리 줄에 서서 앞 벽이 비었다.
+      case 'reflector': case 'hammer': case 'stonepiler': case 'knotter':
+      case 'vinewhip': case 'hivethrower': case 'ashthrower': return [0.24, 0.30];
+      case 'palisade': return [0.20, 0.28];                    // 지형 — 벽 바로 뒤 길목
       case 'rifleman': case 'chemtrooper': case 'sergeant': return [0.15, 0.23];
-      case 'grenadier': case 'mgnest': return [0.11, 0.19];
-      case 'sniper': case 'medic': return [0.04, 0.11];        // 뒤
+      case 'grenadier': case 'mgnest': case 'emberthrower': return [0.11, 0.19];
+      case 'sniper': case 'medic': case 'shellwright': return [0.04, 0.11];   // 뒤
       case 'mine': return [0.38, 0.47];                        // 중립지대(지나가는 길)
       default: return [0.15, 0.25];
     }
@@ -341,11 +413,11 @@ GAME.AutoFormation = {
   // 정예로 키울 '주력 종류'를 고른다. 무작위가 아니라 **가중치(=성향+영웅 카운터)에
   // 비례**해서 뽑는다 — 그래야 어떤 판은 전사가, 어떤 판은 궁수가 강화되면서도
   // 그 선택에 근거가 남는다. 늘 최고 가중치를 고르면 매판 같은 종류만 커진다.
-  _pickCore: function (w, doctrine, budget, tierBudget, allow) {
+  _pickCore: function (w, doctrine, budget, tierBudget, allow, meleePool, rangedPool) {
     var core = {};
     if (!doctrine.group || !doctrine.coreN) return core;
     var self = this;
-    var pool = (doctrine.group === 'melee' ? this.MELEE_POOL : this.RANGED_POOL)
+    var pool = (doctrine.group === 'melee' ? (meleePool || this.MELEE_POOL) : (rangedPool || this.RANGED_POOL))
       .filter(function (t) { return !allow || allow.indexOf(t) >= 0; })
       .filter(function (t) {
         // 정예 단가가 예산의 1/4 을 넘으면 몇 기 못 세워 진형이 성립하지 않는다
@@ -380,7 +452,7 @@ GAME.AutoFormation = {
     var heroKey = opts.heroKey || null;
     var counter = this.counterFor(heroKey);
     // 층이 오를수록 성향을 더 세게 읽는다(opts.readMul — tower.js 가 넘긴다).
-    var w = this.weights(profile, heroKey, opts.readMul);
+    var w = this.weights(profile, heroKey, opts.readMul, opts.world);
     var UL = GAME.UnitLevel;
 
     // 정예 레벨은 `tierBudget` 으로 정한다. **기본값은 budget 이라 아무 것도 안 바뀐다.**
@@ -398,12 +470,14 @@ GAME.AutoFormation = {
     // 층에 따라 넘긴다. **안 넘기면 전 종류**라 대전·수성의 탑은 완전히 무변경이다.
     var allow = (opts.allowTypes && opts.allowTypes.length) ? opts.allowTypes : null;
     function isAllowed(t) { return !allow || allow.indexOf(t) >= 0; }
-    var MELEE = this.MELEE_POOL.filter(isAllowed);
-    var RANGED = this.RANGED_POOL.filter(isAllowed);
+    //  세계가 초원이 아니면 확장 종류도 벽·원거리 풀에 든다(정예 핵심으로 키울 수 있다).
+    var ext = !!(opts.world && opts.world !== 'meadow');
+    var MELEE = (ext ? this.MELEE_POOL.concat(this.MELEE_EXT) : this.MELEE_POOL).filter(isAllowed);
+    var RANGED = (ext ? this.RANGED_POOL.concat(this.RANGED_EXT) : this.RANGED_POOL).filter(isAllowed);
     var docKey = opts.doctrine || this.chooseDoctrine(profile, budget, heroKey);
     var D = this.DOCTRINES[docKey] || this.DOCTRINES.swarm;
     var lv = this._lvFor(tierBudget, D);
-    var core = (lv > 1) ? this._pickCore(w, D, budget, tierBudget, allow) : {};
+    var core = (lv > 1) ? this._pickCore(w, D, budget, tierBudget, allow, MELEE, RANGED) : {};
 
     // 기본 종류 → 실제로 배치할 키. 정예면 파생 def 의 키가 나온다.
     // ── 주력이 아닌 유닛도 층이 오르면 같이 큰다 (2026-08-02 사용자 지시) ──────

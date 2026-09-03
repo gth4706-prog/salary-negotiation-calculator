@@ -772,6 +772,8 @@ GAME.DraftScene.prototype._skillDesc = function (sk) {
     case 'pull': t = (sk.coneDeg >= 360 ? '주변' : '전방') + ' 적을 끌어당김 + ' + sk.damage; break;
     case 'aura': t = '주변 ' + sk.radius + ' 지속 피해 ' + sk.dps + '/초, ' + (sk.duration / 1000) + '초'; break;
     case 'trap': t = '설치 ' + sk.damage + ' + 속박'; break;
+    //  시즌2 새 타입 5(summon·stealth·blink·mark·chain) — 필드의 주인이 heroes.js 라 그쪽 함수.
+    default: t = (GAME.skillDescExtra && GAME.skillDescExtra(sk)) || ''; break;
   }
   return t + ' · ' + cd;
 };

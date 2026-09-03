@@ -66,6 +66,13 @@ GAME.Music = {
   },
   //  결과 스팅어 — 본곡 컷팅 임시본(전용판이 오면 파일만 교체).
   STING_FILES: { win: 'assets/bgm/sting-win.mp3', lose: 'assets/bgm/sting-lose.mp3' },
+  //  ⚠⚠ 파일 URL 의 캐시 키 (2026-09-03 시즌2 버그 수정). 예전엔 `?v=` 에 GAME.VERSION
+  //    을 붙여서 **배포마다 21MB 를 다시 받았다**(sw.js 가 URL 을 캐시 키로 쓰고, 같은
+  //    경로의 옛 `?v=` 항목은 지운다 → 0.01 올릴 때마다 mp3 4곡 전량 재다운로드).
+  //    빌드 단계가 없어 내용 해시를 자동으로 못 박으므로 **고정 값**을 쓴다 —
+  //    mp3 를 실제로 갈아끼울 때만 사람이 올린다(sound.js 의 `?v=1` 과 같은 규칙).
+  BGM_VER: 1,
+  _fileUrl: function (p) { return p + '?v=' + this.BGM_VER; },
   _el: null,          // 재사용하는 오디오 엘리먼트(MediaElementSource 는 1회만 생성 가능)
   _elNode: null,
   _fileKey: null,     // 파일 모드로 울리는 중인 곡 key
@@ -94,6 +101,7 @@ GAME.Music = {
       this.bus = this.ctx.createGain();
       this.bus.gain.value = 0;          // 항상 0 에서 시작해 페이드로 올린다(툭 튀지 않게)
       this.bus.connect(this.ctx.destination);
+      this._buildGraph();
       this._ready = true;
       // ⚠ **여기서 소리를 올려야 한다.** 첫 곡(로비)은 거의 언제나 컨텍스트가 열리기
       //   *전에* 요청된다 — 씬은 바로 뜨는데 오디오는 첫 입력을 기다리기 때문이다.
@@ -134,11 +142,141 @@ GAME.Music = {
     } catch (e) {}
   },
 
+  // ── 레이어 (2026-09-03 시즌2 S-S) ───────────────────────────────────────────
+  //  악기 → 레이어 게인(base|tense) → [전투 EQ] → bus → destination.
+  //  · `base` 는 곡의 몸통, `tense` 는 전투 중 영웅 체력·보스 페이즈에 따라 battle.js 가
+  //    `setLayer('tense', 0~1)` 로 올리는 **긴장 겹**(저역 bass 맥박 + 고역 tick 만).
+  //  · 전투 모드(`playBattle`)에서는 base 를 0.15 로 눕히고, 중역 선율 트랙(`battleMute`)
+  //    은 아예 안 예약하며, 타격음 대역을 EQ 로 비운다 — 음악이 회피 신호를 덮으면 안 된다.
+  //  ⚠ 그래프는 컨텍스트마다 다시 짓는다(`_buildGraph`) — 감사가 오프라인 ctx 로 갈아끼운다.
+  LAYERS: ['base', 'tense'],
+  BATTLE_BASE: 0.15,
+  //  타격음이 사는 대역 — sound.js 의 hit(420·2600)·heroHurt(190~520)·skillBurst(1600)·
+  //  critHit(3600) 이 여기 있다. 전투 중 음악은 이 자리를 비워 둔다.
+  BATTLE_EQ: [{ f: 340, q: 0.7, db: -9 }, { f: 1600, q: 2.0, db: -7 },
+              { f: 2600, q: 2.0, db: -7 }, { f: 3600, q: 2.0, db: -6 }],
+  _layerGain: null,
+  _eq: null,
+  _battle: false,
+  _buildGraph: function () {
+    var ctx = this.ctx, self = this;
+    this._layerGain = {};
+    this.LAYERS.forEach(function (name) {
+      var g = ctx.createGain();
+      g.gain.value = name === 'base' ? 1 : 0;
+      self._layerGain[name] = g;
+    });
+    //  EQ 사슬 — 첫 필터로 들어가 마지막 필터가 bus 로 나간다.
+    var chain = this.BATTLE_EQ.map(function (b) {
+      var f = ctx.createBiquadFilter();
+      f.type = 'peaking'; f.frequency.value = b.f; f.Q.value = b.q; f.gain.value = b.db;
+      return f;
+    });
+    for (var i = 0; i + 1 < chain.length; i++) chain[i].connect(chain[i + 1]);
+    if (chain.length) chain[chain.length - 1].connect(this.bus);
+    this._eq = chain;
+    this._route(this._battle);
+  },
+  //  레이어 출력을 EQ 를 거칠지(전투) 바로 bus 로 갈지(평소) 바꿔 꽂는다.
+  _route: function (battle) {
+    if (!this._layerGain) return;
+    var self = this;
+    this.LAYERS.forEach(function (name) {
+      var g = self._layerGain[name];
+      try { g.disconnect(); } catch (e) {}
+      if (battle && self._eq && self._eq.length) g.connect(self._eq[0]);
+      else g.connect(self.bus);
+    });
+  },
+  //  트랙이 나갈 목적지 — 레이어 이름이 틀리면 base 로(조용히 사라지는 것보다 낫다).
+  _dest: function (tr) {
+    var lg = this._layerGain;
+    if (!lg) return this.bus;
+    return lg[tr && tr.layer] || lg.base;
+  },
+  //  레이어 음량. level 0~1, sec 은 램프 길이(기본 0.4). 전투 중 battle.js 가 부른다.
+  setLayer: function (name, level, sec) {
+    if (!this._layerGain || !this._layerGain[name]) return false;
+    var g = this._layerGain[name].gain;
+    var to = Math.max(0, Math.min(1, +level || 0));
+    if (this._battle && name === 'base') to = Math.min(to, this.BATTLE_BASE);
+    try {
+      var t = this.ctx.currentTime;
+      g.cancelScheduledValues(t);
+      g.setValueAtTime(g.value, t);
+      g.linearRampToValueAtTime(to, t + (sec === undefined ? 0.4 : Math.max(0.01, sec)));
+    } catch (e) { return false; }
+    return true;
+  },
+  getLayer: function (name) {
+    return (this._layerGain && this._layerGain[name]) ? this._layerGain[name].gain.value : 0;
+  },
+
+  //  ── 전투 모드 ──────────────────────────────────────────────────────────────
+  //  세계 곡의 base 레이어만 아주 작게(≤0.15) 깔고, tense 는 0 에서 시작한다.
+  //  worldKey ∈ meadow|mist|ash|rift|storm — 없거나 모르면 meadow.
+  //  ⚠ 세계 곡은 FILES 에 없으므로 언제나 합성이다 — mp3 는 전투 대역을 못 비운다.
+  WORLD_SONG: { meadow: 'w_meadow', mist: 'w_mist', ash: 'w_ash', rift: 'w_rift', storm: 'w_storm' },
+  //  세계 키 별칭(2026-09-03 2차 S-A) — 정본(js/season.js WORLDS)은 안개늪을 `mire` 라 부르고
+  //  이 파일·ui.js 는 `mist` 라 부른다. 두 이름 다 같은 곡·같은 스팅어여야 하므로 **들어오는
+  //  키를 여기서 한 번 접는다**(playBattle·stingScore·worldKeyFor 전부). 전장 규칙 키
+  //  (fog/swamp/lava/quake/storm)로 불러도 그 세계의 곡이 난다.
+  WORLD_ALIAS: { mire: 'mist', fog: 'mist', swamp: 'mist', lava: 'ash', quake: 'rift', grass: 'meadow', sky: 'storm' },
+  worldKey: function (k) {
+    if (k && typeof k === 'object') k = k.key || k.world || k.kind;
+    if (!k) return null;
+    k = String(k);
+    if (this.WORLD_SONG[k]) return k;
+    return this.WORLD_ALIAS[k] || null;
+  },
+  playBattle: function (worldKey) {
+    var key = this.WORLD_SONG[this.worldKey(worldKey) || 'meadow'] || this.WORLD_SONG.meadow;
+    this._battle = true;
+    if (this._ready) {
+      this._route(true);
+      this.setLayer('base', this.BATTLE_BASE, 0.3);
+      this.setLayer('tense', 0, 0.1);
+    }
+    this.play(key);
+    return key;
+  },
+  //  층 → 세계 키 폴백. S-W 갈래의 `GAME.TowerCurriculum.worldFor` 가 있으면 그쪽이 정답이고
+  //  이 표는 그 전까지의 임시 경계(플랜 §1 S-W: 1~30·31~60·61~100·101~150·151+)다.
+  worldKeyFor: function (floor) {
+    //  정본 순서: TowerCurriculum.worldFor → TowerWorld.worldFor(S-W) → Season.worldFor(S-F) → 층 경계.
+    //  어느 쪽이 `mire` 를 돌려줘도 `worldKey` 가 이 파일의 이름(`mist`)으로 접는다.
+    var srcs = [GAME.TowerCurriculum, GAME.TowerWorld, GAME.Season];
+    for (var i = 0; i < srcs.length; i++) {
+      var TC = srcs[i];
+      if (TC && typeof TC.worldFor === 'function') {
+        try {
+          var w = TC.worldFor(floor);
+          var k = this.worldKey(w);
+          if (k) return k;
+        } catch (e) {}
+      }
+    }
+    var f = +floor || 1;
+    return f <= 30 ? 'meadow' : f <= 60 ? 'mist' : f <= 100 ? 'ash' : f <= 150 ? 'rift' : 'storm';
+  },
+  //  평상 모드로 되돌린다 — play()/stop() 이 부른다.
+  _leaveBattle: function () {
+    if (!this._battle) return;
+    this._battle = false;
+    if (this._ready) {
+      this._route(false);
+      this.setLayer('base', 1, 0.3);
+      this.setLayer('tense', 0, 0.3);
+    }
+  },
+
   // ── 곡 전환 ───────────────────────────────────────────────────────────────
   //  같은 곡을 다시 요청하면 **아무 일도 안 한다.** 씬을 오갈 때마다 곡이 처음으로
   //  되감기면 그게 더 거슬린다(상점 ↔ 층 화면을 오가는 흐름이 잦다).
   play: function (key, force) {
     if (!this.SONGS[key]) return;
+    //  세계 곡이 아닌 곡을 요청하면 전투 모드를 푼다(전투 → 결과/허브 전환).
+    if (this._battle && !this._isWorldSong(key)) this._leaveBattle();
     if (this.cur === key && !force) return;
     var self = this;
     this._want = key;
@@ -166,6 +304,11 @@ GAME.Music = {
     this._fileStop();
     this._ramp(0, 0.35);
     if (this._timer) { clearInterval(this._timer); this._timer = null; }
+    this._leaveBattle();
+  },
+  _isWorldSong: function (key) {
+    for (var w in this.WORLD_SONG) if (this.WORLD_SONG[w] === key) return true;
+    return false;
   },
 
   //  ── 파일 곡 재생부 ────────────────────────────────────────────────────────
@@ -192,7 +335,7 @@ GAME.Music = {
         this._elNode = this.ctx.createMediaElementSource(this._el);
         this._elNode.connect(this.bus);
       }
-      var want = this.FILES[key] + '?v=' + ((GAME.VERSION || '').replace('v', ''));
+      var want = this._fileUrl(this.FILES[key]);
       if (!this._el.src || this._el.src.indexOf(this.FILES[key]) < 0) this._el.src = want;
       var p = this._el.play();
       if (p && p.catch) p.catch(function () { /* 제스처 전 — 다음 틱에 재시도 */ });
@@ -251,18 +394,21 @@ GAME.Music = {
   _emit: function (song, step, t, spb) {
     for (var i = 0; i < song.tracks.length; i++) {
       var tr = song.tracks[i];
+      //  전투 중에는 중역 선율을 아예 안 예약한다 — 게인 0 이 아니라 **침묵**이다.
+      if (this._battle && tr.battleMute) continue;
+      var dest = this._dest(tr);
 
       if (tr._map) {                                   // 적어 둔 선율
         var ns = tr._map[step];
         if (ns) for (var k = 0; k < ns.length; k++) {
-          this._voice(tr.v, t, this._hz(ns[k][1]), ns[k][2] * spb, tr.gain);
+          this._voice(tr.v, t, this._hz(ns[k][1]), ns[k][2] * spb, tr.gain, dest);
         }
       }
 
       if (tr.every) {                                  // 되풀이되는 타악
         if ((step - (tr.offset || 0)) % tr.every === 0 && step >= (tr.offset || 0)) {
           if (tr.chance === undefined || Math.random() < tr.chance) {
-            this._voice(tr.v, t, tr.hz || 0, (tr.dur || 4) * spb, tr.gain);
+            this._voice(tr.v, t, tr.hz || 0, (tr.dur || 4) * spb, tr.gain, dest);
           }
         }
       }
@@ -281,7 +427,7 @@ GAME.Music = {
         } else {
           pos = idx % ch.length;
         }
-        this._voice(tr.v, t, this._hz(ch[pos] + (a.oct || 0) * 12), (a.dur || 2) * spb, tr.gain);
+        this._voice(tr.v, t, this._hz(ch[pos] + (a.oct || 0) * 12), (a.dur || 2) * spb, tr.gain, dest);
       }
     }
   },
@@ -299,15 +445,25 @@ GAME.Music = {
     return buf;
   },
 
-  _voice: function (name, t, f, dur, gain) {
+  //  `dest` (2026-09-03): 악기가 나갈 노드. 안 주면 bus(스팅어·옛 호출부). 곡 트랙은
+  //  `_emit` 이 레이어 게인을 넘긴다. 아래 모든 `connect(bus)` 는 이 변수를 본다 —
+  //  필터 악기(pluck/horn/chant/pad/bass)가 bus 직결이던 것을 한 자리에서 통일했다.
+  _voice: function (name, t, f, dur, gain, dest) {
     if (!this._ready) return;
-    var ctx = this.ctx, bus = this.bus;
+    var ctx = this.ctx, bus = dest || this.bus;
     var g = gain === undefined ? 0.2 : gain;
     var self = this;
 
     // 짧은 도우미들 — 매번 같은 배선을 반복해 쓰기 위한 것이다.
+    //  ⚠⚠ 게인은 만들자마자 `gain.value = 0.0001` 로 **초기값부터** 낮춘다 (2026-09-03
+    //    실측 결함). 소스가 자동화 이벤트보다 한 표본 먼저 시작하는 시각이 있어(부동소수
+    //    시각의 표본 반올림) 그 표본이 기본 게인 1.0 으로 새어 나갔다 — 초침(gain 0.04)이
+    //    0.44 로 튀는 스파이크가 곡마다 몇 번씩 있었다. 오실레이터는 첫 표본이 0 이라
+    //    안 보였고 노이즈 악기(tick·shaker·hide·kick 채·warDrum·thunder)만 걸렸다.
+    //    `setValueAtTime` 만으로는 못 막는다 — 그 이벤트가 바로 "한 표본 늦는" 당사자다.
     function osc(type, freq, at, len, vol, dest) {
       var o = ctx.createOscillator(), e = ctx.createGain();
+      e.gain.value = 0.0001;
       o.type = type; o.frequency.setValueAtTime(freq, at);
       e.gain.setValueAtTime(0.0001, at);
       o.connect(e); e.connect(dest || bus);
@@ -318,7 +474,7 @@ GAME.Music = {
       var s = ctx.createBufferSource(); s.buffer = self._noise(len);
       var bp = ctx.createBiquadFilter(); bp.type = filt; bp.frequency.value = freq;
       if (q) bp.Q.value = q;
-      var e = ctx.createGain(); e.gain.setValueAtTime(0.0001, at);
+      var e = ctx.createGain(); e.gain.value = 0.0001; e.gain.setValueAtTime(0.0001, at);
       s.connect(bp); bp.connect(e); e.connect(dest || bus);
       s.start(at); s.stop(at + len + 0.02);
       return { s: s, e: e, f: bp };
@@ -425,6 +581,7 @@ GAME.Music = {
       // 통나무 북 — 낮고 둥근 '둥'. 음높이가 떨어져야 북이 된다.
       case 'kick': {
         var ko = ctx.createOscillator(), ke = ctx.createGain();
+        ke.gain.value = 0.0001;
         ko.type = 'sine';
         ko.frequency.setValueAtTime(f || 150, t);
         ko.frequency.exponentialRampToValueAtTime(46, t + 0.22);
@@ -439,6 +596,7 @@ GAME.Music = {
       // 큰 북(통곡의 탑) — 더 낮고 더 길게. '웅장'은 저역의 길이에서 나온다.
       case 'warDrum': {
         var wo = ctx.createOscillator(), we = ctx.createGain();
+        we.gain.value = 0.0001;
         wo.type = 'sine';
         wo.frequency.setValueAtTime(f || 108, t);
         wo.frequency.exponentialRampToValueAtTime(34, t + 0.42);
@@ -483,6 +641,57 @@ GAME.Music = {
         th.e.gain.exponentialRampToValueAtTime(0.0001, t + 2.3);                // 굴러간다
         var ts = osc('sine', 44, t, 2.0, g);
         pluckEnv(ts.e, t, g * 0.5, 2.0, 0.5);
+        break;
+      }
+
+      // ── 시즌2 세계 악기 (2026-09-03) ──────────────────────────────────────
+      // 안개 바람(안개늪) — 대역이 천천히 오르내리는 긴 노이즈. 피치가 없다(f 무시).
+      // 선율이 아니라 **공기**다. 늪의 습기는 저역보다 중고역의 숨에서 난다.
+      case 'wind': {
+        var wf = noiseSrc(t, dur, 'bandpass', 900, 0.9);
+        wf.f.frequency.setValueAtTime(700, t);
+        wf.f.frequency.exponentialRampToValueAtTime(1500, t + dur * 0.55);
+        wf.f.frequency.exponentialRampToValueAtTime(600, t + dur);
+        holdEnv(wf.e, t, g, dur, Math.min(0.6, dur * 0.35), Math.min(0.8, dur * 0.35));
+        break;
+      }
+
+      // 얼음 종(균열) — 흙 종(bell)보다 배음이 더 어긋나고(2.31·3.87) 더 짧다.
+      // 정수배가 아니라야 '깨지는 유리·얼음'으로 들린다. 12세 톤: 날카롭되 시끄럽지 않게.
+      case 'ice': {
+        var i1 = osc('sine', f, t, 0.9, g);
+        pluckEnv(i1.e, t, g, 0.9, 0.003);
+        var i2 = osc('sine', f * 2.31, t, 0.5, g);
+        pluckEnv(i2.e, t, g * 0.36, 0.5, 0.002);
+        var i3 = osc('sine', f * 3.87, t, 0.28, g);
+        pluckEnv(i3.e, t, g * 0.18, 0.28, 0.002);
+        var ic = noiseSrc(t, 0.012, 'highpass', 7000);       // 부딪는 순간의 서리
+        pluckEnv(ic.e, t, g * 0.25, 0.012, 0.001);
+        break;
+      }
+
+      // 우르릉(균열의 저역) — 천둥보다 낮고 짧고 규칙적. 땅이 떨리는 소리라 '치는'
+      // 순간이 없다(어택 0.25). 폰에서는 거의 안 들리고 헤드폰·진동 몫이다.
+      case 'rumble': {
+        var rn = noiseSrc(t, dur, 'lowpass', 140, 0.8);
+        holdEnv(rn.e, t, g, dur, 0.25, Math.min(0.6, dur * 0.4));
+        var rs = osc('sine', f || 38, t, dur, g);
+        holdEnv(rs.e, t, g * 0.6, dur, 0.25, Math.min(0.6, dur * 0.4));
+        break;
+      }
+
+      // 미끄러지는 음(패배 스팅어) — f 에서 한 옥타브 아래로 dur 동안 흘러내린다.
+      case 'slide': {
+        var so = ctx.createOscillator(), se = ctx.createGain();
+        se.gain.value = 0.0001;
+        so.type = 'sine';
+        so.frequency.setValueAtTime(f, t);
+        so.frequency.exponentialRampToValueAtTime(Math.max(20, f / 2), t + dur);
+        se.gain.setValueAtTime(0.0001, t);
+        se.gain.exponentialRampToValueAtTime(Math.max(0.0002, g), t + 0.08);
+        se.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.05);
+        so.connect(se); se.connect(bus);
+        so.start(t); so.stop(t + dur + 0.15);
         break;
       }
     }
@@ -639,6 +848,138 @@ GAME.Music = {
         ] },
         { v: 'tick', gain: 0.055, every: 2, offset: 0 }
       ]
+    },
+
+    // ══ 시즌2 「다섯 세계」 전투 곡 (2026-09-03 S-S) ══════════════════════════
+    //  전부 **합성**이다(FILES 에 없다). 전투 중에 깔리는 곡이라 규칙이 셋이다:
+    //   ① 트랙마다 `layer` — base(몸통) / tense(긴장 겹: 저역 bass 맥박 + 고역 tick 만).
+    //      tense 는 0 에서 시작해 battle.js 가 영웅 체력·보스 페이즈로 올린다.
+    //   ② 중역 선율(피리·뿔·종·구호·아르페지오)은 `battleMute: true` — 전투 모드에서는
+    //      **예약 자체를 안 한다.** 타격음(420·1600·2600Hz)과 같은 대역에서 다투기 때문.
+    //      허브·로딩에서 세계 곡을 틀면(전투 모드 아님) 선율이 산다.
+    //   ③ 음량은 `node tools/music-audit.js` 의 solo peak 로 잡는다(위 규율 그대로).
+    //      레이어 최대치(base 1 · tense 1)에서도 곡 전체 peak < 1 이어야 한다.
+
+    // ── 5. 초원 (1~30층) — "번개 아래의 탑"의 변주. 같은 D단조·같은 뼈대인데
+    //  천둥이 없고 선율이 한 걸음 밝다(도리안 B — 첫 세계는 아직 두렵지 않다).
+    w_meadow: {
+      bpm: 72, len: 64,
+      tracks: [
+        { v: 'pad', gain: 0.12, layer: 'base', seq: [
+          [0, 50, 16], [0, 57, 16], [16, 46, 16], [16, 53, 16],
+          [32, 53, 16], [32, 60, 16], [48, 45, 16], [48, 61, 16]
+        ] },
+        { v: 'flute', gain: 0.14, layer: 'base', battleMute: true, seq: [
+          [0, 74, 6], [8, 79, 8], [16, 77, 6], [24, 76, 8],
+          [32, 81, 6], [40, 83, 4], [44, 81, 4], [48, 79, 8], [56, 74, 8]
+        ] },
+        { v: 'bass', gain: 0.18, layer: 'base', seq: [
+          [0, 38, 12], [16, 34, 12], [32, 41, 12], [48, 33, 12]
+        ] },
+        { v: 'warDrum', gain: 0.26, layer: 'base', every: 16, offset: 0, hz: 108 },
+        { v: 'hide',    gain: 0.12, layer: 'base', every: 16, offset: 8 },
+        { v: 'shaker',  gain: 0.035, layer: 'base', every: 4, offset: 2 },
+        // 긴장 겹 — D2 맥박 + 초침
+        { v: 'bass', gain: 0.16, layer: 'tense', every: 4, offset: 0, hz: 73.4, dur: 2 },
+        { v: 'tick', gain: 0.05, layer: 'tense', every: 2, offset: 1 }
+      ]
+    },
+
+    // ── 6. 안개늪 (31~60층) — 온음계(C D E F# G# A#). 반음이 없어 조성이 안 잡히고,
+    //  증3화음이 계속 떠 있어 "어디가 땅인지 모르겠다"가 된다 = 안개. 종과 바람뿐.
+    w_mist: {
+      bpm: 66, len: 64,
+      tracks: [
+        { v: 'pad', gain: 0.11, layer: 'base', seq: [
+          [0, 48, 32], [0, 52, 32], [0, 56, 32],
+          [32, 50, 32], [32, 54, 32], [32, 58, 32]
+        ] },
+        { v: 'bell', gain: 0.07, layer: 'base', battleMute: true, seq: [
+          [0, 84, 8], [10, 88, 8], [20, 86, 8], [32, 90, 8], [42, 82, 8], [52, 86, 8]
+        ] },
+        { v: 'wind', gain: 0.05, layer: 'base', every: 16, offset: 0, dur: 18 },
+        { v: 'bass', gain: 0.15, layer: 'base', seq: [[0, 36, 24], [32, 38, 24]] },
+        { v: 'shaker', gain: 0.025, layer: 'base', every: 8, offset: 6 },
+        { v: 'bass', gain: 0.15, layer: 'tense', every: 4, offset: 0, hz: 65.4, dur: 2 },
+        { v: 'tick', gain: 0.05, layer: 'tense', every: 2, offset: 0 }
+      ]
+    },
+
+    // ── 7. 잿더미 (61~100층) — E프리지안(E F G A B C D). 2음이 반음(F)이라 어둡고
+    //  뜨겁다. 큰 북이 두 배 잦고 뿔피리(톱니)가 낮게 운다. 저역 우르릉 = 용암.
+    w_ash: {
+      bpm: 84, len: 64,
+      tracks: [
+        { v: 'pad', gain: 0.12, layer: 'base', seq: [
+          [0, 40, 16], [0, 47, 16], [16, 41, 16], [16, 48, 16],
+          [32, 43, 16], [32, 50, 16], [48, 40, 16], [48, 46, 16]
+        ] },
+        { v: 'horn', gain: 0.10, layer: 'base', battleMute: true, seq: [
+          [0, 64, 4], [4, 65, 4], [8, 67, 6], [16, 64, 6],
+          [24, 71, 4], [28, 72, 4], [32, 71, 6], [40, 69, 4], [44, 67, 4],
+          [48, 65, 6], [56, 64, 7]
+        ] },
+        { v: 'bass', gain: 0.18, layer: 'base', seq: [
+          [0, 28, 12], [16, 29, 12], [32, 31, 12], [48, 28, 12]
+        ] },
+        { v: 'warDrum', gain: 0.28, layer: 'base', every: 8, offset: 0, hz: 100 },
+        { v: 'warDrum', gain: 0.16, layer: 'base', every: 16, offset: 6, hz: 88 },
+        { v: 'hide',    gain: 0.13, layer: 'base', every: 8, offset: 4 },
+        { v: 'rumble',  gain: 0.06, layer: 'base', every: 32, offset: 20, hz: 40, dur: 10, chance: 0.6 },
+        { v: 'bass', gain: 0.14, layer: 'tense', every: 2, offset: 0, hz: 41.2, dur: 1 },
+        { v: 'tick', gain: 0.04, layer: 'tense', every: 1, offset: 0 }
+      ]
+    },
+
+    // ── 8. 균열 (101~150층) — F리디안(F G A B C D E). 4음이 올라간(B) 밝은 이질감 =
+    //  땅이 갈라진 자리의 낯섦. 얼음 종(비정수 배음)과 초침, 아래에서 우르릉.
+    w_rift: {
+      bpm: 78, len: 64,
+      tracks: [
+        { v: 'ice', gain: 0.09, layer: 'base', battleMute: true, seq: [
+          [0, 77, 6], [8, 81, 6], [16, 83, 6], [24, 79, 6],
+          [32, 84, 6], [40, 83, 4], [44, 81, 4], [48, 79, 6], [56, 77, 8]
+        ] },
+        { v: 'pluck', gain: 0.07, layer: 'base', battleMute: true, arp: {
+          chords: [[65, 69, 72], [67, 71, 74], [65, 69, 72, 76], [71, 74, 77]],
+          every: 2, dir: 'updown', dur: 2
+        } },
+        { v: 'bass', gain: 0.16, layer: 'base', seq: [
+          [0, 41, 12], [16, 43, 12], [32, 41, 12], [48, 47, 12]
+        ] },
+        { v: 'tick',   gain: 0.05, layer: 'base', every: 2, offset: 0 },
+        { v: 'rumble', gain: 0.08, layer: 'base', every: 32, offset: 16, hz: 38, dur: 12, chance: 0.7 },
+        { v: 'bass', gain: 0.15, layer: 'tense', every: 4, offset: 2, hz: 43.65, dur: 2 },
+        { v: 'tick', gain: 0.05, layer: 'tense', every: 1, offset: 0 }
+      ]
+    },
+
+    // ── 9. 폭풍 하늘 (151층+) — A화성단조(G# 이끔음). 뿔피리가 부르고 구호가 받는
+    //  수성의 탑 구조에 통곡의 탑의 큰 북과 천둥을 얹었다 — 다섯 세계의 합.
+    w_storm: {
+      bpm: 76, len: 64,
+      tracks: [
+        { v: 'pad', gain: 0.12, layer: 'base', seq: [
+          [0, 45, 16], [0, 52, 16], [16, 41, 16], [16, 48, 16],
+          [32, 38, 16], [32, 45, 16], [48, 40, 16], [48, 56, 16]      // E장3화음 — 조여든다
+        ] },
+        { v: 'horn', gain: 0.11, layer: 'base', battleMute: true, seq: [
+          [0, 69, 4], [4, 72, 4], [8, 76, 6], [16, 74, 4], [20, 72, 4], [24, 68, 7],
+          [32, 69, 4], [36, 76, 4], [40, 77, 6], [48, 76, 4], [52, 72, 4], [56, 68, 7]
+        ] },
+        { v: 'chant', gain: 0.20, layer: 'base', battleMute: true, seq: [
+          [12, 57, 3], [28, 52, 3], [44, 57, 3], [60, 52, 3]
+        ] },
+        { v: 'bass', gain: 0.18, layer: 'base', seq: [
+          [0, 33, 12], [16, 29, 12], [32, 26, 12], [48, 28, 12]
+        ] },
+        { v: 'warDrum', gain: 0.30, layer: 'base', every: 16, offset: 0, hz: 108 },
+        { v: 'warDrum', gain: 0.17, layer: 'base', every: 16, offset: 12, hz: 96 },
+        { v: 'hide',    gain: 0.12, layer: 'base', every: 8, offset: 4 },
+        { v: 'thunder', gain: 0.09, layer: 'base', every: 64, offset: 30, chance: 0.6 },
+        { v: 'bass', gain: 0.14, layer: 'tense', every: 2, offset: 0, hz: 55, dur: 1 },
+        { v: 'tick', gain: 0.05, layer: 'tense', every: 1, offset: 0 }
+      ]
     }
   },
 
@@ -669,63 +1010,152 @@ GAME.Music = {
       }
       this._stGain.gain.setValueAtTime(Math.min(1, this.volume * 1.8), this.ctx.currentTime);
       this._stCur = kind;
-      this._stEl.src = this.STING_FILES[kind] + '?v=' + ((GAME.VERSION || '').replace('v', ''));
+      this._stEl.src = this._fileUrl(this.STING_FILES[kind]);
       var p = this._stEl.play();
       if (p && p.catch) p.catch(function () {});
       return true;
     } catch (e) { this._stBroken[kind] = true; return false; }
   },
 
-  sting: function (kind) {
-    if (!this._attach() || !this.enabled) return;
+  // ── 스팅어 표 (2026-09-03 시즌2 — 하드코딩 두 개를 표로 일반화) ─────────────
+  //  항목: { v: 악기, at: 시작(초), m: MIDI | hz: 주파수(타악), d: 길이, g: 게인 }
+  //  · `file`   — STING_FILES 의 키. 파일이 살아 있으면 그쪽이 운다.
+  //  · `overlay`— true 면 파일 위에 합성 score 도 **겹쳐** 낸다(0.7배). 파일 스팅어는
+  //               본곡 컷팅본이라 "협동 승리"처럼 파일과 다른 말을 얹을 때 쓴다.
+  //  · `variants` — sting(kind, {world}) 로 고르는 세계별 변주(없는 세계는 meadow).
+  //  ⚠ 전부 3초 안에 끝난다(bossAppear 만 2.6 — 인트로 HOLD 와 같은 길이).
+  //  ⚠ 악기 이름 오타는 조용히 사라진다 → tools/music-audit.js 가 표 전부를 렌더한다.
+  STINGS: {
+    win: { file: 'win', score: [
+      // G장3화음 위로 도-미-솔-도. 마지막 음을 길게 끌고 종을 얹는다.
+      { v: 'horn', at: 0.00, m: 67, d: 0.16, g: 0.26 }, { v: 'horn', at: 0.13, m: 71, d: 0.16, g: 0.26 },
+      { v: 'horn', at: 0.26, m: 74, d: 0.16, g: 0.26 }, { v: 'horn', at: 0.39, m: 79, d: 0.85, g: 0.26 },
+      { v: 'kick', at: 0.00, hz: 150, d: 0.3, g: 0.30 }, { v: 'kick', at: 0.39, hz: 150, d: 0.3, g: 0.30 },
+      { v: 'bell', at: 0.42, m: 91, d: 1.4, g: 0.10 },
+      { v: 'shaker', at: 0.30, hz: 0, d: 0.06, g: 0.06 }, { v: 'shaker', at: 0.35, hz: 0, d: 0.06, g: 0.06 }
+    ] },
+    lose: { file: 'lose', score: [
+      // 내려앉는 3음 + 낮은 북. 마지막은 **음이 미끄러진다**(김빠지는 소리) —
+      // 계란이 주저앉는 이 게임의 그림과 같은 몸짓이다.
+      { v: 'chant', at: 0.00, m: 62, d: 0.22, g: 0.20 }, { v: 'chant', at: 0.20, m: 58, d: 0.22, g: 0.20 },
+      { v: 'chant', at: 0.40, m: 53, d: 0.90, g: 0.20 },
+      { v: 'warDrum', at: 0.00, hz: 96, d: 0.6, g: 0.26 },
+      { v: 'slide', at: 0.40, m: 53, d: 0.85, g: 0.14 }
+    ] },
+    //  세계 진입 — 로딩 화면(towerloading.js)이 세계 경계 층(31·61·101·151)에서 부른다.
+    //  각 세계 곡의 음계·악기로 1.5초 안에 "여기는 다른 곳이다"를 말한다.
+    worldEnter: { variants: {
+      meadow: [
+        { v: 'flute', at: 0.00, m: 74, d: 0.25, g: 0.16 }, { v: 'flute', at: 0.22, m: 77, d: 0.25, g: 0.16 },
+        { v: 'flute', at: 0.44, m: 81, d: 0.60, g: 0.16 },
+        { v: 'kick', at: 0.00, hz: 150, d: 0.3, g: 0.26 }, { v: 'bell', at: 0.50, m: 86, d: 1.2, g: 0.08 },
+        { v: 'shaker', at: 0.22, hz: 0, d: 0.06, g: 0.05 }, { v: 'shaker', at: 0.44, hz: 0, d: 0.06, g: 0.05 }
+      ],
+      mist: [
+        { v: 'bell', at: 0.00, m: 84, d: 1.0, g: 0.09 }, { v: 'bell', at: 0.30, m: 88, d: 1.0, g: 0.09 },
+        { v: 'bell', at: 0.60, m: 86, d: 1.2, g: 0.09 },
+        { v: 'wind', at: 0.00, hz: 0, d: 1.6, g: 0.07 }, { v: 'bass', at: 0.00, m: 36, d: 1.2, g: 0.14 }
+      ],
+      ash: [
+        { v: 'warDrum', at: 0.00, hz: 100, d: 0.6, g: 0.30 }, { v: 'warDrum', at: 0.35, hz: 88, d: 0.6, g: 0.22 },
+        { v: 'horn', at: 0.10, m: 64, d: 0.45, g: 0.12 }, { v: 'horn', at: 0.50, m: 65, d: 0.70, g: 0.12 },
+        { v: 'rumble', at: 0.00, hz: 40, d: 1.4, g: 0.06 }
+      ],
+      rift: [
+        { v: 'ice', at: 0.00, m: 89, d: 0.9, g: 0.09 }, { v: 'ice', at: 0.15, m: 93, d: 0.9, g: 0.09 },
+        { v: 'ice', at: 0.30, m: 95, d: 0.9, g: 0.09 }, { v: 'ice', at: 0.50, m: 84, d: 1.2, g: 0.09 },
+        { v: 'rumble', at: 0.00, hz: 38, d: 1.5, g: 0.08 },
+        { v: 'tick', at: 0.00, hz: 0, d: 0.02, g: 0.05 }, { v: 'tick', at: 0.10, hz: 0, d: 0.02, g: 0.05 },
+        { v: 'tick', at: 0.20, hz: 0, d: 0.02, g: 0.05 }, { v: 'tick', at: 0.30, hz: 0, d: 0.02, g: 0.05 }
+      ],
+      storm: [
+        { v: 'horn', at: 0.00, m: 69, d: 0.30, g: 0.14 }, { v: 'horn', at: 0.28, m: 68, d: 0.30, g: 0.14 },
+        { v: 'horn', at: 0.56, m: 69, d: 0.70, g: 0.14 }, { v: 'chant', at: 0.56, m: 57, d: 0.60, g: 0.18 },
+        { v: 'warDrum', at: 0.00, hz: 108, d: 0.6, g: 0.30 }, { v: 'thunder', at: 0.10, hz: 0, d: 2.0, g: 0.09 }
+      ]
+    } },
+    //  보스 등장 — 인트로(_setupBossIntro, 2.6초) 위에 깔린다. 낮은 뿔 두 개가 반음으로
+    //  부딪히고(불협) 구호가 받는다. sound.js 의 `bossRoar`(포효)와 역할이 다르다 —
+    //  포효는 짐승의 소리, 이건 **북과 뿔이 그 존재를 알리는** 소리다.
+    bossAppear: { score: [
+      { v: 'warDrum', at: 0.00, hz: 96, d: 0.7, g: 0.32 }, { v: 'warDrum', at: 0.50, hz: 84, d: 0.7, g: 0.28 },
+      { v: 'horn', at: 0.05, m: 45, d: 1.0, g: 0.16 }, { v: 'horn', at: 0.05, m: 46, d: 1.0, g: 0.09 },
+      { v: 'chant', at: 0.55, m: 45, d: 0.7, g: 0.16 },
+      { v: 'thunder', at: 0.20, hz: 0, d: 2.2, g: 0.08 }
+    ] },
+    //  페이즈 전환 — 얼음 종이 위로 치솟고 큰 북이 받는다. 1.2초.
+    phaseShift: { score: [
+      { v: 'ice', at: 0.00, m: 88, d: 0.5, g: 0.10 }, { v: 'ice', at: 0.06, m: 91, d: 0.5, g: 0.10 },
+      { v: 'ice', at: 0.12, m: 95, d: 0.5, g: 0.10 }, { v: 'ice', at: 0.18, m: 100, d: 0.7, g: 0.10 },
+      { v: 'warDrum', at: 0.25, hz: 90, d: 0.7, g: 0.28 }, { v: 'rumble', at: 0.25, hz: 40, d: 0.9, g: 0.07 }
+    ] },
+    //  협동 승리 — 승리 파일 위에 **두 번째 뿔(3도 위)** 과 구호를 겹친다: 둘이 이겼다.
+    coopWin: { file: 'win', overlay: true, score: [
+      { v: 'horn', at: 0.00, m: 71, d: 0.16, g: 0.18 }, { v: 'horn', at: 0.13, m: 74, d: 0.16, g: 0.18 },
+      { v: 'horn', at: 0.26, m: 78, d: 0.16, g: 0.18 }, { v: 'horn', at: 0.39, m: 83, d: 0.85, g: 0.18 },
+      { v: 'chant', at: 0.50, m: 55, d: 0.8, g: 0.18 }, { v: 'chant', at: 0.50, m: 59, d: 0.8, g: 0.12 },
+      { v: 'bell', at: 0.60, m: 95, d: 1.2, g: 0.08 }, { v: 'kick', at: 0.00, hz: 150, d: 0.3, g: 0.26 }
+    ] }
+  },
+  //  스팅어 하나의 길이(초) — 음악을 되올릴 시각 계산용.
+  _stingLen: function (score) {
+    var end = 0;
+    for (var i = 0; i < score.length; i++) end = Math.max(end, (score[i].at || 0) + (score[i].d || 0));
+    return end;
+  },
+  //  kind 와 opts 로 실제 score 를 고른다(감사도 이 함수로 표 전부를 렌더한다).
+  stingScore: function (kind, opts) {
+    var def = this.STINGS[kind];
+    if (!def) return null;
+    var o = opts || {};
+    var wk = this.worldKey(o.world);       // `mire` 등 별칭도 제 세계 변주를 탄다
+    var score = def.variants ? (def.variants[wk] || def.variants.meadow) : def.score;
+    if (!score) return null;
+    score = score.slice();
+    //  연승(streak ≥ 2) — 승리 계열에 종을 한 톨씩 더 얹는다(최대 3). 이긴 횟수가
+    //  소리로 쌓이는 것이 킬스트릭(sound.js)과 같은 문법이다.
+    if ((kind === 'win' || kind === 'coopWin') && o.streak >= 2) {
+      var n = Math.min(3, o.streak - 1);
+      for (var i = 0; i < n; i++) score.push({ v: 'bell', at: 0.62 + i * 0.13, m: 91 + i * 2, d: 1.0, g: 0.07 });
+    }
+    return score;
+  },
+
+  //  sting(kind, opts) — kind ∈ win|lose|worldEnter|bossAppear|phaseShift|coopWin,
+  //  opts = { world, boss, streak } (전부 선택). 되풀이되지 않고 **한 번 울리고 끝난다.**
+  //  스케줄러를 안 거치고 그 자리에서 예약한다 — 결과 화면은 곡이 아니라 문장이다.
+  //  왜 `Sound.play('win')` 을 안 쓰는가: 저건 삼각파 3음짜리 0.4초로, 층을 깬
+  //  순간에 비해 너무 가볍다. 여기서는 뿔피리 팡파르 + 북 + 종으로 **끝났다는 감각**을 만든다.
+  sting: function (kind, opts) {
+    if (!this._attach() || !this.enabled) return false;
+    var def = this.STINGS[kind];
+    if (!def) return false;
     var self = this, t = this.ctx.currentTime + 0.02;
     // 스팅어는 배경음악 위에 겹치므로 잠깐 음악을 눕힌다(안 그러면 둘 다 안 들린다).
     var back = this.cur;
     if (back) this._ramp(this.volume * 0.25, 0.15);
 
     //  파일 스팅어가 있으면 그쪽이 우선 — 끝나는 시각(~7초)에 음악을 되올린다.
-    if (this._stingFile(kind)) {
-      if (back) setTimeout(function () {
-        if (self.cur === back) self._ramp(self.enabled ? self.volume : 0, 0.8);
-      }, 7200);
-      return;
-    }
+    var fileOn = !!(def.file && this._stingFile(def.file));
+    if (fileOn && back) setTimeout(function () {
+      if (self.cur === back) self._ramp(self.enabled ? self.volume : 0, 0.8);
+    }, 7200);
+    if (fileOn && !def.overlay) return true;
 
+    var score = this.stingScore(kind, opts) || [];
+    var mul = fileOn ? 0.7 : 1;           // 파일 위에 겹칠 때는 한 단계 작게
     try {
-      if (kind === 'win') {
-        // G장3화음 위로 도-미-솔-도. 마지막 음을 길게 끌고 종을 얹는다.
-        var w = [[67, 0.00, 0.16], [71, 0.13, 0.16], [74, 0.26, 0.16], [79, 0.39, 0.85]];
-        w.forEach(function (n) {
-          self._voice('horn', t + n[1], self._hz(n[0]), n[2], 0.26);
-        });
-        self._voice('kick', t, 150, 0.3, 0.30);
-        self._voice('kick', t + 0.39, 150, 0.3, 0.30);
-        self._voice('bell', t + 0.42, self._hz(91), 1.4, 0.10);
-        self._voice('shaker', t + 0.30, 0, 0.06, 0.06);
-        self._voice('shaker', t + 0.35, 0, 0.06, 0.06);
-      } else {
-        // 내려앉는 3음 + 낮은 북. 마지막은 **음이 미끄러진다**(김빠지는 소리) —
-        // 계란이 주저앉는 이 게임의 그림과 같은 몸짓이다.
-        var l = [[62, 0.00, 0.22], [58, 0.20, 0.22], [53, 0.40, 0.9]];
-        l.forEach(function (n) {
-          self._voice('chant', t + n[1], self._hz(n[0]), n[2], 0.20);
-        });
-        self._voice('warDrum', t, 96, 0.6, 0.26);
-        var o = self.ctx.createOscillator(), g = self.ctx.createGain();
-        o.type = 'sine';
-        o.frequency.setValueAtTime(self._hz(53), t + 0.40);
-        o.frequency.exponentialRampToValueAtTime(self._hz(41), t + 1.25);   // 미끄러진다
-        g.gain.setValueAtTime(0.0001, t + 0.40);
-        g.gain.exponentialRampToValueAtTime(0.14, t + 0.48);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + 1.30);
-        o.connect(g); g.connect(self.bus);
-        o.start(t + 0.40); o.stop(t + 1.4);
+      for (var i = 0; i < score.length; i++) {
+        var n = score[i];
+        var f = n.m !== undefined ? this._hz(n.m) : (n.hz || 0);
+        this._voice(n.v, t + (n.at || 0), f, n.d, n.g * mul);
       }
     } catch (e) {}
 
-    // 스팅어가 끝나면 음악을 원래 크기로 되돌린다.
-    if (back) setTimeout(function () {
+    // 스팅어가 끝나면 음악을 원래 크기로 되돌린다(파일이 울리는 중이면 그쪽 타이머가 한다).
+    if (back && !fileOn) setTimeout(function () {
       if (self.cur === back) self._ramp(self.enabled ? self.volume : 0, 0.6);
-    }, 1500);
+    }, Math.round((this._stingLen(score) + 0.4) * 1000));
+    return true;
   }
 };

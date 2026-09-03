@@ -23,6 +23,10 @@ window.GAME = window.GAME || {};
 //      emit('siegeWin')                         공성전 승리
 //      emit('gear',        { tier })            장착 중인 장비의 **가장 낮은** 단계(빈 칸이면 0)
 //      emit('dailyDone')                        일일 과제 완료(js/daily.js 가 스스로 보낸다)
+//      emit('worldConquer', { world })          시즌 2 세계 보스 처치(js/season.js 가 스스로 보낸다)
+//      emit('coopWin')                          협동 보스전 승리
+//      emit('skillEvo',    { n })               스킬 진화 n회(생략 시 1)
+//      emit('trait',       { rank })            특성 한 갈래의 도달 단(최대값만 남는다)
 //
 //  · 토스트: `flush(scene)` — 상단 슬라이드 인 2.4초, 여러 개면 순차. 엔진은
 //    `GAME.MetaToast` 로 분리해 두어 일일 과제 완료 알림도 같은 줄에 선다.
@@ -50,6 +54,9 @@ GAME.MetaToast = {
   //  중이면 그냥 돌아간다(큐에 넣은 것은 그 재생 루프가 이어서 집는다).
   flush: function (scene) {
     if (!scene || !scene.add || !scene.scene || !scene.scene.isActive()) return;
+    //  프로필처럼 업적·과제를 **화면 자체가 보여주는** 씬은 토스트를 안 띄운다(큐는 남겨
+    //  다음 씬에서 뜬다). 제목 줄과 겹치던 overlap-audit 2건(2026-09-03)의 답.
+    if (scene._toastMute) return;
     if (this._run && this._run.scene === scene && this._run.busy) return;
     var self = this;
     this._run = { scene: scene, busy: false };
@@ -88,7 +95,8 @@ GAME.MetaToast = {
       { level: 3, line: UI.COL.focus, radius: Math.min(12, ph / 2 - 1) });
     //  Modal(1000~1003) 위에서도 보이도록.
     pg.setDepth(1500); txt.setDepth(1501);
-    var yTop = small ? 8 : 16;
+    //  씬이 `_toastTop` 을 주면 그 자리(제목 줄이 맨 위인 프로필 씬 — overlap-audit 2026-09-03).
+    var yTop = (typeof scene._toastTop === 'number') ? scene._toastTop : (small ? 8 : 16);
     var startY = -ph - 6;
     pg.setY(startY); txt.setY(startY + ph / 2);
     if (it.sound && GAME.Sound) { try { GAME.Sound.play(it.sound); } catch (e) {} }
@@ -142,7 +150,18 @@ GAME.Achievements = {
     { key: 'no_heal',   name: '무보급 등반', title: '무보급 등반가', desc: '회복 없이 통곡의 탑 한 층 클리어', stat: 'noHealClears', goal: 1 },
     { key: 'tower_clears_50', name: '오십 계단', title: '꾸준한 발걸음', desc: '통곡의 탑 층 클리어 누적 50회', stat: 'towerClears', goal: 50 },
     { key: 'dtower_clears_30', name: '서른 번 방어', title: '진형의 장인', desc: '수성의 탑 방어 성공 누적 30회', stat: 'dtowerClears', goal: 30 },
-    { key: 'daily_10',  name: '과제 열 개', title: '성실한 계란',   desc: '오늘의 과제 누적 10개 완료',     stat: 'dailyDone',    goal: 10 }
+    { key: 'daily_10',  name: '과제 열 개', title: '성실한 계란',   desc: '오늘의 과제 누적 10개 완료',     stat: 'dailyDone',    goal: 10 },
+    //  ── 시즌 2 「다섯 세계」 (S-F, 2026-09-03) — 세계 5 정복 · 협동 첫승 · 첫 진화 · 특성 3단 ──
+    //  세계 정복은 js/season.js 가 `worldConquer {world}` 로 보낸다(세계를 아는 곳이 거기뿐).
+    //  협동 승·진화·특성은 통합자/S-H 가 Achievements 에 직접 보낸다.
+    { key: 's2_world_meadow', name: '초원 정복',   title: '초원을 달린 자', desc: '시즌 2 · 초원(1~30층)의 세계 보스를 처치',      stat: 'world_meadow', goal: 1 },
+    { key: 's2_world_mire',   name: '안개늪 정복', title: '안개를 걷은 자', desc: '시즌 2 · 안개늪(31~60층)의 세계 보스를 처치',   stat: 'world_mire',   goal: 1 },
+    { key: 's2_world_ash',    name: '잿더미 정복', title: '재를 밟은 자',   desc: '시즌 2 · 잿더미(61~100층)의 세계 보스를 처치',  stat: 'world_ash',    goal: 1 },
+    { key: 's2_world_rift',   name: '균열 정복',   title: '균열을 건넌 자', desc: '시즌 2 · 균열(101~150층)의 세계 보스를 처치',   stat: 'world_rift',   goal: 1 },
+    { key: 's2_world_storm',  name: '폭풍 정복',   title: '폭풍을 탄 자',   desc: '시즌 2 · 폭풍 하늘(151층~)의 세계 보스를 처치', stat: 'world_storm',  goal: 1 },
+    { key: 's2_coop_win_1',   name: '협동 첫승',   title: '함께 싸운 자',   desc: '협동 보스전에서 처음 이긴다',                    stat: 'coopWins',     goal: 1 },
+    { key: 's2_evo_1',        name: '첫 진화',     title: '진화한 껍질',    desc: '스킬을 처음 진화시킨다',                          stat: 'skillEvos',    goal: 1 },
+    { key: 's2_trait_3',      name: '특성 완성',   title: '뿌리 깊은 계란', desc: '특성 한 갈래를 3단까지 찍는다',                   stat: 'traitRankBest', goal: 3 }
   ],
 
   _defOf: function (key) {
@@ -209,6 +228,16 @@ GAME.Achievements = {
       case 'siegeWin': c.siegeWins = (c.siegeWins || 0) + 1; break;
       case 'gear':     c.gearTier = Math.max(c.gearTier || 0, Math.round(Number(payload.tier) || 0)); break;
       case 'dailyDone': c.dailyDone = (c.dailyDone || 0) + n; break;
+      //  ── 시즌 2 (S-F) ──
+      case 'worldConquer': {                       //  { world: 'meadow'|'mire'|'ash'|'rift'|'storm' } — js/season.js 가 보낸다
+        var wk = String(payload.world || '');
+        if (!/^[a-z]+$/.test(wk)) { touched = false; break; }
+        c['world_' + wk] = 1;
+        break;
+      }
+      case 'coopWin':  c.coopWins = (c.coopWins || 0) + 1; break;              //  협동 보스전 승리
+      case 'skillEvo': c.skillEvos = (c.skillEvos || 0) + n; break;            //  스킬 진화 n회
+      case 'trait':    c.traitRankBest = Math.max(c.traitRankBest || 0, Math.round(Number(payload.rank) || 0)); break;   //  { rank } 한 갈래의 단
       default: touched = false;
     }
     if (!touched) return [];

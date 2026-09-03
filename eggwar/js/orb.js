@@ -128,6 +128,9 @@ GAME.Orb = (function () {
       if (GAME.TowerBoon) {
         var all = (run && run.boons) ? run.boons.slice() : state.orbTaken.slice();
         state.boons = GAME.TowerBoon.hooksFor({ boons: all });
+        // 시즌2 특성(js/traits.js)은 boons 와 같은 훅 묶음에 얹혀 있어서, 여기서 통째로
+        // 다시 만들면 증발한다 — 다시 붙인다(S-H 통합 항목).
+        if (GAME.Traits && GAME.Traits.reapply) GAME.Traits.reapply(state);
         // 훅이 아니라 **스탯**인 구슬(탐욕)은 영웅에게 직접 얹는다. 훅만 다시 만들면
         // 이런 구슬은 이번 판에 아무 일도 안 일어난다 — 문구와 실제가 어긋난다.
         var units = state.units || [];

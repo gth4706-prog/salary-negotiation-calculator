@@ -684,10 +684,192 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
         minRange: 0, maxRange: 4000,
         damage: 85, radius: 82, repeat: 10, interval: 150, spread: 540, fuse: 1400 }
     ]
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  시즌2 「다섯 세계」 세계 보스 4 (2026-09-03 S-W) — **페이즈형**
+  //  초원(30층)은 둥지 포탑이 그대로 맡는다. 아래 넷은 각자 세계의 규칙을 몸에 지닌다:
+  //  체력 절반(또는 2/3·1/3)에서 `phases` 로 능력·배수·**전장**이 바뀐다(js/combat.js
+  //  `_tickPhase`). 같은 보스를 처음 만났을 때와 반쯤 잡았을 때 다른 싸움이 된다.
+  //  규율(CLAUDE.md v1.15 · 한 방 회피 규격):
+  //   · 평타 약(30 안팎)·스킬 강 — 평타는 예고가 없어 붙는 순간부터 맞는다.
+  //   · 큰 한 방은 telegraph ≥ 2000ms(quake) 또는 fuse 로 158px/s × 예고 > 반경 × 1.5.
+  //   · 고층 배수(×30+)를 생각해 damage 는 기존 권속 체급(100~190)을 넘기지 않는다.
+  //   · 소환수(`unitMods`)는 그 층의 선형 배수 근처로 맞춘 **정적** 값이다 — 소환은 성장
+  //     추종을 못 받는다(엔진 spawnSummons 가 def 의 mods 만 안다). 압박용이지 벽이 아니다.
+  //  아트: S-A 가 bossbank.js 에 잡아 둔 pending 시트 키와 **같은 문자열**을 쓴다
+  //  (beast:bogmother:frost 등). 시트가 오기 전에는 bossart.parse 가 모르는 종류를
+  //  drake 골격 + 그 결(frost/ember/ash/storm)로 그린다(벡터 폴백). 시트 도착 =
+  //  `tools/import-boss-art.ps1 -Key w_mist_boss …` 한 번, 이 파일은 안 바뀐다.
+  // ═══════════════════════════════════════════════════════════════════════════
+  bossSwampMother: {
+    key: 'bossSwampMother', name: '늪의 어미', art: 'beast:bogmother:frost', isBoss: true,
+    lore: '안개 아래 늪 바닥에서 알들을 품던 것. 늪이 넓어지는 것은 그것이 일어서는 것이다.',
+    desc: '안개늪의 주인. 진흙을 던져 발을 묶고, 반쯤 잡히면 늪을 넓혀 새끼를 부른다.',
+    cost: 0, hp: 2300, armor: 30, speed: 74, range: 110, damage: 30, cooldown: 1400,
+    guard: { every: 12000, warn: 900, ms: 4000, cut: 0.15, reflect: 0.50 },
+    attack: 'melee', coneDeg: 100,
+    radius: 30, shape: 'star', weapon: 'launcher',
+    chase: 460, aggro: 520,
+    //  상시 한기(서리 권속과 같은 배선) — 곁에 서면 늪처럼 느려진다.
+    auraSlowRadius: 220, auraSlowMul: 0.8,
+    abilities: [
+      { type: 'barrage', motif: 'bog', cooldown: 7000, telegraph: 800,
+        minRange: 0, maxRange: 4000, aimLead: 0.5,
+        damage: 120, radius: 130, repeat: 3, spread: 220, interval: 380,
+        slowMul: 0.5, slowMs: 2000 },
+      //  궁극 「늪 범람」 — 전장 절반이 늪이 되는 거대 원. fuse 2.5초, 걸어 나가면 피해진다.
+      { type: 'barrage', motif: 'bog', cooldown: 15000, telegraph: 800,
+        minRange: 0, maxRange: 4000, aimLead: 0,
+        damage: 190, radius: 320, repeat: 1, fuse: 2500,
+        slowMul: 0.4, slowMs: 2600 }
+    ],
+    phases: [
+      { hpBelow: 0.5, name: '늪이 넓어진다',
+        abilities: [
+          //  소환 쿨 7초 — 다음 차례(지진)가 페이즈 진입 뒤 10초 안에 오게(감사 실측:
+          //  9초면 영웅이 센 판에서 지진 전에 보스가 죽어 "페이즈 능력 절반만" 이 된다).
+          { type: 'summon', motif: 'bog', cooldown: 7000, telegraph: 900, minRange: 0, maxRange: 4000,
+            unit: 'chemtrooper', count: 2, life: 14000, spread: 90, maxAlive: 4,
+            unitMods: { hp: 1.7, damage: 1.6 } },
+          { type: 'quake', motif: 'bog', cooldown: 14000, telegraph: 2000, minRange: 0, maxRange: 4000,
+            damage: 160, radius: 190, rootMs: 600 },
+          { type: 'barrage', motif: 'bog', cooldown: 7000, telegraph: 800,
+            minRange: 0, maxRange: 4000, aimLead: 0.5,
+            damage: 120, radius: 130, repeat: 3, spread: 220, interval: 380,
+            slowMul: 0.5, slowMs: 2000 }
+        ],
+        mods: { damage: 1.15 },
+        field: { kind: 'swamp', zones: [{ x: 0.5, y: 0.5, r: 0.22, slowMul: 0.55 }], slowMs: 400 } }
+    ]
+  },
+
+  bossAshLord: {
+    key: 'bossAshLord', name: '재의 군주', art: 'beast:ashlord:ember', isBoss: true,
+    lore: '잿더미 한가운데 앉아 재를 다스리는 것. 그가 일어서면 땅이 다시 끓기 시작한다.',
+    desc: '잿더미의 주인. 세 단계로 깨어나며 용암 고리를 점점 넓힌다.',
+    cost: 0, hp: 2400, armor: 34, speed: 96, range: 116, damage: 33, cooldown: 1300,
+    guard: { every: 12000, warn: 900, ms: 4000, cut: 0.15, reflect: 0.52 },
+    attack: 'melee', coneDeg: 120,
+    radius: 32, shape: 'star', weapon: 'riotShield',
+    chase: 520, aggro: 560,
+    abilities: [
+      { type: 'charge', motif: 'ember', cooldown: 6000, telegraph: 560,
+        minRange: 150, maxRange: 520, dist: 520,
+        damage: 140, radius: 72, knockback: 60 },
+      { type: 'barrage', motif: 'ember', cooldown: 12000, telegraph: 700,
+        minRange: 0, maxRange: 4000,
+        damage: 150, radius: 120, repeat: 4, interval: 260, spread: 380, fuse: 1500 }
+    ],
+    //  페이즈 3 — 재가 타오른다(2/3) → 용암 고리(1/3). 전장(lava)이 단계마다 넓어진다.
+    phases: [
+      { hpBelow: 0.66, name: '재가 타오른다',
+        mods: { damage: 1.1 },
+        field: { kind: 'lava', zones: [{ x: 0.5, y: 0.5, r: 0.05, maxR: 0.16, growPx: 6 }],
+                 pct: 0.02, tickMs: 500 } },
+      { hpBelow: 0.33, name: '용암 고리',
+        abilities: [
+          { type: 'quake', motif: 'ember', cooldown: 13000, telegraph: 2000, minRange: 0, maxRange: 4000,
+            damage: 170, radius: 190, rootMs: 600 },
+          { type: 'barrage', motif: 'ember', cooldown: 12000, telegraph: 700,
+            minRange: 0, maxRange: 4000,
+            damage: 150, radius: 120, repeat: 4, interval: 260, spread: 380, fuse: 1500 },
+          { type: 'charge', motif: 'ember', cooldown: 6000, telegraph: 560,
+            minRange: 150, maxRange: 520, dist: 520,
+            damage: 140, radius: 72, knockback: 60 }
+        ],
+        mods: { damage: 1.15, speed: 1.1 },
+        field: { kind: 'lava', pct: 0.025, tickMs: 500,
+                 zones: [{ x: 0.5, y: 0.5, r: 0.12, maxR: 0.24, growPx: 8 },
+                         { x: 0.2, y: 0.35, r: 0.04, maxR: 0.12, growPx: 5 },
+                         { x: 0.8, y: 0.35, r: 0.04, maxR: 0.12, growPx: 5 }] } }
+    ]
+  },
+
+  bossRiftGiant: {
+    key: 'bossRiftGiant', name: '균열 거인', art: 'beast:riftgiant:ash', isBoss: true,
+    lore: '갈라진 땅 자체가 일어선 것. 걸음마다 지진이고, 흔들리는 돌은 전부 무기다.',
+    desc: '균열의 주인. 지진으로 발을 묶고 낙석을 퍼붓는다. 반쯤 잡히면 돌쌓이를 부른다.',
+    cost: 0, hp: 2350, armor: 44, speed: 60, range: 150, damage: 40, cooldown: 1500,
+    guard: { every: 11500, warn: 850, ms: 4400, cut: 0.12, reflect: 0.60 },
+    attack: 'melee', coneDeg: 150,
+    radius: 36, shape: 'bunker', weapon: 'riotShield',
+    chase: 400, aggro: 500,
+    abilities: [
+      { type: 'quake', motif: 'rock', cooldown: 12000, telegraph: 2000, minRange: 0, maxRange: 4000,
+        damage: 150, radius: 190, rootMs: 600 },
+      { type: 'barrage', motif: 'rock', cooldown: 8000, telegraph: 800,
+        minRange: 0, maxRange: 4000,
+        damage: 130, radius: 110, repeat: 5, interval: 300, spread: 420, fuse: 1400,
+        knockback: 40 }
+    ],
+    phases: [
+      //  ⚠ 페이즈 첫 능력은 진입 직후(≤0.9초) 나간다(combat `_tickPhase`) — 소환을 맨 앞에
+      //    둬서 "깨어났다"가 곧바로 보이게 한다. 순서가 곧 첫인상이다.
+      { hpBelow: 0.5, name: '거인이 깨어난다',
+        abilities: [
+          { type: 'summon', motif: 'rock', cooldown: 9000, telegraph: 900, minRange: 0, maxRange: 4000,
+            unit: 'stonepiler', count: 2, life: 15000, spread: 100, maxAlive: 4,
+            unitMods: { hp: 2.8, damage: 2.5 } },
+          { type: 'quake', motif: 'rock', cooldown: 10000, telegraph: 2000, minRange: 0, maxRange: 4000,
+            damage: 150, radius: 190, rootMs: 600 },
+          { type: 'barrage', motif: 'rock', cooldown: 8000, telegraph: 800,
+            minRange: 0, maxRange: 4000,
+            damage: 130, radius: 110, repeat: 5, interval: 300, spread: 420, fuse: 1400,
+            knockback: 40 }
+        ],
+        mods: { damage: 1.15 },
+        field: { kind: 'quake', periodMs: 9000, warnMs: 2000, rootMs: 600, first: 6000 } }
+    ]
+  },
+
+  bossStormKing: {
+    key: 'bossStormKing', name: '폭풍의 왕', art: 'beast:stormking:storm', isBoss: true,
+    lore: '하늘 꼭대기의 폭풍 그 자체. 태초의 용이 잠든 사이 하늘을 다스려 온 것이다.',
+    desc: '폭풍 하늘의 주인. 낙뢰를 떨어뜨리고 돌풍으로 밀어낸다. 반쯤 잡히면 폭풍의 눈이 열린다.',
+    cost: 0, hp: 2300, armor: 34, speed: 120, range: 118, damage: 31, cooldown: 1150,
+    guard: { every: 11500, warn: 850, ms: 4200, cut: 0.14, reflect: 0.55 },
+    attack: 'melee', coneDeg: 115,
+    radius: 32, shape: 'star', weapon: 'rifle',
+    chase: 640, aggro: 640,
+    abilities: [
+      { type: 'barrage', motif: 'storm', cooldown: 6000, telegraph: 600,
+        minRange: 0, maxRange: 4000,
+        damage: 105, radius: 115, repeat: 4, interval: 300, spread: 320,
+        knockback: 46 },
+      //  돌풍 — 예고 뒤 2.4초 동안 전역으로 민다(보스는 면역). 밀리는 동안 낙뢰 예고를 보라.
+      { type: 'gust', motif: 'storm', cooldown: 11000, telegraph: 900, minRange: 0, maxRange: 4000,
+        ms: 2400, push: 150, radius: 0, dps: 20 }
+    ],
+    phases: [
+      //  소환이 맨 앞 — 페이즈 진입이 곧 "궁수 셋이 하늘에서 내려온다"로 보인다.
+      { hpBelow: 0.5, name: '폭풍의 눈',
+        abilities: [
+          { type: 'summon', motif: 'storm', cooldown: 9000, telegraph: 900, minRange: 0, maxRange: 4000,
+            unit: 'rifleman', count: 3, life: 12000, spread: 110, maxAlive: 6,
+            unitMods: { hp: 3.5, damage: 3.0 } },
+          { type: 'barrage', motif: 'storm', cooldown: 10000, telegraph: 640,
+            minRange: 0, maxRange: 4000,
+            damage: 120, radius: 88, repeat: 9, interval: 130, spread: 470, fuse: 1250,
+            knockback: 62, rootMs: 350 },
+          { type: 'gust', motif: 'storm', cooldown: 11000, telegraph: 900, minRange: 0, maxRange: 4000,
+            ms: 2400, push: 150, radius: 0, dps: 20 }
+        ],
+        mods: { damage: 1.15, speed: 1.15 },
+        field: { kind: 'storm', windDir: 0, windPx: 60, boltEveryMs: 4500, boltFirst: 2500,
+                 boltRadius: 0.11, boltTelegraph: 2000, boltPct: 0.25 } }
+    ]
   }
 };
 
 for (var _bk in GAME.BOSS_UNITS) GAME.UNITS[_bk] = GAME.BOSS_UNITS[_bk];
+
+//  세계 보스 5 — 시즌2 표(세계 → 보스 키). 도구·문서가 읽는 사본이고 정본은
+//  js/towercurriculum.js `WORLD_INFO`. 초원은 둥지 포탑(현행).
+GAME.WORLD_BOSS_KEYS = {
+  meadow: 'bossNest', mire: 'bossSwampMother', ash: 'bossAshLord',
+  rift: 'bossRiftGiant', storm: 'bossStormKing'
+};
 
 GAME.isBoss = function (def) { return !!(def && def.isBoss); };
 

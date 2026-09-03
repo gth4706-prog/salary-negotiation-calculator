@@ -385,14 +385,26 @@ GAME.ArenaBuild = {
   RT_HERO_MOD: {
     vanguard: { hp: 1.0, damage: 1.0, armor: 1.0, speed: 1.0, lifesteal: 1.0 },
     ranger:   { hp: 1.0, damage: 1.0, armor: 1.0, speed: 1.0, lifesteal: 1.0 },
-    warden:   { hp: 1.0, damage: 1.0, armor: 1.1, speed: 1.0, lifesteal: 0.5 }
+    //  2026-09-03 시즌2 재조정 — S-E 가 파수꾼 R 오라의 `u.damage` NaN(8/23~9/2 열흘간
+    //  궁극 피해 0)을 고치자 위 값(armor 1.1·ls 0.5)이 ② 를 다시 깼다(warden vs shaman/armorMax
+    //  67%). 스윕 18종(scratchpad/sweepR) 끝에 11/11 을 만든 조합만 채택:
+    //    R 오라 dps 0.4(RT_SKILL_MOD) 가 ③ 을 풀고, 남은 ②(ranger/armorMax vs warden/balanced
+    //    57~60%·2~5판)는 armor 1.1→1.0·ls 0.4 로 2판까지, **hp 0.95** 가 마지막 2판을 지웠다.
+    //    (dmg 0.95 는 안 듣고, R dps 0.3 도 0.4 와 같다 — 잔여는 오라가 아니라 몸 두께였다.)
+    warden:   { hp: 0.95, damage: 1.0, armor: 1.0, speed: 1.0, lifesteal: 0.4 },
+    //  시즌2 신규 둘(S-H) — 방어 몰빵 빌드가 하네스에서 못 잡는다(shaman/armorMax 승자 잔여
+    //  66% · assassin/armorMax 64%). damage 1.2 로 초과 15판 → 1.3 에서 0판. hp 축은 안 듣는다.
+    shaman:   { hp: 1.0, damage: 1.3, armor: 1.0, speed: 1.0, lifesteal: 1.0 },
+    assassin: { hp: 1.0, damage: 1.3, armor: 1.0, speed: 1.0, lifesteal: 1.0 }
   },
 
   //  실시간 전용 스킬 배율표 — 스킬 이름 → { damage, shield, heal, dps }. combat.js
   //  `_castSkillInner` 가 **pvpRealtime 일 때만** 읽는다(궁극 하한 뒤, 표에 없으면 1.0).
   //  heroes.js 의 표는 탑 밸런스가 그 위에 서 있어 못 깎으므로 실시간만 여기서 만진다.
   //  값은 tools/rt-balance-audit.js 스킬 결투가 정한다(근거는 그 항목 주석에).
-  RT_SKILL_MOD: {},
+  //  파수꾼 R 오라 3종 — 실시간에서만 dps 0.4(2026-09-03, 위 RT_HERO_MOD 주석의 스윕).
+  //  탑에서는 그대로다(탑은 궁극이 정체성이고, 실시간 1:1 에서만 "못 잡는다"가 된다).
+  RT_SKILL_MOD: { '파수 구역': { dps: 0.4 }, '경계 화톳불': { dps: 0.4 }, '불굴의 구역': { dps: 0.4 } },
 
   //  실시간 전투에 아이템을 얹는다 — battle.js(_rtApplyItems)와 감사 도구가 **같은
   //  함수**를 쓴다(두 벌이면 조용히 갈라진다). 결정론: itemBonus 는 items 의 순수 함수.

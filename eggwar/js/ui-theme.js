@@ -465,7 +465,13 @@ window.GAME = window.GAME || {};
     //  ⚠ inset 은 **텍스처 px** 다(화면 px 아님 — 처음에 그걸 착각해 모서리가 리본처럼
     //    뭉개졌다). 원단은 132×100 으로 작게 구워 두었고 inset 20 이 그 기준이다.
     //    높이 44 미만·폭 120 미만 버튼(탭 등)은 모서리가 안 성립해 절차 그리기 유지.
-    if (opts.skin !== false && opts.fill === undefined && h >= 44 && w >= 120 &&
+    //  라벨 표기 방식 — `UI.BTN_LABEL` (2026-09-03 태현님 "나무배경 가독성 안 좋아").
+    //    'ink'      진한 잉크 글자 + 얇은 크림 후광  (기본 — 아래 근거)
+    //    'darkwood' 원단을 어둡게 틴트 + 크림 글자 + 얇은 잉크 윤곽
+    //    'legacy'   크림 글자 + 두꺼운 잉크 윤곽 (9/01 판 — 한글 속공간이 막힌다)
+    //    'off'      원단을 아예 안 깐다(절차 그리기로 롤백)
+    var LBL = UI.BTN_LABEL || 'ink';
+    if (LBL !== 'off' && opts.skin !== false && opts.fill === undefined && h >= 44 && w >= 120 &&
         GAME.UIBank && GAME.UIBank.ready(scene, 'texButton') && scene.add.nineslice) {
       var _ins = 20;
       skin = scene.add.nineslice(x, y, 'ui-texButton', undefined, w, h, _ins, _ins, _ins, _ins);
@@ -488,7 +494,9 @@ window.GAME = window.GAME || {};
         var sdy = st.down && !st.disabled ? 2 : 0;
         skin.setY(y + sdy);
         skin.setAlpha(st.disabled ? 0.45 : 1);
-        skin.setTint(st.down ? 0xcdbb97 : (st.over ? 0xfff2d2 : 0xffffff));
+        //  'darkwood' 는 원단 자체를 어둡게 깔아 크림 글자가 얇은 윤곽만으로 뜨게 한다.
+        var _base = LBL === 'darkwood' ? 0x8a6540 : 0xffffff;
+        skin.setTint(st.down ? shade(_base, -0.18) : (st.over ? shade(_base, 0.10) : _base));
         gfx.clear();
         //  호출부가 setStrokeStyle 로 준 강조 테두리(선택 표시)는 살린다.
         if (st.lw > 1) {
@@ -568,9 +576,24 @@ window.GAME = window.GAME || {};
     //  돌판 원단 위 잉크색 라벨은 옹이·나뭇결에 먹힌다(2026-09-01 태현님: "버튼
     //  가독성이 너무 안좋아") — 원단 모드에서는 크림 글자 + 잉크 윤곽으로 새긴다.
     //  색을 명시한 호출부(opts.color)는 그대로 존중한다.
+    //  ⚠ 크림 글자(#f7eed8, 상대휘도 0.85)는 밝은 나무 원단(0.53) 위에서 **1.55:1** 이다 —
+    //    윤곽이 없으면 아예 안 보여서 9/01 판은 윤곽을 22% 까지 키웠고, 그 두께가 한글
+    //    속공간을 메워 "뭉갠 글자"가 됐다(태현님 재신고). 밝은 원단에는 **진한 잉크**가 맞다:
+    //    #241a10 대 원단은 9.9:1 이고, 얇은 크림 후광은 나뭇결·옹이와만 떼어 주면 된다.
     if (skin && !opts.color) {
-      txt.setColor('#f7eed8');
-      txt.setStroke('#241a10', Math.max(3, Math.round(px * 0.22)));
+      if (LBL === 'legacy') {
+        txt.setColor('#f7eed8');
+        txt.setStroke('#241a10', Math.max(3, Math.round(px * 0.22)));
+      } else if (LBL === 'darkwood') {
+        txt.setColor('#fbf1dd');
+        txt.setStroke('#2a1d10', Math.max(2, Math.round(px * 0.12)));
+      } else {
+        txt.setColor('#241a10');
+        txt.setStroke('#f6ead2', Math.max(2, Math.round(px * 0.14)));
+        //  아래쪽 한 픽셀만 밝게 — 판에 **새긴** 글자로 읽힌다(그림자를 어둡게 주면
+        //  잉크 글자에 잉크 그림자라 진창이 된다).
+        txt.setShadow(0, 1, 'rgba(255,246,225,0.55)', 1, false, true);
+      }
     }
     if (opts.wrap) txt.setWordWrapWidth(opts.wrap);
 
@@ -619,6 +642,7 @@ window.GAME = window.GAME || {};
     // 겹침 감사용 표시 — 버튼과 그 버튼의 라벨은 겹쳐도 정상이다
     rect.__uiBtn = true;
     txt.__btnLabel = rect;
+    rect.__uiSkin = !!skin;        // 이미지 원단을 깐 버튼인가 — 가독성 실측 도구가 읽는다
     gfx.__uiBtnGfx = true;         // 감사 도구가 Graphics 를 텍스트로 오인하지 않게
 
     redraw();

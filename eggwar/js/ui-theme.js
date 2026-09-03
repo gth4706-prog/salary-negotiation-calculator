@@ -473,8 +473,15 @@ window.GAME = window.GAME || {};
     var LBL = UI.BTN_LABEL || 'ink';
     if (LBL !== 'off' && opts.skin !== false && opts.fill === undefined && h >= 44 && w >= 120 &&
         GAME.UIBank && GAME.UIBank.ready(scene, 'texButton') && scene.add.nineslice) {
-      var _ins = 20;
-      skin = scene.add.nineslice(x, y, 'ui-texButton', undefined, w, h, _ins, _ins, _ins, _ins);
+      //  ⚠ 가로 inset 은 **못(뼈) 장식을 고정칸에 넣는 값**이다(2026-09-03 태현님: "버튼을
+      //    늘리면서 못 크기도 늘어난게 별로야"). 격자 실측(scratchpad/tex-button-grid.png):
+      //    못이 x 15~33 · 100~118 에 있는데 inset 20 이면 그 대부분이 **늘어나는 위/아래
+      //    가장자리 칸**에 걸려 버튼 폭에 비례해 뚱뚱해졌다. 34 면 좌우 고정칸(0~34,
+      //    98~132)이 못을 통째로 품는다 → 폭이 얼마든 못은 원본 크기 그대로.
+      //    세로는 못이 y 8~19 · 79~90 이라 20 안에 이미 들어간다 — 건드리지 않는다
+      //    (세로를 키우면 가운데 띠가 더 눌려 나뭇결이 뭉갠다).
+      var _insX = 34, _insY = 20;
+      skin = scene.add.nineslice(x, y, 'ui-texButton', undefined, w, h, _insX, _insX, _insY, _insY);
       //  depth 전파 — 호출부는 gfx/rect 만 올린다(모달 1002 등). 스킨이 베일 아래
       //  남으면 버튼 몸통만 사라진다(droppopup 주석의 그 사고 계열).
       var _gsd = gfx.setDepth.bind(gfx);

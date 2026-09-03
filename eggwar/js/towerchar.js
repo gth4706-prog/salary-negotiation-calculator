@@ -468,8 +468,14 @@ GAME.TowerChar = {
   },
 
   // 행운 1레벨당 골드 +2%. 상한 30레벨 = +60%.
+  //  유틸 특성 「골드 감각」(goldFind, js/traits.js)의 배수를 여기 한 곳에서만 곱한다 —
+  //  이 함수 밖(보스 드랍 로직 등)은 건드리지 않는다.
   luckGoldMul: function (rec) {
-    return 1 + this.luckLevel(rec) * 0.02;
+    rec = rec || this.get();
+    var base = 1 + this.luckLevel(rec) * 0.02;
+    var tr = GAME.Traits && GAME.Traits.hooksFor ? GAME.Traits.hooksFor(rec) : null;
+    var goldMul = (tr && tr.goldFind && tr.goldFind.mul) || 1;
+    return base * goldMul;
   },
   // 행운 1레벨당 치유 구역 등장 확률 +3%(배수). js/healzone.js 가 곱해 쓴다.
   luckHealMul: function (rec) {
@@ -690,6 +696,25 @@ GAME.TowerChar = {
     delete rec.floorFail;               // 깼으면 사라진다(다음 층은 온전한 난이도로)
     this._save(rec);
   },
+
+  // ── 전장 변화 예고 (시즌2 S-W, 2026-09-03 태현님 지시) ─────────────────────
+  //  "전장에 변화가있다면 로딩이나 시작에서 잠깐 멈추고 3초정도 카운트다운하면서
+  //   어떤게있는지 알려줘." 안개늪(31~60)은 층마다 fog/swamp 가 동전 던지기로 갈리는데
+  //   지금까지는 조용히 바뀌었다. 다음 층 로딩 화면이 "직전 층은 무엇이었나"를 알아야
+  //   비교할 수 있으므로 여기에 한 칸만 기억한다(`floorFail` 과 같은 패턴 — 새
+  //   localStorage 키를 따로 만들지 않고 이 캐릭터 저장소에 얹는다).
+  noteFieldKind: function (floor, kind) {
+    var rec = this.get();
+    if (!rec) return;
+    rec.lastField = { f: floor, kind: kind || null };
+    this._save(rec);
+  },
+  //  직전에 저장해 둔 { f: 층, kind: 그때 전장 종류 }. 없으면 null.
+  lastFieldKind: function () {
+    var rec = this.get();
+    return (rec && rec.lastField) ? rec.lastField : null;
+  },
+
   //  이 층에 걸리는 한 걸음 크기와 상한. 보스 층은 절반이다.
   //  ⚠ 보스 판정은 `GAME.Tower` 가 쥔다(`BOSS_EVERY`). 여기서 `floor % 10` 을 다시
   //    적으면 주기를 바꿀 때 조용히 갈라진다 — 이 저장소가 가격표에서 이미 겪은 종류다.
@@ -840,6 +865,55 @@ GAME.TowerChar = {
     var pick = cands[Math.floor(Math.random() * cands.length)];
     pick.from = 'boss';
     return this._grantDrop(pick);
+  },
+
+  // ── 보스 층 결과 3분기 (2026-09-03 사용자 지시) ───────────────────────────
+  //  "보스몹 잡을때 아이템 필수지급은 없애고 30%확률로 주거나 보스 잡을때만
+  //  특성포인트 주는 방식으로 하자 나머지는 돈을 더 주는 방식으로 하자
+  //  아이템 너무 많이준다" — 예전엔 보스 층마다 **확정으로** 아이템/스킬북 하나가
+  //  나왔다. 지금은 세 결과 중 **하나만**(합 100%) 일어난다: 30% 아이템/스킬북 ·
+  //  30% 세계 포인트(특성 포인트) 1점 · 나머지 40% 골드 보너스.
+  //  ⚠ 세계 포인트는 `js/season.js` 의 `_applyFloor`(세계 첫 진입/보스 처치, 세계당
+  //  단 한 번뿐)와 **다른 축**이다 — 이 함수가 **이 시즌에서 보스 킬로 반복해서
+  //  나오는 유일한 세계 포인트 소스**다. 다른 곳에서 또 주면(예: 일반 층 드랍)
+  //  두 벌이 되어 특성 트리 경제 계산이 조용히 갈라진다 — 여기 한 곳에만 둘 것.
+  //  ⚠ 숫자(확률·골드식)는 battle.js 에 절대 옮기지 않는다 — "숫자를 두 곳에 쓰면
+  //  갈라진다"(FLOOR_DROP_CHANCE 주석 참고). battle.js 는 반환된 kind 로 연출만 고른다.
+  BOSS_ITEM_CHANCE: 0.30,
+  BOSS_POINT_CHANCE: 0.30,
+  //  나머지(1 − ITEM − POINT = 40%)는 골드.
+
+  //  골드 갈음액 — 예전 "줄 게 없을 때"의 solace(120 + tower*6)보다 눈에 띄게
+  //  크게 잡는다(사용자: "돈을 더 주는 방식" — 아이템 대신이라는 게 체감돼야 한다).
+  //  대략 옛 solace 의 1.9~2.0배: 10층 180→340 · 50층 420→820 · 100층 720→1420.
+  BOSS_GOLD_BONUS: function (floor) {
+    return Math.round(220 + (Number(floor) || 0) * 12);
+  },
+
+  //  보스 층 결과 하나를 굴리고 **그 자리에서 실제로 지급까지 한다**(아이템 장착,
+  //  세계 포인트 적립, 골드 지급 — 전부 이 함수 안에서 끝난다. battle.js 는 연출만).
+  //  floor 는 세계 포인트 로그 문구('bossKill:N')와 골드식에만 쓰인다.
+  //  반환:
+  //    { kind: 'item',  drop: <grantBossDrop 결과> }
+  //    { kind: 'point', points: 1 }
+  //    { kind: 'gold',  gold: N }
+  grantBossOutcome: function (floor) {
+    var f = Math.round(Number(floor) || 0);
+    var roll = Math.random();
+    if (roll < this.BOSS_ITEM_CHANCE) {
+      var drop = this.grantBossDrop();
+      if (drop) return { kind: 'item', drop: drop };
+      //  후보가 하나도 없으면(전부 최상급 보유) 아래로 흘러가 골드로 갈음한다
+      //  (기존 "줄 게 없으면 골드" 로직 재사용).
+    } else if (roll < this.BOSS_ITEM_CHANCE + this.BOSS_POINT_CHANCE) {
+      if (GAME.Season && GAME.Season.earnWorldPoint) {
+        GAME.Season.earnWorldPoint(1, 'bossKill:' + f);
+      }
+      return { kind: 'point', points: 1 };
+    }
+    var gold = this.BOSS_GOLD_BONUS(f);
+    this.addGold(gold);
+    return { kind: 'gold', gold: gold };
   },
 
   // ── 일반 층 드랍 (2026-08-02 사용자 지시, 2026-08-02 추가 조정) ───────────────

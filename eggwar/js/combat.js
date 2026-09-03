@@ -258,6 +258,8 @@ GAME.Combat = {
       // 달려들며 치기 — 영웅 def 는 화이트리스트라 여기 안 적으면 조용히 사라진다.
       chargeKnock: h.chargeKnock, chargeDamageMul: h.chargeDamageMul,
       trampleKnock: h.trampleKnock, auraDps: h.auraDps, auraRadius: h.auraRadius,
+      // 마법구체 투사체 렌더 스타일 (2026-09-03 · 주술사). 같은 화이트리스트 규율.
+      projStyle: h.projStyle,
       cost: GAME.HERO_BASE_COST
     };
 
@@ -1803,7 +1805,10 @@ GAME.Combat = {
         life: 3000,
         owner: u,
         slowMul: def.slowMul, slowMs: def.slowMs,   // 화학병 점착탄
-        sticky: !!def.slowMul
+        sticky: !!def.slowMul,
+        // 주술사 마법구체 (2026-09-03) — def.projStyle 'orb' 인 영웅만 켜진다.
+        // 렌더 전용 플래그다 — 판정(radius·damage)은 위와 완전히 같다.
+        orb: !!def.projStyle && def.projStyle === 'orb'
       });
       // 관측: 영웅을 겨눈 논타겟이 몇 발이었나 (회피 실력 계산의 분모)
       if (u.side === 'strategist' && target && target.isHero) {
@@ -1856,6 +1861,8 @@ GAME.Combat = {
       case 'projectile': return Math.round((sk.range || 460) * ws);
       //  시즌2 S-E — 소환은 앞쪽 지점에 세우고, 표식·연쇄는 그 사거리 안 대상을 고른다.
       case 'summon': return Math.round((sk.range || 120) * ws);
+      //  주술사 R 전용(2026-09-03) — 미니 보스 소환. summon 과 같은 규칙(앞쪽 지점).
+      case 'summonBoss': return Math.round((sk.range || 140) * ws);
       case 'mark': return Math.round((sk.range || 260) * ws);
       case 'chain': return Math.round((sk.range || 300) * ws);
       default: return 0;   // buff, strike, stealth
@@ -1866,7 +1873,7 @@ GAME.Combat = {
   //  heroes.js 의 SKILL_TYPE_LABEL(화면 이름)과 별개로, **엔진이 아는 타입**의 목록이다.
   //  감사(tools/engine-audit.js)가 이 표와 castSkill 분기를 대조한다.
   SKILL_TYPES: ['dash', 'aoeSelf', 'aoeTarget', 'projectile', 'strike', 'buff', 'aura',
-                'pull', 'trap', 'summon', 'stealth', 'blink', 'mark', 'chain'],
+                'pull', 'trap', 'summon', 'stealth', 'blink', 'mark', 'chain', 'summonBoss'],
   ABILITY_TYPES: ['charge', 'shockwave', 'healBurst', 'warcry', 'ember', 'ashcloud', 'pull',
                   'barrage', 'summon', 'quake', 'gust'],
   FIELD_KINDS: ['fog', 'swamp', 'lava', 'quake', 'storm'],
@@ -2215,6 +2222,31 @@ GAME.Combat = {
         t: 400, total: 400, side: u.side
       });
 
+      // ── 주술사 W 전용 (2026-09-03) — 반경 안 **내 소환수**까지 같이 강화한다.
+      //  ⚠ opt-in 필드다(`sk.includeSummons`) — 없으면 기존 동작과 완전히 같다
+      //  (다른 영웅의 buff 스킬은 이 블록에 한 줄도 안 걸린다).
+      //  대상은 `o.summoned && o._summonOwner === u`(내가 세운 소환수만, 아군 전체가 아니다)
+      //  — spawnSummons/summonBoss 가 이미 그 표시를 남긴다.
+      if (sk.includeSummons) {
+        var wBuffR = sk.sumRadius || sk.radius || 260;
+        for (var wi = 0; wi < state.units.length; wi++) {
+          var wo = state.units[wi];
+          if (!wo.alive || wo === u || wo.side !== u.side || !wo.summoned || wo._summonOwner !== u) continue;
+          if (this.dist(u, wo) > wBuffR) continue;
+          wo.buffs.push({
+            armorAdd: sk.sumArmorAdd || 0,
+            speedMul: sk.sumSpeedMul || 1,
+            damageMul: sk.sumDamageMul || sk.damageMul || 1,
+            t: sk.duration
+          });
+          if (sk.sumHealNow) this.heal(wo, state.pvpRealtime
+            ? Math.round(sk.sumHealNow * GAME.Combat.RT_SUSTAIN * ((_rtSk && _rtSk.heal !== undefined) ? _rtSk.heal : 1))
+            : sk.sumHealNow, state);
+          state.effects.push({ kind: 'ring', x: wo.x, y: wo.y, r: wo.def.radius + 18,
+                               t: 360, total: 360, side: wo.side });
+        }
+      }
+
     } else if (sk.type === 'pull') {
       var halfP = (sk.coneDeg * Math.PI / 180) / 2;
       var pullHit = 0, pullLs = this._lsBudget(u);
@@ -2373,6 +2405,51 @@ GAME.Combat = {
       }
       state.chainHops = (state.chainHops || 0) + chHit.length;
       if (isUltCast) { state.ultBlast = (state.ultBlast || 0) + 1; state.ultBlastAt = { x: chFrom.x, y: chFrom.y }; }
+
+    // ── 주술사 R 전용 (2026-09-03, 시즌2) ────────────────────────────────────
+    //  진짜 보스 def(GAME.UNITS[sk.bossKey])를 빌려 **미니어처**로 소환한다.
+    //  ⚠⚠ isBoss:true 를 그대로 들고 오면 battle.js 가 "이 층의 그 보스"로 오인해
+    //  셋이 조용히 뒤섞인다 — 반드시 셋 다 지켜야 한다:
+    //   ① bossModsFor 층 배수(battle.js:233, 진형 스폰 루프 전용) — 여긴 안 타지만
+    //     그건 우리가 spawnSummons 처럼 그 경로를 아예 안 거치기 때문이다.
+    //   ② "이 유닛이 그 층의 보스다" 가정(HUD 보스바 updateHud·보스 인트로
+    //     _setupBossIntro·회복 구역 대상 HealZone.tickBoss·업적 bossDead) —
+    //     def.isBoss 를 지워야 이 넷이 미니 보스를 진짜로 착각하지 않는다.
+    //   ③ def.phases·무거운 abilities — 페이즈 전환과 다단 능력을 그대로 들고 오면
+    //     보스급 난이도 패턴을 쓴다. phases 삭제, abilities 1개로 절단.
+    //  hp/damage 는 createUnit 의 mods(MOD_KEYS) 경로로 **생성 시점에** 줄인다 —
+    //  생성 뒤에 따로 패치하면 _baseUnit 이 이미 굳힌 hp/maxHp 와 어긋난다.
+    } else if (sk.type === 'summonBoss') {
+      var bdef = GAME.UNITS && GAME.UNITS[sk.bossKey];
+      if (!bdef) return false;                     // 모르는 보스 키 — 쿨을 안 태운다
+      var bsReach = this.skillReach(sk) || 140;
+      var bsdx = tx - u.x, bsdy = ty - u.y, bsdl = Math.sqrt(bsdx * bsdx + bsdy * bsdy) || 1;
+      var bsgo = Math.min(bsdl, bsReach);
+      var bx = u.x + (bsdx / bsdl) * bsgo, by = u.y + (bsdy / bsdl) * bsgo;
+      var bsu = this.createUnit(sk.bossKey, bx, by, u.side,
+                                { hp: sk.hpMul || 0.06, damage: sk.dmgMul || 0.35 });
+      var bnd = {}, bk3;
+      for (bk3 in bsu.def) bnd[bk3] = bsu.def[bk3];
+      bnd.isBoss = false;                           // ② HUD·인트로·회복구역·업적이 안 속게
+      bnd.phases = undefined;                        // ③ 페이즈 전환 제거
+      bnd.abilities = (bnd.abilities || []).slice(0, 1);   // ③ 능력 최대 1개로 절단
+      bnd.noCount = true; bnd.noGold = true;
+      bsu.def = bnd;
+      bsu.summoned = true;
+      bsu.lifeMs = sk.life > 0 ? sk.life : 0;
+      bsu._summonOwner = u;
+      bsu.srcSkill = sk.name;
+      bsu.eliteDraw = sk.sizeMul || 0.5;              // 그리는 크기만 — 판정 반지름은 그대로(radius 불변)
+      bsu.home = { x: bx, y: by };
+      bsu.committed = u.side !== 'strategist';
+      if (GAME.CONFIG.ARENA) this.clampToArena(bsu);
+      if (state.rtMap && state.rtMap.walls) {
+        for (var bsw = 0; bsw < state.rtMap.walls.length; bsw++) this._pushOutWall(bsu, state.rtMap.walls[bsw]);
+      }
+      state.units.push(bsu);
+      state.summonCount = (state.summonCount || 0) + 1;
+      state.bossSummonCount = (state.bossSummonCount || 0) + 1;   // 감사용 — 미니 보스 발동 횟수
+      state.effects.push({ kind: 'ring', x: bx, y: by, r: (bnd.radius || 30) + 22, t: 420, total: 420, side: u.side });
     }
 
     //  궁극 즉발형(돌진·자기광역·강타·후려치기)은 시전 순간이 곧 착탄이다.

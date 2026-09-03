@@ -324,6 +324,14 @@ GAME.BattleScene.prototype.create = function () {
     if (GAME.TowerBoon) this.state.boons = GAME.TowerBoon.hooksFor({ boons: [] });
     // 시즌2 특성(js/traits.js) — 축복과 같은 훅 묶음에 영구로 얹는다(S-H 통합 항목).
     if (GAME.Traits && GAME.Traits.attach) GAME.Traits.attach(this.state, tc);
+    // 유틸 특성 「속도·쿨감」(haste) — combat.js 가 모르는 훅이라 **탑 전투에서만**
+    // (tc 는 TowerChar 레코드 — 대전/RT 는 이 줄을 안 지난다) 여기서 직접 곱한다.
+    // `hero.cdrMul` 을 곱하는 패턴은 282·343번째 줄의 아이템 보정과 같다.
+    var hst = this.state.boons && this.state.boons.haste;
+    if (hst) {
+      if (hst.speedMul) this.hero.speed = Math.round(this.hero.speed * hst.speedMul);
+      if (hst.cdrMul) this.hero.cdrMul = (this.hero.cdrMul || 1) * hst.cdrMul;
+    }
   }
   // ── 대전 컨트롤러 (2026-08-01 개편) ────────────────────────────────────────
   //  **능력치 강화는 없앴다**(사용자 지시). 강해지는 길은 아이템 하나뿐이다.
@@ -2456,19 +2464,28 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
             }
             runRec = GAME.TowerChar.get();
           }
-          // 보스 층은 **확정으로** 아이템이나 스킬북을 하나 떨군다(미보유분에서).
+          // 보스 층은 세 결과 중 **하나만** 낸다(2026-09-03 사용자 지시: "아이템 필수지급은
+          // 없애고 30%확률로 주거나 보스 잡을때만 특성포인트 주는 방식으로 하자 나머지는
+          // 돈을 더 주는 방식으로 하자 아이템 너무 많이준다"). 확률·골드식은 전부
+          // `TowerChar.grantBossOutcome` 안에 있다 — 여기서는 kind 로 연출만 고른다.
           if (GAME.Tower.bossFor(this.tower)) {
             // 보스 격파 스팅어 — 이겼을 때만(진 판엔 안 운다). 승리 화면으로 넘어가기
             // 전, 동전 비가 뿌려지는 것과 같은 자리에서 운다.
             if (GAME.Sound) GAME.Sound.play('bossDown');
-            bossDrop = GAME.TowerChar.grantBossDrop();
-            if (bossDrop) this._dropAlert(bossDrop);
-            // 더 줄 게 없으면(전부 최상급 보유) 골드로 갈음한다 — 확정 보상인데
-            // 아무 일도 안 일어나면 "보스를 깼는데 왜 아무것도 없지"가 된다.
-            if (!bossDrop) {
-              var solace = 120 + this.tower * 6;
-              goldGained += solace;
-              runRec = GAME.TowerChar.addGold(solace);
+            var bossOutcome = GAME.TowerChar.grantBossOutcome(this.tower);
+            if (bossOutcome.kind === 'item') {
+              bossDrop = bossOutcome.drop;
+              this._dropAlert(bossDrop);
+            } else if (bossOutcome.kind === 'point') {
+              //  ✦ 는 이 프로젝트에서 세계 포인트/특성을 가리키는 정본 아이콘이다
+              //  (towershop.js 특성 탭·진화 문구가 전부 ✦). 🔮 는 "구슬"(축복 드랍)
+              //  개념이라 여기 쓰면 다른 보상과 헷갈린다(통합 시 발견해 수정).
+              this._orbToast('✦ 세계 포인트 +1');
+              if (GAME.Sound) { try { GAME.Sound.play('coin'); } catch (e) {} }
+            } else {
+              // 'gold' — 아이템 후보가 없어 갈음한 경우도 같은 분기로 들어온다.
+              goldGained += bossOutcome.gold;
+              bonusShown += bossOutcome.gold;
             }
             runRec = GAME.TowerChar.get();
           } else {
@@ -4266,6 +4283,36 @@ GAME.BattleScene.prototype.draw = function () {
     var danger = p.side !== 'controller';
     // 스킬 투사체(big)만 시안이 가져간다 — 유닛 평타 화살은 예전 그림 그대로다.
     if (FXS && FXS.drawProjectile(p, pcol)) continue;
+
+    // ── 주술사 마법구체 (2026-09-03) ────────────────────────────────────────
+    //  def.projStyle:'orb' 인 평타 전용(js/combat.js 의 발사 코드가 플래그를 싣는다).
+    //  화살촉·깃 실루엣을 그리는 아래 분기를 건너뛰고 발광구 하나로 그린다 —
+    //  주술사는 "마법사 개념"이라 화살이 아니라 순수한 빛의 구체여야 한다.
+    //  색은 진영색(pcol)이 아니라 신비로운 보라 톤(FX.heroFx.shaman) — 새 색을
+    //  만들지 않고 이미 쓰는 전략가 보라 계열(#b3a8ff, ui-theme.js accentAlt)과
+    //  같은 톤을 골랐다. 판정(radius·damage)은 위 발사 코드와 완전히 같다 — 렌더 전용.
+    if (p.orb) {
+      var osx = p.x, osy = Iso.toScreenY(p.y) - 12;
+      var orr = p.radius * (p.big ? 1.5 : 1) + 3;
+      var ocol = (FX.heroFx && FX.heroFx.shaman) || 0xb3a8ff;
+      var osp = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1;
+      var oux = p.vx / osp, ouy = (p.vy / osp) * Iso.TILT;
+      // 지면 그림자 — 다른 투사체와 같은 언어(떠 있는 게 아니라 지면 위를 난다)
+      g.fillStyle(INKA > 0 ? INK : 0x000000, 0.14);
+      g.fillEllipse(osx, osy + 10, orr * 2.0, orr * 2.0 * Iso.TILT);
+      // 옅은 궤적(화살 잔상과 같은 역산 기법 — 상태에 필드를 안 만든다)
+      g.lineStyle(Math.max(1.5, orr * 0.7), ocol, 0.16);
+      g.lineBetween(osx - oux * 24, osy - ouy * 24, osx, osy);
+      // 발광구 2~3겹 — 촉·깃 없이 순수 발광
+      g.fillStyle(ocol, 0.22);
+      g.fillCircle(osx, osy, orr * 2.1);
+      g.fillStyle(ocol, 0.48);
+      g.fillCircle(osx, osy, orr * 1.35);
+      g.fillStyle(0xffffff, 0.88);
+      g.fillCircle(osx, osy, orr * 0.5);
+      continue;
+    }
+
     var psx = p.x, psy = Iso.toScreenY(p.y) - 12;
     var sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1;
     var ux = p.vx / sp, uy = (p.vy / sp) * Iso.TILT;

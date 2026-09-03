@@ -394,7 +394,19 @@ GAME.ArenaBuild = {
     warden:   { hp: 0.95, damage: 1.0, armor: 1.0, speed: 1.0, lifesteal: 0.4 },
     //  시즌2 신규 둘(S-H) — 방어 몰빵 빌드가 하네스에서 못 잡는다(shaman/armorMax 승자 잔여
     //  66% · assassin/armorMax 64%). damage 1.2 로 초과 15판 → 1.3 에서 0판. hp 축은 안 듣는다.
-    shaman:   { hp: 1.0, damage: 1.3, armor: 1.0, speed: 1.0, lifesteal: 1.0 },
+    //  ⚠ 2026-09-03 주술사 스킬 전면 재설계 후 1.3 이 다시 깨졌다 — 평타 22→16(다섯 중
+    //    최저)에 Q/W/E/R 를 전부 소환/버프형으로 바꾸자 직접피해 스킬이 하나도 안 남아
+    //    RT 1v1 에서 사실상 화력이 없어졌다(같은 빌드 교차 대진 80판에서 **0승**,
+    //    ② 최악 vanguard/dmgMax 승자 86%). Q/E 쿨(11~14초)이 결투 길이(TTK 중앙값
+    //    18~26초)보다 길어 소환수가 한두 기 붙는 정도로는 못 메운다 — RT 전용 배율로
+    //    보정한다(탑 밸런스는 heroes.js 값 그대로, 이 표만 실시간에 적용).
+    //    스윕(damage 1.5~3.2 · hp/armor/lifesteal 조합, lifesteal 은 기본값 0 이라 배율이
+    //    안 듣는다): damage 단독 3.0 에서 ①~⑤ 전항목 통과(2.9 는 ②가 55% 로 아슬아슬,
+    //    hp·armor 를 더해도 damage 축 없이는 안 풀린다 — 실측으로 확인). 그 결과 실효
+    //    dps 16×3.0/0.9=53.3 로 다섯 중 가장 높아지지만, 교차 대진 승수도 vanguard 30·
+    //    ranger 2~8·warden 23·**shaman 6**·assassin 19 로 "여전히 최하위권이지만 0승은
+    //    아니다"가 된다 — 탑에서는 여전히 최저 dps(17.8) 그대로다.
+    shaman:   { hp: 1.0, damage: 3.0, armor: 1.0, speed: 1.0, lifesteal: 1.0 },
     assassin: { hp: 1.0, damage: 1.3, armor: 1.0, speed: 1.0, lifesteal: 1.0 }
   },
 

@@ -867,7 +867,9 @@ var SM = 10;
     dash: 320, aoeSelf: 520, aoeTarget: 620, projectile: 240,
     buff: 520, pull: 520, trap: 460, aura: 480, strike: 560,
     //  시즌2 S-E 새 타입 5 (2026-09-03 S-H) — 아래 skillPose 의 주 신호 매핑 참조.
-    summon: 560, stealth: 440, blink: 300, mark: 480, chain: 520
+    summon: 560, stealth: 440, blink: 300, mark: 480, chain: 520,
+    //  2026-09-03 · 주술사 R(미니 보스 소환) — summon 과 같은 언어, 궁극답게 더 오래.
+    summonBoss: 620
   };
 
   //  타입마다 **주 신호를 하나씩** 다르게 잡는다. 셋 다 크게 움직이면 셋 다 안 읽힌다.
@@ -946,6 +948,12 @@ var SM = 10;
       P.atk = ch; P.reach = 1 + 0.26 * (ch > 0 ? ch : 0);
       P.spin = 0.25 * clamp01((u - 0.25) / 0.30) * (1 - clamp01((u - 0.6) / 0.4));
       P.ky = clampKy(1 - 0.06 * Math.abs(ch)); P.drift = 0.18 * (ch > 0 ? ch : 0);
+    //  2026-09-03 · 주술사 R — summon 과 같은 언어(땅에 꽂기)지만 더 크게, 더 오래
+    //  붙든다(궁극다운 무게). 새 판정은 없다 — 렌더 전용 포즈만 다르다.
+    } else if (type === 'summonBoss') {
+      var sb = u < 0.22 ? u / 0.22 : (u < 0.75 ? 1 : 1 - ease((u - 0.75) / 0.25));
+      P.gearDrop = 0.62 * sb; P.ky = clampKy(1 - 0.14 * sb); P.reach = 1 + 0.22 * sb;
+      P.atk = 0.70 * sb; P.rise = 0.06 * sb;
     }
     return P;
   }

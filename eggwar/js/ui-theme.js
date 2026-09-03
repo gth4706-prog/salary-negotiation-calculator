@@ -123,7 +123,10 @@ window.GAME = window.GAME || {};
     heroFx: {
       vanguard: 0xff7a3c,     // 불 — 돌격형
       ranger:   0x3ce0c0,     // 바람 — 원거리
-      warden:   0xffc94a      // 대지 — 지속형
+      warden:   0xffc94a,     // 대지 — 지속형
+      // 2026-09-03 · 주술사 마법구체(평타)·스킬 색. 새 색을 만들지 않고 이미 쓰는
+      // 전략가 보라 톤(TXT.accentAlt #b3a8ff)과 같은 계열을 골랐다 — 신비로운 보라.
+      shaman:   0xb3a8ff
     },
 
     telegraph:  0xef4444,   // 예고 원

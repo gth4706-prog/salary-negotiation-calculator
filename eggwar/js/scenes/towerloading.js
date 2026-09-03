@@ -252,6 +252,9 @@ GAME.TowerLoadingScene.prototype.constructor = GAME.TowerLoadingScene;
 // 길게 해서 사용자가 읽을 수 있게") — 읽을 것이 늘었는데 시간이 그대로면 못 읽는다.
 GAME.TowerLoadingScene.DURATION = 3000;
 GAME.TowerLoadingScene.DEBUT_EXTRA = 1600;
+// 전장 변화 예고(2026-09-03 태현님: "3초정도 카운트다운") — 데뷔/세계진입 연장(1.6초)과
+// 별개 값이다. 사용자가 명시적으로 3초를 요청했으므로 그 값을 그대로 쓴다.
+GAME.TowerLoadingScene.FIELD_EXTRA = 3000;
 
 GAME.TowerLoadingScene.prototype.init = function (data) {
   this.formationId = data.formationId;
@@ -260,10 +263,40 @@ GAME.TowerLoadingScene.prototype.init = function (data) {
   this.replay = !!data.replay;      // 지난 층 다시(2026-08-31) — Battle 에 그대로 전달
   this._t = 0;
   this._meter = null;
-  // 데뷔 층이면 읽을 시간을 더 준다. 세계 진입 층(시즌2)도 같은 이유로 더 준다.
   var TC0 = GAME.TowerCurriculum;
+
+  // ── 전장 변화 감지 (시즌2 S-W) ────────────────────────────────────────────
+  //  안개늪(31~60) 안에서는 층마다 fog/swamp 가 동전 던지기로 갈린다(`fieldFor`).
+  //  "직전 층은 무엇이었는가"를 `TowerChar` 에 물어 다르면 예고한다.
+  //  ⚠ 시드를 넘기지 않는다 — `battle.js` 도 `GAME.TowerCurriculum.fieldFor(this.tower)`
+  //    를 인자 없이 부르고, 그러면 `_seedNow()`(등반 시드)가 고른다. 여기서 다른 시드를
+  //    넘기면 로딩 화면이 예고한 전장과 실제 전투 전장이 갈린다(위 worldEntry 절의 시드
+  //    규율과 같다).
+  this._fieldChanged = false;
+  this._fieldDef = null;
+  if (TC0 && TC0.fieldFor && this.tower &&
+      GAME.TowerChar && GAME.TowerChar.exists && GAME.TowerChar.exists()) {
+    var fd0 = TC0.fieldFor(this.tower);
+    var curKind0 = fd0 ? fd0.kind : null;
+    var isWE0 = !!(TC0.isWorldEntry && TC0.isWorldEntry(this.tower));
+    var wasDebut0 = !!(TC0.debutOf && TC0.debutOf(this.tower));
+    var prevF = GAME.TowerChar.lastFieldKind && GAME.TowerChar.lastFieldKind();
+    //  직전에 기록된 층이 **바로 이전 층**일 때만 비교한다 — 재도전(지난 층 다시)이나
+    //  층을 건너뛴 경우는 비교가 무의미하니 조용히 지금 값만 다시 저장한다.
+    //  세계 진입 층·데뷔 층은 그쪽 배너가 이미 크게 뜨므로 여기서는 겹쳐 띄우지 않는다.
+    if (!this.replay && prevF && prevF.f === this.tower - 1 &&
+        prevF.kind !== curKind0 && !isWE0 && !wasDebut0) {
+      this._fieldChanged = true;
+      this._fieldDef = fd0;
+    }
+    if (GAME.TowerChar.noteFieldKind) GAME.TowerChar.noteFieldKind(this.tower, curKind0);
+  }
+
+  // 데뷔 층이면 읽을 시간을 더 준다. 세계 진입 층(시즌2)도 같은 이유로 더 준다.
+  // 전장 변화 예고는 그 둘과 안 겹치므로(위에서 already 배제) 독립 축으로 더한다.
   var extra = (TC0 && TC0.debutOf(this.tower)) ? GAME.TowerLoadingScene.DEBUT_EXTRA : 0;
   if (!extra && TC0 && TC0.isWorldEntry && TC0.isWorldEntry(this.tower)) extra = GAME.TowerLoadingScene.DEBUT_EXTRA;
+  if (!extra && this._fieldChanged) extra = GAME.TowerLoadingScene.FIELD_EXTRA;
   this._dur = GAME.TowerLoadingScene.DURATION + extra;
 };
 
@@ -379,8 +412,10 @@ GAME.TowerLoadingScene.prototype.create = function () {
   //    목표가 아니라 함정이다"). "설명을 빼라"는 지시는 *이기는 조건*을 숨기라는
   //    뜻이 아니다.
   //  ⚠ 데뷔 층이면 데뷔가 우선이다 — 그 층의 '새로운 것'은 그 적이다.
+  //  ⚠ 전장 변화 배너가 뜨는 층도 마찬가지로 우선이다 — 그 층의 '새로운 것'은
+  //    전장이다(우선순위: 데뷔 > 세계진입 > 전장변화 > 평소).
   var lesson = null;
-  if (!debutDef && !worldEntry && GAME.Onboard) {
+  if (!debutDef && !worldEntry && !this._fieldChanged && GAME.Onboard) {
     lesson = GAME.Onboard.pick({
       floor: this.tower || 0,
       isBoss: !!(GAME.Tower && GAME.Tower.isBossFloor && this.tower &&
@@ -399,6 +434,12 @@ GAME.TowerLoadingScene.prototype.create = function () {
     lines.push('🌍 새로운 세계 — ' + worldEntry.name);
     if (worldEntry.rule) lines.push('규칙: ' + worldEntry.rule);
     if (formation && formation.fieldLabel) lines.push((worldEntry.icon || '') + ' ' + formation.fieldLabel);
+  } else if (this._fieldChanged && this._fieldDef) {
+    //  전장 변화 — 세계 진입과 같은 문법("가르칠 게 있으면 그것만"). 문구는
+    //  `fieldLabel`(이미 사람이 읽는 한 줄)을 그대로 쓴다 — 새로 짓지 않는다.
+    lines.push('⚠ 전장 변화');
+    var fLbl = GAME.TowerCurriculum.fieldLabel(this._fieldDef);
+    if (fLbl) lines.push(fLbl);
   } else if (lesson) {
     //  가르칠 게 있으면 **이것만.** 배치 원형·층 조건·AI 가 읽은 내용·랜덤 팁은 뺀다.
     lines.push(lesson.title);
@@ -552,6 +593,25 @@ GAME.TowerLoadingScene.prototype.create = function () {
   this._meter = GAME.UI.meter(this, (W - barW) / 2, barY, barW, barH, {
     color: bossNumeric, frac: 0
   });
+
+  //  ── 전장 변화 카운트다운 (2026-09-03 사용자 지시: "3초정도 카운트다운하면서
+  //     어떤게있는지 알려줘") ─────────────────────────────────────────────────
+  //  진척 막대 바로 위, 큼직하게 3→2→1을 센다. 판정 로직은 전혀 안 건드린다 —
+  //  숫자는 순수 표시이고, 실제로 로딩이 붙잡히는 시간은 `init()` 의 `_dur`
+  //  가산분(FIELD_EXTRA)이 이미 정한다.
+  if (this._fieldChanged) {
+    //  ⚠ `bossNumeric` 은 Graphics 용 숫자 색(`GAME.UI.meter` 가 쓴다) — Phaser Text
+    //    style 의 `color` 는 CSS 문자열을 기대하므로 여기서는 반드시 `C.warn` 같은
+    //    문자열 색을 쓴다(숫자를 넣으면 텍스트 색이 깨진다).
+    var cdLbl = GAME.UI.label(this, W / 2, barY - 14, '3',
+      GAME.CONFIG.SMALL ? 32 : 40, C.warn, 0.5).setOrigin(0.5, 1);
+    var cdTick = function (n) {
+      if (!self._done && cdLbl && cdLbl.scene) cdLbl.setText(n > 0 ? String(n) : '');
+    };
+    this.time.delayedCall(1000, function () { cdTick(2); });
+    this.time.delayedCall(2000, function () { cdTick(1); });
+    this.time.delayedCall(3000, function () { cdTick(0); });
+  }
 
   this._done = false;
 };

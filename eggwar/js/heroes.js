@@ -399,75 +399,128 @@ GAME.HEROES = {
   //  · 체급 규율: 유효 내구도 hp×(1+armor/100) 를 1032~1161 대역에 맞춘다.
   //      주술사 900×1.28 = 1152 · 암살자 850×1.22 = 1037 (플랜의 780 은 952 로 대역
   //      밖이라 hp 만 +70 — 방어력을 올리면 '얇다'는 정체성이 죽는다).
-  //  · dps: 주술사 22/0.9s = 24.4(최저 — 토템이 나머지를 낸다) · 암살자 30/0.85s = 35.3
-  //      (최고지만 사냥꾼 32.0 과 근소 — 일격은 스킬이 낸다).
+  //  · dps: 암살자 30/0.85s = 35.3(최고지만 사냥꾼 32.0 과 근소 — 일격은 스킬이 낸다).
   //  · 가격 사다리 0·250·900·3,000·9,000 은 기존 표와 같다(scaleSkillsByPrice 가 탑에서
   //    가격으로 위력을 맞춘다). 새 필드(life·duration·markMul·jumps·decay)는 값 배수를
   //    안 타므로 표에서 직접 계단을 준다.
   //  · 모든 스킬에 `evo`(진화) 를 명시했다 — 형식은 아래 `GAME.evoOf` 주석.
   //  · 어휘: 순우리말·원시 부족(주술·토템·뼈·그림자). 마법·군대 어휘 없음.
-  //  ⚠ 조상의 알(R): 엔진에 "만료 시 폭발"이 없어 **가시덫(mine) 소환**으로 근사했다 —
-  //    밟으면 0.45초 뒤 최대체력 30% 폭발. 예고가 보이는 논타겟이라 회피 규격도 지킨다.
-  //  ⚠ 처형(R): "표식 대상 ×3 · 처치 시 쿨 초기화"는 엔진에 없다. 표식(×1.35~1.7)과
-  //    곱해지는 큰 strike 로 근사했다. 둘 다 통합 보고서에 적는다.
+  //
+  //  ── 주술사 전면 재설계 (2026-09-03, 태현님 지시) ──────────────────────────────
+  //  "qwer 이라고 봤을 때 q 근거리유닛 소환 · w 도망/회복/소환유닛강화 · e 보조유닛소환
+  //   (늪지기·족장) · r 보스 소환(용의 알 제외, 원래보다 작게) · 기본공격은 마법구체,
+  //   평타는 약하게" — 옛 조상의 알(가시덫 근사)·처형(strike 근사)·사슬(E) 을 전부 버리고
+  //  아래 넷으로 새로 짰다.
+  //  · **평타**: dps 22/0.9=24.4(옛, 최저였다) → **16/0.9=17.8**(더 낮춘다 — 다섯 영웅 중
+  //    확실한 최저치. 마법사 개념이라 스스로 때리는 화력이 아니라 소환수로 미는 설계다).
+  //    투사체는 `def.projStyle:'orb'` — 화살이 아니라 마법구체(js/combat.js 발사 코드·
+  //    js/scenes/battle.js 투사체 그리기 루프가 `p.orb` 플래그를 본다).
+  //  · **Q(근접유닛 소환)**: `attack:'melee'` 인 일반 유닛 5종(전사→벌집꾼→돌쌓이→
+  //    덩굴채→망치잡이)을 값싼 것부터 계단으로. 소환수는 `unitMods` 로 원본보다 약하게.
+  //  · **W(도망/회복/소환유닛강화)**: `type:'buff'` + 신설 옵션 `sk.includeSummons` —
+  //    자기 회복(healNow)에 더해 반경 안 **내가 세운 소환수**(summonOwner===u)까지
+  //    버프(공격·방어·이동)+회복을 함께 건다. 다른 영웅의 buff 스킬은 opt-in 이라
+  //    한 줄도 안 바뀐다.
+  //  · **E(보조유닛 소환)**: 태현님이 예로 든 늪지기·족장을 그대로 — `type:'summon'`,
+  //    Q(근접)와 역할을 가르기 위해 둘 다 투사체/지원형 유닛이다.
+  //  · **R(보스 소환)**: 신설 스킬 타입 `type:'summonBoss'`(combat.js) — 진짜 보스
+  //    def(`GAME.UNITS[bossKey]`)를 빌리되 **미니어처**로 깎는다. `bossKey` 는 10층
+  //    보스부터 200층 보스까지 낮은 층 → 높은 층 순으로 진화(bossChief→bossShell→
+  //    bossAshSentry→bossDrakeAsh→bossStormKing). **용의 알 계열(bossDragonEgg·
+  //    bossDragonEggCracked·bossDragonCrack)은 지시대로 후보에서 뺐다.**
+  //    ⚠⚠ isBoss:true 를 그대로 들고 오면 battle.js 의 HUD 보스바·보스 인트로·
+  //    회복구역 타깃·업적 판정이 전부 "이 층의 그 보스"로 오인한다 — combat.js 의
+  //    summonBoss 분기가 def 를 얕은 복사해 `isBoss:false`·`phases` 제거·`abilities`
+  //    1개로 절단한다(상세 근거는 그 분기 주석). hp×0.05~0.11·damage×0.30~0.42 로
+  //    깎고 `eliteDraw`(그리는 크기만, 판정 반지름은 원본 그대로)를 0.44~0.55 로 줄여
+  //    "일반 보스와 구분되게, 확실히 작고 약하게" 만들었다.
   shaman: {
     key: 'shaman',
     name: '주술사', art: 'shaman',
-    trait: '설치형',
-    desc: '깃털과 뼈로 꾸민 투구에 토템 지팡이. 토템을 세우고 저주와 사슬로 진형을 묶는다.',
-    hp: 900, armor: 28, damage: 22, cooldown: 900, speed: 150, range: 260,
+    trait: '소환형',
+    desc: '뼈와 깃털로 꾸민 지팡이를 든 주술사. 동료의 넋을 불러 앞세우고, 조상의 힘을 빌려 함께 싸운다.',
+    // 2026-09-03 재설계 — 평타는 다섯 영웅 중 확실한 최저치(마법사 개념, 22→16).
+    // 투사체는 화살이 아니라 마법구체(`projStyle:'orb'`, js/combat.js·battle.js 참조).
+    hp: 900, armor: 28, damage: 16, cooldown: 900, speed: 150, range: 260,
     attack: 'projectile', projectileSpeed: 380, projectileRadius: 7, lifesteal: 0,
+    projStyle: 'orb',
     radius: 16, shape: 'star',
-    hint: '토템을 세워 자리를 지킨다',
+    hint: '넋을 불러 앞세우고 뒤에서 힘을 보탠다',
     skillOptions: {
+      //  Q — 근접 유닛 소환. `attack:'melee'` 인 일반 유닛만 쓴다(js/units.js
+      //  GAME.UNIT_ORDER 중 melee 5종을 값싼 것 → 강한 것 순으로). 소환수는
+      //  `unitMods` 로 원본 유닛보다 약하게(직접 사서 배치하는 것과 차등).
       Q: [
-        { name: '화살 토템', type: 'summon', motif: 'totem', unit: 'rifleman', count: 1, life: 8000, range: 120, unitMods: { hp: 0.7, damage: 0.6 }, cooldown: 12000, cost: 0,
-          evo: { at: { floor: 10 }, name: '깨어난 화살 토템', patch: { life: 11000, unitMods: { hp: 0.9, damage: 0.8 } } } },
-        { name: '늪 토템', type: 'summon', motif: 'bog', unit: 'chemtrooper', count: 1, life: 7000, range: 120, unitMods: { hp: 0.8, damage: 0.7 }, cooldown: 11000, cost: 250,
-          evo: { at: { floor: 20 }, name: '깊은 늪 토템', patch: { life: 10000, unitMods: { hp: 1.0, damage: 0.9 } } } },
-        { name: '약초 토템', type: 'summon', motif: 'bone', unit: 'medic', count: 1, life: 9000, range: 110, unitMods: { hp: 0.9 }, cooldown: 13000, cost: 900,
-          evo: { at: { floor: 35 }, name: '조상의 약초 토템', patch: { life: 13000, count: 2, spread: 46 } } },
-        { name: '쌍 화살 토템', type: 'summon', motif: 'totem', unit: 'rifleman', count: 2, life: 9000, range: 130, spread: 50, unitMods: { hp: 0.8, damage: 0.7 }, cooldown: 12000, cost: 3000,
-          evo: { at: { rtWins: 5 }, name: '세 화살 토템', patch: { count: 3, spread: 56, life: 11000 } } },
-        { name: '조상의 토템', type: 'summon', motif: 'totem', unit: 'mgnest', count: 1, life: 10000, range: 130, unitMods: { hp: 0.9, damage: 0.8 }, cooldown: 13000, cost: 9000,
-          evo: { at: { floor: 80 }, name: '태초의 토템', patch: { life: 14000, unitMods: { hp: 1.2, damage: 1.0 } } } }
+        { name: '전사 소환', type: 'summon', motif: 'totem', unit: 'bayonet', count: 1, life: 9000, range: 110, unitMods: { hp: 0.8, damage: 0.7 }, cooldown: 11000, cost: 0,
+          evo: { at: { floor: 10 }, name: '용맹한 전사 소환', patch: { life: 12000, unitMods: { hp: 1.0, damage: 0.85 } } } },
+        { name: '벌집꾼 소환', type: 'summon', motif: 'bone', unit: 'hivethrower', count: 1, life: 8500, range: 120, unitMods: { hp: 0.8, damage: 0.75 }, cooldown: 11500, cost: 250,
+          evo: { at: { floor: 20 }, name: '독한 벌집꾼 소환', patch: { life: 11500, unitMods: { hp: 1.0, damage: 0.9 } } } },
+        { name: '돌쌓이 소환', type: 'summon', motif: 'earth', unit: 'stonepiler', count: 1, life: 10000, range: 120, unitMods: { hp: 0.9, damage: 0.8 }, cooldown: 12500, cost: 900,
+          evo: { at: { floor: 35 }, name: '거대 돌쌓이 소환', patch: { life: 13000, unitMods: { hp: 1.1, damage: 0.95 } } } },
+        { name: '덩굴채 소환', type: 'summon', motif: 'bog', unit: 'vinewhip', count: 2, life: 9500, range: 130, spread: 50, unitMods: { hp: 0.85, damage: 0.8 }, cooldown: 12000, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '덩굴채 무리 소환', patch: { count: 3, spread: 58, life: 12000 } } },
+        { name: '망치잡이 소환', type: 'summon', motif: 'earth', unit: 'hammer', count: 1, life: 11000, range: 130, unitMods: { hp: 1.0, damage: 0.95 }, cooldown: 13000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '망치잡이 무리 소환', patch: { count: 2, spread: 55, life: 15000, unitMods: { hp: 1.25, damage: 1.1 } } } }
       ],
+      //  W — 도망/회복/소환유닛강화. `type:'buff'` + 신설 옵션 `includeSummons` —
+      //  자기 회복에 더해 반경 안 **내가 세운 소환수**(Q/E/R)까지 공격·방어·이동을
+      //  버프하고 함께 회복시킨다(combat.js 의 buff 분기, opt-in — 다른 영웅 무영향).
       W: [
-        { name: '저주 표식', type: 'mark', motif: 'bone', duration: 5000, markMul: 1.35, range: 260, radius: 70, damage: 30, cooldown: 9000, cost: 0,
-          evo: { at: { floor: 10 }, name: '깊은 저주', patch: { duration: 6500, markMul: 1.45 } } },
-        { name: '뼈 저주', type: 'mark', motif: 'bone', duration: 5500, markMul: 1.40, range: 270, radius: 76, damage: 45, cooldown: 9000, cost: 250,
-          evo: { at: { floor: 20 }, name: '갈라진 뼈 저주', patch: { duration: 7000, markMul: 1.5, radius: 90 } } },
-        { name: '늪 저주', type: 'mark', motif: 'bog', duration: 6000, markMul: 1.45, range: 280, radius: 90, damage: 55, cooldown: 9500, cost: 900,
-          evo: { at: { floor: 35 }, name: '늪의 무게', patch: { duration: 7500, markMul: 1.55 } } },
-        { name: '원한 표식', type: 'mark', motif: 'ember', duration: 6500, markMul: 1.50, range: 300, radius: 90, damage: 70, cooldown: 9500, cost: 3000,
-          evo: { at: { rtWins: 5 }, name: '타오르는 원한', patch: { duration: 8000, markMul: 1.65 } } },
-        { name: '조상의 저주', type: 'mark', motif: 'totem', duration: 7000, markMul: 1.60, range: 320, radius: 100, damage: 90, cooldown: 10000, cost: 9000,
-          evo: { at: { floor: 80 }, name: '태초의 저주', patch: { duration: 9000, markMul: 1.8, radius: 120 } } }
+        { name: '정령의 가호', type: 'buff', motif: 'bone', duration: 5000, healNow: 110, radius: 220, includeSummons: true,
+          sumDamageMul: 1.25, sumArmorAdd: 6, sumHealNow: 70, cooldown: 10000, cost: 0,
+          evo: { at: { floor: 10 }, name: '깊은 정령의 가호', patch: { healNow: 150, sumDamageMul: 1.3, sumHealNow: 90 } } },
+        { name: '늪의 가호', type: 'buff', motif: 'bog', duration: 5500, healNow: 140, radius: 230, includeSummons: true,
+          sumDamageMul: 1.3, sumArmorAdd: 8, sumSpeedMul: 1.1, sumHealNow: 90, cooldown: 10000, cost: 250,
+          evo: { at: { floor: 20 }, name: '깊은 늪의 가호', patch: { healNow: 180, sumDamageMul: 1.35, sumHealNow: 110 } } },
+        { name: '뼈의 가호', type: 'buff', motif: 'bone', duration: 6000, healNow: 170, radius: 240, includeSummons: true,
+          sumDamageMul: 1.35, sumArmorAdd: 10, sumHealNow: 110, cooldown: 10500, cost: 900,
+          evo: { at: { floor: 35 }, name: '갈라진 뼈의 가호', patch: { healNow: 210, sumDamageMul: 1.4, sumHealNow: 140 } } },
+        { name: '원한의 가호', type: 'buff', motif: 'ember', duration: 6500, healNow: 210, radius: 250, includeSummons: true,
+          sumDamageMul: 1.45, sumArmorAdd: 12, sumHealNow: 140, cooldown: 11000, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '타오르는 원한의 가호', patch: { healNow: 250, sumDamageMul: 1.5, sumHealNow: 170 } } },
+        { name: '조상의 가호', type: 'buff', motif: 'totem', duration: 7000, healNow: 260, radius: 270, includeSummons: true,
+          sumDamageMul: 1.55, sumArmorAdd: 16, sumHealNow: 180, cooldown: 11500, cost: 9000,
+          evo: { at: { floor: 80 }, name: '태초의 가호', patch: { healNow: 310, sumDamageMul: 1.65, sumHealNow: 220, radius: 300 } } }
       ],
+      //  E — 보조유닛 소환(늪지기·족장). Q(근접)와 역할을 가르기 위해 둘 다
+      //  투사체/지원형 유닛이다 — 늪지기는 둔화로 발을 묶고, 족장은 곁을 강화한다.
       E: [
-        { name: '영혼 사슬', type: 'chain', motif: 'bone', damage: 70, jumps: 4, decay: 0.7, range: 300, jumpRange: 220, cooldown: 8000, cost: 0,
-          evo: { at: { floor: 10 }, name: '긴 영혼 사슬', patch: { jumps: 5, decay: 0.75 } } },
-        { name: '늪 사슬', type: 'chain', motif: 'bog', damage: 55, jumps: 4, decay: 0.7, range: 300, jumpRange: 220, slowMul: 0.6, slowMs: 1500, cooldown: 8000, cost: 250,
-          evo: { at: { floor: 20 }, name: '끈끈한 늪 사슬', patch: { slowMul: 0.5, slowMs: 2200, jumps: 5 } } },
-        { name: '뼈 사슬', type: 'chain', motif: 'bone', damage: 90, jumps: 3, decay: 0.8, range: 320, jumpRange: 240, cooldown: 8500, cost: 900,
-          evo: { at: { floor: 35 }, name: '이빨 사슬', patch: { jumps: 4, decay: 0.85 } } },
-        { name: '긴 사슬', type: 'chain', motif: 'rope', damage: 80, jumps: 6, decay: 0.75, range: 320, jumpRange: 260, cooldown: 9000, cost: 3000,
-          evo: { at: { rtWins: 5 }, name: '끝없는 사슬', patch: { jumps: 8, jumpRange: 290 } } },
-        { name: '조상의 사슬', type: 'chain', motif: 'totem', damage: 110, jumps: 6, decay: 0.8, range: 340, jumpRange: 280, slowMul: 0.7, slowMs: 1200, cooldown: 9000, cost: 9000,
-          evo: { at: { floor: 80 }, name: '태초의 사슬', patch: { jumps: 8, decay: 0.85, slowMul: 0.6, slowMs: 1600 } } }
+        { name: '늪지기 소환', type: 'summon', motif: 'bog', unit: 'chemtrooper', count: 1, life: 8000, range: 150, unitMods: { hp: 0.8, damage: 0.7 }, cooldown: 12000, cost: 0,
+          evo: { at: { floor: 10 }, name: '깨어난 늪지기 소환', patch: { count: 2, spread: 40, life: 11000, unitMods: { hp: 1.0, damage: 0.85 } } } },
+        { name: '족장 소환', type: 'summon', motif: 'totem', unit: 'sergeant', count: 1, life: 8000, range: 150, unitMods: { hp: 0.8, damage: 0.7 }, cooldown: 12500, cost: 250,
+          evo: { at: { floor: 20 }, name: '깨어난 족장 소환', patch: { life: 11000, unitMods: { hp: 1.0, damage: 0.85 } } } },
+        { name: '늪지기 무리 소환', type: 'summon', motif: 'bog', unit: 'chemtrooper', count: 2, life: 9500, range: 160, spread: 55, unitMods: { hp: 0.9, damage: 0.8 }, cooldown: 13000, cost: 900,
+          evo: { at: { floor: 35 }, name: '늪지기 떼 소환', patch: { count: 3, spread: 65, life: 12000 } } },
+        { name: '강화된 족장 소환', type: 'summon', motif: 'totem', unit: 'sergeant', count: 1, life: 11000, range: 160, unitMods: { hp: 1.1, damage: 1.0 }, cooldown: 13500, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '오래된 족장 소환', patch: { life: 14000, unitMods: { hp: 1.3, damage: 1.15 } } } },
+        { name: '조상의 부름', type: 'summon', motif: 'totem', unit: 'sergeant', count: 2, life: 13000, range: 170, spread: 60, unitMods: { hp: 1.3, damage: 1.2 }, cooldown: 14000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '태초의 부름', patch: { count: 3, spread: 75, life: 16000, unitMods: { hp: 1.5, damage: 1.35 } } } }
       ],
+      //  R — 보스 소환. 신설 타입 `type:'summonBoss'`(combat.js) — 진짜 보스 def 를
+      //  빌리되 isBoss 를 지우고 phases 를 없애고 abilities 를 1개로 줄인 뒤 hp·damage 를
+      //  크게 깎아 미니어처로 세운다(`eliteDraw` 로 그리는 크기만 축소). 낮은 층 보스 →
+      //  높은 층 보스 순으로 진화한다. **용의 알 계열은 지시대로 후보에서 뺐다.**
       R: [
-        //  가시덫(mine) 을 빌린다 — 밟으면 도화선 뒤 최대체력 30% 폭발(예고 보임·회피 가능).
-        { name: '조상의 알', type: 'summon', motif: 'totem', unit: 'mine', count: 1, life: 15000, range: 140, unitMods: { hp: 3 }, cooldown: 36000, cost: 0,
-          evo: { at: { floor: 10 }, name: '조상의 두 알', patch: { count: 2, spread: 70, life: 18000 } } },
-        { name: '알 무더기', type: 'summon', motif: 'bone', unit: 'mine', count: 3, life: 14000, range: 150, spread: 80, unitMods: { hp: 2 }, cooldown: 36000, cost: 250,
-          evo: { at: { floor: 20 }, name: '알 둥지', patch: { count: 4, spread: 95, life: 17000 } } },
-        { name: '땅울림', type: 'aoeTarget', motif: 'earth', radius: 150, damage: 140, repeat: 1, telegraph: 1200, cooldown: 35000, cost: 900,
-          evo: { at: { floor: 35 }, name: '큰 땅울림', patch: { radius: 175, damage: 165 } } },
-        { name: '조상의 부름', type: 'summon', motif: 'totem', unit: 'sergeant', count: 1, life: 12000, range: 130, unitMods: { hp: 1.5, damage: 1.2 }, cooldown: 37000, cost: 3000,
-          evo: { at: { rtWins: 5 }, name: '태초의 부름', patch: { count: 2, spread: 60, life: 15000 } } },
-        { name: '태초의 알', type: 'summon', motif: 'totem', unit: 'mine', count: 3, life: 18000, range: 160, spread: 110, unitMods: { hp: 4 }, cooldown: 38000, cost: 9000,
-          evo: { at: { floor: 80 }, name: '태초의 알 둥지', patch: { count: 5, spread: 130 } } }
+        //  10층 보스 — 부족을 이끄는 거대 족장. 가장 이르게 나타나는 보스라 가장 약하다.
+        { name: '조상의 족장 소환', type: 'summonBoss', motif: 'totem', bossKey: 'bossChief',
+          hpMul: 0.05, dmgMul: 0.30, sizeMul: 0.44, life: 16000, range: 150, cooldown: 34000, cost: 0,
+          evo: { at: { floor: 10 }, name: '태초의 족장 소환', patch: { hpMul: 0.06, dmgMul: 0.33, life: 19000 } } },
+        //  20층 보스 — 두꺼운 껍질 골렘. 족장보다 한 걸음 더 단단하다.
+        { name: '조상의 골렘 소환', type: 'summonBoss', motif: 'earth', bossKey: 'bossShell',
+          hpMul: 0.055, dmgMul: 0.30, sizeMul: 0.45, life: 17000, range: 150, cooldown: 34000, cost: 250,
+          evo: { at: { floor: 20 }, name: '태초의 골렘 소환', patch: { hpMul: 0.065, dmgMul: 0.33, life: 20000 } } },
+        //  40층 보스 — 재를 뒤집어쓴 파수병. 용의 첫 그림자가 드리우기 시작한 자리.
+        { name: '조상의 파수병 소환', type: 'summonBoss', motif: 'ember', bossKey: 'bossAshSentry',
+          hpMul: 0.065, dmgMul: 0.32, sizeMul: 0.47, life: 18000, range: 160, cooldown: 35000, cost: 900,
+          evo: { at: { floor: 35 }, name: '태초의 파수병 소환', patch: { hpMul: 0.075, dmgMul: 0.35, life: 21000 } } },
+        //  80층 보스 — 용이 거느린 잿날개. 처음으로 '용의 부하'를 직접 부린다.
+        { name: '조상의 잿날개 소환', type: 'summonBoss', motif: 'ember', bossKey: 'bossDrakeAsh',
+          hpMul: 0.075, dmgMul: 0.34, sizeMul: 0.49, life: 19000, range: 160, cooldown: 36000, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '태초의 잿날개 소환', patch: { hpMul: 0.085, dmgMul: 0.37, life: 22000 } } },
+        //  200층 보스 — 폭풍 하늘의 주인. 이 사다리의 정점 — 가장 늦게, 가장 강하게.
+        { name: '조상의 폭풍왕 소환', type: 'summonBoss', motif: 'totem', bossKey: 'bossStormKing',
+          hpMul: 0.09, dmgMul: 0.38, sizeMul: 0.52, life: 21000, range: 170, cooldown: 38000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '태초의 폭풍왕 소환', patch: { hpMul: 0.11, dmgMul: 0.42, life: 25000, sizeMul: 0.55 } } }
       ]
     }
   },
@@ -584,7 +637,11 @@ GAME.SKILL_TYPE_LABEL = {
   stealth:    '숨기',
   blink:      '점멸',
   mark:       '표식',
-  chain:      '사슬'
+  chain:      '사슬',
+  //  2026-09-03 · 주술사 R(summonBoss) — 새 글자를 넣지 않으려고 `summon` 과
+  //  **같은 낱말**을 그대로 쓴다(서브셋 대조 불필요 — Jua 800자 제약, 위 주석 참조).
+  //  개념상으로도 틀리지 않다: 미니 보스도 결국 '부르는' 소환이다.
+  summonBoss: '부르기'
 };
 
 // R 은 타입과 무관하게 슬롯 이름을 우선한다.
@@ -642,6 +699,9 @@ GAME.skillDescExtra = function (sk) {
                         (sk.damage ? ' + ' + sk.damage : '');
     case 'chain': return '사슬 ' + (sk.jumps || 4) + '기 연쇄 ' + (sk.damage || 0) + ', 칸마다 x' + (sk.decay === undefined ? 0.7 : sk.decay) +
                          (sk.slowMul ? ' + 둔화' : '');
+    //  2026-09-03 · 주술사 R — 미니 보스 소환. 일반 부르기 문장과 형식을 맞춘다.
+    case 'summonBoss': return (UN[sk.bossKey] ? UN[sk.bossKey].name : sk.bossKey) + ' (미니어처)를 ' +
+                              ((sk.life || 16000) / 1000).toFixed(0) + '초 동안 세운다';
   }
   return '';
 };

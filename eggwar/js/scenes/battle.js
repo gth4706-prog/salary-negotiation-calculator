@@ -199,15 +199,14 @@ GAME.BattleScene.prototype.create = function () {
   //    배수`를 따라간다 — 그래야 "몇 대 버티는가 / 몇 대에 죽이는가"가 층·성장과 무관하게
   //    보존된다(js/tower.js 의 hpMul/dmgMul 이 적을 나에게 맞추는 것의 거울). 같은 축끼리
   //    곱하면(체력↔체력) 한쪽으로 몰아준 빌드에서 소환수가 같이 기울어 무의미해진다.
-  //  ⚠ 질 배수(qualityMul)도 적과 **같은 지수**로 싣는다 — 아래 유닛 루프가 적 체력에
-  //    ^1.25, 공격에 ^0.75 를 쓰므로 거울도 그 짝을 그대로 따라야 한다.
+  //  ⚠ 층수·질 배수를 **안 넘긴다.** 태현님 지시대로 소환수는 층이 아니라 내 능력치를
+  //    따라간다(js/tower.js `summonModsFor` — atkIndex·ehpIndex 만 본다).
   //  ⚠ 계산식은 `js/tower.js summonModsFor` 한 곳에만 둔다 — 여기와 tools/sim.js 가
   //    같은 함수를 부른다. 손으로 베끼면 도구가 실제 게임과 다른 것을 재게 된다.
   //  ⚠ 탑에서만 싣는다. 실시간·대전은 이 값이 없으면 combat.js 가 1 로 본다 — 록스텝은
   //    양쪽이 같은 값을 봐야 하는데 캐릭터 성장은 사람마다 달라 끼면 즉시 갈라진다.
   if (this.tower && GAME.Tower.summonModsFor) {
-    this.state.summonMods =
-      GAME.Tower.summonModsFor(this.tower, this.formation.qualityMul);
+    this.state.summonMods = GAME.Tower.summonModsFor();
   }
   this.towerRuleInfo = this.tower && GAME.TowerRule
     ? GAME.TowerRule.ruleFor(this.tower) : null;

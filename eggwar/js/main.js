@@ -1,6 +1,6 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v3.22';
+GAME.VERSION = 'v3.23';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -318,6 +318,33 @@ window.addEventListener('load', function () {
       //  p95·최악을 같이 내는 이유: 평균은 스톨을 숨긴다(이 저장소가 이미 겪은 것 —
       //  "느린 프레임의 부하 지표가 평균과 같다"였다).
       'frame   ' + FrameMeter.line() + '\n' +
+      //  ── 실시간 지연 (2026-09-04 태현님 ⑧ 「아직도 렉이 존재해」) ─────────────
+      //  실시간의 '렉'은 프레임이 아니라 **록스텝 스톨**이다 — 상대의 확정 틱이 안 오면
+      //  시뮬이 선다. 그 값을 정하는 것은 넷뿐이다:
+      //   · dc    P2P 직결이 붙었나. `off` 면 판 내내 서버 경유다 — 한국 ISP 는
+      //           Cloudflare 무료 트래픽을 LAX 로 우회시켜 왕복 ~500ms 다(실측).
+      //           이 한 글자가 "렉이 난다"의 원인을 절반으로 가른다.
+      //   · rtt   지금 쓰는 경로의 왕복지연(직결이면 DC, 아니면 WS).
+      //   · delay 입력 지연 틱(왕복에서 유도) — 크면 조작이 늦게 먹는다.
+      //   · stall 시뮬이 서 있던 시간 비율 — 이게 크면 '끊긴다'로 느낀다.
+      //  ⚠ 이 PC 로는 실사용자 망을 못 잰다. **폰에서 실제 상대와 한 판** 치른 뒤 이
+      //    줄을 읽는 것이 유일한 정직한 측정이다(frame 줄과 같은 취지).
+      'rt      ' + (function () {
+        try {
+          var NR = GAME.NetRoom, RC = GAME.NetRtc;
+          if (!NR || !NR.code) return '-';
+          var sc = GAME.game.scene.getScene('Battle');
+          var ss = sc && sc._rtSession;
+          var dc = !!(RC && RC.ready && RC.ready());
+          var rtt = dc ? RC.rttMs : (NR.bestRtt ? NR.bestRtt() : null);
+          var pct = (ss && ss.tick > 0 && sc.state && sc.state.elapsed > 0)
+            ? Math.round(ss.stalledMs / sc.state.elapsed * 100) : 0;
+          return 'dc=' + (dc ? 'on' : (RC && RC._dead ? 'dead' : 'off')) +
+                 ' rtt=' + (rtt == null ? '?' : Math.round(rtt)) + 'ms' +
+                 (ss ? (' delay=' + ss.delay + ' tick=' + ss.tick + ' stall=' + pct + '%') : '') +
+                 (NR.retrying ? ' reconnect' : '');
+        } catch (e) { return 'err ' + String(e).slice(0, 40); }
+      })() + '\n' +
       //  ── 입력 (2026-08-20) ────────────────────────────────────────────────
       //  "조이스틱은 움직이는데 캐릭터가 안 움직인다"(영상 신고)를 **그 기기에서**
       //  가르기 위한 줄. 스틱값·이동속도·묶임·히트스톱이 그 순간 무엇이었는지가

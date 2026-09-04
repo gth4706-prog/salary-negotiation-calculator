@@ -1670,7 +1670,12 @@ window.GAME = window.GAME || {};
       for (var i = 0; i < u.buffs.length; i++) if (u.buffs[i].stealthTag) { on = true; break; }
       if (!on) return 1;
       if (mine) return 0.44 + 0.06 * Math.sin((tMs || 0) / 170);
-      return 0.10;
+      //  ⚠ 적 눈에는 **0** 이다 (2026-09-04 태현님 ④: "적한테도 안보이게해줘야하는게
+      //  맞아"). 예전 0.10 은 "어디서 맞았는지는 알아야 한다"는 정직함이었는데, 실제로는
+      //  ① 은신이 은신이 아니게 되고 ② 아이보리 몸통은 0.10 에서 사라지는데 투구·장비의
+      //  잉크 윤곽만 남아 **머리만 떠다니는** 그림이 됐다. 정직함은 다른 곳이 맡는다 —
+      //  은신은 때리는 순간 풀리고(combat: stealthBreak) 그때 위치가 이펙트로 드러난다.
+      return 0;
     },
 
     /**

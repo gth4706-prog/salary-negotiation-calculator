@@ -104,12 +104,35 @@ GAME.BossBank = (function () {
     LINES: LINES,
     _img: {},          // unit키 → 영속 Phaser.Image (매 프레임 재생성 금지 — v1.66 규율)
 
+    //  ── 아직 그림이 없는 세계 보스의 **대역** (2026-09-04 태현님 ⑤) ──────────────
+    //  "주술사 궁극기나 협동보스전에서 옛날 보스이미지가 나와 — 새로 추가했던
+    //   보스이미지만 나오게해"
+    //  시즌2 세계 보스 넷은 아직 시트가 없어(`pending`) 벡터 폴백(옛 그림)으로 떴다.
+    //  능력·페이즈·이름은 그대로 두고 **그리는 시트만** 결이 맞는 실물로 대신 세운다.
+    //  ⚠ 용의 얼굴 계열은 안 쓴다 — 「얼굴은 300층에서 처음」이라는 사다리를 깨면
+    //    안 된다(v1.10 결정). 권속(드레이크)·발톱만 쓴다.
+    //  ⚠ 진짜 시트가 도착해 `pending` 이 빠지면 이 표는 **저절로 안 쓰인다.**
+    STANDIN: {
+      "w_mist_boss":  "bossDrakeFrost",   // 늪의 어미 — 서리 권속
+      "w_ash_boss":   "bossDrakeAsh",     // 재의 군주 — 재 권속
+      "w_rift_boss":  "bossDragonClaw",   // 균열 거인 — 거대한 손(얼굴 없음)
+      "w_storm_boss": "bossDrakeStorm"    // 폭풍의 왕 — 폭풍 권속
+    },
+    _resolve: function (key) {
+      var m = DATA[key];
+      if (m && m.pending) {
+        var alt = this.STANDIN[key];
+        if (alt && DATA[alt] && !DATA[alt].pending) return { key: alt, m: DATA[alt], standIn: key };
+      }
+      return { key: key, m: m };
+    },
+
     metaOf: function (def) {
       if (!def) return null;
-      if (def.key && DATA[def.key]) return { key: def.key, m: DATA[def.key] };
+      if (def.key && DATA[def.key]) return this._resolve(def.key);
       //  키가 없으면 art 문자열로 찾는다(파생 def 대비).
       if (def.art) {
-        for (var k in DATA) if (DATA[k].art === def.art) return { key: k, m: DATA[k] };
+        for (var k in DATA) if (DATA[k].art === def.art) return this._resolve(k);
       }
       return null;
     },

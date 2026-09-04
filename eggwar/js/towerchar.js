@@ -78,8 +78,13 @@ GAME.TowerChar = {
   //  마력 점수(주술사만 0 이 아니다). 소환수 배수와 평타 보정이 이 값을 본다.
   spellPower: function (rec) {
     rec = rec || this.get();
-    if (!rec || !rec.statGain || !this.SPELL_HEROES[rec.heroKey]) return 0;
-    return rec.statGain.spell || 0;
+    if (!rec || !this.SPELL_HEROES[rec.heroKey]) return 0;
+    //  능력치로 찍은 마력 + **아이템 마력**(2026-09-04 태현님 ②: "아이템도 공격력이
+    //  아니라 마력을 올려줘야"). 두 출처를 여기 한 곳에서 합친다 — 갈라 두면
+    //  `spellSummonMul` 과 `atkIndex` 가 서로 다른 마력을 보게 된다.
+    var st = (rec.statGain && rec.statGain.spell) || 0;
+    var it = (GAME.TowerShopItems && rec.items) ? (this.itemBonus(rec).spell || 0) : 0;
+    return st + it;
   },
 
   //  마력 → 소환수 능력치 배수. 이 한 줄이 "마력이 소환수에 관여한다"의 본체다.
@@ -88,6 +93,19 @@ GAME.TowerChar = {
   //    겹쳐 고층에서 소환수만으로 판이 끝난다.
   spellSummonMul: function (rec) {
     return 1 + this.spellPower(rec) / 100;
+  },
+
+  //  마력이 **평타에** 주는 몫 — "기본공격은 아주 조금 쎄지고"(2026-09-04 태현님 ⑤).
+  //  ⚠ 예전에는 `마력 × 0.25` 라는 **절대값**이었다. 능력치로만 마력을 올리던 때는
+  //    범위가 0~240 이라 무해했지만, 아이템이 마력을 수천 단위로 올리게 되자(렌즈)
+  //    평타가 그대로 폭주하고 `atkIndex` 가 마력에 대해 2차식이 됐다(실측: 최상급에서
+  //    광전사의 4.8배). 지금은 **소환 배수에서 비율로** 뗀다 — 배수가 ×34 여도 평타는
+  //    기본의 ×9 에 그친다(광전사가 ×14 인 자리). 축이 하나라 어디서도 겹치지 않는다.
+  SPELL_BASIC_SHARE: 0.25,
+  spellBasicAdd: function (rec, baseDamage) {
+    var mul = this.spellSummonMul(rec);
+    if (!(mul > 1) || !(baseDamage > 0)) return 0;
+    return Math.round(baseDamage * (mul - 1) * this.SPELL_BASIC_SHARE);
   },
 
   //  치명타 점수 → 실효값. 기본은 전 유닛 공통 크리(CONFIG 25%·×1.5)이고,
@@ -571,13 +589,17 @@ GAME.TowerChar = {
   itemBonus: function (rec) {
     rec = rec || this.get();
     var out = { hp: 0, armor: 0, damage: 0, speed: 0, lifesteal: 0, cdrMul: 1, luck: 0,
-                atkspeed: 0, crit: 0 };
+                atkspeed: 0, crit: 0, spell: 0 };
     if (!rec || !GAME.TowerShopItems) return out;
     var slots = GAME.TowerShopItems.SLOTS;
     for (var i = 0; i < slots.length; i++) {
       var sk = slots[i].key;
       var it = rec.items[sk] ? GAME.TowerShopItems.find(sk, rec.items[sk]) : null;
       if (!it) continue;
+      //  영웅 컨셉 렌즈 (2026-09-04 태현님 ②③) — 주술사는 공격력이 마력이 되고,
+      //  암살자는 치명·공속·이동으로 기운다. 렌즈가 없는 영웅은 원본 그대로다.
+      it = GAME.TowerShopItems.effOf(it, rec.heroKey) || it;
+      if (it.spellAdd) out.spell += it.spellAdd;
       if (it.hpAdd) out.hp += it.hpAdd;
       if (it.armorAdd) out.armor += it.armorAdd;
       if (it.damageAdd) out.damage += it.damageAdd;

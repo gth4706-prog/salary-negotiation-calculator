@@ -21,6 +21,7 @@ GAME.RtPrepScene.prototype.init = function () {
   this._readyBtn = null;
   this._pickedFormation = null;
   this._loadoutTxt = null;      // 씬 인스턴스는 재사용된다 — 파괴된 Text 참조 방지
+  this._skillTxt = null;
   this._heroBtns = null;
 };
 
@@ -141,6 +142,17 @@ GAME.RtPrepScene.prototype.create = function () {
     this._loadoutTxt = UI.text(this, W / 2, P ? 70 : 124, '', {
       size: 'caption', color: C.textDim, origin: 0.5, originY: 0 });
     this._loadoutTxt.setAlign('center');
+    //  ── 무작위로 받은 스킬 (2026-09-04 태현님 ①) ─────────────────────────────
+    //  ⚠ 장비 요약에 **붙이면 안 된다.** 두 줄이 되는 순간 폰에서 영웅 버튼 윗변
+    //    (96+26-23 = 99)을 1px 침범한다(overlap-audit 실측 겹침 2건). 자리는
+    //    **영웅 버튼 블록 바로 아래**의 빈 띠 — 마지막 행 바닥에서 역산한다
+    //    (고정 y 를 박으면 영웅 수가 늘 때 또 겹친다, 이 폴더의 반복 함정).
+    var rows = twoCol ? Math.ceil(hks.length / 2) : hks.length;
+    var skillY = top + 26 + (rows - 1) * (hbh + 8) + hbh / 2 + (P ? 3 : 8);
+    this._skillTxt = UI.text(this, W / 2, skillY, '', {
+      size: 'micro', color: C.textDim, origin: 0.5, originY: 0 });
+    this._skillTxt.setAlign('center');
+    this._skillTxt.setWordWrapWidth(W - 24);
     this._refreshLoadout();
   }
 
@@ -195,7 +207,7 @@ GAME.RtPrepScene.prototype._refreshLoadout = function () {
   //  "산 만큼 실제로 얼마가 붙는가" (2026-08-31 태현님) — 실시간 효과 배율이
   //  반영된 실효값을 같이 적는다. 상점 표기(원값)와 다른 것이 정상이다.
   var eff = parts.length && GAME.ArenaBuild.rtBonusText
-    ? GAME.ArenaBuild.rtBonusText(rec.items, rec.rtStats) : '';
+    ? GAME.ArenaBuild.rtBonusText(rec.items, rec.rtStats, rec.heroKey) : '';
   //  ⚠ 4슬롯 풀장비 + 실효까지 이름을 다 적으면 PC 에서 타이머와 스친다(감사 실측).
   //    3종 이상은 개수로 접는다 — 이름은 상점(장비 다시)에서 어차피 보인다.
   var head = parts.length <= 2 ? '장비: ' + parts.join(' · ')
@@ -203,6 +215,18 @@ GAME.RtPrepScene.prototype._refreshLoadout = function () {
   this._loadoutTxt.setText(parts.length
     ? head + (eff ? '  →  실효 ' + eff : '')
     : '(장비 없음 — 안 사도 됩니다. 기본 스펙으로 출전)');
+  //  ── 무작위로 받은 스킬 (2026-09-04 태현님 ①) ────────────────────────────────
+  //  고르는 화면이 없어졌으니 **여기서 반드시 말해 줘야 한다.** 받은 줄 모르는 기제는
+  //  없는 것과 같다(구슬·축복에서 두 번 배운 것).
+  //  ⚠ 장비 요약에 붙여 두 줄로 만들면 폰에서 영웅 버튼 윗변을 침범한다
+  //    (overlap-audit 실측 겹침 2건) — 그래서 **자기 줄**을 쓴다.
+  if (this._skillTxt && this._skillTxt.scene) {
+    var hk = GAME.RtFlow.myHeroPick || rec.heroKey;
+    var sn = (hk && GAME.skillPickNames) ? GAME.skillPickNames(hk, GAME.RtFlow.myPicks || rec.picks) : [];
+    this._skillTxt.setText(sn.length
+      ? ('🎲 이번 판 스킬  ' + sn.map(function (s) { return s.slot + ' ' + s.name; }).join('  ·  '))
+      : '');
+  }
 };
 
 GAME.RtPrepScene.prototype._commit = function () {

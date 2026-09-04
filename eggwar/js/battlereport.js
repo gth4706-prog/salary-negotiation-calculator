@@ -105,9 +105,14 @@ GAME.BattleReport = {
       if (cur === 'dealt') {
         var secs = Math.max(1, Math.round(((rep.t1 || 0) - (rep.t0 || 0)) / 1000)) || 1;
         var totalSec = opts.sec || secs;
-        add(UI.text(scene, W / 2, y, UI.numAbbr(Math.round(rep.dealt)),
-          { size: P ? 26 : 34, color: C.accent, origin: 0.5, originY: 0 }).setDepth(D + 2));
-        add(UI.text(scene, W / 2, y + (P ? 30 : 40),
+        //  ⚠ 둘째 줄은 **첫 줄의 실측 높이**에서 놓는다. `y + 40` 처럼 고정 오프셋을
+        //    박으면 34px 글자의 실제 높이(약 44px)를 못 따라가 4px 물린다
+        //    (overlap-audit 실측 "281.8k" ↔ 아래 줄 91×4px). 이 저장소가 상점 카드·
+        //    특성 칸에서 이미 두 번 같은 방식으로 고친 자리다.
+        var bigL = UI.text(scene, W / 2, y, UI.numAbbr(Math.round(rep.dealt)),
+          { size: P ? 26 : 34, color: C.accent, origin: 0.5, originY: 0 }).setDepth(D + 2);
+        add(bigL);
+        add(UI.text(scene, W / 2, bigL.y + bigL.height + (P ? 2 : 4),
           '교전 ' + secs + '초 동안  ·  초당 ' + UI.numAbbr(Math.round(rep.dealt / secs)) +
           '  ·  판 전체 ' + totalSec + '초',
           { size: P ? 12 : 'caption', color: C.textDim, origin: 0.5, originY: 0 }).setDepth(D + 2));

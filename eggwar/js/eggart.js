@@ -249,12 +249,18 @@ var SM = 10;
 
   // 한 레이어를 잉크로 먼저 찍고, 그 위에 원래대로 그린다.
   //  fn(gfx) 형태로 그리기 호출을 넘긴다.
-  UI.inkLayer = function (g, r, fn) {
-    if (UI.ART_INK && r >= 8) {
+  //  ⚠⚠ `a`(유닛 알파)를 **반드시 실어야 한다** (2026-09-04 태현님 ④ 「투구만 둥둥
+  //    떠다닌다」의 정체). 예전에는 잉크 알파가 `ART_INK_ALPHA`(0.9) 고정이라 유닛
+  //    알파를 통째로 무시했다. 은신(알파 0.10)에서 아이보리 몸통은 사라지는데
+  //    **투구·장비의 검은 잉크 윤곽만 0.9 로 남아** 머리만 공중에 뜬 것처럼 보였다.
+  //    알파를 쓰는 곳은 은신뿐이 아니다 — 페이드·미리보기도 같은 증상을 갖고 있었다.
+  UI.inkLayer = function (g, r, fn, a) {
+    var ua = (a === undefined || a === null) ? 1 : a;
+    if (UI.ART_INK && r >= 8 && ua > 0.02) {
       var k = Math.max(1.15, r * 0.115);
-      fn(inkProxy(g, UI.ART_INK_COLOR, UI.ART_INK_ALPHA, k));
+      fn(inkProxy(g, UI.ART_INK_COLOR, UI.ART_INK_ALPHA * ua, k));
     }
-    fn(g);
+    if (ua > 0.001) fn(g);
   };
 
   // ── 색 보정 ───────────────────────────────────────────────────
@@ -3586,18 +3592,18 @@ var SM = 10;
     var rkBody = function (gg) { UI.eggRankBody(gg, art, cx, cy + dyGear, r, color, a, D, rank); };
     var rkHead = function (gg) { UI.eggRankHead(gg, art, cx + lean, cy + dyHead, r, color, a, D, rank); };
 
-    if (backFirst) { UI.inkLayer(g, r, rkBan); UI.inkLayer(g, r, back); }
-    if (gearBehind) UI.inkLayer(g, r, gear);
+    if (backFirst) { UI.inkLayer(g, r, rkBan, a); UI.inkLayer(g, r, back, a); }
+    if (gearBehind) UI.inkLayer(g, r, gear, a);
     UI.eggBody(g, art, cx, cy, r, color, a, lean, ky);
-    if (!backFirst) { UI.inkLayer(g, r, back); UI.inkLayer(g, r, rkBan); }
-    UI.inkLayer(g, r, rkBody);
+    if (!backFirst) { UI.inkLayer(g, r, back, a); UI.inkLayer(g, r, rkBan, a); }
+    UI.inkLayer(g, r, rkBody, a);
     // 장비는 **몸통 위·얼굴 아래**. 예전엔 맨 마지막이라 큰 무기가 얼굴을 덮었다(실측 신고).
     // 이 순서면 무기를 아무리 크게 그려도 눈·볼·투구는 반드시 살아남는다.
-    if (!gearBehind) UI.inkLayer(g, r, gear);
+    if (!gearBehind) UI.inkLayer(g, r, gear, a);
     // 맨눈은 투구보다 먼저(챙이 이마를 덮게), 투구 틈의 눈은 투구보다 나중에 그린다
     if (art.face !== 'slit') UI.eggFace(g, art, cx + lean * 0.62, cy + dyFace, r, a, D);
-    UI.inkLayer(g, r, helm);
-    UI.inkLayer(g, r, rkHead);
+    UI.inkLayer(g, r, helm, a);
+    UI.inkLayer(g, r, rkHead, a);
     if (art.face === 'slit') UI.eggFace(g, art, cx + lean * 0.62, cy + dyFace, r, a, D);
   };
 

@@ -284,12 +284,13 @@ GAME.ArenaBuild = {
     //  실효(RT_ITEM_EFF 반영) 아이템 보너스 — 요약 막대가 실전값을 말해야 한다.
     itemBonus: function (rec) {
       var AB = GAME.ArenaBuild;
-      var ib = AB.itemBonus({ items: (rec && rec.items) || {} });
+      var ib = AB.itemBonus({ items: (rec && rec.items) || {} }, rec && rec.heroKey);
       var E = AB.RT_ITEM_EFF;
       return { damage: Math.round(ib.damage * E.damage), armor: Math.round(ib.armor * E.armor),
                hp: Math.round(ib.hp * E.hp), speed: Math.round(ib.speed * E.speed),
                lifesteal: ib.lifesteal * E.lifesteal, cdrMul: ib.cdrMul,
-               atkspeed: ib.atkspeed || 0, crit: ib.crit || 0, luck: ib.luck || 0 };
+               atkspeed: ib.atkspeed || 0, crit: ib.crit || 0, luck: ib.luck || 0,
+               spell: ib.spell || 0 };
     },
     luckLevel: function (rec) {
       if (!rec) rec = this.rec();
@@ -477,10 +478,20 @@ GAME.ArenaBuild = {
     for (var k in (items || {})) {
       if (items[k] && this.rtItemAllowed(k, items[k])) safe[k] = items[k];
     }
-    var ib = this.itemBonus({ items: safe });
+    var heroKey = hu.def && hu.def.key;
+    var ib = this.itemBonus({ items: safe }, heroKey);
     var E = this.RT_ITEM_EFF;
     var d = hu.def;
     d.damage += Math.round(ib.damage * E.damage);
+    //  ── 마력(주술사) — 아이템 렌즈가 공격력을 마력으로 돌린 몫 (2026-09-04 태현님 ②)
+    //  탑처럼 평타에는 0.25 만 얹고, 나머지 값어치는 **소환수**로 간다. 실시간은
+    //  `state.summonMods`(탑 성장 추종)가 아예 없으므로 영웅에 직접 배수를 심는다 —
+    //  combat.js `_summonMods` 가 `owner.summonMul` 을 본다. 세팅 스냅샷이 양쪽에
+    //  같으므로 두 클라이언트가 같은 값을 세운다(결정론 유지).
+    if (ib.spell) {
+      d.damage += Math.round(ib.spell * 0.25 * E.damage);
+      hu.summonMul = (hu.summonMul || 1) * (1 + ib.spell / 100);
+    }
     d.armor += Math.round(ib.armor * E.armor);
     d.speed += Math.round(ib.speed * E.speed);
     d.lifesteal = (d.lifesteal || 0) + ib.lifesteal * E.lifesteal;
@@ -503,6 +514,15 @@ GAME.ArenaBuild = {
         hu.critMul = ce.mul;
       }
       hu.rtLuck = gn.luck || 0;              //  구슬 드랍률(처치 시 5%/렙) — combat 이 읽는다
+      //  ── 마력(주술사, 2026-09-04) — 아이템 마력과 **같은 규칙**으로 합류한다 ────
+      //  평타는 소환 배수에서 0.25 만 떼고, 나머지 값어치는 소환수 배수로 간다.
+      //  ⚠ 아이템 몫(위 `ib.spell`)이 이미 `hu.summonMul` 을 세웠으므로 여기서는
+      //    **곱해서** 얹는다 — 덮어쓰면 능력치를 찍는 순간 아이템 마력이 사라진다.
+      if (gn.spell > 0) {
+        var sm = 1 + gn.spell / 100;
+        d.damage += Math.round((d.damage || 0) * (sm - 1) * 0.25);
+        hu.summonMul = (hu.summonMul || 1) * sm;
+      }
     } else if (st) {
       //  옛 평면 형태({damage: 렙수}) — 구버전 스냅샷 하위호환.
       var R = this.RT_STATS;
@@ -518,8 +538,8 @@ GAME.ArenaBuild = {
 
   //  실시간 적용 효과 요약 문구 — 화면(RtPrep)이 "산 만큼 실제로 얼마가 붙는가"를
   //  말한다(2026-08-31 태현님: "아이템으로 구매한 능력치가 얼마나 되는지 알아야").
-  rtBonusText: function (items, stats) {
-    var ib = this.itemBonus({ items: items || {} });
+  rtBonusText: function (items, stats, heroKey) {
+    var ib = this.itemBonus({ items: items || {} }, heroKey || (this._rtRec && this._rtRec.heroKey));
     var E = this.RT_ITEM_EFF;
     var parts = [];
     //  능력치 합산 — 표기 = 실효
@@ -544,6 +564,7 @@ GAME.ArenaBuild = {
     var hp = Math.round(ib.hp * E.hp);
     var spd = Math.round(ib.speed * E.speed);
     if (dmg) parts.push('공+' + dmg);
+    if (ib.spell) parts.push('마력+' + Math.round(ib.spell));
     if (arm) parts.push('방+' + arm);
     if (hp) parts.push('체+' + hp);
     if (spd) parts.push('이속+' + spd);
@@ -556,18 +577,26 @@ GAME.ArenaBuild = {
   // 두 곳이 갈라지면 같은 아이템이 모드마다 다른 값이 된다.
   itemBonus: function (rec) {
     rec = rec || this.get();
-    var out = { hp: 0, armor: 0, damage: 0, speed: 0, lifesteal: 0, cdrMul: 1, luck: 0 };
+    var out = { hp: 0, armor: 0, damage: 0, speed: 0, lifesteal: 0, cdrMul: 1, luck: 0,
+                atkspeed: 0, crit: 0, spell: 0 };
     var slots = this.ITEM_SLOTS();
+    //  ⚠ 영웅 렌즈는 `rec.heroKey` 를 본다. 실시간은 상대 세팅으로 남의 영웅 것을
+    //    계산할 때도 있으므로(applyToHeroRt), 부르는 쪽이 heroKey 를 실어 준다.
+    var hk = (arguments.length > 1 && arguments[1]) || rec.heroKey;
     for (var i = 0; i < slots.length; i++) {
       var it = rec.items[slots[i].key] ? this.findItem(slots[i].key, rec.items[slots[i].key]) : null;
       if (!it) continue;
+      if (GAME.TowerShopItems && GAME.TowerShopItems.effOf) it = GAME.TowerShopItems.effOf(it, hk) || it;
       if (it.hpAdd) out.hp += it.hpAdd;
       if (it.armorAdd) out.armor += it.armorAdd;
       if (it.damageAdd) out.damage += it.damageAdd;
+      if (it.spellAdd) out.spell += it.spellAdd;
       if (it.speedAdd) out.speed += it.speedAdd;
       if (it.lifestealAdd) out.lifesteal += it.lifestealAdd;
       if (it.cdrMul) out.cdrMul *= it.cdrMul;
       if (it.luckAdd) out.luck += it.luckAdd;
+      if (it.atkspeedAdd) out.atkspeed += it.atkspeedAdd;
+      if (it.critAdd) out.crit += it.critAdd;
     }
     return out;
   },
@@ -653,3 +682,19 @@ GAME.ArenaBuild = {
 Object.defineProperty(GAME.ArenaBuild.RtStats, 'STAT_DEFS', {
   get: function () { return this.defs(); }
 });
+
+//  ⚠ 영웅마다 목록이 다르다 (2026-09-04 태현님 ② — 주술사는 공격력 자리에 마력).
+//  탑은 `TowerChar.statDefsFor` 가 그 일을 하는데, 실시간 상점은 이 어댑터를 보므로
+//  **여기에도 같은 이름을 둬야** 화면이 갈라지지 않는다(한쪽만 갈면 실시간 주술사가
+//  공격력을 올리게 되고, 그 값은 평타에만 붙어 소환수에는 한 톨도 안 간다).
+GAME.ArenaBuild.RtStats.statDefsFor = function (heroKey) {
+  var TC = GAME.TowerChar;
+  var all = this.defs();
+  if (!TC || !TC.SPELL_HEROES) return all;
+  var spell = !!TC.SPELL_HEROES[heroKey];
+  return all.filter(function (d) {
+    if (d.key === 'spell') return spell;         //  주술사만 마력
+    if (d.key === 'damage') return !spell;       //  주술사는 공격력 대신 마력
+    return true;
+  });
+};

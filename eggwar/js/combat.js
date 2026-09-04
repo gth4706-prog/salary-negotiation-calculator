@@ -1509,11 +1509,16 @@ GAME.Combat = {
   //  ⚠ `state.summonMods` 가 없으면(실시간·대전·방어전) 스킬 값 그대로 — 옛 동작과 동일.
   _summonMods: function (state, owner, skillMods) {
     var sm = state && state.summonMods;
-    if (!sm || !owner || owner.side === 'strategist') return skillMods;
+    //  ⚠ 소환수에 마력을 싣는 두 경로. 탑은 `state.summonMods`(Tower.summonModsFor —
+    //  능력치 성장 추종), 실시간·협동은 `owner.summonMul`(ArenaBuild 가 아이템 마력에서
+    //  세운다, 2026-09-04 태현님 ②). 실시간은 성장이 없어 탑 경로가 통째로 비는데,
+    //  그러면 주술사만 **아이템으로 산 마력이 소환수에 한 톨도 안 붙는다.**
+    var own = (owner && owner.summonMul > 0) ? owner.summonMul : 1;
+    if ((!sm && own === 1) || !owner || owner.side === 'strategist') return skillMods;
     var out = {}, k;
     for (k in (skillMods || {})) out[k] = skillMods[k];
-    out.hp = (out.hp || 1) * (sm.hp || 1);
-    out.damage = (out.damage || 1) * (sm.damage || 1);
+    out.hp = (out.hp || 1) * ((sm && sm.hp) || 1) * own;
+    out.damage = (out.damage || 1) * ((sm && sm.damage) || 1);
     return out;
   },
 

@@ -578,10 +578,14 @@ GAME.HEROES = {
         { name: '조상의 잿날개 소환', type: 'summonBoss', motif: 'ember', bossKey: 'bossDrakeAsh',
           hpMul: 0.48, dmgMul: 1.35, sizeMul: 0.49, life: 19000, range: 160, cooldown: 36000, cost: 3000,
           evo: { at: { rtWins: 5 }, name: '태초의 잿날개 소환', patch: { hpMul: 0.54, dmgMul: 1.48, life: 22000 } } },
-        //  200층 보스 — 폭풍 하늘의 주인. 이 사다리의 정점 — 가장 늦게, 가장 강하게.
-        { name: '조상의 폭풍왕 소환', type: 'summonBoss', motif: 'totem', bossKey: 'bossStormKing',
+        //  200층 보스 세계의 주인이 거느린 폭풍 권속. 이 사다리의 정점.
+        //  ⚠ 예전엔 `bossStormKing`(시즌2 세계 보스)이었는데 그 시트가 아직 없어
+        //    **벡터 폴백(옛 그림)** 으로 떴다 — 태현님 신고 ⑤ 의 절반이 이것이다.
+        //    소환수는 시트가 있는 보스만 고른다(대역은 bossbank.STANDIN 이 맡지만,
+        //    소환은 아예 실물이 있는 놈을 부르는 쪽이 정직하다).
+        { name: '조상의 폭풍용 소환', type: 'summonBoss', motif: 'totem', bossKey: 'bossDrakeStorm',
           hpMul: 0.52, dmgMul: 1.55, sizeMul: 0.52, life: 21000, range: 170, cooldown: 38000, cost: 9000,
-          evo: { at: { floor: 80 }, name: '태초의 폭풍왕 소환', patch: { hpMul: 0.58, dmgMul: 1.72, life: 25000, sizeMul: 0.55 } } }
+          evo: { at: { floor: 80 }, name: '태초의 폭풍용 소환', patch: { hpMul: 0.58, dmgMul: 1.72, life: 25000, sizeMul: 0.55 } } }
       ]
     }
   },
@@ -890,6 +894,42 @@ GAME.buildSkills = function (heroKey, picks) {
 
 GAME.defaultSkillPicks = function () {
   return { Q: 0, W: 0, E: 0, R: 0 };
+};
+
+//  ── 실시간 대전은 스킬을 **고르지 않는다** (2026-09-04 태현님 ①) ────────────────
+//  "실시간대전에서 스킬은 랜덤으로 주도록 하자. 스킬고르는건 없애."
+//  판마다 무작위로 받으니 같은 영웅이어도 매번 다른 답을 찾게 된다 — 상점에서 최적
+//  조합을 외워 오는 축이 사라진다.
+//  ⚠ 여기서 `Math.random` 을 써도 결정론은 안 깨진다 — 굴린 결과가 **세팅 스냅샷
+//    (setup.picks)에 실려** 양쪽 클라이언트가 같은 값을 받기 때문이다. 전투 중에
+//    다시 굴리는 곳은 한 군데도 없다(그러면 desync 다).
+//  ⚠ 진화(`_evo`)는 안 싣는다 — 실시간은 "초기화된 상태로 서로 고른다"가 원칙이다.
+GAME.randomSkillPicks = function (heroKey, rnd) {
+  var h = GAME.HEROES[heroKey] || GAME.HEROES[GAME.HERO_ORDER[0]];
+  var picks = GAME.defaultSkillPicks();
+  if (!h || !h.skillOptions) return picks;
+  rnd = rnd || Math.random;
+  for (var i = 0; i < GAME.SKILL_SLOTS.length; i++) {
+    var slot = GAME.SKILL_SLOTS[i], list = h.skillOptions[slot];
+    if (!list || !list.length) continue;
+    picks[slot] = Math.min(list.length - 1, Math.floor(rnd() * list.length));
+  }
+  return picks;
+};
+
+//  굴린 픽을 사람이 읽는 이름으로 — 준비 화면이 "이번 판에 무엇을 받았는지" 말한다.
+//  받은 줄도 모르면 무작위가 아니라 그냥 사고다(구슬·축복에서 두 번 배운 것).
+GAME.skillPickNames = function (heroKey, picks) {
+  var h = GAME.HEROES[heroKey];
+  if (!h || !h.skillOptions) return [];
+  var out = [];
+  for (var i = 0; i < GAME.SKILL_SLOTS.length; i++) {
+    var slot = GAME.SKILL_SLOTS[i], list = h.skillOptions[slot] || [];
+    var idx = (picks && picks[slot]) || 0;
+    if (idx < 0 || idx >= list.length) idx = 0;
+    if (list[idx]) out.push({ slot: slot, name: list[idx].name || slot });
+  }
+  return out;
 };
 
 // ── 값이 비쌀수록 세다 — **통곡의 탑에서만** (2026-07-31 사용자 지시) ─────────────

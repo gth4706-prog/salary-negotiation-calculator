@@ -184,7 +184,12 @@ GAME.TowerShopScene.prototype.create = function () {
   //  실시간 준비(임시 빌드) — 능력치 탭이 열린다 (2026-08-31 태현님:
   //  "아이템 3단뿐이면 능력치도"). 비동기 대전은 그대로 없음(2026-08-01 결정 유지).
   if (this.mode === 'arena' && GAME.ArenaBuild && GAME.ArenaBuild._rtRec) {
+    //  실시간은 **스킬을 고르지 않는다**(2026-09-04 태현님 ①: "스킬고르는건 없애").
+    //  판마다 무작위로 받고 준비 화면이 무엇을 받았는지 말한다. 비동기 대전(_rtRec
+    //  없음)은 그대로 고를 수 있다 — 거기까지 뺄 이유가 없다.
+    TABS = TABS.filter(function (t) { return t[0] !== 'skill'; });
     TABS.push(['stats', '⚒ 능력치']);
+    if (this.tab === 'skill') this.tab = 'item';
   }
   var tabW = Math.min(W - PAD * 2, 420);
   var tc = GAME.Layout.cols(TABS.length, { gap: 8, width: tabW, left: (W - tabW) / 2, pad: 0 });
@@ -431,16 +436,30 @@ GAME.TowerShopScene.prototype._buildTraitTab = function () {
       var iw = b.w - padIn * 2;
       var gapY = PH ? 2 : 4;
       var ty = b.y + (PH ? 3 : 5);
-      var nameL = GAME.UI.label(self, b.x + padIn, ty,
+      //  칸 표시 — 아이템 카드·스킬 줄과 같은 이유(2026-09-04 ⑨).
+      var tIn = function (lbl) { lbl.__box = { x: b.x, y: b.y, w: b.w, h: b.h }; return lbl; };
+      var nameL = tIn(GAME.UI.label(self, b.x + padIn, ty,
         t.name + '  ' + rank + '/' + t.max, nameFs,
-        rank > 0 ? hexStr(col) : C.text, 0).setWordWrapWidth(iw);
+        rank > 0 ? hexStr(col) : C.text, 0).setWordWrapWidth(iw));
       self._body.push(nameL);
       ty += nameL.height + gapY;
 
       //  지금 단계의 설명(안 찍었으면 1단 설명) — "다음에 무엇이 되는가"를 보여준다.
       var line = t.desc[Math.min(rank, t.max - 1)] || '';
-      var descL = GAME.UI.label(self, b.x + padIn, ty, line,
-        descFs, C.textDim, 0).setWordWrapWidth(iw);
+      var descL = tIn(GAME.UI.label(self, b.x + padIn, ty, line,
+        descFs, C.textDim, 0).setWordWrapWidth(iw));
+      //  ⚠ 설명이 세 줄로 접히면 칸을 넘친다 — 폰(칸 125×75)에서 「한 번에 최대체력
+      //    40% 넘게 안 맞는다」가 14px 삐져나갔다(2026-09-04, 새 칸 넘침 검사가 잡았다).
+      //    **숨기지 않고 줄인다** — 이 화면의 규율이다(아이템 효과 문구에서 이미 정한 것).
+      //    이름 줄 아래 남은 높이에 들어갈 때까지 뒤에서 한 글자씩 덜고 …을 붙인다.
+      var room = (b.y + b.h - 2) - ty;
+      if (descL.height > room && line) {
+        var cut = line;
+        while (cut.length > 4 && descL.height > room) {
+          cut = cut.slice(0, cut.length - 2);
+          descL.setText(cut + '…');
+        }
+      }
       self._body.push(descL);
       ty += descL.height + gapY;
 
@@ -448,13 +467,13 @@ GAME.TowerShopScene.prototype._buildTraitTab = function () {
       //    (칸 높이는 프로필마다 달라서 항상 들어간다고 가정할 수 없다.)
       if (why && !maxed) {
         if (ty + descFs <= b.y + b.h - 2) {
-          self._body.push(GAME.UI.label(self, b.x + padIn, ty,
-            '잠김 - ' + why, descFs, C.textDim, 0).setWordWrapWidth(iw));
+          self._body.push(tIn(GAME.UI.label(self, b.x + padIn, ty,
+            '잠김 - ' + why, descFs, C.textDim, 0).setWordWrapWidth(iw)));
         }
       } else if (open) {
         if (ty + descFs <= b.y + b.h - 2) {
-          self._body.push(GAME.UI.label(self, b.x + b.w - padIn, ty,
-            '+1점', descFs, C.accent, 1).setOrigin(1, 0));
+          self._body.push(tIn(GAME.UI.label(self, b.x + b.w - padIn, ty,
+            '+1점', descFs, C.accent, 1).setOrigin(1, 0)));
         }
       }
 
@@ -972,6 +991,12 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
     var priceTxt = equipped ? '장착 중'
                             : (price === 0 ? '무료 교체' : ('💰 ' + price));
     var priceCol = equipped ? C.accent : (afford ? C.text : C.textDim);
+    //  ── 칸 표시 (2026-09-04 태현님 ⑨ 「우측에 글자 잘림」) ──────────────
+    //  카드는 Graphics 로 그리므로 「이 글자가 어느 칸 소속인가」를 감사가 알 길이
+    //  없었다 — 그래서 칸을 넘치는 글자가 화면 안이기만 하면 「잘림 0」 으로
+    //  통과했다(버튼-라벨 쌍에만 넘침 검사가 있었다). `__box` 가 그 줌을 잃는다.
+    var box = { x: cx0, y: cy0, w: cardW, h: cardH };
+    var inBox = function (lbl) { lbl.__box = box; return lbl; };
 
     if (P) {
       // ── 폰: 가로형 — 아이콘 왼쪽, [이름 / 효과] 오른쪽, 가격은 이름 줄 오른쪽 끝 ──
@@ -993,20 +1018,20 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
       var lineH = 16;                                    // 13px 글자 + 최소 여백
       var padY = Math.max(1, (cardH - lineH * 2 + 3) / 2);
       var nameY = cy0 + padY, noteY = nameY + lineH;
-      var priceLbl = sc.add(GAME.UI.label(self, cx0 + cardW - 6, nameY, priceTxt, 13, priceCol, 0)
-        .setOrigin(1, 0));
+      var priceLbl = sc.add(inBox(GAME.UI.label(self, cx0 + cardW - 6, nameY, priceTxt, 13, priceCol, 0)
+        .setOrigin(1, 0)));
       // 이름은 가격이 차지하고 남은 폭만 쓴다 — 안 그러면 둘이 겹친다.
-      sc.add(GAME.UI.label(self, tx, nameY,
+      sc.add(inBox(GAME.UI.label(self, tx, nameY,
         GAME.TowerShopItems.nameFor(it, self.char.heroKey), 13,
-        equipped ? C.accent : C.text, 0).setWordWrapWidth(Math.max(40, tw - priceLbl.width - 8)));
+        equipped ? C.accent : C.text, 0).setWordWrapWidth(Math.max(40, tw - priceLbl.width - 8))));
       // 효과 문구 — 이 줄이 사용자가 요구한 "어떤 능력치를 추가해주는지"다.
       // ⚠ **숨기지 않는다.** 예전엔 넘치면 `setVisible(false)` 로 감췄는데, 효과가
       //   3~4개인 장신구(그림자 반지·여명의 인장)가 통째로 설명 없는 카드가 됐다
       //   (사용자 신고). 지금은 값에서 **짧게 다시 만들어**(라벨 축약 + 큰 수 k 표기)
       //   폭 안에 들어가게 한다 — 감추는 대신 줄이는 것이 맞다.
-      var noteTxt = GAME.TowerShopItems.noteOf(it, true);
-      sc.add(GAME.UI.label(self, tx, noteY, noteTxt, 13, C.textDim, 0)
-        .setWordWrapWidth(tw).setLineSpacing(0));
+      var noteTxt = GAME.TowerShopItems.noteOf(it, true, self.char.heroKey);
+      sc.add(inBox(GAME.UI.label(self, tx, noteY, noteTxt, 13, C.textDim, 0)
+        .setWordWrapWidth(tw).setLineSpacing(0)));
 
     } else {
       // ── PC: 세로형 — 아이콘 위, 이름·효과 가운데, 가격 바닥 ──
@@ -1020,15 +1045,15 @@ GAME.TowerShopScene.prototype._buildItemTab = function () {
       GAME.UI.drawItem(g, self.itemSlot, it.key, cx0 + cardW / 2, iconCy, iconSz, self.char.heroKey);
 
       var flowY = iconCy + iconSz / 2 + 7;
-      var nameLbl = sc.add(GAME.UI.label(self, cx0 + cardW / 2, flowY,
+      var nameLbl = sc.add(inBox(GAME.UI.label(self, cx0 + cardW / 2, flowY,
         GAME.TowerShopItems.nameFor(it, self.char.heroKey), 13,
         equipped ? C.accent : C.text, 0.5)
-        .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(cardW - 8));
-      sc.add(GAME.UI.label(self, cx0 + cardW / 2, nameLbl.y + nameLbl.height + 3,
-        GAME.TowerShopItems.noteOf(it, false), 13, C.textDim, 0.5).setOrigin(0.5, 0).setAlign('center')
-        .setWordWrapWidth(cardW - 12));
-      sc.add(GAME.UI.label(self, cx0 + cardW / 2, cy0 + cardH - 6,
-        priceTxt, 13, priceCol, 0.5).setOrigin(0.5, 1));
+        .setOrigin(0.5, 0).setAlign('center').setWordWrapWidth(cardW - 8)));
+      sc.add(inBox(GAME.UI.label(self, cx0 + cardW / 2, nameLbl.y + nameLbl.height + 3,
+        GAME.TowerShopItems.noteOf(it, false, self.char.heroKey), 13, C.textDim, 0.5).setOrigin(0.5, 0).setAlign('center')
+        .setWordWrapWidth(cardW - 12)));
+      sc.add(inBox(GAME.UI.label(self, cx0 + cardW / 2, cy0 + cardH - 6,
+        priceTxt, 13, priceCol, 0.5).setOrigin(0.5, 1)));
     }
 
     // 카드를 누르면 **고르기만 한다.** 사는 것은 아래 확정 막대의 버튼이 한다.
@@ -1197,19 +1222,23 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
     g.lineStyle(previewing ? 2 : 1, previewing ? C.accent
       : (equipped ? C.controller : GAME.UI.COL.border), 1);
     g.strokeRoundedRect(leftX, ry, leftW, rowH, 10);
+    //  칸 표시 — 아이템 카드와 같은 이유(2026-09-04 ⑨). 이 줄이 없으면 스킬 줄이
+    //  칸을 넘쳐도 감사가 「잘림 0」을 낸다.
+    var sbox = { x: leftX, y: ry, w: leftW, h: rowH };
+    var sIn = function (lbl) { lbl.__box = sbox; return lbl; };
 
     var btnW = P ? 78 : 104;
     var txtW = leftW - 24 - btnW - 10;
     //  시즌2 — 진화한 스킬은 이름 앞에 ✦, 진화 뒤 이름(evo.name)으로 뜬다.
     var evolvedRow = self.mode === 'tower' && GAME.TowerChar.hasEvo && GAME.TowerChar.hasEvo(slot, idx, self.char);
     var rowName = evolvedRow ? ('✦ ' + ((GAME.evoOf(o) || {}).name || o.name)) : o.name;
-    self._body.push(GAME.UI.label(self, leftX + 12, ry + (P ? 5 : 9),
+    self._body.push(sIn(GAME.UI.label(self, leftX + 12, ry + (P ? 5 : 9),
       (locked ? '🔒 ' : '') + rowName +
       (equipped ? '  ✓ 장착 중' : (owned ? '  · 보유' : '')),
-      P ? 12 : 15, owned ? C.text : C.textDim, 0).setWordWrapWidth(txtW));
+      P ? 12 : 15, owned ? C.text : C.textDim, 0).setWordWrapWidth(txtW)));
     var typeLabel = GAME.SKILL_TYPE_LABEL[o.type] || o.type;
     // 잠긴 칸은 **왜 못 사는지**를 그 자리에 적는다 — 안 적으면 "왜 안 눌리지"가 된다.
-    self._body.push(GAME.UI.label(self, leftX + 12, ry + (P ? 22 : 32),
+    self._body.push(sIn(GAME.UI.label(self, leftX + 12, ry + (P ? 22 : 32),
       // 대전은 스킬을 사지 않는다 — 가격을 적으면 있지도 않은 통화를 말하게 된다.
       // ⚠ 2026-08-01 — **목록에 위력을 적는다**(사용자: "계수가 아직도 잘 안 들어간 것
       //   같아"). 계수는 실제로 들어가 있었지만 **목록에는 쿨과 값만** 있어서, 고르기
@@ -1231,7 +1260,7 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
                    (self.mode === 'arena' ? ''
                      : (o.cost ? ('  ·  ' + o.cost + '골드') : '  ·  기본 내장'));
                })(),
-      P ? 10 : 12, C.textDim, 0).setWordWrapWidth(txtW));
+      P ? 10 : 12, C.textDim, 0).setWordWrapWidth(txtW)));
 
     // 카드 본체 = 미리보기 (사용자 지시: "클릭하면 미리보기가 보이게")
     var hit = self.add.rectangle(leftX + (leftW - btnW - 10) / 2, ry + rowH / 2,

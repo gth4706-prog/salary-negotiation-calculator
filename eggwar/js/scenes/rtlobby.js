@@ -392,10 +392,14 @@ GAME.RtLobbyScene.prototype._coopStart = function () {
     title: '🤝 협동 보스전 — 세계',
     items: ws.map(function (w) {
       var bk = GAME.RtCoop.bossKeyFor(w.floor), bd = GAME.UNITS[bk];
+      //  잠긴 사유는 **지금 규칙**을 말한다(2026-09-04 태현님 ⑥) — 앞 세계를 협동으로
+      //  깨면 열린다. 탑 기록으로도 열리므로 그 길도 같이 적는다.
       return { key: w.key, disabled: !w.open,
-               name: (w.open ? '' : '🔒 ') + w.icon + ' ' + w.name + '  ·  ' + w.floor + '층',
+               name: (w.open ? '' : '🔒 ') + w.icon + ' ' + w.name + '  ·  ' + w.floor + '층' +
+                     (w.open && w.wins ? '  ·  ' + w.wins + '승' : ''),
                note: w.open ? ('보스: ' + (bd ? bd.name : '?') + ' · 둘이서 180초 안에 처치')
-                            : ('통곡의 탑 ' + w.from + '층에 닿으면 열립니다') };
+                            : ((w.prevName ? w.prevName + ' 을 협동으로 깨면 열립니다' : '')
+                               + ' (또는 통곡의 탑 ' + w.from + '층)') };
     }),
     onPick: function (it) {
       var w = GAME.RtCoop.worldOf(it.key);

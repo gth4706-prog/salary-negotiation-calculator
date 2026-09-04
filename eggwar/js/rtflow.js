@@ -52,7 +52,12 @@ GAME.RtCoop = {
   //  2026-09-03 통합: RT_HERO_MOD 재조정(파수꾼 hp 0.95·ls 0.4·R 오라 0.4) 뒤 봇 둘 승률이
   //  73%→55% 로 내려와 다섯 값을 약 10% 올렸다(rt-coop-audit (f) 로 재확인).
   //  +10% 는 85%(초원·폭풍 8/8) 로 넘쳐서 절반만(+5%) → 65%(26/40), 세계마다 승·패 다 있음.
-  HERO_WORLD_MUL: { meadow: 1.9, mire: 2.45, ash: 3.6, rift: 3.9, storm: 3.65 },
+  //  2026-09-04 재조정: 암살자·주술사 개편(v3.20/3.21)과 아이템 렌즈로 승률이 다시
+  //  85%(34/40) 로 올라 게이트가 빨개졌다. 다섯 값을 일괄 −8% 해 목표 대역으로 되돌린다
+  //  (개별 세계를 손대면 세계 간 상대 난이도가 흐트러진다 — 일괄이 맞다).
+  //  일괄 −8% 뒤 균열·폭풍만 8/8 로 남아(그 둘은 원래 여유가 컸다) 두 값만 한 번 더
+  //  −8% 했다 — 「세계마다 승·패가 다 있어야 한다」는 게이트가 그 둘을 지목한다.
+  HERO_WORLD_MUL: { meadow: 1.75, mire: 2.25, ash: 3.31, rift: 3.30, storm: 3.09 },
   scaleHero: function (hu, world) {
     var m = this.HERO_WORLD_MUL[world];
     if (!(m > 0) || m === 1 || !hu || !hu.def) return hu;
@@ -64,7 +69,12 @@ GAME.RtCoop = {
   },
 
   // ── 세계 표 — 열린 세계까지만 고를 수 있다(잠긴 것은 숨기지 않는다) ─────────
-  //  열림 = 첫 세계 · 탑 최고 기록이 그 세계 첫 층 이상 · 시즌 진행이 '진입' 표시.
+  //  ⚠ 해금 기준이 바뀌었다 (2026-09-04 태현님 ⑥): "보스를 고르는 기준은 통곡의탑 깬
+  //  기준이 아니라 그냥 협동보스전에서 깼다면 다음꺼 도전할수있게해주면돼."
+  //  → **앞 세계를 협동으로 한 번이라도 이기면 다음 세계가 열린다.** 탑 기록·시즌
+  //  진입은 지우지 않고 **또 하나의 길**로 남긴다 — 이미 200층을 오른 사람에게
+  //  협동을 처음부터 다시 밟게 하는 것은 벌이지 보상이 아니다.
+  //  기록은 `RtScore.coopGet(world).wins`(로컬, 세계별). 서버 필드는 아직 없다.
   worlds: function () {
     var S = GAME.Season;
     if (!S || !S.WORLDS) return [];
@@ -72,12 +82,20 @@ GAME.RtCoop = {
     try { best = (GAME.Tower && GAME.Tower.get && GAME.Tower.get().best) || 0; } catch (e) {}
     var prog = null;
     try { prog = S.progress(1); } catch (e2) {}
+    function coopWins(key) {
+      if (!GAME.RtScore || !GAME.RtScore.coopGet) return 0;
+      try { return (GAME.RtScore.coopGet(key) || {}).wins || 0; } catch (e3) { return 0; }
+    }
     var out = [];
     for (var i = 0; i < S.WORLDS.length; i++) {
       var w = S.WORLDS[i], p = prog && prog[i];
+      var prev = i > 0 ? S.WORLDS[i - 1] : null;
+      var byCoop = i === 0 || (prev && coopWins(prev.key) > 0);
       out.push({
         key: w.key, name: w.name, icon: w.icon || '', from: w.from, floor: w.boss, index: i,
-        open: i === 0 || best >= w.from || !!(p && p.entered)
+        prevName: prev ? (prev.icon + ' ' + prev.name) : null,
+        wins: coopWins(w.key),
+        open: byCoop || best >= w.from || !!(p && p.entered)
       });
     }
     return out;
@@ -275,6 +293,7 @@ GAME.RtFlow = {
     this.mySetup = null;
     this.theirSetup = null;
     this.myHeroPick = null;     //  지난 판의 영웅 선택이 새 판에 새지 않게
+    this.myRollFor = null; this.myPicks = null;   //  스킬도 판마다 새로 굴린다
     //  컨트롤러 — 판마다 **초기화된** 임시 빌드(예산 500 드래프트, 2026-08-24 태현님 ④).
     //  이월 없음 · 저장 안 됨. TowerShop(mode:'arena') 왕복이 전부 여기에 쌓인다.
     if (GAME.ArenaBuild) {
@@ -292,6 +311,15 @@ GAME.RtFlow = {
         self.theirSetup = data.setup;
         self.maybeBattle();
       }
+    };
+    //  ⚠ 준비 화면은 최대 60초 머무는 자리다 — 폰은 그 사이 화면이 꺼지고 소켓이
+    //  끊긴다. 예전에는 그 한 번의 깜빡임으로 판을 통째로 물렀다(협동 "시작하자마자
+    //  파트너가 떠났다"의 절반). 되붙는 중(`drop`)이면 기다리고, 정말 끝났을 때만 무른다.
+    GAME.NetRoom.on.drop = function () { self._netDrop = true; };
+    GAME.NetRoom.on.reopen = function () {
+      self._netDrop = false;
+      //  끊긴 동안 보낸 내 세팅이 유실됐을 수 있다 — 값 불변으로 다시 보낸다(멱등).
+      self.resend();
     };
     GAME.NetRoom.on.close = function (info) {
       if (!info || !info.byUser) self.abort('상대의 연결이 끊겼습니다');
@@ -315,6 +343,7 @@ GAME.RtFlow = {
     this.mySetup = null;
     this.theirSetup = null;
     this.myHeroPick = null;
+    this.myRollFor = null; this.myPicks = null;
     if (GAME.ArenaBuild) GAME.ArenaBuild.rtBegin();
     this._started = false;
     this._rttFrozen = 0;
@@ -328,6 +357,7 @@ GAME.RtFlow = {
   //  coop = { world, floor }. 방 판은 서버 start(seed) 를, 봇 판은 로컬 시드를 쓴다 —
   //  진형은 `RtCoop.formationFor(world, floor, seed)` 가 그 시드로 결정적으로 만든다.
   coop: null,
+  _netDrop: false,          //  준비 화면에서 소켓이 끊겼다 되붙는 중인가(화면 문구용)
   beginCoop: function (coop, startMsg) {
     this.begin('controller', 'controller', startMsg);
     this.coop = { world: coop.world, floor: coop.floor || GAME.RtCoop.floorOf(coop.world) };
@@ -368,9 +398,21 @@ GAME.RtFlow = {
   myHeroPick: null,
   setHeroPick: function (k) {
     this.myHeroPick = k;
+    //  스킬은 **고르는 게 아니라 받는다**(2026-09-04 태현님 ①) — 영웅을 고르는 그
+    //  순간 굴려서 준비 화면이 바로 보여 준다. 확정 때 굴리면 무엇을 받았는지 모르는
+    //  채로 전투에 들어간다. 같은 영웅을 다시 눌러도 다시 굴리지 않는다(리롤 금지).
+    if (this.myRollFor !== k) {
+      this.myRollFor = k;
+      this.myPicks = GAME.randomSkillPicks ? GAME.randomSkillPicks(k) : GAME.defaultSkillPicks();
+    }
     //  임시 빌드에도 같은 영웅을 — 상점(TowerShop)이 rec.heroKey 를 보고 그린다.
-    if (GAME.ArenaBuild && GAME.ArenaBuild._rtRec) GAME.ArenaBuild._rtRec.heroKey = k;
+    if (GAME.ArenaBuild && GAME.ArenaBuild._rtRec) {
+      GAME.ArenaBuild._rtRec.heroKey = k;
+      GAME.ArenaBuild._rtRec.picks = this.myPicks;
+    }
   },
+  myRollFor: null,
+  myPicks: null,
   buildControllerSetup: function (heroKey) {
     //  드래프트 반영(2026-08-24 태현님 ④) — 준비 중 상점에서 산 아이템·스킬픽을
     //  세팅 스냅샷에 싣는다. 상점을 안 다녀왔으면 DEFAULT 그대로 = 기본 스펙.
@@ -394,13 +436,19 @@ GAME.RtFlow = {
     //  경유 rtt(수백 ms)가 판 내내 굳는다 — "렉" 신고의 한 축(2026-09-02). 직결이
     //  붙을 때까지 **최대 1.5초**만 기다렸다가 얼린다(양쪽 같은 규칙이라 안전하고,
     //  기다리는 동안도 준비 시간은 흐른다).
+    //  ⚠⚠ 기다리는 시간을 1.5 → **4초**로 늘렸다 (2026-09-04 태현님 ⑧).
+    //  실측(두 브라우저): 직결이 붙은 뒤 왕복은 2ms 인데 `delay` 는 6틱(200ms)으로
+    //  굳어 있었다 — 확정 시점에 직결이 아직 안 붙어 **서버 경유 왕복(126ms)** 을 얼린
+    //  것이다. ICE 협상은 흔히 2~3초가 걸리므로 1.5초는 거의 언제나 짧다. 그 한 번의
+    //  이른 확정이 판 전체의 입력 지연을 정한다(얼린 값은 결정론 때문에 못 바꾼다).
+    //  준비 화면은 60초라 4초를 더 기다려도 사람에게 비용이 없다.
     if (!this.local && this._rttFrozen == null && GAME.NetRtc && !GAME.NetRtc.ready() &&
         GAME.NetRoom.peers && GAME.NetRoom.peers.length >= 2 && !this._rttWaiting) {
       var selfW = this, waited = 0;
       this._rttWaiting = true;
       var iv = setInterval(function () {
         waited += 100;
-        if (GAME.NetRtc.ready() || waited >= 1500 || !selfW.active) {
+        if (GAME.NetRtc.ready() || waited >= 4000 || !selfW.active) {
           clearInterval(iv);
           selfW._rttWaiting = false;
           if (selfW.active) selfW.commitMine(setup);
@@ -472,6 +520,8 @@ GAME.RtFlow = {
     if (!this.local) {
       GAME.NetRoom.on.message = null;
       GAME.NetRoom.on.close = null;
+      GAME.NetRoom.on.drop = null;
+      GAME.NetRoom.on.reopen = null;
       GAME.NetRoom.leave(true);
     }
     this.local = false;

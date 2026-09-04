@@ -25,7 +25,15 @@ GAME.Lockstep = (function () {
   var TICK_MS = 1000 / 30;
   var DELAY = 6;            // 입력 지연(틱) — 200ms. RTT p95 171ms 를 덮는다.
   var CHECK_EVERY = 30;     // digest 교환 주기(틱) — 1초.
-  var MAX_AHEAD = 90;       // 상대보다 이만큼 앞서면 무조건 스톨(3초) — 폭주 방지.
+  //  한 프레임에 몰아서 따라잡는 상한(틱). ⚠ 크면 스톨이 풀리는 순간 **순간이동**이
+  //  된다 — 8 이면 267ms 어치가 한 프레임에 지나가고 그게 "렉"으로 보고된다
+  //  (2026-09-04 태현님 ⑧). 4 면 초당 최대 120틱(필요치 30틱의 4배)이라 따라잡기는
+  //  넉넉하면서 눈에는 빨리 감기로 읽힌다. 이 값을 3 밑으로 내리면 30fps 기기에서
+  //  영영 못 따라잡는다(30fps × 3 = 90틱/s 가 하한선).
+  var CATCHUP_MAX = 4;
+  //  재접속 때 다시 흘릴 입력 창(틱). 8초치 — 재시도 백오프 상한(8초)보다 넉넉해야
+  //  끊긴 구간을 통째로 덮는다. 그보다 오래 끊겼으면 어차피 close 로 판이 끝난다.
+  var RESEND_WINDOW = 240;
 
   //  FNV-1a Float64 비트 digest — pvp-harness 와 같은 식(결정론 판정은 비트 비교).
   function digest(state) {
@@ -62,6 +70,7 @@ GAME.Lockstep = (function () {
     //  빈 입력으로 미리 채우는 대칭 규약이라, 첫 DELAY 틱은 신호 없이도 돈다.
     this.remoteTick = this.delay - 1;
     this._sq = 0;                 // 내 입력 패킷 일련번호
+    this._outbox = {};            // tick → 내가 보낸 입력 패킷(재접속 재전송용)
     this._pq = {};                // 틱별 최근 수신 일련번호 — 늦게 온 옛 패킷을 버린다
     this.myDigests = {};           // tick → digest (내 것)
     this.theirDigests = {};        // tick → digest (상대 것)
@@ -86,7 +95,27 @@ GAME.Lockstep = (function () {
     var q = this.cmdsBySide[this.mySide];
     if (!q[at]) q[at] = [];
     q[at].push(cmd);
-    this.send({ type: 'input', t: at, side: this.mySide, cmds: q[at], q: ++this._sq });
+    var msg = { type: 'input', t: at, side: this.mySide, cmds: q[at], q: ++this._sq };
+    //  ⚠ 보낸 것을 **들고 있는다**(2026-09-04). 소켓이 잠깐 끊기면 그 사이 보낸 입력
+    //  패킷이 통째로 사라지는데, `inputsFinal` 은 최댓값 병합이라 **혼자 살아 돌아와**
+    //  받는 쪽이 그 틱을 빈 입력으로 실행해 버린다 → 조용한 desync. 되붙는 순간
+    //  outbox 를 다시 흘려 구멍을 메운다(수신이 멱등이라 중복은 무해하다).
+    this._outbox[at] = msg;
+    this.send(msg);
+  };
+
+  //  재접속 직후 — 아직 상대가 실행하지 않았을 수 있는 입력을 전부 다시 보낸다.
+  //  상대 진행도를 모르므로 **최근 창(RESEND_WINDOW 틱)** 을 통째로 흘린다.
+  Session.prototype.resendInputs = function () {
+    if (this.desynced) return 0;
+    var n = 0, from = this.tick - RESEND_WINDOW;
+    for (var k in this._outbox) {
+      if ((k | 0) < from) { delete this._outbox[k]; continue; }
+      this.send(this._outbox[k]); n++;
+    }
+    //  상대가 내 진행 신호도 놓쳤을 수 있다 — 최신 확정치를 한 번 더(멱등).
+    if (this.tick > 0) this.send({ type: 'inputsFinal', upto: this.tick - 1 + this.delay, side: this.mySide });
+    return n;
   };
 
   //  상대(또는 릴레이) 메시지 수신.
@@ -149,13 +178,19 @@ GAME.Lockstep = (function () {
       }
       delete this.cmdsBySide[side][t];
     }
-    GAME.Combat.update(state, TICK_MS);
     this.tick++;
+    delete this._outbox[t - RESEND_WINDOW];     // 재전송 창 밖은 버린다(무한 증가 방지)
 
     //  틱 t 를 실행했으므로 내 입력 스케줄은 t+DELAY 까지 확정이다(이후 입력은
     //  전부 t+1+DELAY 이상에 실린다). 상대는 이 신호로 t+DELAY 까지 달릴 수 있다.
     //  (매 틱 1개 — 수십 바이트. 실사용 3명 규모에서 비용 없음.)
+    //  ⚠ **시뮬보다 먼저 보낸다** (2026-09-04). 값은 한 비트도 안 다르지만(스케줄은
+    //    `tick++` 시점에 확정된다), 상대의 스톨을 푸는 신호가 내 시뮬 한 틱만큼 일찍
+    //    출발한다. 난전 프레임에서 그 한 틱이 상대의 스톨로 그대로 넘어간다.
+    //  ⚠ `tick++` **뒤**여야 한다. 앞에서 보내면 t+delay 에 아직 내 입력이 더 실릴 수
+    //    있어 상대가 빈 입력으로 그 틱을 돌린다 — 조용한 desync 다.
     this.send({ type: 'inputsFinal', upto: t + this.delay, side: this.mySide });
+    GAME.Combat.update(state, TICK_MS);
 
     if (t > 0 && t % CHECK_EVERY === 0) {
       var d = digest(state);
@@ -185,7 +220,7 @@ GAME.Lockstep = (function () {
       this.acc -= TICK_MS;
       this.step();
       ran++;
-      if (ran > 8) { this.acc = 0; break; }   // 한 프레임에 몰아서 따라잡기 상한
+      if (ran >= CATCHUP_MAX) { this.acc = 0; break; }
     }
     return ran;
   };

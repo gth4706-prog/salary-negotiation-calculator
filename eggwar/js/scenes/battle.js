@@ -102,6 +102,7 @@ GAME.BattleScene.prototype.init = function (data) {
   //  ⚠ 씬 인스턴스는 재사용된다 — init 에서 안 되돌리면 **다음 판이 확대된 채로 시작**한다
   //    (이 폴더가 콤보·힌트 텍스트에서 세 번 겪은 계열의 사고다).
   this._finishZoomMs = 0;
+  this._rtDropAt = 0;           //  재접속 배너 — 안 되돌리면 다음 판이 "끊김"으로 시작한다
   this._emoteLastAt = -1e9;     //  스팸 방지 쿨의 기준 시각(performance.now)
   this._emoteBar = null;        //  파괴된 버튼을 붙들지 않게(지연생성 가드 함정)
   //  ⚠ 힌트·물약 라벨은 **레이아웃에 따라 안 만드는 판**이 있다(폰 가로·실시간). 안 되돌리면
@@ -310,7 +311,11 @@ GAME.BattleScene.prototype.create = function () {
     //  "마력을 올리면 기본공격은 아주 조금쎄지고 오히려 그 값이 소환유닛들의
     //   능력치에 관여하게해줘" — 평타에는 **0.25배만** 얹는다(공격력 축의 1/4).
     //  ⚠ 소환수 쪽 몫은 여기가 아니라 `Tower.summonModsFor` 가 곱한다(한 곳에서).
-    if (bonus.spell) d.damage += Math.round(bonus.spell * 0.25);
+    //  ⚠ 마력의 평타 몫은 **소환 배수에서 비율로** 뗀다(TowerChar.spellBasicAdd) —
+    //    절대값으로 더하면 아이템 마력(수천 단위)이 평타를 폭주시킨다. 난이도 쪽
+    //    (`Tower.atkIndex`)도 같은 한 축(spellSummonMul)만 본다.
+    var spellAdd = GAME.TowerChar.spellBasicAdd ? GAME.TowerChar.spellBasicAdd(tc, d.damage) : 0;
+    if (spellAdd) d.damage += spellAdd;
     d.armor += bonus.armor + ib.armor;
     d.speed += bonus.speed + ib.speed;
     d.lifesteal = (d.lifesteal || 0) + ib.lifesteal;
@@ -659,7 +664,20 @@ GAME.BattleScene.prototype.create = function () {
         //  이모트(렌더 전용) — 록스텝(lk)과는 별개 메시지. 시뮬에 닿지 않는다.
         if (data && data.type === 'emote') rtSelf._onEmote(data.k);
       };
+      //  ⚠⚠ 잠깐 끊긴 것으로 판을 끝내지 않는다 (2026-09-04 태현님: 협동에서 "둘 다
+      //  파트너가 떠났다며 시작하자마자 끝나버린다"). 소켓 깜빡임은 이 게임에서 예외가
+      //  아니라 기본인데(폰 화면 꺼짐·망 전환·DO 재기동) 예전 코드는 그 한 번에
+      //  `state.over` 를 세웠다. 이제 NetRoom 이 `drop`(되붙는 중)과 `close`(정말 끝)를
+      //  갈라 준다 — drop 은 배너만 띄우고 록스텝은 알아서 스톨한다.
+      GAME.NetRoom.on.drop = function () { rtSelf._rtDropAt = Date.now(); };
+      GAME.NetRoom.on.reopen = function () {
+        rtSelf._rtDropAt = 0;
+        //  끊긴 동안 보낸 입력 패킷은 사라졌다. 다시 흘리지 않으면 상대가 그 틱을
+        //  **빈 입력으로** 실행해 조용히 desync 가 난다(inputsFinal 은 멱등이라 혼자 산다).
+        if (rtSelf._rtSession && rtSelf._rtSession.resendInputs) rtSelf._rtSession.resendInputs();
+      };
       GAME.NetRoom.on.close = function (info) {
+        rtSelf._rtDropAt = 0;
         if (!rtSelf.state.over) {
           rtSelf.state.over = true;
           //  상대가 나가면 남은 쪽(내 팀) 승리. 협동은 파트너가 나가면 판이 안 선다 — 패(보상 없음).
@@ -693,6 +711,8 @@ GAME.BattleScene.prototype.create = function () {
       if (!rtSelf.rt.local) {
         GAME.NetRoom.on.message = null;
         GAME.NetRoom.on.close = null;
+        GAME.NetRoom.on.drop = null;
+        GAME.NetRoom.on.reopen = null;
         if (!rtSelf._rtKeepRoom) GAME.NetRoom.leave(true);
       }
       rtSelf._rtBot = null;
@@ -777,7 +797,15 @@ GAME.BattleScene.prototype.create = function () {
       //  관전자도 상대 이모트는 본다(보내지만 못한다 — 버튼이 없다).
       if (data && data.type === 'emote') rtSelf2._onEmote(data.k);
     };
+    //  관전 경로도 **같은 규칙**이다 (2026-09-04) — 잠깐 끊긴 것으로 판을 끝내지 않는다.
+    //  한쪽만 고치면 전략가 시점에서만 예전 사고가 남는다(두 벌이 갈라지는 자리).
+    GAME.NetRoom.on.drop = function () { rtSelf2._rtDropAt = Date.now(); };
+    GAME.NetRoom.on.reopen = function () {
+      rtSelf2._rtDropAt = 0;
+      if (rtSelf2._rtSession && rtSelf2._rtSession.resendInputs) rtSelf2._rtSession.resendInputs();
+    };
     GAME.NetRoom.on.close = function () {
+      rtSelf2._rtDropAt = 0;
       if (!rtSelf2.state.over) {
         rtSelf2.state.over = true;
         rtSelf2.state.winner = rtSelf2.rt.meTeam;
@@ -797,6 +825,8 @@ GAME.BattleScene.prototype.create = function () {
     this.events.once('shutdown', function () {
       GAME.NetRoom.on.message = null;
       GAME.NetRoom.on.close = null;
+      GAME.NetRoom.on.drop = null;
+      GAME.NetRoom.on.reopen = null;
       GAME.NetRoom.leave(true);
       rtSelf2._rtSession = null;
     });
@@ -1089,6 +1119,12 @@ GAME.BattleScene.prototype.create = function () {
   this._setupZoom();
 
   //  보스 층 인트로 — 줌 준비(_zoomRect)가 끝난 뒤에만 성립한다.
+  //  ⚠ 보스 시트를 **여기서 한 번** 부른다 (2026-09-04 태현님 ⑤).
+  //  예전에는 `BossArt.draw` 가 매 프레임 `ensure` 를 부르는 것이 유일한 경로였는데,
+  //  씬을 그리는 도중에 로더를 계속 두드리는 구조라 **차가운 브라우저에서 시트가 안
+  //  붙는다**(boss-shot 프로필을 지우고 재면 80층 이후 7개가 벡터 폴백으로 떴다).
+  //  탑은 층 로딩 화면이 미리 불러 줘서 안 보였고, 협동·실시간은 그 화면을 안 지난다.
+  this._ensureBossSheet();
   this._setupBossIntro();
 
   this.events.on('shutdown', function () {
@@ -1272,6 +1308,26 @@ GAME.BattleScene.prototype._setupZoom = function () {
 //  보스 이름·대사 + 포효 + 보스 확대 → 풀화면 복귀. 총 2.6초. 타이머도 같이
 //  멈추므로 손해 보는 시간이 아니다. ⚠ 실시간(rt)은 제외 — 시뮬을 멈추면
 //  상대를 스톨로 끌고 간다(히트스톱과 같은 이유).
+//  이 판의 보스 시트를 create 에서 한 번만 요청한다(그리기 루프와 분리).
+GAME.BattleScene.prototype._ensureBossSheet = function () {
+  if (!GAME.BossBank || !GAME.BossBank.ensure) return;
+  var self = this;
+  function want(d) { if (d) { try { GAME.BossBank.ensure(self, d); } catch (e) {} } }
+  for (var i = 0; i < this.state.units.length; i++) {
+    var u = this.state.units[i], d = u.def;
+    if (d && d.isBoss) want(d);
+    //  주술사 R(미니보스 소환) — 소환되고 **나서** 시트를 부르면 그 판 내내 벡터
+    //  폴백이다(궁극기가 딱 한 번 나가는데 그때 옛 그림이 뜬다, 태현님 ⑤).
+    //  판이 시작될 때 미리 부른다. 소환수는 `isBoss:false` 라 위 줄에 안 걸린다.
+    if (u.skills) {
+      for (var k = 0; k < u.skills.length; k++) {
+        var sk = u.skills[k];
+        if (sk && sk.type === 'summonBoss' && sk.bossKey && GAME.UNITS[sk.bossKey]) want(GAME.UNITS[sk.bossKey]);
+      }
+    }
+  }
+};
+
 GAME.BattleScene.prototype._setupBossIntro = function () {
   this._introHold = 0;                 //  씬 인스턴스 재사용 대비 — 반드시 되돌린다
   if (!this.tower || this.rt || !this._zoomRect) return;
@@ -2169,9 +2225,13 @@ GAME.BattleScene.prototype.update = function (time, delta) {
         //  ⚠ 스톨 배너는 **연속 1.5초 이상** 막혔을 때만 (2026-08-24 태현님 ②).
         //  록스텝은 상대 확정을 기다리는 0틱 프레임이 정상적으로 자주 생긴다 —
         //  프레임 단위로 띄우면 멀쩡한 판에서도 배너가 상시 노출된다(2계정 실측 28/30).
+        //  재접속 중은 **스톨보다 먼저** 말한다 — 원인을 알려 주는 쪽이 정확하다.
+        var reconn = this._rtDropAt ? Math.round((Date.now() - this._rtDropAt) / 1000) : 0;
         var msg = this._rtNote ? ('⚠ ' + this._rtNote)
-          : (this._rtStall && this._rtStallMs > 1500 && this.state.elapsed > 400 ? '⏳ 상대 연결을 기다리는 중…'
-          : (!this._heroIsPlayer ? '👁 관전 — 내 진형이 싸우는 중입니다 (내 영웅 시점 아님)' : ''));
+          : (this._rtDropAt ? ('🔌 연결이 끊겨 다시 붙는 중… ' + reconn + '초 (판은 그대로입니다)')
+          : (this._rtStall && this._rtStallMs > 1500 && this.state.elapsed > 400
+             ? (this.rt.coop ? '⏳ 파트너 연결을 기다리는 중…' : '⏳ 상대 연결을 기다리는 중…')
+          : (!this._heroIsPlayer ? '👁 관전 — 내 진형이 싸우는 중입니다 (내 영웅 시점 아님)' : '')));
         if (msg) { this._rtTxt.setText(msg); this._rtTxt.setVisible(true); }
         else this._rtTxt.setVisible(false);
       }
@@ -4095,7 +4155,11 @@ GAME.BattleScene.prototype.draw = function () {
   var myMineSide = ((this._heroIsPlayer === undefined) ? true : this._heroIsPlayer)
     ? 'controller' : 'strategist';
   //  은신 판정의 '내 편' — 실시간은 내 팀(rt.meTeam), 그 외는 가시덫과 같은 기준.
-  var stealthSide = (this.rt && this.rt.meTeam) ? this.rt.meTeam : myMineSide;
+  //  ⚠ 협동(S-C)에서 `rt.meTeam` 은 **록스텝 자리**이지 팀이 아니다(손님은 'strategist'
+  //    자리인데 두 영웅 다 'controller' 팀이다). 그대로 쓰면 손님 화면에서 **자기 편
+  //    은신이 적 취급**돼 파트너도 자기 자신도 안 보인다.
+  var stealthSide = (this.rt && this.rt.coop) ? 'controller'
+                  : ((this.rt && this.rt.meTeam) ? this.rt.meTeam : myMineSide);
 
   for (i = 0; i < alive.length; i++) {
     var u = alive[i];
@@ -4338,6 +4402,11 @@ GAME.BattleScene.prototype.draw = function () {
       r: u.def.radius * (u.eliteDraw || 1),
       drawR: u.def.radius * (GAME.UI.UNIT_DRAW_SCALE || 1) * (u.eliteDraw || 1),
       side: u.side, isHero: u.isHero, mine: (u === this.arrowOn),
+      //  ⚠ 은신 알파를 **여기도** 실어야 한다 (2026-09-04 태현님 ④). 오버레이 패스
+      //  (진영 링·체력바·영웅 링·표식)는 유닛 루프 **밖**에서 그리므로 알파를 모르고
+      //  있었다 — 은신한 암살자의 몸은 사라졌는데 발밑 링과 체력바는 그대로 떠 있어
+      //  "투구만 둥둥 떠다닌다"의 나머지 절반이었다.
+      alpha: uAlpha,
       ground: GAME.UI.artOf(u.def).ground,
       bw: u.isHero ? 64 : Math.max(22, u.def.radius * 2.3),
       barH: u.isHero ? 7 : 4,
@@ -4361,9 +4430,9 @@ GAME.BattleScene.prototype.draw = function () {
   //    투창병 한 기뿐이다(실측으로 잡았다: 호출 0). 아트로 판정하는 것이 맞다.
   if (GAME.UI.EGG_STYLE === 'ivory' && GAME.UI.footRing) {
     for (i = 0; i < marks.length; i++) {
-      if (marks[i].ground) continue;
+      if (marks[i].ground || marks[i].alpha < 0.03) continue;
       GAME.UI.footRing(g, marks[i].sx, marks[i].sy, marks[i].drawR,
-                       GAME.UI.sideColor(marks[i].side), Math.min(1, 0.85 * RA),
+                       GAME.UI.sideColor(marks[i].side), Math.min(1, 0.85 * RA) * marks[i].alpha,
                        marks[i].side, true);
     }
   }
@@ -4374,8 +4443,8 @@ GAME.BattleScene.prototype.draw = function () {
   //    사라졌다**(defend.js 는 `arrowOn` 이 null 로 시작하고 자기 유닛만 고를 수 있다).
   //    그게 방어전에서 "적 영웅이 어디 있나"의 유일한 신호였다 — 검토에서 잡혔다.
   for (i = 0; i < marks.length; i++) {
-    if (!marks[i].isHero || marks[i].mine) continue;
-    g.lineStyle(2.5, GAME.UI.sideColor(marks[i].side), Math.min(1, 0.55 * RA));
+    if (!marks[i].isHero || marks[i].mine || marks[i].alpha < 0.03) continue;
+    g.lineStyle(2.5, GAME.UI.sideColor(marks[i].side), Math.min(1, 0.55 * RA) * marks[i].alpha);
     GAME.UI.groundCircle(g, marks[i].wx, marks[i].wy, marks[i].r + 10);
   }
 
@@ -4384,6 +4453,8 @@ GAME.BattleScene.prototype.draw = function () {
   //  (초록 채움이 초록 들판과 대비 1.02:1 이라 그냥은 보이지 않는다 — ui.js 참고)
   for (i = 0; i < marks.length; i++) {
     if (marks[i].noBar) continue;   // 황금알 — 균열 5단계가 체력바를 대신한다
+    //  은신한 유닛의 체력바는 **위치를 그대로 알려주는 표시등**이다 — 안 그린다.
+    if (marks[i].alpha < 0.5) continue;
     GAME.UI.fieldHpBar(g, marks[i].sx - marks[i].bw / 2, marks[i].by,
                        marks[i].bw, marks[i].barH, marks[i].ratio,
                        { shield: marks[i].shield });

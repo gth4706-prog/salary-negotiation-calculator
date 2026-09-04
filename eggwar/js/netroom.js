@@ -43,6 +43,8 @@ GAME.NetRoom = {
   peers: [],
   connected: false,
   closedByUser: false,
+  retrying: false,     // 끊겼지만 다시 붙는 중 — 판을 끝내면 안 되는 상태
+  MAX_RETRY: 6,
 
   rttMs: null,         // 최근 왕복지연
   rttSamples: [],      // 최근 표본 (중앙값을 쓴다 — 평균은 한 번의 튐에 끌려간다)
@@ -55,6 +57,8 @@ GAME.NetRoom = {
   // 이벤트 콜백 — 씬이 여기에 붙는다.
   //   on.open(info) / on.peers(list) / on.message(from, data)
   //   on.start(info) / on.close(reason) / on.error(msg) / on.rtt(ms)
+  //   on.drop(info)  — 끊겼고 **다시 붙는 중**(판을 끝내지 말 것)
+  //   on.reopen()    — 끊겼다 되붙었다(잃은 패킷을 다시 흘릴 자리)
   on: {},
 
   enabled: function () { return !!this.BASE; },
@@ -128,6 +132,7 @@ GAME.NetRoom = {
     if (typeof WebSocket !== 'function') { this._emit('error', '이 브라우저는 WebSocket 을 지원하지 않습니다'); return false; }
     this.leave(true);                 // 이전 연결을 확실히 정리하고 시작한다
     this.closedByUser = false;
+    this.retrying = false;
     this.code = String(code || '').toUpperCase();
     this._openSocket(id);
     return true;
@@ -152,9 +157,15 @@ GAME.NetRoom = {
     //    "내가 아직 현역인가(self.ws === ws)"를 먼저 본다.
     ws.onopen = function () {
       if (self.ws !== ws) return;
+      var wasRetrying = self.retrying;
       self.connected = true;
+      self.retrying = false;
       self._retry = 0;
       self._startHeartbeat();
+      //  끊겼다 되붙은 것이면 알린다 — 록스텝은 끊긴 동안 보낸 입력 패킷을 잃으므로
+      //  받는 쪽이 그 틱을 **빈 입력으로** 실행해 desync 가 된다. 듣는 쪽(battle.js)이
+      //  outbox 를 다시 흘려 그 구멍을 메운다.
+      if (wasRetrying) self._emit('reopen', {});
     };
 
     ws.onmessage = function (ev) {
@@ -169,16 +180,27 @@ GAME.NetRoom = {
       self._emit('error', '연결 오류');
     };
 
+    //  ⚠⚠ 끊김에는 **두 종류**가 있고, 예전에는 둘을 구분하지 않았다 (2026-09-04).
+    //  소켓이 잠깐 끊기는 것은 이 게임에서 예외가 아니라 기본이다(폰 화면 꺼짐·
+    //  네트워크 전환·DO 재기동). 그런데 `close` 를 무조건 올리는 바람에 그 한 번의
+    //  깜빡임이 **판을 끝내고 있었다** — 협동 보스전에서 "둘 다 파트너가 떠났다며
+    //  시작하자마자 끝난다"(태현님 신고)의 정체다. 재시도가 걸린 끊김은 `drop`,
+    //  정말 끝난 것만 `close` 다. 되붙으면 `reopen` 이 온다.
     ws.onclose = function (ev) {
       if (self.ws !== ws) return;
       self.connected = false;
       self._stopHeartbeat();
-      self._emit('close', { code: ev && ev.code, byUser: self.closedByUser });
+      var code = ev && ev.code;
       //  4009 = 버전 불일치 · 4004 = 없는 방 — 서버의 의도적 거절. 재시도해도 같은 답.
-      //  4008 = 다른 연결(같은 닉네임)이 자리를 가져감 — 이쪽이 물러나는 게 맞다.
-      if (!self.closedByUser &&
-          !(ev && (ev.code === 4009 || ev.code === 4004 || ev.code === 4008))) {
+      //  4008 = 다른 연결(같은 닉네임·같은 기기)이 자리를 가져감 — 이쪽이 물러난다.
+      var fatal = self.closedByUser || code === 4009 || code === 4004 || code === 4008;
+      if (!fatal && self._retry < self.MAX_RETRY) {
+        self.retrying = true;
+        self._emit('drop', { code: code });
         self._scheduleRetry(id);
+      } else {
+        self.retrying = false;
+        self._emit('close', { code: code, byUser: self.closedByUser });
       }
     };
   },
@@ -305,7 +327,13 @@ GAME.NetRoom = {
   _scheduleRetry: function (id) {
     var self = this;
     if (this._retryTimer) return;
-    if (this._retry >= 6) { this._emit('error', '재접속 실패 — 방에서 나갑니다'); return; }
+    if (this._retry >= this.MAX_RETRY) {
+      //  여기가 **진짜 끝**이다 — 이제서야 close 를 올린다(위 onclose 주석 참조).
+      this.retrying = false;
+      this._emit('error', '재접속 실패 — 방에서 나갑니다');
+      this._emit('close', { code: 0, byUser: false });
+      return;
+    }
     var wait = Math.min(8000, 500 * Math.pow(2, this._retry));
     this._retry++;
     this._emit('error', '연결이 끊겼습니다. ' + Math.round(wait / 100) / 10 + '초 후 재시도 (' +
@@ -318,6 +346,7 @@ GAME.NetRoom = {
 
   leave: function (silent) {
     this.closedByUser = true;
+    this.retrying = false;
     if (GAME.NetRtc) GAME.NetRtc.reset();
     this._stopHeartbeat();
     if (this._retryTimer) { clearTimeout(this._retryTimer); this._retryTimer = null; }

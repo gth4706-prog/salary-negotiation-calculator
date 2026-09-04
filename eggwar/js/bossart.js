@@ -894,7 +894,6 @@ window.GAME = window.GAME || {};
 
   BA.draw = function (g, def, sx, sy, r0, alpha, t, facing, unit) {
     var info = BA.parse(def.art);
-    if (!info) return false;
     var T = (GAME.Iso && GAME.Iso.TILT) || 0.72;
     var a = alpha === undefined ? 1 : alpha;
     var tt = t || 0;
@@ -902,9 +901,15 @@ window.GAME = window.GAME || {};
     //  ── 보스 시트 은행(태현님 생성 그림 — 유니티 검증 자산) 이 최우선이다 ──
     //  2026-08-19 아트 승급 1단계. 로드 전이면 아래 벡터/용 래스터가 폴백으로
     //  그린다(화면이 비지 않는 것이 우선 — ensure 가 비동기로 채운다).
+    //  ⚠⚠ **`parse` 실패보다 먼저 본다** (2026-09-04 태현님 ⑤ 「옛날 보스이미지가 나와」).
+    //  예전에는 첫 줄이 `if (!info) return false;` 였다. 그런데 거대 족장·껍질 골렘·
+    //  둥지 포탑의 `art` 는 'chieftain'·'guardian'·'ballista' 라 `beast:` 형식이 아니고
+    //  `parse` 가 null 을 낸다 → **시트가 있는데도 이 줄에서 빠져나가** 계란 유닛으로
+    //  그려지고 있었다(탑의 첫 세 보스 전부). boss-shot 의 새 '시트로 그렸는가' 검사가
+    //  10·20·30 층에서만 빨개져 잡혔다 — 예외 0 은 "새 그림이 나왔다"가 아니다.
     if (GAME.BossBank) {
       if (GAME.BossBank.ready(g.scene, def)) {
-        var bbR = r0 * (BA.SCALE[info.kind] || 1.6);
+        var bbR = r0 * ((info && BA.SCALE[info.kind]) || 1.6);
         g.fillStyle(0x000000, 0.30 * a);
         g.fillEllipse(sx, sy, bbR * 1.6, bbR * 1.6 * T, 14);
         if (GAME.BossBank.draw(g.scene, def, sx, sy, r0, a, facing, g.depth, unit))
@@ -913,6 +918,8 @@ window.GAME = window.GAME || {};
         GAME.BossBank.ensure(g.scene, def);
       }
     }
+    //  시트가 없거나 아직 안 붙었고, 결도 못 읽으면 여기서 물러난다(계란 아트가 그린다).
+    if (!info) return false;
 
     if (RASTER_KINDS[info.kind]) {
       // 래스터 경로 — 그림자만 Graphics 로 찍고, 몸은 GAME.DragonAsset 이

@@ -932,6 +932,14 @@ GAME.Combat = {
     if (unit.hp <= 0) {
       unit.hp = 0; unit.alive = false;
       this.spawnYolk(state, unit);   // 죽으면 노른자가 터진다
+      //  ── 관측 ③ 처치 순서 (2026-09-04 태현님 제안) ──────────────────────────
+      //  "방어유닛이 먼저잡혔는가 늦게잡혔는가, 가장 마지막에 잡혔는가 (방어유닛이
+      //   무지성으로 쫒아가기만 하는게 아니라 주요 공격유닛을 보호하는쪽으로 세팅가능)".
+      //  죽는 **순서**를 남긴다. 방어 유닛이 앞쪽 순번에서 계속 죽는다면 그것은
+      //  "벽이 먼저 뚫린다"는 뜻이고, 답은 벽을 더 두껍게가 아니라 **화력을 감싸는 것**이다.
+      if (state && state.tactics && GAME.Tactics && unit.side === 'strategist') {
+        GAME.Tactics.noteDeath(state, unit);
+      }
       //  킬스트릭 (2026-08-23 태현님 ④) — 영웅이 2.6초 안에 연속 처치하면 계단.
       //  씬이 ping 변화를 보고 톤을 올린다(렌더·소리 전용 — 판정 무관).
       if (source && source.isHero && !unit.isHero && source.side !== unit.side && state) {
@@ -1718,7 +1726,17 @@ GAME.Combat = {
     //  평타로 넓힌 것 — 등속으로 도는 영웅은 맞기 시작하고, 방향을 꺾는 영웅은
     //  여전히 피한다(꺾을수록 실효 속도가 떨어지는 것이 대가).
     //  ⚠ 탑 전용 게이트: 실시간 대전·수성에는 towerPredict 가 없어 예전 그대로다.
-    if (state && state.towerPredict && u.side === 'strategist' &&
+    //  ── 보정 ② 빗나간 방향으로 예측을 고친다 (2026-09-04 태현님 제안) ──────────
+    //  "원거리유닛이 얼마나 못때렸는가 (어디로 빗나갔는지 보고 그 방향으로 예측사격)".
+    //  ⚠ 예측 사격 자체는 이미 있었는데 **층수로만** 세졌다(towerPredict) — 즉 맞든
+    //    안 맞든 같은 값이었다. 이제 실제로 빗나간 부호를 보고 그 위에 얹는다.
+    //    표적이 늘 탄보다 앞서 있었다면(+) 리드를 키우고, 지나쳐 갔다면(−) 줄인다.
+    var tacLead = 0;
+    if (state && state.tactics && GAME.Tactics && u.side === 'strategist') {
+      tacLead = GAME.Tactics.orderFor(u, state).lead || 0;
+    }
+    var predAmt = Math.max(0, Math.min(1.2, (state && state.towerPredict || 0) + tacLead));
+    if (predAmt > 0 && u.side === 'strategist' &&
         def.attack === 'projectile' && !GAME.isAutoHit(def) &&
         target && target.alive && target._svx !== undefined) {
       //  ⚠ 한 프레임 델타를 쓰면 안 된다(2026-08-23 실사고): 방향은 씰룩임이 잡고
@@ -1732,8 +1750,8 @@ GAME.Combat = {
         var pd = this.dist(u, target);
         var pfly = pd / Math.max(60, def.projectileSpeed || 300);   // 비행 초
         var psp = Math.min(pvl, pmax);
-        tx = target.x + (pvx / pvl) * psp * pfly * state.towerPredict;
-        ty = target.y + (pvy / pvl) * psp * pfly * state.towerPredict;
+        tx = target.x + (pvx / pvl) * psp * pfly * predAmt;
+        ty = target.y + (pvy / pvl) * psp * pfly * predAmt;
         var PAR = GAME.CONFIG.ARENA;
         if (PAR) {
           tx = Math.max(PAR.x + 10, Math.min(PAR.x + PAR.w - 10, tx));
@@ -1816,6 +1834,15 @@ GAME.Combat = {
           meleeHit++;
         }
       }
+      //  ── 관측 ① 근접 헛손질 (2026-09-04 태현님 제안) ─────────────────────────
+      //  "근접유닛이 얼마나 못때렸는가 … 단순히 쫒아가는게 아니라 몇개 유닛은
+      //   퍼져서 덮친다거나 전략 가능".
+      //  한 번 휘둘러 **아무도 안 맞았으면** 헛손질이다. 그 비율이 높다는 것은
+      //  네가 근접의 부채꼴 밖으로 계속 빠져나간다는 뜻이고, 답은 '더 빨리 쫓기'가
+      //  아니라 **여러 각도에서 덮치기**다(포위 접근 — orderFor 의 flank).
+      if (state.tactics && GAME.Tactics && u.side === 'strategist') {
+        GAME.Tactics.noteMelee(state, meleeHit > 0);
+      }
       state.effects.push({
         kind: 'slash', x: u.x, y: u.y, angle: ang,
         range: rng, half: half, t: 140, total: 140, side: u.side,
@@ -1837,6 +1864,9 @@ GAME.Combat = {
         radius: def.projectileRadius,
         life: 3000,
         owner: u,
+        //  겨눈 대상 — **빗나감의 방향**을 재려면 무엇을 겨눴는지가 있어야 한다
+        //  (2026-09-04 관측 ②). 판정에는 쓰지 않는다(논타겟은 여전히 논타겟이다).
+        target: target || null,
         slowMul: def.slowMul, slowMs: def.slowMs,   // 화학병 점착탄
         sticky: !!def.slowMul,
         // 주술사 마법구체 (2026-09-03) — def.projStyle 'orb' 인 영웅만 켜진다.
@@ -3607,6 +3637,16 @@ GAME.Combat = {
         return;
       }
 
+      //  ── 관측 ① 근접이 "못 때린 시간" (2026-09-04) ────────────────────────────
+      //  ⚠ 처음엔 "휘둘렀는데 아무도 안 맞은 횟수"로 쟀다가 실측에서 **314회 중 0회**가
+      //    나왔다. 이 엔진의 근접은 **사거리 안일 때만** 휘두르므로 '휘두르고 빗나감'은
+      //    구조적으로 존재하지 않는다. 태현님이 말한 "못 때렸는가"는 그게 아니라
+      //    **쫓기만 하고 닿지 못하는 시간**이다 → 그걸 잰다.
+      //    (도구가 0 을 냈을 때 "기제가 없다"가 아니라 "내가 엉뚱한 걸 쟀다"를 먼저 의심할 것.)
+      if (state.tactics && GAME.Tactics && u.side === 'strategist' &&
+          def.attack === 'melee' && state.engaged) {
+        GAME.Tactics.noteReach(state, d <= rngA, dt * 1000);
+      }
       if (d <= rngA) {
         this.faceAttack(u, GAME.DetMath.atan2(tgt.y - u.y, tgt.x - u.x));
         if (u.cd <= 0) {
@@ -3617,6 +3657,36 @@ GAME.Combat = {
       }
       if (!moveTo || (u.order && u.order.type === 'attack')) {
         moveTo = { x: tgt.x, y: tgt.y };
+        //  ── 보정 ① 포위 접근 (2026-09-04 태현님 제안) ──────────────────────────
+        //  "단순히 쫒아가는게 아니라 몇개 유닛은 퍼져서 덮친다".
+        //  근접이 계속 헛치고 있으면(관측 ①) **곧장 가지 않고 옆으로 벌려** 접근한다.
+        //  같은 지점으로 전부 몰려가면 한 번의 회피로 전부 헛치기 때문이다.
+        //  ⚠ 유닛마다 **다른 쪽으로** 벌려야 포위가 된다 — 한 방향으로 다 같이 틀면
+        //    그냥 비스듬히 몰려가는 것이다. 부호는 유닛 자리로 결정한다(난수 없음).
+        //  ⚠ 자리(배치)를 고치는 것이 아니라 **쫓는 각도**만 튼다. 목표에 가까워질수록
+        //    벌림이 0 으로 줄어 마지막엔 정확히 대상으로 들어간다.
+        if (state.tactics && GAME.Tactics && u.side === 'strategist' && def.attack === 'melee') {
+          var fl = GAME.Tactics.orderFor(u, state).flank || 0;
+          if (fl > 0) {
+            var fdx = tgt.x - u.x, fdy = tgt.y - u.y;
+            var fd = Math.sqrt(fdx * fdx + fdy * fdy);
+            if (fd > 1) {
+              //  가까우면 벌리지 않는다(사거리의 2배 안에서 0 으로 수렴).
+              var near = Math.min(1, fd / Math.max(40, rngA * 2));
+              var side = ((u.slotIndex !== undefined ? u.slotIndex : Math.round(u.home.x)) % 2) ? 1 : -1;
+              var off = fl * near * fd * 0.45 * side;
+              var fmx = tgt.x + (-fdy / fd) * off, fmy = tgt.y + (fdx / fd) * off;
+              //  ⚠ `clampToArena` 는 유닛(def.radius 를 읽는다)용이라 평범한 점에는
+              //    못 쓴다. 여기서는 좌표만 가둔다.
+              var FA = GAME.CONFIG.ARENA;
+              if (FA) {
+                fmx = Math.max(FA.x + 8, Math.min(FA.x + FA.w - 8, fmx));
+                fmy = Math.max(FA.y + 8, Math.min(FA.y + FA.h - 8, fmy));
+              }
+              moveTo = { x: fmx, y: fmy };
+            }
+          }
+        }
       }
     }
 
@@ -3704,7 +3774,28 @@ GAME.Combat = {
     state._lastDtMs = dtMs;      // 전술 hold 가 "얼마나 기다렸나"를 세는 데 쓴다
     //  전술 플레이북(js/tactics.js) — **통곡의 탑에서만**(state.tactics) 돈다.
     //  자기 주기(TICK_MS)로 스스로 걸러내므로 매 프레임 불러도 된다.
-    if (state.tactics && GAME.Tactics) GAME.Tactics.update(state, dt);
+    if (state.tactics && GAME.Tactics) {
+      GAME.Tactics.update(state, dt);
+      //  ── 보정 ③ 벽이 먼저 잘리면 방어 유닛이 화력을 감싼다 (2026-09-04) ─────────
+      //  "방어유닛이 무지성으로 쫒아가기만 하는게 아니라 주요 공격유닛을 보호하는쪽으로".
+      //  `runProtect` 라는 기제는 이미 있었는데 **`protectRole` 을 세워 주는 곳이
+      //  없어서** 실질적으로 죽어 있었다(def 에 적힌 유닛만 썼다).
+      //  이제 관측 ③ 이 "벽이 먼저 죽는다"고 말하면 살아남은 방어 유닛에게 역할을 준다.
+      //  ⚠ 한 번만 세운다(_tacProtect) — 매 프레임 대입하면 배치·해제가 진동한다.
+      //  ⚠ 원래 def 에 protectRole 이 있던 유닛은 건드리지 않는다.
+      if (!state._tacProtect) {
+        var pOrd = null;
+        for (var pi = 0; pi < state.units.length; pi++) {
+          var pu = state.units[pi];
+          if (!pu.alive || pu.side !== 'strategist' || pu.isHero) continue;
+          if (!GAME.Tactics.isGuard(pu) || pu.def.protectRole) continue;
+          if (pOrd === null) pOrd = GAME.Tactics.orderFor(pu, state);
+          if (!pOrd || !pOrd.protect) break;
+          pu.protectRole = 'ranged';
+          state._tacProtect = (state._tacProtect || 0) + 1;
+        }
+      }
+    }
     //  ── 실시간 구슬 습득 (2026-08-31) — **시뮬이 줍는다**(양쪽 동일 판정).
     //  owner 팀 영웅만 반경 안에서 줍는다. 효과는 그 영웅에게 즉시·영구(이번 판).
     if (state.pvpRealtime && state.orbs && state.orbs.length) {
@@ -4093,6 +4184,24 @@ GAME.Combat = {
 
       var A = GAME.CONFIG.ARENA;
       if (p.life <= 0 || p.x < A.x || p.x > A.right || p.y < A.y || p.y > A.bottom) {
+        //  ── 관측 ② 원거리 빗나감 + **어느 쪽으로** (2026-09-04 태현님 제안) ──────
+        //  "원거리유닛이 얼마나 못때렸는가 (어디로 빗나갔는지 보고 그 방향으로
+        //   예측사격 가능)".
+        //  탄이 살아서 화면 밖·수명 끝으로 사라졌다 = 못 맞혔다. 그때 **표적이 탄보다
+        //  앞서 있었는지 뒤처져 있었는지**를 부호로 남긴다: 표적 속도 방향으로
+        //  (표적 − 탄) 을 투영해 양수면 **덜 앞질러 쐈다**(리드를 더 줘야 한다).
+        //  이 부호가 있어야 "빗나갔다"가 "그래서 어떻게 고칠까"로 이어진다.
+        if (state.tactics && GAME.Tactics && p.side === 'strategist') {
+          var mt = p.target;
+          var sgn = 0;
+          if (mt && mt.alive && mt._svx !== undefined) {
+            var mvl = Math.sqrt(mt._svx * mt._svx + mt._svy * mt._svy);
+            if (mvl > 1) {
+              sgn = ((mt.x - p.x) * (mt._svx / mvl) + (mt.y - p.y) * (mt._svy / mvl)) > 0 ? 1 : -1;
+            }
+          }
+          GAME.Tactics.noteShot(state, false, sgn);
+        }
         state.projectiles.splice(i, 1);
         continue;
       }
@@ -4154,6 +4263,10 @@ GAME.Combat = {
           // 관측: 영웅이 논타겟에 실제로 맞았나 (회피 실력 계산의 분자)
           if (o.isHero && p.side === 'strategist' && !p.homing) {
             state.telemetry.projectilesHitHero++;
+          }
+          //  관측 ② 의 분모 짝 — 맞은 발도 세야 '빗나감 비율'이 나온다.
+          if (state.tactics && GAME.Tactics && p.side === 'strategist') {
+            GAME.Tactics.noteShot(state, true, 0);
           }
           state.effects.push({ kind: 'spark', x: p.x, y: p.y, t: 120, total: 120, side: p.side });
           state.projectiles.splice(i, 1);

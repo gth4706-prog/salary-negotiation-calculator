@@ -56,7 +56,11 @@ GAME.Tactics = {
     move:  ['still', 'charging', 'circling', 'kiting'],  // 어떻게 움직이는가
     hp:    ['healthy', 'hurt', 'critical'],    // 영웅 체력
     focus: ['none', 'front', 'back', 'elite'], // 무엇을 때리고 있는가
-    phase: ['open', 'mid', 'late']             // 판의 국면
+    phase: ['open', 'mid', 'late'],            // 판의 국면
+    //  ── 2026-09-04 태현님 제안 세 눈금 — **내 수가 통했는가**를 본다 ──────────────
+    whiff: ['none', 'some', 'high'],           // 근접이 닿지 못한 시간의 비율
+    stray: ['none', 'some', 'high'],           // 원거리가 빗나간 비율
+    guard: ['none', 'early', 'late']           // 방어 유닛이 몇 번째로 죽는가
   },
 
   //  영웅 한 명을 찾는다(탑은 컨트롤러 영웅 하나가 전제다).
@@ -117,8 +121,95 @@ GAME.Tactics = {
     var el = state.elapsed || 0;
     var phase = el < lim * 0.25 ? 'open' : el < lim * 0.7 ? 'mid' : 'late';
 
+    //  ── 새 세 눈금 (2026-09-04) ──────────────────────────────────────────────
+    //  ⚠ 표본이 적으면 판정하지 않는다('none'). 두세 번 헛친 것으로 전술을 뒤집으면
+    //    그건 읽은 게 아니라 흔들린 것이다.
+    //  근접이 교전 중 **닿지 못한 시간의 비율**. 1.2초 이상 표본이 쌓여야 본다.
+    var whiff = 'none';
+    var mTot = (t.mIn || 0) + (t.mOut || 0);
+    if (mTot >= 1200) {
+      var wr = (t.mOut || 0) / mTot;
+      whiff = wr > 0.72 ? 'high' : (wr > 0.45 ? 'some' : 'none');
+    }
+    var stray = 'none';
+    if ((t.sShot || 0) >= 10) {
+      var sr = (t.sMiss || 0) / t.sShot;
+      stray = sr > 0.62 ? 'high' : (sr > 0.35 ? 'some' : 'none');
+    }
+    //  방어 유닛이 **평균보다 앞선 순번**에서 죽고 있으면 'early'.
+    //  기준은 전체 사망의 중간 순번 — 방어 유닛 평균 순번이 그보다 작으면 먼저 죽는 것이다.
+    var guard = 'none';
+    if ((t.gDead || 0) >= 2 && (t.dN || 0) >= 4) {
+      var gAvg = t.gRankSum / t.gDead, mid = (t.dN + 1) / 2;
+      guard = gAvg < mid * 0.8 ? 'early' : (gAvg > mid * 1.2 ? 'late' : 'none');
+    }
+
     return { dist: dist, move: move, hp: hp, focus: focus, phase: phase,
+             whiff: whiff, stray: stray, guard: guard,
+             leadBias: (t.sMiss ? (t.sLead || 0) / t.sMiss : 0),
              heroDist: d1, core: core, hero: h };
+  },
+
+  // ── 관측 ①②③ — 태현님이 제안한 세 눈금 (2026-09-04) ─────────────────────────
+  //  "날 측정하는 기준이 너무 적어. 내가 추가할만한건
+  //   1. 근접유닛이 얼마나 못때렸는가 … 2. 원거리유닛이 얼마나 못때렸는가(어디로
+  //   빗나갔는지) … 3. 방어유닛이 먼저잡혔는가 늦게잡혔는가"
+  //
+  //  ⚠ 이 셋의 공통점: **결과가 아니라 과정을 잰다.** 지금까지의 눈금(거리·움직임·
+  //    체력)은 "네가 어디 있나"였고, 이 셋은 "내 수가 통했나"다. 통하지 않는 수를
+  //    반복하는 것이 예전 AI 의 가장 큰 문제였다.
+  //  ⚠ 셋 다 **비율**로 본다(횟수가 아니라). 판 길이가 층마다 달라서 횟수로 보면
+  //    고층일수록 저절로 커진다 — 그 함정은 이 폴더가 이미 여러 번 겪었다.
+
+  //  ① 근접이 **닿아 있던 시간 vs 쫓기만 한 시간**.
+  //  ⚠ "휘둘렀는데 빗나감"으로 재려다 실패했다 — 이 엔진의 근접은 사거리 안일 때만
+  //    휘두르므로 그 값은 언제나 0 이다(실측 314회 중 0회). 실제로 아픈 것은
+  //    **닿지 못하고 쫓아다니기만 하는 시간**이고, 그것이 "못 때렸는가"의 정직한 정의다.
+  noteReach: function (state, inRange, ms) {
+    var t = state._tac; if (!t) return;
+    if (inRange) t.mIn = (t.mIn || 0) + ms;
+    else t.mOut = (t.mOut || 0) + ms;
+  },
+  //  (구) 휘두름 결과 — 남겨 두되 판정에는 안 쓴다. 위 주석의 이유로 언제나 hit 다.
+  noteMelee: function (state, hit) {
+    var t = state._tac; if (!t) return;
+    t.mSwing = (t.mSwing || 0) + 1;
+    if (!hit) t.mMiss = (t.mMiss || 0) + 1;
+  },
+
+  //  ② 원거리 한 발의 결말. `dir` 는 빗나간 방향의 부호 —
+  //     +1 이면 표적이 탄보다 **앞서** 있었다(덜 앞질러 쐈다 → 리드를 더).
+  //     -1 이면 표적이 탄보다 **뒤처져** 있었다(너무 앞질러 쐈다 → 리드를 줄여야).
+  noteShot: function (state, hit, dir) {
+    var t = state._tac; if (!t) return;
+    t.sShot = (t.sShot || 0) + 1;
+    if (!hit) {
+      t.sMiss = (t.sMiss || 0) + 1;
+      if (dir) t.sLead = (t.sLead || 0) + dir;
+    }
+  },
+
+  //  ③ 죽은 순서. 방어 유닛이 **몇 번째로** 죽었는지를 기록한다.
+  //     방어 유닛 = 근접이면서 방어력이 두꺼운 쪽(방패병·울짱꾼 계열).
+  //  ⚠ 처음엔 `armor >= 30` 으로 잡았다가 실측에서 신호가 죽었다 — **전사(bayonet)의
+  //    방어력이 정확히 30** 이라 진형의 절반이 '방어 유닛'으로 잡혔고, 그러면 방어
+  //    유닛의 평균 사망 순번이 전체 평균과 같아져 언제나 'none' 이 나온다.
+  //    태현님이 말한 방어 유닛은 **벽을 세우라고 세운 놈**(방패병·울짱꾼·되받이)이다.
+  //    유효체력(hp × (1+방어/100))으로 가른다: 방패병 730 · 울짱꾼 494 · 되받이 420
+  //    vs 전사 312 · 돌쌓이 312 — 420 이 그 사이를 정확히 가른다.
+  isGuard: function (u) {
+    var d = u.def || {};
+    if (d.attack !== 'melee' && d.attack !== 'none') return false;
+    if (d.shieldArc || d.protectRole) return true;
+    return (d.hp || 0) * (1 + (d.armor || 0) / 100) >= 420;
+  },
+  noteDeath: function (state, u) {
+    var t = state._tac; if (!t) return;
+    t.dN = (t.dN || 0) + 1;
+    if (this.isGuard(u)) {
+      t.gDead = (t.gDead || 0) + 1;
+      t.gRankSum = (t.gRankSum || 0) + t.dN;   // 몇 번째로 죽었나의 합
+    }
   },
 
   //  applyDamage 가 부른다 — 영웅이 때린 대상의 역할을 센다(무엇을 노리는지의 근거).
@@ -192,6 +283,12 @@ GAME.Tactics = {
   //    안 뽑혔다. 정보가 더 많은 조건이 이겨야 한다. 새 상황을 넣을 때는 **제약한
   //    축의 수**를 세서 그 자리에 넣을 것.
   SITUATIONS: [
+    //  ── 태현님이 제안한 세 눈금으로 생긴 상황 (2026-09-04) ─────────────────────
+    //  이 셋은 **내 수가 안 통하고 있다**는 신호다. 위치가 아니라 결과를 보는 조건이라
+    //  거리·체력 조건보다 먼저 본다 — 안 통하는 걸 알면서 계속하는 게 가장 나쁘다.
+    { key: 'evasive',   name: '근접이 계속 헛침',  when: { whiff: ['high'] },  mod: [0.15, 0.10, -0.05] },
+    { key: 'slippery',  name: '원거리가 계속 빗나감', when: { stray: ['high'] }, mod: [-0.05, 0.15, 0.10] },
+    { key: 'wallFirst', name: '벽부터 잘려나감',   when: { guard: ['early'] }, mod: [-0.15, 0.05, 0.15] },
     { key: 'lowDive',   name: '빈사로 붙음',   when: { dist: ['near', 'inside'], hp: ['critical'] }, mod: [0.30, 0.35, -0.20] },
     { key: 'diveBack',  name: '뒷줄에 파고듦', when: { dist: ['inside'], focus: ['back'] }, mod: [0.10, 0.25, 0.00] },
     { key: 'lowFar',    name: '빈사로 물러남', when: { hp: ['critical'] },                  mod: [0.25, 0.20, -0.15] },
@@ -224,6 +321,14 @@ GAME.Tactics = {
   //    고르는 것은 `_variantOf`(그 판에 고정된 결정적 값)라 **한 판 안에서는 일관되고
   //    판이 바뀌면 달라진다.**
   MENU: {
+    //  헛치는 중 — 더 빨리 쫓는 수(surge·press)는 답이 아니다. 각도를 만들거나(pincer·
+    //  splitPush) 기다렸다 덮치는(ambush·trapLane) 수를 앞에 둔다.
+    evasive:    ['pincer', 'splitPush', 'ambush', 'trapLane', 'collapse', 'huddle', 'bait', 'scatter', 'hold', 'screenBack', 'stall', 'guardHeal', 'press'],
+    //  빗나가는 중 — 리드 보정은 아래 orderFor 가 따로 건다. 여기서는 사거리를 지키며
+    //  각도를 좁히는 수를 앞세운다.
+    slippery:   ['huddle', 'screenBack', 'trapLane', 'ambush', 'hold', 'splitPush', 'pincer', 'scatter', 'guardHeal', 'stall', 'bait', 'collapse', 'press'],
+    //  벽이 먼저 잘리는 중 — 벽을 앞으로 더 보내면 더 빨리 잘린다. 감싸고 물러선다.
+    wallFirst:  ['guardHeal', 'screenBack', 'huddle', 'fallback', 'ambush', 'stall', 'trapLane', 'scatter', 'splitPush', 'hold', 'bait', 'pincer', 'collapse'],
     diveBack:   ['collapse', 'screenBack', 'focusHero', 'guardHeal', 'huddle', 'pincer', 'surge', 'ambush', 'press', 'trapLane', 'bait', 'splitPush', 'stall'],
     diveIn:     ['collapse', 'focusHero', 'pincer', 'surge', 'huddle', 'press', 'screenBack', 'ambush', 'trapLane', 'scatter', 'bait', 'splitPush', 'stall'],
     lowDive:    ['focusHero', 'surge', 'collapse', 'pincer', 'press', 'huddle', 'splitPush', 'trapLane', 'bait', 'screenBack', 'ambush', 'stall', 'scatter'],
@@ -353,7 +458,24 @@ GAME.Tactics = {
     var v = role === 'front' ? play.f : role === 'ranged' ? play.r
           : role === 'support' ? play.s : play.e;
     var c = this._clamp3(v, (sit && sit.mod) || [0, 0, 0]);
-    return { advance: c[0], focus: c[1], hold: c[2] };
+    var rd = (state._tac && state._tac.read) || null;
+    return {
+      advance: c[0], focus: c[1], hold: c[2],
+      //  ── 세 눈금이 만들어 내는 **보정** (2026-09-04) ───────────────────────────
+      //  전략(상황→대응)과 별개로, 관측이 직접 거는 교정이다. 상황 이름이 무엇이든
+      //  "안 통하고 있으면 고친다"가 늘 돌아야 하기 때문에 여기 둔다.
+      //
+      //  flank — 근접이 헛치면 **곧장 쫓지 않고 각도를 벌려 덮친다.**
+      //    ⚠ 자리(배치)를 고치는 것이 아니다. 이미 교전에 들어가 **쫓는 중인**
+      //      유닛의 접근 각을 트는 것이라 POST_ADVANCE 금기(아무렇게나 놓아도 진형이
+      //      된다)에 걸리지 않는다. 폭도 좁게 잡는다.
+      flank: (rd && rd.whiff === 'high') ? 0.55 : (rd && rd.whiff === 'some' ? 0.28 : 0),
+      //  lead — 원거리가 빗나가면 **빗나간 방향으로** 예측을 더/덜 준다.
+      //    leadBias 가 +면 표적이 늘 탄보다 앞서 있었다는 뜻이라 리드를 키운다.
+      lead: (rd && rd.stray !== 'none') ? Math.max(-0.5, Math.min(0.6, (rd.leadBias || 0) * 0.6)) : 0,
+      //  protect — 벽이 먼저 잘리면 살아남은 방어 유닛이 **화력을 감싼다.**
+      protect: (rd && rd.guard === 'early') ? 1 : 0
+    };
   },
 
   //  전략 하나의 지시 벡터 전체(4역할 × 3축 = 12칸). 감사가 서로 다른지 볼 때 쓴다.

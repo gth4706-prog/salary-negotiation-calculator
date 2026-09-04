@@ -38,6 +38,25 @@ GAME.AutoFormation = {
            bayonet: -5, mine: -4, shieldman: -3 },
       spread: 1.15,
       why: '사냥꾼은 거리를 벌린다 → 유도 투창과 고정 화력으로 도망칠 곳을 없앤다'
+    },
+    //  ⚠ 시즌2 영웅 둘이 **이 표에 없었다**(2026-09-04 발견). `counterFor` 가 null 을
+    //    돌려주면 카운터 가중치도 spread 도 안 걸려서, 다섯 영웅 중 **둘은 진형이
+    //    아무 대응도 안 하고 있었다.** 새 영웅을 넣을 때 가장 놓치기 쉬운 자리다.
+    //  주술사: 소환수로 앞을 막고 뒤에서 때린다. 소환수는 수명이 있으므로 **본체를
+    //    빨리 잡는 쪽**이 이긴다 — 단일 저격보다 광역으로 소환수를 걷어내고 붙는다.
+    shaman: {
+      w: { grenadier: 14, bayonet: 9, chemtrooper: 8, hivethrower: 8, ashthrower: 6,
+           sniper: -5, mgnest: -3, mine: -3 },
+      spread: 1.00,
+      why: '주술사는 소환수로 벽을 세운다 → 광역으로 소환수를 걷어내고 본체에 붙는다'
+    },
+    //  암살자: 은신·점멸로 **뒷줄에 직접 떨어진다.** 앞줄을 아무리 두껍게 해도
+    //    그 위로 넘어오므로, 뒷줄을 혼자 두지 않는 촘촘한 배치가 답이다.
+    assassin: {
+      w: { grenadier: 13, mine: 11, shieldman: 9, sergeant: 6, medic: 5,
+           sniper: -6, mgnest: -4 },
+      spread: 0.90,
+      why: '암살자는 은신으로 뒷줄에 파고든다 → 촘촘히 세워 뒷줄을 혼자 두지 않는다'
     }
   },
 
@@ -362,6 +381,12 @@ GAME.AutoFormation = {
       w.swarm += 14; w.bulwark += 16; w.chargeElite -= 6;
     } else if (heroKey === 'ranger') {
       w.chargeElite += 18; w.sharpshooter += 14;
+    } else if (heroKey === 'shaman') {
+      //  소환수는 물량으로 못 이긴다(수명이 다하면 또 나온다) → 본체를 빨리 녹인다.
+      w.sharpshooter += 20; w.chargeElite += 12; w.swarm -= 10;
+    } else if (heroKey === 'assassin') {
+      //  뒷줄이 통째로 취약하므로 뒷줄에 몰아 주는 교리를 피하고, 앞뒤를 붙여 세운다.
+      w.bulwark += 16; w.mender += 10; w.sharpshooter -= 8;
     }
 
     if (!p || !p.battles) return this._floorW(w);

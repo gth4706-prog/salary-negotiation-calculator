@@ -566,8 +566,34 @@ GAME.TowerLoadingScene.prototype.create = function () {
   }
   var silY = bandTop + r * anchorUp;
   if (bossDef) {
-    GAME.UI.drawUnitFlat(this.add.graphics().setAlpha(0.92), bossDef,
-      W / 2, silY, GAME.CONFIG.COLORS.strategist, 1, r / (bossDef.radius || 27), -Math.PI / 2);
+    //  ⚠ 알파를 주지 않는다 (2026-09-04 태현님: "유닛 이미지보여줄때 투명화를 걸어서
+    //    이상하게 보인다"). 소개하는 그림을 흐리게 그리는 것은 그 자체로 모순이다 —
+    //    아래 데뷔 유닛 주석이 이미 같은 결론을 적어 뒀는데 보스·진형 쪽만 남아 있었다.
+    var bossG = this.add.graphics();
+    var bossScale = r / (bossDef.radius || 27);
+    var selfB = this;
+    var drawBoss = function () {
+      try {
+        bossG.clear();
+        GAME.UI.drawUnitFlat(bossG, bossDef, W / 2, silY,
+          GAME.CONFIG.COLORS.strategist, 1, bossScale, -Math.PI / 2);
+      } catch (e) {}
+    };
+    drawBoss();
+    //  ⚠⚠ 보스 시트(assets/boss/*.png)는 **비동기 로드**다 (태현님 신고: "보스몹이
+    //    예전 벡터 이미지로 나온다"). 전투 씬은 매 프레임 다시 그리니 시트가 도착하면
+    //    저절로 바뀌지만, **로딩 화면은 그림을 한 번만 그린다** — 그래서 첫 프레임에
+    //    시트가 없으면 벡터 폴백이 그려진 채로 화면이 끝난다. 여기서 시트를 요청하고
+    //    도착하면 **한 번 다시 그린다.**
+    //  ⚠ 시트가 없는 보스(pending·파일 없음)는 `metaOf`/`ensure` 가 알아서 걸러
+    //    벡터 폴백 그대로 둔다 — 없는 파일을 매번 GET 하지 않는다.
+    if (GAME.BossBank && GAME.BossBank.metaOf(bossDef) &&
+        !GAME.BossBank.ready(this, bossDef)) {
+      GAME.BossBank.ensure(this, bossDef);
+      this.load.once('complete', function () {
+        if (selfB.scene && selfB.scene.isActive && selfB.scene.isActive()) drawBoss();
+      });
+    }
   } else if (debutDef) {
     // 데뷔 층에서는 **그 유닛 하나만, 또렷하게** 세운다.
     // ⚠ 알파를 주지 않는다(사용자 지시: "실루엣이랍시고 억지로 불투명도 주지 마").
@@ -579,7 +605,9 @@ GAME.TowerLoadingScene.prototype.create = function () {
     var counts = {};
     formation.units.forEach(function (u) { counts[u.type] = (counts[u.type] || 0) + 1; });
     var top3 = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; }).slice(0, 3);
-    var silG = this.add.graphics().setAlpha(0.55);
+    //  ⚠ 알파 없음 (2026-09-04 태현님: "투명화를 걸어서 이상하게 보인다").
+    //    0.55 로 흐리게 깔면 겹친 유닛끼리 서로 비쳐 형태가 뭉갠다.
+    var silG = this.add.graphics();
     var spread = Math.min(W * 0.22, r * 3.6);
     top3.forEach(function (k, i) {
       var def = GAME.UNITS[k];

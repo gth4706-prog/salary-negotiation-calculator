@@ -882,9 +882,19 @@ GAME.Feel = {
   //  ⚠ 실시간(록스텝)은 시뮬 틱에 **원래 delta** 를 넘긴다 — 여기 배율은 렌더·이펙트용.
   SLOWMO_MS: 450,
   SLOWMO_SCALE: 0.35,
+  //  ── 마무리 슬로모 (2026-09-05 태현님 ①) ──────────────────────────────────
+  //  "때리는 모션부터 슬로우가 더 걸리면서 확대되고 … 여기에 1.5초정도를 슬로우로 써도돼"
+  //  마지막 한 기를 잡는 순간은 판에서 **딱 한 번뿐인 장면**이라 일반 슬로모(0.45초·0.35배)
+  //  보다 길고 깊게 간다. 막타는 타격 순간에 잡히므로 이 시점부터 늦추면 휘두른 무기의
+  //  잔여 동작·노른자·폭발이 전부 느리게 흐른다(= "때리는 모션부터").
+  //  ⚠ **이긴 판에서만** 건다(태현님: "졌을땐 없애"). 부르는 쪽이 거른다.
+  FINISH_SLOWMO_MS: 1500,
+  FINISH_SLOWMO_SCALE: 0.22,
   //  남은 슬로모(ms) → 이번 프레임 배율. 0 이하·NaN 이면 정상 속도.
-  slowmoScale: function (remainMs) {
-    return (typeof remainMs === 'number' && remainMs > 0) ? this.SLOWMO_SCALE : 1;
+  //  `scale` 을 주면 그 값을 쓴다(마무리용 — 안 주면 예전 그대로).
+  slowmoScale: function (remainMs, scale) {
+    if (!(typeof remainMs === 'number' && remainMs > 0)) return 1;
+    return (typeof scale === 'number' && scale > 0 && scale < 1) ? scale : this.SLOWMO_SCALE;
   },
   //  남은 슬로모를 **실제 경과 시간**으로 줄인다(배율이 걸린 dt 로 줄이면 3배 길어진다).
   slowmoStep: function (remainMs, realDelta) {

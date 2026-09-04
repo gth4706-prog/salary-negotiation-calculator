@@ -214,32 +214,58 @@ GAME.Tower = {
   //  ⚠ **`Math.max(1, …)` 클램프 뒤에 곱한다.** 안에서 곱하면 클램프가 1 로 되돌려
   //    완화가 통째로 사라진다 — 이 함수들의 하한은 "성장 전에는 기본 난이도"라는
   //    뜻이지 "절대 기본보다 쉬워지지 않는다"는 뜻이 아니다.
-  reliefOf: function () {
+  //  ⚠ `floor` 를 받는다. 안 받으면 "지금 서 있는 층"을 읽는데, `modsFor(n)` 은
+  //    **다른 층**을 계산할 때도 불린다(도구·미리보기) — 그때 완화가 엉뚱한 층 것으로
+  //    붙는다. 인자를 안 주면 예전 그대로(현재 층).
+  reliefOf: function (floor) {
     var TC = GAME.TowerChar;
     if (!TC || !TC.reliefFor || !TC.exists || !TC.exists()) return 1;
-    return TC.reliefFor(this.get().floor);
+    return TC.reliefFor(floor === undefined ? this.get().floor : floor);
+  },
+
+  //  ── 첫 보스 문턱 완화 (2026-09-05 태현님 ④: "10층이 너무 어려워 60%정도 약하게") ──
+  //  실측(숙련 0.55, rep=36)이 신고를 그대로 확인했다:
+  //      7층 83% · 8층 56% · 9층 75% · **10층★ 3%** · 11층 19% · 12층 81%
+  //  이웃 층의 1/25 다. 10층은 **처음 만나는 보스**라 여기서 막히면 그 사람은 탑을
+  //  다시 안 연다 — 곡선의 문제가 아니라 문턱의 문제다.
+  //  ⚠ 층마다 값을 두는 표로 만든다(상수 하나로 "보스 층 전체"를 깎으면 20·30층까지
+  //    같이 물러져 구간감이 사라진다 — 보스 층이 이웃보다 낮아야 한다는 합격 조건 3).
+  //  ⚠ `reliefOf` 와 **같은 자리**에 곱한다(hpMul·dmgMul·budgetMul 뒤). 그래야
+  //    "재도전 완화"와 곱해져 자연스럽게 더 쉬워지고, 신선한 캐릭터 회귀에도 같은
+  //    규칙으로 잡힌다. 값은 감사(tools/tower-feature-audit.js)가 돌파율로 지킨다.
+  EARLY_BOSS_EASE: { 10: 0.40 },
+  easeOf: function (floor) {
+    var f = (floor === undefined) ? this.get().floor : floor;
+    var e = this.EARLY_BOSS_EASE[f];
+    return (typeof e === 'number' && e > 0 && e < 1) ? e : 1;
   },
 
   // 적 체력 배수 — **내 공격력**(킬 속도)을 따라간다. 순수 화력 빌드가 이 축을
   // 못 벗어나는 것이 이번 수정의 핵심이다.
-  hpMul: function () {
+  hpMul: function (floor) {
     var m = Math.pow(this.atkIndex(), this.POWER_POW_UNIT) * this.pressureOf();
-    return Math.max(1, Math.min(this.POWER_CAP, m)) * this.reliefOf();
+    return Math.max(1, Math.min(this.POWER_CAP, m)) * this.reliefOf(floor) * this.easeOf(floor);
   },
 
   // 적 공격력 배수 — **내 유효체력**(버티는 힘)을 따라간다. 순수 방어 빌드가
   // 무피해로 버티지 못하게 한다.
-  dmgMul: function () {
+  dmgMul: function (floor) {
     var m = Math.pow(this.ehpIndex(), this.POWER_POW_UNIT) * this.pressureOf();
-    return Math.max(1, Math.min(this.POWER_CAP, m)) * this.reliefOf();
+    return Math.max(1, Math.min(this.POWER_CAP, m)) * this.reliefOf(floor) * this.easeOf(floor);
   },
 
-  budgetMul: function () {
+  budgetMul: function (floor) {
     // 예산(적 숫자)은 두 축 중 **더 크게 자란 쪽**을 따라간다 — 어느 쪽으로
     // 몰아줘도 진형이 그만큼 두꺼워진다.
     var idx = Math.max(this.atkIndex(), this.ehpIndex());
     var m = Math.pow(idx, this.POWER_POW_BUDGET) * Math.sqrt(this.pressureOf());
-    return Math.max(1, Math.min(this.BUDGET_MUL_CAP, m));
+    //  ⚠ 완화·문턱 완화가 **여기에도** 붙는다 (2026-09-05). 예전에는 체력·공격만
+    //    깎이고 **머릿수는 그대로**여서, 다섯 번 져도 벽의 두께는 한 톨도 안 줄었다
+    //    (실측: 5회 패배 뒤 hpMul 1.000→0.750 인데 budgetMul 은 1.026 붙박이).
+    //    "난이도가 쉬워진다"는 약속의 절반이 빠져 있었던 셈이다.
+    //  ⚠ 예산은 계단 함수라 배수가 조금만 줄어도 유닛 한 기가 빠질 수 있다 —
+    //    체감이 가장 큰 축이다(CLAUDE.md 수성의 탑 절의 '한 기 차이로 17%↔83%').
+    return Math.max(1, Math.min(this.BUDGET_MUL_CAP, m)) * this.reliefOf(floor) * this.easeOf(floor);
   },
 
   //  층별 머릿수 상한 (2026-08-22 태현님 2차 교정: "9층에 15마리가 많다는 거지
@@ -255,7 +281,7 @@ GAME.Tower = {
   },
 
   budgetFor: function (floor, skipPower) {
-    var mul = skipPower ? 1 : this.budgetMul();
+    var mul = skipPower ? 1 : this.budgetMul(floor);
     var early = this.BASE_BUDGET + (Math.min(floor, this.EARLY_FLOORS) - 1) * this.BUDGET_STEP;
     if (floor <= this.EARLY_FLOORS) return early;
     return Math.round((early + this.ENTRY_JUMP +
@@ -310,8 +336,8 @@ GAME.Tower = {
   //   곡선을 다시 잴 때는 `Tower.modsFor(n, true)` 로 조건을 빼고 재는 것이 맞다.
   modsFor: function (floor, skipRule, skipPower) {
     var t = Math.max(0, floor - 1);
-    var hpM = skipPower ? 1 : this.hpMul();
-    var dmgM = skipPower ? 1 : this.dmgMul();
+    var hpM = skipPower ? 1 : this.hpMul(floor);
+    var dmgM = skipPower ? 1 : this.dmgMul(floor);
     var m = { hp: (1 + 0.012 * t) * hpM, damage: (1 + 0.010 * t) * dmgM };
     if (skipRule || !GAME.TowerRule) return m;
     return this._applyRules(m, floor);

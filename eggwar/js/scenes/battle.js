@@ -102,6 +102,9 @@ GAME.BattleScene.prototype.init = function (data) {
   //  ⚠ 씬 인스턴스는 재사용된다 — init 에서 안 되돌리면 **다음 판이 확대된 채로 시작**한다
   //    (이 폴더가 콤보·힌트 텍스트에서 세 번 겪은 계열의 사고다).
   this._finishZoomMs = 0;
+  this._finishHold = 0;         //  마무리 연출 구간 — 유예보다 앞에 붙는다
+  this._slowmoScale = 0;        //  0 이면 Feel 기본 배율
+  this._finishBubble = null;
   this._rtDropAt = 0;           //  재접속 배너 — 안 되돌리면 다음 판이 "끊김"으로 시작한다
   this._emoteLastAt = -1e9;     //  스팸 방지 쿨의 기준 시각(performance.now)
   this._emoteBar = null;        //  파괴된 버튼을 붙들지 않게(지연생성 가드 함정)
@@ -2091,7 +2094,7 @@ GAME.BattleScene.prototype.update = function (time, delta) {
   //    끌고 간다). 남은 슬로모도 실제 delta 로 줄인다(배율 걸린 dt 로 줄이면 3배 길어진다).
   //  씬 시계(this.time)·트윈도 같은 배율로 — 동전 비·종료 배너가 같이 늘어져야 한 장면이다.
   if (this._slowmo > 0 && GAME.Feel) {
-    var smK = GAME.Feel.slowmoScale(this._slowmo);
+    var smK = GAME.Feel.slowmoScale(this._slowmo, this._slowmoScale);
     this._slowmo = GAME.Feel.slowmoStep(this._slowmo, delta);
     dt *= smK;
     this._setTimeScale(this._slowmo > 0 ? smK : 1);
@@ -3107,24 +3110,53 @@ GAME.BattleScene.prototype._setTimeScale = function (k) {
 GAME.BattleScene.prototype.FINISH_ZOOM = 1.28;
 GAME.BattleScene.prototype.FINISH_ZOOM_MS = 780;
 
+//  이긴 판인가 — 마무리 연출은 **이겼을 때만** 건다 (2026-09-05 태현님 ①: "졌을땐 없애").
+//  ⚠ 수성의 탑(방어전)은 영웅이 내가 아니다(`_heroIsPlayer === false`) — 거기서 영웅이
+//    진형을 쓸어도 그건 내 승리가 아니므로 연출을 걸면 안 된다.
+GAME.BattleScene.prototype._playerWon = function () {
+  var s = this.state;
+  if (!s || s.timeUp || this._rtNote) return false;
+  if (this._heroIsPlayer === false) return false;
+  return s.winner === 'controller';
+};
+
 GAME.BattleScene.prototype._cinematicEnd = function () {
   if (this._slowmoFired || !GAME.Feel) return;
+  if (!this._playerWon()) return;       //  진 판·시간 초과·데싱크에는 아무것도 안 건다
   this._slowmoFired = true;
-  this._slowmo = GAME.Feel.SLOWMO_MS;
+  //  ⚠ 일반 슬로모(0.45초·0.35배)가 아니라 **마무리 슬로모**(1.5초·0.22배)다.
+  //    막타는 타격이 들어간 그 순간에 잡히므로, 여기서 늦추면 휘두른 무기의 잔여
+  //    동작부터 노른자·폭발까지가 통째로 느리게 흐른다(태현님 "때리는 모션부터").
+  this._slowmo = GAME.Feel.FINISH_SLOWMO_MS;
+  this._slowmoScale = GAME.Feel.FINISH_SLOWMO_SCALE;
 
   var k = this.state && this.state.lastFoeKill;
   if (!k) return;                       // 막타 자리를 모르면 슬로모만(예전 동작)
 
-  //  ① 퍼지는 이펙트 — 착탄 고리 세 겹이 시차를 두고 번진다(state.effects 를 그대로 쓴다).
+  //  ① **맞는 부위에서 터져 퍼진다** (2026-09-05 태현님 ①: "이펙트가 터지면서
+  //     퍼져나가야해 약간 폭발하듯이"). 세 층으로 쌓는다:
+  //     ⓐ 섬광 두 겹(blast) — 크기·수명이 다른 둘이 겹쳐야 '한 번에 터졌다'가 된다
+  //     ⓑ 고리 다섯 겹 — 시차를 두고 **점점 크게** 번진다(퍼져나가는 축)
+  //     ⓒ 노른자·먼지 파티클 — 이 게임의 '죽음' 언어 그대로, 반경을 키워 크게
+  //  ⚠ 슬로모(0.22배)가 걸린 상태로 그려지므로 수명을 늘리지 않아도 화면에서는
+  //    4~5배 길게 보인다. 여기서 또 늘리면 유예가 끝난 뒤까지 고리가 남는다.
   var r0 = (k.radius || 16);
-  for (var i = 0; i < 3; i++) {
+  this.state.effects.push({ kind: 'blast', x: k.x, y: k.y, r: r0 * 4.6,
+                            t: 520, total: 520, side: 'controller' });
+  this.state.effects.push({ kind: 'blast', x: k.x, y: k.y, r: r0 * 2.4,
+                            t: 300, total: 300, side: 'controller' });
+  for (var i = 0; i < 5; i++) {
     this.state.effects.push({
-      kind: 'ring', x: k.x, y: k.y, r: r0 * (2.2 + i * 1.9),
-      t: 520 + i * 120, total: 520 + i * 120, side: 'controller'
+      kind: 'ring', x: k.x, y: k.y, r: r0 * (2.0 + i * 2.1),
+      t: 480 + i * 130, total: 480 + i * 130, side: 'controller'
     });
   }
-  this.state.effects.push({ kind: 'blast', x: k.x, y: k.y, r: r0 * 3.2,
-                            t: 420, total: 420, side: 'controller' });
+  try {
+    if (GAME.HitFX && GAME.HitFX.death) {
+      GAME.HitFX.death(this, k.x, GAME.Iso.toScreenY(k.y) - r0 * 0.4, r0 * 2.2);
+    }
+  } catch (e0) {}
+  if (GAME.Sound) { try { GAME.Sound.play('bossRoar'); } catch (e1) {} }
   this.state.finishFx = (this.state.finishFx || 0) + 1;   // 감사용 — 연출이 실제로 걸렸나
 
   //  ② 확대 — 막타 자리를 화면 가운데로.
@@ -3151,9 +3183,40 @@ GAME.BattleScene.prototype._cinematicEnd = function () {
         unitKey: k.type, floor: this.tower, boss: k.boss,
         nick: (GAME.Account && GAME.Account.current()) || undefined
       });
-      if (line) this._showBubble({ x: k.x, y: k.y, def: { radius: r0 } }, line);
+      if (line) this._finishLine(k, r0, line);
     }
   } catch (e) {}
+};
+
+//  마지막 대사 — **기존 말풍선 형식 그대로** (2026-09-05 태현님 ①: "기존 말풍선형식 써
+//  검은 배경에 흰글자"). 전투 중 잡담(`_maybeBanter`)이 쓰는 바로 그 스타일이다:
+//  검은 판(rgba(24,18,10,0.86)) 위 크림색 글자.
+//  ⚠ `UI.emoteBubble` 을 쓰면 안 된다 — 그건 크림색 판이고 글자색을 안 주면 흰 글자라
+//    크림 위 흰 글자가 된다(그래서 안 읽혔다). 이모트(😀👍)는 그림이라 괜찮지만
+//    문장은 안 된다.
+//  ⚠ `__floating` 을 단다 — 2초짜리 연출이라 겹침 감사에서 뺀다(잡담 말풍선과 같은 규약).
+GAME.BattleScene.prototype._finishLine = function (k, r0, line) {
+  var C = GAME.CONFIG, self = this;
+  var sx = k.x, sy = GAME.Iso.toScreenY(k.y) - (r0 * 3.4 + 34);
+  var b = this.add.text(sx, sy, line, {
+    fontFamily: C.FONT, fontSize: (C.PHONE ? 13 : 16) + 'px',
+    color: '#fff6df', backgroundColor: 'rgba(24,18,10,0.86)',
+    padding: { x: 9, y: 6 }, align: 'center',
+    wordWrap: { width: C.PHONE ? 190 : 240 }
+  }).setOrigin(0.5, 1).setDepth(9200);
+  b.__floating = true;
+  //  전장 밖으로 나가지 않게 가둔다(잡담 말풍선과 같은 산수).
+  var hw = b.width / 2;
+  b.x = Math.max(hw + 6, Math.min(C.WIDTH - hw - 6, b.x));
+  if (b.y - b.height < 4) b.y = 4 + b.height;
+  if (this.worldLayer) this.worldLayer.add(b);
+  b.setAlpha(0);
+  this.tweens.add({ targets: b, alpha: 1, duration: 140 });
+  this.tweens.add({ targets: b, y: b.y - 10, delay: 260, duration: 1500 });
+  this.tweens.add({ targets: b, alpha: 0, delay: 1700, duration: 420,
+                    onComplete: function () { b.destroy(); } });
+  this._finishBubble = b;
+  void self;
 };
 
 //  내 이모트 — 쿨(2초)을 넘겼을 때만. 봇 판(rt.local)은 상대가 없으니 릴레이 없이 내 것만.
@@ -3315,18 +3378,28 @@ GAME.BattleScene.prototype._endGate = function (dt) {
 
   if (this._endHold < 0) {
     if (s.over && s.winner === 'controller' && this.ROUND_END_MS > 0) {
-      this._endHold = this.ROUND_END_MS;
       this._endElapsed = s.elapsed;
       s.over = false;
-      this._showEndBanner();
       //  마지막 처치의 순간은 **여기**다 — 유예가 끝나 ended 블록이 도는 3초 뒤가 아니라.
       if (!s.timeUp) this._cinematicEnd();
+      //  ⚠ 순서가 바뀌었다 (2026-09-05 태현님 ①: "그게 끝난다음 게임종료 카운트
+      //    나오면서 돈 먹을수있게"). 예전에는 마무리 연출과 3초 유예가 **동시에**
+      //    흘러서, 슬로모·확대가 걸린 채로 카운트가 이미 2초를 까먹고 있었다.
+      //    이제 연출 길이만큼 유예를 **앞에 더 붙이고**, 배너는 연출이 끝난 뒤에 뜬다.
+      this._finishHold = this._slowmoFired ? GAME.Feel.FINISH_SLOWMO_MS : 0;
+      this._endHold = this._finishHold + this.ROUND_END_MS;
+      if (!this._finishHold) this._showEndBanner();
     }
     return;
   }
   if (this._endHold === 0) return;        // 이미 유예를 끝냈다
 
   this._endHold -= dt;
+  //  연출 구간이 끝나는 순간 배너를 띄운다(그 전까지는 카운트가 안 돈다 — 위 주석).
+  if (this._finishHold > 0 && this._endHold <= this.ROUND_END_MS) {
+    this._finishHold = 0;
+    this._showEndBanner();
+  }
   // ⚠ combat 은 매 프레임 승패를 **다시 계산해 다시 켠다**(적이 0기이므로 계속 승리).
   //   그래서 `s.over` 만 보고 끝내면 유예가 한 프레임 만에 무너진다(실측으로 잡았다).
   //   유예를 깨는 건 **결말이 승리가 아닐 때**뿐이다 — 남은 가시덫이 영웅을 잡는 경우 등.
@@ -3360,7 +3433,8 @@ GAME.BattleScene.prototype._showEndBanner = function () {
 GAME.BattleScene.prototype._updateEndBanner = function () {
   var b = this._endBanner;
   if (!b || !b.scene) return;
-  var sec = Math.max(1, Math.ceil(this._endHold / 1000));
+  //  ⚠ 연출 구간(앞에 붙인 시간)은 카운트에서 뺀다 — 안 빼면 "5"부터 시작한다.
+  var sec = Math.max(1, Math.ceil(Math.min(this._endHold, this.ROUND_END_MS) / 1000));
   // 남은 동전 수를 같이 보여준다 — 못 먹으면 사라지는 돈이라 **손실이 보여야** 뛴다.
   var left = this._coins ? this._coins.remaining() : 0;
   var line = '라운드가 종료됩니다  ' + sec;

@@ -513,6 +513,17 @@ GAME.TowerLoadingScene.prototype.create = function () {
       },
       learn: function () { return (formation && formation.readNote) || null; }
     };
+    //  ── 이번 진형이 **어떤 구성이고 왜 그런가** (2026-09-05 태현님 ③) ──────────
+    //  "진형이나 ai가 쓸 전략에 대해 로딩창에 간단히 알려주도록하자 1~2줄이면 충분해
+    //   자세한설명은 필요없고 그냥 어떤 구성인지 왜 이렇게했는지 정도만"
+    //  ⚠ 새로 짓지 않는다 — 교리표(`AutoFormation.DOCTRINES`)가 `label`(구성)과
+    //    `why`(왜)를 이미 갖고 있는데 **어느 화면도 안 읽고 있었다.** 그대로 한 줄로.
+    //  ⚠ 아래 로테이션 **밖**에 둔다(그쪽은 네 종류가 층마다 돌아간다) — 진형 구성은
+    //    매 층 나와야 한다. 대신 한 줄만 쓴다(태현님: "1~2줄이면 충분해").
+    var AF = GAME.AutoFormation;
+    var doc = (formation && AF && AF.DOCTRINES) ? AF.DOCTRINES[formation.doctrine] : null;
+    if (doc && doc.label && doc.why) lines.push('🛡 ' + doc.label + ' 진형 — ' + doc.why);
+
     var ROT = ['enemy', 'mine', 'plan', 'learn'];
     for (var rIdx = 0; rIdx < ROT.length; rIdx++) {
       var tip = tipOf[ROT[((this.tower || 0) + rIdx) % ROT.length]]();

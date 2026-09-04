@@ -54,20 +54,20 @@ GAME.Traits = (function () {
       talents: [
         { key: 'a_rush', row: 0, col: 0, name: '사냥의 열기', max: 3, hook: 'huntersRush',
           ranks: [{ ms: 2000, speedMul: 1.15 }, { ms: 2600, speedMul: 1.30 }, { ms: 3200, speedMul: 1.45 }],
-          desc: ['처치하면 2초간 이동 ×1.15', '처치하면 2.6초간 이동 ×1.30', '처치하면 3.2초간 이동 ×1.45'] },
+          desc: ['처치 시 2초 이동 ×1.15', '처치 시 2.6초 이동 ×1.30', '처치 시 3.2초 이동 ×1.45'] },
         { key: 'a_over', row: 0, col: 1, name: '과부하', max: 3, hook: 'overload',
           ranks: [{ mul: 1.4 }, { mul: 1.8 }, { mul: 2.3 }],
-          desc: ['스킬 직후 첫 평타 ×1.4', '스킬 직후 첫 평타 ×1.8', '스킬 직후 첫 평타 ×2.3'] },
+          desc: ['스킬 후 첫 평타 ×1.4', '스킬 후 첫 평타 ×1.8', '스킬 후 첫 평타 ×2.3'] },
         { key: 'a_mom', row: 1, col: 0, name: '탄력', max: 3, hook: 'momentum', req: 'a_rush',
           ranks: [{ cutMs: 700 }, { cutMs: 1200 }, { cutMs: 1800 }],
-          desc: ['처치하면 스킬 쿨 0.7초 감소', '처치하면 스킬 쿨 1.2초 감소', '처치하면 스킬 쿨 1.8초 감소'] },
+          desc: ['처치 시 스킬 쿨 −0.7초', '처치 시 스킬 쿨 −1.2초', '처치 시 스킬 쿨 −1.8초'] },
         { key: 'a_siphon', row: 1, col: 1, name: '흡수', max: 3, hook: 'siphon', req: 'a_over',
           ranks: [{ frac: 0.05 }, { frac: 0.09 }, { frac: 0.14 }],
-          desc: ['처치하면 최대체력 5% 회복', '처치하면 최대체력 9% 회복', '처치하면 최대체력 14% 회복'] },
+          desc: ['처치 시 체력 5% 회복', '처치 시 체력 9% 회복', '처치 시 체력 14% 회복'] },
         //  ── 마무리 칸 ──
         { key: 'a_exec', row: 2, col: 0, name: '마무리', max: 1, hook: 'execute', req: 'a_siphon',
           ranks: [{ below: 0.25, mul: 1.6 }],
-          desc: ['체력 25% 아래인 적에게 주는 피해 ×1.6'] }
+          desc: ['체력 25% 이하 적에게 ×1.6'] }
       ]
     },
     {
@@ -75,21 +75,21 @@ GAME.Traits = (function () {
       talents: [
         { key: 'd_last', row: 0, col: 0, name: '배수진', max: 3, hook: 'lastStand',
           ranks: [{ below: 0.30, dmgMul: 1.18 }, { below: 0.30, dmgMul: 1.32 }, { below: 0.35, dmgMul: 1.48 }],
-          desc: ['체력 30% 아래면 내 피해 +18%', '체력 30% 아래면 내 피해 +32%', '체력 35% 아래면 내 피해 +48%'] },
+          desc: ['체력 30% 이하면 피해 +18%', '체력 30% 이하면 피해 +32%', '체력 35% 이하면 피해 +48%'] },
         { key: 'd_rip', row: 0, col: 1, name: '반격', max: 3, hook: 'riposte',
           ranks: [{ cd: 1400, r: 84, dmgMul: 0.45 }, { cd: 1100, r: 92, dmgMul: 0.60 }, { cd: 900, r: 100, dmgMul: 0.75 }],
-          desc: ['맞으면 주변에 충격파(1.4초마다)', '맞으면 더 센 충격파(1.1초마다)', '맞으면 가장 센 충격파(0.9초마다)'] },
+          desc: ['피격 시 충격파 · 1.4초', '피격 시 센 충격파 · 1.1초', '피격 시 강한 충격파 · 0.9초'] },
         { key: 'd_phase', row: 1, col: 0, name: '스침', max: 3, hook: 'phase', req: 'd_rip',
           ranks: [{ cut: 0.10 }, { cut: 0.16 }, { cut: 0.22 }],
-          desc: ['움직이는 동안 받는 피해 −10%', '움직이는 동안 받는 피해 −16%', '움직이는 동안 받는 피해 −22%'] },
+          desc: ['이동 중 받는 피해 −10%', '이동 중 받는 피해 −16%', '이동 중 받는 피해 −22%'] },
         //  ⚠ 이 칸이 "아이템으로 못 얻는 것"의 대표다 — 방어력은 비율 경감이라
         //    **한 방이 큰 공격**을 못 막는다. 상한은 그 축을 통째로 바꾼다.
         { key: 'd_cap', row: 1, col: 1, name: '한 방 막기', max: 3, hook: 'cap', req: 'd_last',
           ranks: [{ frac: 0.40 }, { frac: 0.32 }, { frac: 0.26 }],
-          desc: ['한 번에 최대체력 40% 넘게 안 맞는다', '한 번에 32% 넘게 안 맞는다', '한 번에 26% 넘게 안 맞는다'] },
+          desc: ['한 방 피해 체력 40%까지', '한 방 피해 체력 32%까지', '한 방 피해 체력 26%까지'] },
         { key: 'd_revive', row: 2, col: 0, name: '버티기', max: 1, hook: 'revive', req: 'd_cap',
           ranks: [{ healFrac: 0.30 }],
-          desc: ['죽을 피해를 한 판에 한 번 버티고 30% 회복'] }
+          desc: ['한 판 1회 버티고 30% 회복'] }
       ]
     },
     {
@@ -97,19 +97,19 @@ GAME.Traits = (function () {
       talents: [
         { key: 'u_haste', row: 0, col: 0, name: '재촉', max: 3, hook: 'haste',
           ranks: [{ speedMul: 1.04, cdrMul: 0.96 }, { speedMul: 1.07, cdrMul: 0.92 }, { speedMul: 1.10, cdrMul: 0.88 }],
-          desc: ['이동 ×1.04 · 스킬 쿨 −4%', '이동 ×1.07 · 스킬 쿨 −8%', '이동 ×1.10 · 스킬 쿨 −12%'] },
+          desc: ['이동 ×1.04 · 쿨 −4%', '이동 ×1.07 · 쿨 −8%', '이동 ×1.10 · 쿨 −12%'] },
         { key: 'u_gold', row: 0, col: 1, name: '전리품의 눈', max: 3, hook: 'goldFind',
           ranks: [{ mul: 1.08 }, { mul: 1.16 }, { mul: 1.26 }],
           desc: ['골드 획득 +8%', '골드 획득 +16%', '골드 획득 +26%'] },
         { key: 'u_orb', row: 1, col: 0, name: '구슬 감각', max: 3, hook: 'orbFind', req: 'u_gold',
           ranks: [{ mul: 1.35 }, { mul: 1.7 }, { mul: 2.1 }],
-          desc: ['구슬이 떨어질 확률 ×1.35', '구슬이 떨어질 확률 ×1.7', '구슬이 떨어질 확률 ×2.1'] },
+          desc: ['구슬 확률 ×1.35', '구슬 확률 ×1.7', '구슬 확률 ×2.1'] },
         { key: 'u_echo', row: 1, col: 1, name: '메아리', max: 2, hook: 'echo', req: 'u_haste',
           ranks: [{ chance: 0.14 }, { chance: 0.24 }],
-          desc: ['스킬이 14% 확률로 한 번 더', '스킬이 24% 확률로 한 번 더'] },
+          desc: ['스킬 14% 확률로 한 번 더', '스킬 24% 확률로 한 번 더'] },
         { key: 'u_prep', row: 2, col: 0, name: '준비된 자', max: 1, hook: 'prep', req: 'u_echo',
           ranks: [{ on: 1 }],
-          desc: ['판이 시작될 때 모든 스킬을 바로 쓸 수 있다'] }
+          desc: ['시작할 때 모든 스킬 쿨 0'] }
       ]
     }
   ];
@@ -192,16 +192,17 @@ GAME.Traits = (function () {
       if (!t) return '없는 특성';
       if (!rec) return '캐릭터가 없다';
       var cur = rankOf(key, rec);
-      if (cur >= t.max) return '이미 끝까지 찍었다';
+      if (cur >= t.max) return '끝까지 찍음';
       var gate = this.rowGate(t.row);
       var have = spentIn(t.tree, rec);
-      if (have < gate) return treeOf(t.tree).name + ' 에 ' + (gate - have) + '점 더 필요';
+      //  ⚠ 짧게. 칸이 좁아 두 줄로 접히면 그 줄이 칸을 넘친다(2026-09-05 태현님 ②).
+      if (have < gate) return treeOf(t.tree).name + ' ' + (gate - have) + '점 더';
       if (t.req && rankOf(t.req, rec) < 1) {
         var rq = talent(t.req);
-        return (rq ? rq.name : t.req) + ' 을(를) 먼저 찍어야 한다';
+        return (rq ? rq.name : t.req) + ' 먼저';
       }
       var pts = (GAME.Season && GAME.Season.worldPoints) ? GAME.Season.worldPoints() : 0;
-      if (pts < COST) return '세계 포인트가 없다';
+      if (pts < COST) return '세계 포인트 부족';
       return null;
     },
     canBuy: function (key, rec) { return this.reasonFor(key, rec) === null; },

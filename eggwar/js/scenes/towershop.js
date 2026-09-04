@@ -356,31 +356,44 @@ GAME.TowerShopScene.prototype._buildTraitTab = function () {
 
   var gapCol = PH ? 5 : (SMALL ? 7 : 12);
   var panelW = Math.floor((W - PAD * 2 - gapCol * 2) / 3);
-  var panelH = bottom - gridTop;
 
-  var titleH = PH ? 15 : (SMALL ? 19 : 23);
-  var padIn  = PH ? 4 : (SMALL ? 6 : 9);
+  var titleH = PH ? 17 : (SMALL ? 21 : 25);
+  var padIn  = PH ? 5 : (SMALL ? 7 : 10);
   var cellGapX = PH ? 4 : (SMALL ? 5 : 8);
-  var cellGapY = PH ? 5 : (SMALL ? 7 : 12);
+  var cellGapY = PH ? 6 : (SMALL ? 8 : 12);
   var rowsN = T.ROW_GATE.length;
-  //  칸 높이는 **패널 높이에서 역산**한다 — 상수로 박으면 프로필마다 넘치거나 남는다.
-  var cellH = Math.floor((panelH - titleH - padIn * 2 - cellGapY * (rowsN - 1)) / rowsN);
-  var nameFs = PH ? 10 : (SMALL ? 12 : 14);
-  var descFs = PH ? 9  : (SMALL ? 10 : 11);
+  //  ── 세로 스크롤 (2026-09-05 태현님 ②) ─────────────────────────────────────
+  //  "특성부분은 아이템처럼 세로 스크롤을 내리게하더라도 글자 가독성좀 개선하고"
+  //  ⚠ 예전에는 칸 높이를 **화면 높이에서 역산**했다. 그러면 세 줄이 언제나 화면에
+  //    욱여넣어져 글자가 9~11px 로 쪼그라들고 설명이 잘렸다(태현님 캡처).
+  //    이제는 **글자 크기에서 칸 높이를 정하고**, 넘치면 스크롤한다 — 아이템 탭과
+  //    같은 문법이다. 화면이 좁을수록 스크롤이 길어질 뿐 글자는 안 줄어든다.
+  var nameFs = PH ? 12 : (SMALL ? 13 : 16);
+  var descFs = PH ? 11 : (SMALL ? 12 : 14);
+  //  칸 = 이름 한 줄 + 설명 최대 두 줄 + 잠김/구매 한 줄 + 여백. 이게 **하한**이다.
+  var lineH = Math.round(descFs * 1.45);
+  var cellMin = Math.round(nameFs * 1.5) + lineH * 3 + padIn * 2;
+  var viewH = Math.max(60, bottom - gridTop);
+  //  ⚠ 자리가 남으면 칸을 **키워서 채운다**(PC). 하한만 두면 큰 화면에서 아래 절반이
+  //    통째로 비어 화면이 미완성으로 보인다(첫 판 스크린샷). 상한은 하한의 1.6배 —
+  //    그 이상 늘리면 글자는 그대로인데 빈 칸만 커져 오히려 읽기 나빠진다.
+  var fit = Math.floor((viewH - titleH - padIn * 2 - cellGapY * (rowsN - 1)) / rowsN);
+  var cellH = Math.max(cellMin, Math.min(fit, Math.round(cellMin * 1.6)));
+  var panelH = titleH + padIn * 2 + cellH * rowsN + cellGapY * (rowsN - 1);
+  var sc = this._scroller(PAD, gridTop, W - PAD * 2, viewH, '_traitScrollY');
 
   T.TREES.forEach(function (tree, ti) {
     var px = PAD + ti * (panelW + gapCol);
     var col = TCOL[tree.key] || UC.border;
     var spent = T.spentIn(tree.key, rec);
 
-    var pg = self.add.graphics();
-    self._body.push(pg);
+    var pg = sc.add(self.add.graphics());
     pg.fillStyle(UC.surfaceAlt, 1);
     pg.fillRoundedRect(px, gridTop, panelW, panelH, 8);
     pg.lineStyle(2, col, 0.85);
     pg.strokeRoundedRect(px, gridTop, panelW, panelH, 8);
 
-    self._body.push(GAME.UI.label(self, px + panelW / 2, gridTop + padIn,
+    sc.add(GAME.UI.label(self, px + panelW / 2, gridTop + padIn,
       tree.name + '  ' + spent, nameFs + 1, hexStr(col), 0.5).setOrigin(0.5, 0));
 
     //  줄별로 칸을 배치하고 **자리를 기억**한다(연결선이 그 자리를 쓴다).
@@ -401,8 +414,7 @@ GAME.TowerShopScene.prototype._buildTraitTab = function () {
     });
 
     //  ① 연결선을 **먼저** 그린다 — 칸 뒤에 깔려야 선이 칸을 가리지 않는다.
-    var lg = self.add.graphics();
-    self._body.push(lg);
+    var lg = sc.add(self.add.graphics());
     tree.talents.forEach(function (t) {
       if (!t.req || !pos[t.req] || !pos[t.key]) return;
       var from = pos[t.req], to = pos[t.key];
@@ -420,8 +432,7 @@ GAME.TowerShopScene.prototype._buildTraitTab = function () {
       var maxed = rank >= t.max;
       var open = why === null;
 
-      var g = self.add.graphics();
-      self._body.push(g);
+      var g = sc.add(self.add.graphics());
       //  상태를 **채움과 테두리 두 축**으로 나눈다: 채움 = 얼마나 찍었나,
       //  테두리 = 지금 살 수 있나. 하나로 합치면 "찍었는데 잠김"이 안 읽힌다.
       g.fillStyle(rank > 0 ? col : UC.surface, rank > 0 ? (maxed ? 0.42 : 0.26) : 1);
@@ -437,11 +448,19 @@ GAME.TowerShopScene.prototype._buildTraitTab = function () {
       var gapY = PH ? 2 : 4;
       var ty = b.y + (PH ? 3 : 5);
       //  칸 표시 — 아이템 카드·스킬 줄과 같은 이유(2026-09-04 ⑨).
-      var tIn = function (lbl) { lbl.__box = { x: b.x, y: b.y, w: b.w, h: b.h }; return lbl; };
+      //  ⚠ 칸이 자리가 남아 커지면 글이 위에 몰려 "빈 상자"로 보인다 — 다 만든 뒤
+      //    **세로 가운데로 통째로 내린다**(2026-09-05). 줄 높이는 접힘에 따라 달라져
+      //    미리 못 구하므로, 만들고 재서 옮기는 것 말고 안전한 길이 없다.
+      var cellLbls = [];
+      var tIn = function (lbl) {
+        lbl.__box = { x: b.x, y: b.y, w: b.w, h: b.h };
+        cellLbls.push(lbl);
+        return lbl;
+      };
       var nameL = tIn(GAME.UI.label(self, b.x + padIn, ty,
         t.name + '  ' + rank + '/' + t.max, nameFs,
         rank > 0 ? hexStr(col) : C.text, 0).setWordWrapWidth(iw));
-      self._body.push(nameL);
+      sc.add(nameL);
       ty += nameL.height + gapY;
 
       //  지금 단계의 설명(안 찍었으면 1단 설명) — "다음에 무엇이 되는가"를 보여준다.
@@ -460,28 +479,34 @@ GAME.TowerShopScene.prototype._buildTraitTab = function () {
           descL.setText(cut + '…');
         }
       }
-      self._body.push(descL);
+      sc.add(descL);
       ty += descL.height + gapY;
 
       //  ⚠ 잠긴 이유·구매 안내는 **설명 다음 줄**에 놓고, 칸 밖으로 나가면 아예 안 그린다.
       //    (칸 높이는 프로필마다 달라서 항상 들어간다고 가정할 수 없다.)
       if (why && !maxed) {
         if (ty + descFs <= b.y + b.h - 2) {
-          self._body.push(tIn(GAME.UI.label(self, b.x + padIn, ty,
-            '잠김 - ' + why, descFs, C.textDim, 0).setWordWrapWidth(iw)));
+          sc.add(tIn(GAME.UI.label(self, b.x + padIn, ty,
+            '🔒 ' + why, descFs, C.textDim, 0).setWordWrapWidth(iw)));
         }
       } else if (open) {
         if (ty + descFs <= b.y + b.h - 2) {
-          self._body.push(tIn(GAME.UI.label(self, b.x + b.w - padIn, ty,
+          sc.add(tIn(GAME.UI.label(self, b.x + b.w - padIn, ty,
             '+1점', descFs, C.accent, 1).setOrigin(1, 0)));
         }
       }
+      //  세로 가운데 정렬 — `ty` 는 마지막 줄의 **아래**를 가리킨다(마지막 push 뒤
+      //  더해지지 않은 gapY 만큼만 빼면 글 뭉치의 실제 높이다).
+      var blockH = (ty - gapY) - (b.y + (PH ? 3 : 5));
+      var shift = Math.max(0, Math.round((b.h - blockH) / 2) - (PH ? 3 : 5));
+      if (shift > 1) cellLbls.forEach(function (l) { l.y += shift; });
 
       //  살 수 있는 칸만 누를 수 있다. 못 사는 칸은 이유가 이미 안에 적혀 있다.
+      //  ⚠ **투명 사각형을 만들지 않는다** — 스크롤 컨테이너 안에 상호작용 객체를 두면
+      //    스크롤로 밀려난 칸이 눈에서만 사라지고 히트 영역은 그 자리(탭 버튼 줄)에
+      //    남는다(이 파일 `_scroller` 주석이 실측으로 남긴 사고). 좌표로만 등록한다.
       if (!open) return;
-      var hit = self.add.zone(b.x, b.y, b.w, b.h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-      self._body.push(hit);
-      hit.on('pointerdown', function () {
+      sc.tap({ x: b.x, y: b.y, w: b.w, h: b.h }, function () {
         if (T.buy(t.key, rec) > 0) {
           if (GAME.Sound) { try { GAME.Sound.play('coin'); } catch (e) {} }
           self.char = GAME.TowerChar.get();
@@ -490,6 +515,7 @@ GAME.TowerShopScene.prototype._buildTraitTab = function () {
       });
     });
   });
+  sc.finish(panelH);
 };
 
 //  가죽 원단 패널(2026-09-02, #119 ③ 잔여) — 큰 면은 원본, 카드는 저해상판.

@@ -527,6 +527,15 @@ GAME.Combat = {
     for (var i = 0; i < u.buffs.length; i++) if (u.buffs[i].stealthTag) return true;
     return false;
   },
+  //  영역 증폭의 실시간 감쇠 — 탑은 표 값 그대로, 실시간만 초과분을 깎는다.
+  //  (js/arenabuild.js  — 근거는 그 주석에.)
+  _rtZoneMul: function (state, mul) {
+    if (!state || !state.pvpRealtime || !(mul > 1)) return mul;
+    var k = (GAME.ArenaBuild && GAME.ArenaBuild.RT_ZONE_K);
+    if (k === undefined) k = 1;
+    return 1 + (mul - 1) * k;
+  },
+
   breakStealth: function (u, state) {
     if (!u || !u.buffs) return false;
     var did = false;
@@ -535,6 +544,9 @@ GAME.Combat = {
     }
     if (did) {
       u._stealthUntil = 0;
+      //  기습 배수는 **한 번 쓰면 사라진다.** 안 지우면 은신이 풀린 뒤에도 계속
+      //  치명타가 나가 "숨었다 나오는 한 방"이 아니라 상시 버프가 된다.
+      u._ambushMul = 1;
       if (state && state.effects) {
         state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: (u.def.radius || 14) + 18,
                              t: 200, total: 200, side: u.side, stealthBreak: true });
@@ -625,12 +637,45 @@ GAME.Combat = {
     //  · 은신 중 **이동하면서** 받는 피해 ×0.6 — 멈춰 서면 그대로 맞는다.
     if (source && dmg > 0 && source !== unit && source.side !== unit.side &&
         source.buffs && source.buffs.length && this.isStealthed(source)) {
+      //  ── 기습 일격 (2026-09-04 태현님: "숨기 이후에 첫 공격은 치명타나 더 강한
+      //     공격이 되게끔") ────────────────────────────────────────────────────
+      //  ⚠ **은신을 푸는 바로 그 타격에** 곱한다. 은신이 풀린 *뒤*에 주면 한 박자
+      //    늦어 "숨었다 나와 찌른다"는 손맛이 안 산다. 이 관문이 은신 해제 지점이라
+      //    여기가 유일하게 정확한 자리다.
+      //  ⚠ 배수는 은신 스킬이 실어 준 값(`_ambushMul`)이다 — 안 실으면 1 이라
+      //    기존 은신(다른 영웅·옛 스킬)은 한 톨도 안 바뀐다(opt-in 패턴).
+      var amb = source._ambushMul || 1;
+      if (amb > 1) {
+        dmg *= amb;
+        if (state) {
+          state.ambushHits = (state.ambushHits || 0) + 1;   // 감사용 — 실제로 터졌는가
+          state.effects.push({ kind: 'ring', x: unit.x, y: unit.y,
+                               r: (unit.def.radius || 14) + 26, t: 300, total: 300, side: source.side });
+        }
+      }
       this.breakStealth(source, state);
     }
     if (unit._markUntil && state && state.elapsed < unit._markUntil &&
         source && source.side !== unit.side && dmg > 0) {
       dmg *= (unit._markMul || 1.35);
       state.markHits = (state.markHits || 0) + 1;      // 감사용 — 표식이 실제로 들었는가
+    }
+    //  ── 영역전개 (2026-09-04) — 원 **안에 있는 동안** 받는 피해가 는다 ──────────
+    //  ⚠ 표식(대상 고정)과 달리 이건 **자리**다. 들어가면 아프고 나가면 그만이라
+    //    "피해서 싸운다"는 선택이 생긴다. 표식과 곱연산이 되는 것은 의도한 것이다
+    //    (찍은 대상을 영역 안으로 몰아넣는 것이 이 영웅의 최고 수다).
+    if (state && state.zones && state.zones.length && dmg > 0 &&
+        source && source.side !== unit.side) {
+      for (var zj = 0; zj < state.zones.length; zj++) {
+        var zn = state.zones[zj];
+        if (zn.side !== source.side) continue;         // 내 영역만 내 피해를 키운다
+        var zdx = unit.x - zn.x, zdy = unit.y - zn.y;
+        if (zdx * zdx + zdy * zdy <= zn.r * zn.r) {
+          dmg *= zn.mul;
+          state.zoneHits = (state.zoneHits || 0) + 1;  // 감사용 — 영역이 실제로 들었는가
+          break;                                        // 겹쳐도 한 번만(무한 곱 방지)
+        }
+      }
     }
     if (dmg > 0 && unit.buffs && unit.buffs.length && this.isStealthed(unit) && this.isCharging(unit)) {
       dmg *= 0.6;
@@ -1928,15 +1973,24 @@ GAME.Combat = {
       case 'summonBoss': return Math.round((sk.range || 140) * ws);
       case 'mark': return Math.round((sk.range || 260) * ws);
       case 'chain': return Math.round((sk.range || 300) * ws);
-      default: return 0;   // buff, strike, stealth
+      //  암살자 닌자 개편(2026-09-04) — 영역전개는 지점에 펼치고, 분신은 곁에 세우고,
+      //  연격은 대상에게 달라붙는다. 난사는 자기중심이라 사거리가 없다.
+      case 'markZone': return Math.round((sk.range || 240) * ws);
+      case 'clone': return Math.round((sk.range || 90) * ws);
+      case 'flurry': return Math.round((sk.range || 200) * ws);
+      default: return 0;   // buff, strike, stealth, spray
     }
   },
 
   //  ── 시즌2 S-E 스킬 타입 표 (2026-09-03) ────────────────────────────────────
   //  heroes.js 의 SKILL_TYPE_LABEL(화면 이름)과 별개로, **엔진이 아는 타입**의 목록이다.
   //  감사(tools/engine-audit.js)가 이 표와 castSkill 분기를 대조한다.
+  //  ⚠ 2026-09-04 암살자 닌자 개편으로 넷이 늘었다(markZone·spray·clone·flurry).
+  //    새 타입을 넣으면 **이 배열 · skillReach · engine-audit · eggart ACT/포즈**를
+  //    같이 봐야 한다 — 하나라도 빠지면 "정의는 있는데 아무 일도 안 하는" 스킬이 된다.
   SKILL_TYPES: ['dash', 'aoeSelf', 'aoeTarget', 'projectile', 'strike', 'buff', 'aura',
-                'pull', 'trap', 'summon', 'stealth', 'blink', 'mark', 'chain', 'summonBoss'],
+                'pull', 'trap', 'summon', 'stealth', 'blink', 'mark', 'chain', 'summonBoss',
+                'markZone', 'spray', 'clone', 'flurry'],
   ABILITY_TYPES: ['charge', 'shockwave', 'healBurst', 'warcry', 'ember', 'ashcloud', 'pull',
                   'barrage', 'summon', 'quake', 'gust'],
   FIELD_KINDS: ['fog', 'swamp', 'lava', 'quake', 'storm'],
@@ -2193,6 +2247,44 @@ GAME.Combat = {
         kind: 'dashTrail', x1: fromX, y1: fromY, x2: u.x, y2: u.y,
         t: 260, total: 260, side: u.side
       });
+      //  ── 돌진 자취 (2026-09-04 태현님: "돌진할때 경로에 덫을놓거나 돌진하면서
+      //     수리검이나 표창을 던졌으면") ──────────────────────────────────────────
+      //  `trail: 'trap' | 'shuriken'` 을 적은 스킬만 탄다(opt-in — 다른 돌진 무변경).
+      //  ⚠ 덫은 **내 편 유닛**으로 세운다(isMine 은 적만 밟는다). 수명을 줘서
+      //    판이 끝날 때까지 쌓이지 않게 한다 — 안 그러면 돌진 한 번마다 맵에 지뢰가 는다.
+      if (sk.trail) {
+        var trN = Math.max(1, sk.trailN || 3);
+        for (var tri = 0; tri < trN; tri++) {
+          var trF = (tri + 1) / (trN + 1);
+          var trX = fromX + (u.x - fromX) * trF, trY = fromY + (u.y - fromY) * trF;
+          if (sk.trail === 'trap') {
+            var trU = this.createUnit('mine', trX, trY, u.side,
+                                      { damage: sk.trailDamage ? sk.trailDamage / 30 : 1 });
+            var trD = {}, trK;
+            for (trK in trU.def) trD[trK] = trU.def[trK];
+            trD.noCount = true; trD.noGold = true;      // 승패·골드 계산에서 뺀다
+            trU.def = trD;
+            trU.summoned = true;
+            trU.lifeMs = sk.trailLife || 9000;
+            trU._summonOwner = u;
+            trU.srcSkill = sk.name;
+            if (GAME.CONFIG.ARENA) this.clampToArena(trU);
+            state.units.push(trU);
+            state.dashTraps = (state.dashTraps || 0) + 1;
+          } else if (sk.trail === 'shuriken') {
+            //  자취에서 **옆으로** 뿌린다 — 앞으로 쏘면 돌진과 같은 선이라 안 보인다.
+            var trA = GAME.DetMath.atan2(u.y - fromY, u.x - fromX) + (tri % 2 ? 1 : -1) * 1.15;
+            state.projectiles.push({
+              x: trX, y: trY,
+              vx: GAME.DetMath.cos(trA) * (sk.trailSpeed || 520),
+              vy: GAME.DetMath.sin(trA) * (sk.trailSpeed || 520),
+              damage: sk.trailDamage || 26, side: u.side, radius: 7, life: 900,
+              owner: u, target: null, srcSkill: sk.name, projStyle: 'shuriken'
+            });
+            state.dashShuriken = (state.dashShuriken || 0) + 1;
+          }
+        }
+      }
 
     } else if (sk.type === 'aoeSelf') {
       var aoeHit = 0, aoeLs = this._lsBudget(u);
@@ -2241,6 +2333,9 @@ GAME.Combat = {
           delayDist: b2 * (sk.burstDelay || 0) * sk.speed / 1000,
           pierce: !!sk.pierce,
           hitSet: [],
+          //  스킬이 고른 투사체 그림(2026-09-04) — 'shuriken' · 'dagger' · 'orb'.
+          //  안 적으면 예전 화살 그대로다(battle.js 렌더가 기본 경로로 떨어진다).
+          projStyle: sk.projStyle || null,
           owner: u,
           srcSkill: sk.name,
           ult: isUltCast,
@@ -2380,6 +2475,16 @@ GAME.Combat = {
       }
       if (!stDup) u.buffs.push({ stealthTag: true, t: stMs, speedMul: sk.speedMul || 1 });
       u._stealthUntil = state.elapsed + stMs;   // 렌더(알파)용 — 판정은 buffs 가 한다
+      //  기습 배수 — 이 은신에서 나오는 **첫 타격**에만 곱해진다(applyDamage 관문).
+      //  스킬이 값을 안 실으면 1 이라 다른 영웅·옛 은신은 무변경이다.
+      //  ⚠ 실시간 1:1 에서는 초과분을 깎는다(js/arenabuild.js `RT_AMBUSH_K` — 탑 값을
+      //    그대로 쓰면 한 방이 판을 끝내 rt-balance ② 가 깨진다). 탑은 그대로다.
+      u._ambushMul = sk.ambushMul || 1;
+      if (state.pvpRealtime && u._ambushMul > 1) {
+        var ak = (GAME.ArenaBuild && GAME.ArenaBuild.RT_AMBUSH_K);
+        if (ak === undefined) ak = 1;
+        u._ambushMul = 1 + (u._ambushMul - 1) * ak;
+      }
       //  이미 날아오는 유도탄은 표적을 잃는다(update 의 homing 검사가 지운다).
       state.effects.push({ kind: 'stealth', x: u.x, y: u.y, r: u.def.radius + 22,
                            t: 320, total: 320, side: u.side, ms: stMs });
@@ -2514,6 +2619,136 @@ GAME.Combat = {
       state.summonCount = (state.summonCount || 0) + 1;
       state.bossSummonCount = (state.bossSummonCount || 0) + 1;   // 감사용 — 미니 보스 발동 횟수
       state.effects.push({ kind: 'ring', x: bx, y: by, r: (bnd.radius || 30) + 22, t: 420, total: 420, side: u.side });
+
+    //  ══ 암살자 닌자 개편 (2026-09-04 태현님) ═════════════════════════════════
+    } else if (sk.type === 'markZone') {
+      //  ── 영역전개 ──────────────────────────────────────────────────────────
+      //  "표식시스템은 영역전개느낌으로 원이 생기고 거기안에 들어간 적에겐 추가데미지"
+      //  ⚠ 기존 `mark`(대상 한 기에 표식)와 **다른 타입으로 뒀다.** 대상 표식은
+      //    "누구를 노렸나"이고 이것은 "어디를 잠갔나"라 성질이 다르고, 기존 mark 를
+      //    쓰는 스킬·감사가 그대로 살아 있어야 한다.
+      //  ⚠ 지속 피해가 아니라 **받는 피해 증폭**이다. 장판 피해로 만들면 가만히 둬도
+      //    적이 죽어 "내가 들어가서 싸운다"는 이 영웅의 성격이 사라진다.
+      var mzR = sk.radius || 120, mzMs = sk.duration || 6000;
+      //  실시간만 반지름 확대(js/arenabuild.js RT_ZONE_R) — 탑은 그대로.
+      if (state.pvpRealtime && GAME.ArenaBuild && GAME.ArenaBuild.RT_ZONE_R) {
+        mzR = mzR * GAME.ArenaBuild.RT_ZONE_R;
+      }
+      var mzReach = this.skillReach(sk) || 240;
+      var mzdx = tx - u.x, mzdy = ty - u.y, mzdl = Math.sqrt(mzdx * mzdx + mzdy * mzdy) || 1;
+      var mzGo = Math.min(mzdl, mzReach);
+      var mzX = u.x + (mzdx / mzdl) * mzGo, mzY = u.y + (mzdy / mzdl) * mzGo;
+      state.zones = state.zones || [];
+      state.zones.push({
+        x: mzX, y: mzY, r: mzR, t: mzMs, total: mzMs,
+        mul: this._rtZoneMul(state, sk.markMul || 1.4), side: u.side, owner: u, name: sk.name, motif: sk.motif
+      });
+      state.zoneCasts = (state.zoneCasts || 0) + 1;
+      //  ⚠ **펼치는 순간의 충격**은 준다(지속 피해가 아니다). 옛 `mark` 가 피해
+      //    40~95 를 갖고 있었는데 영역으로 갈아타며 그걸 통째로 잃었고, 실시간
+      //    1:1 에서 암살자의 화력이 빠져 `rt-balance ②` 가 깨졌다(승자 잔여 62%).
+      //    "장판이 알아서 죽이면 안 된다"는 설계는 **지속 피해**를 막는 것이지
+      //    전개 자체를 무해하게 만드는 것이 아니었다 — 그 구분을 놓쳤다.
+      if (skDmg > 0) {
+        var mzHit = 0, mzLs = this._lsBudget(u);
+        for (i2 = 0; i2 < state.units.length; i2++) {
+          o = state.units[i2];
+          if (!o.alive || o.side === u.side) continue;
+          var mzox = o.x - mzX, mzoy = o.y - mzY;
+          if (Math.sqrt(mzox * mzox + mzoy * mzoy) <= mzR + o.def.radius) {
+            this.applyDamage(o, skDmg, u, state,
+                             { lsScale: this._ls(mzHit++), lsBudget: mzLs, srcSkill: sk.name });
+          }
+        }
+      }
+      state.effects.push({ kind: 'ring', x: mzX, y: mzY, r: mzR, t: 460, total: 460, side: u.side });
+
+    } else if (sk.type === 'spray') {
+      //  ── 사방 난사 ─────────────────────────────────────────────────────────
+      //  "수리검을 정말 사방팔방으로 뿌리는 스킬"
+      //  자기중심 방사. 정확히 균등 분할하면 격자처럼 보이니 고리마다 위상을 틀어 준다.
+      var spN = sk.count || 16, spRings = Math.max(1, sk.rings || 1);
+      for (var spR = 0; spR < spRings; spR++) {
+        var spPhase = spR * (Math.PI / spN);
+        for (var spI = 0; spI < spN; spI++) {
+          var spA = ang + spPhase + (spI / spN) * Math.PI * 2;
+          state.projectiles.push({
+            x: u.x, y: u.y,
+            vx: GAME.DetMath.cos(spA) * ((sk.speed || 560) - spR * 60),
+            vy: GAME.DetMath.sin(spA) * ((sk.speed || 560) - spR * 60),
+            damage: skDmg || 40, side: u.side, radius: sk.projRadius || 7,
+            life: sk.life || 1100, owner: u, target: null,
+            srcSkill: sk.name, projStyle: 'shuriken'
+          });
+        }
+      }
+      state.sprayCasts = (state.sprayCasts || 0) + 1;
+      state.effects.push({ kind: 'ring', x: u.x, y: u.y, r: (u.def.radius || 15) + 30,
+                           t: 320, total: 320, side: u.side });
+
+    } else if (sk.type === 'clone') {
+      //  ── 분신술 ────────────────────────────────────────────────────────────
+      //  "분신술쓰는 스킬"
+      //  ⚠ 분신은 **영웅 def 를 빌리되 영웅이 아니다**(`isHero` 를 안 붙인다).
+      //    붙이면 HUD·패배 판정·조작이 전부 분신을 본다 — 주술사 미니보스에서
+      //    배운 것과 같은 자리다. 여기서도 def 를 얕게 복사해 표시를 끊는다.
+      var clN = sk.count || 2, clMade = 0;
+      for (var cli = 0; cli < clN; cli++) {
+        var clA = ang + (cli - (clN - 1) / 2) * 0.9;
+        var clX = u.x + GAME.DetMath.cos(clA) * (sk.range || 90);
+        var clY = u.y + GAME.DetMath.sin(clA) * (sk.range || 90);
+        //  ⚠ `createUnit` 을 쓸 수 없다 — 영웅은 `GAME.UNITS` 에 없다(GAME.HEROES 다).
+        //    처음에 그렇게 짰다가 감사에서 즉시 터졌다("Cannot read properties of
+        //    undefined"). 분신은 **영웅 자신의 def 를 얕게 복사해** 세운다.
+        //  ⚠ `u.def` 는 이미 scaleDef 를 지난 값이다 — 다시 scaleDef 하면 폰에서만
+        //    두 번 줄어든다. 그래서 `_baseUnit` 에 바로 넣는다.
+        var clD = {}, clK;
+        for (clK in u.def) clD[clK] = u.def[clK];
+        clD.hp = Math.max(1, Math.round((u.def.hp || 1) * (sk.hpMul || 0.22)));
+        clD.damage = Math.max(1, Math.round((u.def.damage || 1) * (sk.dmgMul || 0.45)));
+        clD.isBoss = false; clD.noCount = true; clD.noGold = true;
+        clD.abilities = undefined; clD.ability = undefined;   // 분신은 스킬을 안 쓴다
+        clD.lifesteal = 0;                                    // 흡혈까지 복제하면 본체가 안 죽는다
+        var clU = this._baseUnit(clD, clX, clY, u.side, u.type || 'clone');
+        clU.isHero = false;                    // ⚠ 절대 영웅으로 두지 않는다
+        clU.summoned = true;
+        clU.lifeMs = sk.life || 7000;
+        clU._summonOwner = u;
+        clU.srcSkill = sk.name;
+        clU.home = { x: clX, y: clY };
+        clU.committed = true;
+        if (GAME.CONFIG.ARENA) this.clampToArena(clU);
+        state.units.push(clU);
+        clMade++;
+        state.effects.push({ kind: 'stealth', x: clX, y: clY, r: (clU.def.radius || 15) + 18,
+                             t: 300, total: 300, side: u.side, ms: 300 });
+      }
+      if (!clMade) return false;              // 하나도 못 세웠으면 쿨을 안 태운다
+      state.cloneCount = (state.cloneCount || 0) + clMade;
+
+    } else if (sk.type === 'flurry') {
+      //  ── 연격(달라붙어 연속 공격) ───────────────────────────────────────────
+      //  "바라보는 적한테 달라붙어서 연속공격 약 17회 연속으로 공격하는 스킬"
+      //  ⚠ 17 대를 **그 자리에서 한 번에** 넣으면 그건 연격이 아니라 한 방이다.
+      //    `state.flurries` 에 올려 Combat.update 가 시간에 걸쳐 때린다 — 그동안
+      //    영웅이 대상에게 붙어 있으므로 **위험을 감수하는 궁극기**가 된다.
+      var flReach = this.skillReach(sk) || 200;
+      var flT = null, flD = Infinity;
+      for (i2 = 0; i2 < state.units.length; i2++) {
+        o = state.units[i2];
+        if (!o.alive || o.side === u.side || this.isHazard(o) || this.isStealthed(o)) continue;
+        //  바라보는 쪽 우선 — 시전 지점에 가까운 적을 고른다.
+        var fdx = o.x - tx, fdy = o.y - ty, fdd = Math.sqrt(fdx * fdx + fdy * fdy);
+        if (this.dist(u, o) <= flReach + o.def.radius && fdd < flD) { flD = fdd; flT = o; }
+      }
+      if (!flT) return false;                 // 붙을 대상이 없으면 쿨을 안 태운다
+      state.flurries = state.flurries || [];
+      state.flurries.push({
+        owner: u, target: flT, left: sk.hits || 17,
+        every: sk.every || 90, t: 0, damage: skDmg || 24,
+        name: sk.name, lifesteal: sk.lifestealMul || 0
+      });
+      state.flurryCasts = (state.flurryCasts || 0) + 1;
     }
 
     //  궁극 즉발형(돌진·자기광역·강타·후려치기)은 시전 순간이 곧 착탄이다.
@@ -3772,6 +4007,41 @@ GAME.Combat = {
     var dt = dtMs / 1000;
     state.elapsed += dtMs;
     state._lastDtMs = dtMs;      // 전술 hold 가 "얼마나 기다렸나"를 세는 데 쓴다
+
+    //  ── 영역전개 수명 (2026-09-04) ───────────────────────────────────────────
+    //  피해는 안 준다 — applyDamage 관문이 "이 안에 있으면 더 아프다"만 본다.
+    if (state.zones && state.zones.length) {
+      for (var zi = state.zones.length - 1; zi >= 0; zi--) {
+        state.zones[zi].t -= dtMs;
+        if (state.zones[zi].t <= 0) state.zones.splice(zi, 1);
+      }
+    }
+    //  ── 연격 (2026-09-04) ────────────────────────────────────────────────────
+    //  ⚠ 한 번에 다 넣지 않고 `every` ms 마다 한 대씩 — 그래야 '연속 공격'이 된다.
+    //  ⚠ 대상이 죽거나 너무 멀어지면 즉시 끝낸다(끝까지 따라가는 유도기가 되면 안 된다).
+    if (state.flurries && state.flurries.length) {
+      for (var fi = state.flurries.length - 1; fi >= 0; fi--) {
+        var fl = state.flurries[fi];
+        //  ⚠ `def.range` 를 직접 읽으면 안 된다(engine-audit 이 잡는다) — 안개가
+        //    사거리를 줄이는 전장에서 연격만 원래 사거리로 판정하면 어긋난다.
+        if (!fl.owner.alive || !fl.target.alive || fl.left <= 0 ||
+            this.dist(fl.owner, fl.target) > (this.effRange(fl.owner, state) || 70) + 190) {
+          state.flurries.splice(fi, 1); continue;
+        }
+        fl.t += dtMs;
+        while (fl.t >= fl.every && fl.left > 0) {
+          fl.t -= fl.every;
+          fl.left--;
+          this.applyDamage(fl.target, fl.damage, fl.owner, state,
+                           { srcSkill: fl.name, lsScale: fl.lifesteal || 0 });
+          state.flurryHits = (state.flurryHits || 0) + 1;
+          state.effects.push({ kind: 'spark', x: fl.target.x, y: fl.target.y,
+                               t: 110, total: 110, side: fl.owner.side });
+          if (!fl.target.alive) break;
+        }
+        if (fl.left <= 0) state.flurries.splice(fi, 1);
+      }
+    }
     //  전술 플레이북(js/tactics.js) — **통곡의 탑에서만**(state.tactics) 돈다.
     //  자기 주기(TICK_MS)로 스스로 걸러내므로 매 프레임 불러도 된다.
     if (state.tactics && GAME.Tactics) {

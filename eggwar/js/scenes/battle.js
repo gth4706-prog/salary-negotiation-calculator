@@ -1786,6 +1786,35 @@ GAME.BattleScene.prototype._drawEmberZones = function (g) {
   }
 };
 
+//  ── 영역전개 (2026-09-04 암살자) ────────────────────────────────────────────
+//  태현님: "표식시스템은 영역전개느낌으로 원이 생기고 거기안에 들어간 적에겐 추가데미지".
+//  ⚠ **경계가 분명해야 한다.** 안과 밖에서 받는 피해가 달라지므로, 어디까지가 안인지
+//    한눈에 안 보이면 그건 함정이지 선택이 아니다. 그래서 테두리를 진하게 긋고
+//    안쪽은 옅게만 채운다(유닛 가독성을 해치지 않게).
+//  ⚠ 씬 계약 — `_drawHealZones` 와 같은 자리에서 불린다(DefendScene 이 이 draw 를
+//    빌려 쓰므로 프로토타입에 둔다. 인스턴스에 두면 방어전에서만 죽는다).
+GAME.BattleScene.prototype._drawMarkZones = function (g) {
+  var zs = this.state && this.state.zones;
+  if (!zs || !zs.length) return;
+  var Iso = GAME.Iso, FX = GAME.UI.FX;
+  var col = (FX && FX.heroFx && FX.heroFx.assassin) || 0x9d6bd8;
+  for (var i = 0; i < zs.length; i++) {
+    var z = zs[i];
+    var f = Math.max(0, Math.min(1, z.t / (z.total || 1)));
+    var sy = Iso.toScreenY(z.y);
+    //  펼쳐지는 연출 — 처음 260ms 동안 반지름이 자란다.
+    var grow = z.total - z.t < 260 ? (z.total - z.t) / 260 : 1;
+    var r = z.r * (0.55 + 0.45 * grow);
+    g.fillStyle(col, 0.10 * f);
+    g.fillEllipse(z.x, sy, r * 2, r * 2 * Iso.TILT);
+    g.lineStyle(2.5, col, 0.55 * f);
+    g.strokeEllipse(z.x, sy, r * 2, r * 2 * Iso.TILT);
+    //  안쪽 고리 하나 — '영역'이라는 것이 읽히게(단순 장판과 구분).
+    g.lineStyle(1.2, col, 0.30 * f);
+    g.strokeEllipse(z.x, sy, r * 1.24, r * 1.24 * Iso.TILT);
+  }
+};
+
 GAME.BattleScene.prototype._drawHealZones = function (g) {
   var st = this.state;
   if (!st || !st.healZones || !st.healZones.length) return;
@@ -4295,6 +4324,7 @@ GAME.BattleScene.prototype.draw = function () {
   if (this._coins) this._coins.draw(g, this._frameDt());
   this._drawOrbs(g);
   this._drawHealZones(g);
+  this._drawMarkZones(g);
   this._drawEmberZones(g);
 
   // ── 투사체 ──
@@ -4337,6 +4367,59 @@ GAME.BattleScene.prototype.draw = function () {
       g.fillCircle(osx, osy, orr * 1.35);
       g.fillStyle(0xffffff, 0.88);
       g.fillCircle(osx, osy, orr * 0.5);
+      continue;
+    }
+
+    //  ── 수리검 · 단검 (2026-09-04 암살자 닌자 개편) ───────────────────────────
+    //  태현님: "수리검이나 단검도 벡터이미지로 일단 투사체 별도로 만들어줘".
+    //  ⚠ 화살(아래 기본 경로)과 **읽히는 방식이 달라야** 한다 — 화살은 '선',
+    //    수리검은 '도는 별', 단검은 '짧고 두꺼운 날'이다. 그래서 궤적선을 안 그리고
+    //    회전을 준다(회전은 상태를 안 만들고 **비행 거리에서 역산**한다 — 이 파일이
+    //    화살 잔상에서 쓴 것과 같은 기법이라 state 에 필드가 늘지 않는다).
+    if (p.projStyle === 'shuriken' || p.projStyle === 'dagger') {
+      var nsx = p.x, nsy = Iso.toScreenY(p.y) - 12;
+      var nsp = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1;
+      var nrr = p.radius * (p.big ? 1.5 : 1) + 2;
+      //  강철빛 — 진영색을 쓰지 않는다(칼은 팀색이 아니라 쇠다). 테두리만 진영색.
+      var STEEL = 0xd8dee6, EDGE2 = 0x8b93a0;
+      g.fillStyle(INKA > 0 ? INK : 0x000000, 0.16);
+      g.fillEllipse(nsx, nsy + 12, nrr * 2.0, nrr * 2.0 * Iso.TILT);
+      if (p.projStyle === 'shuriken') {
+        //  남은 수명에서 회전각을 역산한다 — life 는 매 프레임 줄어드니 부호만
+        //  뒤집으면 단조 증가하는 각이 된다(state 에 회전 필드를 안 만든다).
+        var spin = -p.life * 0.022;
+        var blades = 4;
+        for (var sb = 0; sb < blades; sb++) {
+          var sa = spin + (sb / blades) * Math.PI * 2;
+          var cx1 = nsx + Math.cos(sa) * nrr * 2.0;
+          var cy1 = nsy + Math.sin(sa) * nrr * 2.0 * Iso.TILT;
+          var cx2 = nsx + Math.cos(sa + 0.55) * nrr * 0.8;
+          var cy2 = nsy + Math.sin(sa + 0.55) * nrr * 0.8 * Iso.TILT;
+          var cx3 = nsx + Math.cos(sa - 0.55) * nrr * 0.8;
+          var cy3 = nsy + Math.sin(sa - 0.55) * nrr * 0.8 * Iso.TILT;
+          g.fillStyle(STEEL, 0.95);
+          g.fillTriangle(cx1, cy1, cx2, cy2, cx3, cy3);
+        }
+        g.fillStyle(EDGE2, 1);
+        g.fillCircle(nsx, nsy, nrr * 0.55);
+        g.fillStyle(pcol, 0.85);
+        g.fillCircle(nsx, nsy, nrr * 0.26);
+      } else {
+        //  단검 — 날 + 자루. 나아가는 방향으로 눕힌다.
+        var dux = p.vx / nsp, duy = (p.vy / nsp) * Iso.TILT;
+        var pxu = -duy, pyu = dux;
+        var tipX = nsx + dux * nrr * 2.6, tipY = nsy + duy * nrr * 2.6;
+        var bkX = nsx - dux * nrr * 1.6, bkY = nsy - duy * nrr * 1.6;
+        g.fillStyle(STEEL, 0.96);
+        g.fillTriangle(tipX, tipY,
+                       nsx + pxu * nrr * 0.75, nsy + pyu * nrr * 0.75,
+                       nsx - pxu * nrr * 0.75, nsy - pyu * nrr * 0.75);
+        g.lineStyle(Math.max(2, nrr * 0.7), 0x6b5a44, 1);
+        g.lineBetween(nsx - dux * nrr * 0.5, nsy - duy * nrr * 0.5, bkX, bkY);
+        g.lineStyle(Math.max(1.5, nrr * 0.5), pcol, 0.9);
+        g.lineBetween(nsx + pxu * nrr * 0.9, nsy + pyu * nrr * 0.9,
+                      nsx - pxu * nrr * 0.9, nsy - pyu * nrr * 0.9);
+      }
       continue;
     }
 

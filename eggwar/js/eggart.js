@@ -869,7 +869,11 @@ var SM = 10;
     //  시즌2 S-E 새 타입 5 (2026-09-03 S-H) — 아래 skillPose 의 주 신호 매핑 참조.
     summon: 560, stealth: 440, blink: 300, mark: 480, chain: 520,
     //  2026-09-03 · 주술사 R(미니 보스 소환) — summon 과 같은 언어, 궁극답게 더 오래.
-    summonBoss: 620
+    summonBoss: 620,
+    //  2026-09-04 · 암살자 닌자 개편 넷. 영역은 펼치는 동작이라 길게, 난사는 한 바퀴
+    //  돌리는 짧은 동작, 분신은 사라졌다 나타나는 호흡, 연격은 달라붙는 순간만(타격은
+    //  combat 의 flurry 가 시간에 걸쳐 넣으므로 포즈까지 길게 잡으면 두 번 길어진다).
+    markZone: 620, spray: 380, clone: 520, flurry: 420
   };
 
   //  타입마다 **주 신호를 하나씩** 다르게 잡는다. 셋 다 크게 움직이면 셋 다 안 읽힌다.
@@ -954,6 +958,33 @@ var SM = 10;
       var sb = u < 0.22 ? u / 0.22 : (u < 0.75 ? 1 : 1 - ease((u - 0.75) / 0.25));
       P.gearDrop = 0.62 * sb; P.ky = clampKy(1 - 0.14 * sb); P.reach = 1 + 0.22 * sb;
       P.atk = 0.70 * sb; P.rise = 0.06 * sb;
+
+    // ── 2026-09-04 · 암살자 닌자 개편 넷 — 타입마다 **주 신호 하나** ────────────
+    //    영역 = 두 팔을 펼쳐 내리누름(guard + rise 양수, 유일하게 '펼치는' 동작)
+    //    난사 = 한 바퀴 회전(spin 이 주역, aoeSelf 보다 빠르고 reach 는 안 늘린다)
+    //    분신 = 사라졌다 나타남(ky 가 눌렸다 크게 부풀고 drift 로 갈라진다)
+    //    연격 = 아주 빠른 무기각 왕복(atk 이 여러 번 진동 — 이 파일에서 유일하다)
+    //  ⚠ 넷이 서로 구별돼야 한다(art-motion-audit 이 '같은 그림'을 잡는다).
+    //    처음엔 포즈를 안 만들어 넷이 전부 정지 상태로 같았고 감사가 즉시 빨개졌다.
+    } else if (type === 'markZone') {
+      var mz = u < 0.28 ? u / 0.28 : (u < 0.72 ? 1 : 1 - ease((u - 0.72) / 0.28));
+      P.guard = 0.52 * mz; P.rise = 0.16 * mz; P.ky = clampKy(1 + 0.10 * mz);
+      P.reach = 1 + 0.30 * mz; P.atk = -0.9 * mz;
+    } else if (type === 'spray') {
+      P.spin = Math.pow(clamp01(u / 0.72), 0.75);
+      P.ky = clampKy(1 - 0.08 * Math.sin(Math.PI * P.spin));
+      P.atk = Math.sin(P.spin * Math.PI * 2) * 0.9;
+      P.reach = 1 + 0.06 * Math.sin(Math.PI * P.spin);
+    } else if (type === 'clone') {
+      var cl2 = u < 0.34 ? u / 0.34 : 1 - ease((u - 0.34) / 0.66);
+      P.ky = clampKy(u < 0.34 ? 1 - 0.20 * (u / 0.34) : 0.80 + 0.42 * ease((u - 0.34) / 0.66));
+      P.drift = 0.9 * cl2 * (u < 0.34 ? -1 : 1);
+      P.rise = -0.14 * cl2; P.reach = 1 - 0.10 * cl2; P.atk = -0.4 * cl2;
+    } else if (type === 'flurry') {
+      //  ⚠ 진동 횟수를 홀수로 둔다 — 짝수면 시작·끝 포즈가 같아 '멈춘 것처럼' 보인다.
+      P.atk = Math.sin(u * Math.PI * 7) * (1 - u * 0.35);
+      P.reach = 1.18 + 0.16 * Math.sin(u * Math.PI * 7);
+      P.drift = 0.34 * (1 - u); P.ky = clampKy(1 - 0.07 * Math.abs(Math.sin(u * Math.PI * 7)));
     }
     return P;
   }

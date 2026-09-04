@@ -556,46 +556,71 @@ GAME.HEROES = {
           evo: { at: { floor: 10 }, name: '긴 그림자 걸음', patch: { dist: 240, cooldown: 6500 } } },
         { name: '되돌기', type: 'blink', motif: 'shadow', dist: 220, backward: true, cooldown: 6500, cost: 250,
           evo: { at: { floor: 20 }, name: '먼 되돌기', patch: { dist: 270, cooldown: 6000 } } },
-        { name: '단검 돌진', type: 'dash', motif: 'blade', dist: 220, damage: 60, radius: 50, cooldown: 7500, cost: 900,
-          evo: { at: { floor: 35 }, name: '쌍단검 돌진', patch: { damage: 78, radius: 58 } } },
-        { name: '연기 걸음', type: 'blink', motif: 'shadow', dist: 300, cooldown: 6000, cost: 3000,
-          evo: { at: { rtWins: 5 }, name: '연기 사이', patch: { dist: 340, cooldown: 5200 } } },
+        //  ⚠ 돌진에 자취를 얹는다 (2026-09-04 태현님: "돌진할때 경로에 덫을놓거나
+        //    돌진하면서 수리검이나 표창을 던졌으면"). `trail` 을 적은 스킬만 탄다 —
+        //    위 두 blink 는 손대지 않았다(순수 기동기라는 정체성을 지킨다).
+        { name: '표창 돌진', type: 'dash', motif: 'blade', dist: 220, damage: 60, radius: 50, cooldown: 7500, cost: 900,
+          trail: 'shuriken', trailN: 4, trailDamage: 26,
+          evo: { at: { floor: 35 }, name: '표창 난무 돌진', patch: { damage: 78, radius: 58, trailN: 6, trailDamage: 32 } } },
+        { name: '덫 놓기 돌진', type: 'dash', motif: 'shadow', dist: 260, damage: 52, radius: 48, cooldown: 7000, cost: 3000,
+          trail: 'trap', trailN: 3, trailDamage: 90, trailLife: 9000,
+          evo: { at: { rtWins: 5 }, name: '덫밭 가르기', patch: { trailN: 4, trailDamage: 120, dist: 300 } } },
         { name: '그림자 넘기', type: 'blink', motif: 'shadow', dist: 380, cooldown: 5500, cost: 9000,
           evo: { at: { floor: 80 }, name: '그림자 그 너머', patch: { dist: 440, cooldown: 4800 } } }
       ],
+      //  W — **영역전개** (2026-09-04 태현님: "표식시스템은 영역전개느낌으로 원이
+      //  생기고 거기안에 들어간 적에겐 추가데미지를 입히는 방식으로")
+      //  ⚠ 기존 `mark`(대상 한 기에 표식)를 지우지 않고 **새 타입 `markZone`** 으로
+      //    갈아탄다 — 대상 표식은 "누구를 노렸나", 영역은 "어디를 잠갔나"라 성질이
+      //    다르고, 2단(단검 던지기)은 투척 정체성이라 그대로 둔다.
+      //  ⚠ 피해를 주는 장판이 아니라 **받는 피해 증폭**이다. 장판 피해로 만들면
+      //    가만히 둬도 적이 죽어 "내가 들어가서 싸운다"는 이 영웅의 성격이 사라진다.
       W: [
-        { name: '표식 투척', type: 'mark', motif: 'bone', duration: 5000, markMul: 1.35, range: 260, radius: 70, damage: 40, cooldown: 9000, cost: 0,
-          evo: { at: { floor: 10 }, name: '깊은 표식', patch: { duration: 6000, markMul: 1.45 } } },
-        { name: '단검 던지기', type: 'projectile', motif: 'blade', damage: 60, speed: 600, pierce: false, radius: 7, cooldown: 7000, cost: 250,
+        { name: '그림자 영역', type: 'markZone', motif: 'shadow', duration: 5500, markMul: 1.35, range: 240, radius: 110, damage: 40, cooldown: 9000, cost: 0,
+          evo: { at: { floor: 10 }, name: '넓은 그림자 영역', patch: { duration: 6500, radius: 128, markMul: 1.42 } } },
+        { name: '단검 던지기', type: 'projectile', motif: 'blade', projStyle: 'dagger', damage: 60, speed: 600, pierce: false, radius: 7, cooldown: 7000, cost: 250,
           evo: { at: { floor: 20 }, name: '쌍단검 던지기', patch: { burst: 2, burstDelay: 120, damage: 48 } } },
-        { name: '뼈 표식', type: 'mark', motif: 'bone', duration: 6000, markMul: 1.50, range: 280, radius: 80, damage: 55, cooldown: 9000, cost: 900,
-          evo: { at: { floor: 35 }, name: '갈라진 뼈 표식', patch: { duration: 7000, markMul: 1.6 } } },
-        { name: '넓은 표식', type: 'mark', motif: 'shadow', duration: 6000, markMul: 1.55, range: 300, radius: 110, damage: 70, cooldown: 9500, cost: 3000,
-          evo: { at: { rtWins: 5 }, name: '그림자 표식', patch: { radius: 130, markMul: 1.65 } } },
-        { name: '사냥 표식', type: 'mark', motif: 'shadow', duration: 7000, markMul: 1.70, range: 300, radius: 90, damage: 95, cooldown: 10000, cost: 9000,
-          evo: { at: { floor: 80 }, name: '마지막 표식', patch: { duration: 8500, markMul: 1.9 } } }
+        { name: '결계 전개', type: 'markZone', motif: 'bone', duration: 6500, markMul: 1.45, range: 260, radius: 130, damage: 55, cooldown: 9000, cost: 900,
+          evo: { at: { floor: 35 }, name: '깊은 결계', patch: { duration: 7500, markMul: 1.55 } } },
+        { name: '그림자 감옥', type: 'markZone', motif: 'shadow', duration: 7000, markMul: 1.55, range: 280, radius: 150, damage: 70, cooldown: 9500, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '넓은 감옥', patch: { radius: 175, markMul: 1.62 } } },
+        { name: '영역 전개', type: 'markZone', motif: 'shadow', duration: 8000, markMul: 1.70, range: 300, radius: 165, damage: 95, cooldown: 10000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '끝의 영역', patch: { duration: 9500, radius: 190, markMul: 1.85 } } }
       ],
+      //  E — 은신. ⚠ **`ambushMul` 신설** (2026-09-04 태현님: "숨기 이후에 첫 공격은
+      //  치명타나 더 강한 공격이 되게끔"). 은신을 푸는 **바로 그 타격**에만 곱해지고
+      //  즉시 사라진다(combat.js applyDamage 관문 + breakStealth). 값을 안 적으면 1 이라
+      //  다른 영웅·옛 은신은 한 톨도 안 바뀐다.
       E: [
-        { name: '은신', type: 'stealth', motif: 'shadow', duration: 3000, speedMul: 1.15, cooldown: 14000, cost: 0,
-          evo: { at: { floor: 10 }, name: '긴 은신', patch: { duration: 3800, speedMul: 1.2 } } },
-        { name: '연기', type: 'stealth', motif: 'sand', duration: 2500, speedMul: 1.35, cooldown: 12000, cost: 250,
-          evo: { at: { floor: 20 }, name: '짙은 연기', patch: { duration: 3200, speedMul: 1.45 } } },
-        { name: '그림자 숨기', type: 'stealth', motif: 'shadow', duration: 3500, speedMul: 1.20, cooldown: 13000, cost: 900,
-          evo: { at: { floor: 35 }, name: '깊은 그림자', patch: { duration: 4500, speedMul: 1.3 } } },
+        { name: '은신', type: 'stealth', motif: 'shadow', duration: 3000, speedMul: 1.15, ambushMul: 2.0, cooldown: 14000, cost: 0,
+          evo: { at: { floor: 10 }, name: '긴 은신', patch: { duration: 3800, speedMul: 1.2, ambushMul: 2.3 } } },
+        { name: '연기', type: 'stealth', motif: 'sand', duration: 2500, speedMul: 1.35, ambushMul: 2.2, cooldown: 12000, cost: 250,
+          evo: { at: { floor: 20 }, name: '짙은 연기', patch: { duration: 3200, speedMul: 1.45, ambushMul: 2.5 } } },
+        { name: '그림자 숨기', type: 'stealth', motif: 'shadow', duration: 3500, speedMul: 1.20, ambushMul: 2.6, cooldown: 13000, cost: 900,
+          evo: { at: { floor: 35 }, name: '깊은 그림자', patch: { duration: 4500, speedMul: 1.3, ambushMul: 3.0 } } },
         { name: '풀숲 숨기', type: 'buff', motif: 'blade', armorAdd: 25, speedMul: 1.35, duration: 3200, cooldown: 14000, cost: 3000,
           evo: { at: { rtWins: 5 }, name: '깊은 풀숲', patch: { armorAdd: 35, speedMul: 1.45, duration: 3800 } } },
-        { name: '완전 은신', type: 'stealth', motif: 'shadow', duration: 5500, speedMul: 1.35, cooldown: 13000, cost: 9000,
-          evo: { at: { floor: 80 }, name: '그림자 그 자체', patch: { duration: 7000, speedMul: 1.45 } } }
+        { name: '완전 은신', type: 'stealth', motif: 'shadow', duration: 5500, speedMul: 1.35, ambushMul: 3.2, cooldown: 13000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '그림자 그 자체', patch: { duration: 7000, speedMul: 1.45, ambushMul: 3.8 } } }
       ],
+      //  R — 궁극기 다섯 갈래 (2026-09-04 태현님: "강한공격도 있겠지만 수리검을 정말
+      //  사방팔방으로 뿌리는 스킬도 있어야하고 분신술쓰는 스킬도 있어야하고 바라보는
+      //  적한테 달라붙어서 연속공격 약 17회 연속으로 공격하는 스킬도 있으면 좋겠어").
+      //  ⚠ 성격이 서로 겹치지 않게 갈랐다 — 한 방 / 광역 난사 / 분신 / 연격 / 마무리.
+      //    같은 자리에 비슷한 것을 넣으면 고를 이유가 없어져 사다리가 죽는다.
       R: [
         { name: '처형', type: 'strike', motif: 'blade', damage: 160, lifestealMul: 1, cooldown: 36000, cost: 0,
           evo: { at: { floor: 10 }, name: '깔끔한 처형', patch: { damage: 200, cooldown: 33000 } } },
-        { name: '목 베기', type: 'strike', motif: 'blade', damage: 200, rootMs: 800, cooldown: 36000, cost: 250,
-          evo: { at: { floor: 20 }, name: '깊은 목 베기', patch: { damage: 240, rootMs: 1200 } } },
-        { name: '그림자 처형', type: 'strike', motif: 'shadow', damage: 240, cooldown: 35000, cost: 900,
-          evo: { at: { floor: 35 }, name: '그림자 마무리', patch: { damage: 290, cooldown: 32000 } } },
-        { name: '연속 베기', type: 'aoeSelf', motif: 'blade', radius: 96, damage: 200, cooldown: 36000, cost: 3000,
-          evo: { at: { rtWins: 5 }, name: '회오리 베기', patch: { radius: 115, damage: 240 } } },
+        //  ── 사방 난사 — 자기중심 방사. 뭉친 진형 한복판에서 쓰라고 만든 수다.
+        { name: '표창 난사', type: 'spray', motif: 'blade', count: 16, damage: 46, speed: 560, life: 1100, cooldown: 34000, cost: 250,
+          evo: { at: { floor: 20 }, name: '만천화우', patch: { count: 20, rings: 2, damage: 52, cooldown: 32000 } } },
+        //  ── 분신술 — 분신은 스킬을 안 쓰고 평타만 친다(영웅이 둘이 되면 안 된다).
+        { name: '분신술', type: 'clone', motif: 'shadow', count: 2, hpMul: 0.22, dmgMul: 0.45, life: 7000, range: 90, cooldown: 35000, cost: 900,
+          evo: { at: { floor: 35 }, name: '다중 분신술', patch: { count: 3, hpMul: 0.26, dmgMul: 0.52, life: 9000 } } },
+        //  ── 연격 — 17 대를 90ms 간격으로. 그동안 대상에게 붙어 있어야 하므로
+        //    "안전한 큰 피해"가 아니라 **위험을 감수하는** 궁극기다.
+        { name: '난격', type: 'flurry', motif: 'blade', hits: 17, every: 90, damage: 26, range: 200, cooldown: 36000, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '그림자 난격', patch: { hits: 21, damage: 32, every: 80 } } },
         { name: '마지막 일격', type: 'strike', motif: 'shadow', damage: 330, lifestealMul: 1.5, cooldown: 37000, cost: 9000,
           evo: { at: { floor: 80 }, name: '끝맺음', patch: { damage: 400, lifestealMul: 2, cooldown: 34000 } } }
       ]
@@ -656,7 +681,13 @@ GAME.SKILL_TYPE_LABEL = {
   //  2026-09-03 · 주술사 R(summonBoss) — 새 글자를 넣지 않으려고 `summon` 과
   //  **같은 낱말**을 그대로 쓴다(서브셋 대조 불필요 — Jua 800자 제약, 위 주석 참조).
   //  개념상으로도 틀리지 않다: 미니 보스도 결국 '부르는' 소환이다.
-  summonBoss: '부르기'
+  summonBoss: '부르기',
+  //  2026-09-04 · 암살자 닌자 개편 넷. 화면에 그대로 뜨는 낱말이므로 `font-audit` 이
+  //  서브셋 밖 글자를 잡는다(지금 글꼴은 자체 호스팅 2,516자라 여유가 있다).
+  markZone:   '영역',
+  spray:      '뿌리기',
+  clone:      '나누기',
+  flurry:     '몰아치기'
 };
 
 // R 은 타입과 무관하게 슬롯 이름을 우선한다.

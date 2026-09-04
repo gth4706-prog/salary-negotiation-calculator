@@ -104,7 +104,11 @@ GAME.Orb = (function () {
     maybeDrop: function (state, x, y) {
       if (!state || !state.orbs) return null;
       if (this._pending(state).length >= MAX_PER_BATTLE) return null;
-      if (Math.random() >= DROP_CHANCE) return null;
+      //  구슬 감각(orbFind, 2026-09-04 특성) — 떨어질 확률에 배수를 건다.
+      //  ⚠ 상한(MAX_PER_BATTLE)은 그대로다 — 확률만 올라가고 총량은 안 바뀐다.
+      //    안 그러면 특성 하나로 한 판에 구슬이 쏟아져 구슬의 특별함이 사라진다.
+      var ofMul = (state.boons && state.boons.orbFind && state.boons.orbFind.mul) || 1;
+      if (Math.random() >= DROP_CHANCE * ofMul) return null;
       var key = this.roll(state);
       if (!key) return null;
       state.orbs.push({ key: key, x: x, y: y, t: 0, taken: false });

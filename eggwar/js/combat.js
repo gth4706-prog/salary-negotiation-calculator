@@ -664,8 +664,29 @@ GAME.Combat = {
     //  ⚠ 표식(대상 고정)과 달리 이건 **자리**다. 들어가면 아프고 나가면 그만이라
     //    "피해서 싸운다"는 선택이 생긴다. 표식과 곱연산이 되는 것은 의도한 것이다
     //    (찍은 대상을 영역 안으로 몰아넣는 것이 이 영웅의 최고 수다).
+    //  ── 영역 안 회피 (2026-09-04 태현님: "영역안에서는 회피율 증가하게해주고") ──
+    //  **내 영역 안에 서 있는 내 편**은 확률로 피해를 통째로 흘린다.
+    //  ⚠ 피해 감소가 아니라 **회피**다 — 0 이거나 그대로다. 그래야 "안에서 싸운다"가
+    //    도박이 아니라 자리 선택이 된다(감소는 체감이 안 나고 숫자만 작아진다).
+    //  ⚠ 난수는 `this.rand()`(결정적) — 실시간 록스텝에서 양쪽이 같은 판정을 봐야 한다.
+    //  ⚠ 태현님 확인 요청("내가 맞는데미지도 증가하는건 아닌지"): **아니다.** 아래
+    //    증폭은 `zn.side !== source.side` 로 걸러 **때리는 쪽의 영역만** 본다.
+    //    실측으로도 확인했다 — 영역 안 영웅이 받는 피해 ×1.000, 적이 받는 피해 ×1.35.
     if (state && state.zones && state.zones.length && dmg > 0 &&
         source && source.side !== unit.side) {
+      for (var ze = 0; ze < state.zones.length; ze++) {
+        var zv = state.zones[ze];
+        if (zv.side !== unit.side || !zv.evade) continue;   // 내 편이 내 영역 안일 때만
+        var evx = unit.x - zv.x, evy = unit.y - zv.y;
+        if (evx * evx + evy * evy > zv.r * zv.r) continue;
+        if (this.rand() < zv.evade) {
+          state.zoneEvades = (state.zoneEvades || 0) + 1;   // 감사용
+          state.effects.push({ kind: 'ring', x: unit.x, y: unit.y,
+                               r: (unit.def.radius || 14) + 12, t: 240, total: 240, side: unit.side });
+          return 0;                                          // 완전히 흘렸다
+        }
+        break;
+      }
       for (var zj = 0; zj < state.zones.length; zj++) {
         var zn = state.zones[zj];
         if (zn.side !== source.side) continue;         // 내 영역만 내 피해를 키운다
@@ -761,10 +782,28 @@ GAME.Combat = {
         dmg *= source._overload;
         source._overload = 0;
       }
+      //  마무리(execute, 2026-09-04 특성) — 체력이 낮은 적에게 더 아프다.
+      //  ⚠ 아이템으로는 못 사는 축이다(상점은 '항상 +N' 만 판다). 그래서 특성에 있다.
+      if (bh.execute && unit.maxHp &&
+          unit.hp / unit.maxHp <= (bh.execute.below || 0.25)) {
+        dmg *= bh.execute.mul || 1.6;
+        if (state) state.execHits = (state.execHits || 0) + 1;   // 감사용
+      }
     }
     // 스침 — 영웅이 **움직이는 동안** 받는 피해가 준다. 멈춰서 때리는 습관을 벌준다.
     if (bh && bh.phase && unit.isHero && this.isCharging && this.isCharging(unit)) {
       dmg *= 1 - (bh.phase.cut || 0.18);
+    }
+    //  ── 한 방 막기(cap) — **한 번에** 최대체력의 일정 비율 넘게 안 맞는다 ─────────
+    //  ⚠ 방어력은 비율 경감이라 큰 한 방을 못 막는다(이 저장소가 알 보스에서 겪은
+    //    "피할 수 없는 10k"가 그 증거다). 상한은 그 축을 통째로 바꾸는 것이라
+    //    **아이템으로는 살 수 없는 능력**이고, 그래서 특성 자리에 있다.
+    if (bh && bh.cap && unit.isHero && unit.maxHp > 0) {
+      var capMax = unit.maxHp * (bh.cap.frac || 0.4);
+      if (dmg > capMax) {
+        if (state) state.capSaves = (state.capSaves || 0) + 1;   // 감사용 — 실제로 깎았나
+        dmg = capMax;
+      }
     }
 
     // ── 정예 '두령' 오라 — 곁의 아군이 더 아프게 때린다 (towerrule.js) ──────
@@ -974,6 +1013,21 @@ GAME.Combat = {
       }
     }
 
+    //  ── 버티기(revive, 2026-09-04 특성) — 죽을 피해를 **한 판에 한 번** 버틴다 ──
+    //  ⚠ 아이템·능력치로는 절대 못 얻는 축이다(그래서 특성 마지막 칸이다).
+    //  ⚠ `_revived` 로 한 판 1회를 못박는다. 안 그러면 맞을 때마다 되살아나 불사가 된다.
+    //  ⚠ 죽음 처리(아래 블록)에 들어가기 **전에** 가로챈다 — 들어간 뒤에 되살리면
+    //    노른자·킬 카운트·업적이 이미 돌아 "죽었는데 살아 있는" 상태가 된다.
+    if (unit.hp <= 0 && unit.isHero && unit.alive && state && state.boons &&
+        state.boons.revive && !unit._revived) {
+      unit._revived = true;
+      unit.hp = Math.max(1, Math.round(unit.maxHp * (state.boons.revive.healFrac || 0.3)));
+      state.reviveSaves = (state.reviveSaves || 0) + 1;          // 감사용
+      state.effects.push({ kind: 'ring', x: unit.x, y: unit.y, r: (unit.def.radius || 16) + 34,
+                           t: 520, total: 520, side: unit.side });
+      return dmg;
+    }
+
     if (unit.hp <= 0) {
       unit.hp = 0; unit.alive = false;
       this.spawnYolk(state, unit);   // 죽으면 노른자가 터진다
@@ -984,6 +1038,17 @@ GAME.Combat = {
       //  "벽이 먼저 뚫린다"는 뜻이고, 답은 벽을 더 두껍게가 아니라 **화력을 감싸는 것**이다.
       if (state && state.tactics && GAME.Tactics && unit.side === 'strategist') {
         GAME.Tactics.noteDeath(state, unit);
+      }
+      //  ── 마지막 처치 자리 (2026-09-04 태현님: "적 유닛 마지막 1기에 막타칠때
+      //     확대하고 슬로우 걸어줘 … 적 유닛 대사도 넣어줘") ────────────────────
+      //  씬이 연출을 걸려면 **어디서 죽었는지**를 알아야 한다. 승패에 세지 않는
+      //  유닛(덫·소환수·황금알)은 '마지막 한 기'가 아니므로 제외한다.
+      if (state && unit.side === 'strategist' && !unit.def.noCount &&
+          source && source.side !== unit.side) {
+        state.lastFoeKill = { x: unit.x, y: unit.y, type: unit.type,
+                              key: unit.def.key, name: unit.def.name,
+                              radius: unit.def.radius, boss: !!unit.def.isBoss,
+                              at: state.elapsed };
       }
       //  킬스트릭 (2026-08-23 태현님 ④) — 영웅이 2.6초 안에 연속 처치하면 계단.
       //  씬이 ping 변화를 보고 톤을 올린다(렌더·소리 전용 — 판정 무관).
@@ -2703,7 +2768,9 @@ GAME.Combat = {
       state.zones = state.zones || [];
       state.zones.push({
         x: mzX, y: mzY, r: mzR, t: mzMs, total: mzMs,
-        mul: this._rtZoneMul(state, sk.markMul || 1.4), side: u.side, owner: u, name: sk.name, motif: sk.motif
+        mul: this._rtZoneMul(state, sk.markMul || 1.4), side: u.side, owner: u, name: sk.name, motif: sk.motif,
+        //  영역 안 회피율(2026-09-04) — 스킬이 안 적으면 0 이라 옛 동작 그대로다.
+        evade: (sk.evade || 0) * ((state.pvpRealtime && GAME.ArenaBuild && GAME.ArenaBuild.RT_ZONE_EVADE_K !== undefined) ? GAME.ArenaBuild.RT_ZONE_EVADE_K : 1)
       });
       state.zoneCasts = (state.zoneCasts || 0) + 1;
       //  ⚠ **펼치는 순간의 충격**은 준다(지속 피해가 아니다). 옛 `mark` 가 피해

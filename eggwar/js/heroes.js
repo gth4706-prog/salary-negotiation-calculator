@@ -622,15 +622,15 @@ GAME.HEROES = {
       //  ⚠ 피해를 주는 장판이 아니라 **받는 피해 증폭**이다. 장판 피해로 만들면
       //    가만히 둬도 적이 죽어 "내가 들어가서 싸운다"는 이 영웅의 성격이 사라진다.
       W: [
-        { name: '그림자 영역', type: 'markZone', motif: 'shadow', duration: 5500, markMul: 1.35, range: 240, radius: 110, damage: 40, cooldown: 9000, cost: 0,
+        { name: '그림자 영역', type: 'markZone', evade: 0.12, motif: 'shadow', duration: 5500, markMul: 1.35, range: 240, radius: 110, damage: 40, cooldown: 9000, cost: 0,
           evo: { at: { floor: 10 }, name: '넓은 그림자 영역', patch: { duration: 6500, radius: 128, markMul: 1.42 } } },
         { name: '단검 던지기', type: 'projectile', motif: 'blade', projStyle: 'dagger', damage: 60, speed: 600, pierce: false, radius: 7, cooldown: 7000, cost: 250,
           evo: { at: { floor: 20 }, name: '쌍단검 던지기', patch: { burst: 2, burstDelay: 120, damage: 48 } } },
-        { name: '결계 전개', type: 'markZone', motif: 'bone', duration: 6500, markMul: 1.45, range: 260, radius: 130, damage: 55, cooldown: 9000, cost: 900,
+        { name: '결계 전개', type: 'markZone', evade: 0.16, motif: 'bone', duration: 6500, markMul: 1.45, range: 260, radius: 130, damage: 55, cooldown: 9000, cost: 900,
           evo: { at: { floor: 35 }, name: '깊은 결계', patch: { duration: 7500, markMul: 1.55 } } },
-        { name: '그림자 감옥', type: 'markZone', motif: 'shadow', duration: 7000, markMul: 1.55, range: 280, radius: 150, damage: 70, cooldown: 9500, cost: 3000,
+        { name: '그림자 감옥', type: 'markZone', evade: 0.2, motif: 'shadow', duration: 7000, markMul: 1.55, range: 280, radius: 150, damage: 70, cooldown: 9500, cost: 3000,
           evo: { at: { rtWins: 5 }, name: '넓은 감옥', patch: { radius: 175, markMul: 1.62 } } },
-        { name: '영역 전개', type: 'markZone', motif: 'shadow', duration: 8000, markMul: 1.70, range: 300, radius: 165, damage: 95, cooldown: 10000, cost: 9000,
+        { name: '영역 전개', type: 'markZone', evade: 0.25, motif: 'shadow', duration: 8000, markMul: 1.70, range: 300, radius: 165, damage: 95, cooldown: 10000, cost: 9000,
           evo: { at: { floor: 80 }, name: '끝의 영역', patch: { duration: 9500, radius: 190, markMul: 1.85 } } }
       ],
       //  E — 은신. ⚠ **`ambushMul` 신설** (2026-09-04 태현님: "숨기 이후에 첫 공격은

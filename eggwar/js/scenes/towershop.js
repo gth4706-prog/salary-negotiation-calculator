@@ -314,6 +314,12 @@ GAME.TowerShopScene.prototype._buildBody = function (bump) {
 //      why 줄을 생략해 확보 — 카드 폭이 393px 라 남은 세 줄은 줄바꿈 없이 1줄)
 //  ⚠ 폰 가로는 여유가 12px 뿐이라 실측(overlap-audit)으로 반드시 재확인할 것 —
 //    이 갈래에서는 브라우저 감사를 직접 돌리지 않기로 했으므로 통합자 몫이다.
+//  ── 특성 탭 — **격자형 트리** (2026-09-04 재설계) ──────────────────────────
+//  태현님이 붙인 롤 특성 화면이 기준이다: 나무 셋이 나란히 서고, 칸마다 단계(n/max)가
+//  있고, 줄마다 그 나무에 쓴 점수가 있어야 열리며, 이어진 칸은 세로선으로 잇는다.
+//  데이터·규칙은 js/traits.js — 이 화면은 읽고 `buy` 만 부른다(규칙을 여기 복제하지 않는다).
+//  ⚠ **왜 잠겼는지**를 화면이 말해야 한다. `reasonFor` 가 문장을 만들어 주므로 화면은
+//    그것을 그대로 띄운다 — 잠긴 이유를 모르는 것이 이 계열 UI 의 최대 불만이다.
 GAME.TowerShopScene.prototype._buildTraitTab = function () {
   var C = GAME.CONFIG.COLORS;
   var UC = GAME.UI.COL, UX = GAME.UI.FX;
@@ -321,131 +327,148 @@ GAME.TowerShopScene.prototype._buildTraitTab = function () {
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var top = this._bodyTop;
   var SMALL = GAME.CONFIG.SMALL;
-  var PH = GAME.CONFIG.PHONE;      //  폰 가로 — 세로 예산이 가장 빠듯한 프로필
-  var PAD = SMALL ? 14 : 24;
+  var PH = GAME.CONFIG.PHONE;
+  var PAD = SMALL ? 10 : 20;
   var T = GAME.Traits;
   if (!T) return;
   var rec = this.char;
-  var list = T.branches(rec.heroKey);
-  var pts = T.points();
+  var pts = (GAME.Season && GAME.Season.worldPoints) ? GAME.Season.worldPoints() : 0;
 
   function hexStr(n) { return '#' + ('000000' + ((n >>> 0)).toString(16)).slice(-6); }
-  //  concept 색은 **기존 토큰에서만** 고른다 — 공격=hpBad(붉은) · 방어=FX.block(푸른) ·
-  //  유틸=hpGood(녹). 숫자 토큰 하나를 그래픽·글자가 같이 쓰도록 문자열도 그 값에서 뽑는다.
-  var CONCEPT = {
-    attack:  { icon: '⚔', num: C.hpBad },
-    defense: { icon: '🛡', num: (UX && UX.block) || 0x8fa0bb },
-    utility: { icon: '✦', num: C.hpGood }
+  //  나무 색은 **기존 토큰에서만** 고른다(새 색을 만들지 않는다).
+  var TCOL = {
+    attack:  C.hpBad,
+    defense: (UX && UX.block) || 0x8fa0bb,
+    utility: C.hpGood
   };
-  var CONCEPT_ORDER = ['attack', 'defense', 'utility'];
 
-  //  머리 한 줄 — 잔액 + 규칙 요약. 실제 줄 수는 폭에 따라 달라지므로 아래
-  //  gridTop 은 항상 `head.height` **실측값**으로 역산한다(추측 금지).
   var head = GAME.UI.label(this, PAD, top,
-    '✦ 세계 포인트 ' + pts + '  ·  단 1·2·4·7점  ·  4단은 형제 갈래 1단 필요',
-    SMALL ? 11 : 13, C.accent, 0).setWordWrapWidth(W - PAD * 2);
+    '세계 포인트 ' + pts + '  ·  한 단 1점  ·  아래 줄은 그 나무에 4점 · 8점을 써야 열린다',
+    SMALL ? 10 : 13, C.accent, 0).setWordWrapWidth(W - PAD * 2);
   this._body.push(head);
-  var gridTop = head.y + head.height + (SMALL ? 6 : 10);
-  var bottom = H - (SMALL ? 12 : 20) - this._bottomPad;
-  var availH = bottom - gridTop;
+  var gridTop = head.y + head.height + (SMALL ? 5 : 9);
+  var bottom = H - (SMALL ? 10 : 18) - this._bottomPad;
 
-  //  카드 안 네 블록의 높이 — 폰 가로만 why 줄을 생략한다(위 산수 주석 참조).
-  var nameH = PH ? 16 : (SMALL ? 20 : 24);
-  var whyH  = PH ? 0  : (SMALL ? 32 : 34);
-  var pillH = PH ? 22 : (SMALL ? 28 : 34);
-  var infoH = PH ? 24 : (SMALL ? 34 : 36);
-  var blocks = PH ? 3 : 4;
-  var gapIn  = PH ? 3 : (SMALL ? 4 : 6);
-  var padTB  = PH ? 4 : (SMALL ? 6 : 8);
-  var padLR  = SMALL ? 8 : 12;
-  var ch = nameH + whyH + pillH + infoH + gapIn * (blocks - 1) + padTB * 2;
+  var gapCol = PH ? 5 : (SMALL ? 7 : 12);
+  var panelW = Math.floor((W - PAD * 2 - gapCol * 2) / 3);
+  var panelH = bottom - gridTop;
 
-  var gapCol = PH ? 6 : (SMALL ? 8 : 14);
-  var gapRow = PH ? 6 : (SMALL ? 8 : 14);
-  var cw = Math.floor((W - PAD * 2 - gapCol) / 2);
-  var pillGap = PH ? 3 : (SMALL ? 4 : 6);
-  var pillW = Math.floor((cw - padLR * 2 - pillGap * 3) / 4);
+  var titleH = PH ? 15 : (SMALL ? 19 : 23);
+  var padIn  = PH ? 4 : (SMALL ? 6 : 9);
+  var cellGapX = PH ? 4 : (SMALL ? 5 : 8);
+  var cellGapY = PH ? 5 : (SMALL ? 7 : 12);
+  var rowsN = T.ROW_GATE.length;
+  //  칸 높이는 **패널 높이에서 역산**한다 — 상수로 박으면 프로필마다 넘치거나 남는다.
+  var cellH = Math.floor((panelH - titleH - padIn * 2 - cellGapY * (rowsN - 1)) / rowsN);
+  var nameFs = PH ? 10 : (SMALL ? 12 : 14);
+  var descFs = PH ? 9  : (SMALL ? 10 : 11);
 
-  if (!list.length) {
-    this._body.push(GAME.UI.label(this, W / 2, gridTop + 30, '이 영웅의 특성은 아직 없습니다',
-      SMALL ? 12 : 14, C.textDim, 0.5).setOrigin(0.5, 0));
-    return;
-  }
+  T.TREES.forEach(function (tree, ti) {
+    var px = PAD + ti * (panelW + gapCol);
+    var col = TCOL[tree.key] || UC.border;
+    var spent = T.spentIn(tree.key, rec);
 
-  CONCEPT_ORDER.forEach(function (ckey, row) {
-    var cs = CONCEPT[ckey];
-    var branchesHere = list.filter(function (b) { return b.concept === ckey; });
-    var cardY = gridTop + row * (ch + gapRow);
+    var pg = self.add.graphics();
+    self._body.push(pg);
+    pg.fillStyle(UC.surfaceAlt, 1);
+    pg.fillRoundedRect(px, gridTop, panelW, panelH, 8);
+    pg.lineStyle(2, col, 0.85);
+    pg.strokeRoundedRect(px, gridTop, panelW, panelH, 8);
 
-    branchesHere.forEach(function (b, col) {
-      var cardX = PAD + col * (cw + gapCol);
-      var tier = T.tierOf(b.key, rec);
-      var owned = tier > 0;
+    self._body.push(GAME.UI.label(self, px + panelW / 2, gridTop + padIn,
+      tree.name + '  ' + spent, nameFs + 1, hexStr(col), 0.5).setOrigin(0.5, 0));
+
+    //  줄별로 칸을 배치하고 **자리를 기억**한다(연결선이 그 자리를 쓴다).
+    var pos = {};
+    var rows = [];
+    for (var r = 0; r < rowsN; r++) rows.push([]);
+    tree.talents.forEach(function (t) { if (rows[t.row]) rows[t.row].push(t); });
+
+    rows.forEach(function (list, r) {
+      if (!list.length) return;
+      var cy = gridTop + titleH + padIn + r * (cellH + cellGapY);
+      var n = list.length;
+      var cw = Math.floor((panelW - padIn * 2 - cellGapX * (n - 1)) / n);
+      list.forEach(function (t, ci) {
+        var cx = px + padIn + ci * (cw + cellGapX);
+        pos[t.key] = { x: cx, y: cy, w: cw, h: cellH };
+      });
+    });
+
+    //  ① 연결선을 **먼저** 그린다 — 칸 뒤에 깔려야 선이 칸을 가리지 않는다.
+    var lg = self.add.graphics();
+    self._body.push(lg);
+    tree.talents.forEach(function (t) {
+      if (!t.req || !pos[t.req] || !pos[t.key]) return;
+      var from = pos[t.req], to = pos[t.key];
+      var on = T.rankOf(t.req, rec) > 0;
+      lg.lineStyle(PH ? 2 : 3, col, on ? 0.9 : 0.22);
+      lg.lineBetween(from.x + from.w / 2, from.y + from.h, to.x + to.w / 2, to.y);
+    });
+
+    //  ② 칸
+    tree.talents.forEach(function (t) {
+      var b = pos[t.key];
+      if (!b) return;
+      var rank = T.rankOf(t.key, rec);
+      var why = T.reasonFor(t.key, rec);      // null 이면 살 수 있다
+      var maxed = rank >= t.max;
+      var open = why === null;
 
       var g = self.add.graphics();
       self._body.push(g);
-      g.fillStyle(owned ? cs.num : UC.surfaceAlt, owned ? 0.30 : 1);
-      g.fillRoundedRect(cardX, cardY, cw, ch, 10);
-      g.lineStyle(owned ? 2 : 1, owned ? cs.num : UC.border, 1);
-      g.strokeRoundedRect(cardX, cardY, cw, ch, 10);
+      //  상태를 **채움과 테두리 두 축**으로 나눈다: 채움 = 얼마나 찍었나,
+      //  테두리 = 지금 살 수 있나. 하나로 합치면 "찍었는데 잠김"이 안 읽힌다.
+      g.fillStyle(rank > 0 ? col : UC.surface, rank > 0 ? (maxed ? 0.42 : 0.26) : 1);
+      g.fillRoundedRect(b.x, b.y, b.w, b.h, 7);
+      g.lineStyle((open || rank > 0) ? 2 : 1, open ? C.accent : (rank > 0 ? col : UC.border), 1);
+      g.strokeRoundedRect(b.x, b.y, b.w, b.h, 7);
 
-      var innerW = cw - padLR * 2;
-      var y0 = cardY + padTB;
-      self._body.push(GAME.UI.label(self, cardX + padLR, y0,
-        cs.icon + ' ' + b.name + (owned ? ('  ' + tier + '/' + b.tiers.length) : ''),
-        SMALL ? 13 : 15, hexStr(cs.num), 0).setWordWrapWidth(innerW));
-      y0 += nameH + gapIn;
-      if (!PH) {
-        self._body.push(GAME.UI.label(self, cardX + padLR, y0, b.why,
-          SMALL ? 10 : 11, C.textDim, 0).setWordWrapWidth(innerW));
-        y0 += whyH + gapIn;
+      //  ⚠⚠ 줄을 **실측 높이로 쌓는다.** 처음엔 글꼴 크기로 간격을 잡고 잠김 사유를
+      //    칸 바닥에 고정했는데, 설명이 두 줄로 접히는 칸에서 셋이 서로 겹쳤다
+      //    (overlap-audit 이 5건 잡았다). 접힘은 폭·글자 수에 따라 달라지므로
+      //    **앞 줄의 height 를 읽어** 다음 줄을 놓는 것 말고 안전한 방법이 없다.
+      var iw = b.w - padIn * 2;
+      var gapY = PH ? 2 : 4;
+      var ty = b.y + (PH ? 3 : 5);
+      var nameL = GAME.UI.label(self, b.x + padIn, ty,
+        t.name + '  ' + rank + '/' + t.max, nameFs,
+        rank > 0 ? hexStr(col) : C.text, 0).setWordWrapWidth(iw);
+      self._body.push(nameL);
+      ty += nameL.height + gapY;
+
+      //  지금 단계의 설명(안 찍었으면 1단 설명) — "다음에 무엇이 되는가"를 보여준다.
+      var line = t.desc[Math.min(rank, t.max - 1)] || '';
+      var descL = GAME.UI.label(self, b.x + padIn, ty, line,
+        descFs, C.textDim, 0).setWordWrapWidth(iw);
+      self._body.push(descL);
+      ty += descL.height + gapY;
+
+      //  ⚠ 잠긴 이유·구매 안내는 **설명 다음 줄**에 놓고, 칸 밖으로 나가면 아예 안 그린다.
+      //    (칸 높이는 프로필마다 달라서 항상 들어간다고 가정할 수 없다.)
+      if (why && !maxed) {
+        if (ty + descFs <= b.y + b.h - 2) {
+          self._body.push(GAME.UI.label(self, b.x + padIn, ty,
+            '잠김 - ' + why, descFs, C.textDim, 0).setWordWrapWidth(iw));
+        }
+      } else if (open) {
+        if (ty + descFs <= b.y + b.h - 2) {
+          self._body.push(GAME.UI.label(self, b.x + b.w - padIn, ty,
+            '+1점', descFs, C.accent, 1).setOrigin(1, 0));
+        }
       }
 
-      //  4단 알약 — 상태별 색/문구. 클릭은 오직 "다음 단"에서만 실제로 산다
-      //  (T.buy 자체도 nextTier 만 사므로 다른 알약을 눌러도 무해하다).
-      var nt = T.nextTier(rec.heroKey, b.key, rec);
-      var gateOk = T.gateOpen(rec.heroKey, b.key, nt, rec);
-      var cost = nt ? T.costOf(nt) : 0;
-      var afford = pts >= cost;
-      var pillY = y0 + pillH / 2;
-      b.tiers.forEach(function (tr, k) {
-        var n = k + 1;
-        var have = tier >= n;
-        var isNext = (n === nt);
-        var lockedByGate = isNext && !gateOk;
-        var can = isNext && gateOk && afford;
-        var px = cardX + padLR + pillW / 2 + k * (pillW + pillGap);
-        var label = have ? '✓' : (lockedByGate ? '🔒' : String(n));
-        var pb = GAME.UI.button(self, px, pillY, pillW, pillH, label, function () {
-          if (!can) return;
-          if (T.buy(b.key)) {
-            if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('coin');
-            self._buildBody(true);
-          }
-        }, { fontSize: SMALL ? 10 : 12 });
-        var fillCol = have ? cs.num : (can ? UC.panelTeal : UC.surfaceAlt);
-        pb.rect.setFillStyle(fillCol, have ? 0.55 : 1);
-        pb.rect.setStrokeStyle(can ? 2 : 1,
-          have ? cs.num : (can ? C.controller : (lockedByGate ? ((UX && UX.beam) || 0xf0a86a) : UC.borderUi)));
-        pb.text.setColor(have ? '#fff6df' : (can ? C.accent : C.textDim));
-        self._body.push(pb);
+      //  살 수 있는 칸만 누를 수 있다. 못 사는 칸은 이유가 이미 안에 적혀 있다.
+      if (!open) return;
+      var hit = self.add.zone(b.x, b.y, b.w, b.h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      self._body.push(hit);
+      hit.on('pointerdown', function () {
+        if (T.buy(t.key, rec) > 0) {
+          if (GAME.Sound) { try { GAME.Sound.play('coin'); } catch (e) {} }
+          self.char = GAME.TowerChar.get();
+          self._buildBody(true);
+        }
       });
-      y0 += pillH + gapIn;
-
-      //  안내 한 줄 — 다음 단 설명+비용 / 게이트 사유 / 완주.
-      var infoText, infoColor;
-      if (!nt) {
-        infoText = '✓ 모두 배웠습니다';
-        infoColor = hexStr(cs.num);
-      } else if (!gateOk) {
-        infoText = '🔒 ' + T.gateReason(rec.heroKey, b.key, rec);
-        infoColor = C.warn;
-      } else {
-        infoText = b.tiers[nt - 1].desc + '  (' + cost + '점' + (afford ? '' : ' 부족') + ')';
-        infoColor = afford ? C.text : C.textDim;
-      }
-      self._body.push(GAME.UI.label(self, cardX + padLR, y0, infoText,
-        SMALL ? 10 : 11, infoColor, 0).setWordWrapWidth(innerW));
     });
   });
 };

@@ -99,6 +99,9 @@ GAME.BattleScene.prototype.init = function (data) {
   //  ── 게임필 (2026-09-02 C 갈래) — 슬로모·이모트·햅틱 상태, 전부 판마다 되돌린다 ──
   this._slowmo = 0;             //  남은 슬로모(ms). 지난 판 값이 남으면 새 판이 느리게 시작한다
   this._slowmoFired = false;    //  한 판에 한 번 — _endGate 와 ended 블록이 둘 다 부른다
+  //  ⚠ 씬 인스턴스는 재사용된다 — init 에서 안 되돌리면 **다음 판이 확대된 채로 시작**한다
+  //    (이 폴더가 콤보·힌트 텍스트에서 세 번 겪은 계열의 사고다).
+  this._finishZoomMs = 0;
   this._emoteLastAt = -1e9;     //  스팸 방지 쿨의 기준 시각(performance.now)
   this._emoteBar = null;        //  파괴된 버튼을 붙들지 않게(지연생성 가드 함정)
   //  ⚠ 힌트·물약 라벨은 **레이아웃에 따라 안 만드는 판**이 있다(폰 가로·실시간). 안 되돌리면
@@ -363,6 +366,13 @@ GAME.BattleScene.prototype.create = function () {
     if (hst) {
       if (hst.speedMul) this.hero.speed = Math.round(this.hero.speed * hst.speedMul);
       if (hst.cdrMul) this.hero.cdrMul = (this.hero.cdrMul || 1) * hst.cdrMul;
+    }
+    //  준비된 자(prep, 2026-09-04 특성) — 판이 시작될 때 모든 스킬이 바로 쓸 수 있다.
+    //  ⚠ 기본값은 "스킬마다 초기 쿨을 안고 시작"이라, 이 특성은 **판의 첫 10초를
+    //    통째로 바꾼다.** 아이템·능력치로는 못 사는 축이라 특성 마지막 칸에 뒀다.
+    if (this.state.boons && this.state.boons.prep && this.hero.skills) {
+      for (var pi = 0; pi < this.hero.skills.length; pi++) this.hero.skills[pi].cd = 0;
+      this.state.prepUsed = 1;                       // 감사용 — 실제로 걸렸나
     }
   }
   // ── 대전 컨트롤러 (2026-08-01 개편) ────────────────────────────────────────
@@ -2030,6 +2040,18 @@ GAME.BattleScene.prototype.update = function (time, delta) {
     dt *= smK;
     this._setTimeScale(this._slowmo > 0 ? smK : 1);
   }
+  //  ── 마무리 확대 되돌리기 (2026-09-04) ────────────────────────────────────
+  //  태현님: "다시 바로 원래화면으로 돌아오고 바닥에 떨어진 남은 돈 주울시간줘야해".
+  //  ⚠ **실제 시간(delta)** 으로 센다 — 슬로모가 걸린 dt 로 세면 확대가 3배 오래 남아
+  //    "바로 돌아온다"가 안 된다(슬로모와 확대는 길이가 달라야 한다).
+  //  ⚠ 되돌린 뒤에도 `_endHold`(3초 유예)는 그대로라 동전 줍는 시간은 안 줄어든다.
+  if (this._finishZoomMs > 0) {
+    this._finishZoomMs -= delta;
+    if (this._finishZoomMs <= 0) {
+      this._finishZoomMs = 0;
+      try { this.resetZoom(); } catch (e) {}
+    }
+  }
 
   // ── 타격감(juice) ──────────────────────────────────────────────────────
   // "타격감이 없다"는 실측 신고에 대한 대응. 지금 공격은 예비동작·타격·여파가 없이
@@ -3009,11 +3031,69 @@ GAME.BattleScene.prototype._setTimeScale = function (k) {
   try { if (this.tweens && typeof this.tweens.timeScale === 'number') this.tweens.timeScale = k; } catch (e) {}
 };
 
-//  판이 끝나는 순간 — 한 판에 한 번만 슬로모를 건다(_endGate 진입과 ended 블록이 둘 다 부른다).
+//  ── 마무리 연출 (2026-09-04 태현님) ─────────────────────────────────────────
+//  "게임 끝날때쯤 슬로우효과는 너무 애매한데 걸거면 적 유닛 마지막 1기에 막타칠때
+//   확대하고 슬로우 걸어줘 너무 과한확대말고 마지막공격이 퍼지는 이펙트하고 적 유닛
+//   대사도 넣어줘. 그리고 다시 바로 원래화면으로 돌아오고 바닥에 떨어진 남은 돈
+//   주울시간줘야해"
+//
+//  네 가지를 한 자리에서 건다: **확대 + 슬로모 + 퍼지는 이펙트 + 마지막 대사**.
+//  ⚠ 확대는 **월드 레이어 줌**을 쓴다(`setZoom`). 카메라 줌은 HUD 까지 커진다 —
+//    이 파일 1220줄 주석이 실측으로 남겨 둔 결론이다.
+//  ⚠ 확대 배율은 1.28 로 낮게 잡았다(태현님: "너무 과한확대말고"). 줌 상한은 2.5 다.
+//  ⚠ 확대는 **금방 푼다**(FINISH_ZOOM_MS). 그 뒤 `ROUND_END_MS`(3초) 유예가 그대로
+//    남아 바닥에 떨어진 동전을 주울 시간이 된다 — 유예를 줄이지 않는다.
+//  ⚠ 타임 오버·연결 끊김은 '막타'가 아니다 — 부르는 쪽(ended 블록·_endGate)이 이미 거른다.
+GAME.BattleScene.prototype.FINISH_ZOOM = 1.28;
+GAME.BattleScene.prototype.FINISH_ZOOM_MS = 780;
+
 GAME.BattleScene.prototype._cinematicEnd = function () {
   if (this._slowmoFired || !GAME.Feel) return;
   this._slowmoFired = true;
   this._slowmo = GAME.Feel.SLOWMO_MS;
+
+  var k = this.state && this.state.lastFoeKill;
+  if (!k) return;                       // 막타 자리를 모르면 슬로모만(예전 동작)
+
+  //  ① 퍼지는 이펙트 — 착탄 고리 세 겹이 시차를 두고 번진다(state.effects 를 그대로 쓴다).
+  var r0 = (k.radius || 16);
+  for (var i = 0; i < 3; i++) {
+    this.state.effects.push({
+      kind: 'ring', x: k.x, y: k.y, r: r0 * (2.2 + i * 1.9),
+      t: 520 + i * 120, total: 520 + i * 120, side: 'controller'
+    });
+  }
+  this.state.effects.push({ kind: 'blast', x: k.x, y: k.y, r: r0 * 3.2,
+                            t: 420, total: 420, side: 'controller' });
+  this.state.finishFx = (this.state.finishFx || 0) + 1;   // 감사용 — 연출이 실제로 걸렸나
+
+  //  ② 확대 — 막타 자리를 화면 가운데로.
+  //  ⚠ 중심을 **말풍선 높이만큼 위로** 잡는다 (2026-09-04 태현님: "확대 범위는 그
+  //    말풍선이 다 보일정도로 잡으면 되겠네"). 말풍선은 머리 위 3.4r 에 뜨므로
+  //    죽은 자리를 그대로 가운데로 두면 확대된 화면에서 말풍선이 위로 잘린다.
+  try {
+    if (this.worldLayer && this._zoomRect) {
+      var bubbleUp = r0 * 3.4 + 34;                    // _placeBubble 과 같은 산수
+      this.setZoom(this.FINISH_ZOOM, k.x, GAME.Iso.toScreenY(k.y) - bubbleUp * 0.5);
+      this._finishZoomMs = this.FINISH_ZOOM_MS;
+    }
+  } catch (e) {}
+
+  //  ③ 마지막 대사 — **기존 랜덤 대사 풀을 그대로 쓴다** (2026-09-04 태현님:
+  //     "말풍선 기존에 있던거있잖아 랜덤대사 그거 그대로 써").
+  //  ⚠ `pick()` 을 안 쓰는 이유는 하나뿐이다 — 그쪽은 확률 관문(EV_CHANCE.death 0.30)
+  //    을 지나 대개 null 을 낸다. 막타는 한 판에 한 번뿐이라 **반드시** 떠야 한다.
+  //    고르는 방식(무작위·최근 중복 회피·조사 채우기)은 `_finish` 그대로다.
+  try {
+    var B = GAME.Banter;
+    if (B && B._finish && B.ON_DEATH && B.ON_DEATH.length) {
+      var line = B._finish(B.ON_DEATH.slice(), {
+        unitKey: k.type, floor: this.tower, boss: k.boss,
+        nick: (GAME.Account && GAME.Account.current()) || undefined
+      });
+      if (line) this._showBubble({ x: k.x, y: k.y, def: { radius: r0 } }, line);
+    }
+  } catch (e) {}
 };
 
 //  내 이모트 — 쿨(2초)을 넘겼을 때만. 봇 판(rt.local)은 상대가 없으니 릴레이 없이 내 것만.
@@ -3282,7 +3362,25 @@ GAME.BattleScene.prototype._dodgeUpdate = function (dt) {
   var d = this._dodge, st = this.state, h = this.hero;
   var g = this._dodgeG;
   if (!d || !st || !h) return;
-  if (st.over) { if (g) g.clear(); return; }
+  //  ⚠⚠ **끝난 뒤에도 화살이 나오던 버그** (2026-09-04 태현님 신고).
+  //    `st.over` 하나만 보면 안 된다 — 판을 이기면 `_endGate` 가 동전 줍는 3초 유예를
+  //    주려고 **`st.over` 를 다시 false 로 되돌린다.** 그 순간 이 검사가 풀려서
+  //    "이겼는데 계속 맞는" 상태가 됐다. 버틴 시간(dodgeUntil)과 유예 진행(_endHold)을
+  //    같이 봐야 한다.
+  //  ⚠ 남아 날아오던 탄도 치운다 — 이미 이긴 판에서 동전을 주우러 나갔다가 맞으면
+  //    그건 연출이 아니라 사고다.
+  var doneDodge = st.over || this._endHold >= 0 ||
+                  (st.elapsed >= (st.dodgeUntil || 45000));
+  if (doneDodge) {
+    if (g) g.clear();
+    if (!d.stopped) {
+      d.stopped = true;
+      for (var pi = st.projectiles.length - 1; pi >= 0; pi--) {
+        if (st.projectiles[pi].side === 'strategist') st.projectiles.splice(pi, 1);
+      }
+    }
+    return;
+  }
   var ws = GAME.CONFIG.WORLD_SCALE || 1;
 
   //  영웅 속도 추정(예측 사격용) — 유닛에 vx 가 없어 지난 프레임과의 차로 만든다.

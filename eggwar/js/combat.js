@@ -3943,6 +3943,10 @@ GAME.Combat = {
           //   안 일어나는 종류의 버그다).
           u.fuse -= dtMs;
           if (u.fuse <= 0) {
+            //  발동 횟수 계측 — 가시덫은 `aiExclude` 를 되돌려 AI 진형에 다시 넣은
+            //  유닛이라(js/autoformation.js 덫밭 교리) **정말 밟히는지**를 계속 재야 한다.
+            //  2026-07-31 실측은 "AI 가 놓으면 못때림 100%" 였다. 세지 않으면 또 짐작하게 된다.
+            state.mineBlasts = (state.mineBlasts || 0) + 1;
             var br = u.def.blastRadius;
             for (k = 0; k < state.units.length; k++) {
               var vic = state.units[k];

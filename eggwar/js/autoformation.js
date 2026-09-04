@@ -301,7 +301,15 @@ GAME.AutoFormation = {
     },
     minefield: {
       label: '덫밭', wall: 0.30, ranged: 0.34, group: 'ranged', coreN: 1,
-      traits: ['marksman'], coreBias: 1.4, must: ['mine', 'mine'],
+      //  ⚠ 가시덫은 **진형당 1기가 상한**이다(units.js `maxPerFormation: 1`, 2026-09-04
+      //    태현님 확인: "가시덫은 라운드당 하나 고정이야 더 못해"). 처음에 두 기를
+      //    적어 뒀는데 코드가 상한에 막아 한 기만 놓고 있었다 — 즉 **선언이 거짓말**이었다.
+      //    감사가 이런 거짓 선언을 잡도록 항목을 넣었다(must 가 상한을 넘지 않는가).
+      //  ⚠⚠ 가시덫은 `aiExclude: true` 다 — 2026-07-31 실측으로 **AI 진형에서 뺀** 유닛이다
+      //    ("뺑뺑이 영웅은 함정을 밟을 일이 없어 못때림 100%, 비용 35 를 버리는 칸").
+      //    이 교리는 그 결정을 일부러 되돌린 것이므로 **값을 하는지 계속 재야 한다**
+      //    (tools/tactics-audit.js 가 발동률을 센다). 안 밟히면 이 교리에서 빼는 게 맞다.
+      traits: ['marksman'], coreBias: 1.4, must: ['mine'],
       why: '길목에 덫을 깔아 파고드는 길을 막는다 — 들어가는 자리를 골라야 한다'
     },
     carapace: {

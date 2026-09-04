@@ -270,16 +270,25 @@ GAME.Tactics = {
     return true;
   },
 
-  //  같은 상황에서 어떤 대응을 고를지 — **판마다 고정된 결정적 값**.
-  //  ⚠ 난수를 쓰지 않는다. 판 시드(state.tacSeed)와 상황 이름만으로 정한다 →
-  //    한 판 안에서는 같은 상황이면 같은 대응(플레이어가 읽고 배울 수 있다),
-  //    판이 바뀌면 다른 대응(외워지지 않는다).
-  _variantOf: function (state, sitKey, len) {
+  //  같은 상황에서 어떤 대응을 고를지 — **시작점은 판 시드가, 그 다음은 횟수가 정한다.**
+  //
+  //  ⚠⚠ 2026-09-04 태현님: "전략 200개 넘는게 맞아? 그게 더 중요해."
+  //    맞는 지적이었고 실측이 그것을 확인해 줬다. 처음 설계는 판 시드 + 상황 이름만으로
+  //    대응을 정했다 — 그러면 **한 판 안에서 상황마다 대응이 하나로 고정**되어, 상황이
+  //    16종이니 **한 판에 최대 16종**만 돈다. 실측은 그보다도 낮은 **5~7종**이었고
+  //    (한 판에 모든 상황을 다 만들지는 않으니까) 5판을 합쳐도 27종이었다.
+  //    즉 208 은 창고 크기였지 **플레이에서 도는 수가 아니었다.**
+  //  → 같은 상황에 **다시 들어갈 때마다 다음 대응**으로 넘어간다. 규칙이 한 줄로 설명된다:
+  //      "그 상황에 n 번째로 들어가면, 그 상황의 목록에서 n 번째 대응이 나온다"
+  //    시작점만 판 시드가 흔들어 두므로 판마다 순서가 달라지고, 한 판 안에서는
+  //    **밀어붙이면 다음 수가 나온다**는 것을 플레이어가 배울 수 있다.
+  //  ⚠ 난수를 쓰지 않는다(결정적) — 시드·상황 이름·들어간 횟수만 본다.
+  _variantOf: function (state, sitKey, len, occ) {
     var h = (state.tacSeed || 1) >>> 0;
     for (var i = 0; i < sitKey.length; i++) {
       h = (h * 31 + sitKey.charCodeAt(i)) >>> 0;
     }
-    return len > 0 ? (h % len) : 0;
+    return len > 0 ? ((h + (occ || 0)) % len) : 0;
   },
 
   // ── ② 고르기 ──────────────────────────────────────────────────────────────
@@ -303,8 +312,12 @@ GAME.Tactics = {
     if (t.cur && t.cur.sit === sit.key) { t.read = rd; return; }
     if (t.cur && now - t.curAt < this.HYST_MS) { t.read = rd; return; }
 
+    //  이 상황에 몇 번째로 들어왔는가 — 그 횟수가 다음 대응을 고른다(위 주석 참조).
+    t.occ = t.occ || {};
+    var occ = t.occ[sit.key] || 0;
+    t.occ[sit.key] = occ + 1;
     var menu = this.MENU[sit.key] || ['hold'];
-    var vi = this._variantOf(state, sit.key, menu.length);
+    var vi = this._variantOf(state, sit.key, menu.length, occ);
     t.cur = { sit: sit.key, name: sit.name, play: menu[vi], id: sit.key + ':' + menu[vi] };
     t.curAt = now;
     t.read = rd;

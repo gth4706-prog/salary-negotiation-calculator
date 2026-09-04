@@ -149,10 +149,17 @@ GAME.Tower = {
     if (!base) return 1;
     var b = TC.statBonus(rec), ib = TC.itemBonus(rec), hb = this._hb(rec);
     var atk0 = (base.damage || 0) + (hb.damage || 0) || 1;
-    var atk = (base.damage || 0) + (b.damage || 0) + (ib.damage || 0);
+    //  ⚠ 마력(주술사)은 평타에 **0.25 만** 얹힌다(battle.js 와 같은 계수). 여기서
+    //    같은 계수를 쓰지 않으면 화면의 공격력과 난이도가 보는 공격력이 갈라진다.
+    var atk = (base.damage || 0) + (b.damage || 0) + (ib.damage || 0) + (b.spell || 0) * 0.25;
     // 쿨감(cdrMul, 1보다 작을수록 빠르다)도 실제 dps 다 — 안 넣으면 쿨감 아이템으로
     // 찍은 빌드의 진짜 화력이 과소평가된다.
     var p = (atk / (ib.cdrMul || 1)) / atk0;
+    //  ⚠⚠ 주술사의 화력은 **대부분 소환수**다. 마력이 소환수 배수를 키우는데
+    //    (`summonModsFor` × spellSummonMul) 그걸 여기 안 넣으면, 소환수만 세지고
+    //    적은 안 따라와 **탑이 조용히 쉬워진다** — 이 저장소가 "42층을 3초만에"로
+    //    한 번 겪은 계열의 사고다. 그래서 같은 배수를 화력 지수에도 곱한다.
+    if (TC.spellSummonMul) p *= TC.spellSummonMul(rec);
     //  시즌2 스킬 진화(S-H) — 진화한 스킬의 화력 배수도 성장이다. 안 넣으면 진화 빌드가
     //  "42층을 3초만에" 계열(성장을 못 따라오는 진형)을 다시 만든다.
     if (TC.evoAtkMul) p *= TC.evoAtkMul(rec);
@@ -330,11 +337,20 @@ GAME.Tower = {
   //  ⚠⚠ **battle.js 와 tools/sim.js 가 둘 다 이 함수를 부른다.** 계산식을 양쪽에
   //    손으로 베끼면 조용히 갈라져 도구가 실제 게임과 다른 것을 재게 된다 — 바로 위
   //    qualityMul 이 그렇게 두 벌이 될 뻔했고 sim.js 주석이 그 위험을 적어 뒀다.
+  //  ⚠ 2026-09-04 — **마력**이 여기에 곱해진다(주술사 전용, 다른 영웅은 1.0).
+  //    태현님: "마력을 올리면 … 그 값이 소환유닛들의 능력치에 관여하게해줘".
+  //    소환수 배수를 만드는 곳이 여기 하나뿐이라 이 자리가 정본이다.
   summonModsFor: function () {
     var P = this.POWER_POW_SUMMON, CAP = this.POWER_CAP;
+    var sp = (GAME.TowerChar && GAME.TowerChar.spellSummonMul)
+             ? GAME.TowerChar.spellSummonMul() : 1;
+    //  ⚠⚠ **공격 쪽에는 마력을 다시 곱하지 않는다.** `atkIndex` 가 이미 마력 배수를
+    //    품고 있어서(위 atkIndex 주석 참조) 여기서 또 곱하면 **두 번 세어진다** —
+    //    실측으로 잡았다: 마력 40 에서 소환 공격이 ×2.28 이어야 하는데 ×3.19 였다.
+    //    체력 쪽은 `ehpIndex` 에 마력이 없으므로 여기서 곱하는 것이 맞다.
     return {
-      hp: Math.max(1, Math.min(CAP, Math.pow(this.ehpIndex(), P))),      // 내 유효체력 성장
-      damage: Math.max(1, Math.min(CAP, Math.pow(this.atkIndex(), P)))   // 내 공격 성장
+      hp: Math.max(1, Math.min(CAP, Math.pow(this.ehpIndex(), P) * sp)),    // 유효체력 성장 × 마력
+      damage: Math.max(1, Math.min(CAP, Math.pow(this.atkIndex(), P)))      // 공격 성장(마력 포함)
     };
   },
 

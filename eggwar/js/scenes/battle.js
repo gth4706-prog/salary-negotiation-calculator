@@ -303,6 +303,11 @@ GAME.BattleScene.prototype.create = function () {
     var ib = GAME.TowerChar.itemBonus(tc);
     var d = this.hero.def;
     d.damage += bonus.damage + ib.damage;
+    //  ── 마력 (2026-09-04 주술사 전용) ────────────────────────────────────────
+    //  "마력을 올리면 기본공격은 아주 조금쎄지고 오히려 그 값이 소환유닛들의
+    //   능력치에 관여하게해줘" — 평타에는 **0.25배만** 얹는다(공격력 축의 1/4).
+    //  ⚠ 소환수 쪽 몫은 여기가 아니라 `Tower.summonModsFor` 가 곱한다(한 곳에서).
+    if (bonus.spell) d.damage += Math.round(bonus.spell * 0.25);
     d.armor += bonus.armor + ib.armor;
     d.speed += bonus.speed + ib.speed;
     d.lifesteal = (d.lifesteal || 0) + ib.lifesteal;

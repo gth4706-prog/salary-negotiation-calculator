@@ -450,21 +450,49 @@ GAME.HEROES = {
       //  Q — 근접 유닛 소환. `attack:'melee'` 인 일반 유닛만 쓴다(js/units.js
       //  GAME.UNIT_ORDER 중 melee 5종을 값싼 것 → 강한 것 순으로). 소환수는
       //  `unitMods` 로 원본 유닛보다 약하게(직접 사서 배치하는 것과 차등).
+      //  ⚠⚠ 2026-09-04 재조정 (태현님: "주술사 유닛이 여전히 너무약해 나오자마자
+      //    1방맞고 죽어버려 … 유닛 2~3마리는 소환 … 종류나 숫자를 랜덤 … 가끔 낮은
+      //    확률로 더 쎈 영웅유닛"). 바뀐 것 셋:
+      //     ① **체력 배수를 2배 대역으로** — 0.8~1.25 였던 것을 1.7~2.5 로.
+      //        (이 위에 `Tower.summonModsFor`(내 능력치 추종)가 또 곱해진다.)
+      //     ② `unitPool` + `countMin/Max` — 종류와 수가 판마다 다르다.
+      //     ③ `eliteChance` — 낮은 확률로 같은 종류의 **강화 개체**(eliteMods 배수 +
+      //        그리는 크기 1.22배). 결정적 난수라 실시간 록스텝에서도 안전하다.
+      //  ⚠ 공격 배수는 크게 안 올렸다 — 소환수가 화력까지 가지면 주술사가 직접 싸울
+      //    이유가 사라진다. 이 영웅의 문제는 "약해서"가 아니라 **"즉사해서"** 였다.
       Q: [
-        { name: '전사 소환', type: 'summon', motif: 'totem', unit: 'bayonet', count: 1, life: 9000, range: 110, unitMods: { hp: 0.8, damage: 0.7 }, cooldown: 11000, cost: 0,
-          evo: { at: { floor: 10 }, name: '용맹한 전사 소환', patch: { life: 12000, unitMods: { hp: 1.0, damage: 0.85 } } } },
-        { name: '벌집꾼 소환', type: 'summon', motif: 'bone', unit: 'hivethrower', count: 1, life: 8500, range: 120, unitMods: { hp: 0.8, damage: 0.75 }, cooldown: 11500, cost: 250,
-          evo: { at: { floor: 20 }, name: '독한 벌집꾼 소환', patch: { life: 11500, unitMods: { hp: 1.0, damage: 0.9 } } } },
-        { name: '돌쌓이 소환', type: 'summon', motif: 'earth', unit: 'stonepiler', count: 1, life: 10000, range: 120, unitMods: { hp: 0.9, damage: 0.8 }, cooldown: 12500, cost: 900,
-          evo: { at: { floor: 35 }, name: '거대 돌쌓이 소환', patch: { life: 13000, unitMods: { hp: 1.1, damage: 0.95 } } } },
-        { name: '덩굴채 소환', type: 'summon', motif: 'bog', unit: 'vinewhip', count: 2, life: 9500, range: 130, spread: 50, unitMods: { hp: 0.85, damage: 0.8 }, cooldown: 12000, cost: 3000,
-          evo: { at: { rtWins: 5 }, name: '덩굴채 무리 소환', patch: { count: 3, spread: 58, life: 12000 } } },
-        { name: '망치잡이 소환', type: 'summon', motif: 'earth', unit: 'hammer', count: 1, life: 11000, range: 130, unitMods: { hp: 1.0, damage: 0.95 }, cooldown: 13000, cost: 9000,
-          evo: { at: { floor: 80 }, name: '망치잡이 무리 소환', patch: { count: 2, spread: 55, life: 15000, unitMods: { hp: 1.25, damage: 1.1 } } } }
+        { name: '넋 부르기', type: 'summon', motif: 'totem', unitPool: ['bayonet', 'hivethrower'],
+          countMin: 2, countMax: 3, spread: 52, life: 9000, range: 110,
+          unitMods: { hp: 1.7, damage: 0.75 }, eliteChance: 0.10, eliteMods: { hp: 1.5, damage: 1.5 },
+          cooldown: 11000, cost: 0,
+          evo: { at: { floor: 10 }, name: '많은 넋 부르기', patch: { countMax: 4, life: 12000, unitMods: { hp: 2.0, damage: 0.85 }, eliteChance: 0.14 } } },
+        { name: '벌떼 부르기', type: 'summon', motif: 'bone', unitPool: ['hivethrower', 'vinewhip', 'bayonet'],
+          countMin: 2, countMax: 3, spread: 56, life: 8500, range: 120,
+          unitMods: { hp: 1.8, damage: 0.8 }, eliteChance: 0.12, eliteMods: { hp: 1.5, damage: 1.5 },
+          cooldown: 11500, cost: 250,
+          evo: { at: { floor: 20 }, name: '독한 벌떼', patch: { countMax: 4, life: 11500, unitMods: { hp: 2.1, damage: 0.9 }, eliteChance: 0.16 } } },
+        { name: '돌무리 부르기', type: 'summon', motif: 'earth', unitPool: ['stonepiler', 'bayonet', 'knotter'],
+          countMin: 2, countMax: 3, spread: 58, life: 10000, range: 120,
+          unitMods: { hp: 2.0, damage: 0.85 }, eliteChance: 0.14, eliteMods: { hp: 1.55, damage: 1.5 },
+          cooldown: 12500, cost: 900,
+          evo: { at: { floor: 35 }, name: '거대 돌무리', patch: { countMax: 4, life: 13000, unitMods: { hp: 2.3, damage: 0.95 }, eliteChance: 0.18 } } },
+        { name: '덩굴 무리', type: 'summon', motif: 'bog', unitPool: ['vinewhip', 'hammer', 'stonepiler'],
+          countMin: 3, countMax: 4, spread: 62, life: 9500, range: 130,
+          unitMods: { hp: 2.1, damage: 0.85 }, eliteChance: 0.16, eliteMods: { hp: 1.55, damage: 1.55 },
+          cooldown: 12000, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '덩굴 대군', patch: { countMin: 3, countMax: 5, life: 12000, eliteChance: 0.20 } } },
+        { name: '조상 대군', type: 'summon', motif: 'earth', unitPool: ['hammer', 'stonepiler', 'vinewhip', 'bayonet'],
+          countMin: 3, countMax: 4, spread: 66, life: 11000, range: 130,
+          unitMods: { hp: 2.3, damage: 0.95 }, eliteChance: 0.20, eliteMods: { hp: 1.6, damage: 1.6 },
+          cooldown: 13000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '조상의 물결', patch: { countMin: 4, countMax: 5, life: 15000, unitMods: { hp: 2.5, damage: 1.05 }, eliteChance: 0.25 } } }
       ],
-      //  W — 도망/회복/소환유닛강화. `type:'buff'` + 신설 옵션 `includeSummons` —
-      //  자기 회복에 더해 반경 안 **내가 세운 소환수**(Q/E/R)까지 공격·방어·이동을
-      //  버프하고 함께 회복시킨다(combat.js 의 buff 분기, opt-in — 다른 영웅 무영향).
+      //  W — 회복 세 갈래 + 소환수 강화 (2026-09-04 태현님: "w는 회복만 있는건
+      //  아쉬운데 나만 회복하는거하고 범위회복 그리고 나중엔 광역회복도").
+      //  1~2단 = 자기 회복 · 3~4단 = **범위 회복**(healRadius) · 5단 = **광역 회복**(healAll).
+      //  ⚠ 회복량은 자기 회복과 같은 값을 아군에게도 준다 — combat.js 가 한 값으로
+      //    처리하므로 실시간 회복 감쇠(RT_SUSTAIN)도 같이 탄다(그 경로로 안 샌다).
+      //  includeSummons 는 그대로 — 반경 안 내 소환수를 함께 강화한다.
       W: [
         { name: '정령의 가호', type: 'buff', motif: 'bone', duration: 5000, healNow: 110, radius: 220, includeSummons: true,
           sumDamageMul: 1.25, sumArmorAdd: 6, sumHealNow: 70, cooldown: 10000, cost: 0,
@@ -472,13 +500,13 @@ GAME.HEROES = {
         { name: '늪의 가호', type: 'buff', motif: 'bog', duration: 5500, healNow: 140, radius: 230, includeSummons: true,
           sumDamageMul: 1.3, sumArmorAdd: 8, sumSpeedMul: 1.1, sumHealNow: 90, cooldown: 10000, cost: 250,
           evo: { at: { floor: 20 }, name: '깊은 늪의 가호', patch: { healNow: 180, sumDamageMul: 1.35, sumHealNow: 110 } } },
-        { name: '뼈의 가호', type: 'buff', motif: 'bone', duration: 6000, healNow: 170, radius: 240, includeSummons: true,
+        { name: '무리 치유', type: 'buff', motif: 'bone', duration: 6000, healNow: 170, radius: 240, healRadius: 240, includeSummons: true,
           sumDamageMul: 1.35, sumArmorAdd: 10, sumHealNow: 110, cooldown: 10500, cost: 900,
-          evo: { at: { floor: 35 }, name: '갈라진 뼈의 가호', patch: { healNow: 210, sumDamageMul: 1.4, sumHealNow: 140 } } },
-        { name: '원한의 가호', type: 'buff', motif: 'ember', duration: 6500, healNow: 210, radius: 250, includeSummons: true,
+          evo: { at: { floor: 35 }, name: '넓은 무리 치유', patch: { healNow: 210, healRadius: 300, sumDamageMul: 1.4, sumHealNow: 140 } } },
+        { name: '큰 무리 치유', type: 'buff', motif: 'ember', duration: 6500, healNow: 210, radius: 250, healRadius: 320, includeSummons: true,
           sumDamageMul: 1.45, sumArmorAdd: 12, sumHealNow: 140, cooldown: 11000, cost: 3000,
-          evo: { at: { rtWins: 5 }, name: '타오르는 원한의 가호', patch: { healNow: 250, sumDamageMul: 1.5, sumHealNow: 170 } } },
-        { name: '조상의 가호', type: 'buff', motif: 'totem', duration: 7000, healNow: 260, radius: 270, includeSummons: true,
+          evo: { at: { rtWins: 5 }, name: '아주 넓은 치유', patch: { healNow: 250, healRadius: 400, sumDamageMul: 1.5, sumHealNow: 170 } } },
+        { name: '조상의 가호', type: 'buff', motif: 'totem', duration: 7000, healNow: 260, radius: 270, healAll: true, includeSummons: true,
           sumDamageMul: 1.55, sumArmorAdd: 16, sumHealNow: 180, cooldown: 11500, cost: 9000,
           evo: { at: { floor: 80 }, name: '태초의 가호', patch: { healNow: 310, sumDamageMul: 1.65, sumHealNow: 220, radius: 300 } } }
       ],
@@ -489,16 +517,34 @@ GAME.HEROES = {
         //    Q 1단 전사 250 의 절반). 보조형이라 약한 것은 맞지만 서서 둔화·버프를
         //    걸기도 전에 죽으면 역할 자체가 성립하지 않는다. 원본 유닛 체력 그대로
         //    (hp 1.0)로 올리고 공격만 낮게 유지해 '보조'라는 성격은 지킨다.
-        { name: '늪지기 소환', type: 'summon', motif: 'bog', unit: 'chemtrooper', count: 1, life: 8000, range: 150, unitMods: { hp: 1.0, damage: 0.7 }, cooldown: 12000, cost: 0,
-          evo: { at: { floor: 10 }, name: '깨어난 늪지기 소환', patch: { count: 2, spread: 40, life: 11000, unitMods: { hp: 1.0, damage: 0.85 } } } },
-        { name: '족장 소환', type: 'summon', motif: 'totem', unit: 'sergeant', count: 1, life: 8000, range: 150, unitMods: { hp: 1.0, damage: 0.7 }, cooldown: 12500, cost: 250,
-          evo: { at: { floor: 20 }, name: '깨어난 족장 소환', patch: { life: 11000, unitMods: { hp: 1.0, damage: 0.85 } } } },
-        { name: '늪지기 무리 소환', type: 'summon', motif: 'bog', unit: 'chemtrooper', count: 2, life: 9500, range: 160, spread: 55, unitMods: { hp: 0.9, damage: 0.8 }, cooldown: 13000, cost: 900,
-          evo: { at: { floor: 35 }, name: '늪지기 떼 소환', patch: { count: 3, spread: 65, life: 12000 } } },
-        { name: '강화된 족장 소환', type: 'summon', motif: 'totem', unit: 'sergeant', count: 1, life: 11000, range: 160, unitMods: { hp: 1.1, damage: 1.0 }, cooldown: 13500, cost: 3000,
-          evo: { at: { rtWins: 5 }, name: '오래된 족장 소환', patch: { life: 14000, unitMods: { hp: 1.3, damage: 1.15 } } } },
-        { name: '조상의 부름', type: 'summon', motif: 'totem', unit: 'sergeant', count: 2, life: 13000, range: 170, spread: 60, unitMods: { hp: 1.3, damage: 1.2 }, cooldown: 14000, cost: 9000,
-          evo: { at: { floor: 80 }, name: '태초의 부름', patch: { count: 3, spread: 75, life: 16000, unitMods: { hp: 1.5, damage: 1.35 } } } }
+        //  ⚠ 2026-09-04 (태현님: "e스킬에서도 유닛 범위가 많아지고 숫자가 늘어났으면").
+        //    보조 소환도 무리로 — 종류 후보를 늘리고(unitPool) 수를 2~4 로, 체력은
+        //    Q 와 같은 2배 대역으로 올린다. 공격은 낮게 둔다(보조라는 성격 유지).
+        { name: '늪지기 무리', type: 'summon', motif: 'bog', unitPool: ['chemtrooper', 'sergeant'],
+          countMin: 2, countMax: 3, spread: 58, life: 8000, range: 150,
+          unitMods: { hp: 1.9, damage: 0.7 }, eliteChance: 0.10, eliteMods: { hp: 1.5, damage: 1.4 },
+          cooldown: 12000, cost: 0,
+          evo: { at: { floor: 10 }, name: '깨어난 늪지기 무리', patch: { countMax: 4, life: 11000, unitMods: { hp: 2.1, damage: 0.85 } } } },
+        { name: '족장 무리', type: 'summon', motif: 'totem', unitPool: ['sergeant', 'medic', 'chemtrooper'],
+          countMin: 2, countMax: 3, spread: 60, life: 8000, range: 155,
+          unitMods: { hp: 2.0, damage: 0.7 }, eliteChance: 0.12, eliteMods: { hp: 1.5, damage: 1.4 },
+          cooldown: 12500, cost: 250,
+          evo: { at: { floor: 20 }, name: '깨어난 족장 무리', patch: { countMax: 4, life: 11000, unitMods: { hp: 2.2, damage: 0.85 } } } },
+        { name: '늪지기 떼', type: 'summon', motif: 'bog', unitPool: ['chemtrooper', 'knotter', 'sergeant'],
+          countMin: 3, countMax: 4, spread: 68, life: 9500, range: 175,
+          unitMods: { hp: 2.1, damage: 0.8 }, eliteChance: 0.14, eliteMods: { hp: 1.55, damage: 1.45 },
+          cooldown: 13000, cost: 900,
+          evo: { at: { floor: 35 }, name: '늪지기 대떼', patch: { countMin: 3, countMax: 5, spread: 78, life: 12000 } } },
+        { name: '강화된 족장 무리', type: 'summon', motif: 'totem', unitPool: ['sergeant', 'medic', 'shellwright'],
+          countMin: 3, countMax: 4, spread: 72, life: 11000, range: 185,
+          unitMods: { hp: 2.2, damage: 0.9 }, eliteChance: 0.16, eliteMods: { hp: 1.6, damage: 1.5 },
+          cooldown: 13500, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '오래된 족장 무리', patch: { countMax: 5, life: 14000, unitMods: { hp: 2.4, damage: 1.0 } } } },
+        { name: '조상의 부름', type: 'summon', motif: 'totem', unitPool: ['sergeant', 'medic', 'shellwright', 'chemtrooper'],
+          countMin: 3, countMax: 5, spread: 80, life: 13000, range: 200,
+          unitMods: { hp: 2.4, damage: 1.0 }, eliteChance: 0.20, eliteMods: { hp: 1.6, damage: 1.55 },
+          cooldown: 14000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '조상의 대군', patch: { countMin: 4, countMax: 6, spread: 92, life: 16000, unitMods: { hp: 2.6, damage: 1.1 } } } }
       ],
       //  R — 보스 소환. 신설 타입 `type:'summonBoss'`(combat.js) — 진짜 보스 def 를
       //  빌리되 isBoss 를 지우고 phases 를 없애고 abilities 를 1개로 줄인 뒤 hp·damage 를
@@ -518,24 +564,24 @@ GAME.HEROES = {
       R: [
         //  10층 보스 — 부족을 이끄는 거대 족장. 가장 이르게 나타나는 보스라 가장 약하다.
         { name: '조상의 족장 소환', type: 'summonBoss', motif: 'totem', bossKey: 'bossChief',
-          hpMul: 0.19, dmgMul: 1.05, sizeMul: 0.44, life: 16000, range: 150, cooldown: 34000, cost: 0,
-          evo: { at: { floor: 10 }, name: '태초의 족장 소환', patch: { hpMul: 0.23, dmgMul: 1.18, life: 19000 } } },
+          hpMul: 0.40, dmgMul: 1.05, sizeMul: 0.44, life: 16000, range: 150, cooldown: 34000, cost: 0,
+          evo: { at: { floor: 10 }, name: '태초의 족장 소환', patch: { hpMul: 0.46, dmgMul: 1.18, life: 19000 } } },
         //  20층 보스 — 두꺼운 껍질 골렘. 족장보다 한 걸음 더 단단하다.
         { name: '조상의 골렘 소환', type: 'summonBoss', motif: 'earth', bossKey: 'bossShell',
-          hpMul: 0.21, dmgMul: 1.05, sizeMul: 0.45, life: 17000, range: 150, cooldown: 34000, cost: 250,
-          evo: { at: { floor: 20 }, name: '태초의 골렘 소환', patch: { hpMul: 0.25, dmgMul: 1.18, life: 20000 } } },
+          hpMul: 0.42, dmgMul: 1.05, sizeMul: 0.45, life: 17000, range: 150, cooldown: 34000, cost: 250,
+          evo: { at: { floor: 20 }, name: '태초의 골렘 소환', patch: { hpMul: 0.48, dmgMul: 1.18, life: 20000 } } },
         //  40층 보스 — 재를 뒤집어쓴 파수병. 용의 첫 그림자가 드리우기 시작한 자리.
         { name: '조상의 파수병 소환', type: 'summonBoss', motif: 'ember', bossKey: 'bossAshSentry',
-          hpMul: 0.24, dmgMul: 1.20, sizeMul: 0.47, life: 18000, range: 160, cooldown: 35000, cost: 900,
-          evo: { at: { floor: 35 }, name: '태초의 파수병 소환', patch: { hpMul: 0.28, dmgMul: 1.33, life: 21000 } } },
+          hpMul: 0.45, dmgMul: 1.20, sizeMul: 0.47, life: 18000, range: 160, cooldown: 35000, cost: 900,
+          evo: { at: { floor: 35 }, name: '태초의 파수병 소환', patch: { hpMul: 0.51, dmgMul: 1.33, life: 21000 } } },
         //  80층 보스 — 용이 거느린 잿날개. 처음으로 '용의 부하'를 직접 부린다.
         { name: '조상의 잿날개 소환', type: 'summonBoss', motif: 'ember', bossKey: 'bossDrakeAsh',
-          hpMul: 0.27, dmgMul: 1.35, sizeMul: 0.49, life: 19000, range: 160, cooldown: 36000, cost: 3000,
-          evo: { at: { rtWins: 5 }, name: '태초의 잿날개 소환', patch: { hpMul: 0.31, dmgMul: 1.48, life: 22000 } } },
+          hpMul: 0.48, dmgMul: 1.35, sizeMul: 0.49, life: 19000, range: 160, cooldown: 36000, cost: 3000,
+          evo: { at: { rtWins: 5 }, name: '태초의 잿날개 소환', patch: { hpMul: 0.54, dmgMul: 1.48, life: 22000 } } },
         //  200층 보스 — 폭풍 하늘의 주인. 이 사다리의 정점 — 가장 늦게, 가장 강하게.
         { name: '조상의 폭풍왕 소환', type: 'summonBoss', motif: 'totem', bossKey: 'bossStormKing',
-          hpMul: 0.31, dmgMul: 1.55, sizeMul: 0.52, life: 21000, range: 170, cooldown: 38000, cost: 9000,
-          evo: { at: { floor: 80 }, name: '태초의 폭풍왕 소환', patch: { hpMul: 0.36, dmgMul: 1.72, life: 25000, sizeMul: 0.55 } } }
+          hpMul: 0.52, dmgMul: 1.55, sizeMul: 0.52, life: 21000, range: 170, cooldown: 38000, cost: 9000,
+          evo: { at: { floor: 80 }, name: '태초의 폭풍왕 소환', patch: { hpMul: 0.58, dmgMul: 1.72, life: 25000, sizeMul: 0.55 } } }
       ]
     }
   },

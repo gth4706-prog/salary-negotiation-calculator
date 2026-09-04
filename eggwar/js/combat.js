@@ -2372,9 +2372,33 @@ GAME.Combat = {
       //  ⚠ 실시간 결투에서 회복 스킬은 3할만 듣는다 (2026-08-31 태현님: "전사 회복
       //    스킬이 너무 사기야 그냥 풀피로 끝나") — 480 회복이 12초마다 돌면 TTK 30초대
       //    결투에서 사실상 불사다. 탑(PvE)은 그대로.
-      if (sk.healNow) this.heal(u, state.pvpRealtime
+      var healAmt = sk.healNow ? (state.pvpRealtime
         ? Math.round(sk.healNow * GAME.Combat.RT_SUSTAIN * ((_rtSk && _rtSk.heal !== undefined) ? _rtSk.heal : 1))
-        : sk.healNow, state);
+        : sk.healNow) : 0;
+      if (healAmt) this.heal(u, healAmt, state);
+      //  ── 범위 회복 · 광역 회복 (2026-09-04 태현님: "w는 회복만 있는건 아쉬운데
+      //     나만 회복하는거하고 범위회복 그리고 나중엔 광역회복도") ────────────────
+      //  `healRadius` 를 적으면 그 반경 안 **아군 전체**가 같이 회복한다.
+      //  `healAll: true` 면 반경을 무시하고 전장의 내 편 전부(= 광역 회복).
+      //  ⚠ opt-in — 안 적은 buff 스킬은 지금까지처럼 자기만 회복한다.
+      //  ⚠ 회복량은 자기 회복과 **같은 값**을 쓴다(실시간 감쇠도 같이 탄다).
+      //    여기서 따로 굴리면 실시간 회복 상한(RT_SUSTAIN)이 이 경로로 새어나간다.
+      if (healAmt && (sk.healAll || sk.healRadius > 0)) {
+        var hr = sk.healRadius || 0, hN = 0;
+        for (var hi2 = 0; hi2 < state.units.length; hi2++) {
+          var ha = state.units[hi2];
+          if (!ha.alive || ha.side !== u.side || ha === u) continue;
+          if (this.isHazard(ha)) continue;
+          if (!sk.healAll && this.dist(u, ha) > hr + ha.def.radius) continue;
+          this.heal(ha, healAmt, state);
+          hN++;
+        }
+        state.allyHeals = (state.allyHeals || 0) + hN;   // 감사용 — 실제로 몇 기를 살렸나
+        if (hN) {
+          state.effects.push({ kind: 'ring', x: u.x, y: u.y,
+                               r: sk.healAll ? 520 : hr, t: 460, total: 460, side: u.side });
+        }
+      }
       state.effects.push({
         kind: 'ring', x: u.x, y: u.y, r: u.def.radius + 26,
         t: 400, total: 400, side: u.side
@@ -2460,9 +2484,47 @@ GAME.Combat = {
       var sdx = tx - u.x, sdy = ty - u.y, sdl = Math.sqrt(sdx * sdx + sdy * sdy) || 1;
       var sReach = this.skillReach(sk) || 120;
       var sgo = Math.min(sdl, sReach);
-      var made = this.spawnSummons(state, u, sk.unit, sk.count || 1, sk.life || 6000,
-                                   u.x + (sdx / sdl) * sgo, u.y + (sdy / sdl) * sgo,
-                                   sk.spread, { srcSkill: sk.name, mods: sk.unitMods });
+      var sX = u.x + (sdx / sdl) * sgo, sY = u.y + (sdy / sdl) * sgo;
+      var made = 0;
+      //  ── 무리 소환 (2026-09-04 태현님: "유닛 2~3마리는 소환되게 … 종류나 숫자를
+      //     랜덤으로 … 가끔 낮은 확률로 같은 유닛이어도 더 쎈 영웅유닛") ──────────
+      //  `unitPool`(종류 후보) · `countMin/Max`(수) · `eliteChance/eliteMods`(희귀 강화).
+      //  ⚠ 셋 다 **opt-in** — 안 적은 스킬은 예전 경로(`sk.unit` × `sk.count`) 그대로다.
+      //  ⚠ 난수는 반드시 `this.rand()`(결정적 RNG)를 쓴다. Math.random 을 쓰면 실시간
+      //    록스텝에서 양쪽이 다른 무리를 세워 판이 즉시 갈라진다.
+      if (sk.unitPool && sk.unitPool.length) {
+        var lo = sk.countMin || 2, hi = sk.countMax || lo;
+        var n = lo + Math.floor(this.rand() * (hi - lo + 1));
+        if (n > hi) n = hi;
+        for (var si = 0; si < n; si++) {
+          var pick = sk.unitPool[Math.floor(this.rand() * sk.unitPool.length)];
+          //  희귀 강화 — 같은 종류인데 더 센 개체. `eliteMods` 가 그 배수다.
+          var elite = sk.eliteChance > 0 && this.rand() < sk.eliteChance;
+          var mods = sk.unitMods;
+          if (elite && sk.eliteMods) {
+            mods = {};
+            for (var mk2 in (sk.unitMods || {})) mods[mk2] = sk.unitMods[mk2];
+            for (mk2 in sk.eliteMods) mods[mk2] = (mods[mk2] || 1) * sk.eliteMods[mk2];
+          }
+          //  한 점에 겹치지 않게 고리 모양으로 흩는다(spread 가 0 이면 그대로).
+          var sa2 = (si / n) * Math.PI * 2;
+          var sr2 = sk.spread || 46;
+          var made1 = this.spawnSummons(state, u, pick, 1, sk.life || 6000,
+                                        sX + GAME.DetMath.cos(sa2) * sr2,
+                                        sY + GAME.DetMath.sin(sa2) * sr2,
+                                        0, { srcSkill: sk.name, mods: mods });
+          if (made1 && elite) {
+            //  방금 세운 놈에게 표시를 남긴다 — 감사가 세고, 렌더가 크게 그린다.
+            var eu = state.units[state.units.length - 1];
+            if (eu) { eu.summonElite = true; eu.eliteDraw = sk.eliteDraw || 1.22; }
+            state.summonElites = (state.summonElites || 0) + 1;
+          }
+          made += made1;
+        }
+      } else {
+        made = this.spawnSummons(state, u, sk.unit, sk.count || 1, sk.life || 6000,
+                                 sX, sY, sk.spread, { srcSkill: sk.name, mods: sk.unitMods });
+      }
       if (!made) return false;                 // 모르는 유닛 키 — 쿨을 안 태운다
       state.effects.push({ kind: 'ring', x: u.x + (sdx / sdl) * sgo, y: u.y + (sdy / sdl) * sgo,
                            r: (sk.spread || 40) + 20, t: 360, total: 360, side: u.side });

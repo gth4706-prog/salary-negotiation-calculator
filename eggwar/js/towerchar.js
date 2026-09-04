@@ -48,8 +48,47 @@ GAME.TowerChar = {
     //  치명타 — 확률은 50%까지, 그 위로는 치명타 피해로 전환(2026-08-22 태현님 설계).
     { key: 'crit',   name: '치명타',   add: 2,  cost: 12, step: 5, max: 50 },
     { key: 'luck',   name: '행운',     add: 1,  cost: 14, step: 6, max: 30,
-      desc: '레벨당: 골드 +2% · 회복 구역 등장 +3% · 아이템 드랍 +2.5%' }
+      desc: '레벨당: 골드 +2% · 회복 구역 등장 +3% · 아이템 드랍 +2.5%' },
+    //  ── 마력 — **주술사 전용 축** (2026-09-04 태현님) ──────────────────────────
+    //  "주술사는 공격력이 아니라 마력이라는걸 업그레이드하게해주고 마력을 올리면
+    //   기본공격은 아주 조금쎄지고 오히려 그 값이 소환유닛들의 능력치에 관여하게해줘"
+    //  ⚠ 주술사에게는 이 줄이 **공격력을 대신한다**(`statDefsFor` 가 갈아끼운다).
+    //    다른 영웅에게는 아예 안 보인다 — 표에만 두고 목록에서 빼는 방식이라
+    //    저장된 값(rec.stats.spell)은 영웅을 바꿔도 그대로 남는다.
+    { key: 'spell',  name: '마력',     add: 4,  cost: 8,  step: 3, max: 60,
+      desc: '평타는 조금만 오르고, 소환수의 체력·공격이 크게 오른다' }
   ],
+
+  //  영웅마다 다른 능력치 목록. 주술사만 공격력 자리에 마력이 들어간다.
+  //  ⚠ 화면(towershop)과 계산(statBonus·atkIndex)이 **같은 함수**를 봐야 한다 —
+  //    한쪽만 갈아끼우면 "화면엔 마력인데 계산은 공격력"이 되어 조용히 어긋난다.
+  SPELL_HEROES: { shaman: true },
+  statDefsFor: function (heroKey) {
+    var spell = !!this.SPELL_HEROES[heroKey];
+    var out = [];
+    for (var i = 0; i < this.STAT_DEFS.length; i++) {
+      var d = this.STAT_DEFS[i];
+      if (d.key === 'spell' && !spell) continue;      // 주술사 아니면 숨긴다
+      if (d.key === 'damage' && spell) continue;      // 주술사는 공격력 대신 마력
+      out.push(d);
+    }
+    return out;
+  },
+
+  //  마력 점수(주술사만 0 이 아니다). 소환수 배수와 평타 보정이 이 값을 본다.
+  spellPower: function (rec) {
+    rec = rec || this.get();
+    if (!rec || !rec.statGain || !this.SPELL_HEROES[rec.heroKey]) return 0;
+    return rec.statGain.spell || 0;
+  },
+
+  //  마력 → 소환수 능력치 배수. 이 한 줄이 "마력이 소환수에 관여한다"의 본체다.
+  //  ⚠ 완만하게 잡는다(100점에 ×2.0) — 소환수는 `Tower.summonModsFor`(내 성장 추종)와
+  //    스킬의 `unitMods`(2배 대역)가 **이미 곱해져 있다.** 여기서 세게 잡으면 세 배수가
+  //    겹쳐 고층에서 소환수만으로 판이 끝난다.
+  spellSummonMul: function (rec) {
+    return 1 + this.spellPower(rec) / 100;
+  },
 
   //  치명타 점수 → 실효값. 기본은 전 유닛 공통 크리(CONFIG 25%·×1.5)이고,
   //  점수는 그 위에 얹힌다: 확률은 **50%에서 멈추고**, 멈춘 뒤 남는 점수는
@@ -242,6 +281,14 @@ GAME.TowerChar = {
       m *= c0 / c1;
       //  소환 수·연쇄 수는 화력이다(토템 2기 = 두 배).
       if (opt.count && p.count) m *= p.count / opt.count;
+      //  ⚠ 무리 소환(2026-09-04)은 수가 범위다 — count 가 아니라 countMin/Max 를 본다.
+      //    이걸 빼면 "소환 수를 늘리는 진화"가 화력으로 안 잡혀 난이도 추종이 헐거워진다.
+      if (opt.countMax || p.countMax) {
+        var n0 = ((opt.countMin || 1) + (opt.countMax || opt.countMin || 1)) / 2;
+        var n1 = ((p.countMin !== undefined ? p.countMin : (opt.countMin || 1)) +
+                  (p.countMax !== undefined ? p.countMax : (opt.countMax || opt.countMin || 1))) / 2;
+        if (n0 > 0 && n1 > 0) m *= n1 / n0;
+      }
       if (opt.jumps && p.jumps) m *= 1 + 0.5 * (p.jumps / opt.jumps - 1);
       if (m > 1) logSum += Math.log(m);
     }
@@ -375,7 +422,7 @@ GAME.TowerChar = {
   // 같은 반환값에 섞여야 towershop.js 의 스탯바·능력치 탭 총합 표시가 한 곳만 고치면 된다.
   statBonus: function (rec) {
     rec = rec || this.get();
-    var out = { damage: 0, hp: 0, armor: 0, speed: 0 };
+    var out = { damage: 0, hp: 0, armor: 0, speed: 0, spell: 0 };
     //  ⚠ 2026-08-02 — **대전(ArenaBuild) 레코드가 이 함수로 들어온다.**
     //    `towershop.js` 의 `shownSkill` 은 mode 와 무관하게 이걸 부르는데, 대전에는
     //    능력치 강화가 없어서 레코드에 `statGain` 자체가 없다 → `rec.statGain[..]`

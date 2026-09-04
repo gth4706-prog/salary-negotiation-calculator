@@ -1553,7 +1553,10 @@ GAME.TowerShopScene.prototype._buildStatsTab = function () {
     return (totalBonus[d.key] || 0) + (itemBonus[d.key] || 0);
   }
 
-  var DEFS = TC.STAT_DEFS;
+  //  ⚠ 영웅마다 목록이 다르다 (2026-09-04) — 주술사는 **공격력 자리에 마력**이 온다.
+  //    `statDefsFor` 하나를 화면과 계산이 같이 봐야 한다(한쪽만 갈면 조용히 어긋난다).
+  //    대전(RtStats)은 자기 STAT_DEFS 를 따로 노출하므로 그 경로는 예전 그대로다.
+  var DEFS = (TC.statDefsFor && chr && chr.heroKey) ? TC.statDefsFor(chr.heroKey) : TC.STAT_DEFS;
   var n = DEFS.length;
   var contW = W - PAD * 2;
   var leftX = PAD;

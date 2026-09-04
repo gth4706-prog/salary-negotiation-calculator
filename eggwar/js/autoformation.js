@@ -256,6 +256,49 @@ GAME.AutoFormation = {
       label: '방벽', wall: 0.46, ranged: 0.32, group: 'melee', coreN: 1,
       traits: ['hardened'], coreBias: 1.5,
       why: '앞줄 한 종류를 두껍게 만들어 진형이 먼저 무너지지 않게 한다'
+    },
+
+    //  ── 지원·설치를 축으로 삼는 교리 (2026-09-04) ────────────────────────────
+    //  태현님: "통곡의탑에서 모든 유닛이 나오지도 않는거같다 / 싸움방식에 맞춘 유닛 배치"
+    //  실측이 그대로였다(시드 8 × 1~200층 = 진형 1600개): 전사 90.8% 인데
+    //  **가시덫 0.5%(31층 이상 0회) · 약초꾼 7.1% · 껍질장이 7.4% · 족장 9.9%**.
+    //  원인은 확률이 아니라 **구조**였다 — 위 교리 다섯이 전부 '벽 비율 + 원거리 비율'
+    //  이라 지원·설치 유닛은 그 둘을 채우고 남은 잔액으로만 들어왔다. 즉 진형은 늘
+    //  "앞줄 얼마 + 뒷줄 얼마"였고, 그래서 층이 달라져도 **푸는 방법이 같았다.**
+    //  → 그 유닛을 **요구하는**(`must`) 교리를 만든다. 요구된 유닛은 잔액이 아니라
+    //    맨 먼저 산다. 각 교리는 답이 서로 다르다 — 회복을 끊어라 / 지휘를 끊어라 /
+    //    길이 막혔다 / 보호막을 깨라 / 발이 묶인다 / 고정 화력을 우회하라.
+    //  ⚠ `must` 는 **종류만** 지정한다. 수량·레벨·정예는 기존 경로가 그대로 정한다 —
+    //    새 축을 만들면 위쪽 절들이 실측으로 잡아 둔 예산·레벨 규칙과 두 벌이 된다.
+    mender: {
+      label: '회복진', wall: 0.38, ranged: 0.30, group: 'melee', coreN: 1,
+      traits: ['hardened'], coreBias: 1.3, must: ['medic'],
+      why: '약초꾼이 뒤에서 계속 되살린다 — 회복을 먼저 끊지 않으면 앞줄이 안 죽는다'
+    },
+    warchief: {
+      label: '지휘진', wall: 0.36, ranged: 0.30, group: 'ranged', coreN: 1,
+      traits: [], coreBias: 1.3, must: ['sergeant'],
+      why: '족장의 포효로 한꺼번에 세진다 — 지휘를 먼저 끊어야 화력이 떨어진다'
+    },
+    minefield: {
+      label: '덫밭', wall: 0.30, ranged: 0.34, group: 'ranged', coreN: 1,
+      traits: ['marksman'], coreBias: 1.4, must: ['mine', 'mine'],
+      why: '길목에 덫을 깔아 파고드는 길을 막는다 — 들어가는 자리를 골라야 한다'
+    },
+    carapace: {
+      label: '껍질진', wall: 0.42, ranged: 0.28, group: 'melee', coreN: 1,
+      traits: ['hardened'], coreBias: 1.4, must: ['shellwright'],
+      why: '껍질장이가 보호막을 둘러 앞줄이 한 번에 안 무너진다'
+    },
+    mire: {
+      label: '독무', wall: 0.32, ranged: 0.38, group: 'ranged', coreN: 1,
+      traits: [], coreBias: 1.3, must: ['chemtrooper', 'chemtrooper'],
+      why: '늪지기를 겹쳐 둔화를 깔아 발을 묶는다 — 빠져나올 길을 미리 봐야 한다'
+    },
+    redoubt: {
+      label: '진지', wall: 0.40, ranged: 0.32, group: 'melee', coreN: 1,
+      traits: ['hardened'], coreBias: 1.35, must: ['mgnest'],
+      why: '쇠뇌 진지를 세워 고정 화력으로 길을 봉쇄한다 — 사각으로 돌아야 한다'
     }
   },
 
@@ -303,7 +346,13 @@ GAME.AutoFormation = {
   // 순수 난수로 흔들면 "AI 가 나를 읽는다"는 이 게임의 약속이 깨지고,
   // 성향으로 하나만 결정하면 매판 같은 전략이 나와 "벽"이 된다. 둘 사이가 답이다.
   doctrineWeights: function (p, heroKey) {
-    var w = { swarm: 30, spearhead: 26, chargeElite: 16, sharpshooter: 16, bulwark: 12 };
+    //  ⚠ 새 교리를 넣으면 **여기에도 넣어야 한다.** 이 표에 없는 키는 확률 0 이라
+    //    DOCTRINES 에 정의만 해 두고 영영 안 나오는 죽은 교리가 된다.
+    //  지원·설치 교리 6종은 8 씩(합 48) — 기존 다섯의 합이 100 이므로 대략 3할이
+    //  '싸우는 방법이 다른 판'이 된다. 더 올리면 기본 진형이 희귀해져 오히려
+    //  "매판 특별한 판"이 되고, 그러면 특별함이 사라진다(구슬·축복에서 배운 것).
+    var w = { swarm: 30, spearhead: 26, chargeElite: 16, sharpshooter: 16, bulwark: 12,
+              mender: 8, warchief: 8, minefield: 8, carapace: 8, mire: 8, redoubt: 8 };
 
     // 영웅이 확정된 경우(도전 중이 아닐 때 tower.js 가 넘긴다)가 가장 확실한 정보다
     if (heroKey === 'warden') {
@@ -515,6 +564,21 @@ GAME.AutoFormation = {
       chosen.push({ t: t, key: key || keyOf(t) });
       counts[t] = (counts[t] || 0) + 1;
       spent += GAME.UNITS[key || keyOf(t)].cost;
+    }
+
+    // ── 교리가 요구하는 유닛 (2026-09-04) ────────────────────────
+    //  `must` 는 그 교리의 **정체성**이다. 잔액으로 사면 예산이 큰 층에서만 나와
+    //  지금까지처럼 희귀해진다 — 그래서 벽·원거리보다 **먼저** 산다.
+    //  ⚠ 못 사도 조용히 넘어간다: 층 교육과정(allowTypes)이 아직 안 푼 종류이거나,
+    //    진형당 상한(maxPerFormation)에 걸렸거나, 예산이 모자란 경우다. 억지로 사면
+    //    1~3층 연습 구간에 해금 전 유닛이 튀어나온다.
+    var must = D.must || [];
+    for (var mi = 0; mi < must.length && !full(); mi++) {
+      var mt = must[mi], mdef = GAME.UNITS[mt];
+      if (!mdef || !isAllowed(mt)) continue;
+      if (mdef.maxPerFormation && (counts[mt] || 0) >= mdef.maxPerFormation) continue;
+      if (costOf(mt) > budget - spent) continue;
+      take(mt);
     }
 
     // ── 밀도 확보 ────────────────────────────────────────────────

@@ -208,6 +208,16 @@ GAME.BattleScene.prototype.create = function () {
   if (this.tower && GAME.Tower.summonModsFor) {
     this.state.summonMods = GAME.Tower.summonModsFor();
   }
+  //  ── 전술 플레이북 (2026-09-04 태현님: "숫자만 커지지 게임방식은 똑같아") ──────
+  //  AI 가 층수가 아니라 **플레이어가 지금 뭘 하는지**를 보고 대응한다(js/tactics.js).
+  //  ⚠ 통곡의 탑에서만 켠다. 실시간 대전은 양쪽이 같은 값을 봐야 하는데 이 계층은
+  //    그 보장을 목표로 만들지 않았고, 방어전·대전은 밸런스 기준선이 따로 있다.
+  //  ⚠ tacSeed 는 **판마다 고정**이라야 한다 — 같은 상황에 같은 대응이 나와야
+  //    플레이어가 읽고 배울 수 있다. 등반 시드와 층으로 정해 판이 바뀌면 달라진다.
+  if (this.tower && GAME.Tactics) {
+    this.state.tactics = true;
+    this.state.tacSeed = ((GAME.TowerChar && GAME.TowerChar.climbSeed) || 1) * 131 + this.tower;
+  }
   this.towerRuleInfo = this.tower && GAME.TowerRule
     ? GAME.TowerRule.ruleFor(this.tower) : null;
   //  전장 규칙(시즌2 S-W · 다섯 세계) — 세계마다 다른 `state.towerField`. 초원은 null,

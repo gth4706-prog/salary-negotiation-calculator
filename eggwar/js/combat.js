@@ -559,13 +559,23 @@ GAME.Combat = {
     return r;
   },
 
-  nearestEnemy: function (unit, units) {
+  //  ⚠ `state` 는 **선택 인자**다. 넘기면 전술 지시(focus — 집중사격)를 반영하고,
+  //    안 넘기면 예전 그대로 '가장 가까운 적'이다. 옛 호출부를 한 줄도 안 고쳐도
+  //    되도록 이렇게 뒀다(slowMul·knockback 과 같은 opt-in 패턴).
+  nearestEnemy: function (unit, units, state) {
+    //  집중사격 — 영웅을 **실제보다 가깝게 쳐서** 우선순위를 올린다. 자리를 바꾸지
+    //  않고 "누구를 때리느냐"만 바꾸는 방식이라 배치 실력 축을 건드리지 않는다.
+    var fc = 0;
+    if (state && state.tactics && GAME.Tactics && unit.side === 'strategist') {
+      fc = GAME.Tactics.orderFor(unit, state).focus || 0;
+    }
     var best = null, bestD = Infinity;
     for (var i = 0; i < units.length; i++) {
       var o = units[i];
       if (!o.alive || o.side === unit.side || this.isHazard(o)) continue;
       if (o.buffs && o.buffs.length && this.isStealthed(o)) continue;   // 은신 — 조준 제외
       var d = this.dist(unit, o);
+      if (fc > 0 && o.isHero) d *= (1 - fc * 0.55);   // 영웅을 최대 45% 가깝게 본다
       if (d < bestD) { bestD = d; best = o; }
     }
     return best;
@@ -602,6 +612,11 @@ GAME.Combat = {
     }
     // 지뢰는 피해로 제거할 수 없다. 밟아서 터뜨리거나, 피해서 지나가는 수밖에.
     if (this.isHazard(unit)) return 0;
+
+    //  전술 관측 — "영웅이 지금 무엇을 노리는가"의 유일한 근거다(앞줄인가·뒷줄인가·
+    //  정예인가). 모든 피해가 이 문을 지나므로 여기 한 곳에서만 센다.
+    //  ⚠ state.tactics 가 없으면(실시간·대전·방어전) 즉시 돌아간다 — 비용 0.
+    if (state && state.tactics && GAME.Tactics) GAME.Tactics.noteHit(state, unit, source);
 
     //  ── 시즌2 S-E: 은신·표식 (2026-09-03) ──────────────────────────────────
     //  · 은신한 쪽이 **때리면** 풀린다 — 모든 피해가 이 문을 지나므로 여기 한 곳.
@@ -2609,6 +2624,13 @@ GAME.Combat = {
     if (hk && hk.tenacious && hk.tenacious.chaseMul && u.side === 'strategist') {
       base *= hk.tenacious.chaseMul;
     }
+    //  전술 지시(advance) — 공격성은 **추격 반경으로만** 표현한다.
+    //  ⚠ aggro 로 표현하면 안 된다(위 effAggro 주석의 실측: 근접 줄이 자리를 일찍
+    //    떠나 각개격파당하고 수성의 탑 SC-3 이 깨진다). 폭도 ±22% 로 좁게 잡는다 —
+    //    이 계층의 목적은 '다르게 움직이는 것'이지 '더 세지는 것'이 아니다.
+    if (state && state.tactics && GAME.Tactics && u.side === 'strategist') {
+      base *= 1 + GAME.Tactics.orderFor(u, state).advance * 0.22;
+    }
     return this._reach(base, p, press * 160);
   },
 
@@ -2884,7 +2906,7 @@ GAME.Combat = {
       return false;
     }
 
-    var tgt = this.nearestEnemy(u, state.units);
+    var tgt = this.nearestEnemy(u, state.units, state);
     if (!tgt) { u.stance = 'hold'; return true; }
 
     // ── 한 번 쫓기로 했으면 끝까지 쫓는다 (2026-07-29, 사용자 지시) ────────────
@@ -3006,9 +3028,30 @@ GAME.Combat = {
     }
     if (u.abilCd > 0 || u.rootedFor > 0) return false;
 
-    var tgt = this.nearestEnemy(u, state.units);
+    var tgt = this.nearestEnemy(u, state.units, state);
     if (!tgt) return false;
     var d = this.dist(u, tgt);
+
+    //  ── 전술 지시(hold) — **스킬을 언제 쓰는가** (2026-09-04) ──────────────
+    //  태현님: "ai입장에서 각 유닛들을 언제 어떻게 써야할지 이해하고".
+    //  hold 가 높으면 능력을 **아꼈다가** 영웅이 사거리 안쪽 깊이 들어왔을 때 쓴다.
+    //  ⚠ 쿨을 태우지 않고 **그냥 이번 프레임만 미룬다**(return false) — 쿨을 돌리면
+    //    아끼는 게 아니라 버리는 것이 된다. 그래서 기다린 만큼 실제로 이득이 된다.
+    //  ⚠ 상한을 둔다: 아무리 아껴도 능력이 영영 안 나가면 그건 유닛을 죽인 것이다.
+    //    쿨의 1.6배를 기다렸으면 그냥 쓴다(교착 방지 — 이 폴더가 돌진 교착에서 배운 것).
+    if (state.tactics && GAME.Tactics && u.side === 'strategist') {
+      var hd = GAME.Tactics.orderFor(u, state).hold || 0;
+      if (hd > 0.25) {
+        u._holdMs = (u._holdMs || 0) + (state._lastDtMs || 16);
+        var patience = (u.def.abilityCooldown || 6000) * 1.6 * hd;
+        //  ⚠ `def.range` 를 직접 읽으면 안 된다(engine-audit 이 잡는다) — 안개 같은
+        //    전장 규칙이 사거리를 줄이는데 그걸 무시하면 "안개 속에서 스킬을 영영
+        //    안 쓰는" 유닛이 된다. 교전 판정은 언제나 effRange 를 통한다.
+        var wantD = (this.effRange(u, state) || 120) * (1 - hd * 0.45);
+        if (d > wantD && u._holdMs < patience) return false;
+      }
+      u._holdMs = 0;
+    }
     // ⚠ 돌진은 **닿을 수 있을 때만** 쓴다. maxRange 를 dist 보다 크게 잡았더니
     //   목표 앞에서 멈춰 아무도 못 치는 돌진이 됐다 — 실측: 400회 발동에 11회 명중(3%),
     //   무조작 영웅에게는 **0%**(초보가 더 안 맞는다는 건 기제가 안 도는 것이다).
@@ -3454,7 +3497,7 @@ GAME.Combat = {
       }
     }
 
-    if (engage && !tgt) tgt = this.nearestEnemy(u, state.units);
+    if (engage && !tgt) tgt = this.nearestEnemy(u, state.units, state);
 
     if (tgt) {
       var d = this.dist(u, tgt);
@@ -3658,6 +3701,10 @@ GAME.Combat = {
     if (state.over) return;
     var dt = dtMs / 1000;
     state.elapsed += dtMs;
+    state._lastDtMs = dtMs;      // 전술 hold 가 "얼마나 기다렸나"를 세는 데 쓴다
+    //  전술 플레이북(js/tactics.js) — **통곡의 탑에서만**(state.tactics) 돈다.
+    //  자기 주기(TICK_MS)로 스스로 걸러내므로 매 프레임 불러도 된다.
+    if (state.tactics && GAME.Tactics) GAME.Tactics.update(state, dt);
     //  ── 실시간 구슬 습득 (2026-08-31) — **시뮬이 줍는다**(양쪽 동일 판정).
     //  owner 팀 영웅만 반경 안에서 줍는다. 효과는 그 영웅에게 즉시·영구(이번 판).
     if (state.pvpRealtime && state.orbs && state.orbs.length) {

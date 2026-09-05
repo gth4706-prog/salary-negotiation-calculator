@@ -39,7 +39,9 @@ GAME.BossBank = (function () {
     "bossDrakeAsh": {"art":"beast:drake:ash","tileW":1438,"tileH":654,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.8023,"pivotY":612},
     "bossDrakeFrost": {"art":"beast:drake:frost","tileW":1412,"tileH":642,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.7326,"pivotY":628},
     "bossDrakeStorm": {"art":"beast:drake:storm","tileW":1411,"tileH":671,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.9012,"pivotY":658},
-    "bossNest": {"art":"ballista","tileW":1298,"tileH":734,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.2674},
+    //  ⚠ 둥지 포탑 — **일부러 끈다**(2026-09-05 태현님: "둥지에서 화살쏘는건 롤백해").
+    //     벡터 발리스타로 돌아간다. 시트 파일(assets/boss/bossNest.png)과 실측값은 남긴다.
+    "bossNest": {"off":true,"art":"ballista","tileW":1298,"tileH":734,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.2674},
     "bossShell": {"art":"guardian","tileW":1055,"tileH":874,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":5.0814,"pivotY":858},
 
     //  ── 시즌2 「다섯 세계」 세계 보스 (2026-09-03 S-A) ─────────────────────────
@@ -120,6 +122,9 @@ GAME.BossBank = (function () {
     },
     _resolve: function (key) {
       var m = DATA[key];
+      //  `off` — 시트는 있지만 **안 쓰기로 한 것**(태현님 롤백 지시). 지우지 않는 이유는
+      //  실측해 둔 tile·pivot·drawScale 값을 잃지 않기 위해서다. 되살리려면 이 줄만 지운다.
+      if (m && m.off) return null;
       if (m && m.pending) {
         var alt = this.STANDIN[key];
         if (alt && DATA[alt] && !DATA[alt].pending) return { key: alt, m: DATA[alt], standIn: key };
@@ -130,9 +135,20 @@ GAME.BossBank = (function () {
     metaOf: function (def) {
       if (!def) return null;
       if (def.key && DATA[def.key]) return this._resolve(def.key);
-      //  키가 없으면 art 문자열로 찾는다(파생 def 대비).
-      if (def.art) {
-        for (var k in DATA) if (DATA[k].art === def.art) return this._resolve(k);
+      //  ⚠⚠ **art 문자열로 찾지 않는다** (2026-09-05 태현님: "쇠뇌진지랑 둥지에서
+      //    화살쏘는건 롤백해 새로만든 이미지는 너무 안어울려").
+      //    `art` 는 **그리는 결**이지 신원이 아니다 — 보스와 일반 유닛이 같은 결을
+      //    나눠 쓴다. 실측하면 겹치는 짝이 둘이었다:
+      //        쇠뇌 진지(mgnest, art 'ballista') ↔ 둥지 포탑(bossNest)
+      //        족장(sergeant,  art 'chieftain') ↔ 거대 족장(bossChief)
+      //    그래서 v3.23 에서 이 되찾기를 `parse` 보다 앞으로 옮긴 순간, **일반 유닛
+      //    두 종류가 1298×734 짜리 보스 그림으로 그려지기 시작했다.** 태현님은 쇠뇌
+      //    진지만 짚었지만 족장도 같은 상태였다 — 값이 아니라 **찾는 방법**이 틀렸다.
+      //  → 파생 def(정예 `mgnest#6+charge` 같은 키)는 원본 키로 되돌려 찾는다.
+      //    `baseKeyOf` 가 그 되돌리기의 정본이다(이 저장소가 로딩 팁에서 이미 겪은 자리).
+      if (def.key && GAME.UnitLevel && GAME.UnitLevel.baseKeyOf) {
+        var base = GAME.UnitLevel.baseKeyOf(def.key);
+        if (base && DATA[base]) return this._resolve(base);
       }
       return null;
     },

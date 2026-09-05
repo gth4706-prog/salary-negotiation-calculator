@@ -233,7 +233,10 @@ GAME.Tower = {
   //  ⚠ `reliefOf` 와 **같은 자리**에 곱한다(hpMul·dmgMul·budgetMul 뒤). 그래야
   //    "재도전 완화"와 곱해져 자연스럽게 더 쉬워지고, 신선한 캐릭터 회귀에도 같은
   //    규칙으로 잡힌다. 값은 감사(tools/tower-feature-audit.js)가 돌파율로 지킨다.
-  EARLY_BOSS_EASE: { 10: 0.40 },
+  //  첫 보스 문턱 완화. **체력·공격에만** 곱한다(budgetMul 주석 참조 — 세 축에 다
+  //  곱했더니 -60% 요청이 -72% 가 되고 다음 층이 절벽이 됐다).
+  //  두 축에 e 를 곱하면 위협(ehp×dps)은 대략 e² 이므로, **-60% 를 원하면 √0.40 ≈ 0.63.**
+  EARLY_BOSS_EASE: { 10: 0.63 },
   easeOf: function (floor) {
     var f = (floor === undefined) ? this.get().floor : floor;
     var e = this.EARLY_BOSS_EASE[f];
@@ -257,6 +260,16 @@ GAME.Tower = {
   budgetMul: function (floor) {
     // 예산(적 숫자)은 두 축 중 **더 크게 자란 쪽**을 따라간다 — 어느 쪽으로
     // 몰아줘도 진형이 그만큼 두꺼워진다.
+    //  ⚠⚠ **문턱 완화(easeOf)는 여기에 안 붙인다** (2026-09-05 태현님 "11층 너무 어렵다").
+    //    처음엔 세 축(체력·공격·예산)에 다 곱했는데, 세 배수가 서로 곱해져 10층 위협이
+    //    **-72%** 로 내려갔다(요청은 -60%). 예산은 275→112 로 반토막 나 진형의 **모양**
+    //    자체가 달라졌고 — 그래서 10층이 맹탕이 된 만큼 11층이 **+274% 절벽**이 됐다.
+    //    실측(신선한 캐릭터, 시드 8): 7층 0.64 · 8층 0.99 · 9층 0.96 · **10층 0.27** ·
+    //    **11층 1.00** · 12층 0.45 · 13층 0.98. 11층 자체는 이웃과 똑같다 —
+    //    막힌 것은 11층이 세서가 아니라 **10층이 너무 물러서** 생긴 낙차였다.
+    //  → 문턱 완화는 **체력·공격만** 깎는다(hpMul·dmgMul). 머릿수와 구성은 그대로 두어
+    //    "같은 판인데 적이 약하다"가 되게 한다. 재도전 완화(reliefOf)는 성격이 달라서
+    //    예산에도 계속 붙는다 — 그건 "다섯 번 졌으니 벽을 얇게"라는 약속이다.
     var idx = Math.max(this.atkIndex(), this.ehpIndex());
     var m = Math.pow(idx, this.POWER_POW_BUDGET) * Math.sqrt(this.pressureOf());
     //  ⚠ 완화·문턱 완화가 **여기에도** 붙는다 (2026-09-05). 예전에는 체력·공격만
@@ -265,7 +278,7 @@ GAME.Tower = {
     //    "난이도가 쉬워진다"는 약속의 절반이 빠져 있었던 셈이다.
     //  ⚠ 예산은 계단 함수라 배수가 조금만 줄어도 유닛 한 기가 빠질 수 있다 —
     //    체감이 가장 큰 축이다(CLAUDE.md 수성의 탑 절의 '한 기 차이로 17%↔83%').
-    return Math.max(1, Math.min(this.BUDGET_MUL_CAP, m)) * this.reliefOf(floor) * this.easeOf(floor);
+    return Math.max(1, Math.min(this.BUDGET_MUL_CAP, m)) * this.reliefOf(floor);
   },
 
   //  층별 머릿수 상한 (2026-08-22 태현님 2차 교정: "9층에 15마리가 많다는 거지

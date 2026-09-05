@@ -467,12 +467,32 @@ GAME.TowerLoadingScene.prototype.create = function () {
     //  구성 = 층 정보(목표 포함 최대 2줄 — 보스 > 조건 > 테마 순) + 팁 1줄.
     //  팁은 층 번호로 [적 스킬 → 내 스킬 → 배치 → AI 학습]을 돌아가며 **한 종류만** —
     //  정보량은 유지하되 한 화면에는 한 종류만 온다. 못 만드는 종류면 다음으로 순환.
+    //  ── 문구 예산: **최대 3줄 · 약 90자** (2026-09-05 태현님: "과한 텍스트들 너무많지
+    //     않을까") ──────────────────────────────────────────────────────────────
+    //  실측(고친 전, 한 계정으로 오르며): 평균 82자인데 뒤로 갈수록 부풀어 70·90층 110~114자,
+    //  130층 121자, 200층 146자, **175층 190자·9줄**. 로딩 몇 초에 읽을 양이 아니다.
+    //  줄이는 방식은 셋 — ① 긴 문장은 **첫 마디만** ② 조건이 여럿이면 첫 설명 + (외 N)
+    //  ③ 줄 수를 3으로 못박는다. 정보를 지우는 게 아니라 **한 화면에 오는 양**을 줄인다.
+    //  ⚠ 조건은 이름만 남기지 않는다 — 설명 없는 조건은 "보고 피할 수 있다"는 이 게임의
+    //    약속을 깬다(tower.js 가 조건 둘을 다 적는 이유). 첫 설명은 반드시 남긴다.
+    var firstClause = function (s, max) {
+      if (!s) return '';
+      var t = String(s).split(' — ')[0].split('. ')[0].trim();
+      if (max && t.length > max) t = t.slice(0, max - 1) + '…';
+      return t;
+    };
     var infoCand = [];
-    if (bossDef) infoCand.push('☠ ' + bossDef.name + ' — ' + bossDef.desc);
+    if (bossDef) infoCand.push('☠ ' + bossDef.name + ' — ' + firstClause(bossDef.desc, 34));
     //  전장 규칙(시즌2) — 보스 다음, 조건 앞. 이 층에 실제로 걸리는 def 를 읽은 한 줄이다.
     if (formation && formation.fieldLabel) infoCand.push((formation.worldIcon || '🌍') + ' ' + formation.fieldLabel);
-    if (formation && formation.ruleLabel) infoCand.push('⚠ ' + formation.ruleLabel + ' — ' + formation.ruleDesc);
-    if (formation && formation.themeLabel) infoCand.push('🎪 ' + formation.themeLabel + ' — ' + (formation.themeHint || ''));
+    if (formation && formation.ruleLabel) {
+      //  조건이 둘·셋이면 `ruleDesc` 가 ' / ' 로 이어 붙어 혼자 100자를 먹는다(175층 실측).
+      //  첫 설명만 쓰고 나머지는 개수로 알린다 — 이름은 라벨 줄에 이미 다 있다.
+      var ds = String(formation.ruleDesc || '').split(' / ');
+      infoCand.push('⚠ ' + formation.ruleLabel + ' — ' + firstClause(ds[0], 36) +
+                    (ds.length > 1 ? ' (외 ' + (ds.length - 1) + ')' : ''));
+    }
+    if (formation && formation.themeLabel) infoCand.push('🎪 ' + formation.themeLabel + ' — ' + firstClause(formation.themeHint, 30));
     for (var ic = 0; ic < infoCand.length && lines.length < 2; ic++) lines.push(infoCand[ic]);
 
     var base2 = function (t) {
@@ -522,12 +542,17 @@ GAME.TowerLoadingScene.prototype.create = function () {
     //    매 층 나와야 한다. 대신 한 줄만 쓴다(태현님: "1~2줄이면 충분해").
     var AF = GAME.AutoFormation;
     var doc = (formation && AF && AF.DOCTRINES) ? AF.DOCTRINES[formation.doctrine] : null;
-    if (doc && doc.label && doc.why) lines.push('🛡 ' + doc.label + ' 진형 — ' + doc.why);
+    //  교리 `why` 도 첫 마디만 — 신설 교리 여섯은 "…한다 — …해야 한다" 두 마디라 길다.
+    if (doc && doc.label && doc.why) lines.push('🛡 ' + doc.label + ' 진형 — ' + firstClause(doc.why, 34));
 
-    var ROT = ['enemy', 'mine', 'plan', 'learn'];
-    for (var rIdx = 0; rIdx < ROT.length; rIdx++) {
-      var tip = tipOf[ROT[((this.tower || 0) + rIdx) % ROT.length]]();
-      if (tip) { lines.push(tip); break; }
+    //  ⚠ 팁은 **자리가 남을 때만.** 3줄이 예산이고, 정보 두 줄 + 진형이면 이미 찼다.
+    //    팁은 네 종류가 층마다 돌아가므로 한 층 걸러 나와도 정보가 사라지지 않는다.
+    if (lines.length < 3) {
+      var ROT = ['enemy', 'mine', 'plan', 'learn'];
+      for (var rIdx = 0; rIdx < ROT.length; rIdx++) {
+        var tip = tipOf[ROT[((this.tower || 0) + rIdx) % ROT.length]]();
+        if (tip) { lines.push(firstClause(tip, 40)); break; }
+      }
     }
   }
   lines = lines.filter(function (s) { return s; });

@@ -113,6 +113,18 @@ GAME.BattleScene.prototype.init = function (data) {
   //    (v3.0 실측: 연습 대전 → 탑 1층 진입에서 `reading 'cut'`).
   this.hintText = null;
   this.potionText = null;
+  //  ⚠⚠ **탄막 보너스 판이 다음 판까지 따라오던 버그** (2026-09-05 태현님 재신고 —
+  //    "화살비가 다음판에 남아있는 버그 아직도있어"). 앞선 고침(v3.22)은 *그 판 안에서*
+  //    이긴 뒤에도 쏘던 것만 막았고, **판이 끝난 뒤 씬을 다시 쓸 때**를 안 봤다.
+  //    `_dodge` 는 씬 인스턴스에 얹힌 객체라 다음 판에 그대로 살아남고, `update` 의
+  //    `if (this._dodge) this._dodgeUpdate(dt)` 가 다시 돈다. 새 판은 `elapsed` 가 0 ·
+  //    `_endHold` 가 -1 이라 정지 조건이 **전부 풀려** 포탑이 다시 쏘기 시작한다.
+  //    게다가 `_dodgeG` 는 파괴된 Graphics 라 포탑은 안 그려진다 —
+  //    **보이지 않는 포탑이 진짜 화살을 쏘는** 상태였다(화살은 일반 투사체 렌더가 그린다).
+  //  ⚠ 이 저장소가 콤보·줌·말풍선에서 이미 세 번 겪은 「상태를 씬에 두면 init 에서
+  //    되돌린다」의 네 번째 판이다. 값이 아니라 **자리**가 문제였다.
+  this._dodge = null;
+  this._dodgeG = null;
   this._bubbles = [];           //  떠 있는 말풍선 — 지난 판 것이 파괴된 채 남으면 setPos 에서 터진다
   this._hapKillAt = -1e9;       //  처치 진동 간격(난전에서 연속으로 울리지 않게)
 };
@@ -374,6 +386,37 @@ GAME.BattleScene.prototype.create = function () {
     if (hst) {
       if (hst.speedMul) this.hero.speed = Math.round(this.hero.speed * hst.speedMul);
       if (hst.cdrMul) this.hero.cdrMul = (this.hero.cdrMul || 1) * hst.cdrMul;
+    }
+    //  ── 특성 능력치 (2026-09-05 재설계) ──────────────────────────────────────
+    //  "아주 간단하게 공격력 5%증가 이런식으로" — 앞 두 줄이 단순 능력치다.
+    //  ⚠⚠ **비율로, 아이템·능력치 다음에** 얹는다. 순서를 바꿔 기본값에만 곱하면
+    //    장비를 갖출수록 특성이 상대적으로 초라해져 "개성 없다"가 그대로 재발한다.
+    //  ⚠⚠ 이 보너스는 `Tower.atkIndex`/`ehpIndex` 에 **안 들어간다**(js/traits.js
+    //    머리 주석). 넣으면 공격력 +20% 를 찍는 순간 적 체력도 +20% 가 되어
+    //    특성이 아무 느낌이 없다 — 이 재설계가 막으려는 바로 그 상태다.
+    var tb = GAME.Traits && GAME.Traits.statBonus ? GAME.Traits.statBonus(tc) : null;
+    if (tb) {
+      if (tb.damagePct) d.damage = Math.round(d.damage * (1 + tb.damagePct / 100));
+      if (tb.armorPct)  d.armor  = Math.round(d.armor  * (1 + tb.armorPct / 100));
+      if (tb.speedPct)  d.speed  = Math.round(d.speed  * (1 + tb.speedPct / 100));
+      if (tb.lifesteal) d.lifesteal = (d.lifesteal || 0) + tb.lifesteal / 100;
+      //  공격속도는 평타 간격만 줄인다(위 아이템 블록과 같은 하한 250ms).
+      if (tb.atkspeedPct) d.cooldown = Math.max(250, Math.round(d.cooldown / (1 + tb.atkspeedPct / 100)));
+      if (tb.cdrPct) this.hero.cdrMul = (this.hero.cdrMul || 1) * (1 - tb.cdrPct / 100);
+      if (tb.crit && GAME.TowerChar.critOf) {
+        //  치명타는 **합산 뒤 한 번만** 환산한다 — 두 번 환산하면 50% 상한이
+        //  두 번 걸려 초과분이 두 번 피해로 바뀐다(critOf 의 계약).
+        var critAll = (bonus.crit || 0) + (ib.crit || 0) + tb.crit;
+        var ce2 = GAME.TowerChar.critOf(critAll);
+        this.hero.critChance = ce2.chance / 100;
+        this.hero.critMul = ce2.mul;
+      }
+      if (tb.hpPct) {
+        d.hp = Math.round(d.hp * (1 + tb.hpPct / 100));
+        this.hero.maxHp = d.hp;
+        this.hero.hp = d.hp;
+      }
+      this.state.traitStats = tb;                    // 감사용 — 실제로 얹혔나
     }
     //  준비된 자(prep, 2026-09-04 특성) — 판이 시작될 때 모든 스킬이 바로 쓸 수 있다.
     //  ⚠ 기본값은 "스킬마다 초기 쿨을 안고 시작"이라, 이 특성은 **판의 첫 10초를

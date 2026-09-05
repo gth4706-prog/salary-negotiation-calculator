@@ -133,7 +133,9 @@ GAME.TowerShopScene.prototype.init = function (data) {
   //   그대로 선택돼 있고, 확정 막대가 "구매" 상태로 대기한다(오조작의 씨앗).
   this.itemPick = null;       // { slot, key } — 아이템 탭에서 지금 고른 것
   this.itemSlot = null;
-  this.skillSlot = null;
+  //  진입 인자로 슬롯을 지정할 수 있다(기본은 첫 슬롯). 감사가 **문구가 가장 긴 R 슬롯**을
+  //  직접 열어 재려면 이 통로가 필요하다 — 씬 밖에서 필드를 미리 세워 봐야 init 이 지운다.
+  this.skillSlot = (data && data.skillSlot) || null;
   this.arenaFormationId = (data && data.formationId) || null;
   this.arenaTest = !!(data && data.test);
 };
@@ -326,8 +328,18 @@ GAME.TowerShopScene.prototype._buildBody = function (bump) {
 //  ⚠ **왜 잠겼는지**를 화면이 말해야 한다. `reasonFor` 가 문장을 만들어 주므로 화면은
 //    그것을 그대로 띄운다 — 잠긴 이유를 모르는 것이 이 계열 UI 의 최대 불만이다.
 GAME.TowerShopScene.prototype._buildTraitTab = function () {
+  //  ── 격자 특성판 (2026-09-05 재설계 2차) ────────────────────────────────────
+  //  태현님: "너무 개성없고 설명만 길다 … 저번보내준 이미지 느낌으로"
+  //  참고 이미지(WoW/구 롤 특성판)에서 **실제로 옮긴 것**은 다섯 가지다:
+  //    ① 세 갈래를 **색이 다른 판**으로 나누고 머리에 아이콘 + 쓴 점수
+  //    ② 칸은 문장이 아니라 **아이콘 타일**, 오른쪽 아래에 **n/max**
+  //    ③ 안 찍은 칸은 **흑백**, 찍은 칸은 **색 + 금테**
+  //    ④ 위 칸 → 아래 칸을 **화살표로 잇는다**(req 가 있는 칸만)
+  //    ⑤ 격자에는 설명이 **없다** — 고른 칸의 설명만 아래 띠에 한 줄
+  //  ⚠ 이전 판이 실패한 이유가 정확히 ⑤ 였다. 칸마다 두 줄씩 적어 두니 판이
+  //    "읽어야 하는 표"가 됐다. 특성판은 **보고 고르는** 물건이다.
   var C = GAME.CONFIG.COLORS;
-  var UC = GAME.UI.COL, UX = GAME.UI.FX;
+  var UC = GAME.UI.COL;
   var self = this;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT;
   var top = this._bodyTop;
@@ -339,183 +351,226 @@ GAME.TowerShopScene.prototype._buildTraitTab = function () {
   var rec = this.char;
   var pts = (GAME.Season && GAME.Season.worldPoints) ? GAME.Season.worldPoints() : 0;
 
+  //  나무 색 — **기존 토큰에서만** 고른다(새 색을 만들지 않는다).
+  //  참고 이미지의 빨강·파랑·초록과 역할이 같다.
+  var TCOL = { attack: C.hpBad, defense: 0x8fa0bb, utility: C.hpGood };
+  //  숫자 색 → '#rrggbb'. Text 는 문자열만 받는다(GAME.UI.hex 같은 헬퍼는 없다).
   function hexStr(n) { return '#' + ('000000' + ((n >>> 0)).toString(16)).slice(-6); }
-  //  나무 색은 **기존 토큰에서만** 고른다(새 색을 만들지 않는다).
-  var TCOL = {
-    attack:  C.hpBad,
-    defense: (UX && UX.block) || 0x8fa0bb,
-    utility: C.hpGood
-  };
 
+  //  ── 머리 한 줄 ─────────────────────────────────────────────────────────────
   var head = GAME.UI.label(this, PAD, top,
-    '세계 포인트 ' + pts + '  ·  한 단 1점  ·  아래 줄은 그 나무에 4점 · 8점을 써야 열린다',
-    SMALL ? 10 : 13, C.accent, 0).setWordWrapWidth(W - PAD * 2);
+    '✦ 세계 포인트 ' + pts + '   ·   한 칸 1점',
+    SMALL ? 11 : 14, C.accent, 0);
   this._body.push(head);
-  var gridTop = head.y + head.height + (SMALL ? 5 : 9);
-  var bottom = H - (SMALL ? 10 : 18) - this._bottomPad;
 
+  //  ── 아래 설명 띠 — 고른 칸 하나만 말한다 ────────────────────────────────────
+  //  격자에서 글을 뺀 만큼, **어디엔가 한 줄은** 있어야 무엇인지 알 수 있다.
+  var bottom = H - (SMALL ? 10 : 18) - this._bottomPad;
+  var tipFs = PH ? 11 : (SMALL ? 12 : 15);
+  //  ⚠ 두 줄 높이를 **글자에서 역산**한다. 비율(0.16/0.56)로 잡았더니 두 줄이 6px
+  //    겹쳤다(겹침 감사). 줄 높이는 글꼴이 정하지 띠 높이가 정하지 않는다.
+  var tipLine = Math.round(tipFs * 1.45);
+  var tipPad = 6;
+  var tipH = tipLine * 2 + tipPad * 2;
+  var tipY = bottom - tipH;
+  var tipG = this.add.graphics();
+  tipG.fillStyle(UC.surfaceAlt, 0.55); tipG.fillRoundedRect(PAD, tipY, W - PAD * 2, tipH, 6);
+  tipG.lineStyle(1, UC.borderUi, 0.5); tipG.strokeRoundedRect(PAD, tipY, W - PAD * 2, tipH, 6);
+  this._body.push(tipG);
+  var tipName = GAME.UI.label(this, PAD + 10, tipY + tipPad, '', tipFs, C.text, 0);
+  var tipDesc = GAME.UI.label(this, PAD + 10, tipY + tipPad + tipLine, '', tipFs - 1, C.textDim, 0);
+  tipName.__box = { x: PAD, y: tipY, w: W - PAD * 2, h: tipH };
+  tipDesc.__box = tipName.__box;
+  tipName.setWordWrapWidth(W - PAD * 2 - 20);
+  tipDesc.setWordWrapWidth(W - PAD * 2 - 20);
+  this._body.push(tipName); this._body.push(tipDesc);
+
+  //  ── 판 셋 ──────────────────────────────────────────────────────────────────
+  var gridTop = head.y + head.height + (SMALL ? 6 : 10);
+  var gridH = tipY - gridTop - (SMALL ? 6 : 10);
   var gapCol = PH ? 5 : (SMALL ? 7 : 12);
   var panelW = Math.floor((W - PAD * 2 - gapCol * 2) / 3);
-
-  var titleH = PH ? 17 : (SMALL ? 21 : 25);
-  var padIn  = PH ? 5 : (SMALL ? 7 : 10);
-  var cellGapX = PH ? 4 : (SMALL ? 5 : 8);
-  var cellGapY = PH ? 6 : (SMALL ? 8 : 12);
+  var titleH = PH ? 18 : (SMALL ? 22 : 26);
+  var padIn = PH ? 5 : (SMALL ? 6 : 9);
   var rowsN = T.ROW_GATE.length;
-  //  ── 세로 스크롤 (2026-09-05 태현님 ②) ─────────────────────────────────────
-  //  "특성부분은 아이템처럼 세로 스크롤을 내리게하더라도 글자 가독성좀 개선하고"
-  //  ⚠ 예전에는 칸 높이를 **화면 높이에서 역산**했다. 그러면 세 줄이 언제나 화면에
-  //    욱여넣어져 글자가 9~11px 로 쪼그라들고 설명이 잘렸다(태현님 캡처).
-  //    이제는 **글자 크기에서 칸 높이를 정하고**, 넘치면 스크롤한다 — 아이템 탭과
-  //    같은 문법이다. 화면이 좁을수록 스크롤이 길어질 뿐 글자는 안 줄어든다.
-  var nameFs = PH ? 12 : (SMALL ? 13 : 16);
-  var descFs = PH ? 11 : (SMALL ? 12 : 14);
-  //  칸 = 이름 한 줄 + 설명 최대 두 줄 + 잠김/구매 한 줄 + 여백. 이게 **하한**이다.
-  var lineH = Math.round(descFs * 1.45);
-  var cellMin = Math.round(nameFs * 1.5) + lineH * 3 + padIn * 2;
-  var viewH = Math.max(60, bottom - gridTop);
-  //  ⚠ 자리가 남으면 칸을 **키워서 채운다**(PC). 하한만 두면 큰 화면에서 아래 절반이
-  //    통째로 비어 화면이 미완성으로 보인다(첫 판 스크린샷). 상한은 하한의 1.6배 —
-  //    그 이상 늘리면 글자는 그대로인데 빈 칸만 커져 오히려 읽기 나빠진다.
-  var fit = Math.floor((viewH - titleH - padIn * 2 - cellGapY * (rowsN - 1)) / rowsN);
-  var cellH = Math.max(cellMin, Math.min(fit, Math.round(cellMin * 1.6)));
-  var panelH = titleH + padIn * 2 + cellH * rowsN + cellGapY * (rowsN - 1);
-  var sc = this._scroller(PAD, gridTop, W - PAD * 2, viewH, '_traitScrollY');
+
+  //  칸 크기는 **가로 3칸이 판에 들어가는 값**에서 역산한다(격자는 정사각이 기본).
+  var cellGap = PH ? 4 : (SMALL ? 5 : 7);
+  var cellW = Math.floor((panelW - padIn * 2 - cellGap * 2) / 3);
+  var rowGap = PH ? 12 : (SMALL ? 14 : 20);      // 화살표가 지나갈 세로 틈
+  //  세로로 넘치면 칸을 줄인다 — 스크롤 없이 **한 화면에 다 보이는 것**이 이 판의 값이다.
+  var maxCellH = Math.floor((gridH - titleH - padIn * 2 - rowGap * (rowsN - 1)) / rowsN);
+  var cell = Math.max(24, Math.min(cellW, maxCellH));
+  //  ⚠ 칸은 **가로 3칸**에 묶여 있어(정사각) 세로가 남는다 — PC 에서 아래 절반이
+  //    통째로 비었다(실측 스크린샷). 남는 만큼 **줄 틈**에 먼저 나눠 주고(화살표가
+  //    길어져 참고 이미지처럼 읽힌다), 그래도 남으면 판 전체를 세로 가운데로 내린다.
+  var panelH = titleH + padIn * 2 + cell * rowsN + rowGap * (rowsN - 1);
+  var slack = gridH - panelH;
+  if (slack > 0 && rowsN > 1) {
+    var addGap = Math.min(Math.floor(slack / (rowsN - 1)), cell);   // 틈이 칸보다 커지면 흩어져 보인다
+    rowGap += addGap;
+    panelH += addGap * (rowsN - 1);
+    slack = gridH - panelH;
+  }
+  if (slack > 0) gridTop += Math.floor(slack / 2);
 
   T.TREES.forEach(function (tree, ti) {
     var px = PAD + ti * (panelW + gapCol);
-    var col = TCOL[tree.key] || UC.border;
+    var col = TCOL[tree.key] || UC.borderUi;
     var spent = T.spentIn(tree.key, rec);
 
-    var pg = sc.add(self.add.graphics());
-    pg.fillStyle(UC.surfaceAlt, 1);
-    pg.fillRoundedRect(px, gridTop, panelW, panelH, 8);
-    pg.lineStyle(2, col, 0.85);
-    pg.strokeRoundedRect(px, gridTop, panelW, panelH, 8);
+    //  판 — 색 테두리로 갈래를 가른다(참고 이미지의 세 색 패널).
+    var g = self.add.graphics();
+    g.fillStyle(UC.surfaceAlt, 0.45); g.fillRoundedRect(px, gridTop, panelW, panelH, 8);
+    g.lineStyle(2, col, 0.85); g.strokeRoundedRect(px, gridTop, panelW, panelH, 8);
+    g.fillStyle(col, 0.14); g.fillRoundedRect(px + 1, gridTop + 1, panelW - 2, titleH, 7);
+    self._body.push(g);
 
-    sc.add(GAME.UI.label(self, px + panelW / 2, gridTop + padIn,
-      tree.name + '  ' + spent, nameFs + 1, hexStr(col), 0.5).setOrigin(0.5, 0));
+    //  머리 — 아이콘 + 이름 + 쓴 점수(참고 이미지의 문장 + 숫자).
+    var th = GAME.UI.label(self, px + panelW / 2, gridTop + titleH / 2,
+      tree.icon + ' ' + tree.name + '  ' + spent,
+      PH ? 11 : (SMALL ? 12 : 15), hexStr(col), 0.5)
+      .setOrigin(0.5, 0.5);
+    th.__box = { x: px, y: gridTop, w: panelW, h: titleH };
+    self._body.push(th);
 
-    //  줄별로 칸을 배치하고 **자리를 기억**한다(연결선이 그 자리를 쓴다).
-    var pos = {};
-    var rows = [];
-    for (var r = 0; r < rowsN; r++) rows.push([]);
-    tree.talents.forEach(function (t) { if (rows[t.row]) rows[t.row].push(t); });
+    var rowY = function (r) { return gridTop + titleH + padIn + r * (cell + rowGap); };
+    var colX = function (c) { return px + padIn + c * (cell + cellGap); };
 
-    rows.forEach(function (list, r) {
-      if (!list.length) return;
-      var cy = gridTop + titleH + padIn + r * (cellH + cellGapY);
-      var n = list.length;
-      var cw = Math.floor((panelW - padIn * 2 - cellGapX * (n - 1)) / n);
-      list.forEach(function (t, ci) {
-        var cx = px + padIn + ci * (cw + cellGapX);
-        pos[t.key] = { x: cx, y: cy, w: cw, h: cellH };
-      });
-    });
-
-    //  ① 연결선을 **먼저** 그린다 — 칸 뒤에 깔려야 선이 칸을 가리지 않는다.
-    var lg = sc.add(self.add.graphics());
+    //  ── ④ 연결 화살표 — req 가 있는 칸을 위 칸과 잇는다 ──────────────────────
+    //  ⚠ 칸보다 **먼저** 그린다(뒤에 그리면 타일 위를 지나간다).
+    var link = self.add.graphics();
     tree.talents.forEach(function (t) {
-      if (!t.req || !pos[t.req] || !pos[t.key]) return;
-      var from = pos[t.req], to = pos[t.key];
-      var on = T.rankOf(t.req, rec) > 0;
-      lg.lineStyle(PH ? 2 : 3, col, on ? 0.9 : 0.22);
-      lg.lineBetween(from.x + from.w / 2, from.y + from.h, to.x + to.w / 2, to.y);
+      if (!t.req) return;
+      var up = T.talent(t.req);
+      if (!up || up.row >= t.row) return;
+      var x0 = colX(up.col) + cell / 2, y0 = rowY(up.row) + cell;
+      var x1 = colX(t.col) + cell / 2,  y1 = rowY(t.row);
+      var lit = T.rankOf(t.req, rec) >= 1;
+      link.lineStyle(lit ? 3 : 2, lit ? 0xd9a744 : UC.borderUi, lit ? 0.95 : 0.35);
+      if (x0 === x1) { link.lineBetween(x0, y0, x1, y1); }
+      else {                                  // 열이 다르면 ㄱ 자로 꺾는다
+        var my = (y0 + y1) / 2;
+        link.lineBetween(x0, y0, x0, my);
+        link.lineBetween(x0, my, x1, my);
+        link.lineBetween(x1, my, x1, y1);
+      }
+      //  화살촉 — 아래를 가리킨다.
+      link.fillStyle(lit ? 0xd9a744 : UC.borderUi, lit ? 0.95 : 0.35);
+      link.fillTriangle(x1 - 4, y1 - 5, x1 + 4, y1 - 5, x1, y1);
     });
+    self._body.push(link);
 
-    //  ② 칸
     tree.talents.forEach(function (t) {
-      var b = pos[t.key];
-      if (!b) return;
+      var bx = colX(t.col), by = rowY(t.row);
       var rank = T.rankOf(t.key, rec);
-      var why = T.reasonFor(t.key, rec);      // null 이면 살 수 있다
-      var maxed = rank >= t.max;
+      var why = T.reasonFor(t.key, rec);
       var open = why === null;
+      var maxed = rank >= t.max;
+      var taken = rank > 0;
 
-      var g = sc.add(self.add.graphics());
-      //  상태를 **채움과 테두리 두 축**으로 나눈다: 채움 = 얼마나 찍었나,
-      //  테두리 = 지금 살 수 있나. 하나로 합치면 "찍었는데 잠김"이 안 읽힌다.
-      g.fillStyle(rank > 0 ? col : UC.surface, rank > 0 ? (maxed ? 0.42 : 0.26) : 1);
-      g.fillRoundedRect(b.x, b.y, b.w, b.h, 7);
-      g.lineStyle((open || rank > 0) ? 2 : 1, open ? C.accent : (rank > 0 ? col : UC.border), 1);
-      g.strokeRoundedRect(b.x, b.y, b.w, b.h, 7);
+      //  ── ③ 타일 ────────────────────────────────────────────────────────────
+      //  안 찍음 = 눌린 회색 · 찍음 = 색 + 금테 · 못 찍음 = 더 어둡게.
+      var tg = self.add.graphics();
+      var fillA = taken ? 0.34 : (open ? 0.20 : 0.10);
+      tg.fillStyle(taken ? col : UC.surfaceAlt, taken ? fillA : 0.55);
+      tg.fillRoundedRect(bx, by, cell, cell, 5);
+      if (maxed)      tg.lineStyle(3, 0xd9a744, 1);
+      else if (taken) tg.lineStyle(2, 0xd9a744, 0.85);
+      else if (open)  tg.lineStyle(2, col, 0.65);
+      else            tg.lineStyle(1, UC.borderUi, 0.40);
+      tg.strokeRoundedRect(bx, by, cell, cell, 5);
+      self._body.push(tg);
 
-      //  ⚠⚠ 줄을 **실측 높이로 쌓는다.** 처음엔 글꼴 크기로 간격을 잡고 잠김 사유를
-      //    칸 바닥에 고정했는데, 설명이 두 줄로 접히는 칸에서 셋이 서로 겹쳤다
-      //    (overlap-audit 이 5건 잡았다). 접힘은 폭·글자 수에 따라 달라지므로
-      //    **앞 줄의 height 를 읽어** 다음 줄을 놓는 것 말고 안전한 방법이 없다.
-      var iw = b.w - padIn * 2;
-      var gapY = PH ? 2 : 4;
-      var ty = b.y + (PH ? 3 : 5);
-      //  칸 표시 — 아이템 카드·스킬 줄과 같은 이유(2026-09-04 ⑨).
-      //  ⚠ 칸이 자리가 남아 커지면 글이 위에 몰려 "빈 상자"로 보인다 — 다 만든 뒤
-      //    **세로 가운데로 통째로 내린다**(2026-09-05). 줄 높이는 접힘에 따라 달라져
-      //    미리 못 구하므로, 만들고 재서 옮기는 것 말고 안전한 길이 없다.
-      var cellLbls = [];
-      var tIn = function (lbl) {
-        lbl.__box = { x: b.x, y: b.y, w: b.w, h: b.h };
-        cellLbls.push(lbl);
-        return lbl;
-      };
-      var nameL = tIn(GAME.UI.label(self, b.x + padIn, ty,
-        t.name + '  ' + rank + '/' + t.max, nameFs,
-        rank > 0 ? hexStr(col) : C.text, 0).setWordWrapWidth(iw));
-      sc.add(nameL);
-      ty += nameL.height + gapY;
+      //  ── 아이콘 ────────────────────────────────────────────────────────────
+      //  ⚠ **잠겨도 진짜 아이콘을 보여준다.** 처음엔 잠긴 칸을 전부 🔒 로 갈음했는데,
+      //    그러면 한 줄이 통째로 똑같은 자물쇠 셋이 되어 "무엇을 향해 가는 길인지"가
+      //    사라진다 — 태현님이 말한 **개성 없음이 그림에서 재발**하는 자리다(실측
+      //    스크린샷에서 방어 나무 둘째 줄이 자물쇠 세 개였다). 참고 이미지도 안 찍은
+      //    칸을 흑백으로 **보여준다**. 이모지는 채도를 못 빼니 투명도로 눌러 대신한다.
+      //  ⚠ 아이콘과 n/max 는 **같은 칸을 나눠 쓴다.** 아이콘을 칸 한가운데(0.42) 에
+      //    두면 폰처럼 칸이 작을 때 글상자가 아래 숫자를 3px 파고든다(겹침 감사 21건).
+      //    숫자 줄 높이를 먼저 잡고, **그 위 공간의 한가운데**에 아이콘을 놓는다.
+      var cntFs0 = Math.max(9, Math.round(cell * 0.24));
+      var cntH = Math.round(cntFs0 * 1.5);
+      var icoFs = Math.min(Math.round(cell * (PH ? 0.42 : 0.44)), Math.max(10, cell - cntH - 4));
+      var ico = GAME.UI.label(self, bx + cell / 2, by + (cell - cntH) / 2,
+        t.icon, icoFs, C.text, 0.5).setOrigin(0.5, 0.5);
+      ico.setAlpha(taken ? 1 : (open ? 0.80 : 0.30));
+      ico.__box = { x: bx, y: by, w: cell, h: cell };
+      self._body.push(ico);
+      //  ⚠ **자물쇠 배지는 안 단다.** 칸 모서리에 얹어 봤더니 이모지 글상자가 넓어
+      //    큰 아이콘과 겹쳤다(겹침 감사 11건). 그리고 참고 이미지도 안 찍은 칸에
+      //    자물쇠를 안 붙인다 — **흐리게 + 테두리**가 곧 잠김이고, 줄 게이트 칩과
+      //    회색 연결선이 "왜" 를 말한다. 칸을 누르면 아래 띠가 정확한 사유를 준다.
 
-      //  지금 단계의 설명(안 찍었으면 1단 설명) — "다음에 무엇이 되는가"를 보여준다.
-      var line = t.desc[Math.min(rank, t.max - 1)] || '';
-      var descL = tIn(GAME.UI.label(self, b.x + padIn, ty, line,
-        descFs, C.textDim, 0).setWordWrapWidth(iw));
-      //  ⚠ 설명이 세 줄로 접히면 칸을 넘친다 — 폰(칸 125×75)에서 「한 번에 최대체력
-      //    40% 넘게 안 맞는다」가 14px 삐져나갔다(2026-09-04, 새 칸 넘침 검사가 잡았다).
-      //    **숨기지 않고 줄인다** — 이 화면의 규율이다(아이템 효과 문구에서 이미 정한 것).
-      //    이름 줄 아래 남은 높이에 들어갈 때까지 뒤에서 한 글자씩 덜고 …을 붙인다.
-      var room = (b.y + b.h - 2) - ty;
-      if (descL.height > room && line) {
-        var cut = line;
-        while (cut.length > 4 && descL.height > room) {
-          cut = cut.slice(0, cut.length - 2);
-          descL.setText(cut + '…');
+      //  ── ② n/max — 오른쪽 아래 작은 칸 ──────────────────────────────────────
+      var cntFs = cntFs0;
+      var cnt = GAME.UI.label(self, bx + cell - 3, by + cell - 2,
+        rank + '/' + t.max, cntFs,
+        maxed ? '#ffd97a' : (taken ? '#ffffff' : C.textDim), 1).setOrigin(1, 1);
+      cnt.__box = { x: bx, y: by, w: cell, h: cell };
+      self._body.push(cnt);
+
+      //  ── ⑤ 눌러서 고르기 ────────────────────────────────────────────────────
+      //  한 번 누르면 **아래 띠에 설명**, 이미 고른 칸을 다시 누르면 **산다**.
+      //  두 단계로 나눈 이유: 격자에 설명이 없으니 "모르고 사는" 일이 생긴다.
+      //  ⚠ 스크롤 컨테이너가 아니라 씬에 직접 그리므로 zone 을 써도 안전하다
+      //    (이 판은 한 화면에 다 들어간다 — 위 `cell` 역산 참조).
+      var z = self.add.zone(bx, by, cell, cell).setOrigin(0, 0).setInteractive();
+      z.on('pointerdown', function () {
+        if (self._traitSel === t.key && open) {
+          if (T.buy(t.key, rec) > 0) {
+            if (GAME.Sound) { try { GAME.Sound.play('coin'); } catch (e) {} }
+            self.char = GAME.TowerChar.get();
+            self._buildBody(true);
+            return;
+          }
         }
-      }
-      sc.add(descL);
-      ty += descL.height + gapY;
-
-      //  ⚠ 잠긴 이유·구매 안내는 **설명 다음 줄**에 놓고, 칸 밖으로 나가면 아예 안 그린다.
-      //    (칸 높이는 프로필마다 달라서 항상 들어간다고 가정할 수 없다.)
-      if (why && !maxed) {
-        if (ty + descFs <= b.y + b.h - 2) {
-          sc.add(tIn(GAME.UI.label(self, b.x + padIn, ty,
-            '🔒 ' + why, descFs, C.textDim, 0).setWordWrapWidth(iw)));
-        }
-      } else if (open) {
-        if (ty + descFs <= b.y + b.h - 2) {
-          sc.add(tIn(GAME.UI.label(self, b.x + b.w - padIn, ty,
-            '+1점', descFs, C.accent, 1).setOrigin(1, 0)));
-        }
-      }
-      //  세로 가운데 정렬 — `ty` 는 마지막 줄의 **아래**를 가리킨다(마지막 push 뒤
-      //  더해지지 않은 gapY 만큼만 빼면 글 뭉치의 실제 높이다).
-      var blockH = (ty - gapY) - (b.y + (PH ? 3 : 5));
-      var shift = Math.max(0, Math.round((b.h - blockH) / 2) - (PH ? 3 : 5));
-      if (shift > 1) cellLbls.forEach(function (l) { l.y += shift; });
-
-      //  살 수 있는 칸만 누를 수 있다. 못 사는 칸은 이유가 이미 안에 적혀 있다.
-      //  ⚠ **투명 사각형을 만들지 않는다** — 스크롤 컨테이너 안에 상호작용 객체를 두면
-      //    스크롤로 밀려난 칸이 눈에서만 사라지고 히트 영역은 그 자리(탭 버튼 줄)에
-      //    남는다(이 파일 `_scroller` 주석이 실측으로 남긴 사고). 좌표로만 등록한다.
-      if (!open) return;
-      sc.tap({ x: b.x, y: b.y, w: b.w, h: b.h }, function () {
-        if (T.buy(t.key, rec) > 0) {
-          if (GAME.Sound) { try { GAME.Sound.play('coin'); } catch (e) {} }
-          self.char = GAME.TowerChar.get();
-          self._buildBody(true);
-        }
+        self._traitSel = t.key;
+        var nextR = Math.min(rank + 1, t.max);
+        tipName.setText(t.icon + ' ' + t.name + '  ' + rank + '/' + t.max +
+                        (open ? '   — 한 번 더 누르면 1점 사용' : (why ? '   — 🔒 ' + why : '')));
+        tipDesc.setText(T.descAt(t, maxed ? rank : nextR));
       });
+      self._body.push(z);
+
+      //  다시 그려도 고른 칸이 유지되게(구매 뒤 _buildBody 가 전부 새로 만든다).
+      if (self._traitSel === t.key) {
+        tipName.setText(t.icon + ' ' + t.name + '  ' + rank + '/' + t.max +
+                        (open ? '   — 한 번 더 누르면 1점 사용' : (why ? '   — 🔒 ' + why : '')));
+        tipDesc.setText(T.descAt(t, maxed ? rank : Math.min(rank + 1, t.max)));
+      }
     });
+
+    //  줄 게이트 안내 — 잠긴 줄의 **왼쪽 여백**에 아주 작게. 참고 이미지에도
+    //  각 줄이 왜 잠겼는지는 판 밖에 적혀 있다.
+    for (var r = 1; r < rowsN; r++) {
+      var need = T.rowGate(r);
+      if (spent >= need) continue;
+      var gy = rowY(r) - rowGap / 2;
+      var gfs = Math.max(9, (PH ? 9 : 11));
+      var gl = GAME.UI.label(self, px + panelW / 2, gy,
+        '🔒 ' + need + '점', gfs, C.textDim, 0.5).setOrigin(0.5, 0.5);
+      //  ⚠ 이 글자는 **화살표가 지나가는 틈** 한가운데 앉는다 — 그냥 두면 선 위에
+      //    겹쳐 찍힌다(실측). 뒤에 칩을 깔아 선을 끊어 준다.
+      var gw = gl.width + 12, gh = gl.height + 4;
+      var chip = self.add.graphics();
+      chip.fillStyle(UC.surfaceAlt, 0.96);
+      chip.fillRoundedRect(px + panelW / 2 - gw / 2, gy - gh / 2, gw, gh, 4);
+      self._body.push(chip);
+      gl.destroy();                                   // 칩 뒤에 다시 그린다(순서가 곧 층)
+      gl = GAME.UI.label(self, px + panelW / 2, gy,
+        '🔒 ' + need + '점', gfs, C.textDim, 0.5).setOrigin(0.5, 0.5);
+      gl.__box = { x: px, y: gridTop, w: panelW, h: panelH };
+      self._body.push(gl);
+    }
   });
-  sc.finish(panelH);
+
+  if (!this._traitSel) {
+    tipName.setText('칸을 누르면 무엇인지 알려준다');
+    tipDesc.setText('한 번 더 누르면 산다  ·  아래 줄은 그 나무에 4점 · 8점을 써야 열린다');
+  }
 };
 
 //  가죽 원단 패널(2026-09-02, #119 ③ 잔여) — 큰 면은 원본, 카드는 저해상판.
@@ -1356,19 +1411,40 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
 
   //  가죽 원단이 깔렸으면 테두리(28px) 안쪽으로 내용을 민다 — 제목이 스티치에 먹혀다(실측).
   var pPad = plp ? 22 : 0;
+  //  칸 표시 — 이 패널은 Graphics(또는 가죽 액자)라 감사가 「이 글자가 어느 칸
+  //  소속인가」를 모른다. 그래서 하단 두 줄이 **나무결 위에** 찍힌 채로 배포됐고
+  //  (2026-09-05 태현니 스크린샷) 감사는 「잘림 0」 을 내고 있었다 — 화면 안이고
+  //  소유 버튼이 없어 세 검사를 모두 비켜간다. 이제 액자 **안쪽**을 칸으로 알려준다.
+  var pvBox = { x: rightX + pPad, y: pTop + pPad, w: rightW - pPad * 2, h: pH - pPad * 2 };
+  var pvIn = function (lbl) { lbl.__box = pvBox; return lbl; };
   var ty = pTop + pPad + (P ? 10 : 16);
-  var titleLbl = GAME.UI.label(this, rightX + rightW / 2, ty,
-    o.name, P ? 16 : 22, C.accent, 0.5).setOrigin(0.5, 0).setWordWrapWidth(rightW - 28);
+  var titleLbl = pvIn(GAME.UI.label(this, rightX + rightW / 2, ty,
+    o.name, P ? 16 : 22, C.accent, 0.5).setOrigin(0.5, 0).setWordWrapWidth(rightW - 28));
   this._body.push(titleLbl);
-  var subLbl = GAME.UI.label(this, rightX + rightW / 2, titleLbl.y + titleLbl.height + 4,
+  var subLbl = pvIn(GAME.UI.label(this, rightX + rightW / 2, titleLbl.y + titleLbl.height + 4,
     ps.slot + ' 슬롯  ·  ' + (GAME.SKILL_TYPE_LABEL[o.type] || o.type),
-    P ? 11 : 13, C.textDim, 0.5).setOrigin(0.5, 0);
+    P ? 11 : 13, C.textDim, 0.5).setOrigin(0.5, 0));
   this._body.push(subLbl);
 
   // 스킬 모양 — 그 슬롯의 전투 모션 포즈를 그대로 보여준다(js/eggart.js 의 `UI.actPose`).
   // 글만 있으면 "돌진"과 "강타"가 같은 문장으로 읽힌다(이 폴더가 이미 겪은 실패).
   var stageTop = subLbl.y + subLbl.height + (P ? 8 : 14);
-  var descTop = pTop + pH - pPad - (P ? 92 : 140);
+  //  ⚠ 아래에 남길 자리를 **버튼 규격에서 역산**한다 (2026-09-05). 예전에는 140px 를
+  //    상수로 박아 두고 그 안에 다섯 줄을 쌓았는데, 줄 수가 늘면 액자 밖으로 넘쳤다.
+  //    지금 아래에 오는 것은 요약 한 줄 + 버튼 한 줄뿐이라 자리가 줄고, 남는 만큼
+  //    미리보기 무대가 커진다. **버튼 규격은 여기서 한 번만 정하고 아래가 그대로 쓴다**
+  //    (두 곳에서 따로 정하면 조용히 갈라지는 자리다).
+  var btnH = P ? 26 : 32;
+  var btnGap = P ? 6 : 8;
+  //  ⚠ 요약 줄 자리는 **글자 크기에서 역산**한다. 처음엔 20px 를 상수로 박았는데 실제
+  //    한 줄 높이가 24px 이라 버튼 윗변을 2px 파고들었다(`overlap-audit` 이 대전 스킬
+  //    탭에서 잡았다 — 탑 쪽은 문구가 짧아 겹침 넓이가 작아 안 걸렸을 뿐 같은 결함이다).
+  //    문구는 영웅·모드에 따라 길이가 달라 **두 줄로 접힐 수 있으므로 두 줄치를 잡는다.**
+  var sumFs = P ? 12 : 15;
+  var sumLineH = Math.round(sumFs * 1.7);
+  var sumGap = P ? 14 : 16;
+  var bottomRoom = (P ? 12 : 18) + btnH + sumGap + sumLineH * 2 + 8;
+  var descTop = pTop + pH - pPad - bottomRoom;
   var stageH = Math.max(40, descTop - stageTop - 10);
   // 무기까지 담는 계수 — 위 `_drawCharPanel` 과 같은 이유로 몸통 기준(5.2)보다 작다.
   var sr = Math.min(rightW * 0.16, stageH / 6.2);
@@ -1508,90 +1584,134 @@ GAME.TowerShopScene.prototype._buildSkillTab = function () {
     if (self._skillPvTimer) self._skillPvTimer.remove(false);
   });
 
-  var desc = GAME.skillDesc ? GAME.skillDesc(shown) : '';
-  this._body.push(GAME.UI.label(this, rightX + 14, descTop, desc || '',
-    P ? 11 : 14, C.text, 0).setWordWrapWidth(rightW - 28).setLineSpacing(4));
-
-  // ── **왜 이 숫자인지** 적는다 (2026-08-01 사용자 지시) ──────────────────────
-  //  "스킬 표시에도 어떻게 반영되는지 보여주고."
-  //  계수는 v0.96 부터 실제로 들어가 있었지만, 화면에는 **결과 숫자만** 떴다.
-  //  그러면 무기를 바꿔도 "숫자가 바뀌었네" 까지만 알지 **무엇 때문에 바뀌었는지**
-  //  모른다 — 성장과 스킬이 연결돼 있다는 것 자체가 안 읽힌다.
-  //  그래서 계산식을 그대로 보여 준다: 기본 + 공격력 × 계수.
-  (function () {
-    if (!GAME.skillAtkCoef) return;
+  // ── 아래쪽은 **버튼 두 개로 줄인다** (2026-09-05 태현님) ────────────────────
+  //  신고: "우측하단 글자도 잘 안읽히고 무슨업그레이드인지 모르겠어 / 차라리 칸이
+  //         좁으면 자세히보기 혹은 업그레이드 버튼을 누르면 팝업에서 설명하는 방식"
+  //  ⚠ 원인은 글이 많아서가 아니라 **자리가 없는데 밀어넣고 있었기** 때문이다.
+  //    설명·계산식·주석·쿨타임·진화까지 다섯 줄을 패널 바닥 140px 에 쌓았는데, 가죽
+  //    액자는 테두리가 28px 라 마지막 두 줄이 **나무결 위에** 찍혔다(스크린샷 실측).
+  //  → 패널에는 한 줄(피해·쿨)만 남기고 나머지는 팝업으로 옮긴다. 좁은 칸에 작은
+  //    글씨로 다 적는 것보다, 눌러서 크게 읽는 쪽이 언제나 낫다.
+  //  ⚠ 버튼은 **액자 안쪽**(pPad)에 놓는다 — 이 사고의 직접 원인이 그 여백 무시였다.
+  var descTxt = GAME.skillDesc ? GAME.skillDesc(shown) : '';
+  var coefLine = (function () {
+    if (!GAME.skillAtkCoef) return '';
     var priced = GAME.skillPricedCopy ? GAME.skillPricedCopy(o) : o;
     var ac = GAME.skillAtkCoef(priced), dc = GAME.skillDefCoef(priced);
-    if (!(ac > 0) && !(dc > 0)) return;
+    if (!(ac > 0) && !(dc > 0)) return '';
     var K = GAME.SKILL_COEF;
     var b = GAME.TowerChar.statBonus(self.char), ib = GAME.TowerChar.itemBonus(self.char);
-    var line;
     if (ac > 0 && priced.damage > 0) {
       var atk = (self.hero.damage || 0) + (b.damage || 0) + (ib.damage || 0);
       var flat = Math.max(priced.damage * K.floorRatio, priced.damage - K.refAtk * ac);
-      line = '기본 ' + Math.round(flat) + '  +  공격력 ' + GAME.UI.numAbbr(atk) +
-             ' × ' + ac.toFixed(2) + '  =  ' + GAME.UI.numAbbr(shown.damage);
-    } else if (ac > 0 && priced.dps > 0) {
-      // 구역 스킬 — 초당 피해로 같은 식을 보여 준다(2026-08-02).
+      return '기본 ' + Math.round(flat) + ' + 공격력 ' + GAME.UI.numAbbr(atk) +
+             ' × ' + ac.toFixed(2) + ' = ' + GAME.UI.numAbbr(shown.damage);
+    }
+    if (ac > 0 && priced.dps > 0) {
       var atk2 = (self.hero.damage || 0) + (b.damage || 0) + (ib.damage || 0);
       var fl3 = Math.max(priced.dps * K.floorRatio, priced.dps - K.refAtk * ac);
-      line = '초당  기본 ' + Math.round(fl3) + '  +  공격력 ' + GAME.UI.numAbbr(atk2) +
-             ' × ' + ac.toFixed(2) + '  =  ' + GAME.UI.numAbbr(shown.dps);
-    } else {
-      var arm = (self.hero.armor || 0) + (b.armor || 0) + (ib.armor || 0);
-      var fl2 = Math.max(priced.shield * K.floorRatio, priced.shield - K.refArm * dc);
-      line = '기본 ' + Math.round(fl2) + '  +  방어력 ' + GAME.UI.numAbbr(arm) +
-             ' × ' + dc.toFixed(2) + '  =  ' + GAME.UI.numAbbr(shown.shield);
+      return '초당  기본 ' + Math.round(fl3) + ' + 공격력 ' + GAME.UI.numAbbr(atk2) +
+             ' × ' + ac.toFixed(2) + ' = ' + GAME.UI.numAbbr(shown.dps);
     }
-    self._body.push(GAME.UI.label(self, rightX + 14, descTop + (P ? 20 : 26),
-      line, P ? 10 : 12, C.accent, 0).setWordWrapWidth(rightW - 28));
-    self._body.push(GAME.UI.label(self, rightX + 14, descTop + (P ? 38 : 50),
-      '비싼 스킬일수록 내 능력치를 더 많이 탑니다', P ? 9 : 11, C.textDim, 0)
-      .setWordWrapWidth(rightW - 28));
+    var arm = (self.hero.armor || 0) + (b.armor || 0) + (ib.armor || 0);
+    var fl2 = Math.max(priced.shield * K.floorRatio, priced.shield - K.refArm * dc);
+    return '기본 ' + Math.round(fl2) + ' + 방어력 ' + GAME.UI.numAbbr(arm) +
+           ' × ' + dc.toFixed(2) + ' = ' + GAME.UI.numAbbr(shown.shield);
   })();
   var arenaMode = this.mode === 'arena';
-  this._body.push(GAME.UI.label(this, rightX + 14, pTop + pH - (P ? 34 : 52),
-    '쿨타임 ' + (shown.cooldown ? (Math.round(shown.cooldown / 100) / 10) + '초' : '—') +
-    (arenaMode ? '' : (o.cost ? ('    ·    ' + o.cost + '골드') : '    ·    기본 내장(무료)')),
-    P ? 11 : 13, C.textDim, 0));
-  //  ── 시즌2 진화 줄 (2026-09-03 S-H) ──────────────────────────────────────
-  //  보유한 스킬이면 마지막 줄이 진화 상태가 된다: 진화됨 / [✦ 진화 — 세계 포인트 1] /
-  //  조건(탑 N층 · 실시간 N승) 미달. 미보유면 예전 문구 그대로.
-  var evoLineY = pTop + pH - (P ? 18 : 28);
-  if (!arenaMode && ownedP && evoDef) {
-    var TC = GAME.TowerChar;
-    var evoReady = TC.evoReady && TC.evoReady(ps.slot, ps.idx, this.char);
-    var evoPts = (GAME.Season && GAME.Season.worldPoints) ? GAME.Season.worldPoints() : 0;
-    if (evoOn) {
-      this._body.push(GAME.UI.label(this, rightX + 14, evoLineY,
-        '✦ 진화됨 — ' + (evoDef.name || ''), P ? 11 : 13, C.accent, 0).setWordWrapWidth(rightW - 28));
-    } else if (evoReady) {
-      var canEvo = evoPts >= (TC.EVO_COST || 1);
-      var ebW = rightW - 28, ebH = P ? 20 : 26;
-      var eb = GAME.UI.button(this, rightX + rightW / 2, evoLineY + ebH / 2 - (P ? 2 : 0), ebW, ebH,
-        canEvo ? ('✦ 진화 — 세계 포인트 ' + (TC.EVO_COST || 1) + '  →  ' + (evoDef.name || ''))
-               : ('✦ 진화 가능 — 세계 포인트 부족 (' + evoPts + '/' + (TC.EVO_COST || 1) + ')'),
-        function () {
-          if (!canEvo) return;
-          if (TC.evolveSkill(ps.slot, ps.idx)) {
-            if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('coin');
-            self._buildBody(true);
-          }
-        }, { fontSize: P ? 10 : 12 });
-      eb.text.setColor(canEvo ? C.accent : C.textDim);
-      eb.rect.setStrokeStyle(canEvo ? 2 : 1, canEvo ? C.controller : GAME.UI.COL.borderUi);
-      this._body.push(eb);
-    } else {
-      this._body.push(GAME.UI.label(this, rightX + 14, evoLineY,
-        '✦ 진화 조건: ' + GAME.evoAtText(evoDef.at) + '  →  ' + (evoDef.name || ''),
-        P ? 11 : 13, C.textDim, 0).setWordWrapWidth(rightW - 28));
-    }
-  } else {
-    this._body.push(GAME.UI.label(this, rightX + 14, evoLineY,
-      arenaMode ? '대전에서는 모든 스킬을 값 없이 고를 수 있습니다'
-                : (ownedP ? '보유함 — 오른쪽 [장착] 으로 끼웁니다'
-                          : '미보유 — 먼저 구매해야 장착할 수 있습니다'),
-      P ? 11 : 13, ownedP ? C.accent : C.textDim, 0));
+  var costTxt = arenaMode ? '대전은 값 없이 고른다'
+                          : (o.cost ? (o.cost + '골드') : '기본 내장(무료)');
+  var powTxt = (shown.damage > 0 ? ('피해 ' + GAME.UI.numAbbr(shown.damage))
+              : shown.dps > 0 ? ('초당 ' + GAME.UI.numAbbr(shown.dps))
+              : shown.shield > 0 ? ('보호막 ' + GAME.UI.numAbbr(shown.shield)) : '');
+  var coolTxt = shown.cooldown ? ('쿨 ' + (Math.round(shown.cooldown / 100) / 10) + '초') : '';
+
+  //  ── 요약 한 줄 (패널 안, 액자 여백 안쪽) ─────────────────────────────────
+  //  ⚠ btnH·btnGap 은 위(무대 크기 역산)에서 이미 정했다 — 여기서 다시 정하면
+  //    두 값이 조용히 갈라져 무대와 버튼이 겹친다.
+  var padX = pPad + 12;
+  var innerW = rightW - padX * 2;
+  var btnRowY = pTop + pH - pPad - (P ? 12 : 18) - btnH / 2;
+  //  ⚠ **바닥 기준으로 붙인다**(origin y=1). 위에서 내려 그리면 문구가 두 줄로 접히는
+  //    순간 버튼을 파고든다 — 접힘 여부는 영웅·모드·글자 폭에 따라 달라 미리 못 안다.
+  //    바닥을 못박으면 몇 줄이 되든 `sumGap` 만큼은 언제나 떨어져 있고, 늘어나는 쪽은
+  //    위(무대)인데 그 자리는 `bottomRoom` 이 두 줄치로 이미 비워 뒀다.
+  var sumY = btnRowY - btnH / 2 - sumGap;
+  var sumL = GAME.UI.label(this, rightX + rightW / 2, sumY,
+    [powTxt, coolTxt, costTxt].filter(function (x) { return x; }).join('  ·  '),
+    sumFs, C.text, 0.5).setOrigin(0.5, 1).setWordWrapWidth(innerW);
+  sumL.__box = pvBox;
+  this._body.push(sumL);
+
+  //  ── 팝업 — 자세히 ────────────────────────────────────────────────────────
+  function openDetail() {
+    if (!GAME.Modal) return;
+    var rows = [];
+    if (descTxt) rows.push({ key: 'd', name: o.name, note: descTxt });
+    if (coefLine) rows.push({ key: 'c', name: coefLine, note: '비싼 스킬일수록 내 능력치를 더 많이 탑니다' });
+    rows.push({ key: 'v', name: [powTxt, coolTxt].filter(function (x) { return x; }).join('  ·  '),
+                note: arenaMode ? '대전에서는 모든 스킬을 값 없이 고를 수 있습니다'
+                                : (ownedP ? '보유함 · ' + costTxt : '미보유 · ' + costTxt) });
+    //  ⚠ Modal 은 고르는 순간 **스스로 닫는다**(js/modal.js) — onPick 에서 또 닫으면
+    //    그 사이에 열린 다른 팝업까지 같이 닫는다. 여기는 읽기만 하는 창이라 onPick 이 필요 없다.
+    GAME.Modal.open(self, { title: '📖 ' + o.name, items: rows });
+  }
+
+  //  ── 팝업 — 진화(무엇이 달라지는가) ────────────────────────────────────────
+  var TCx = GAME.TowerChar;
+  var evoReady = !arenaMode && ownedP && evoDef && TCx.evoReady && TCx.evoReady(ps.slot, ps.idx, this.char);
+  var evoPts = (GAME.Season && GAME.Season.worldPoints) ? GAME.Season.worldPoints() : 0;
+  var evoCost = TCx.EVO_COST || 1;
+  function openEvo() {
+    if (!GAME.Modal || !evoDef) return;
+    //  ⚠ **차이를 숫자로** 보여준다. 예전엔 이름만 적어서("→ 깔끔한 처형") 무엇이
+    //    좋아지는지 한 글자도 안 알려 줬다 — 태현님 신고의 본체가 이것이다.
+    //  ⚠ 화면과 **같은 기준**으로 재야 한다 — `shownSkill` 은 값 배수에 내 공격력·방어력
+    //    계수까지 얹은 값이다. 그걸 안 쓰면 패널은 157, 팝업은 160 — 같은 스킬을
+    //    두 가지 숫자로 말하게 된다.
+    var diff = GAME.evoDiffLines
+      ? GAME.evoDiffLines(o, evoDef, function (sk) { return self.src.shownSkill(sk, self.char); })
+      : [];
+    var rows = diff.map(function (line, i) { return { key: 'd' + i, name: line }; });
+    if (!rows.length) rows.push({ key: 'd0', name: '수치는 그대로 · 성질이 바뀐다' });
+    var can = evoReady && evoPts >= evoCost;
+    rows.push({ key: 'go',
+      name: can ? ('✦ 진화한다 — 세계 포인트 ' + evoCost)
+                : (!evoReady ? ('🔒 조건: ' + GAME.evoAtText(evoDef.at))
+                             : ('🔒 세계 포인트 부족 (' + evoPts + '/' + evoCost + ')')),
+      note: can ? '되돌릴 수 없습니다' : '' });
+    GAME.Modal.open(self, {
+      title: '✦ ' + (o.name) + '  →  ' + (evoDef.name || ''),
+      items: rows,
+      onPick: function (it) {
+        if (it && it.key === 'go' && can && TCx.evolveSkill(ps.slot, ps.idx)) {
+          if (GAME.Sound && GAME.Sound.play) GAME.Sound.play('coin');
+          self._buildBody(true);
+        }
+      }
+    });
+  }
+
+  //  ── 버튼 줄 ──────────────────────────────────────────────────────────────
+  var showEvoBtn = !arenaMode && ownedP && evoDef && !evoOn;
+  var bw = showEvoBtn ? (innerW - btnGap) / 2 : innerW;
+  var b1 = GAME.UI.button(this, rightX + padX + bw / 2, btnRowY, bw, btnH,
+    '📖 자세히', openDetail, { fontSize: P ? 11 : 13 });
+  this._body.push(b1);
+  if (showEvoBtn) {
+    var can2 = evoReady && evoPts >= evoCost;
+    var b2 = GAME.UI.button(this, rightX + padX + bw + btnGap + bw / 2, btnRowY, bw, btnH,
+      can2 ? '✦ 진화' : '✦ 진화 조건', openEvo, { fontSize: P ? 11 : 13 });
+    b2.text.setColor(can2 ? C.accent : C.textDim);
+    b2.rect.setStrokeStyle(can2 ? 2 : 1, can2 ? C.controller : GAME.UI.COL.borderUi);
+    this._body.push(b2);
+  } else if (evoOn) {
+    //  이미 진화한 칸 — 버튼 자리에 상태만 적는다(누를 것이 없다).
+    var doneL = GAME.UI.label(this, rightX + rightW / 2, btnRowY - (P ? 7 : 9),
+      '✦ 진화됨 — ' + (evoDef && evoDef.name || ''), P ? 11 : 13, C.accent, 0.5)
+      .setOrigin(0.5, 0).setWordWrapWidth(innerW);
+    doneL.__box = pvBox;
+    this._body.push(doneL);
   }
 };
 

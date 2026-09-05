@@ -855,6 +855,62 @@ GAME.applyEvo = function (sk, evo) {
 };
 GAME.evoKey = function (slot, idx) { return slot + ':' + idx; };
 //  조건 문구(상점용).
+//  ── 진화가 **무엇을 바꾸는가** (2026-09-05 태현님: "무슨업그레이드인지 모르겠어") ──
+//  예전 화면은 진화의 **이름만** 보여줬다("→ 깔끔한 처형"). 이름은 무엇이 좋아지는지를
+//  한 글자도 말하지 않는다 — 값을 치르는 사람이 알아야 하는 건 이름이 아니라 차이다.
+//  진화 전/후 사본을 만들어 **눈에 보이는 축만** 골라 "전 → 후" 로 돌려준다.
+//  ⚠ 값 배수(`scaleSkillsByPrice`)를 얹은 뒤에 비교한다 — 상점이 보여주는 숫자와
+//    같은 기준이어야 한다(원본으로 비교하면 화면 숫자와 안 맞는다).
+//  ⚠ 표에 없는 키는 조용히 건너뛴다. 새 패치 키가 생겨도 여기서 안 터진다.
+GAME.EVO_DIFF_KEYS = [
+  { k: 'damage',   n: '피해' },
+  { k: 'dps',      n: '초당 피해' },
+  { k: 'shield',   n: '보호막' },
+  { k: 'healNow',  n: '회복' },
+  { k: 'radius',   n: '반경' },
+  { k: 'dist',     n: '거리' },
+  { k: 'count',    n: '개수' },
+  { k: 'countMin', n: '최소 소환' },
+  { k: 'countMax', n: '최대 소환' },
+  { k: 'jumps',    n: '연쇄' },
+  { k: 'repeat',   n: '연발' },
+  { k: 'life',     n: '지속', ms: true },
+  { k: 'duration', n: '지속', ms: true },
+  //  소환 계열(주술사) — 이 둘이 빠지면 R 진화가 "지속 16→19초" 하나로만 보인다(실측).
+  { k: 'hpMul',    n: '소환 체력', mul: true },
+  { k: 'dmgMul',   n: '소환 공격', mul: true },
+  { k: 'eliteChance', n: '강화 확률', pct: true },
+  { k: 'cooldown', n: '쿨타임', ms: true, lower: true }
+];
+//  `show(sk)` — 화면이 쓰는 변환(상점은 `src.shownSkill` — 값 배수 + 내 능력치 계수).
+//  ⚠ **안 넘기면 패널과 숫자가 어긋난다** — 패널은 「피해 157」인데 팝업은 「160 → 200」이
+//    되어 같은 스킬을 두 가지 숫자로 말하게 된다(실측으로 잡았다).
+GAME.evoDiffLines = function (skill, evo, show) {
+  if (!skill || !evo || !evo.patch) return [];
+  show = show || function (sk) { return GAME.skillPricedCopy ? GAME.skillPricedCopy(sk) : sk; };
+  var k;
+  var baseSrc = {};
+  for (k in skill) baseSrc[k] = skill[k];
+  delete baseSrc.evo;
+  var before = show(baseSrc) || baseSrc;
+  var afterSrc = {};
+  for (k in skill) afterSrc[k] = skill[k];
+  delete afterSrc.evo;
+  var after = show(GAME.applyEvo(afterSrc, evo)) || afterSrc;
+  var out = [];
+  for (var i = 0; i < GAME.EVO_DIFF_KEYS.length; i++) {
+    var d = GAME.EVO_DIFF_KEYS[i];
+    var a = before[d.k], b = after[d.k];
+    if (typeof a !== 'number' || typeof b !== 'number' || a === b) continue;
+    var fmt = d.ms ? function (v) { return (Math.round(v / 100) / 10) + '초'; }
+            : d.mul ? function (v) { return '×' + (Math.round(v * 100) / 100); }
+            : d.pct ? function (v) { return Math.round(v * 100) + '%'; }
+                    : function (v) { return String(Math.round(v)); };
+    out.push(d.n + ' ' + fmt(a) + ' → ' + fmt(b));
+  }
+  return out;
+};
+
 GAME.evoAtText = function (at) {
   if (!at) return '';
   if (at.floor) return '탑 ' + at.floor + '층 돌파';

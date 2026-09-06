@@ -129,6 +129,91 @@ GAME.Tower = {
   //  소환수가 주인공이 되므로 여기가 천장이다.
   POWER_POW_SUMMON: 1.0,
   POWER_POW_BUDGET: 0.12,    // 예산에 걸리는 지수 — 낮게 잡는다
+
+  // ══ 층 난이도 재세팅 (2026-09-06 태현님) ═══════════════════════════════════
+  //  > "층별 난이도를 재세팅하자. 내 능력치는 **참고만** 하고 배치와 진형, 유닛선택으로
+  //  >  이겨보려하자 … 단순히 능력치만 따라가니까 10층이나 120층이나 플레이패턴이 똑같다"
+  //
+  //  ## 왜 똑같았나 — 설계가 그렇게 되어 있었다
+  //  예전 식은 `적 체력 = 층 선형항 × (내 공격지수)^0.75` 였다. 즉 **적이 나를 따라온다.**
+  //  실측(그 층에 도달했을 법한 성장, 시드 6): 5층→200층에서
+  //      능력치 추종 배수 ×7.2   ·   층 자체 선형항 ×3.2
+  //  추종이 층 자체보다 **2배 이상** 크게 자란다. 그러면 "몇 대 때려야 죽나 / 몇 대
+  //  맞으면 죽나"가 층이 올라도 거의 그대로라, 숫자만 커지고 **손이 하는 일은 같다.**
+  //
+  //  ## 어떻게 바꿨나 — 층이 곡선을 갖고, 내 능력치는 그 주변의 ±보정이 된다
+  //      적 체력 = 층 선형항 × **그 층에 도달했을 법한 사람의 공격지수**^0.75 × 참고보정
+  //      참고보정 = clamp( (내 지수 / 기대 지수)^REF_POW , MIN, CAP )
+  //  · 기대만큼 컸으면 보정 1.0 → **난이도는 층이 정한다**(= "능력치는 참고만").
+  //  · 덜 컸으면 1 아래로 조금 내려가고(MIN 에서 멈춘다), 과하게 컸으면 조금 오른다.
+  //  ⚠ **기대치대로 큰 사람에게는 예전과 같은 난이도다** — 아래 EXPECT 표가 옛 식의
+  //    실측 지수 그대로라, 곱을 풀면 `층 선형항 × 기대^0.75` 로 옛 값과 같아진다.
+  //    바뀌는 것은 **난이도의 출처**지 기대 경로의 난이도가 아니다.
+  //  ⚠ REF_POW(0.38)를 옛 지수(0.75)의 절반쯤으로 둔 이유: 0 으로 만들면 태현님이
+  //    이미 신고했던 "42층을 3초만에 깼어"(장비 몰빵이 곡선을 통째로 앞지르는 사고)가
+  //    그대로 돌아온다. 0.38 이면 5배 과성장에 ×1.83 이 붙어 폭주는 막고, 그러면서도
+  //    옛 ×3.34 보다 훨씬 약해 **성장의 보람**이 남는다.
+  //  ⚠⚠ **위아래 지수가 다르다.** 대칭으로 0.38 을 쓰니 화력 몰빵 빌드의 30→60층
+  //    비율이 **0.81배**(갈수록 쉬워진다)로 떨어졌다 — 태현님이 이미 신고했던
+  //    "42층을 3초만에 깼어"가 그대로 돌아오는 신호다(tower-power-curve profile=glass).
+  //    원인은 분명하다: 지수 경제(골드·장비)는 무한히 자라는데 층 곡선은 유한하다.
+  //    → **기대보다 앞선 쪽만** 세게 따라간다(0.62). 기대 근처(보통 플레이)에서는
+  //      r≈1 이라 두 지수 어느 쪽이든 보정이 1 이므로 "능력치는 참고만"이 그대로다.
+  REF_POW: 0.38,             // 기대에 못 미칠 때 — 약하게(층이 난이도를 진다)
+  REF_POW_OVER: 0.75,        // 기대를 앞설 때 — 세게(과성장이 곡선을 앞지르지 못하게)
+  REF_MIN: 0.62,             // 덜 큰 사람에게도 층이 완전히 무너지진 않는다
+  //  ⚠ 이 상한은 **묶이면 안 된다.** 12 로 둔 판에서 과성장 보정이 잘려
+  //    「기대 이상으로 큰 사람은 예전과 같다」는 항등식이 깨졌다(60층 옛식 210 → 새식 57).
+  //    그 항등식이 "42층 3초컷 재발 불가"의 근거이므로 잘라선 안 된다 —
+  //    진짜 안전장치는 바깥쪽 `Math.min(POWER_CAP, m)` 이 이미 맡고 있다.
+  REF_CAP: 1200,             // 사실상 무제한 — 바깥쪽 POWER_CAP 이 막는다
+
+  //  ── 「그 층에 도달했을 법한 사람」의 지수 ──────────────────────────────────
+  //  ⚠ **내가 지어낸 값이 아니다.** `tools/tower-power-curve.js` 가 실제 골드 곡선
+  //    (GOLD_BASE 17 · RATE 1.08)으로 캐릭터를 지어(`buildChar`) 실측한 값이다.
+  //    균형 프로필(장비 60% · 능력치 40% · 소비율 0.85) 기준.
+  //    수치를 바꾸려면 그 도구를 다시 돌려서 표를 갱신할 것 — 손으로 고치면
+  //    도구가 재는 사람과 게임이 기대하는 사람이 조용히 갈라진다.
+  EXPECT: [
+    { f: 1,  atk: 1.00, ehp: 1.00 },
+    { f: 5,  atk: 1.30, ehp: 1.60 },
+    { f: 10, atk: 1.50, ehp: 2.20 },
+    { f: 20, atk: 2.30, ehp: 3.30 },
+    { f: 30, atk: 3.30, ehp: 6.10 },
+    { f: 42, atk: 6.20, ehp: 10.90 },
+    { f: 50, atk: 6.70, ehp: 20.30 },
+    { f: 60, atk: 7.90, ehp: 21.70 }
+  ],
+  //  60층 위로는 표가 없다 — 골드가 계속 지수로 자라므로 **층당 고정 비율**로 잇는다.
+  //  1.016/층 은 50→60 구간 기울기에서 딴 값이다(100층 ×3.9 · 200층 ×19 배).
+  EXPECT_TAIL: 1.016,
+
+  //  층 → 기대 지수(로그 선형 보간, 표 밖은 꼬리 비율로 연장).
+  expectedIndex: function (floor, key) {
+    var E = this.EXPECT, f = Math.max(1, floor || 1);
+    var last = E[E.length - 1];
+    if (f >= last.f) return last[key] * Math.pow(this.EXPECT_TAIL, f - last.f);
+    for (var i = 1; i < E.length; i++) {
+      if (f <= E[i].f) {
+        var a = E[i - 1], b = E[i];
+        var t = (f - a.f) / (b.f - a.f);
+        //  로그 보간 — 지수적으로 자라는 값을 직선으로 이으면 중간이 낮게 나온다.
+        return Math.exp(Math.log(a[key]) * (1 - t) + Math.log(b[key]) * t);
+      }
+    }
+    return last[key];
+  },
+
+  //  내 지수가 기대치보다 얼마나 앞/뒤인가 → 층 곡선 위에 얹는 **참고 보정**.
+  refAdj: function (mine, floor, key) {
+    var exp = this.expectedIndex(floor, key);
+    if (!(exp > 0)) return 1;
+    var ratio = Math.max(0.01, mine) / exp;
+    //  앞선 쪽과 뒤진 쪽의 지수가 다르다(위 REF_POW_OVER 주석). r=1 에서 두 식이
+    //  모두 1 이라 이어짐이 매끄럽다 — 보통 플레이에서는 이 함수가 사실상 1 이다.
+    var p = ratio >= 1 ? this.REF_POW_OVER : this.REF_POW;
+    return Math.max(this.REF_MIN, Math.min(this.REF_CAP, Math.pow(ratio, p)));
+  },
   POWER_CAP: 1200,           // 유닛 배수 상한 — 안전장치일 뿐, 실제로는 거의 안 닿는다
   BUDGET_MUL_CAP: 1.8,       // 예산 배수 상한
   //  ⚠ 예산을 크게 올리면 **오히려 컨트롤러가 유리해진다**(CLAUDE.md 실측:
@@ -246,14 +331,20 @@ GAME.Tower = {
   // 적 체력 배수 — **내 공격력**(킬 속도)을 따라간다. 순수 화력 빌드가 이 축을
   // 못 벗어나는 것이 이번 수정의 핵심이다.
   hpMul: function (floor) {
-    var m = Math.pow(this.atkIndex(), this.POWER_POW_UNIT) * this.pressureOf();
+    //  ⚠ 층이 곡선을 갖고, 내 능력치는 그 위의 ±보정이다(위 REF_POW 절 참조).
+    //    기대만큼 큰 사람에게는 `기대^0.75` 가 그대로 남아 **옛 난이도와 같다.**
+    var f = (floor === undefined) ? this.get().floor : floor;
+    var base = Math.pow(this.expectedIndex(f, 'atk'), this.POWER_POW_UNIT);
+    var m = base * this.refAdj(this.atkIndex(), f, 'atk') * this.pressureOf();
     return Math.max(1, Math.min(this.POWER_CAP, m)) * this.reliefOf(floor) * this.easeOf(floor);
   },
 
   // 적 공격력 배수 — **내 유효체력**(버티는 힘)을 따라간다. 순수 방어 빌드가
   // 무피해로 버티지 못하게 한다.
   dmgMul: function (floor) {
-    var m = Math.pow(this.ehpIndex(), this.POWER_POW_UNIT) * this.pressureOf();
+    var f = (floor === undefined) ? this.get().floor : floor;
+    var base = Math.pow(this.expectedIndex(f, 'ehp'), this.POWER_POW_UNIT);
+    var m = base * this.refAdj(this.ehpIndex(), f, 'ehp') * this.pressureOf();
     return Math.max(1, Math.min(this.POWER_CAP, m)) * this.reliefOf(floor) * this.easeOf(floor);
   },
 
@@ -270,8 +361,15 @@ GAME.Tower = {
     //  → 문턱 완화는 **체력·공격만** 깎는다(hpMul·dmgMul). 머릿수와 구성은 그대로 두어
     //    "같은 판인데 적이 약하다"가 되게 한다. 재도전 완화(reliefOf)는 성격이 달라서
     //    예산에도 계속 붙는다 — 그건 "다섯 번 졌으니 벽을 얇게"라는 약속이다.
-    var idx = Math.max(this.atkIndex(), this.ehpIndex());
-    var m = Math.pow(idx, this.POWER_POW_BUDGET) * Math.sqrt(this.pressureOf());
+    //  예산도 같은 문법으로 — 층 기대치가 곡선을 갖고 내 성장은 참고 보정이다.
+    var f2 = (floor === undefined) ? this.get().floor : floor;
+    var idxA = this.atkIndex() / Math.max(0.01, this.expectedIndex(f2, 'atk'));
+    var idxE = this.ehpIndex() / Math.max(0.01, this.expectedIndex(f2, 'ehp'));
+    var expB = Math.max(this.expectedIndex(f2, 'atk'), this.expectedIndex(f2, 'ehp'));
+    var rel = Math.max(idxA, idxE);
+    var m = Math.pow(expB, this.POWER_POW_BUDGET) *
+            Math.pow(Math.max(0.01, rel), this.POWER_POW_BUDGET * (this.REF_POW / this.POWER_POW_UNIT)) *
+            Math.sqrt(this.pressureOf());
     //  ⚠ 완화·문턱 완화가 **여기에도** 붙는다 (2026-09-05). 예전에는 체력·공격만
     //    깎이고 **머릿수는 그대로**여서, 다섯 번 져도 벽의 두께는 한 톨도 안 줄었다
     //    (실측: 5회 패배 뒤 hpMul 1.000→0.750 인데 budgetMul 은 1.026 붙박이).
@@ -542,8 +640,15 @@ GAME.Tower = {
   POWER_POW_BOSS: 1.0,
 
   //  보스 축만 다시 계산한다(일반 유닛 곡선은 손대지 않는다).
-  _bossFollow: function (idx) {
-    var m = Math.pow(Math.max(1, idx), this.POWER_POW_BOSS) * this.pressureOf();
+  //  ⚠⚠ **보스도 같은 문법으로 재세팅한다** (2026-09-06). 일반 유닛만 「층 곡선 +
+  //    참고 보정」으로 바꾸고 보스를 옛 추종식에 두었더니, 일반 층이 보스를 따라잡아
+  //    **보스가 이웃보다 안 어려워졌다**(R-3 이 10층 -19%p → -5%p, 20층 -32%p → 0%p
+  //    로 무너졌다 — 게이트는 통과했지만 "구간이 느껴진다"는 약속이 깨진 것이다).
+  //    두 곡선 중 하나만 옮기면 상대 관계가 조용히 뒤집힌다.
+  _bossFollow: function (idx, floor, key) {
+    var f = (floor === undefined) ? this.get().floor : floor;
+    var base = Math.pow(this.expectedIndex(f, key || 'atk'), this.POWER_POW_BOSS);
+    var m = base * this.refAdj(idx, f, key || 'atk') * this.pressureOf();
     return Math.max(1, Math.min(this.POWER_CAP, m));
   },
 
@@ -577,8 +682,8 @@ GAME.Tower = {
     //    지금은 `def.hp` 하나가 곧 **그 보스와 몇 초 싸우는가**를 뜻한다 — 층별
     //    난이도 상승은 진형·호위가 맡는다(보스는 '위협', 진형은 '난이도').
     //    (시즌2: 그 위에 위 `bossFloorMul` 의 완만한 층항만 얹는다. 30층까지는 1.)
-    var m = { hp: this._bossFollow(this.atkIndex()),
-              damage: this._bossFollow(this.ehpIndex()) };
+    var m = { hp: this._bossFollow(this.atkIndex(), floor, 'atk'),
+              damage: this._bossFollow(this.ehpIndex(), floor, 'ehp') };
     if (GAME.TowerRule) m = this._applyRules(m, floor);
     //  막힌 층 완화는 **보스에게도** 걸린다. 사람이 벽으로 느끼는 층은 대개 보스 층인데
     //  거기만 빼면 정작 필요한 자리에서 안 듣는다(js/towerchar.js `noteFloorFail` 참조).

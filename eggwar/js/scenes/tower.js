@@ -1012,13 +1012,33 @@ GAME.TowerScene.prototype._buildChallenge = function () {
     self.scene.start('Menu');
   }, { fontSize: P ? 15 : 15 });
   //  랭킹 줄을 반으로 나눠 [🔁 지난 층]을 세운다 (2026-08-31 태현님).
-  var halfBw = (bw - 10) / 2;
-  GAME.UI.button(this, W / 2 - halfBw / 2 - 5, byBottom - bh * 1.5 - gap, halfBw, bh, '🏆 랭킹', function () {
+  //  ⏫ 도약 — 다음 보스 관문에 미리 도전한다(2026-09-07). 조건이 안 되면 칸을 안 만든다
+  //  — 초보에게 못 누르는 버튼을 보여 주지 않는다(그래서 이 줄은 2칸 ↔ 3칸으로 바뀐다).
+  //  ⚠ 칸 수가 바뀌므로 폭을 **칸 수에서 역산**한다. 반칸(halfBw)을 상수로 박아 두고
+  //    버튼만 하나 끼우면 3번째가 화면 밖으로 나간다(이 저장소 상습 사고).
+  var canPush = !!(GAME.Tower.canPush && GAME.Tower.canPush());
+  var rowN = canPush ? 3 : 2;
+  var rowGapPx = 10;
+  var cellW = (bw - rowGapPx * (rowN - 1)) / rowN;
+  var rowY = byBottom - bh * 1.5 - gap;
+  var cellX = function (i) { return W / 2 - bw / 2 + cellW / 2 + i * (cellW + rowGapPx); };
+  var rowFs = canPush ? (P ? 13 : 14) : (P ? 15 : 15);
+  GAME.UI.button(this, cellX(0), rowY, cellW, bh, '🏆 랭킹', function () {
     self.scene.start('Rank', { scope: 'live' });
-  }, { fontSize: P ? 15 : 15 });
-  GAME.UI.button(this, W / 2 + halfBw / 2 + 5, byBottom - bh * 1.5 - gap, halfBw, bh, '🔁 지난 층', function () {
+  }, { fontSize: rowFs });
+  GAME.UI.button(this, cellX(1), rowY, cellW, bh, '🔁 지난 층', function () {
     self._openReplayPick();
-  }, { fontSize: P ? 15 : 15 });
+  }, { fontSize: rowFs });
+  if (canPush) {
+    //  이 층이 시시해졌으면 **버튼이 먼저 말한다**(테두리·색). 안 그러면 순삭하면서도
+    //  올라갈 때인 줄 모르고 계속 걸어 올라간다 — 곡선을 고정한 게임들의 알려진 약점.
+    var ready = !!(GAME.Tower.readyToPush && GAME.Tower.readyToPush());
+    GAME.UI.button(this, cellX(2), rowY, cellW, bh, ready ? '⏫ 도약!' : '⏫ 도약', function () {
+      self._openPush();
+    }, ready
+      ? { fontSize: rowFs, color: C.accent, fill: GAME.UI.COL.panelAmber, line: C.accent }
+      : { fontSize: rowFs, color: C.accent });
+  }
   this.panelMaxBottom = byBottom - bh * 2.5 - gap * 2 - (bh + u * 0.8) / 2 - 8;
   // 허브의 세 번째 갈래("도전") — 있으면 로딩 화면을 거쳐 전투로, 없으면 캐릭터를 만든다.
   GAME.UI.button(this, W / 2, byBottom - bh * 2.5 - gap * 2, bw, bh + u * 0.8,
@@ -1083,6 +1103,38 @@ GAME.TowerScene.prototype._openReplayPick = function () {
   });
 };
 
+// ── ⏫ 도약 — 다음 보스 관문에 미리 도전한다 (2026-09-07 태현님) ──────────────
+//  "다른 게임들은 이걸 어떻게하지? 고정값으로하려나" → 디아블로3 균열·PoE 맵처럼
+//  **곡선은 고정하고 몇 단계를 돌지 사람이 고르는** 쪽으로 간다. 그 게임들에서
+//  낮은 단계를 순삭하는 것은 버그가 아니라 "위로 가라"는 신호인데, 우리 탑에는
+//  **위로 가는 길이 없어서** 43·44·45층을 3초컷 하며 걸어 올라가야 했다.
+//
+//  ⚠ 잃는 것이 없다는 점을 화면이 먼저 말한다. 실패해도 층·기록은 그대로다
+//    (`Tower.fail` 은 runs 만 센다) — 그래야 사람이 실제로 눌러 본다.
+//  ⚠ **연습 판이 아니다.** 깨면 `Tower.clear(목표층)` 이 층을 그 위로 올린다
+//    (`clear` 는 `floor + 1` 을 그대로 쓰므로 따로 손댈 것이 없다). 골드·드랍·기록
+//    전부 정상이다 — 건너뛴 층의 골드를 못 버는 것이 곧 도약의 대가다.
+GAME.TowerScene.prototype._openPush = function () {
+  var self = this;
+  var cur = this._floor;
+  var gate = GAME.Tower.nextGateFor(cur);
+  var boss = GAME.Tower.bossFor(gate);
+  var skip = gate - cur;
+  GAME.Modal.open(this, {
+    title: '⏫ 도약 — ' + gate + '층 관문',
+    items: [
+      { key: 'go', name: '⚔ ' + gate + '층에 바로 도전',
+        note: (boss ? ('★ ' + boss.name + ' — ') : '') + skip + '개 층을 건너뛴다' },
+      { key: 'no', name: '아직',
+        note: '지면 잃는 것은 없다 · 깨면 ' + (gate + 1) + '층부터 이어 오른다' }
+    ],
+    onPick: function (it) {
+      if (it && it.key === 'go') self._enterBattle(gate);
+    },
+    onClose: function () {}
+  });
+};
+
 // 전투 진입 — 허브의 모든 "도전" 버튼(PC/폰가로)이 **같은 함수**를 쓴다.
 // 두 곳에 복사하면 한쪽만 고쳐져 조용히 갈라진다(이 폴더의 상습 사고).
 // ⚠ 2026-08-01 — Battle 로 바로 가지 않고 `TowerLoading`(3초 로딩, 요청 12번)을 거친다.
@@ -1092,7 +1144,11 @@ GAME.TowerScene.prototype._enterBattle = function (floor, replay) {
   //  지난 층 다시(2026-08-31 태현님: "이미 깼던 층도 골라서 깰 수 있게") —
   //  진형은 그 층 것으로 새로 뽑는다. 현재 층 진형은 씬이 이미 들고 있지만
   //  재도전 층은 매번 새로 굴린다(같은 층도 배치가 섞이는 탑의 원칙 그대로).
-  if (replay) this.formation = GAME.Tower.formationFor(floor, this.heroKey);
+  //  ⚠ 진형은 **씬이 들고 있는 현재 층 것**이라, 다른 층으로 들어갈 때는 반드시 새로
+  //    뽑아야 한다. 예전에는 `replay` 일 때만 다시 뽑았는데, 도약(2026-09-07)이
+  //    생기면서 "현재 층이 아닌 위층"으로 들어가는 길이 하나 더 늘었다 —
+  //    조건을 `replay` 가 아니라 **층이 다른가**로 바꾼다(빠뜨릴 자리를 없앤다).
+  if (floor !== this._floor) this.formation = GAME.Tower.formationFor(floor, this.heroKey);
   //  첫 경험 가이드(2026-09-02 갈래 B) — 처음 온 계정(최고층 0 · 가이드 미완료)의 1층
   //  전투에 Guide 오버레이를 건다. 실제 launch 는 Battle create 이벤트에서(js/guide.js).
   if (GAME.Guide && GAME.Guide.shouldShow(floor)) GAME.Guide.arm('tower1');
@@ -1234,11 +1290,35 @@ GAME.TowerScene.prototype._buildChallengePhone = function () {
     self.scene.start('TowerShop', { tab: 'stats' });
   }, { fontSize: 17 });
 
-  UI.button(this, rx + rw / 2, mainTop + mainH / 2, rw, mainH, floor + '층 도전', function () {
-    // ⚠ PC 판과 **같은 경로**를 쓴다 — 전투 진입이 복사돼 있으면 한쪽만 고쳐진다.
-    self._enterBattle(floor);
-  }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
-       hover: UI.COL.panelTealHi, color: C.accent, fontSize: 21 });
+  //  ── 도전 / 도약 ────────────────────────────────────────────────────────────
+  //  ⚠⚠ **폰 허브는 PC 와 다른 코드 경로다.** 도약 버튼을 PC 쪽에만 넣었더니 폰에서는
+  //    "이 층엔 내가 앞서 있다 — 도약해도 된다"는 안내만 뜨고 **누를 것이 없었다**
+  //    (폰 스크린샷으로 잡았다). 2026-09-07 이후 이 게임은 **폰이 기준**이다.
+  //  ⚠ 아래 유틸 줄(삭제·지난 층·랭킹·메뉴)은 이미 4칸이라 5칸째를 끼우면 글자가
+  //    넘친다('캐릭터 삭제'가 이미 '삭제'로 줄어 있다). 도약은 성격이 **도전과 같은
+  //    편**(판을 시작하는 행동)이라 이 줄을 나누는 것이 맞다.
+  var canPushP = !!(GAME.Tower.canPush && GAME.Tower.canPush());
+  if (canPushP) {
+    var gateP = GAME.Tower.nextGateFor(floor);
+    var readyP = !!(GAME.Tower.readyToPush && GAME.Tower.readyToPush());
+    var pwP = Math.round(rw * 0.32), gpP = 8;
+    var cwP = rw - pwP - gpP;
+    UI.button(this, rx + cwP / 2, mainTop + mainH / 2, cwP, mainH, floor + '층 도전', function () {
+      self._enterBattle(floor);
+    }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
+         hover: UI.COL.panelTealHi, color: C.accent, fontSize: 21 });
+    UI.button(this, rx + cwP + gpP + pwP / 2, mainTop + mainH / 2, pwP, mainH, '⏫ ' + gateP + '층', function () {
+      self._openPush();
+    }, readyP
+      ? { fill: UI.COL.panelAmber, line: C.accent, color: C.accent, fontSize: 17 }
+      : { color: C.accent, fontSize: 17 });
+  } else {
+    UI.button(this, rx + rw / 2, mainTop + mainH / 2, rw, mainH, floor + '층 도전', function () {
+      // ⚠ PC 판과 **같은 경로**를 쓴다 — 전투 진입이 복사돼 있으면 한쪽만 고쳐진다.
+      self._enterBattle(floor);
+    }, { fill: UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
+         hover: UI.COL.panelTealHi, color: C.accent, fontSize: 21 });
+  }
 
   var keys = ['delete', 'replay', 'rank', 'menu'];
   var bc = GAME.Layout.cols(keys.length, { gap: 10, width: rw, left: rx, pad: 0 });
@@ -1403,8 +1483,22 @@ GAME.TowerScene.prototype._runHintText = function () {
   var dmgM = GAME.Tower.dmgMul ? GAME.Tower.dmgMul() : 1;
   var press = '';
   if (hpM >= 1.15 || dmgM >= 1.15) {
+    //  ⚠ 문구가 낡아 있었다 (2026-09-07). 난이도 재세팅 전에는 이 배수가 통째로
+    //    "내 성장 추종"이라 「내 성장에 맞춰 따라온다」가 맞았다. 지금은 **대부분이
+    //    층 자체의 곡선**이고 내 능력치는 그 위의 작은 ±보정이다 — 옛 문구를 그대로
+    //    두면 화면이 거짓말을 한다(이 폴더가 반복해서 겪은 계열).
+    //    앞서 있으면 그 사실만 덧붙인다 — 그때가 도약할 때라서.
+    //  ⚠ 이 함수에는 `floor` 지역변수가 없다 — 허브의 현재 층은 `this._floor` 다.
+    //    (첫 판에서 `floor` 로 썼다가 폰 스크린샷에서 ReferenceError 로 잡혔다.)
+    var hintF = this._floor;
+    var aheadX = GAME.Tower.expectedIndex
+      ? Math.max(GAME.Tower.atkIndex() / Math.max(0.01, GAME.Tower.expectedIndex(hintF, 'atk')),
+                 GAME.Tower.ehpIndex() / Math.max(0.01, GAME.Tower.expectedIndex(hintF, 'ehp')))
+      : 1;
     press = '  ·  ⚔ 적 체력 ×' + hpM.toFixed(1) + ' · 적 공격 ×' + dmgM.toFixed(1) +
-            ' (내 성장에 맞춰 따라온다)';
+            (aheadX >= GAME.Tower.PUSH_HINT_AT
+              ? ' (이 층엔 내가 앞서 있다 — 도약해도 된다)'
+              : ' (층이 정한다)');
   }
   //  ── 막힌 층 완화는 **말하지 않는다** (2026-08-05 사용자 지시) ────────────────
   //  > "문구로 알려주진말자. 로딩에서는 어떻게해야 깰수있을지 플레이방법을 토대로

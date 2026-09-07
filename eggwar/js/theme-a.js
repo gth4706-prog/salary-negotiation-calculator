@@ -132,6 +132,7 @@ GAME.UI = GAME.UI || {};
       inkAlpha:   0.55,
 
       telegraph:  0xB3161C,   // 예고 원      4.30
+      safe:       0x1F7A46,   // 안전 원 — 예고와 반드시 다른 색(2026-09-08)
       blast:      0xB3560A,   // 착탄 섬광    3.08
       beam:       0xA34A08,   // 예광         3.70
       spark:      0x7A3A05,   // 타격 불꽃 테 5.38

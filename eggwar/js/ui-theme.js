@@ -133,6 +133,9 @@ window.GAME = window.GAME || {};
     },
 
     telegraph:  0xef4444,   // 예고 원
+    //  ⚠ 안전한 자리(2026-09-08 donut·safezone). 예고와 **반드시 다른 색**이어야 한다 —
+    //    같은 색이면 「가야 하는 곳」과 「피해야 하는 곳」이 구분이 안 돼 기제가 통째로 죽는다.
+    safe:       0x38d47a,   // 안전 원(고리 안쪽·피난처)
     blast:      0xffd166,   // 착탄 섬광
     beam:       0xf0a86a,   // 예광
     spark:      0xffffff,   // 타격 불꽃

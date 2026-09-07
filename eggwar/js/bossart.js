@@ -892,6 +892,22 @@ window.GAME = window.GAME || {};
     }
   }
 
+  //  ── 보스 뒤판 (2026-09-07 태현님 ②) ────────────────────────────────────────
+  //  보스 그림(Image)과 그 그림자를 **유닛·이펙트보다 아래**에 둔다. 예전에는
+  //  `g.depth + 0.5` 라 큰 보스 하나가 스킬 이펙트·공격반사·일반 유닛을 전부 덮었다.
+  //  ⚠ 뒤판 자체는 **battle.js 가 만들고 매 프레임 지운다**(`_bossBackG`). 여기서
+  //    만들면 지우는 사람이 없어 그림자가 눌어붙는다. 없으면 `g` 로 물러난다
+  //    (보스 스크린샷 도구처럼 battle 씬이 아닌 데서 불릴 수 있다).
+  BA._backLayer = function (g) {
+    var sc = g && g.scene;
+    return (sc && sc._bossBackG) ? sc._bossBackG : g;
+  };
+  BA._backDepth = function (g) {
+    var sc = g && g.scene;
+    if (sc && sc._bossBackG) return sc._bossBackG.depth;
+    return (g.depth || 0) - 1;
+  };
+
   BA.draw = function (g, def, sx, sy, r0, alpha, t, facing, unit) {
     var info = BA.parse(def.art);
     var T = (GAME.Iso && GAME.Iso.TILT) || 0.72;
@@ -910,9 +926,12 @@ window.GAME = window.GAME || {};
     if (GAME.BossBank) {
       if (GAME.BossBank.ready(g.scene, def)) {
         var bbR = r0 * ((info && BA.SCALE[info.kind]) || 1.6);
-        g.fillStyle(0x000000, 0.30 * a);
-        g.fillEllipse(sx, sy, bbR * 1.6, bbR * 1.6 * T, 14);
-        if (GAME.BossBank.draw(g.scene, def, sx, sy, r0, a, facing, g.depth, unit))
+        //  ⚠ 그림자는 **뒤판**에 그린다(2026-09-07). 보스 그림을 유닛·이펙트 아래로
+        //    내렸으므로, 그림자만 `g`(유닛 층)에 남으면 보스 다리 위에 검은 타원이 찍힌다.
+        var shG = BA._backLayer(g);
+        shG.fillStyle(0x000000, 0.30 * a);
+        shG.fillEllipse(sx, sy, bbR * 1.6, bbR * 1.6 * T, 14);
+        if (GAME.BossBank.draw(g.scene, def, sx, sy, r0, a, facing, BA._backDepth(g), unit))
           return true;
       } else if (GAME.BossBank.metaOf(def)) {
         GAME.BossBank.ensure(g.scene, def);
@@ -926,8 +945,10 @@ window.GAME = window.GAME || {};
       // **영속 Phaser.Image**(매 프레임 새로 만들지 않는다)로 따로 그린다.
       // Graphics 는 벡터 전용이라 비트맵을 못 그리기 때문이다.
       var sr = r0 * 2.2;
-      g.fillStyle(0x000000, 0.30 * a);
-      g.fillEllipse(sx, sy, sr * 2.0, sr * 2.0 * T, 14);
+      //  ⚠ 그림자·경계 마감은 보스 그림과 **같은 뒤판**에(2026-09-07).
+      var shR = BA._backLayer(g);
+      shR.fillStyle(0x000000, 0.30 * a);
+      shR.fillEllipse(sx, sy, sr * 2.0, sr * 2.0 * T, 14);
       // 경계 마감 — 이미지보다 먼저(=아래) 그린다. Image 는 항상 `g.depth+0.5`
       // 라 그 위에 앉으므로, 여기 그리는 흙더미는 크롭 실루엣 **주위 여백**
       // (알파 투명 구간)에서만 보인다 — 그래도 "허공에 뜬 크롭"보다는
@@ -935,9 +956,9 @@ window.GAME = window.GAME || {};
       var part = GAME.DragonAsset && GAME.DragonAsset.PARTS[info.kind];
       if (part && part.frame === 'ground') {
         var sz = GAME.DragonAsset.targetSize(info.kind, r0);
-        if (sz) groundFrame(g, info.kind, sx, sy, sz.w, sz.h, part.edges || []);
+        if (sz) groundFrame(shR, info.kind, sx, sy, sz.w, sz.h, part.edges || []);
       }
-      if (GAME.DragonAsset) GAME.DragonAsset.draw(g.scene, info.kind, sx, sy, r0, a, facing, g.depth);
+      if (GAME.DragonAsset) GAME.DragonAsset.draw(g.scene, info.kind, sx, sy, r0, a, facing, BA._backDepth(g));
       return true;
     }
 

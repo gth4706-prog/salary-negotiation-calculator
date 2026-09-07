@@ -2089,8 +2089,18 @@ GAME.Combat = {
   SKILL_TYPES: ['dash', 'aoeSelf', 'aoeTarget', 'projectile', 'strike', 'buff', 'aura',
                 'pull', 'trap', 'summon', 'stealth', 'blink', 'mark', 'chain', 'summonBoss',
                 'markZone', 'spray', 'clone', 'flurry'],
+  //  ⚠⚠ 2026-09-08 셋 신설 — **모든 보스 광역기가 원이었다.** 원은 답이 하나뿐이다
+  //    ("멀어져라"). 그래서 보스가 열여덟인데 손이 하는 일이 늘 같았다.
+  //    셋은 각각 **다른 답**을 요구한다:
+  //      breath   부채꼴 — 뒤로 도망가면 계속 맞는다. **옆으로** 비켜야 한다
+  //      donut    바깥만 위험 — **보스에게 붙어야** 산다(원의 정반대)
+  //      safezone 표시된 한 곳만 안전 — 그 자리를 **찾아 들어가야** 한다
+  //  ⚠ 새 타입을 넣으면 **이 배열 · 예고 좌표 분기 · _execAbility · skillfx 예고 그림 ·
+  //    eggart ABIL_POSE** 다섯 자리를 같이 봐야 한다(v3.20 교훈). 하나라도 빠지면
+  //    "정의는 있는데 아무 일도 안 하는" 능력이 된다.
   ABILITY_TYPES: ['charge', 'shockwave', 'healBurst', 'warcry', 'ember', 'ashcloud', 'pull',
-                  'barrage', 'summon', 'quake', 'gust'],
+                  'barrage', 'summon', 'quake', 'gust',
+                  'breath', 'donut', 'safezone'],
   FIELD_KINDS: ['fog', 'swamp', 'lava', 'quake', 'storm'],
 
   // 영웅이 **바라보는 방향(facing)** 으로 즉시 시전한다. PC·모바일 공통.
@@ -3538,6 +3548,39 @@ GAME.Combat = {
     //  ⚠ `aimLead` 는 **무차원 계수라 `DIST_KEYS` 에 넣으면 안 된다.** 넣으면 세로
     //    (WORLD_SCALE 0.636)에서만 리드가 0.64배로 조용히 약해진다.
     u.abilX = tgt.x; u.abilY = tgt.y;          // 기본 = 예고 시점의 자리(예전과 동일)
+    //  ── safezone 은 **조준이 아니라 반대다** (2026-09-08) ────────────────────
+    //  ⚠⚠ 다른 능력은 조준점이 「위험한 곳」이라 대상에게 맞추면 된다. 그런데
+    //    피난처는 조준점이 「**안전한 곳**」이라, 그대로 두면 안전지대가 항상
+    //    영웅 발밑에 생겨 **아무 일도 안 일어난다.** 실제 스크린샷으로 잡았다
+    //    (감사는 조준점을 손으로 넘겨서 이 경로를 한 번도 안 타고 있었다).
+    //  → 대상에게서 **멀리 떨어뜨린다.** 그래야 "찾아 들어가는" 예고가 된다.
+    //  ⚠ 난수는 `this.rand()` — 록스텝(실시간)이 양쪽에서 같은 자리를 보아야 한다.
+    if (ab.type === 'safezone') {
+      var AR2 = GAME.CONFIG.ARENA;
+      var szDist = ab.awayDist || 340;
+      var szR = ab.radius || 170;
+      var pad2 = szR * 0.8;
+      //  ⚠ 벽에 붙은 각을 고르면 **아레나 안으로 당겨지면서 영웅 쪽으로 되돌아온다** —
+      //    8회 중 1회가 107px(안전 반경 170 안)로 나와 "이미 안전"이 됐다(실측).
+      //    그래서 네 방향을 돌려 보고 **처음으로 충분히 떨어지는 자리**를 쓴다.
+      //    전부 실패하면 그중 가장 먼 자리를 쓴다(결정적이라 록스텝에서도 같다).
+      var szBase = this.rand() * Math.PI * 2;
+      var bestX = tgt.x, bestY = tgt.y, bestD = -1;
+      for (var szi = 0; szi < 4; szi++) {
+        var szAng = szBase + szi * (Math.PI / 2);
+        var sx2 = tgt.x + GAME.DetMath.cos(szAng) * szDist;
+        var sy2 = tgt.y + GAME.DetMath.sin(szAng) * szDist;
+        if (AR2) {
+          sx2 = Math.max(AR2.x + pad2, Math.min(AR2.x + AR2.w - pad2, sx2));
+          sy2 = Math.max(AR2.y + pad2, Math.min(AR2.y + AR2.h - pad2, sy2));
+        }
+        var ddx = sx2 - tgt.x, ddy = sy2 - tgt.y;
+        var dd2 = Math.sqrt(ddx * ddx + ddy * ddy);
+        if (dd2 > bestD) { bestD = dd2; bestX = sx2; bestY = sy2; }
+        if (dd2 > szR * 1.4) break;               // 충분히 떨어졌다 — 그만 찾는다
+      }
+      u.abilX = bestX; u.abilY = bestY;
+    }
     var lead = ab.aimLead || 0;
     if (lead > 0 && tgt._svx !== undefined) {
       //  평타 예측과 같은 신호(평활 속도) — 한 프레임 씰룩임이 예고를 흔들지 않게.
@@ -3567,12 +3610,26 @@ GAME.Combat = {
       //    `u.abilX`(=조준점) 에 떠서 "저기서 온다"고 거짓말을 한다.
       kind: 'telegraph',
       //  시즌2 S-E: quake(지진)·gust(돌풍)·summon(소환)도 **제 자리**에서 시작한다.
+      //  ⚠ breath(부채꼴)·donut(고리)도 **제 자리**에서 나간다. safezone 은 반대로
+      //    조준점이 곧 **안전한 자리**라 그쪽에 그린다(그게 이 기제의 전부다).
       x: (ab.type === 'shockwave' || ab.type === 'pull' || ab.type === 'quake' ||
-          ab.type === 'gust' || ab.type === 'summon') ? u.x : u.abilX,
+          ab.type === 'gust' || ab.type === 'summon' ||
+          ab.type === 'breath' || ab.type === 'donut') ? u.x : u.abilX,
       y: (ab.type === 'shockwave' || ab.type === 'pull' || ab.type === 'quake' ||
-          ab.type === 'gust' || ab.type === 'summon') ? u.y : u.abilY,
+          ab.type === 'gust' || ab.type === 'summon' ||
+          ab.type === 'breath' || ab.type === 'donut') ? u.y : u.abilY,
       r: ab.radius || 60, t: ab.telegraph, total: ab.telegraph, side: u.side,
       abilType: ab.type,
+      //  ── 예고 **모양** (2026-09-08) — 그림과 판정이 같은 값을 본다 ──────────────
+      //  ⚠ 그림이 원인데 판정이 부채꼴이면 "예고를 보고 피했는데 맞았다"가 된다.
+      //    이 게임이 가장 크게 어긴 적 있는 약속이라(알 보스 10k) 한 곳에서 싣는다.
+      shape: (ab.type === 'breath') ? 'cone'
+           : (ab.type === 'donut') ? 'donut'
+           : (ab.type === 'safezone') ? 'safe' : null,
+      dir: (ab.type === 'breath') ? GAME.DetMath.atan2(u.abilY - u.y, u.abilX - u.x) : undefined,
+      coneDeg: (ab.type === 'breath') ? (ab.coneDeg || 70) : undefined,
+      dist: (ab.type === 'breath') ? (ab.dist || 420) : undefined,
+      inner: (ab.type === 'donut') ? (ab.inner || 150) : undefined,
       // 재료(js/skillfx.js MOTIF_MAT). 없으면 예전처럼 기본 팔레트다.
       motif: ab.motif,
       // 용 보스 원소색 구분(js/scenes/battle.js `bossGlowOf`)이 시전자를 찾을 수
@@ -3800,6 +3857,68 @@ GAME.Combat = {
       state.effects.push({ kind: 'quake', x: u.x, y: u.y, r: ab.radius || 200,
                            t: 520, total: 520, side: u.side });
       state.quakeCasts = (state.quakeCasts || 0) + 1;
+
+    // ══ 2026-09-08 신설 셋 — **원이 아닌 광역**. 각각 다른 답을 요구한다 ═══════════
+    } else if (ab.type === 'breath') {
+      //  브레스 — 시전자에서 **부채꼴**로 뿜는다. 원과 결정적으로 다른 점: 뒤로
+      //  도망가도 부채꼴 안에 있으면 계속 맞는다. **옆으로 비켜야** 산다.
+      //  ⚠ 판정은 예고에 실은 값(dir·coneDeg·dist)과 **같은 식**이어야 한다 —
+      //    그림과 판정이 갈리면 "보고 피했는데 맞았다"가 된다(이 게임 최대 금기).
+      var bDir = GAME.DetMath.atan2(u.abilY - u.y, u.abilX - u.x);
+      var bHalf = ((ab.coneDeg || 70) * Math.PI / 180) / 2;
+      var bDist = ab.dist || 420;
+      for (i = 0; i < state.units.length; i++) {
+        o = state.units[i];
+        if (!o.alive || o.side === u.side || this.isHazard(o)) continue;
+        var bd = this.dist(u, o);
+        if (bd > bDist + o.def.radius) continue;
+        var ba = GAME.DetMath.atan2(o.y - u.y, o.x - u.x);
+        var bdf = GAME.DetMath.atan2(GAME.DetMath.sin(ba - bDir), GAME.DetMath.cos(ba - bDir));
+        //  가까이 있으면 각도 여유를 준다 — 시전자 발밑에서는 각이 무의미하게 넓어진다.
+        var bSlack = (bd < 60) ? Math.PI : bHalf;
+        if (Math.abs(bdf) > bSlack) continue;
+        //  ⚠ 넉백은 `bite` 가 `ab.knockback` 으로 이미 한다 — 여기서 또 밀면 두 번 밀린다.
+        bite(o);
+      }
+      state.effects.push({ kind: 'breath', x: u.x, y: u.y, r: bDist, dir: bDir,
+                           coneDeg: ab.coneDeg || 70, t: 420, total: 420, side: u.side,
+                           motif: ab.motif, owner: u });
+      state.breathCasts = (state.breathCasts || 0) + 1;
+
+    } else if (ab.type === 'donut') {
+      //  고리 — **바깥이 위험하고 중심이 안전하다.** 원형 광역의 정반대라, 몸이
+      //  기억한 "멀어져라"를 그대로 하면 죽는다. 답은 **보스에게 붙는 것**이다.
+      //  ⚠ 안전 반경(inner)은 반드시 보스 반지름보다 넉넉해야 한다 — 안 그러면
+      //    "안전한 곳"이 보스 몸 안이라 사람이 설 수 없는 거짓 안전지대가 된다.
+      var dOut = ab.radius || 340;
+      var dIn = Math.max((u.def.radius || 30) + 40, ab.inner || 150);
+      for (i = 0; i < state.units.length; i++) {
+        o = state.units[i];
+        if (!o.alive || o.side === u.side || this.isHazard(o)) continue;
+        var dd = this.dist(u, o);
+        if (dd < dIn - o.def.radius) continue;          // 중심 = 안전
+        if (dd > dOut + o.def.radius) continue;          // 고리 밖 = 안 맞음
+        bite(o);
+      }
+      state.effects.push({ kind: 'donut', x: u.x, y: u.y, r: dOut, inner: dIn,
+                           t: 480, total: 480, side: u.side, motif: ab.motif, owner: u });
+      state.donutCasts = (state.donutCasts || 0) + 1;
+
+    } else if (ab.type === 'safezone') {
+      //  피난처 — **표시된 한 곳만 안전**하고 나머지 전장이 맞는다. 답은 도망이
+      //  아니라 **찾아 들어가기**다(이 게임에서 유일하게 '가야 하는' 예고).
+      //  ⚠ 예고 반경이 곧 안전 원이다. 예고를 크게 잡을 것 — 작으면 못 들어간다.
+      var szR = ab.radius || 170;
+      for (i = 0; i < state.units.length; i++) {
+        o = state.units[i];
+        if (!o.alive || o.side === u.side || this.isHazard(o)) continue;
+        var sd = Math.sqrt((o.x - u.abilX) * (o.x - u.abilX) + (o.y - u.abilY) * (o.y - u.abilY));
+        if (sd <= szR) continue;                          // 안전 원 안 = 산다
+        bite(o);
+      }
+      state.effects.push({ kind: 'safezone', x: u.abilX, y: u.abilY, r: szR,
+                           t: 520, total: 520, side: u.side, motif: ab.motif, owner: u });
+      state.safezoneCasts = (state.safezoneCasts || 0) + 1;
 
     } else if (ab.type === 'gust') {
       //  돌풍 — 예고가 끝나면 `ab.ms`(2400) 동안 매 틱 적을 방향(예고 지점 쪽)으로

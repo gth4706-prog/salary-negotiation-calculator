@@ -3857,6 +3857,21 @@ GAME.BattleScene.prototype.draw = function () {
   var i;
 
   g.clear();
+  //  ── 보스 뒤판 (2026-09-07 태현님 ②) ────────────────────────────────────────
+  //  > "보스 이미지에 스킬이펙트나 공격반사가 가려져서 안보여 … 보스가 레이어 상 뒤에
+  //  >  위치하도록 … 특히 일반유닛이 뒤에가리는경우도 없게해"
+  //  원인: 보스 그림은 **Image** 라 `depth = g.depth + 0.5` 로 `this.g` 위에 앉았는데,
+  //  유닛·이펙트·투사체·공격반사가 **전부 그 `this.g` 한 장에** 그려진다. 그래서 큰 보스
+  //  하나가 그 층의 모든 연출을 덮었다.
+  //  → 보스 그림과 **그 그림자**를 이 뒤판(depth −1)으로 내린다. 그림자를 같이 안 내리면
+  //    `this.g` 에 남아 **보스 다리 위에 검은 타원**이 찍힌다(그림을 내리면 생기는 짝 문제).
+  //  ⚠ 매 프레임 지운다 — 안 지우면 보스가 움직인 자리마다 그림자가 눌어붙는다.
+  if (!this._bossBackG) {
+    this._bossBackG = this.add.graphics();
+    if (this.worldLayer) this.worldLayer.add(this._bossBackG);
+    this._bossBackG.setDepth((g.depth || 0) - 1);
+  }
+  this._bossBackG.clear();
   //  무기 이미지 유령 스윕은 매 프레임 다시 그리는 이 화면에서만 무장한다(gearbank 주석).
   if (GAME.GearBank) GAME.GearBank.begin();
   // 층 분위기 — 통곡의 탑/수성의 탑은 층수로, 층이 없는 모드는 등급으로 바닥이 갈린다.

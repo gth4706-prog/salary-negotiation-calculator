@@ -377,6 +377,62 @@ window.GAME = window.GAME || {};
   //     effect: telegraph(예고) → blast(착탄).  이 게임에서 **가장 중요한 이펙트**다.
   //     "논타겟은 피할 수 있다"는 약속이 여기서 지켜진다 — 범위와 남은 시간이 전부다.
   // ========================================================================
+  // ── 원이 아닌 예고 셋 (2026-09-08) ────────────────────────────────────────────
+  //  ⚠⚠ **그림과 판정은 같은 값을 봐야 한다.** combat.js `_execAbility` 의 breath/
+  //    donut/safezone 판정과 여기 그림이 갈리면 "예고를 보고 피했는데 맞았다"가 된다 —
+  //    이 게임이 가장 크게 어긴 적 있는 약속이다(알 보스 10k 사고).
+  //    그래서 셋 다 **combat 이 예고에 실어 준 값**(dir·coneDeg·dist·inner)만 쓴다.
+  function coneTelegraphA(e) {
+    var prog = 1 - e.t / e.total; if (prog < 0) prog = 0;
+    var FX = S.FX;
+    var half = ((e.coneDeg || 70) * Math.PI / 180) / 2;
+    var dist = e.dist || e.r || 420;
+    var cy = syy(e.y);
+    //  부채꼴을 지면에 눕혀 삼각형 부채로 채운다(원이 아니라는 것이 한눈에 보여야 한다).
+    var steps = 14;
+    S.g.fillStyle(FX.telegraph, (0.10 + prog * 0.26) * S.FA);
+    for (var i = 0; i < steps; i++) {
+      var a0 = e.dir - half + (half * 2) * (i / steps);
+      var a1 = e.dir - half + (half * 2) * ((i + 1) / steps);
+      S.g.fillTriangle(e.x, cy,
+        e.x + Math.cos(a0) * dist, cy + Math.sin(a0) * dist * S.T,
+        e.x + Math.cos(a1) * dist, cy + Math.sin(a1) * dist * S.T);
+    }
+    //  양쪽 가장자리 — "이 선 밖으로 나가면 산다"를 굵게 말한다.
+    S.g.lineStyle(3, FX.telegraph, (0.5 + prog * 0.5) * S.RA);
+    S.g.lineBetween(e.x, cy, e.x + Math.cos(e.dir - half) * dist, cy + Math.sin(e.dir - half) * dist * S.T);
+    S.g.lineBetween(e.x, cy, e.x + Math.cos(e.dir + half) * dist, cy + Math.sin(e.dir + half) * dist * S.T);
+  }
+  function donutTelegraphA(e) {
+    var prog = 1 - e.t / e.total; if (prog < 0) prog = 0;
+    var FX = S.FX, M = S.MAT;
+    var inner = e.inner || 150;
+    //  바깥 고리만 칠한다 — 가운데를 비워 **여기가 안전하다**를 그림이 직접 말한다.
+    gfill(e.x, e.y, e.r, S.INKA > 0 ? S.INK : 0x000000, (0.05 + prog * 0.16) * S.FA);
+    S.g.fillStyle(S.MAT ? M.bg || 0x000000 : 0x000000, 0);   // (가운데는 안 칠한다)
+    gink(e.x, e.y, e.r, 2.5, FX.telegraph, (0.45 + prog * 0.55) * S.RA);
+    //  안전 원 — 초록 계열이 아니라 **밝은 테두리**로. 색 토큰을 새로 만들지 않는다.
+    gline(e.x, e.y, inner, 3, FX.safe || FX.telegraph, (0.55 + prog * 0.45) * S.RA);
+    var n = 10, sd = seedOf(e.x, e.y), cy = syy(e.y);
+    for (var k = 0; k < n; k++) {
+      var ang = sd + (Math.PI * 2 / n) * k;
+      //  조각이 **바깥으로** 퍼진다(원형 예고는 안으로 조인다 — 반대로 읽히게).
+      var d = inner + (e.r - inner) * prog;
+      shard(e.x + Math.cos(ang) * d, cy + Math.sin(ang) * d * S.T,
+        2.2 + prog * 1.6, M.stone, 0.55 + prog * 0.45);
+    }
+  }
+  function safezoneTelegraphA(e) {
+    var prog = 1 - e.t / e.total; if (prog < 0) prog = 0;
+    var FX = S.FX;
+    //  **안전한 곳**만 그린다. 위험 구역(전장 전체)을 칠하면 화면이 통째로 물들어
+    //  다른 예고를 다 덮는다 — 사람이 봐야 하는 것은 "어디로 가야 하나" 하나다.
+    gfill(e.x, e.y, e.r, FX.safe || FX.telegraph, (0.10 + prog * 0.18) * S.FA);
+    gink(e.x, e.y, e.r, 3.5, FX.safe || FX.telegraph, (0.55 + prog * 0.45) * S.RA);
+    //  안쪽으로 좁혀 오는 두 번째 고리 — 시간이 줄어드는 것이 보인다.
+    gline(e.x, e.y, e.r * (1.35 - prog * 0.35), 2, FX.safe || FX.telegraph, 0.30 + prog * 0.5);
+  }
+
   function telegraphA(e) {
     var prog = 1 - e.t / e.total; if (prog < 0) prog = 0;
     var M = S.MAT, FX = S.FX;
@@ -1604,6 +1660,11 @@ window.GAME = window.GAME || {};
       }
       if (k === 'telegraph') {
         if (e.storm) { boltTelegraphA(e); return true; }            // 낙뢰 예고(전장 규칙 storm)
+        //  ⚠ 모양이 실려 있으면 그 모양으로 그린다(2026-09-08 신설 셋).
+        //    combat 이 판정에 쓰는 것과 **같은 값**이다 — 갈리면 약속이 깨진다.
+        if (e.shape === 'cone') { coneTelegraphA(e); return true; }
+        if (e.shape === 'donut') { donutTelegraphA(e); return true; }
+        if (e.shape === 'safe') { safezoneTelegraphA(e); return true; }
         S.B ? telegraphB(e) : telegraphA(e); return true;
       }
       if (k === 'blast') { S.B ? blastB(e) : blastA(e, col); return true; }

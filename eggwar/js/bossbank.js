@@ -150,6 +150,16 @@ GAME.BossBank = (function () {
         var base = GAME.UnitLevel.baseKeyOf(def.key);
         if (base && DATA[base]) return this._resolve(base);
       }
+      //  ⚠⚠ **art 되찾기는 보스끼리만 허용한다** (2026-09-08 회귀 수정).
+      //    v3.25 에서 이 되찾기를 통째로 없앴다 — 쇠뇌 진지·족장이 보스 시트를 훔쳐
+      //    가는 것을 막으려는 것이었고 그 목적은 맞았다. 그런데 세계 보스 넷은
+      //    **시트 키가 def 키와 다르다**(`bossAshLord` ↔ `w_ash_boss`). 그래서 키
+      //    조회만 남기자 넷이 통째로 시트를 잃고 벡터로 떨어졌다 —
+      //    60·100·150·200층이 그 뒤로 계속 민짜 벡터였다(boss-shot 이 잡았다).
+      //  → 되찾기를 **`def.isBoss` 일 때만** 연다. 일반 유닛은 여전히 못 훔친다.
+      if (def.isBoss && def.art) {
+        for (var k in DATA) if (DATA[k].art === def.art) return this._resolve(k);
+      }
       return null;
     },
 

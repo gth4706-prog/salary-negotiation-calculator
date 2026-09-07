@@ -290,10 +290,11 @@ GAME.BOSS_UNITS = {
       { type: 'charge', cooldown: 6000, telegraph: 560,
         minRange: 150, maxRange: 500, dist: 500,
         damage: 140, radius: 70, knockback: 58 },
-      { type: 'barrage', cooldown: 14000, telegraph: 700,
+      //  ⚠ 잉걸불 — 예고 자리에 불을 남긴다. 회피 계약은 그대로다(보고 비키면 안 맞는다).
+      //    대신 **비킨 그 자리를 몇 초간 못 쓴다** — 피하는 것과 자리를 잃는 것은 다르다.
+      { type: 'ember', motif: 'ember', cooldown: 11000, telegraph: 900,
         minRange: 0, maxRange: 4000,
-        damage: 215, radius: 330, repeat: 1, fuse: 2600,
-        slowMul: 0.5, slowMs: 2000 }
+        radius: 150, ms: 5200, dps: 95, maxZones: 3 }
     ]
   },
 
@@ -309,12 +310,16 @@ GAME.BOSS_UNITS = {
     // 급강하 — 가장 빠른 놈이라 거리를 더 멀리 지운다. 예고는 짧지만 사거리가 길다.
     //  궁극 「재구름 폭격」 — 중형 원 5개가 시차로 쏟아진다.
     abilities: [
-      { type: 'charge', cooldown: 5000, telegraph: 480,
-        minRange: 170, maxRange: 640, dist: 640,
-        damage: 134, radius: 78, knockback: 70 },
-      { type: 'barrage', cooldown: 14000, telegraph: 700,
+      //  ⚠ desc 가 "낮게 날아와 덮치고, **재를 흩뿌린다**" 인데 흩뿌리는 능력이
+      //    없었다(돌진+폭격 둘뿐). 재는 스킬 쿨을 늘린다 — 한 번 쓸 때 확실히 쓰게 만든다.
+      { type: 'ashcloud', cooldown: 10000, telegraph: 800,
         minRange: 0, maxRange: 4000,
-        damage: 150, radius: 125, repeat: 5, interval: 260, spread: 400, fuse: 1700 }
+        radius: 300, ms: 5000, cdMul: 1.4 },
+      //  ⚠ 용은 **숨을 뿜는다** — 부채꼴이라 뒤로 도망가면 계속 맞는다. **옆으로** 비켜야 한다.
+      //    원형 예고만 겪던 사람이 처음으로 "멀어지기"가 안 통하는 판을 만난다.
+      { type: 'breath', motif: 'ember', cooldown: 11000, telegraph: 1300,
+        minRange: 0, maxRange: 4000,
+        damage: 185, coneDeg: 74, dist: 460, knockback: 30 }
     ]
   },
 
@@ -338,10 +343,13 @@ GAME.BOSS_UNITS = {
         minRange: 0, maxRange: 4000,
         damage: 110, radius: 130, repeat: 3, interval: 400, spread: 250,
         slowMul: 0.45, slowMs: 2200 },
-      { type: 'barrage', cooldown: 15000, telegraph: 800,
+      //  ⚠ 얼어붙는 숨결 — 기제는 잿가루꾼(ashcloud)과 같다(적 쿨타임을 늘린다).
+      //    서리가 **발을 늦추는 것**(위 barrage 의 slowMul)에 더해 **손도 늦춘다**.
+      //    타입 이름은 엔진 것이고 화면엔 안 나온다 — 새 타입을 만들면 포즈·감사·
+      //    이펙트를 다섯 자리에 또 채워야 한다(v3.20 교훈).
+      { type: 'ashcloud', cooldown: 13000, telegraph: 900,
         minRange: 0, maxRange: 4000,
-        damage: 180, radius: 300, repeat: 1, fuse: 2500,
-        slowMul: 0.40, slowMs: 2600 }
+        radius: 320, ms: 5000, cdMul: 1.45 }
     ]
   },
 
@@ -359,10 +367,14 @@ GAME.BOSS_UNITS = {
     // 실제 물리적 결과로 준다 — 다른 barrage 보스는 이 필드가 없어 그대로다.
     //  궁극 「연쇄 낙뢰」 — 작은 원 9개가 빠르게 연달아 떨어진다. 계속 움직여야 산다.
     abilities: [
-      { type: 'barrage', cooldown: 5400, telegraph: 560,
+      //  ⚠ 폭풍인데 **미는 것**이 없었다(폭격 두 번뿐). 돌풍은 자리를 뺏는 기제라
+      //    "어디에 설 것인가"를 묻는다 — 폭풍의 왕과 같은 어휘를 권속이 먼저 쓴다.
+      //  ⚠ gust 는 `ms · push · radius · dps` 를 읽는다(`power`/`damage` 가 아니다).
+      //    처음에 power/damage 로 적었다가 잡았다 — 엔진이 모르는 키를 적으면
+      //    **에러 없이 조용히 아무 일도 안 하는** 능력이 된다(이 저장소 상습 사고).
+      { type: 'gust', cooldown: 8000, telegraph: 800,
         minRange: 0, maxRange: 4000,
-        damage: 102, radius: 118, repeat: 4, interval: 320, spread: 300,
-        knockback: 46 },
+        ms: 1600, push: 165, radius: 0, dps: 30 },
       { type: 'barrage', cooldown: 14000, telegraph: 640,
         minRange: 0, maxRange: 4000,
         damage: 120, radius: 88, repeat: 9, interval: 130, spread: 470, fuse: 1250,
@@ -404,9 +416,11 @@ GAME.BOSS_UNITS = {
         minRange: 0, maxRange: 4000,
         damage: 124, radius: 165, repeat: 4, interval: 360, spread: 340,
         knockback: 54 },
-      { type: 'barrage', cooldown: 15000, telegraph: 800,
+      //  ⚠ **발**이다 — 땅을 찍는 게 정체성인데 폭격 두 번이 전부였다.
+      //    예고 2.3초 × 158px/s = 363px > 반경 230 × 1.5 → 걸어 나가면 피해진다.
+      { type: 'quake', cooldown: 12000, telegraph: 2300,
         minRange: 0, maxRange: 4000,
-        damage: 210, radius: 345, repeat: 1, fuse: 2700, knockback: 110 }
+        damage: 235, radius: 230, rootMs: 700 }
     ]
   },
 
@@ -426,8 +440,11 @@ GAME.BOSS_UNITS = {
     // 훨씬 크게 잡아 "다섯 손가락이 전장을 통째로 움켜쥔다"는 desc 를 실현한다.
     //  궁극 「움켜쥐기」 — desc 그대로, 다섯 손가락이 다섯 자리를 동시에 찍는다.
     abilities: [
-      { type: 'shockwave', cooldown: 5400, telegraph: 900,
-        damage: 148, radius: 270 },
+      //  ⚠ desc 가 "다섯 손가락이 전장을 통째로 **움켜쥔다**" 인데 움켜쥐는 능력이
+      //    없었다(충격파+폭격). 끌어당김이 그 문장의 기제다.
+      { type: 'pull', cooldown: 9000, telegraph: 900,
+        minRange: 0, maxRange: 4000,
+        dist: 480, coneDeg: 360, power: 230, keep: 100, damage: 150 },
       { type: 'barrage', cooldown: 15000, telegraph: 800,
         minRange: 0, maxRange: 4000,
         damage: 180, radius: 135, repeat: 5, interval: 210, spread: 310, fuse: 2000,
@@ -451,8 +468,10 @@ GAME.BOSS_UNITS = {
     // 여러 예고 대신 **한 번의 큰 파동**으로 바꿔 다른 barrage 보스와 구분한다.
     //  궁극 「폭풍 날개」 — 날갯짓이 일으킨 돌풍이 일곱 자리를 찢는다.
     abilities: [
-      { type: 'shockwave', cooldown: 5000, telegraph: 700,
-        damage: 122, radius: 225 },
+      //  ⚠ **날개**다 — 날갯짓이 바람을 만든다. 충격파(자기중심 파동)로는 그게 안 읽힌다.
+      { type: 'gust', cooldown: 8500, telegraph: 800,
+        minRange: 0, maxRange: 4000,
+        ms: 1900, push: 185, radius: 0, dps: 34 },
       { type: 'barrage', cooldown: 14000, telegraph: 700,
         minRange: 0, maxRange: 4000,
         damage: 150, radius: 105, repeat: 7, interval: 190, spread: 500, fuse: 1500,
@@ -538,9 +557,18 @@ GAME.BOSS_UNITS = {
     abilities: [
       { type: 'shockwave', cooldown: 4800, telegraph: 900,
         damage: 21, radius: 258 },
+      //  ⚠⚠ 「껍질 깨기」를 **지우면 안 된다.** v1.13 이 실측으로 잡은 짝이다:
+      //    ① 박동 = 못 피해도 안 죽는다 ② 껍질 깨기 = 걸어 나가면 피해진다.
+      //    한때 이걸 잉걸불로 갈아치웠다가 `tower-feature-audit` 의 「큰 스킬에 긴
+      //    예고가 있다」가 잡았다 — 다양성을 넣겠다고 **약속을 빼면 안 된다.**
+      //    그래서 잉걸불은 넷째가 아니라 **셋째로 얹는다**(빼기가 아니라 더하기).
       { type: 'barrage', cooldown: 12500, telegraph: 2600,
         minRange: 0, maxRange: 4000, aimLead: 0,
-        damage: 56, radius: 170, repeat: 1, interval: 0, spread: 0 }
+        damage: 56, radius: 170, repeat: 1, interval: 0, spread: 0 },
+      //  금이 갔으니 **틈에서 열이 샌다** — 피할 수는 있지만 그 자리를 잃는다.
+      { type: 'ember', motif: 'ember', cooldown: 13000, telegraph: 1100,
+        minRange: 0, maxRange: 4000,
+        radius: 145, ms: 5000, dps: 30, maxZones: 2 }
     ]
   },
 
@@ -563,9 +591,15 @@ GAME.BOSS_UNITS = {
         minRange: 0, maxRange: 4000,
         damage: 24, radius: 195, repeat: 5, interval: 300, spread: 360,
         knockback: 38 },
+      //  ⚠⚠ 「껍질 깨기」 유지 — 위 금 간 알과 같은 이유(v1.13 의 짝을 깨지 않는다).
       { type: 'barrage', cooldown: 12000, telegraph: 2500,
         minRange: 0, maxRange: 4000, aimLead: 0,
-        damage: 69, radius: 180, repeat: 1, interval: 0, spread: 0 }
+        damage: 69, radius: 180, repeat: 1, interval: 0, spread: 0 },
+      //  틈이 넓어져 **열을 멀리까지** 뿜는다 — 250층이 200층보다 무서운 이유가
+      //  체력이 아니라 사거리라는 설계 그대로다.
+      { type: 'ember', motif: 'ember', cooldown: 12000, telegraph: 1100,
+        minRange: 0, maxRange: 4000,
+        radius: 170, ms: 5400, dps: 38, maxZones: 2 }
     ]
   },
 
@@ -582,13 +616,20 @@ GAME.BOSS_UNITS = {
     // 둘을 다 가진 유일한 보스 — 거리도 지우고 설 자리도 지운다.
     //  궁극 「태초의 화염」 — 게임에서 가장 큰 원. 예고 2.9초, 반드시 걸어 나가야 산다.
     abilities: [
+      //  ⚠ 최종 보스가 **폭격 두 번**이 전부였다. 용이면 권속을 부른다 —
+      //    300층까지 오며 만난 것들이 마지막에 한 번에 나오는 그림이다.
+      { type: 'summon', motif: 'ember', cooldown: 12000, telegraph: 900,
+        minRange: 0, maxRange: 4000,
+        unit: 'sniper', count: 2, maxAlive: 4, spread: 150, life: 16000,
+        unitMods: { hp: 2.2, damage: 2.0 } },
       { type: 'barrage', cooldown: 4200, telegraph: 600,
         minRange: 0, maxRange: 4000,
         damage: 98, radius: 220, repeat: 7, interval: 280, spread: 440 },
-      { type: 'barrage', cooldown: 16000, telegraph: 800,
+      //  ⚠ 최종 보스가 **숨을 안 뿜고 있었다**(거대한 원 폭격이 전부였다).
+      //    부채꼴은 300층까지 오며 배운 "멀어져라"를 마지막에 한 번 뒤집는다.
+      { type: 'breath', motif: 'ember', cooldown: 14000, telegraph: 1500,
         minRange: 0, maxRange: 4000,
-        damage: 260, radius: 380, repeat: 1, fuse: 2900,
-        slowMul: 0.5, slowMs: 2000 }
+        damage: 300, coneDeg: 82, dist: 560, knockback: 60 }
     ]
   },
 
@@ -614,10 +655,12 @@ lore: '오래 살아남아 둥지만큼 커진 우두머리. 그가 포효하면
       { type: 'charge', cooldown: 6500, telegraph: 520,
         minRange: 150, maxRange: 460, dist: 460,
         damage: 150, radius: 62, knockback: 46 },
-      { type: 'barrage', cooldown: 15000, telegraph: 750,
+      //  ⚠ 포효 — desc 가 "포효하면 부족 전체가 세게 친다"인데 정작 능력에 없었다
+      //    (상시 buffDamageMul 뿐이었다). 족장 유닛의 warcry 와 같은 기제다.
+      //    위 돌진이 피해를 맡으므로 이빨은 남는다.
+      { type: 'warcry', cooldown: 12000, telegraph: 700,
         minRange: 0, maxRange: 4000,
-        damage: 190, radius: 155, repeat: 3, interval: 300, spread: 330, fuse: 2000,
-        knockback: 40 }
+        radius: 300, ms: 5000, dmgMul: 1.7 }
     ]
   },
 
@@ -645,13 +688,17 @@ lore: '버려진 알 껍질을 뒤집어쓴 커다란 것. 느리지만 한 번 
     //   무서워서 어려워야 한다는 것이 이번 변경의 요지다.
     //  궁극 「산사태」 — 등껍질 조각이 여섯 자리로 쏟아진다.
     abilities: [
-      { type: 'charge', cooldown: 5200, telegraph: 900,
-        minRange: 160, maxRange: 580, dist: 580,
-        damage: 194, radius: 76, knockback: 92 },
-      { type: 'barrage', cooldown: 15000, telegraph: 800,
+      //  ⚠ 내리찍기 — 예고 2.2초 × 158px/s = 348px > 반경 210 × 1.5 이므로
+      //    **걸어 나가면 피해진다**(이 저장소의 회피 규격). 속박은 짧아 못 피해도 안 죽는다.
+      { type: 'quake', cooldown: 9000, telegraph: 2200,
         minRange: 0, maxRange: 4000,
-        damage: 165, radius: 115, repeat: 6, interval: 240, spread: 430, fuse: 1700,
-        knockback: 60, slowMul: 0.6, slowMs: 1500 }
+        damage: 205, radius: 210, rootMs: 620 },
+      //  ⚠ 껍질이 사방으로 터진다 — **바깥이 위험하고 중심이 안전하다.**
+      //    20층은 두 번째 보스라, 여기서 "원이 아닌 광역"을 처음 만나게 된다.
+      //    몸이 기억한 "멀어져라"를 그대로 하면 죽는 판이라 배움이 크다.
+      { type: 'donut', cooldown: 13000, telegraph: 1500,
+        minRange: 0, maxRange: 4000,
+        damage: 175, radius: 360, inner: 150, knockback: 40 }
     ]
   },
 
@@ -677,9 +724,12 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
     // 예고 원 3개가 시차를 두고 떨어져서, 서 있으면 맞고 계속 움직이면 피한다.
     //  궁극 「화살 폭우」 — 온 골짜기에 화살이 쏟아진다. 설 자리를 넓게 지운다.
     abilities: [
-      { type: 'barrage', cooldown: 6800, telegraph: 640,
+      //  ⚠ **둥지**인데 아무것도 안 낳고 있었다(폭격 두 번이 전부). 상한 4기 —
+      //    화면이 호위로 덮이면 피할 곳이 사라진다(잉걸불 상한과 같은 이유).
+      { type: 'summon', cooldown: 11000, telegraph: 800,
         minRange: 0, maxRange: 4000,
-        damage: 65, radius: 104, repeat: 3, interval: 430, spread: 230 },
+        unit: 'rifleman', count: 2, maxAlive: 4, spread: 120, life: 0,
+        unitMods: { hp: 0.7, damage: 0.7 } },
       { type: 'barrage', cooldown: 16000, telegraph: 700,
         minRange: 0, maxRange: 4000,
         damage: 85, radius: 82, repeat: 10, interval: 150, spread: 540, fuse: 1400 }
@@ -719,9 +769,9 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
         damage: 120, radius: 130, repeat: 3, spread: 220, interval: 380,
         slowMul: 0.5, slowMs: 2000 },
       //  궁극 「늪 범람」 — 전장 절반이 늪이 되는 거대 원. fuse 2.5초, 걸어 나가면 피해진다.
-      { type: 'barrage', motif: 'bog', cooldown: 15000, telegraph: 800,
-        minRange: 0, maxRange: 4000, aimLead: 0,
-        damage: 190, radius: 320, repeat: 1, fuse: 2500,
+      { type: 'pull', motif: 'bog', cooldown: 13000, telegraph: 900,
+        minRange: 0, maxRange: 4000,
+        dist: 430, coneDeg: 360, power: 190, keep: 110, damage: 165,
         slowMul: 0.4, slowMs: 2600 }
     ],
     phases: [
@@ -754,12 +804,16 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
     radius: 32, shape: 'star', weapon: 'riotShield',
     chase: 520, aggro: 560,
     abilities: [
-      { type: 'charge', motif: 'ember', cooldown: 6000, telegraph: 560,
-        minRange: 150, maxRange: 520, dist: 520,
-        damage: 140, radius: 72, knockback: 60 },
-      { type: 'barrage', motif: 'ember', cooldown: 12000, telegraph: 700,
+      //  ⚠ 군주 — 부하를 세게 만든다. 2페이즈에서 돌진이 돌아오므로(아래 phases)
+      //    1페이즈는 "먼저 부하를 끊어라"는 판이 되고, 2페이즈에서 성격이 바뀐다.
+      { type: 'warcry', motif: 'ember', cooldown: 11000, telegraph: 700,
         minRange: 0, maxRange: 4000,
-        damage: 150, radius: 120, repeat: 4, interval: 260, spread: 380, fuse: 1500 }
+        radius: 320, ms: 5000, dmgMul: 1.6 },
+      //  ⚠ 잿더미가 전장을 덮고 **한 곳만 숨 쉴 수 있다.** 이 게임에서 유일하게
+      //    "도망가는" 예고가 아니라 **"찾아 들어가는"** 예고다 — 답의 방향이 반대다.
+      { type: 'safezone', motif: 'ember', cooldown: 14000, telegraph: 1900,
+        minRange: 0, maxRange: 4000,
+        damage: 185, radius: 175 }
     ],
     //  페이즈 3 — 재가 타오른다(2/3) → 용암 고리(1/3). 전장(lava)이 단계마다 넓어진다.
     phases: [
@@ -798,10 +852,11 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
     abilities: [
       { type: 'quake', motif: 'rock', cooldown: 12000, telegraph: 2000, minRange: 0, maxRange: 4000,
         damage: 150, radius: 190, rootMs: 600 },
-      { type: 'barrage', motif: 'rock', cooldown: 8000, telegraph: 800,
+      //  ⚠ 균열이 빨아들인다 — 원거리 영웅의 안전거리를 지운다(지진과 짝이다:
+      //    끌려온 자리에서 발이 묶인다). `damage` 를 실어 이빨을 남긴다.
+      { type: 'pull', motif: 'rock', cooldown: 10000, telegraph: 900,
         minRange: 0, maxRange: 4000,
-        damage: 130, radius: 110, repeat: 5, interval: 300, spread: 420, fuse: 1400,
-        knockback: 40 }
+        dist: 460, coneDeg: 360, power: 210, keep: 110, damage: 140 }
     ],
     phases: [
       //  ⚠ 페이즈 첫 능력은 진입 직후(≤0.9초) 나간다(combat `_tickPhase`) — 소환을 맨 앞에
@@ -833,10 +888,13 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
     radius: 32, shape: 'star', weapon: 'rifle',
     chase: 640, aggro: 640,
     abilities: [
-      { type: 'barrage', motif: 'storm', cooldown: 6000, telegraph: 600,
+      //  ⚠ **폭풍의 눈** — desc 가 "반쯤 잡히면 폭풍의 눈이 열린다"고 이미 말하고
+      //    있었는데 정작 기제가 없었다. 고리는 그 문장 그대로다: 바깥이 폭풍이고
+      //    **한가운데(눈)가 안전하다.** 돌풍(gust)이 밖으로 미는 것과 짝이라
+      //    "밀려나지 않고 눈 안에 버티기"가 이 보스의 답이 된다.
+      { type: 'donut', motif: 'storm', cooldown: 12000, telegraph: 1600,
         minRange: 0, maxRange: 4000,
-        damage: 105, radius: 115, repeat: 4, interval: 300, spread: 320,
-        knockback: 46 },
+        damage: 190, radius: 400, inner: 165, knockback: 40 },
       //  돌풍 — 예고 뒤 2.4초 동안 전역으로 민다(보스는 면역). 밀리는 동안 낙뢰 예고를 보라.
       { type: 'gust', motif: 'storm', cooldown: 11000, telegraph: 900, minRange: 0, maxRange: 4000,
         ms: 2400, push: 150, radius: 0, dps: 20 }

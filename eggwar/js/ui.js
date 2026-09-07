@@ -201,6 +201,63 @@ GAME.UI = {
     g.fillStyle(UI.mix(baseFill, 0xffffff, 0.10), 1);
     g.fillRect(R.x, R.bottom - nearH, R.w, nearH);
 
+    // ── 빈 앞마당 (2026-09-08 태현님: "보여주기 창피해") ─────────────────────
+    //  실측(폰, 24층): 아레나 808×378 · 적 배치 구역 높이 113 = **아레나의 30%** ·
+    //  적은 y 10~38% · 영웅 48%. 즉 **아래 절반에는 아무도 안 선다.**
+    //  화면의 절반 이상이 평평한 단색이라 "미완성"으로 읽혔다 — 그게 가장 큰
+    //  싸구려 신호였다.
+    //
+    //  ⚠⚠ 이 파일의 제1규율("유닛이 서는 구간은 가장 조용해야 한다")은 **그대로
+    //    지킨다.** 그 규율은 예고 원·투사체가 안 보이게 되는 것을 막으려는 것이고,
+    //    유닛이 서지 않는 구간에는 해당되지 않는다. 그래서 경계를 **눈대중이 아니라
+    //    `CONFIG` 에서 역산**한다 — 배치 구역이 바뀌면 이 선도 따라 움직인다.
+    (function () {
+      var zs = GAME.CONFIG.ZONE_STRATEGIST, zc = GAME.CONFIG.ZONE_CONTROLLER;
+      if (!zs || !zc) return;
+      //  영웅이 서는 자리(스폰)까지 포함해 **조용해야 하는 선**을 잡고, 그 아래만 꾸민다.
+      var heroY = zc.y + zc.h * 0.55;
+      var quietW = Math.max(zs.y + zs.h, heroY) + 26;      // 월드 좌표
+      var quietS = Iso.toScreenY(quietW);
+      if (quietS >= R.bottom - 12) return;                  // 꾸밀 자리가 없으면 그만둔다
+      var band = R.bottom - quietS;
+
+      //  ① 가까울수록 진해진다(공기원근의 반대쪽) — 위 원경이 밝아지는 것과 짝이다.
+      var steps = 14;
+      for (var i = 0; i < steps; i++) {
+        var t = i / steps;
+        g.fillStyle(0x000000, 0.05 * t * t);
+        g.fillRect(R.x, quietS + band * t, R.w, band / steps + 1);
+      }
+      //  ② 풀·돌 — **여기서는 진하게 깔아도 된다**(아무도 안 선다).
+      //    자리는 고정 난수다: 판마다 바닥이 달라지면 어지럽다(위 얼룩과 같은 규율).
+      var dark = UI.mix(baseFill, 0x000000, 0.30);
+      var lite = UI.mix(baseFill, 0xffffff, 0.16);
+      for (var k2 = 0; k2 < 90; k2++) {
+        var px = R.x + ((k2 * 137 + 31) % Math.max(1, Math.round(R.w - 16))) + 8;
+        var pt = ((k2 * 89) % 100) / 100;
+        var py = quietS + band * (0.06 + pt * 0.90);
+        var near = (py - quietS) / band;                    // 아래로 갈수록 크고 진하게
+        var sc = 0.6 + near * 1.5;
+        if (k2 % 7 === 0) {                                 // 돌
+          g.fillStyle(dark, 0.20 + near * 0.16);
+          g.fillEllipse(px, py, 7 * sc, 3.4 * sc, 6);
+          g.fillStyle(lite, 0.18 + near * 0.14);
+          g.fillEllipse(px - 1.2 * sc, py - 1.2 * sc, 4.2 * sc, 1.9 * sc, 6);
+        } else {                                            // 풀포기
+          g.fillStyle(dark, 0.13 + near * 0.15);
+          g.fillEllipse(px, py, 6.5 * sc, 2.4 * sc, 6);
+          g.fillEllipse(px + 3.4 * sc, py - 1.1 * sc, 4.2 * sc, 1.7 * sc, 6);
+          g.fillStyle(lite, 0.12 + near * 0.12);
+          g.fillEllipse(px - 2.6 * sc, py - 0.8 * sc, 3.6 * sc, 1.5 * sc, 6);
+        }
+      }
+      //  ③ 아래 모서리 비네트 — 화면 끝이 '잘린 종이'로 보이지 않게 한다.
+      for (var v = 0; v < 8; v++) {
+        g.fillStyle(0x000000, 0.030);
+        g.fillRect(R.x, R.bottom - (8 - v) * (band * 0.045), R.w, band * 0.045 + 1);
+      }
+    })();
+
     // ── 거리 그라디언트 ────────────────────────────────────────────────────
     //  ⚠ 예전에는 **6밴드**였다. 폰 가로에서 밴드 하나가 45px 라 계단(밴딩)으로 보였다.
     //    셰이더(`addGradient`)를 쓰는 방법도 있지만 `Phaser.AUTO` 라 Canvas 폴백에서

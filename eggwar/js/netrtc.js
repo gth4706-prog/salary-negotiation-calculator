@@ -47,28 +47,46 @@ GAME.NetRtc = {
     if (NR.me === NR.host) this._offer();
   },
 
+  //  워커의 `/ice` 에서 단기 TURN 자격증명을 받아 이미 만든 연결에 얹는다.
+  //  ⚠ 실패해도 조용히 넘어간다 — STUN 직결과 기존 WS 릴레이(`/ws`)가 그대로 남아
+  //    대전이 끊기지 않는다. TURN 은 직결이 안 되는 망(대칭 NAT)을 위한 보조 경로다.
+  //  ⚠ 키가 워커에 없으면 서버가 STUN 만 돌려준다 — 그때도 이 코드는 정상 동작한다.
+  _loadIce: function (pc, base) {
+    var NR = GAME.NetRoom;
+    var url = (NR && NR.BASE ? NR.BASE : '') + '/ice';
+    if (!NR || !NR.BASE || typeof fetch !== 'function') return;
+    fetch(url, { cache: 'no-store' }).then(function (r) {
+      return r.ok ? r.json() : null;
+    }).then(function (d) {
+      if (!d || !d.iceServers || !d.iceServers.length) return;
+      if (!pc || pc.signalingState === 'closed' || !pc.setConfiguration) return;
+      try { pc.setConfiguration({ iceServers: base.concat(d.iceServers) }); } catch (e) {}
+    })['catch'](function () {});
+  },
+
   _create: function () {
     var self = this;
     var pc;
     try {
-      //  ── ICE 서버 (2026-08-24 태현님 Metered 가입) ──────────────────────────
-      //  STUN 만으로는 세션의 15~20%가 직결에 실패해 LAX 릴레이(왕복 500ms)로
-      //  떨어졌다. TURN(Metered Open Relay — 서울 PoP, 최근접 자동 라우팅)을 더해
-      //  직결 실패분도 한국 경유 저지연으로 붙는다. 무료 500MB/월 — 록스텝은
-      //  판당 시간당 ~18MB 라 충분. TURN 자격증명은 클라이언트 내장이 표준(공개 성격).
+      //  ── ICE 서버 ──────────────────────────────────────────────────────────
+      //  ⚠⚠ **TURN 자격증명을 여기에 적지 말 것** (2026-09-09 보안 수정).
+      //    2026-08-24 부터 metered.ca 의 장기 username/credential 이 이 자리에 평문으로
+      //    박혀 있었다. 당시 주석은 "TURN 자격증명은 클라이언트 내장이 표준(공개 성격)"
+      //    이라고 적었는데 **그건 틀렸다** — 표준은 서버가 발급하는 **단기** 자격증명이고,
+      //    장기 키를 넣으면 누구나 `joeltool.com/eggwar/js/netrtc.js` 를 받아 그 계정의
+      //    릴레이 할당량을 그대로 쓸 수 있다(무료 500MB/월이 남의 트래픽으로 소진된다).
+      //    전역 보안 규칙("브라우저로 가는 코드에 진짜 비밀 키를 넣지 않는다") 위반이고,
+      //    RT 인수인계 문서(INTEGRATION-MAP.md)의 이식 순서 1번이 이 폐기다.
+      //  → 이제 워커의 `/ice` 가 **수명 1시간짜리**를 발급한다. 키는 워커 시크릿에만 있다.
+      //  ⚠ `_loadIce` 는 **비동기**다. 그 사이에도 연결은 시작해야 하므로 STUN 만으로
+      //    먼저 만들고, 도착하면 `setConfiguration` 으로 갈아끼운다(표준 API).
+      //    도착 전에 붙어 버리면 그 판은 STUN 직결로 가는데, 그건 원래 가장 좋은 경로다.
       var ICE = [
-        { urls: 'stun:stun.relay.metered.ca:80' },
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'turn:global.relay.metered.ca:80',
-          username: 'a1df21e589bc3d341b72a49e', credential: 'SkW2aLHIiEciJniz' },
-        { urls: 'turn:global.relay.metered.ca:80?transport=tcp',
-          username: 'a1df21e589bc3d341b72a49e', credential: 'SkW2aLHIiEciJniz' },
-        { urls: 'turn:global.relay.metered.ca:443',
-          username: 'a1df21e589bc3d341b72a49e', credential: 'SkW2aLHIiEciJniz' },
-        { urls: 'turns:global.relay.metered.ca:443?transport=tcp',
-          username: 'a1df21e589bc3d341b72a49e', credential: 'SkW2aLHIiEciJniz' }
+        { urls: 'stun:stun.cloudflare.com:3478' },
+        { urls: 'stun:stun.l.google.com:19302' }
       ];
       pc = new RTCPeerConnection({ iceServers: ICE });
+      this._loadIce(pc, ICE);
     } catch (e) { this._fail(); return; }
     this.pc = pc;
     pc.onicecandidate = function (ev) {

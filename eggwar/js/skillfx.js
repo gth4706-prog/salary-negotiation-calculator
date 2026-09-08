@@ -49,14 +49,101 @@ window.GAME = window.GAME || {};
 
   var STORE_KEY = 'eggwar.fx.variant';
 
+  //  재료 팔레트 저장 슬롯 — `_beginMotif`/`_endMotif` 가 쓴다(모듈 수명, 할당 0).
+  var MO_MAT = null, MO_KEY = null;
+
   // 프레임 단위로 캐시하는 렌더 컨텍스트. 매 도형마다 GAME.UI.FX 를 다시 뒤지지 않는다.
+  //  WT/W  — 세계 색 축(2026-09-09). 층에서 한 번만 뽑아 캐시한다(_wf 가 그 층 번호).
   var S = {
-    g: null, FX: null, MAT: null, C: null,
-    RA: 1, FA: 1, INK: 0x0b0b12, INKA: 0, T: 1, t: 0, B: false
+    g: null, FX: null, MAT: null, MAT0: null, C: null,
+    RA: 1, FA: 1, INK: 0x0b0b12, INKA: 0, T: 1, t: 0, B: false,
+    W: null, WT: 0, _wf: -1, MSIG: -1,
+    MO: null            // 지금 그리는 이펙트의 재료 키(_withMotif 가 세운다)
   };
 
   // ── 저수준 도구 ───────────────────────────────────────────────────────
   function syy(wy) { return GAME.Iso.toScreenY(wy); }
+
+  //  색 섞기 — 숫자만 돌려준다(객체를 안 만든다). 매 프레임 도는 자리라 이게 중요하다.
+  function mix(a, b, t) {
+    var ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+    var br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+    return (((ar + (br - ar) * t) | 0) << 16) |
+           (((ag + (bg - ag) * t) | 0) << 8) | ((ab + (bb - ab) * t) | 0);
+  }
+  function lite(c, t) { return mix(c, 0xffffff, t); }
+  //  재질표 지문 — 테마가 `UI.MAT` 을 제자리에서 고쳐도 바뀐 것을 알아채기 위한 값.
+  function matSig(M) {
+    if (!M) return -1;
+    return ((M.clay || 0) ^ (((M.stone || 0) * 3) | 0) ^ (((M.wood || 0) * 7) | 0) ^
+            (((M.bone || 0) * 11) | 0) ^ (((M.leaf || 0) * 13) | 0)) | 0;
+  }
+
+  // ── 축 ② 영웅색 — **다섯 영웅 전부** (2026-09-09) ───────────────────────
+  //  ⚠ 이 표가 셋뿐이라 주술사·암살자의 백열·참격이 **아무 색도 안 받고** 흰색으로
+  //    떨어졌다(실측: 영웅색이 닿는 잉크 비율 aoeTarget 3.6%). 영웅이 다섯이 된 것은
+  //    v3.10 인데 이 표는 v1.5x 그대로였다 — "HERO_ORDER 를 늘리면 같이 봐야 하는 자리"
+  //    (CLAUDE.md v3.17 HERO_COUNTERS 교훈)의 이펙트 판이다.
+  //  값은 `UI.FX.heroFx` 의 영웅색을 **흰쪽으로 끌어올린 백열**이다(코어는 언제나 밝다).
+  var HERO_CORE = {
+    vanguard: 0xfff0c0,   // 불
+    ranger:   0xe8fffb,   // 바람
+    warden:   0xfff6d0,   // 대지
+    shaman:   0xefe6ff,   // 주술 — 보라빛 백열
+    assassin: 0xe4d2ff    // 그림자 — 자주빛 백열
+  };
+  function heroCore(heroKey) { return HERO_CORE[heroKey] || S.FX.sparkCore; }
+
+  // ── 축 ③ 세계색 (2026-09-09) ────────────────────────────────────────────
+  //  같은 스킬이 초원과 폭풍 하늘에서 똑같이 보이면 "층이 올라가도 그림이 같다"가 된다.
+  //  ⚠ **새 도형을 하나도 안 만든다.** 이미 그리고 있는 **바닥 채널**(먼지·파인 흙·
+  //    조임돌)의 색만 세계 쪽으로 조금 끌어당긴다. 재료(motif)가 여전히 주역이고
+  //    (섞는 비율 ≤0.30) 세계는 그 밑에 깔리는 흙빛이다.
+  //  ⚠ 값은 이 파일이 이미 쓰던 `FIELD_TINT`(전장 규칙 물듦)와 같은 계열로 잡았다 —
+  //    새 색표를 두 벌 만들면 조용히 갈라진다.
+  var WORLD_TONE = {
+    meadow: 0xa8c47a,   // 초원 — 마른 풀
+    mire:   0x7f9a8e,   // 안개늪 — 이끼 낀 물빛
+    ash:    0x8a5a3c,   // 잿더미 — 그을린 흙
+    rift:   0xa08a6a,   // 균열 — 갈라진 돌
+    storm:  0x8e86a8    // 폭풍 하늘 — 먹구름
+  };
+  //  바닥 채널에만 쓴다. 세계를 모르면(대전·수성·연습) 원래 색 그대로다.
+  function grd(col, k) { return S.WT ? mix(col, S.WT, k === undefined ? 0.26 : k) : col; }
+
+  //  ── 그림자 계열(은신·점멸·분신)의 재료 연결 (2026-09-09) ────────────────
+  //  이 셋은 검댕색 `0x14101c`/`0x3a2e4a`/`0x8a78b8` 를 **숫자로 박아** 두고 있었고,
+  //  그래서 재료 축이 닿는 잉크가 **정확히 0.0%** 였다(실측). 그런데 그 세 숫자는
+  //  `MOTIF_MAT.shadow` 의 wood/clay/stone 과 **글자 하나까지 같다** — 즉 원래부터
+  //  '그림자 재료'였고 표에 연결만 안 돼 있었다.
+  //  → 재료가 실려 있으면 팔레트를 쓰고, 없으면 옛 상수 그대로다(무변경 보장).
+  //    이 한 줄로 암살자의 `연기`(motif sand)가 검댕이 아니라 **모래빛**으로 터진다.
+  function shc(key, fb) { return S.MO ? S.MAT[key] : fb; }
+
+  // ── 재료의 **결** — 색만이 아니라 모양도 재료를 따라간다 (2026-09-09) ────────
+  //  ⚠ 지금까지 재료 축은 **색만** 갈랐다(아래 MOTIF_MAT 주석의 원래 설계).
+  //    그래서 「모래 뿌리기」와 「바위 내리치기」가 색만 다른 **같은 초승달 참격**이었다.
+  //    베는 것과 뿌리는 것과 내리찍는 것은 손이 하는 일이 다르므로 그림도 달라야 한다.
+  //  ⚠ 이것은 **범위·타이밍을 한 톨도 안 건드린다.** 경계 링·예고 원은 그대로고
+  //    바뀌는 것은 경계 **안쪽의 장식**뿐이다 — 회피 약속은 테두리가 진다.
+  //  ⚠ 재료가 없는 이펙트는 'edge'(초승달 참격) = **예전 그림 그대로**다.
+  //    edge 날붙이(벤다) · grain 알갱이(뿌린다) · block 덩어리(찍는다) ·
+  //    heat 불티(태운다) · veil 검댕(가린다)
+  var MOTIF_GRAIN = {
+    blade: 'edge', bone: 'edge', frost: 'edge',
+    sand: 'grain', feather: 'grain', bog: 'grain', swamp: 'grain', rope: 'grain',
+    rock: 'block', earth: 'block', shield: 'block', shell: 'block', totem: 'block',
+    ember: 'heat', storm: 'heat',
+    shadow: 'veil'
+  };
+  function grain() { return MOTIF_GRAIN[S.MO] || 'edge'; }
+
+  // ── 축 ④ 위력 단계 (grade 1~5, combat 이 스킬 가격에서 태깅) ─────────────
+  //  ⚠ **반경·지속시간은 절대 안 건드린다** — 그건 판정 약속이다. 굵기와 장식 수만.
+  //    (기존 dashA/telegraphA/blastA/buffA 가 쓰던 식 그대로 · 여기로 모아 재사용한다)
+  function gm(e) { return 1 + (((e && e.grade) || 1) - 1) * 0.14; }
+  //  장식 개수 — 약(1~2) 기본 · 중(3) +2 · 강(4~5) +4
+  function gn(e, base) { var g = (e && e.grade) || 1; return base + (g >= 4 ? 4 : g >= 3 ? 2 : 0); }
 
   // 분할 수. 반지름 20px 짜리 링에 32분할은 낭비고, 반지름 190 짜리 오라에 8분할은 각진다.
   function sm(r) { var n = (r * 0.42) | 0; return n < 8 ? 8 : (n > 20 ? 20 : n); }
@@ -140,10 +227,13 @@ window.GAME = window.GAME || {};
 
   // ── 재료 A 안의 공통 부품 ─────────────────────────────────────────────
   // 흙먼지 한 덩이. 두 겹으로 겹쳐 뭉게뭉게 보이게 하되 도형은 2개로 끝낸다.
+  //  ⚠ 먼지는 **세계색이 닿는 자리**다(2026-09-09). 이 게임에서 가장 흔한 채널이라
+  //    여기 한 곳만 세계 쪽으로 끌어당겨도 초원과 잿더미의 같은 스킬이 달라 보인다.
+  //    도형은 그대로 둘이다 — 색만 바뀐다.
   function dust(x, wy, r, a) {
-    var M = S.MAT;
-    gfill(x, wy, r, M.clay, 0.42 * a * S.FA);
-    gfill(x - r * 0.22, wy - r * 0.18, r * 0.60, M.clay, 0.34 * a * S.FA);
+    var c = grd(S.MAT.clay, 0.30);
+    gfill(x, wy, r, c, 0.42 * a * S.FA);
+    gfill(x - r * 0.22, wy - r * 0.18, r * 0.60, c, 0.34 * a * S.FA);
   }
 
   // ── 백열 코어 (2026-08-04 아트 개편) ─────────────────────────────────
@@ -158,10 +248,7 @@ window.GAME = window.GAME || {};
   //    테두리·잉크·경계 위 물건 중 둘 이상은 코어와 무관하게 계속 남는다.
   //  ⚠ 영웅별로 코어 색을 미세하게 달리한다. 같은 흰색 셋보다 캐릭터가 산다.
   function core(x, wy, r, a, heroKey) {
-    var col = S.FX.sparkCore;
-    if (heroKey === 'vanguard') col = 0xfff0c0;        // 불
-    else if (heroKey === 'ranger') col = 0xe8fffb;     // 바람
-    else if (heroKey === 'warden') col = 0xfff6d0;     // 대지
+    var col = heroCore(heroKey);                       // 다섯 영웅 표(위 HERO_CORE)
     gfill(x, wy, r * 0.34, col, 0.9 * a * S.FA);
     gfill(x, wy, r * 0.17, 0xffffff, 0.75 * a * S.FA);
   }
@@ -195,10 +282,7 @@ window.GAME = window.GAME || {};
     g.fillStyle(S.FX.blast, 0.42 * a * S.FA);
     g.fillPoints(pts, true);
     //  ③ 안쪽 가장자리의 백열 — 날이 지나간 자리
-    var cc = S.FX.sparkCore;
-    if (heroKey === 'vanguard') cc = 0xfff0c0;
-    else if (heroKey === 'warden') cc = 0xfff6d0;
-    g.lineStyle(Math.max(1.4, r * 0.032), cc, 0.85 * a * S.FA);
+    g.lineStyle(Math.max(1.4, r * 0.032), heroCore(heroKey), 0.85 * a * S.FA);
     var inner = [];
     for (i = 0; i <= n; i++) {
       var t3 = ang - half + spin + (2 * half) * (i / n);
@@ -215,18 +299,18 @@ window.GAME = window.GAME || {};
     var a = e.t / e.total, p = 1 - a;
     var M = S.MAT, sd = seedOf(e.x1, e.y1);
     var dx = e.x2 - e.x1, dy = e.y2 - e.y1;
-    var gm = 1 + ((e.grade || 1) - 1) * 0.14;   // 급 — 먼지 크기·링 굵기만(경로 불변)
+    var G = gm(e);                              // 급 — 먼지 크기·링 굵기만(경로 불변)
 
     // 경로에 남은 먼지 — 출발 쪽이 크고 오래 남는다("여기서 튀어나갔다")
     for (var k = 0; k < 5; k++) {
       var f = k / 4;
       var jx = Math.cos(sd + k * 2.1) * 6, jy = Math.sin(sd + k * 2.1) * 4;
       dust(e.x1 + dx * f + jx, e.y1 + dy * f + jy,
-        (11 + (1 - f) * 13 + p * 11) * gm, a * (0.55 + 0.45 * (1 - f)));
+        (11 + (1 - f) * 13 + p * 11) * G, a * (0.55 + 0.45 * (1 - f)));
     }
     // 출발 자국 · 도착 자국 — 두 개의 링이 '거리'를 말한다
-    gink(e.x1, e.y1, 14 + p * 20, 2.5 * gm, M.clay, a * 0.75 * S.RA);
-    gink(e.x2, e.y2, 9 + p * 15, 3 * gm, M.clay, a * 0.95 * S.RA);
+    gink(e.x1, e.y1, 14 + p * 20, 2.5 * G, grd(M.clay), a * 0.75 * S.RA);
+    gink(e.x2, e.y2, 9 + p * 15, 3 * G, grd(M.clay), a * 0.95 * S.RA);
     // 경로 뒤로 흩날리는 흙덩이 — 어느 쪽에서 어느 쪽으로 갔는지가 물건으로 읽힌다
     var pl = Math.sqrt(dx * dx + dy * dy) || 1;
     var pux = dx / pl, puy = dy / pl;
@@ -298,8 +382,9 @@ window.GAME = window.GAME || {};
   function aoeSelfA(e, col) {
     var a = e.t / e.total, p = 1 - a;
     var M = S.MAT, r = e.r * (1 + p * 0.10);
+    var G = gm(e);                                  // 위력 단계 — 굵기·장식 수만(2026-09-09)
     // 바닥 — 흙이 파인 자리. 세계관(원시 부족)의 재질은 여기가 지킨다.
-    gfill(e.x, e.y, r, M.clay, 0.13 * a * S.FA);
+    gfill(e.x, e.y, r, grd(M.clay), 0.13 * a * S.FA);
     // 터지는 순간의 섬광 — 앞 30% 동안만, 안쪽에서 바깥으로.
     //  ⚠ 구간을 0.30 → 0.55 로 늘렸다. 320ms 짜리 이펙트에서 30% 는 **96ms** 라
     //    프레임 두세 장이고, 실제로 찍어 보니 섬광이 이미 사라진 뒤였다.
@@ -308,23 +393,51 @@ window.GAME = window.GAME || {};
     if (burst > 0) {
       var bb = burst * burst;
       gfill(e.x, e.y, r * (0.26 + p * 1.9), col, 0.42 * bb * S.FA);
-      gink(e.x, e.y, r * (0.30 + p * 1.7), 3 + 5 * burst, col, 1.0 * burst * S.RA);
-      //  ── 초승달 참격 (2026-08-04) ────────────────────────────────────────
-      //  자기중심 광역기는 "휘둘렀다"인데 원만 그리면 "있다"로 보인다. 두 갈래
-      //  호로 베인 자리를 남긴다 — 레퍼런스 ③④의 굵은 참격이 이것이다.
-      //  ⚠ 각도는 **좌표에서 뽑은 고정 난수**다. 매 프레임 다시 굴리면 참격이
+      gink(e.x, e.y, r * (0.30 + p * 1.7), (3 + 5 * burst) * G, col, 1.0 * burst * S.RA);
+      //  ── 재료의 결마다 다른 속 그림 (2026-09-09) ───────────────────────────
+      //  ⚠ 예전엔 **무조건 초승달 참격 두 장**이었다(2026-08-04). 그래서 자기중심
+      //    광역기 다섯(대검 회전 · 모래 뿌리기 · 바위 내리치기 · 방패 밀치기 ·
+      //    대지 강타)이 색만 다른 같은 그림이었다 — 이름이 약속한 것을 그림이 안
+      //    지킨 것이고, 이 파일이 `MOTIF_MAT` 을 만든 것과 정확히 같은 종류의 결함이다.
+      //  ⚠ 각도는 **좌표에서 뽑은 고정 난수**다. 매 프레임 다시 굴리면 그림이
       //    빙글빙글 돌아 어지럽다(이 파일의 `seedOf` 규율).
-      var ca = seedOf(e.x, e.y);
-      crescent(e.x, e.y, ca, r * 1.02, burst, e.heroKey);
-      crescent(e.x, e.y, ca + Math.PI, r * 0.88, burst * 0.75, e.heroKey);
+      var ca = seedOf(e.x, e.y), gk = grain();
+      if (gk === 'edge') {
+        //  날붙이 — 벤 자리. 두 갈래 초승달(예전 그림 그대로).
+        crescent(e.x, e.y, ca, r * 1.02, burst, e.heroKey);
+        crescent(e.x, e.y, ca + Math.PI, r * 0.88, burst * 0.75, e.heroKey);
+      } else if (gk === 'block') {
+        //  덩어리 — 찍은 자리. 중심이 **내려앉고** 균열이 밖으로 뻗는다.
+        gfill(e.x, e.y, r * (0.42 - p * 0.10), M.wood, 0.40 * burst * S.FA);
+        var cyb = syy(e.y);
+        S.g.lineStyle(2.6 * G, M.wood, 0.85 * burst);
+        for (var cb = 0; cb < 5; cb++) {
+          var cab = ca + cb * 1.2566;
+          var lb = r * (0.35 + p * 0.55);
+          S.g.lineBetween(e.x, cyb, e.x + Math.cos(cab) * lb, cyb + Math.sin(cab) * lb * S.T);
+        }
+      } else if (gk === 'grain') {
+        //  알갱이 — 뿌린 자리. 낮게 깔리는 구름 두 덩이(초승달 여섯 도형 → 넷).
+        dust(e.x, e.y, r * (0.38 + p * 0.35), burst);
+        dust(e.x - r * 0.34, e.y + r * 0.12, r * 0.30, burst * 0.8);
+      } else if (gk === 'heat') {
+        //  불티 — 태운 자리. 안쪽이 뜨겁고 테두리로 갈수록 식는다.
+        gfill(e.x, e.y, r * (0.30 + p * 0.5), M.stone, 0.34 * burst * S.FA);
+        gink(e.x, e.y, r * (0.55 + p * 0.4), 2.2 * G, M.clay, 0.75 * burst * S.RA);
+      } else {
+        //  검댕 — 가린 자리. 어두운 속 + 옅은 테. 참격이 없어 '베였다'로 안 읽힌다.
+        gfill(e.x, e.y, r * (0.55 + p * 0.4), M.wood, 0.34 * burst * S.FA);
+        gink(e.x, e.y, r * (0.70 + p * 0.3), 1.8, M.stone, 0.60 * burst * S.RA);
+      }
       //  터진 자리의 백열 — 3층 구조의 마지막 층
       core(e.x, e.y, r * 0.9, bb, e.heroKey);
       // 밖으로 뻗는 살 — 원만 있으면 '퍼졌다'가 아니라 '있다'로 보인다
       var sd0 = seedOf(e.x, e.y), cy0 = syy(e.y);
-      for (var q = 0; q < 8; q++) {
-        var aq = sd0 + (Math.PI * 2 / 8) * q;
+      var spokes = gn(e, 8);                        // 강한 스킬일수록 살이 는다(8 → 12)
+      for (var q = 0; q < spokes; q++) {
+        var aq = sd0 + (Math.PI * 2 / spokes) * q;
         var r0 = r * 0.30, r1 = r * (0.55 + p * 1.5);
-        S.g.lineStyle(2.5 + 2 * burst, col, 0.85 * burst * S.RA);
+        S.g.lineStyle((2.5 + 2 * burst) * G, col, 0.85 * burst * S.RA);
         S.g.beginPath();
         S.g.moveTo(e.x + Math.cos(aq) * r0, cy0 + Math.sin(aq) * r0 * S.T);
         S.g.lineTo(e.x + Math.cos(aq) * r1, cy0 + Math.sin(aq) * r1 * S.T);
@@ -332,8 +445,8 @@ window.GAME = window.GAME || {};
       }
     }
     // 경계 — 영웅 색으로, 예전보다 굵게. 안쪽에 흙 테두리를 겹쳐 두께를 만든다.
-    gink(e.x, e.y, r, 4.5, col, a * S.RA);
-    gink(e.x, e.y, r * 0.94, 2, M.clay, a * 0.7 * S.RA);
+    gink(e.x, e.y, r, 4.5 * G, col, a * S.RA);
+    gink(e.x, e.y, r * 0.94, 2 * G, grd(M.clay), a * 0.7 * S.RA);
     // 경계 밖으로 튀는 흙덩이 — 개수를 반지름에 맞춘다(작은 스킬에 16개는 과하다)
     var n = Math.round(r / 11); if (n < 8) n = 8; if (n > 16) n = 16;
     var sd = seedOf(e.x, e.y), cy = syy(e.y);
@@ -438,19 +551,21 @@ window.GAME = window.GAME || {};
     var M = S.MAT, FX = S.FX;
     //  급(grade 1~5, combat 이 스킬 가격에서 태깅) — **반경은 절대 안 건드린다**
     //  (예고 반경 = 판정 약속). 굵기·조임돌 수만 급을 따라간다(2026-08-20 급 축).
-    var gm = 1 + ((e.grade || 1) - 1) * 0.14;
+    var G = gm(e);
     // 그림자가 짙어진다 — 위에서 뭔가 떨어지고 있다
     gfill(e.x, e.y, e.r, S.INKA > 0 ? S.INK : 0x000000, (0.05 + prog * 0.15) * S.FA);
-    gink(e.x, e.y, e.r, 2.5 * gm, FX.telegraph, (0.45 + prog * 0.55) * S.RA);
+    gink(e.x, e.y, e.r, 2.5 * G, FX.telegraph, (0.45 + prog * 0.55) * S.RA);
     // **돌이 바깥에서 중심으로 조여든다.** 시계가 아니라 물건이 시간을 센다 —
     // 조각이 가운데 모이는 순간 터진다는 게 설명 없이 읽힌다.
-    var n = 8 + ((e.grade || 1) >= 4 ? 4 : (e.grade || 1) >= 3 ? 2 : 0);
+    var n = gn(e, 8);
     var sd = seedOf(e.x, e.y), cy = syy(e.y);
+    //  조임돌은 **세계의 돌**이다 — 잿더미에서는 그을리고 폭풍 하늘에서는 흐려진다.
+    var stCol = grd(M.stone, 0.22);
     for (var k = 0; k < n; k++) {
       var ang = sd + (Math.PI * 2 / n) * k;
       var d = e.r * (1.30 - prog * 1.10);
       shard(e.x + Math.cos(ang) * d, cy + Math.sin(ang) * d * S.T - (1 - prog) * 9,
-        2.2 + prog * 1.6, M.stone, 0.55 + prog * 0.45);
+        2.2 + prog * 1.6, stCol, 0.55 + prog * 0.45);
     }
     // 착탄점 표식
     if (prog > 0.5) {
@@ -496,27 +611,28 @@ window.GAME = window.GAME || {};
     var M = S.MAT, FX = S.FX;
     var r = e.r * (1 + p * 0.20);
     var BC = col || FX.blast;
-    var gm = 1 + ((e.grade || 1) - 1) * 0.14;   // 급 — 굵기·튀는 돌 수만(반경 불변)
+    var G = gm(e);                              // 급 — 굵기·튀는 돌 수만(반경 불변)
     // 파헤쳐진 흙
-    gfill(e.x, e.y, r * 0.92, M.clay, (0.30 * b) * S.FA);
+    gfill(e.x, e.y, r * 0.92, grd(M.clay), (0.30 * b) * S.FA);
     // 터지는 순간 — 안에서 밖으로 확 퍼진다
     var bburst = Math.max(0, 1 - p / 0.50);
     if (bburst > 0) {
       gfill(e.x, e.y, r * (0.35 + p * 1.6), BC, 0.40 * bburst * bburst * S.FA);
-      gink(e.x, e.y, r * (0.40 + p * 1.4), (3 + 4 * bburst) * gm, BC, bburst * S.RA);
+      gink(e.x, e.y, r * (0.40 + p * 1.4), (3 + 4 * bburst) * G, BC, bburst * S.RA);
       //  백열 코어 — 3층 구조의 마지막 층(2026-08-04). 착탄 순간에만 짧게.
       core(e.x, e.y, r * 0.85, bburst * bburst, e.heroKey);
     }
-    gink(e.x, e.y, r, 4 * gm, BC, b * 1.05 * S.RA);
+    gink(e.x, e.y, r, 4 * G, BC, b * 1.05 * S.RA);
     // 흙기둥 — 지면에서 위로 솟는다. 착탄이 '아래에서 위로' 읽힌다.
     var cy = syy(e.y), h = r * (0.55 + p * 0.55);
-    S.g.fillStyle(M.clay, 0.55 * b);
+    var clw = grd(M.clay);
+    S.g.fillStyle(clw, 0.55 * b);
     S.g.fillEllipse(e.x, cy - h * 0.45, r * 0.50, h, 10);
-    S.g.fillStyle(M.clay, 0.35 * b);
+    S.g.fillStyle(clw, 0.35 * b);
     S.g.fillEllipse(e.x, cy - h * 0.85, r * 0.32, h * 0.5, 8);
     // 사방으로 튀는 흙·돌
     var sd = seedOf(e.x, e.y);
-    var bn = 7 + ((e.grade || 1) >= 4 ? 4 : (e.grade || 1) >= 3 ? 2 : 0);
+    var bn = gn(e, 7);
     for (var k = 0; k < bn; k++) {
       var ang = sd + (Math.PI * 2 / bn) * k;
       var d = r * (0.55 + p * 0.75);
@@ -627,6 +743,45 @@ window.GAME = window.GAME || {};
     }
   }
 
+  //  ── 연격 한 대 (2026-09-09) ──────────────────────────────────────────────
+  //  실측: 암살자 궁극 `flurry`(17연격)는 **시전 순간에 그림이 하나도 없고**, 17대가
+  //  전부 `spark`(= 화살이 맞았을 때와 **같은 그림**)로 떨어지고 있었다. 즉 이 게임에서
+  //  가장 비싼 궁극기가 화면에서는 평타 열일곱 대와 구별되지 않았다.
+  //
+  //  ⚠ 가르는 기준은 `total === 110` 이다. combat.js 의 spark 는 셋뿐이고 값이 전부
+  //    다르다: 연격 **110** · 투사체 명중 120 · 근접 명중 140. 이 파일이 이미 쓰는
+  //    구분자(`ring total>=380`·`slash total>180`)와 같은 계열이다.
+  //  ⚠ 틀려도 안전한 쪽으로 골랐다 — 잘못 걸려도 "타격에 칼자국이 하나 더 붙는" 정도이지
+  //    범위나 타이밍을 거짓말하지 않는다(회피 약속과 무관한 층이다).
+  //  ⚠ 도형 수는 sparkA 보다 **적다** — 실측 9 → 4(어두운 테마, 수명 80% 지점).
+  //    초당 11대가 쏟아지는 자리라 가벼워야 한다(tools/fx-distinct-audit.js 가 센다).
+  function flurryHitA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var cy = syy(e.y) - 12;
+    //  좌표에서 각을 뽑는다 — 대가 바뀔 때마다 칼자국 방향이 달라진다(같은 자리에
+    //  같은 각이 겹치면 열일곱 대가 한 대로 보인다).
+    var ang = seedOf(e.x, e.y) + p * 2.4;
+    var L = 13 + p * 9;
+    //  ① 교차하는 두 칼자국 — 짧고 얇게. '베였다'가 한 프레임에 읽힌다.
+    if (S.INKA > 0) {
+      S.g.lineStyle(4.2, S.INK, a * 0.5 * S.INKA);
+      S.g.lineBetween(e.x - Math.cos(ang) * L, cy - Math.sin(ang) * L * S.T,
+                      e.x + Math.cos(ang) * L, cy + Math.sin(ang) * L * S.T);
+    }
+    S.g.lineStyle(2.6, S.MAT.blade, a * 0.95);
+    S.g.lineBetween(e.x - Math.cos(ang) * L, cy - Math.sin(ang) * L * S.T,
+                    e.x + Math.cos(ang) * L, cy + Math.sin(ang) * L * S.T);
+    var a2 = ang + 1.15;
+    S.g.lineStyle(1.8, S.MAT.bladeLite, a * 0.8);
+    S.g.lineBetween(e.x - Math.cos(a2) * L * 0.7, cy - Math.sin(a2) * L * 0.7 * S.T,
+                    e.x + Math.cos(a2) * L * 0.7, cy + Math.sin(a2) * L * 0.7 * S.T);
+    //  ② 부딪힌 자리의 백열 — 영웅색(암살자는 자주빛)
+    S.g.fillStyle(heroCore(e.heroKey), a * 0.85);
+    S.g.fillCircle(e.x, cy, 2.2 + a * 2.2);
+    //  ③ 진영색 얇은 고리 하나 — 누가 때리고 있는지
+    airRing(e.x, cy, 4 + p * 9, 1.6, col, a * 0.6);
+  }
+
   function sparkB(e, col) {
     var a = e.t / e.total, p = 1 - a;
     var FX = S.FX;
@@ -651,22 +806,24 @@ window.GAME = window.GAME || {};
   // ========================================================================
   function strikeA(e, col) {
     var a = e.t / e.total;
-    var M = S.MAT;
+    var M = S.MAT, G = gm(e);                      // 위력 단계 — 줄 굵기·갈고리 크기(2026-09-09)
     var x1 = e.x1, y1 = syy(e.y1) - 16, x2 = e.x2, y2 = syy(e.y2) - 14;
     var dx = x2 - x1, dy = y2 - y1, d = Math.sqrt(dx * dx + dy * dy) || 1;
     var ux = dx / d, uy = dy / d, nx = -uy, ny = ux;
     // **밧줄**. 굵은 심 + 꼬임 눈금 — 이 세계의 '연결'은 줄이지 광선이 아니다.
-    if (S.INKA > 0) { S.g.lineStyle(6, S.INK, a * 0.45 * S.INKA); S.g.lineBetween(x1, y1, x2, y2); }
-    S.g.lineStyle(4, M.rope, a * 0.95);
+    //  ⚠ `rope`/`leatherDark`/`iron`/`shell` 은 이제 재료(motif)를 따라간다(파생 팔레트).
+    //    예전엔 이 넷이 표 밖이라 **갈고리 찍기와 그물 던지기가 언제나 같은 밧줄색**이었다.
+    if (S.INKA > 0) { S.g.lineStyle(6 * G, S.INK, a * 0.45 * S.INKA); S.g.lineBetween(x1, y1, x2, y2); }
+    S.g.lineStyle(4 * G, M.rope, a * 0.95);
     S.g.lineBetween(x1, y1, x2, y2);
-    S.g.lineStyle(2, M.leatherDark, a * 0.8);
+    S.g.lineStyle(2 * G, M.leatherDark, a * 0.8);
     for (var k = 1; k < 6; k++) {
       var f = k / 6, cx = x1 + dx * f, cy = y1 + dy * f;
       S.g.lineBetween(cx - nx * 3 - ux * 2, cy - ny * 3 - uy * 2,
         cx + nx * 3 + ux * 2, cy + ny * 3 + uy * 2);
     }
     // 끝의 **갈고리** — 두 갈래 쇠. 대상에 박혔다는 게 실루엣으로 남는다.
-    S.g.lineStyle(3, M.iron, a);
+    S.g.lineStyle(3 * G, M.iron, a);
     for (var s2 = -1; s2 <= 1; s2 += 2) {
       S.g.lineBetween(x2 - ux * 9, y2 - uy * 9, x2 + nx * s2 * 6, y2 + ny * s2 * 6);
       S.g.lineBetween(x2 + nx * s2 * 6, y2 + ny * s2 * 6, x2 + ux * 4, y2 + uy * 4);
@@ -680,7 +837,10 @@ window.GAME = window.GAME || {};
     var sburst = Math.max(0, 1 - (1 - a) / 0.40);
     if (sburst > 0) {
       gfill(e.x2, e.y2, 10 + (1 - a) * 26, col, 0.34 * sburst * sburst * S.FA);
-      gink(e.x2, e.y2, 12 + (1 - a) * 24, 2 + 3 * sburst, col, 0.9 * sburst * S.RA);
+      gink(e.x2, e.y2, 12 + (1 - a) * 24, (2 + 3 * sburst) * G, col, 0.9 * sburst * S.RA);
+      //  꽂힌 자리의 백열 — 영웅마다 다른 색(HERO_CORE). 강타는 '한 점에 꽂힌' 것이라
+      //  광역기와 달리 코어가 작고 뜨겁다.
+      core(e.x2, e.y2, 16 + (1 - a) * 18, sburst * sburst, e.heroKey);
     }
   }
 
@@ -716,12 +876,12 @@ window.GAME = window.GAME || {};
   function buffA(e, col) {
     var a = e.t / e.total, p = 1 - a;
     var M = S.MAT;
-    var gm = 1 + ((e.grade || 1) - 1) * 0.14;   // 급 — 링 굵기만(반경 불변)
+    var G = gm(e);                              // 급 — 링 굵기만(반경 불변)
     // 몸을 감싸며 올라오는 빛 — 터지는 순간에 한 번 크게
     var burst = Math.max(0, 1 - p / 0.45);
     if (burst > 0) {
       gfill(e.x, e.y, e.r * (0.5 + p * 1.1), col, 0.30 * burst * burst * S.FA);
-      gink(e.x, e.y, e.r * (0.6 + p * 1.0), (3 + 4 * burst) * gm, col, 0.95 * burst * S.RA);
+      gink(e.x, e.y, e.r * (0.6 + p * 1.0), (3 + 4 * burst) * G, col, 0.95 * burst * S.RA);
     }
     //  ── 큰 방패 (2026-08-04 사용자 요청: "파수꾼은 방패모양이 크게 나타났으면") ──
     //  파수꾼의 정체성은 '버틴다'인데 버프 이펙트가 잎사귀·링이라 **무엇으로 버티는지**
@@ -785,14 +945,40 @@ window.GAME = window.GAME || {};
               1.8 + e.r * 0.012, c2 % 2 ? M.stone : M.wood, a * 0.85);
       }
     } else {
-      // 잎사귀 세 장이 위로 떠오른다 (약초·가죽·풀숲 — 전부 '두르는' 스킬이다)
+      //  ── 떠오르는 표식 세 장 (2026-09-09: **재료의 결마다 다른 물건**) ──────
+      //  ⚠ 예전엔 무엇을 두르든 **잎사귀**였다. 약초 씹기는 맞지만 「방패 세우기」·
+      //    「철벽 자세」·「광폭화」까지 잎이 날려 이름이 약속한 것과 그림이 어긋났다.
+      //    도형 수는 그대로 셋이고 **모양과 색만** 결을 따라간다.
+      var gkb = grain();
       for (var k = 0; k < 3; k++) {
         var ang = sd + (Math.PI * 2 / 3) * k;
         var lx = e.x + Math.cos(ang) * e.r * 0.62;
         var ly = cy + Math.sin(ang) * e.r * 0.62 * S.T - 6 - p * 26;
-        if (S.INKA > 0) { S.g.fillStyle(S.INK, a * 0.5 * S.INKA); S.g.fillEllipse(lx, ly, 9.5, 6.5, 8); }
-        S.g.fillStyle(k === 1 ? M.leafDark : M.leaf, a * 0.95);
-        S.g.fillEllipse(lx, ly, 8, 5, 8);
+        if (gkb === 'block') {
+          //  판때기 — 넓고 낮다. 방패·돌·토템처럼 '세우는' 것.
+          if (S.INKA > 0) {
+            S.g.fillStyle(S.INK, a * 0.5 * S.INKA);
+            S.g.fillTriangle(lx - 8, ly + 4, lx, ly - 5, lx + 8, ly + 4);
+          }
+          S.g.fillStyle(k === 1 ? M.stone : M.bone, a * 0.95);
+          S.g.fillTriangle(lx - 7, ly + 3, lx, ly - 4, lx + 7, ly + 3);
+        } else if (gkb === 'edge') {
+          //  칼조각 — 좁고 길다. 같은 삼각형이라도 판때기와 비례가 반대라 구분된다.
+          if (S.INKA > 0) {
+            S.g.fillStyle(S.INK, a * 0.5 * S.INKA);
+            S.g.fillTriangle(lx - 3.4, ly + 7, lx, ly - 9, lx + 3.4, ly + 7);
+          }
+          S.g.fillStyle(k === 1 ? M.bladeDark : M.bladeLite, a * 0.95);
+          S.g.fillTriangle(lx - 2.6, ly + 6, lx, ly - 8, lx + 2.6, ly + 6);
+        } else if (gkb === 'heat' || gkb === 'veil') {
+          //  불티·검댕 — 위로 갈수록 작아지는 알갱이. 두 겹이라 '떠오른다'가 산다.
+          shard(lx, ly, 3.4 - k * 0.5, k === 1 ? M.stone : M.clay, a * 0.95);
+        } else {
+          //  잎사귀 — 약초·풀숲·마른 것(예전 그림 그대로)
+          if (S.INKA > 0) { S.g.fillStyle(S.INK, a * 0.5 * S.INKA); S.g.fillEllipse(lx, ly, 9.5, 6.5, 8); }
+          S.g.fillStyle(k === 1 ? M.leafDark : M.leaf, a * 0.95);
+          S.g.fillEllipse(lx, ly, 8, 5, 8);
+        }
       }
     }
     dust(e.x, e.y, e.r * 0.55, a * 0.5);
@@ -824,12 +1010,12 @@ window.GAME = window.GAME || {};
   // ========================================================================
   function pullA(e, col) {
     var a = e.t / e.total, p = 1 - a;
-    var M = S.MAT;
+    var M = S.MAT, G = gm(e);
     var full = e.half >= Math.PI * 0.98;
     // 부채꼴 = 범위. 흙빛 면 + 잉크 테두리로 흑백에서도 경계가 남는다.
-    groundSlice(e.x, e.y, e.range, e.angle - e.half, e.angle + e.half, M.clay, 0.16 * a * S.FA);
-    if (S.INKA > 0) groundArc(e.x, e.y, e.range, e.angle - e.half, e.angle + e.half, 5, S.INK, a * 0.45 * S.INKA);
-    groundArc(e.x, e.y, e.range, e.angle - e.half, e.angle + e.half, 3, M.clay, a * 0.95);
+    groundSlice(e.x, e.y, e.range, e.angle - e.half, e.angle + e.half, grd(M.clay), 0.16 * a * S.FA);
+    if (S.INKA > 0) groundArc(e.x, e.y, e.range, e.angle - e.half, e.angle + e.half, 5 * G, S.INK, a * 0.45 * S.INKA);
+    groundArc(e.x, e.y, e.range, e.angle - e.half, e.angle + e.half, 3 * G, M.clay, a * 0.95);
     // **갈고리에 걸린 것들이 안으로 끌려온다** — 밧줄 꼬리 + 돌조각
     var n = full ? 6 : 5, cy = syy(e.y);
     for (var k = 0; k < n; k++) {
@@ -843,14 +1029,14 @@ window.GAME = window.GAME || {};
       shard(hx, hy, 3, M.stone, a * 0.95);
     }
     // 부채꼴 테두리를 영웅 색으로 한 겹 더 — 흙빛만이면 누가 당겼는지 안 보인다
-    groundArc(e.x, e.y, e.range * 1.01, e.angle - e.half, e.angle + e.half, 4, col, a * 0.9);
+    groundArc(e.x, e.y, e.range * 1.01, e.angle - e.half, e.angle + e.half, 4 * G, col, a * 0.9);
     var pburst = Math.max(0, 1 - p / 0.40);
     if (pburst > 0) {
       groundArc(e.x, e.y, e.range * (0.6 + p * 0.5), e.angle - e.half, e.angle + e.half,
-                2 + 3 * pburst, col, 0.85 * pburst);
+                (2 + 3 * pburst) * G, col, 0.85 * pburst);
     }
     // 시전자 발밑 — 끌려오는 목적지
-    gink(e.x, e.y, 14, 3, col, a * 0.9 * S.RA);
+    gink(e.x, e.y, 14, 3 * G, col, a * 0.9 * S.RA);
     gink(e.x, e.y, 11, 2, M.rope, a * 0.85 * S.RA);
   }
 
@@ -884,7 +1070,7 @@ window.GAME = window.GAME || {};
   function auraA(u, au, col) {
     var M = S.MAT, FX = S.FX;
     var r = au.radius;
-    gfill(u.x, u.y, r, M.clay, 0.09 * S.FA);
+    gfill(u.x, u.y, r, grd(M.clay), 0.09 * S.FA);
     // **돌로 그은 경계.** 색이 아니라 물건이 선을 그으므로 흑백에서도 범위가 남는다.
     var n = Math.round(r / 14); if (n < 8) n = 8; if (n > 18) n = 18;
     var cy = syy(u.y);
@@ -926,7 +1112,7 @@ window.GAME = window.GAME || {};
   function trapA(tr, col) {
     var M = S.MAT, FX = S.FX;
     var r = tr.radius;
-    gfill(tr.x, tr.y, r, M.clay, 0.13 * S.FA);
+    gfill(tr.x, tr.y, r, grd(M.clay), 0.13 * S.FA);
     gink(tr.x, tr.y, r, 3, col || FX.trap, 0.9 * S.RA);
     // **안쪽을 향한 뼈 가시.** 실루엣만으로 "여기 밟으면 물린다"가 읽힌다.
     var n = 8, cy = syy(tr.y);
@@ -1015,13 +1201,14 @@ window.GAME = window.GAME || {};
     var a = e.t / e.total, p = 1 - a;
     var M = S.MAT, sd = seedOf(e.x, e.y);
     var r = e.r || 30;
-    gfill(e.x, e.y, r * (0.5 + p * 0.5), 0x14101c, 0.35 * a * S.FA);
-    gink(e.x, e.y, r * (0.4 + p * 0.8), 2, 0x3a2e4a, a * 0.8 * S.RA);
+    var soot = shc('wood', 0x14101c), smoke = shc('clay', 0x3a2e4a);
+    gfill(e.x, e.y, r * (0.5 + p * 0.5), soot, 0.35 * a * S.FA);
+    gink(e.x, e.y, r * (0.4 + p * 0.8), 2, smoke, a * 0.8 * S.RA);
     var by = syy(e.y);
     for (var k = 0; k < 6; k++) {
       var ka = sd + k * 1.0472;
       var kd = r * (0.3 + p * 0.9);
-      shard(e.x + Math.cos(ka) * kd, by + Math.sin(ka) * kd * S.T - p * 10, 2.2 + a * 2, 0x3a2e4a, a * 0.8);
+      shard(e.x + Math.cos(ka) * kd, by + Math.sin(ka) * kd * S.T - p * 10, 2.2 + a * 2, smoke, a * 0.8);
     }
     gline(e.x, e.y, r * (0.6 + p * 0.5), 1.5, col, a * 0.6 * S.RA);
   }
@@ -1109,15 +1296,49 @@ window.GAME = window.GAME || {};
     var a = e.t / e.total, p = 1 - a;
     var M = S.MAT, sd = seedOf(e.x, e.y);
     var r = e.r || 30;
-    gfill(e.x, e.y, r * (1.0 - p * 0.45), 0x14101c, 0.30 * (0.4 + p * 0.6) * S.FA);
-    gink(e.x, e.y, r * (1.2 - p * 0.8), 2, 0x3a2e4a, 0.8 * (0.3 + a * 0.7) * S.RA);
+    var soot2 = shc('wood', 0x14101c), smoke2 = shc('clay', 0x3a2e4a);
+    gfill(e.x, e.y, r * (1.0 - p * 0.45), soot2, 0.30 * (0.4 + p * 0.6) * S.FA);
+    gink(e.x, e.y, r * (1.2 - p * 0.8), 2, smoke2, 0.8 * (0.3 + a * 0.7) * S.RA);
     var by = syy(e.y);
     for (var k = 0; k < 6; k++) {
       var ka = sd + k * 1.0472;
       var kd = r * (1.2 - p * 1.0);                       // 밖 → 안
-      shard(e.x + Math.cos(ka) * kd, by + Math.sin(ka) * kd * S.T - 8 - p * 6, 2.4 - p * 1.2, 0x3a2e4a, 0.85 * a + 0.1);
+      shard(e.x + Math.cos(ka) * kd, by + Math.sin(ka) * kd * S.T - 8 - p * 6, 2.4 - p * 1.2, smoke2, 0.85 * a + 0.1);
     }
     gline(e.x, e.y, r * (1.1 - p * 0.6), 1.2, col, 0.5 * a * S.RA);
+  }
+
+  //  ── 분신술 (2026-09-09) — 은신과 **같은 그림이었다** ─────────────────────
+  //  실측: `clone` 과 `stealth` 는 둘 다 `kind:'stealth'` 를 내고 같은 함수로 떨어져
+  //  지문 유사도 **1.000**(색·도형·크기까지 전부 동일)이었다. 궁극기(분신술)와
+  //  기본기(은신)가 화면에서 구분이 안 됐다는 뜻이다.
+  //
+  //  ⚠ 가르는 기준은 `e.ms` 다 — 분신은 300, 은신은 **지속시간**(2500~5500)을 싣는다
+  //    (combat.js `clone`/`stealth` 분기). total 로 가르면 안 된다: 220/360/420/460 은
+  //    엔진 전체에서 여러 곳이 나눠 쓰는 값이라 남의 이펙트를 가로챈다(실측으로 확인).
+  //  ⚠ 은신이 '모여드는' 그림이라면 분신은 **갈라지는** 그림이다. 같은 검댕 재료를
+  //    쓰되 방향이 반대라 한 프레임에 구분된다. 도형 수는 은신과 같은 수준으로 둔다.
+  function cloneA(e, col) {
+    var a = e.t / e.total, p = 1 - a;
+    var M = S.MAT, sd = seedOf(e.x, e.y);
+    var r = e.r || 30;
+    var by = syy(e.y);
+    //  ① 갈라져 나가는 두 그림자 — 좌우로 벌어진다(은신은 안으로 모인다)
+    var spread = r * p * 0.85;
+    var soot4 = shc('wood', 0x14101c), smoke4 = shc('clay', 0x3a2e4a), lit4 = shc('stone', 0x8a78b8);
+    gfill(e.x - spread, e.y, r * 0.52, soot4, 0.34 * a * S.FA);
+    gfill(e.x + spread, e.y, r * 0.52, soot4, 0.34 * a * S.FA);
+    //  ② 그 사이를 잇는 잔상 테 — '하나가 둘이 됐다'
+    gink(e.x, e.y, r * (0.45 + p * 0.55), 2, smoke4, a * 0.85 * S.RA);
+    //  ③ 갈라진 자리에서 흩어지는 검댕 — 좌우 대칭이라 '분열'로 읽힌다
+    for (var k = 0; k < 4; k++) {
+      var kd = r * (0.3 + p * 0.8);
+      var ky = by + Math.sin(sd + k) * kd * S.T * 0.4 - 6;
+      shard(e.x - kd - k * 3, ky, 2.0 + a * 1.4, lit4, a * 0.8);
+      shard(e.x + kd + k * 3, ky, 2.0 + a * 1.4, lit4, a * 0.8);
+    }
+    //  ④ 진영색 얇은 심 — 누구의 분신인지
+    gline(e.x, e.y, r * 0.38, 1.4, col, a * 0.6 * S.RA);
   }
 
   //  소환수 수명 만료(ring.summonEnd) — 토템이 흙으로 돌아간다. 링이 안으로 접히고
@@ -1256,11 +1477,12 @@ window.GAME = window.GAME || {};
     var M = S.MAT;
     var g = S.g;
     var x1 = e.x1, y1 = syy(e.y1), x2 = e.x2, y2 = syy(e.y2);
+    var soot3 = shc('wood', 0x14101c), smoke3 = shc('clay', 0x3a2e4a);
     //  출발점 — 남은 검댕(옅어진다)
-    gfill(e.x1, e.y1, 16 * (1 + p * 0.4), 0x14101c, 0.35 * a * S.FA);
-    gink(e.x1, e.y1, 14 + p * 14, 1.6, 0x3a2e4a, 0.7 * a * S.RA);
+    gfill(e.x1, e.y1, 16 * (1 + p * 0.4), soot3, 0.35 * a * S.FA);
+    gink(e.x1, e.y1, 14 + p * 14, 1.6, smoke3, 0.7 * a * S.RA);
     //  도착점 — 걷히는 검댕(안에서 밖으로)
-    gline(e.x2, e.y2, 8 + p * 22, 2, 0x3a2e4a, 0.9 * a * S.RA);
+    gline(e.x2, e.y2, 8 + p * 22, 2, smoke3, 0.9 * a * S.RA);
     //  점선 발자국 — 검댕색, 진행도만큼만 그려진다
     var n = 6, dx = x2 - x1, dy = y2 - y1;
     var upto = Math.min(1, p * 1.6);
@@ -1268,7 +1490,7 @@ window.GAME = window.GAME || {};
       var f = i / n;
       if (f > upto) break;
       var fx = x1 + dx * f, fy = y1 + dy * f - 4;
-      g.fillStyle(0x3a2e4a, 0.75 * a);
+      g.fillStyle(smoke3, 0.75 * a);
       g.fillEllipse(fx, fy, 6, 3.5, 8);
     }
     gline(e.x2, e.y2, 10, 1.2, col, 0.5 * a * S.RA);
@@ -1546,8 +1768,22 @@ window.GAME = window.GAME || {};
       if (!this.enabled || !GAME.Iso || !GAME.UI) return null;
       S.g = g;
       S.FX = FX || GAME.UI.FX;
-      S.MAT = GAME.UI.MAT;
+      S.MAT = S.MAT0 = GAME.UI.MAT;
+      S.MSIG = matSig(S.MAT0);
       S.C = GAME.CONFIG.COLORS;
+      //  세계색 — 층에서 뽑아 **층이 바뀔 때만** 다시 계산한다(worldFor 는 객체를
+      //  만들므로 매 프레임 부르면 그게 곧 새 쓰레기다 — v1.66 규율).
+      var _fl = (scene && scene.tower) || 0;
+      if (_fl !== S._wf) {
+        S._wf = _fl;
+        S.W = null; S.WT = 0;
+        if (_fl > 0 && GAME.TowerCurriculum && GAME.TowerCurriculum.worldFor) {
+          try {
+            var _w = GAME.TowerCurriculum.worldFor(_fl);
+            S.W = _w && _w.key; S.WT = WORLD_TONE[S.W] || 0;
+          } catch (e) { S.W = null; S.WT = 0; }
+        }
+      }
       S.RA = S.FX.ringAlpha === undefined ? 1 : S.FX.ringAlpha;
       S.FA = S.FX.fillAlpha === undefined ? 1 : S.FX.fillAlpha;
       S.INK = S.FX.ink === undefined ? 0x0b0b12 : S.FX.ink;
@@ -1603,14 +1839,74 @@ window.GAME = window.GAME || {};
     },
 
     //  이 이펙트가 그려지는 동안만 팔레트를 갈아끼운다.
-    _withMotif: function (motif, draw) {
+    //
+    //  ⚠⚠ **2026-09-09 — 재료 축이 세 칸(clay/stone/wood)까지만 닿고 있었다.**
+    //    실측(스킬 타입 19종을 헤드리스로 그려 motif 를 바꿔 가며 색이 바뀌는 잉크
+    //    비율을 셌다): 평균 **24.6%**, 그리고 **다섯 타입이 정확히 0.0%** 였다 —
+    //    projectile · aura · trap · stealth · clone. 화살대는 `woodDark`, 촉은 `bone`,
+    //    깃은 `feather`, 밧줄은 `rope`, 방패는 `shell`/`leaf` … 즉 **이펙트가 실제로
+    //    쓰는 재질 채널이 표에 없어서** 재료를 아무리 갈아도 화면이 그대로였다.
+    //    `MOTIF_MAT` 이 열일곱 재료를 갖고 있는데 그중 열넷이 안 보이는 상태였다.
+    //
+    //  → **표를 늘리지 않고 파생시킨다.** 세 칸(clay=본체 · stone=밝은 면 · wood=그늘)
+    //    에서 나머지 재질 채널을 계산한다. 새 재료를 넣을 때 표를 다시 열 필요가 없고,
+    //    (표에 손으로 적으면 17×14 = 238칸이 되고 그중 하나만 틀려도 조용히 어긋난다.)
+    //  ⚠ **motif 가 없는 이펙트는 한 픽셀도 안 바뀐다** — 예전과 정확히 같다.
+    //  ⚠ 팔레트를 **motif 마다 한 번만 만들어 캐시**한다. 예전 판은 이 함수가 불릴
+    //    때마다 객체를 새로 만들었다 — 이펙트 하나당 하나씩, 매 프레임. v1.66 이 잡은
+    //    렉의 원인이 정확히 그 계열(프레임마다 만들고 버리는 객체)이라 여기서 없앤다.
+    _palCache: {},
+    _palSig: -1,
+    _paletteOf: function (over) {
+      //  ⚠ **테마는 `UI.MAT` 을 제자리에서 고친다**(js/theme-switch.js 는 키를 하나씩
+      //    덮어쓴다 — 객체를 갈아끼우지 않는다). 그래서 참조 비교로는 테마 전환을
+      //    절대 못 잡고, 라이트 테마로 바꾼 뒤에도 어두운 팔레트가 계속 나온다.
+      //    지문(몇 칸의 값 조합)으로 본다 — 프레임당 한 번이라 비용은 0 에 가깝다.
+      if (this._palSig !== S.MSIG) { this._palCache = {}; this._palSig = S.MSIG; }
+      var key = over.__k;
+      if (key && this._palCache[key]) return this._palCache[key];
+      var base = S.MAT0 || S.MAT, k, p = {};
+      for (k in base) p[k] = base[k];
+      var cl = over.clay, st = over.stone, wd = over.wood;
+      p.clay = cl; p.stone = st; p.wood = wd;
+      //  밝은 면 계열 — 뼈·껍질·조개는 '밝고 마른 것'이다. stone 에서 끌어올린다.
+      p.bone = lite(st, 0.22);  p.boneLite = lite(st, 0.50); p.boneDark = mix(st, wd, 0.55);
+      p.shell = lite(st, 0.38); p.shellLite = lite(st, 0.62); p.shellRim = mix(st, wd, 0.45);
+      p.stoneLite = lite(st, 0.28); p.stoneDark = mix(st, wd, 0.50);
+      //  본체 계열 — 가죽·잎·깃털은 '재료 그 자체의 살'이다. clay 에서.
+      p.leather = cl; p.leatherLite = lite(cl, 0.26); p.leatherDark = mix(cl, wd, 0.60);
+      p.leaf = cl;    p.leafLite = lite(cl, 0.28);    p.leafDark = mix(cl, wd, 0.55);
+      p.feather = lite(cl, 0.10); p.quill = mix(cl, wd, 0.50);
+      p.clayLite = lite(cl, 0.24); p.clayDark = mix(cl, wd, 0.55);
+      p.goo = cl; p.gooLite = lite(cl, 0.34); p.gooDark = wd;
+      //  꼬임·금속 계열 — 밧줄은 살과 밝은 면 사이, 쇠는 그늘과 밝은 면 사이.
+      p.rope = mix(cl, st, 0.34); p.ropeLite = lite(mix(cl, st, 0.34), 0.24); p.ropeDark = mix(cl, wd, 0.55);
+      p.iron = mix(wd, st, 0.52); p.ironLite = lite(mix(wd, st, 0.52), 0.26); p.ironDark = mix(wd, st, 0.22);
+      p.blade = mix(st, wd, 0.18); p.bladeLite = lite(st, 0.34); p.bladeDark = mix(st, wd, 0.62);
+      p.bronze = mix(cl, st, 0.22); p.bronzeLite = lite(mix(cl, st, 0.22), 0.24); p.bronzeDark = mix(cl, wd, 0.62);
+      //  나무 — wood 가 그늘이므로 밝은 나무는 clay 쪽에서.
+      p.woodDark = wd; p.woodLite = lite(cl, 0.20);
+      if (key) this._palCache[key] = p;
+      return p;
+    },
+    //  ⚠ **콜백을 안 쓴다.** 예전 `_withMotif(motif, function(){...})` 는 이펙트
+    //    하나마다 클로저를 하나씩 만들었다 — 매 프레임 수십 개의 새 객체이고, 그게
+    //    v1.66 이 확정한 렉의 원인(프레임마다 만들고 버리는 쓰레기)과 같은 계열이다.
+    //    지금은 저장 슬롯 두 칸으로 넣고 뺀다(중첩은 일어나지 않는다 — 호출부가
+    //    drawEffect/drawTrap/drawAura 셋뿐이고 서로를 안 부른다).
+    _beginMotif: function (motif) {
       var over = motif && this.MOTIF_MAT[motif];
-      if (!over) { draw(); return; }
-      var keep = S.MAT, mixed = {};
-      for (var k in keep) mixed[k] = keep[k];
-      for (var k2 in over) mixed[k2] = over[k2];
-      S.MAT = mixed;
-      try { draw(); } finally { S.MAT = keep; }
+      if (!over || !S.MAT) return false;
+      if (over.__k === undefined) over.__k = motif;      // 캐시 키를 표에 한 번만 심는다
+      MO_MAT = S.MAT; MO_KEY = S.MO;
+      S.MAT = this._paletteOf(over); S.MO = motif;
+      return true;
+    },
+    _endMotif: function (on) { if (on) { S.MAT = MO_MAT; S.MO = MO_KEY; } },
+    //  옛 이름 — 바깥에서 부르는 곳이 생겨도 계속 돌게 남긴다(내부는 안 쓴다).
+    _withMotif: function (motif, draw) {
+      var on = this._beginMotif(motif);
+      try { draw(); } finally { this._endMotif(on); }
     },
 
     //  ── 참격 한 번 (2026-08-04 사용자 요청: "검사는 스킬썼을때 최소한 검
@@ -1627,11 +1923,11 @@ window.GAME = window.GAME || {};
     },
 
     drawEffect: function (e, col) {
-      //  ⚠ 재료는 **여기 한 곳**에서만 갈아끼운다. 그리기 함수 9개는 손대지 않는다 —
+      //  ⚠ 재료는 **여기 한 곳**에서만 갈아끼운다. 그리기 함수들은 손대지 않는다 —
       //    거기에 각각 넣으면 새 이펙트가 추가될 때 그것만 무채색으로 빠진다.
-      var self = this, out = false;
-      this._withMotif(e && e.motif, function () { out = self._drawEffectInner(e, col); });
-      return out;
+      var on = this._beginMotif(e && e.motif);
+      try { return this._drawEffectInner(e, col); }
+      finally { this._endMotif(on); }
     },
 
     _drawEffectInner: function (e, col) {
@@ -1644,7 +1940,12 @@ window.GAME = window.GAME || {};
       //  시즌2 — 엔진(combat.js)이 내는 kind 그대로. 파일 머리 주석의 대조표 참조.
       if (k === 'phaseShift') { phaseShiftA(e, col); return true; }
       if (k === 'summon') { summonA(e, col); return true; }         // 토템·호위 착지
-      if (k === 'stealth') { stealthA(e, col); return true; }       // 은신 진입
+      //  ⚠ `clone`(분신술)도 같은 kind 를 낸다 — `ms` 로 가른다(위 cloneA 주석).
+      //    분신 300 · 은신 2500~5500 이라 400 이 안전한 경계다.
+      if (k === 'stealth') {
+        if (e.ms !== undefined && e.ms <= 400) { cloneA(e, col); return true; }
+        stealthA(e, col); return true;                              // 은신 진입
+      }
       if (k === 'mark') { markGroundA(e, col); return true; }       // 표식(발밑, 대상 추적)
       if (k === 'quake') { quakeBurstA(e, col); return true; }      // 지진 충격(능력·전장 규칙)
       if (k === 'gust') { gustA(e, col); return true; }             // 돌풍 시전
@@ -1673,27 +1974,65 @@ window.GAME = window.GAME || {};
         if (e.mark) { markBeamA(e, col); return true; }              // 표식 투척 궤적
         S.B ? strikeB(e, col) : strikeA(e, col); return true;
       }
-      if (k === 'spark') { S.B ? sparkB(e, col) : sparkA(e, col); return true; }
+      //  연격(17연격)은 평타 명중과 **같은 kind** 라 total 로 가른다(flurryHitA 주석).
+      if (k === 'spark') {
+        if (!S.B && e.total === 110) { flurryHitA(e, col); return true; }
+        S.B ? sparkB(e, col) : sparkA(e, col); return true;
+      }
       if (k === 'slash' && e.total > 180) { S.B ? pullB(e, col) : pullA(e, col); return true; }
       return false;   // slashWave · healPulse · block · yolk · lob 등은 원래 그림 그대로
     },
 
+    //  ── 덫·오라도 재료를 갖는다 (2026-09-09) ──────────────────────────────
+    //  ⚠ `castSkill` 의 재료 태깅은 `state.effects.push` 만 감싼다 — `state.traps.push`
+    //    와 `u.auras.push` 는 그 문을 안 지나므로 **덫과 오라는 재료가 0.0%** 였다
+    //    (실측). 둘 다 `srcSkill`(스킬 이름)을 갖고 있으므로 시전자의 스킬 목록에서
+    //    되찾아 온다. 상태는 안 건드리고 **렌더 캐시**(`__mo`)에만 적는다 —
+    //    `u.__lifeMax` 와 같은 규약이다(시뮬은 이 필드를 안 읽는다).
+    _motifOf: function (obj, owner) {
+      if (obj.__mo !== undefined) return obj.__mo;
+      var mo = null, sks = owner && owner.skills;
+      if (sks && obj.srcSkill) {
+        for (var i = 0; i < sks.length; i++) {
+          if (sks[i] && sks[i].name === obj.srcSkill) { mo = sks[i].motif || null; break; }
+        }
+      }
+      obj.__mo = mo;
+      return mo;
+    },
+
     drawTrap: function (tr, col) {
       if (!S.g) return false;
-      S.B ? trapB(tr, col) : trapA(tr, col);
+      var on = this._beginMotif(this._motifOf(tr, tr.owner));
+      try { S.B ? trapB(tr, col) : trapA(tr, col); } finally { this._endMotif(on); }
       return true;
     },
 
     drawAura: function (u, au, col) {
       if (!S.g) return false;
-      S.B ? auraB(u, au, col) : auraA(u, au, col);
+      var on = this._beginMotif(this._motifOf(au, u));
+      try { S.B ? auraB(u, au, col) : auraA(u, au, col); } finally { this._endMotif(on); }
       return true;
     },
 
     // 스킬 투사체(big)만 가져간다. 유닛 평타는 원래 그림 그대로.
+    //
+    //  ⚠⚠ **2026-09-09 실측 버그** — 스킬이 고른 투사체 그림이 통째로 죽어 있었다.
+    //    `combat.js` 의 `type:'projectile'` 은 `big:true` **와** `projStyle`(shuriken·
+    //    dagger·orb)을 같이 싣는데, `js/scenes/battle.js` 는 이 함수를 **먼저** 부르고
+    //    `true` 면 `continue` 한다. 그래서 그 밑에 있는 수리검·단검·마법구체 그림은
+    //    스킬 투사체에서 **한 번도 실행된 적이 없다** — 암살자의 「단검 던지기」가
+    //    v3.20 에 그려 놓고도 계속 **나무 화살**로 날아가고 있었다.
+    //  → 그림을 여기서 또 만들지 않는다(두 벌이 되면 조용히 갈라진다). 스타일이
+    //    실려 있으면 **사양한다** — 그러면 battle.js 의 전용 그림이 제 일을 한다.
     drawProjectile: function (p, col) {
       if (!S.g || !p.big) return false;
-      S.B ? projB(p, col) : projA(p, col);
+      if (p.projStyle || p.orb) return false;     // 전용 그림이 있는 것은 battle.js 에 넘긴다
+      //  ⚠ 투사체도 재료를 갖는다(2026-09-09). 예전엔 재료가 닿는 잉크가 **0.0%** 라
+      //    화살대(woodDark)·깃(feather)·촉(bone)이 스킬과 무관하게 언제나 같은 나무
+      //    화살이었다 — 「뼈 창」과 「서리 화살」이 화면에서 같은 물건이었다는 뜻이다.
+      var on = this._beginMotif(this._motifOf(p, p.owner));
+      try { S.B ? projB(p, col) : projA(p, col); } finally { this._endMotif(on); }
       return true;
     },
 
@@ -1705,6 +2044,8 @@ window.GAME = window.GAME || {};
       var UI = GAME.UI || {};
       S.FX = S.FX || UI.FX || {};
       S.MAT = S.MAT || UI.MAT || { clay: 0xa08060, stone: 0x8b8578, wood: 0x5a452c };
+      S.MAT0 = S.MAT0 || S.MAT;
+      S.MSIG = matSig(S.MAT0);
       S.C = S.C || (GAME.CONFIG && GAME.CONFIG.COLORS) || {};
       S.RA = S.FX.ringAlpha === undefined ? 1 : S.FX.ringAlpha;
       S.FA = S.FX.fillAlpha === undefined ? 1 : S.FX.fillAlpha;

@@ -136,6 +136,31 @@
         tint: [0xd8cbb0, 0xbfae90]
       });
 
+      //  ── 충격 고리 (2026-09-09 신설) ─────────────────────────────────────
+      //  ⚠ **텍스처(`T_RING`)는 2026-08-04 부터 구워지고 있었는데 쓰는 방출기가
+      //    하나도 없었다**(실측: `_fxRing` 검색 0건). 즉 매 씬마다 32×32 를 굽고
+      //    버리고 있었다 — 이 저장소가 `LobbyArt.mark`·`GfxPool.verify` 에서 두 번
+      //    겪은 "그리는 코드는 있는데 붙이는 사람이 없다"의 세 번째 판이다.
+      //  왜 고리인가: 지금 타격은 **양**으로만 세기를 말한다(같은 알갱이가 더 많이).
+      //  그래서 큰 타격과 작은 타격이 난전에서 구분이 안 된다. 고리는 **한 개**로
+      //  "여기서 뭔가 터졌다"를 말하므로 파티클 예산을 거의 안 쓰고 세기를 만든다.
+      //  ⚠ 큰 타격·처치에만, **한 번에 하나**. 매 타격에 붙이면 화면이 고리밭이 되고
+      //    그건 전장을 가려 회피를 망친다(이 게임의 제1규율).
+      //  ⚠ 크기는 **`WORLD_SCALE` 을 탄다.** 폰은 전장이 0.556 배라, 안 곱하면 같은
+      //    고리가 화면에서 두 배로 커져 전장을 가린다(이 파일 머리의 규율 그대로).
+      //  ⚠ 색은 테마 토큰에서 뽑는다(`FX.blast`/`FX.sparkCore`). 흰색을 박으면
+      //    라이트 테마(크림 목장)에서 밝은 바닥 위에 밝은 것이 얹혀 증발한다 —
+      //    ui-theme.js 가 FX 표를 통째로 갈아끼우는 이유가 그것이다.
+      var FXc = (GAME.UI && GAME.UI.FX) || {};
+      scene._fxRing = mk(this.T_RING, {
+        speed: 0,
+        scale: { start: 0.35 * S, end: 1.9 * S },
+        alpha: { start: 0.75, end: 0 },
+        lifespan: 260,
+        blendMode: 'ADD',
+        tint: [FXc.sparkCore || 0xffffff, FXc.blast || 0xffd166]
+      });
+
       scene._fxReady = true;
     },
 
@@ -143,7 +168,7 @@
     //  ⚠ 상한을 안 두면 난전에서 파티클이 프레임을 잡아먹는다 — 이 프로젝트가
     //    이미 "액션이 겹치면 프레임 저하"로 신고받은 자리다.
     _room: function (scene, want) {
-      var n = 0, k = ['_fxYolk', '_fxSpark', '_fxChip', '_fxDust'];
+      var n = 0, k = ['_fxYolk', '_fxSpark', '_fxChip', '_fxDust', '_fxRing'];
       for (var i = 0; i < k.length; i++) {
         var e = scene[k[i]];
         if (e && e.getAliveParticleCount) n += e.getAliveParticleCount();
@@ -173,14 +198,27 @@
         if (scene._fxYolk) scene._fxYolk.explode(n, x, y);
         if (big > 0.18 && scene._fxSpark) scene._fxSpark.explode(Math.max(1, (n / 4) | 0), x, y);
       }
+      //  ── 큰 타격의 고리 (2026-09-09) ────────────────────────────────────
+      //  ⚠ **문턱을 둔다(최대체력의 12%).** 매 타격에 붙이면 난전에서 고리가 겹쳐
+      //    전장을 덮는다 — 예고 원이 안 보이면 그건 연출이 아니라 사고다.
+      //    12% 는 평타로는 거의 안 닿고 스킬 한 방에는 닿는 선이다.
+      //  ⚠ 하나만 쏜다. 세기는 이미 알갱이 **양**이 말하고 있고, 고리는 "지금 이건
+      //    큰 것이었다"는 **한 번의 신호**여야 한다.
+      if (big >= 0.12 && scene._fxRing && this._room(scene, 1) > 0) {
+        scene._fxRing.explode(1, x, y);
+      }
     },
 
     //  치명타 — 불똥을 한 겹 더 얹는다. 색이 아니라 **양**으로 구분한다
     //  (색으로만 구분하면 색맹 사용자에게 정보가 사라진다).
+    //  ⚠ 지금 이 함수를 부르는 곳은 없다(실측: 호출 0건). 지우지 않는 이유는
+    //    `js/scenes/battle.js` 가 치명타를 아는 자리를 이미 갖고 있어서(피해 숫자
+    //    색) 붙이는 것이 한 줄이기 때문이다 — 붙이는 쪽은 그 파일 소유자의 몫이다.
     crit: function (scene, x, y) {
       if (!scene || !scene._fxReady) return;
       var n = this._room(scene, 14);
       if (n > 0 && scene._fxSpark) scene._fxSpark.explode(n, x, y);
+      if (scene._fxRing && this._room(scene, 1) > 0) scene._fxRing.explode(1, x, y);
     },
 
     //  죽음 — 노른자가 크게 터진다. combat.js 의 `spawnYolk`(얼룩)과 **역할이 다르다**:
@@ -189,8 +227,20 @@
       if (!scene || !scene._fxReady) return;
       var n = this._room(scene, 16 + Math.round((r || 16) * 0.5));
       if (n <= 0) return;
-      if (scene._fxYolk) scene._fxYolk.explode(n, x, y);
-      if (scene._fxDust) scene._fxDust.explode(Math.max(2, (n / 4) | 0), x, y);
+      //  ── 껍질 조각 (2026-09-09) ─────────────────────────────────────────
+      //  ⚠ 이 게임에서 죽는 것은 **껍질 하나짜리 목숨**인데, 지금까지 죽음은
+      //    노른자와 먼지뿐이었다 — 알이 깨졌는데 껍질이 안 나왔다. 아트 디렉션
+      //    ("매끈함(껍질) vs 거침(뼈·돌)") 이 정확히 이 대비를 요구한다.
+      //  ⚠ 노른자 **예산을 나눠 쓴다** — 조각 수만큼 노른자를 뺀다. 모바일 상한(110)
+      //    안에서 종류만 늘어나고 총량은 그대로다(파티클이 폰 프레임을 먹는다는
+      //    2026-08-04 실측이 이 규율의 근거다).
+      var chips = Math.min(n - 1, Math.max(2, (n / 5) | 0));
+      var yolks = n - chips;
+      if (scene._fxYolk) scene._fxYolk.explode(yolks, x, y);
+      if (scene._fxChip) scene._fxChip.explode(chips, x, y);
+      if (scene._fxDust) scene._fxDust.explode(Math.max(2, (yolks / 4) | 0), x, y);
+      //  처치의 고리 — 한 개. "저기서 하나 죽었다"가 난전에서도 읽힌다.
+      if (scene._fxRing && this._room(scene, 1) > 0) scene._fxRing.explode(1, x, y);
     },
 
     //  발밑 먼지 — 돌진·착지·시전 시작.

@@ -37,6 +37,11 @@ GAME.ResultScene.prototype.init = function (data) {
   this.report = data.report || null;          // 전투 요약(combat state.report)
   this.bonusRound = data.bonusRound || null;  // 사이드 보너스 판('break'|'dodge') — 층 미반영
   this.battleSec = data.battleSec || 0;
+  //  ⚠ 씬 인스턴스는 재사용된다 — 화면에 얹은 상태는 여기서 되돌린다.
+  //    `_toastBox` 는 폰 가로에서만 세운다(아래 `_buildPhone`). 안 지우면 PC/세로로
+  //    돌아온 판이 지난 판의 폰 좌표로 토스트를 띄운다.
+  //    (이 저장소가 콤보·줌·말풍선·화살비에서 네 번 겪은 계열이다.)
+  this._toastBox = null;
 };
 
 // ── 통곡의 탑 · 층 클리어는 이 화면을 **건너뛴다** (2026-07-29, 사용자 지시) ─────────
@@ -673,6 +678,23 @@ GAME.ResultScene.prototype._buildPhone = function (title, sub, color, tierObj) {
         align: 'center', wrap: LW
       }));
   }
+
+  //  ── 메타 토스트의 자리 (2026-09-08, overlap-audit 실측) ────────────────────
+  //  기본 자리(화면 맨 위 가운데 · 폭 560)는 이 화면에서 **제목과 보상 줄을 동시에**
+  //  덮는다 — 실측: '실시간 대전 승리' ↔ 토스트 63×11px @126,26 · '상대 진형' ↔
+  //  토스트 57×9px @454,28. 게다가 미끄러져 들어오는 중에만 겹쳐서 실행마다
+  //  잡혔다 말았다 했다(간헐 실패).
+  //  ⚠ 토스트를 끄지 않는다 — 축복·구슬이 두 번 죽은 이유가 "받은 줄을 몰라서"였다.
+  //    대신 **왼쪽 기둥의 판정 현수막 아래**로 내리고, 상자를 주면 엔진이 화면 밖에서
+  //    들어오지 않고 **제자리에서 뜬다**(achievements.js `_next`) — 지나갈 경로가
+  //    없어야 간헐 겹침이 구조적으로 사라진다.
+  //  ⚠ 오른쪽 기둥(rx=436~)은 보상 줄이라 폭을 왼쪽 기둥(LW)으로 묶는다.
+  //  ⚠ 아래로는 📊 전투 요약 버튼(cy = H-38 · h 44 → 윗변 H-60)을 밟지 않게 자른다.
+  //     문구가 두 줄이 되면 상자가 커지므로 상한을 엔진이 맡는다.
+  var toastTop = (noteObjs.length
+    ? (noteObjs[0].y + noteObjs[0].height)
+    : plate.bottom) + 8;
+  this._toastBox = { cx: PAD + LW / 2, maxW: LW, top: toastTop, maxBottom: H - 68 };
 
   // ── 오른쪽: 보상 → 다음 행동 ──
   // 55 는 아이폰 SE(FIT 0.813)에서 화면 44.7px — 44px 하한을 넘기는 최소값이다.

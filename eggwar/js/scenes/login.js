@@ -213,12 +213,47 @@ GAME.LoginScene.prototype._enter = function (id, pin) {
 //  기기·닉네임마다 **한 번만** 보여 준다(OFFER_KEY). 매번 물으면 로그인이 한 단계 늘고,
 //  안 보여 주면 이 기능이 있다는 것을 아무도 모른다. 거절해도 통곡의 탑 메뉴의
 //  'PIN 설정'(js/scenes/tower.js `_setPin`)으로 언제든 걸 수 있다.
+//
+//  ⚠⚠ **진행이 있는 사람에게만 권한다** (2026-09-08, 첫인상 점검).
+//  예전엔 닉네임을 치자마자 떴다 — 즉 **게임 화면을 한 번도 못 본 사람**에게
+//  "진행을 지키시겠습니까"를 물었다. 그 사람에게는 지킬 진행이 아직 없고, 이 물음은
+//  뜻이 없는 채로 첫 3분의 첫 관문이 된다(설정하기를 고르면 PIN 을 두 번 입력하는
+//  화면까지 이어진다). 판단 근거는 두 가지다:
+//    ① 이 저장소가 같은 결론을 이미 내려 뒀다 — `MenuScene._carryNotice` 의
+//       "⚠ **이미 진행이 있는 사람에게만** 띄운다. 방금 시작한 사람에게 '옮기는 법'은
+//       아직 아무 뜻이 없다." 같은 성격의 안내인데 로그인 쪽만 그 규율 밖에 있었다.
+//    ② `CloudSave` 가 올리는 것이 곧 그 진행이다 — 빈 진행을 올릴 이유가 없다.
+//  미루는 것이지 없애는 게 아니다. 한 층이라도 깨고 나면 **다음 로그인에** 그대로 뜬다.
+//  (OFFER_KEY 는 실제로 띄운 순간에만 찍는다 — 미뤘는데 '봤음'으로 찍으면 영영 안 뜬다.)
 GAME.LoginScene.OFFER_KEY = 'eggwar.cloud.offer.v1';
+
+//  이 닉네임에 지킬 만한 진행이 있는가. **로그인 전이라 `Account.current()` 는
+//  아직 이 닉네임이 아니다** — 그래서 계정별 저장소를 키로 직접 읽는다
+//  (`Tower._key()` 류를 부르면 이전 계정 것을 읽는다).
+//  기준은 `_carryNotice` 와 같다: 한 층이라도 깼는가(= floor 가 1을 넘었는가).
+GAME.LoginScene.prototype._hasProgressFor = function (id) {
+  var pick = function (mod) {
+    if (!mod || !mod.KEY) return null;
+    var all = GAME.Store.get(mod.KEY, {}) || {};
+    return all[id] || null;
+  };
+  try {
+    var t = pick(GAME.Tower);
+    if (t && ((t.best || 0) > 1 || (t.floor || 1) > 1 || (t.clears || 0) > 0)) return true;
+    //  수성의 탑만 하는 사람도 있다 — 한쪽만 보면 그 사람은 영영 권유를 못 받는다.
+    var d = pick(GAME.DefendTower);
+    if (d && ((d.best || 0) > 1 || (d.floor || 1) > 1)) return true;
+  } catch (e) {}
+  return false;
+};
+
 GAME.LoginScene.prototype._offerPin = function (id) {
   var self = this;
   if (!GAME.CloudSave || !GAME.Modal || !GAME.PinUI) { this._enter(id); return; }
   var seen = GAME.Store.get(GAME.LoginScene.OFFER_KEY, {}) || {};
   if (seen[id]) { this._enter(id); return; }
+  //  아직 아무것도 안 깬 사람 — 지금은 묻지 않는다(다음 로그인에 다시 본다).
+  if (!this._hasProgressFor(id)) { this._enter(id); return; }
   seen[id] = Date.now();
   GAME.Store.set(GAME.LoginScene.OFFER_KEY, seen);
   this._removeInput();

@@ -30,6 +30,8 @@ window.GAME = window.GAME || {};
 //
 //  · 토스트: `flush(scene)` — 상단 슬라이드 인 2.4초, 여러 개면 순차. 엔진은
 //    `GAME.MetaToast` 로 분리해 두어 일일 과제 완료 알림도 같은 줄에 선다.
+//    씬이 `_toastMute`(안 띄운다) · `_toastTop`(y 만) · `_toastBox`(자리 통째로,
+//    제자리 페이드) 로 자리를 정할 수 있다 — 아래 `_next` 주석 참조.
 //  ⚠ 이 파일은 씬·Phaser 에 의존하지 않는다(flush 만 scene 을 받는다) — tools/sim.js
 //    샌드박스에 올려 헤드리스로 감사한다(tools/meta-audit.js).
 // ============================================================================
@@ -85,20 +87,35 @@ GAME.MetaToast = {
     var C = GAME.CONFIG.COLORS, UI = GAME.UI;
     var W = GAME.CONFIG.WIDTH;
     var small = !!GAME.CONFIG.SMALL;
-    var maxW = Math.min(W - 40, 560);
-    var txt = UI.text(scene, W / 2, 0, it.text,
+    //  ── 씬이 자리를 지정할 수 있다: `scene._toastBox` (2026-09-08) ──────────────
+    //  기본값(화면 위 가운데에서 미끄러져 들어옴)은 **제목 줄이 맨 위에 있는 화면**에서
+    //  제목을 덮는다. 결과 화면이 그랬다(overlap-audit 실측: 제목 ↔ 토스트 63×11px).
+    //  더 나쁜 것은 **슬라이드 인 중에만** 겹친다는 것이라 실행마다 잡혔다 말았다 했다.
+    //  ⚠ 그래서 자리만 옮기면 안 된다 — 화면 밖에서 들어오는 길이 제목을 **지나간다.**
+    //    상자를 받으면 **그 상자 안에서 뜬다**(제자리 페이드 + 10px 상승). 지나가는
+    //    경로 자체가 없어지므로 간헐 실패가 구조적으로 사라진다.
+    //    { cx, maxW, top, maxBottom } — 전부 선택. maxBottom 은 아래 버튼 줄을 안 밟게
+    //    yTop 을 끌어올리는 상한이다(문구가 두 줄이 되면 상자가 커진다).
+    var box = (scene._toastBox && typeof scene._toastBox.top === 'number') ? scene._toastBox : null;
+    var cx = (box && typeof box.cx === 'number') ? box.cx : (W / 2);
+    var maxW = Math.min((box && box.maxW) || (W - 40), 560);
+    var txt = UI.text(scene, cx, 0, it.text,
       { size: small ? 'caption' : 'body', color: it.color || C.crit, origin: 0.5,
         wrap: maxW - 36, align: 'center' });
     var pw = Math.min(maxW, Math.ceil(txt.width) + 36);
     var ph = Math.ceil(txt.height) + 18;
-    var pg = UI.panel(scene, W / 2 - pw / 2, 0, pw, ph,
+    var pg = UI.panel(scene, cx - pw / 2, 0, pw, ph,
       { level: 3, line: UI.COL.focus, radius: Math.min(12, ph / 2 - 1) });
     //  Modal(1000~1003) 위에서도 보이도록.
     pg.setDepth(1500); txt.setDepth(1501);
     //  씬이 `_toastTop` 을 주면 그 자리(제목 줄이 맨 위인 프로필 씬 — overlap-audit 2026-09-03).
-    var yTop = (typeof scene._toastTop === 'number') ? scene._toastTop : (small ? 8 : 16);
-    var startY = -ph - 6;
+    var yTop = box ? box.top
+      : ((typeof scene._toastTop === 'number') ? scene._toastTop : (small ? 8 : 16));
+    if (box && typeof box.maxBottom === 'number') yTop = Math.min(yTop, box.maxBottom - ph);
+    if (box && yTop < 0) yTop = 0;
+    var startY = box ? (yTop + 10) : (-ph - 6);
     pg.setY(startY); txt.setY(startY + ph / 2);
+    if (box) { pg.setAlpha(0); txt.setAlpha(0); }
     if (it.sound && GAME.Sound) { try { GAME.Sound.play(it.sound); } catch (e) {} }
 
     var slideIn = 220, slideOut = 260;
@@ -107,12 +124,15 @@ GAME.MetaToast = {
       if (pg && pg.scene) pg.destroy();
       if (txt && txt.scene) txt.destroy();
     };
-    scene.tweens.add({ targets: pg, y: yTop, duration: slideIn, ease: 'Cubic.easeOut' });
-    scene.tweens.add({ targets: txt, y: yTop + ph / 2, duration: slideIn, ease: 'Cubic.easeOut' });
+    scene.tweens.add({ targets: pg, y: yTop, alpha: 1, duration: slideIn, ease: 'Cubic.easeOut' });
+    scene.tweens.add({ targets: txt, y: yTop + ph / 2, alpha: 1, duration: slideIn, ease: 'Cubic.easeOut' });
     scene.time.delayedCall(slideIn + hold, function () {
       if (!pg.scene) { r.busy = false; self._next(); return; }
-      scene.tweens.add({ targets: [pg], y: startY, duration: slideOut, ease: 'Cubic.easeIn' });
-      scene.tweens.add({ targets: [txt], y: startY + ph / 2, duration: slideOut, ease: 'Cubic.easeIn',
+      //  상자 안이면 제자리에서 사라진다(다시 제목 위를 지나가지 않게).
+      var outY = box ? (yTop + 10) : startY;
+      var outA = box ? 0 : 1;
+      scene.tweens.add({ targets: [pg], y: outY, alpha: outA, duration: slideOut, ease: 'Cubic.easeIn' });
+      scene.tweens.add({ targets: [txt], y: outY + ph / 2, alpha: outA, duration: slideOut, ease: 'Cubic.easeIn',
         onComplete: function () { kill(); r.busy = false; self._next(); } });
     });
   }

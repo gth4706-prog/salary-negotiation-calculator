@@ -494,11 +494,25 @@ GAME.TowerShopScene.prototype._buildTraitTab = function () {
       var cntFs0 = Math.max(9, Math.round(cell * 0.24));
       var cntH = Math.round(cntFs0 * 1.5);
       var icoFs = Math.min(Math.round(cell * (PH ? 0.42 : 0.44)), Math.max(10, cell - cntH - 4));
-      var ico = GAME.UI.label(self, bx + cell / 2, by + (cell - cntH) / 2,
-        t.icon, icoFs, C.text, 0.5).setOrigin(0.5, 0.5);
-      ico.setAlpha(taken ? 1 : (open ? 0.80 : 0.30));
-      ico.__box = { x: bx, y: by, w: cell, h: cell };
-      self._body.push(ico);
+      var icoCx = bx + cell / 2, icoCy = by + (cell - cntH) / 2;
+      //  ⚠ **벡터 아이콘이 우선이다**(js/traiticon.js). 이모지는 ① 기기가 그려서
+      //    애플/안드로이드/윈도우가 서로 다른 그림을 내고 ② 채도를 못 뺀다.
+      //    ②가 특히 문제였다 — 위 주석이 "투명도로 눌러 대신한다" 고 적어 둔 것이
+      //    그 우회다. 벡터는 잠긴 칸을 **진짜 흑백**으로 낼 수 있어서, 참고 이미지의
+      //    "안 찍은 칸은 흑백" 을 그대로 한다. 그래서 투명도도 덜 눌러도 된다
+      //    (0.80/0.30 → 0.92/0.42) — 흐릿함이 아니라 색이 잠김을 말하기 때문이다.
+      if (GAME.TraitIcon && GAME.TraitIcon.has(t.key)) {
+        var ig = self.add.graphics();
+        GAME.TraitIcon.draw(ig, t.key, icoCx, icoCy, icoFs * 1.34, { mono: !taken });
+        ig.setAlpha(taken ? 1 : (open ? 0.92 : 0.42));
+        self._body.push(ig);
+      } else {
+        var ico = GAME.UI.label(self, icoCx, icoCy,
+          t.icon, icoFs, C.text, 0.5).setOrigin(0.5, 0.5);
+        ico.setAlpha(taken ? 1 : (open ? 0.80 : 0.30));
+        ico.__box = { x: bx, y: by, w: cell, h: cell };
+        self._body.push(ico);
+      }
       //  ⚠ **자물쇠 배지는 안 단다.** 칸 모서리에 얹어 봤더니 이모지 글상자가 넓어
       //    큰 아이콘과 겹쳤다(겹침 감사 11건). 그리고 참고 이미지도 안 찍은 칸에
       //    자물쇠를 안 붙인다 — **흐리게 + 테두리**가 곧 잠김이고, 줄 게이트 칩과

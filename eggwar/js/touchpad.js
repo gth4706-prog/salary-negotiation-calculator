@@ -252,8 +252,14 @@ GAME.TouchPad.prototype._build = function () {
   GAME.SKILL_SLOTS.forEach(function (slot, i) {
     var a = (startDeg * Math.PI / 180) + stepRad * i;
     self._addButton(slot, cx + (CFG.flip ? 1 : -1) * Math.cos(a) * arcR, cy - Math.sin(a) * arcR,
-      S.skillR, self._slotLabel(slot), GAME.CONFIG.COLORS.strategist,
-      function () { self._skill(slot); });
+      S.skillR, self._slotLabel(slot),
+      //  ⚠ 궁극기만 테두리 색을 가른다. 아이콘은 **타입 단위**라 한 영웅이 같은
+      //    타입을 둘 끼면(광전사의 대검 회전 + 광역 휩쓸기) 그림이 겹친다 —
+      //    그건 정직한 표시지만, 판을 뒤집는 R 까지 같아 보이면 안 된다.
+      //    색을 아이콘이 아니라 **테두리**에 주는 이유: 아이콘 색은 타입의 성격을
+      //    말하고 있어서, 거기 슬롯 뜻까지 얹으면 두 뜻이 한 채널에서 섞인다.
+      slot === 'R' ? PAD.amber : GAME.CONFIG.COLORS.strategist,
+      function () { self._skill(slot); }, self._slotType(slot));
   });
 
   // 물약 — 세로에서는 스틱 위쪽(왼손 엄지 자리).
@@ -288,7 +294,16 @@ GAME.TouchPad.prototype._slotLabel = function (slot) {
   return GAME.skillLabel ? GAME.skillLabel(sk, slot) : slot;
 };
 
-GAME.TouchPad.prototype._addButton = function (key, x, y, r, label, color, onTap) {
+//  이 슬롯에 낀 스킬의 **타입**. 아이콘은 타입 단위다(엔진이 구별하는 단위와 같다).
+//  없으면 null → `_addButton` 이 예전처럼 글자 라벨로 되돌아간다.
+GAME.TouchPad.prototype._slotType = function (slot) {
+  var h = this.hero;
+  if (!h || !h.skills) return null;
+  for (var i = 0; i < h.skills.length; i++) if (h.skills[i].slot === slot) return h.skills[i].type;
+  return null;
+};
+
+GAME.TouchPad.prototype._addButton = function (key, x, y, r, label, color, onTap, iconType) {
   var scene = this.scene;
   // 호 위에 배치하다 보면 마지막 버튼이 화면 밖으로 밀린다(R 버튼이 실제로 잘렸다).
   // 버튼 크기를 키울 때마다 다시 터지므로 여기서 한 번에 가둔다.
@@ -352,6 +367,17 @@ GAME.TouchPad.prototype._addButton = function (key, x, y, r, label, color, onTap
   var floorPx = GAME.CONFIG.PORTRAIT ? 15 : 13;
   while (px > floorPx && text.width > budget) { px -= 1; text.setFontSize(px); }
 
+  //  ── 스킬 표시는 **글자다** (2026-09-09 태현님 롤백 지시) ──────────────────
+  //  2026-09-08 에 벡터 아이콘으로 바꿨다가 되돌렸다. 태현님: "차라리 스킬별로
+  //  3글자 이내 확실히 알 수 있는 단어로 쓰자. 글자가 더 어떤 스킬인지 알기 쉬워."
+  //  ⚠ 아이콘이 안 좋아서가 아니라 **글자가 더 정확하기 때문**이다 — 아이콘은
+  //    타입 단위라 한 영웅이 같은 타입을 둘 끼면 그림이 겹쳤다(대검 회전 ↔ 광역
+  //    휩쓸기). 이름은 스킬마다 다르다.
+  //  → 진짜 고쳐야 했던 것은 **라벨의 출처**였다. `GAME.SKILL_SHORT`(heroes.js)가
+  //    스킬 이름마다 3글자 이내 말을 준다. `js/skillicon.js` 는 지우지 않고 남긴다
+  //    (다른 화면에서 쓸 수 있고, 지우면 되살릴 때 다시 그려야 한다).
+  var ico = null;
+
   // 쿨다운 표시 — **시계처럼 줄어드는 부채꼴**(2026-07-29, 사용자 지시).
   // 예전에는 원 전체를 덮는 어두운 원판의 '알파'로만 알렸다. 알파는 절대값을 못 읽는다 —
   // 반쯤 어두운 것이 3초인지 8초인지 알 수 없었다. 부채꼴은 각도가 곧 남은 비율이라
@@ -374,10 +400,11 @@ GAME.TouchPad.prototype._addButton = function (key, x, y, r, label, color, onTap
   text.__padOwner = key;
   cool.__padOwner = key;
 
-  var b = { key: key, circle: circle, text: text, cool: cool, deco: deco,
-            r: r, color: color, label: label };
+  var b = { key: key, circle: circle, text: text, cool: cool, deco: deco, ico: ico,
+            r: r, color: color, label: label, iconType: iconType || null };
   this.buttons.push(b);
   this.objects.push(circle, text, cool);
+  if (ico) this.objects.push(ico);   // 안 넣으면 씬을 나갈 때 유령이 남는다
   return b;
 };
 
@@ -509,6 +536,8 @@ GAME.TouchPad.prototype.refresh = function (dtMs) {
       b._ta = 0.95;
       b.text.setColor(GAME.CONFIG.COLORS.text);
       b.circle.setFillStyle(PAD.face, 0.55);
+      //  쿨 중에는 **숫자만**. 아이콘과 같이 띄우면 둘 다 못 읽는다.
+      if (b.ico) { b.ico.setVisible(false); b.text.setVisible(true); }
     } else {
       // 다 돌면 **흰 원**. 색으로 "지금 쓸 수 있다"를 말한다.
       if (b.text.text !== b.label) b.text.setText(b.label);
@@ -516,6 +545,8 @@ GAME.TouchPad.prototype.refresh = function (dtMs) {
       // 흰 원 위에서는 밝은 글자가 사라진다 — 잉크색으로 뒤집는다.
       b.text.setColor('#2b2418');
       b.circle.setFillStyle(PAD.readyFace, 0.92);
+      //  준비되면 **그림으로** 돌아온다(아이콘이 있는 버튼만 — 물약은 글자 그대로).
+      if (b.ico) { b.ico.setVisible(true); b.text.setVisible(false); }
       //  ── 준비 완료 플래시 (2026-08-20 비주얼 승급) ────────────────────────
       //  쿨이 끝나는 **그 순간**을 알린다 — 숫자가 사라지는 것만으로는 곁눈으로
       //  안 읽힌다(실기기 영상에서 쿨 끝난 스킬을 한참 놀리는 장면이 그 증거).
@@ -597,6 +628,9 @@ GAME.TouchPad.prototype._applyFade = function (dtMs) {
     b.text.setAlpha((b._ta === undefined ? 1 : b._ta) * fa);
     b.cool.setAlpha(fa);
     if (b.deco) b.deco.setAlpha(fa);
+    //  아이콘도 같은 알파를 탄다 — 안 태우면 영웅이 다가와 조작부가 물러날 때
+    //  그림만 또렷하게 남아 전장을 가린다(TouchPad.FADE 가 막으려던 바로 그것).
+    if (b.ico) b.ico.setAlpha((b._ta === undefined ? 1 : b._ta) * fa);
   }
 
   // 스틱 — 화면에서 가장 넓은 자리를 차지한다. 잡고 있는 동안은 그대로 둔다.

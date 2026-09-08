@@ -27,22 +27,22 @@ GAME.BossBank = (function () {
     //  pivotY: 바닥 효과(먼지·흙판)를 시트에서 지우며 실측한 **새 접지선**(px).
     //  안 주면 타일 바닥 — 지운 시트는 바닥에 투명 띠가 남아 발이 떠 보인다.
     //  sizeMul 0.8 — 2026-08-23 태현님: "40층 재파수병 크기를 20% 정도 줄여줘".
-    "bossAshSentry": {"art":"beast:sentry:ash","tileW":1216,"tileH":651,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.7849,"pivotY":609,"sizeMul":0.8},
-    "bossChief": {"art":"chieftain","tileW":1096,"tileH":863,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":5.0174},
+    "bossAshSentry": {"art":"beast:sentry:ash","tileW":1801,"tileH":1818,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.5698,"pivotY":1818,"sizeMul":0.8},
+    "bossChief": {"art":"chieftain","tileW":1918,"tileH":1919,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.157,"pivotY":1919},
     "bossDragonAwakened": {"art":"beast:awakened:ember","tileW":1324,"tileH":711,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.1337},
-    "bossDragonClaw": {"art":"beast:claw:ember","tileW":1212,"tileH":670,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.8953},
+    "bossDragonClaw": {"art":"beast:claw:ember","tileW":1705,"tileH":1922,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.1744,"pivotY":1922},
     "bossDragonCrack": {"art":"beast:eggeye:ember","tileW":949,"tileH":801,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.657},
-    "bossDragonEgg": {"art":"beast:egg:ember","tileW":1098,"tileH":790,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.593},
+    "bossDragonEgg": {"art":"beast:egg:ember","tileW":1390,"tileH":1852,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.7674,"pivotY":1852},
     "bossDragonEggCracked": {"art":"beast:eggcrack:ember","tileW":1096,"tileH":865,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":5.0291},
-    "bossDragonLord": {"art":"beast:dragon:ember","tileW":1322,"tileH":713,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.1453,"sizeMul":1.4},
+    "bossDragonLord": {"art":"beast:dragon:ember","tileW":2048,"tileH":2017,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.7267,"pivotY":2017,"sizeMul":1.4},
     "bossDragonTail": {"art":"beast:tail:ember","tileW":1383,"tileH":481,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":2.7965},
-    "bossDrakeAsh": {"art":"beast:drake:ash","tileW":1438,"tileH":654,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.8023,"pivotY":612},
-    "bossDrakeFrost": {"art":"beast:drake:frost","tileW":1412,"tileH":642,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.7326,"pivotY":628},
-    "bossDrakeStorm": {"art":"beast:drake:storm","tileW":1411,"tileH":671,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":3.9012,"pivotY":658},
+    "bossDrakeAsh": {"art":"beast:drake:ash","tileW":1978,"tileH":1831,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.6453,"pivotY":1831},
+    "bossDrakeFrost": {"art":"beast:drake:frost","tileW":1969,"tileH":1853,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.7733,"pivotY":1853},
+    "bossDrakeStorm": {"art":"beast:drake:storm","tileW":1849,"tileH":1606,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":9.3372,"pivotY":1606},
     //  ⚠ 둥지 포탑 — **일부러 끈다**(2026-09-05 태현님: "둥지에서 화살쏘는건 롤백해").
     //     벡터 발리스타로 돌아간다. 시트 파일(assets/boss/bossNest.png)과 실측값은 남긴다.
     "bossNest": {"off":true,"art":"ballista","tileW":1298,"tileH":734,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.2674},
-    "bossShell": {"art":"guardian","tileW":1055,"tileH":874,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":5.0814,"pivotY":858},
+    "bossShell": {"art":"guardian","tileW":1761,"tileH":1876,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.907,"pivotY":1876},
 
     //  ── 시즌2 「다섯 세계」 세계 보스 (2026-09-03 S-A) ─────────────────────────
     //  초원(1~30)은 현행 셋(bossChief·bossShell·bossNest)이 그대로 맡는다.
@@ -66,10 +66,15 @@ GAME.BossBank = (function () {
     //  boss-shot 35/60/100/150 실측(2026-09-03): pending 넷은 drake 골격 벡터 폴백으로 뜬다(예외 0).
     //  phases>1 왕복 재생은 `frameIndex` 를 tools/render-audit.js 가 0 1 2 1 0… 으로 검사한다 —
     //  실제 시트가 오면 `-Cols 3 -Phases 3 -Web` 로 들여온 뒤 boss-shot 으로 칸이 도는지 다시 볼 것..
-    "w_mist_boss":  {"art":"beast:bogmother:frost","tileW":512,"tileH":512,"cols":3,"rows":1,"phases":3,"loopMs":900,"play":"pingpong","drawScale":2.977,"pending":true},
-    "w_ash_boss":   {"art":"beast:ashlord:ember","tileW":512,"tileH":512,"cols":3,"rows":1,"phases":3,"loopMs":820,"play":"pingpong","drawScale":2.977,"pending":true},
-    "w_rift_boss":  {"art":"beast:riftgiant:ash","tileW":512,"tileH":512,"cols":3,"rows":1,"phases":3,"loopMs":1100,"play":"pingpong","drawScale":2.977,"pending":true},
-    "w_storm_boss": {"art":"beast:stormking:storm","tileW":512,"tileH":512,"cols":3,"rows":1,"phases":3,"loopMs":700,"play":"pingpong","drawScale":2.977,"pending":true}
+    //  ⚠⚠ **`art` 를 비우지 말 것.** units 키(bossSwampMother)와 이 표의 키(w_mist_boss)가
+    //  다르므로 `metaOf` 는 **art 문자열로** 둘을 잇는다(위 61~64줄). 2026-09-08 임포트에서
+    //  `import-boss-art.ps1` 이 storm 만 제자리에 덮고 나머지 셋은 뒤에 새로 붙였는데,
+    //  그 새 항목들의 art 가 `""` 였다 — 시트는 들어왔는데 **아무 보스도 그걸 못 찾는**
+    //  상태였다(중복 키라 뒤엣것이 이겨서 조용히 그렇게 된다). 임포터를 쓸 때마다 확인할 것.
+    "w_mist_boss": {"art":"beast:bogmother:frost","tileW":1711,"tileH":1892,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11,"pivotY":1892},
+    "w_ash_boss": {"art":"beast:ashlord:ember","tileW":1560,"tileH":1925,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.1919,"pivotY":1925},
+    "w_rift_boss": {"art":"beast:riftgiant:ash","tileW":1970,"tileH":1829,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.6337,"pivotY":1829},
+    "w_storm_boss": {"art":"beast:stormking:storm","tileW":1831,"tileH":1878,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.9186,"pivotY":1878}
   };
 
   //  보스 인트로 대사 (2026-08-23 4차 — battle._setupBossIntro 가 읽는다).
@@ -96,9 +101,26 @@ GAME.BossBank = (function () {
   //  씬 직속으로 남으면 **줌과 따로 놀아** 확대 중 보스만 제자리에 남는다
   //  (인트로 실측 — PC 휠 줌에도 있던 잠복 버그다). 컨테이너는 자식 depth 를
   //  무시하고 add 순서로 그리므로(v2.41 규율), 넣는 순서가 곧 층이다.
+  //  ⚠⚠ **add 만 하면 보스가 유닛·영웅 위에 얹힌다** (2026-09-09 실측).
+  //    컨테이너는 자식 depth 를 무시하므로 `img.setDepth(-0.5)` 는 여기서 아무 일도
+  //    안 한다. 실제 순서를 뽑아 보니 `this.g`(아레나+유닛+영웅+이펙트) 가 index 6,
+  //    보스 이미지가 index 62 였다 — **영웅이 보스 앞에 서면 보스 그림 뒤로 사라진다**
+  //    (scratchpad/overlap-proof.png 로 픽셀 확인). 2026-09-08 에 "보스를 뒤 레이어로"
+  //    고쳤다고 한 것이 실제로는 안 걸려 있었다.
+  //  → `scene.g` **바로 아래**로 내린다. 구운 배경(RenderTexture, index 0)보다는
+  //    위라 배경에 묻히지도 않는다. `gearbank._order(img, g, behind)` 와 같은 수법이고
+  //    그쪽 주석이 이 함정을 이미 적어 두고 있었다(등짐·화살통이 몸 뒤로 가는 그 코드).
+  //  ⚠ **이미 아래에 있으면 건드리지 않는다.** 매 프레임 옮기면 보스끼리(본체·리그
+  //    부위)의 순서가 뒤집힌다 — gearbank 가 같은 이유로 같은 가드를 둔다.
   function mount(scene, img) {
-    if (scene.worldLayer && img.parentContainer !== scene.worldLayer)
-      scene.worldLayer.add(img);
+    var wl = scene.worldLayer;
+    if (!wl) return;
+    if (img.parentContainer !== wl) wl.add(img);
+    var g = scene.g;
+    if (!g || g.parentContainer !== wl) return;
+    var gi = wl.getIndex(g), ii = wl.getIndex(img);
+    if (gi < 0 || ii < 0) return;
+    if (ii > gi) wl.moveTo(img, gi);       // 유닛보다 위면 바로 아래로 내린다
   }
 
   var B = {
@@ -182,11 +204,69 @@ GAME.BossBank = (function () {
       if (!e || !scene || !scene.load) return;
       //  자리만 잡힌 키(pending) — 파일이 아직 없다. 요청 자체를 안 한다(벡터 폴백).
       if (e.m.pending) return;
-      var texKey = 'bossbank:' + e.key;
+      this.ensureKey(scene, e.key);
+    },
+
+    //  한 뱅크 키를 불러온다. `ensure` 가 def 로 찾은 뒤 이걸 부르고, 모션 시트도
+    //  같은 자리를 쓴다(`w_mist_boss-death` 처럼 키가 곧 파일명이다).
+    ensureKey: function (scene, key) {
+      var m = DATA[key];
+      if (!m || m.pending || m.off || !scene || !scene.load) return;
+      var texKey = 'bossbank:' + key;
       if (scene.textures.exists(texKey) || this._missing[texKey]) return;
       this._hookLoadError(scene);
-      scene.load.image(texKey, 'assets/boss/' + e.key + '.png?v=' + (GAME.VERSION || '').replace('v', ''));
+      scene.load.image(texKey, 'assets/boss/' + key + '.png?v=' + (GAME.VERSION || '').replace('v', ''));
       scene.load.start();
+    },
+
+    // ── 모션 시트 (2026-09-09) ────────────────────────────────────────────────
+    //  보스 하나가 상태에 따라 **다른 시트**를 쓴다. 키 규칙은 임포터와 같다:
+    //  `<키>-walk` · `-attack` · `-skill` · `-death` (`tools/import-boss-art.ps1 -Motion`).
+    //
+    //  ⚠ **없으면 아무 일도 안 일어난다.** 시트가 없는 모션은 기본 시트로 떨어지므로,
+    //    보스 18종 중 한 종에 death 만 넣어도 나머지는 한 픽셀도 안 바뀐다(opt-in).
+    //  ⚠ 상태는 **이미 있는 것을 읽는다** — `_atkOf` 가 예고(wind)·발사(strike)·
+    //    이동(moving)을 이미 계산한다. 새 상태를 만들지 않는다(두 벌이 갈라질 자리).
+    //  ⚠ 사망은 **걸리면 안 풀린다**(latch). 그리고 `play:'once'` 는 시작 시각이
+    //    필요하므로 모션이 바뀐 순간을 `_bbMo.at` 에 적어 두고 그걸 오프셋으로 쓴다.
+    MOTIONS: ['death', 'skill', 'attack', 'walk'],
+
+    _motionWant: function (unit, atk) {
+      if (!unit) return '';
+      if (unit.alive === false || (unit.hp !== undefined && unit.hp <= 0)) return 'death';
+      if (!atk) return '';
+      if (atk.wind > 0.02) return 'skill';        // 예고 중 = 스킬 준비
+      if (atk.strike > 0.02) return 'attack';     // 발사 직후 0.42초
+      if (atk.moving > 0.45) return 'walk';
+      return '';
+    },
+
+    //  한 보스의 시트가 여럿(기본 + 모션)이라 `_img` 도 여럿이다. 지금 쓰는 것만
+    //  남기고 나머지를 숨긴다 — 안 그러면 갈아탄 뒤에도 옛 그림이 그 자리에 남는다.
+    _hideOthers: function (baseKey, keepKey) {
+      var pre = baseKey + '-';
+      for (var k in this._img) {
+        if (k === keepKey) continue;
+        if (k !== baseKey && k.lastIndexOf(pre, 0) !== 0) continue;
+        var im = this._img[k];
+        if (im && im.setVisible) im.setVisible(false);
+      }
+    },
+
+    //  e(기본 시트)를 지금 상태에 맞는 모션 시트로 바꿔 돌려준다. 없으면 null.
+    _withMotion: function (scene, e, unit, atk) {
+      if (!unit || !scene) return null;
+      var want = this._motionWant(unit, atk);
+      var st = unit._bbMo || (unit._bbMo = { name: '', at: 0 });
+      //  사망은 한 번 걸리면 안 풀린다 — 시체가 다시 걷기 시작하면 안 된다.
+      if (st.name === 'death') want = 'death';
+      if (want !== st.name) { st.name = want; st.at = scene.time.now; }
+      if (!want) return null;
+      var key = e.key + '-' + want;
+      var m = DATA[key];
+      if (!m || m.pending || m.off) return null;
+      if (!scene.textures.exists('bossbank:' + key)) { this.ensureKey(scene, key); return null; }
+      return { key: key, m: m, motion: want, motionAt: st.at };
     },
 
     //  준비됐는가 — 그림자를 먼저 그릴지 판단할 때 쓴다(로드 전이면 벡터 폴백).
@@ -342,6 +422,20 @@ GAME.BossBank = (function () {
     draw: function (scene, def, sx, sy, rScaled, alpha, facing, depth, unit) {
       var e = this.metaOf(def);
       if (!e || e.m.pending) return false;
+      //  ⚠ `_atkOf` 는 프레임마다 **한 번만** 불러야 한다(내부 상태 st 를 굴린다).
+      //    모션 선택이 그 값을 읽으므로 여기로 끌어올렸다 — 아래에서 다시 안 부른다.
+      var atk = this._atkOf(scene, unit, def);
+      //  모션 시트가 있으면 갈아탄다(없으면 기본 시트 — 지금까지와 완전히 동일).
+      var baseKey = e.key;
+      var mo = this._withMotion(scene, e, unit, atk);
+      if (mo) {
+        e = mo;
+        //  ⚠ 갈아탄 순간 **이전 시트의 이미지를 숨긴다.** `_img` 는 키마다 따로라
+        //    안 숨기면 기본 시트와 모션 시트가 겹쳐 두 겹으로 보인다.
+        this._hideOthers(baseKey, e.key);
+      } else {
+        this._hideOthers(baseKey, baseKey);
+      }
       var texKey = 'bossbank:' + e.key;
       if (!scene.textures.exists(texKey)) { this.ensure(scene, def); return false; }
 
@@ -357,12 +451,23 @@ GAME.BossBank = (function () {
       var py = m.pivotY !== undefined ? m.pivotY / m.tileH : 1.0;
       var flip = facing !== undefined && Math.cos(facing) < 0;
       var a = alpha === undefined ? 1 : alpha;
-      var atk = this._atkOf(scene, unit, def);
       this._hookSweep(scene);
 
       //  화면 위 넘침 보정(렌더 전용) — 확대 보스는 잘리는 것이 의도라 안 민다.
       var top0 = sy - h * py;
-      var yFix = (top0 < 4 && !m.sizeMul) ? (4 - top0) : 0;
+      //  ⚠⚠ 넘침 기준은 **화면 위(4px)가 아니라 아레나 위**다 (2026-09-09).
+      //    2026-09-08 에 들여온 새 보스 그림은 **세로로 길다**(1800~2000px, 옛 시트는
+      //    1400×650 가로형). 보스는 진형 맨 위(뒷줄)에 서므로 세로가 길어진 만큼
+      //    머리가 아레나 테두리를 넘어 **HUD 띠를 침범**했다 — 100·300층 실측.
+      //    화면 기준으로 재면 아레나 위의 HUD 자리도 "화면 안"이라 보정이 안 걸린다.
+      //  ⚠ 태초의 용(sizeMul 1.4)은 "화면에 잘려도 된다"(v1.09 태현님)라 예외였는데,
+      //    그건 **가로형 시트**일 때의 결정이다. 세로형으로 바뀐 지금은 잘리는 것이
+      //    아니라 HUD 를 덮는 것이라 예외를 좁힌다 — 아레나 위로 자기 키의 22%까지만
+      //    넘치게 두고 그 위는 내린다(거대함은 남기되 화면은 안 가린다).
+      var aTop = (scene._zoomRect ? scene._zoomRect.y : 0) + 2;
+      var allow = m.sizeMul ? h * 0.22 : 0;      // 확대 보스만 조금 넘치게 둔다
+      var limit = aTop - allow;
+      var yFix = (top0 < limit) ? (limit - top0) : 0;
 
       //  발사 순간 이펙트(불티·먼지) — 리그/단일 공통, 렌더 전용.
       this._strikeFx(scene, e.key, def, sx, sy + yFix, w, h, py, flip, depth || 0, atk);
@@ -401,8 +506,14 @@ GAME.BossBank = (function () {
       //  이동 중에는 걸음 위상(atk.walk)에 맞춰 조금 빨리 돈다(발과 그림이 맞물리게).
       if (multi) {
         var seedMs = ((e.key.charCodeAt(2) || 0) * 37 + (e.key.charCodeAt(e.key.length - 1) || 0) * 11) % 700;
+        var play = m.play || 'pingpong';
+        //  ⚠⚠ `once`(사망)는 **모션이 시작된 순간부터** 세야 한다. 렌더 시계를 그대로
+        //    넘기면 `t = now/loopMs` 가 이미 수천이라 `floor(t*n)` 이 언제나 상한에
+        //    걸려 **처음부터 다 쓰러진 마지막 칸**만 나온다(쓰러지는 과정이 통째로
+        //    사라진다). 왕복 재생은 주기 함수라 상관없지만 `once` 는 시작점이 전부다.
+        var clock = play === 'once' ? (scene.time.now - (e.motionAt || 0)) : scene.time.now;
         var loopNow = m.loopMs * (1 - 0.25 * (atk.moving || 0));
-        var fi = this.frameIndex(scene.time.now, loopNow, m.phases, m.play || 'pingpong', seedMs);
+        var fi = this.frameIndex(clock, loopNow, m.phases, play, play === 'once' ? 0 : seedMs);
         var fname = 'p' + fi;
         if (!img.frame || img.frame.name !== fname) img.setFrame(fname);
       }

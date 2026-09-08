@@ -143,40 +143,69 @@ GAME.UI = {
     //  세계의 한 획을 더 얹는다 — 유닛이 서는 구간은 조용히(v1.6x 함정 1: 그 띠에도
     //  유닛이 서므로 전부 저알파·저대비다).
     var world = B && B.world;
+
+    // ── 층대 (2026-09-09) ──────────────────────────────────────────────────
+    //  같은 세계 안에서 1층과 30층이 **픽셀 단위로 같았다** — 배경이 세계로만 갈리고
+    //  층을 안 봤다(2026-07-29 의 "1층과 30층이 같다"가 세계 단위로 되풀이된 것).
+    //  `UI.worldDepth` 가 세계 안의 진행도 t(0..1)와 3단(초입·중반·심부)을 준다.
+    //  ⚠ **도형을 늘리지 않는 축이다.** 능선 높이·원경 획 세기·세계 물건의 구성만
+    //    바꾼다 — 예산(세계당 21~29 도형)은 이 축으로 한 톨도 안 는다.
+    //  ⚠ 층이 없는 모드(대전·도전)는 t=0(초입)이다. 거기서 층대를 지어내면
+    //    "탑을 오르는 감각"이 탑 밖으로 새어 나간다(biomeFor 의 중립 규율과 같다).
+    var depFloor = Math.max(0, Math.round(Number(opts.floor) || 0));
+    var dep = UI.worldDepth(depFloor > 0 ? depFloor : 1);
+    //  원경의 한 획은 세계 심부로 갈수록 진해진다(0.82 → 1.24). 알파만 곱한다.
+    var depA = 0.82 + dep.t * 0.42;
+
     if (world === 'ash') {
       //  잿더미 — 지평선 아래 잉걸 기운 한 줄(붉은 흙이 달아오른다)
-      g.fillStyle(UI.mix(baseFill, 0xff6a2e, 0.35), 0.22);
+      g.fillStyle(UI.mix(baseFill, 0xff6a2e, 0.35), 0.22 * depA);
       g.fillRect(R.x, R.y + farH * 0.55, R.w, farH * 0.45);
     } else if (world === 'rift') {
       //  균열 — 원경에 가로로 갈라진 실금 두 줄(회색 판이 쪼개진다)
-      g.lineStyle(1.4, UI.mix(baseFill, 0x000000, 0.42), 0.32);
+      g.lineStyle(1.4, UI.mix(baseFill, 0x000000, 0.42), 0.32 * depA);
       g.lineBetween(R.x + R.w * 0.08, R.y + farH * 0.62, R.x + R.w * 0.41, R.y + farH * 0.74);
       g.lineBetween(R.x + R.w * 0.41, R.y + farH * 0.74, R.x + R.w * 0.53, R.y + farH * 0.58);
       g.lineBetween(R.x + R.w * 0.60, R.y + farH * 0.80, R.x + R.w * 0.93, R.y + farH * 0.66);
     } else if (world === 'storm') {
       //  폭풍 하늘 — 원경 띠를 밝히지 않고 **먹구름 결**로 갈아 낀다(유일하게 어두운 원경).
       //  단, 어두운 정도는 바닥보다 10% 만 — 그 띠에도 유닛이 선다.
-      g.fillStyle(UI.mix(baseFill, 0x1c1830, 0.30), 1);
+      //  ⚠ 심부로 갈수록 구름이 두꺼워진다 — 알파가 아니라 **먹구름 섞는 비율**이다
+      //    (알파를 키우면 유닛 자리가 어두워진다. 이 파일의 제1규율).
+      g.fillStyle(UI.mix(baseFill, 0x1c1830, 0.24 + dep.t * 0.12), 1);
       g.fillRect(R.x, R.y, R.w, farH);
-      g.fillStyle(UI.mix(baseFill, 0xffffff, 0.16), 0.55);
+      g.fillStyle(UI.mix(baseFill, 0xffffff, 0.16), 0.55 * depA);
       g.fillEllipse(R.x + R.w * 0.22, R.y + farH * 0.5, R.w * 0.34, farH * 0.55, 12);
       g.fillEllipse(R.x + R.w * 0.66, R.y + farH * 0.42, R.w * 0.40, farH * 0.50, 12);
     } else if (world === 'mist') {
       //  안개늪 — 원경 띠를 한 번 더 밝힌다(안개 = 공기원근의 극단)
-      g.fillStyle(UI.mix(baseFill, 0xffffff, 0.30), 0.55);
-      g.fillRect(R.x, R.y, R.w, farH * 0.8);
+      g.fillStyle(UI.mix(baseFill, 0xffffff, 0.30), 0.55 * depA);
+      g.fillRect(R.x, R.y, R.w, farH * (0.72 + dep.t * 0.20));
+    } else if (world === 'meadow') {
+      //  평원 — 여기만 **분기가 아예 없었다**(2026-09-08). 낮게 걸린 햇빛 한 겹.
+      //  ⚠ 어둡게가 아니라 **더 밝게** 얹는다 — 이 띠는 통째로 유닛 자리다(위 함정 1).
+      //  해는 층대가 오를수록 낮게 걸린다(띠가 얇아지고 색이 붉어진다).
+      g.fillStyle(UI.mix(baseFill, dep.stage >= 2 ? 0xffc98a : 0xffe6a8, 0.24), 0.30 * depA);
+      g.fillRect(R.x, R.y, R.w, farH * (0.66 - dep.t * 0.16));
     }
 
     //  먼 능선 — 톱니 실루엣. **좌표를 캐시한다**: 매 프레임 새로 뽑으면 언덕이 춤춘다
     //  (`drawBiomeProps` 가 같은 이유로 캐시한다).
-    var ridgeKey = (B ? B.key || B.name || '' : '') + '|' + Math.round(R.w) + '|' + Math.round(farH);
+    //  ⚠ 층대(`dep.stage`)를 키에 넣는다 — 안 넣으면 세계 안에서 능선이 안 바뀐다.
+    //    심부로 갈수록 능선이 **높고 거칠어진다**(산이 다가온다). 점 개수는 그대로라
+    //    도형 수는 한 톨도 안 는다.
+    var ridgeKey = (B ? B.key || B.name || '' : '') + '|' + Math.round(R.w) + '|'
+                 + Math.round(farH) + '|' + dep.stage;
     if (UI._ridgeKey !== ridgeKey) {
       var seed = 0, si;
       for (si = 0; si < ridgeKey.length; si++) seed = (seed * 31 + ridgeKey.charCodeAt(si)) >>> 0;
       var rnd = function () { seed ^= seed << 13; seed >>>= 0; seed ^= seed >> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
+      //  y 는 위에서 잰 값이라 **작을수록 높은 능선**이다. 심부일수록 바닥값을 낮추고
+      //  폭을 넓혀 톱니를 굵게 만든다. 상한 0.96 은 원경 띠 안에 가두는 값.
+      var rLo = 0.62 - dep.stage * 0.11, rSp = 0.30 + dep.stage * 0.13;
       var pts = [], step = Math.max(26, R.w / 26), x;
       for (x = -step; x <= R.w + step; x += step) {
-        pts.push({ x: x, y: farH * (0.55 + rnd() * 0.45) });
+        pts.push({ x: x, y: farH * (rLo + rnd() * rSp) });
       }
       UI._ridge = pts; UI._ridgeKey = ridgeKey;
     }
@@ -190,6 +219,32 @@ GAME.UI = {
       g.fillStyle(UI.mix(baseFill, 0x000000, 0.14), 0.85);
       g.fillPoints(poly, true);
     }
+
+    // ── 세계 장면 (2026-09-08) ──────────────────────────────────────────────
+    //  다섯 세계가 색만 다르고 **물건이 같아** 한 장소로 보였다. 세계마다 큰 물건을
+    //  놓는다. 두 층으로 나누는데, 그 경계는 **유닛이 서는가**로 정한다:
+    //    · 원경/중경(`drawWorldMid`)  — 유닛이 그 위에 선다 → 능선(mix 0.14 × α0.85)
+    //      보다 **더 조용하게**(mix ≤0.16 × α ≤0.52). 크기로 읽히게 하고 대비로 읽히게
+    //      하지 않는다. 이 파일의 제1규율(v1.6x 함정 1) 그대로다.
+    //    · 근경(`drawWorldNear`) — 아래 앞마당 IIFE 안, **아무도 안 서는 띠**에서만
+    //      진하게 그린다.
+    //  ⚠ 좌표는 `_worldScene` 이 캐시한다 — 매 프레임 새로 뽑으면 물건이 춤춘다
+    //    (능선 `ridgeKey` · `drawBiomeProps` 와 같은 규율).
+    var quietS = UI.quietLine(R);
+
+    // ── 층 이야기 (2026-09-09) ─────────────────────────────────────────────
+    //  이 층의 **원형·조건·전장 규칙**을 배경이 말한다(아래 「층 이야기」 절).
+    //  좌표는 층에서 유도해 캐시하고, 층이 아닌 모드(대전·배치·수성의 탑)에는
+    //  아예 안 생긴다 — 없는 층의 이야기를 하면 화면이 거짓말을 한다.
+    var story = UI.floorStory(opts, R, farH, quietS, dep);
+    //  ① 원형 자국은 **가장 아래**다. 적이 서기 전의 땅이라 물건보다 밑에 깔린다.
+    if (story.plan) UI.drawPlanTrace(g, story, baseFill);
+    if (world && UI._worldScene) {
+      UI.drawWorldMid(g, UI._worldScene(world, R, farH, quietS, story), baseFill);
+    }
+    //  ② 전장 규칙의 **정지 흔적** — 늪·용암은 규칙이 준 좌표 그대로 그린다.
+    //     그래야 살아 움직이는 `FXS.drawField` 와 같은 자리에 놓인다.
+    if (story.field) UI.drawFieldGround(g, story, baseFill);
 
     // 지형지물 — **거리 그림자(아래 그라디언트)보다 먼저** 그린다.
     // 그래야 안쪽 소품이 같이 어두워져 원근을 거스르지 않는다.
@@ -212,13 +267,10 @@ GAME.UI = {
     //    유닛이 서지 않는 구간에는 해당되지 않는다. 그래서 경계를 **눈대중이 아니라
     //    `CONFIG` 에서 역산**한다 — 배치 구역이 바뀌면 이 선도 따라 움직인다.
     (function () {
-      var zs = GAME.CONFIG.ZONE_STRATEGIST, zc = GAME.CONFIG.ZONE_CONTROLLER;
-      if (!zs || !zc) return;
-      //  영웅이 서는 자리(스폰)까지 포함해 **조용해야 하는 선**을 잡고, 그 아래만 꾸민다.
-      var heroY = zc.y + zc.h * 0.55;
-      var quietW = Math.max(zs.y + zs.h, heroY) + 26;      // 월드 좌표
-      var quietS = Iso.toScreenY(quietW);
-      if (quietS >= R.bottom - 12) return;                  // 꾸밀 자리가 없으면 그만둔다
+      //  조용해야 하는 선은 **위에서 한 번만 잰다**(`UI.quietLine`) — 세계 장면이
+      //  같은 값을 본다. 두 곳에서 따로 계산하면 배치 구역이 바뀔 때 한쪽만 따라간다
+      //  (이 폴더의 `_hasDemo` 사고와 같은 계열).
+      if (quietS < 0 || quietS >= R.bottom - 12) return;    // 꾸밀 자리가 없으면 그만둔다
       var band = R.bottom - quietS;
 
       //  ① 가까울수록 진해진다(공기원근의 반대쪽) — 위 원경이 밝아지는 것과 짝이다.
@@ -232,7 +284,17 @@ GAME.UI = {
       //    자리는 고정 난수다: 판마다 바닥이 달라지면 어지럽다(위 얼룩과 같은 규율).
       var dark = UI.mix(baseFill, 0x000000, 0.30);
       var lite = UI.mix(baseFill, 0xffffff, 0.16);
-      for (var k2 = 0; k2 < 90; k2++) {
+      //  ⚠ 세계 장면이 이 띠에 큰 물건을 놓는 판에서는 얼룩을 **줄인다**. 큰 물건
+      //    옆에 잔 얼룩까지 그대로 두면 (a) 바닥이 지저분해지고 (b) 호출 수가 순증한다.
+      //    90 → 66 이면 호출이 ~69회 줄어 이번에 얹은 도형(세계당 ≤30)보다 크다.
+      //  ⚠ 2026-09-09 — 「층 이야기」(원형·조건·전장)가 얹히는 판에서는 **더 줄인다.**
+      //    얼룩 하나가 4~5 호출이라 이야기 한 개(≤4 도형 ≈ 7 호출)당 다섯만 빼도
+      //    호출이 순감한다. 예산을 늘리지 않고 물건을 늘리는 유일한 길이다.
+      //    실측(1~260층 평균, 대조군은 이야기를 끈 같은 코드):
+      //      이야기 끔 653 호출 / 408 도형 → **이야기 켬 598 호출 / 377 도형**
+      //    큰 물건이 들어온 만큼 잔 얼룩을 빼는 것이라 바닥이 더 지저분해지지도 않는다.
+      var nSpeck = world ? Math.max(50, 66 - 5 * story.n) : 90;
+      for (var k2 = 0; k2 < nSpeck; k2++) {
         var px = R.x + ((k2 * 137 + 31) % Math.max(1, Math.round(R.w - 16))) + 8;
         var pt = ((k2 * 89) % 100) / 100;
         var py = quietS + band * (0.06 + pt * 0.90);
@@ -251,12 +313,21 @@ GAME.UI = {
           g.fillEllipse(px - 2.6 * sc, py - 0.8 * sc, 3.6 * sc, 1.5 * sc, 6);
         }
       }
-      //  ③ 아래 모서리 비네트 — 화면 끝이 '잘린 종이'로 보이지 않게 한다.
+      //  ③ 세계의 근경 물건 — **여기가 이 파일에서 유일하게 진하게 그려도 되는 자리**다.
+      //     얼룩(②) 위에 얹어야 물건이 땅에 놓인 것으로 읽힌다.
+      if (world && UI.drawWorldNear) {
+        UI.drawWorldNear(g, UI._worldScene(world, R, farH, quietS), baseFill);
+      }
+      //  ④ 아래 모서리 비네트 — 화면 끝이 '잘린 종이'로 보이지 않게 한다.
       for (var v = 0; v < 8; v++) {
         g.fillStyle(0x000000, 0.030);
         g.fillRect(R.x, R.bottom - (8 - v) * (band * 0.045), R.w, band * 0.045 + 1);
       }
     })();
+
+    //  ③ 층 조건의 표식 — 앞마당 위에 얹는다(근경에 놓이는 것들이 얼룩에 안 묻히게).
+    //     조건은 층마다 바뀌는 **유일한 축**이라 이야기 셋 중 가장 눈에 띄어도 된다.
+    if (story.rule) UI.drawRuleMark(g, story, baseFill);
 
     // ── 거리 그라디언트 ────────────────────────────────────────────────────
     //  ⚠ 예전에는 **6밴드**였다. 폰 가로에서 밴드 하나가 45px 라 계단(밴딩)으로 보였다.
@@ -916,6 +987,923 @@ GAME.UI = {
         px = cr.p[j].x; py = cr.p[j].y;
       }
     }
+  };
+
+})(GAME.UI);
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  세계 장면 — 다섯 세계를 **한눈에 다른 장소**로 (2026-09-08)
+//
+//  왜 필요했나: 시즌2 「다섯 세계」는 바닥 색(BIOMES 의 hue/sat)과 소품 한 종류,
+//  그리고 원경 띠의 획 하나로만 갈렸다. 평원은 그 획조차 없었다. 전장은 화면에서
+//  가장 큰 면적인데 다섯이 거의 같은 장소로 보였다.
+//
+//  ── 이 파일의 제1규율을 어떻게 지키는가 ────────────────────────────────────
+//  「유닛이 서는 구간은 가장 조용해야 한다」(v1.6x 함정 1). 실측으로 다시 확인했다
+//  (`CONFIG` 역산, 폰 가로 · 아레나 808×272px):
+//     전략가 배치 구역   아레나 맨 위 0% ~ 30%
+//     영웅 스폰          아래 30% 구역 안(월드 y 333)
+//     아무도 안 서는 띠  화면 y 294~312 = **18px 뿐**
+//  즉 "아래는 마음대로 해도 된다"는 실제로는 18px 짜리 띠다. 그래서 두 층으로 나눈다:
+//    · `drawWorldMid`  — 원경/중경. **유닛이 그 위에 선다.** 그래서 대비 예산을
+//      능선(mix 0.14 × α0.85 = 명도차 약 12%)보다 **낮게** 잡았다: mix ≤0.16 × α ≤0.52
+//      = 명도차 약 8%. 세계는 **크기와 실루엣**으로 읽히게 하고 대비로 읽히게 하지
+//      않는다. 큰 도형은 작은 예고 원·투사체와 공간 주파수가 달라 서로 안 가린다.
+//    · `drawWorldNear` — 그 18px 띠 안에서만 진하게(mix 0.42 × α0.62). 이미
+//      「여기서는 진하게 깔아도 된다」고 적혀 있는 자리다.
+//
+//  ── 규율 ────────────────────────────────────────────────────────────────
+//  · 좌표는 **캐시한다**(`_wsKey`). 매 프레임 새로 뽑으면 물건이 춤춘다 — 능선
+//    `ridgeKey` · `drawBiomeProps` 가 같은 이유로 캐시한다.
+//  · 난수는 `Math.random` 이 아니라 **키에서 유도한 xorshift** 다(같은 화면이면
+//    언제나 같은 그림 — 재도전 때 배경이 바뀌면 산만하다).
+//  · 색은 전부 `baseFill` 과 `UI.MAT` 토큰에서 유도한다. 하드코딩 색을 넣으면
+//    테마 4종 × 세계 5종이 거기서 깨진다.
+//  · **세계당 도형 30개 이내**. 큰 도형 위주로 가고 잔 도형을 늘리지 않는다.
+//    대신 앞마당 얼룩을 90 → 66 으로 줄여 호출 수의 순증을 막았다.
+//  · 판정 좌표·히트박스는 한 톨도 안 건드린다 — 전부 화면 좌표로만 그린다.
+// ═══════════════════════════════════════════════════════════════════════════
+(function (UI) {
+
+  //  조용해야 하는 선(화면 y). 배치 구역에서 역산하므로 구역이 바뀌면 따라 움직인다.
+  //  ⚠ `drawArena` 의 앞마당과 세계 장면이 **같은 함수**를 본다. 두 벌로 두면
+  //    한쪽만 고쳐져 조용히 어긋난다(이 폴더의 `_hasDemo` 사고와 같은 계열).
+  UI.quietLine = function (R) {
+    var zs = GAME.CONFIG.ZONE_STRATEGIST, zc = GAME.CONFIG.ZONE_CONTROLLER;
+    if (!zs || !zc || !GAME.Iso) return -1;
+    var heroY = zc.y + zc.h * 0.55;                     // 영웅 스폰까지 포함한다
+    return GAME.Iso.toScreenY(Math.max(zs.y + zs.h, heroY) + 26);
+  };
+
+  //  n 개를 가로로 고르게 흩되 가장자리(목책)와 정중앙(영웅이 올라오는 길)은 피한다.
+  function spreadX(R, n, i, rnd) {
+    var t = (i + 0.5) / n + (rnd() - 0.5) * (0.8 / n);
+    if (t > 0.44 && t < 0.56) t += (t < 0.5 ? -0.09 : 0.09);   // 한가운데를 비운다
+    return R.x + R.w * Math.max(0.06, Math.min(0.94, t));
+  }
+
+  //  ── 물건마다 s 의 몇 배까지 뻗는가 (왼/오른/위/아래) ──────────────────────
+  //  ⚠⚠ 이 표가 없으면 **전장 밖으로 새어 나간다.** 이 폴더가 이미 겪은 사고다
+  //    (보스 균열이 화면 전체를 가로질러 HUD·조작 패드 위까지 그어졌다 — `biomeFor`
+  //    의 `cracks` 주석). 원경 물건은 위로 s 의 2.5배까지 뻗는데 원경 띠는 아레나의
+  //    10% 뿐이라, 안 가두면 아레나 **위**(= HUD 띠)에 그려진다. 실측으로 확인했다.
+  //  ⚠ 손으로 적는 표라 그림을 고치면 여기도 같이 고쳐야 한다. `_wsBoundsCheck` 가
+  //    표와 실제 그림이 어긋나면 알려 준다(감사용, 게임은 안 부른다).
+  var EXT = {
+    tree:      { l: 1.05, r: 1.05, up: 1.75, dn: 0.10 },
+    deadtree:  { l: 0.80, r: 1.00, up: 2.05, dn: 0.10 },
+    fogbank:   { l: 3.55, r: 5.45, up: 0.85, dn: 1.20 },
+    volcano:   { l: 3.45, r: 3.05, up: 2.30, dn: 0.10 },
+    smoke:     { l: 1.35, r: 2.05, up: 2.55, dn: 0.10 },
+    monolith:  { l: 1.35, r: 1.55, up: 2.35, dn: 0.10 },
+    rain:      { l: 0.75, r: 1.55, up: 2.45, dn: 0.25 },
+    thicket:   { l: 1.65, r: 1.65, up: 2.35, dn: 0.80 },
+    stake:     { l: 0.35, r: 1.60, up: 2.65, dn: 0.10 },
+    pool:      { l: 2.35, r: 2.35, up: 1.15, dn: 1.05 },
+    stump:     { l: 0.60, r: 1.50, up: 2.30, dn: 0.10 },
+    lavacrack: { l: 2.75, r: 2.95, up: 0.55, dn: 0.65 },
+    ashmound:  { l: 1.50, r: 2.30, up: 0.70, dn: 0.70 },
+    fissure:   { l: 3.25, r: 3.45, up: 1.00, dn: 0.40 },
+    shard:     { l: 1.20, r: 1.30, up: 1.55, dn: 1.80 },
+    sheen:     { l: 2.20, r: 2.20, up: 0.50, dn: 0.55 },
+    bentgrass: { l: 0.10, r: 2.95, up: 1.05, dn: 0.15 },
+    tuft:      { l: 1.55, r: 1.55, up: 0.70, dn: 0.65 },
+    shore:     { l: 2.65, r: 2.65, up: 0.70, dn: 0.80 },
+    embers:    { l: 1.85, r: 1.85, up: 0.75, dn: 0.70 },
+    rubble:    { l: 2.15, r: 1.95, up: 1.05, dn: 0.55 },
+    puddle:    { l: 2.35, r: 2.35, up: 0.60, dn: 0.75 }
+  };
+
+  //  ⚠⚠ **좌우로 뒤집히는 물건은 이 표에 적힌 것뿐이다.** `d`(바람 방향)를 아무
+  //    물건에나 달면 `fit` 은 l/r 을 뒤집는데 `item` 은 안 뒤집어 **그 물건만 전장
+  //    밖으로 샌다**(세로 화면에서 안개 둑이 68px 새는 것을 `_wsBoundsCheck` 가 잡았다).
+  //    뒤집는 그림을 새로 넣으면 여기에도 반드시 한 줄 넣을 것.
+  var MIRROR = { rain: 1, bentgrass: 1 };
+
+  //  전장 안으로 **가둔다**. 크기를 먼저 줄이고(위/아래), 그 다음 가로로 민다.
+  //  ⚠ 순서가 중요하다 — x 를 먼저 밀면 줄어든 s 로 다시 밀 자리가 생겨 한쪽에 몰린다.
+  function fit(R, it, topLimit, botLimit) {
+    var e = EXT[it.k] || { l: 1, r: 1, up: 1, dn: 1 };
+    //  ⚠ 좌우로 뒤집힌 물건(바람 방향을 따르는 빗줄기·눕는 풀)은 **표의 l/r 도 뒤집힌다.**
+    //    안 뒤집으면 뒤집힌 쪽만 전장 밖으로 샌다(`_wsBoundsCheck` 가 잡는 계열).
+    if (it.d < 0) e = { l: e.r, r: e.l, up: e.up, dn: e.dn };
+    var pad = 10;                                        // 세로 목책 폭(최대 9)보다 크게
+    if (e.up > 0) it.s = Math.min(it.s, Math.max(2, (it.y - topLimit) / e.up));
+    //  ⚠ 가로도 **크기부터** 줄인다. 세로만 줄이고 x 로 밀면 아레나보다 넓은 물건이
+    //    영원히 안 들어간다 — 세로 화면(폭 402)에서 안개 둑이 실제로 58px 새어 나갔다
+    //    (`_wsBoundsCheck` 가 잡았다. 그래서 그 검사가 표가 아니라 그림을 본다).
+    var room = Math.max(1, R.w - pad * 2);
+    if (e.l + e.r > 0) it.s = Math.min(it.s, room / (e.l + e.r));
+    if (e.dn > 0) it.y = Math.min(it.y, botLimit - e.dn * it.s);
+    var lo = R.x + pad + e.l * it.s, hi = R.right - pad - e.r * it.s;
+    it.x = (lo > hi) ? (R.x + R.w / 2) : Math.max(lo, Math.min(hi, it.x));
+    return it;
+  }
+
+  //  ── 좌표 만들기 (한 번만) ────────────────────────────────────────────────
+  //  story: 「층 이야기」(아래 절). `stage`(0 초입 · 1 중반 · 2 심부)와 `wind`(-1/+1)만
+  //         읽는다. 없으면 초입·오른쪽 바람으로 본다 — 옛 호출(4인자)이 그대로 산다.
+  //  ⚠⚠ **stage 를 키에 넣는다.** 안 넣으면 같은 세계 안에서 장면이 영영 안 바뀐다
+  //     — 이 캐시가 바로 "1층과 30층이 같다"를 만드는 자리다.
+  UI._worldScene = function (world, R, farH, quietS, story) {
+    //  조용선을 못 재는 화면(배치 구역이 없는 씬)이 있어도 좌표는 만들어야 한다 —
+    //  안 그러면 근경 물건이 아레나 밖 좌표로 생긴다. 그때는 근경 띠(6%)를 쓴다.
+    if (!(quietS > 0)) quietS = R.bottom - Math.max(8, R.h * 0.06);
+    var st = (story && story.stage) | 0;
+    var wind = (story && story.wind < 0) ? -1 : 1;
+    var key = world + '|' + Math.round(R.x) + ',' + Math.round(R.y) + ','
+            + Math.round(R.w) + ',' + Math.round(R.h) + '|' + Math.round(quietS)
+            + '|' + st + '|' + wind;
+    if (UI._wsKey === key && UI._ws) return UI._ws;
+
+    var seed = 2166136261, i;
+    for (i = 0; i < key.length; i++) seed = ((seed ^ key.charCodeAt(i)) * 16777619) >>> 0;
+    if (!seed) seed = 1;
+    var rnd = function () {
+      seed ^= seed << 13; seed >>>= 0;
+      seed ^= seed >> 17;
+      seed ^= seed << 5;  seed >>>= 0;
+      return seed / 4294967296;
+    };
+
+    var S = { far: [], mid: [], near: [], stage: st, wind: wind };
+    var band = Math.max(0, R.bottom - quietS);
+
+    //  원경 물건은 능선 바로 앞(원경 띠 아래끝)에 발을 붙인다.
+    //  ⚠ 위로 뻗는 총량이 원경 띠(아레나의 10%)보다 크므로 `fit` 이 반드시 가둔다.
+    function far(kind, n, sMul) {
+      for (var k = 0; k < n; k++) {
+        S.far.push(fit(R, { k: kind, d: MIRROR[kind] ? wind : 1, x: spreadX(R, n, k, rnd),
+                            y: R.y + farH * (1.14 + rnd() * 0.24),
+                            s: farH * sMul * (0.82 + rnd() * 0.42) },
+                       R.y + 2, R.bottom - 2));
+      }
+    }
+    //  중경은 아레나 세로 38~66% — 배치 구역(0~30%)과 영웅 스폰(73%+) 사이다.
+    //  아래로 갈수록 크게(원근). 여기도 유닛이 지나가므로 **대비는 위 규율대로 낮게**.
+    function mid(kind, n, sMul) {
+      for (var k = 0; k < n; k++) {
+        var ty = 0.38 + rnd() * 0.28;
+        S.mid.push(fit(R, { k: kind, d: MIRROR[kind] ? wind : 1, x: spreadX(R, n, k, rnd),
+                            y: R.y + R.h * ty,
+                            s: R.h * 0.052 * sMul * (0.80 + ty * 0.55) },
+                       R.y + farH * 0.9, R.bottom - 2));
+      }
+    }
+    //  근경은 조용선 아래 띠 안에만 — 폰에서 18px 뿐이라 **납작하고 넓은 것**만 둔다.
+    function near(kind, n, sMul) {
+      for (var k = 0; k < n; k++) {
+        S.near.push(fit(R, { k: kind, x: spreadX(R, n, k, rnd),
+                             y: quietS + band * (0.30 + rnd() * 0.46),
+                             s: Math.max(3, band * 0.52) * sMul * (0.85 + rnd() * 0.35) },
+                        quietS + 1, R.bottom - 2));
+      }
+    }
+
+    //  ── 층대별 구성 (2026-09-09) ──────────────────────────────────────────
+    //  같은 세계인데 초입과 심부가 같은 장소일 이유가 없다. **물건 총수는 8~11 로
+    //  거의 고정**하고 무엇이 몇 개인지·얼마나 큰지만 옮긴다 — 그래야 도형 예산이
+    //  안 는다(세계당 21~29). 한 세계를 오르는 동안 이야기가 하나씩 진행된다:
+    //    평원   나무가 줄고 **부족 말뚝이 는다**(사람이 사는 들판 → 적진 언저리)
+    //    안개늪 안개 둑이 늘고 물이 깊어진다
+    //    잿더미 화산이 가까워지고(크기) 연기·용암 자국이 는다
+    //    균열   하늘에 뜬 돌이 늘고 지면이 더 갈라진다
+    //    폭풍   비가 굵어지고 젖은 자국이 넓어진다
+    var A2 = [0, 1, 2][st] || 0;       // 0 초입 · 1 중반 · 2 심부
+    if (world === 'meadow') {          // 평원 — 나무 능선 · 풀숲 · 부족 말뚝
+      far('tree', 3 - (A2 === 2 ? 1 : 0), 0.52 + A2 * 0.04);
+      mid('thicket', 2, 1.05);
+      mid('stake', 1 + A2, 1.05 + A2 * 0.10);
+      near('tuft', 2, 1.0);
+    } else if (world === 'mist') {     // 안개늪 — 죽은 나무 · 수면 웅덩이 · 밑동
+      far('deadtree', 2 + (A2 > 0 ? 1 : 0), 0.62);
+      far('fogbank', A2 === 2 ? 2 : 1, 0.86 + A2 * 0.08);
+      mid('pool', 2 + (A2 === 2 ? 1 : 0), 1.10 + A2 * 0.06);
+      mid('stump', A2 === 2 ? 2 : 3, 0.95);
+      near('shore', 1, 1.15);
+    } else if (world === 'ash') {      // 잿더미 — 화산 능선 · 식은 용암 균열 · 재 무더기
+      far('volcano', 1, 0.62 + A2 * 0.15);            // 심부로 갈수록 봉우리가 다가온다
+      far('smoke', 1 + (A2 === 2 ? 1 : 0), 0.6);
+      mid('lavacrack', 1 + A2, 1.15 + A2 * 0.06);
+      mid('ashmound', 3 - (A2 === 2 ? 1 : 0), 0.95);
+      near('embers', 1, 1.05);
+    } else if (world === 'rift') {     // 균열 — 떠 있는 돌 · 갈라진 지면 · 돌조각
+      far('monolith', 1 + A2, 0.66 + A2 * 0.04);
+      mid('fissure', 1 + A2, 1.20 + A2 * 0.05);
+      mid('shard', 3, 0.9);
+      near('rubble', 1, 1.0);
+    } else {                           // 폭풍 — 빗줄기 · 젖은 반사 · 바람에 눕는 풀
+      far('rain', 2 + A2, 0.66 + A2 * 0.05);
+      mid('sheen', 2 + (A2 === 2 ? 1 : 0), 1.05 + A2 * 0.06);
+      mid('bentgrass', 3, 0.95);
+      near('puddle', 1, 1.2);
+    }
+
+    UI._wsKey = key; UI._ws = S;
+    return S;
+  };
+
+  //  ── 그리기 ──────────────────────────────────────────────────────────────
+  //  화풍: 만화풍 2단 음영 + 어두운 윤곽. 사실적 텍스처는 안 쓴다(도형 하나가
+  //  '물건 하나'로 읽혀야 작게 줄어도 살아남는다).
+  function item(g, it, P) {
+    var x = it.x, y = it.y, s = it.s, k = it.k;
+    //  바람 방향(+1 오른쪽 / -1 왼쪽). 폭풍 세계의 **전장 규칙이 정한 값**을 그대로 쓴다
+    //  — 배경의 비와 눕는 풀이 실제로 미는 방향과 반대면 화면이 거짓말을 한다.
+    //  ⚠ 좌우 대칭인 물건에는 아무 영향이 없다(부호를 안 곱한다).
+    var d = (it.d < 0) ? -1 : 1;
+
+    if (k === 'tree') {                       // 평원 원경 — 둥근 나무
+      g.fillStyle(P.ink, P.a * 0.66);
+      g.fillRect(x - s * 0.10, y - s * 0.55, s * 0.20, s * 0.60);
+      g.fillEllipse(x, y - s * 1.05, s * 2.0, s * 1.30, 10);
+      g.fillStyle(P.lit, P.a * 0.50);
+      g.fillEllipse(x - s * 0.40, y - s * 1.35, s * 1.05, s * 0.62, 8);
+
+    } else if (k === 'deadtree') {            // 안개늪 원경 — 잎 없는 죽은 나무
+      g.lineStyle(Math.max(1.4, s * 0.16), P.ink, P.a * 0.80);
+      g.lineBetween(x, y, x + s * 0.20, y - s * 2.0);
+      g.lineBetween(x + s * 0.11, y - s * 1.05, x - s * 0.75, y - s * 1.60);
+      g.lineBetween(x + s * 0.15, y - s * 1.50, x + s * 0.95, y - s * 1.90);
+
+    } else if (k === 'fogbank') {             // 안개늪 — 낮게 깔린 안개 둑(밝게)
+      g.fillStyle(P.lit, P.a * 0.58);
+      g.fillEllipse(x, y, s * 7.0, s * 1.5, 12);
+      g.fillEllipse(x + s * 3.2, y + s * 0.55, s * 4.4, s * 1.1, 10);
+
+    } else if (k === 'volcano') {             // 잿더미 원경 — 연기 뿜는 봉우리
+      g.fillStyle(P.ink, P.a * 0.62);
+      g.fillTriangle(x - s * 3.4, y, x + s * 0.1, y - s * 2.2, x + s * 3.0, y);
+      g.fillStyle(P.ember, 0.20);
+      g.fillEllipse(x + s * 0.1, y - s * 2.05, s * 1.15, s * 0.46, 8);
+
+    } else if (k === 'smoke') {
+      g.fillStyle(P.lit, P.a * 0.48);
+      g.fillEllipse(x, y - s * 1.2, s * 2.6, s * 1.1, 10);
+      g.fillEllipse(x + s * 1.1, y - s * 2.1, s * 1.8, s * 0.85, 8);
+
+    } else if (k === 'monolith') {            // 균열 원경 — 하늘에 뜬 큰 돌
+      g.fillStyle(P.ink, P.a * 0.56);
+      g.fillTriangle(x - s * 1.3, y - s * 0.6, x + s * 0.2, y - s * 2.3, x + s * 1.5, y - s * 0.8);
+      g.fillStyle(P.lit, P.a * 0.42);
+      g.fillTriangle(x - s * 0.4, y - s * 0.9, x + s * 0.2, y - s * 1.9, x + s * 0.8, y - s * 1.0);
+
+    } else if (k === 'rain') {                // 폭풍 원경 — 비스듬한 빗줄기(바람 방향)
+      g.lineStyle(Math.max(1, s * 0.10), P.lit, P.a * 0.44);
+      g.lineBetween(x, y - s * 2.4, x - d * s * 0.7, y);
+      g.lineBetween(x + d * s * 1.5, y - s * 2.0, x + d * s * 0.9, y + s * 0.2);
+
+    } else if (k === 'thicket') {             // 평원 중경 — 풀숲
+      g.fillStyle(P.ink, P.a * 0.66);
+      g.fillEllipse(x, y, s * 3.2, s * 1.5, 10);
+      g.fillStyle(P.mid, P.a * 0.80);
+      g.fillEllipse(x - s * 0.30, y - s * 0.45, s * 2.4, s * 1.15, 10);
+      g.lineStyle(Math.max(1.2, s * 0.14), P.lit, P.a * 0.66);
+      g.lineBetween(x - s * 0.9, y - s * 0.4, x - s * 1.3, y - s * 2.1);
+      g.lineBetween(x + s * 0.6, y - s * 0.4, x + s * 1.1, y - s * 2.3);
+
+    } else if (k === 'stake') {               // 평원 중경 — 부족 말뚝(뼈·나무·밧줄)
+      var M = UI.MAT || {};
+      g.fillStyle(P.ink, P.a * 0.86);
+      g.fillRect(x - s * 0.24, y - s * 2.6, s * 0.48, s * 2.6);
+      g.fillStyle(UI.mix(P.base, M.wood === undefined ? 0x8a6a45 : M.wood, 0.30), P.a * 0.86);
+      g.fillRect(x - s * 0.16, y - s * 2.5, s * 0.24, s * 2.4);
+      g.fillStyle(UI.mix(P.base, M.rope === undefined ? 0xd9c9a2 : M.rope, 0.34), P.a * 0.80);
+      g.fillRect(x - s * 0.32, y - s * 2.0, s * 0.64, s * 0.22);
+      g.fillStyle(UI.mix(P.base, M.bone === undefined ? 0xeae3cd : M.bone, 0.30), P.a * 0.74);
+      g.fillTriangle(x + s * 0.22, y - s * 2.62, x + s * 1.55, y - s * 2.20, x + s * 0.22, y - s * 1.82);
+
+    } else if (k === 'pool') {                // 안개늪 중경 — 수면 웅덩이
+      g.fillStyle(P.ink, P.a * 0.76);
+      g.fillEllipse(x, y, s * 4.6, s * 2.0, 12);
+      g.fillStyle(UI.mix(P.base, 0xbfe8e4, 0.30), P.a * 0.80);
+      g.fillEllipse(x, y - s * 0.10, s * 3.9, s * 1.55, 12);
+      g.fillStyle(P.lit, P.a * 0.66);
+      g.fillEllipse(x - s * 0.85, y - s * 0.32, s * 1.7, s * 0.42, 8);
+
+    } else if (k === 'stump') {               // 안개늪 중경 — 죽은 나무 밑동
+      g.fillStyle(P.ink, P.a * 0.84);
+      g.fillRect(x - s * 0.58, y - s * 1.5, s * 1.16, s * 1.5);
+      g.fillStyle(P.mid, P.a * 0.84);
+      g.fillEllipse(x, y - s * 1.5, s * 1.16, s * 0.44, 8);
+      g.lineStyle(Math.max(1.2, s * 0.16), P.ink, P.a * 0.76);
+      g.lineBetween(x + s * 0.35, y - s * 1.35, x + s * 1.45, y - s * 2.25);
+
+    } else if (k === 'lavacrack') {           // 잿더미 중경 — 식은 용암 균열
+      g.lineStyle(Math.max(2.2, s * 0.50), P.ink, P.a * 0.80);
+      g.lineBetween(x - s * 2.7, y - s * 0.5, x + s * 0.2, y);
+      g.lineBetween(x + s * 0.2, y, x + s * 2.9, y + s * 0.6);
+      g.lineStyle(Math.max(1, s * 0.16), P.ember, 0.24);
+      g.lineBetween(x - s * 2.3, y - s * 0.42, x + s * 2.5, y + s * 0.50);
+
+    } else if (k === 'ashmound') {            // 잿더미 중경 — 재 무더기
+      g.fillStyle(P.ink, P.a * 0.70);
+      g.fillEllipse(x, y, s * 2.9, s * 1.25, 10);
+      g.fillStyle(P.lit, P.a * 0.58);
+      g.fillEllipse(x - s * 0.42, y - s * 0.36, s * 1.65, s * 0.66, 8);
+      g.fillStyle(P.ink, P.a * 0.58);
+      g.fillEllipse(x + s * 1.75, y + s * 0.36, s * 1.0, s * 0.50, 7);
+
+    } else if (k === 'fissure') {             // 균열 중경 — 갈라진 지면
+      g.fillStyle(P.ink, P.a * 0.82);
+      g.fillTriangle(x - s * 3.2, y, x + s * 0.4, y - s * 0.95, x + s * 3.4, y + s * 0.3);
+      g.fillStyle(P.deep, P.a * 0.70);
+      g.fillTriangle(x - s * 2.4, y + s * 0.05, x + s * 0.3, y - s * 0.52, x + s * 2.6, y + s * 0.26);
+      g.lineStyle(Math.max(1, s * 0.14), P.glow, 0.18);
+      g.lineBetween(x - s * 2.2, y + s * 0.05, x + s * 2.4, y + s * 0.22);
+
+    } else if (k === 'shard') {               // 균열 중경 — 떠 있는 돌조각(+ 아래 그림자)
+      g.fillStyle(P.ink, P.a * 0.42);
+      g.fillEllipse(x, y + s * 1.5, s * 1.7, s * 0.52, 8);
+      g.fillStyle(P.ink, P.a * 0.86);
+      g.fillTriangle(x - s * 1.15, y - s * 0.2, x + s * 0.1, y - s * 1.5, x + s * 1.25, y + s * 0.1);
+      g.fillStyle(P.lit, P.a * 0.58);
+      g.fillTriangle(x - s * 0.30, y - s * 0.4, x + s * 0.1, y - s * 1.15, x + s * 0.65, y - s * 0.3);
+
+    } else if (k === 'sheen') {               // 폭풍 중경 — 젖은 바닥의 반사
+      g.fillStyle(P.ink, P.a * 0.58);
+      g.fillEllipse(x, y, s * 4.3, s * 1.0, 12);
+      g.fillStyle(P.lit, P.a * 0.66);
+      g.fillEllipse(x + s * 0.3, y - s * 0.16, s * 3.0, s * 0.52, 10);
+
+    } else if (k === 'bentgrass') {           // 폭풍 중경 — 바람에 한쪽으로 눕는 풀
+      g.lineStyle(Math.max(1.2, s * 0.15), P.ink, P.a * 0.70);
+      g.lineBetween(x, y, x + d * s * 2.3, y - s * 1.0);
+      g.lineBetween(x + d * s * 0.5, y + s * 0.1, x + d * s * 2.9, y - s * 0.55);
+
+    // ── 여기부터는 근경(조용선 아래) 전용 ──────────────────────────────────
+    } else if (k === 'tuft') {                // 평원 근경 — 굵은 풀포기
+      g.fillStyle(P.ink, P.a);
+      g.fillEllipse(x, y, s * 3.0, s * 1.2, 9);
+      g.fillStyle(P.lit, P.a * 0.70);
+      g.fillEllipse(x - s * 0.40, y - s * 0.34, s * 1.7, s * 0.68, 8);
+
+    } else if (k === 'shore') {               // 안개늪 근경 — 물가
+      g.fillStyle(P.ink, P.a);
+      g.fillEllipse(x, y, s * 5.2, s * 1.5, 12);
+      g.fillStyle(UI.mix(P.base, 0xbfe8e4, 0.40), P.a * 0.90);
+      g.fillEllipse(x, y - s * 0.14, s * 4.4, s * 1.05, 12);
+
+    } else if (k === 'embers') {              // 잿더미 근경 — 식은 재와 잉걸 실금
+      g.fillStyle(P.ink, P.a);
+      g.fillEllipse(x, y, s * 3.6, s * 1.3, 10);
+      g.fillStyle(P.lit, P.a * 0.70);
+      g.fillEllipse(x - s * 0.5, y - s * 0.36, s * 2.0, s * 0.70, 8);
+      g.lineStyle(Math.max(1.2, s * 0.20), P.ember, 0.34);
+      g.lineBetween(x - s * 1.5, y + s * 0.5, x + s * 1.7, y + s * 0.2);
+
+    } else if (k === 'rubble') {              // 균열 근경 — 깨진 돌판
+      g.fillStyle(P.ink, P.a);
+      g.fillTriangle(x - s * 2.1, y + s * 0.4, x - s * 0.2, y - s * 1.0, x + s * 1.9, y + s * 0.5);
+      g.fillStyle(P.lit, P.a * 0.68);
+      g.fillTriangle(x - s * 0.9, y + s * 0.1, x - s * 0.2, y - s * 0.68, x + s * 0.6, y + s * 0.15);
+
+    } else {                                  // 폭풍 근경 — 빗물 웅덩이
+      g.fillStyle(P.ink, P.a);
+      g.fillEllipse(x, y, s * 4.6, s * 1.4, 12);
+      g.fillStyle(P.lit, P.a * 0.78);
+      g.fillEllipse(x + s * 0.2, y - s * 0.18, s * 3.5, s * 0.80, 10);
+      g.lineStyle(Math.max(1, s * 0.14), P.lit, P.a * 0.56);
+      g.lineBetween(x - s * 1.7, y + s * 0.36, x + s * 1.9, y + s * 0.14);
+    }
+  }
+
+  //  원경·중경 — **유닛이 그 위에 선다.** 대비 예산은 능선보다 낮게(위 절 참조).
+  function quietPalette(baseFill) {
+    return {
+      base: baseFill,
+      ink:  UI.mix(baseFill, 0x000000, 0.16),
+      mid:  UI.mix(baseFill, 0x000000, 0.07),
+      lit:  UI.mix(baseFill, 0xffffff, 0.16),
+      deep: UI.mix(baseFill, 0x000000, 0.30),
+      glow: UI.mix(baseFill, 0x8fd8ff, 0.50),
+      ember: UI.mix(baseFill, 0xff8c2e, 0.55),
+      a: 0.52
+    };
+  }
+
+  //  근경 — 아무도 안 서는 띠. 여기만 진하게(앞마당 얼룩과 같은 급 이상).
+  function boldPalette(baseFill) {
+    return {
+      base: baseFill,
+      ink:  UI.mix(baseFill, 0x000000, 0.42),
+      mid:  UI.mix(baseFill, 0x000000, 0.22),
+      lit:  UI.mix(baseFill, 0xffffff, 0.24),
+      deep: UI.mix(baseFill, 0x000000, 0.55),
+      glow: UI.mix(baseFill, 0x8fd8ff, 0.55),
+      ember: UI.mix(baseFill, 0xff8c2e, 0.65),
+      a: 0.62
+    };
+  }
+
+  UI.drawWorldMid = function (g, S, baseFill) {
+    if (!S) return;
+    var P = quietPalette(baseFill), i;
+    for (i = 0; i < S.far.length; i++) item(g, S.far[i], P);
+    for (i = 0; i < S.mid.length; i++) item(g, S.mid[i], P);
+  };
+
+  UI.drawWorldNear = function (g, S, baseFill) {
+    if (!S) return;
+    var P = boldPalette(baseFill), i;
+    for (i = 0; i < S.near.length; i++) item(g, S.near[i], P);
+  };
+
+  //  ── 감사용: 그린 것이 전장 밖으로 새는가 (게임은 안 부른다) ────────────────
+  //  ⚠ `EXT` 표를 믿지 않는다 — **실제로 그려진 좌표**를 받아 적어 R 과 맞댄다.
+  //    표를 검사하면 표가 틀렸을 때 표대로 통과한다(이 폴더의 "도구가 자기 답을
+  //    오염시킨다" 계열). 넘침이 0 보다 크면 어딘가 화면 밖으로 나간 것이다.
+  //  ⚠ 2026-09-09 — 층대(stage 3)·바람(wind ±1)·「층 이야기」(원형 11 · 조건 표식 9 ·
+  //    전장 5)까지 전부 돈다. 축이 늘었는데 검사가 안 늘면 **늘어난 축만 검사 밖**이
+  //    된다(이 폴더의 "감사가 안 보는 자리는 구조로 정해진다").
+  UI._wsBoundsCheck = function (R, farH, quietS) {
+    var out = [], names = ['meadow', 'mist', 'ash', 'rift', 'storm'];
+    var b, rec;
+    function fresh() {
+      b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, lw: 1 };
+      rec = {
+        fillStyle: function () { return rec; },
+        lineStyle: function (t) { b.lw = t || 1; return rec; },
+        //  ⚠ 굵기 여유는 **선에만** 준다. 채우기까지 lw/2 를 얹으면 전장을 꽉 채우는
+        //    fillRect(원경 띠·앞마당 장막)가 언제나 0.5 를 내 **거짓 경보**가 된다.
+        _pt: function (x, y, h) {
+          h = h || 0;
+          if (x - h < b.x0) b.x0 = x - h;
+          if (y - h < b.y0) b.y0 = y - h;
+          if (x + h > b.x1) b.x1 = x + h;
+          if (y + h > b.y1) b.y1 = y + h;
+        },
+        fillRect: function (x, y, ww, hh) { rec._pt(x, y); rec._pt(x + ww, y + hh); return rec; },
+        fillEllipse: function (x, y, ww, hh) { rec._pt(x - ww / 2, y - hh / 2); rec._pt(x + ww / 2, y + hh / 2); return rec; },
+        strokeEllipse: function (x, y, ww, hh) { var h = b.lw / 2; rec._pt(x - ww / 2, y - hh / 2, h); rec._pt(x + ww / 2, y + hh / 2, h); return rec; },
+        fillTriangle: function (a, c, d, e, f, h2) { rec._pt(a, c); rec._pt(d, e); rec._pt(f, h2); return rec; },
+        lineBetween: function (a, c, d, e) { var h = b.lw / 2; rec._pt(a, c, h); rec._pt(d, e, h); return rec; }
+      };
+    }
+    function over(label) {
+      out.push({
+        world: label,
+        over: (b.x0 === Infinity) ? 0
+            : Math.max(0, R.x - b.x0, R.y - b.y0, b.x1 - R.right, b.y1 - R.bottom)
+      });
+    }
+    var w, st, wd, S;
+    for (w = 0; w < names.length; w++) {
+      for (st = 0; st < 3; st++) {
+        for (wd = 0; wd < 2; wd++) {
+          fresh();
+          UI._wsKey = null;
+          S = UI._worldScene(names[w], R, farH, quietS, { stage: st, wind: wd ? -1 : 1 });
+          UI.drawWorldMid(rec, S, 0x6d8a4e);
+          UI.drawWorldNear(rec, S, 0x6d8a4e);
+          over(names[w] + '/' + st + (wd ? '/←' : '/→'));
+        }
+      }
+    }
+    //  ── 층 이야기 ──────────────────────────────────────────────────────────
+    var planKeys = ['line', 'doubleWall', 'pincer', 'keep', 'lavaPress', 'scatter',
+                    'wedge', 'ambush', 'echelon', 'ring', 'bulwarkRing'];
+    var ruleKeys = [], rk;
+    for (rk in UI.RULE_MOTIF) ruleKeys.push(rk);
+    var base = { R: R, farH: farH, quietS: quietS, wind: 1 };
+    var p, r;
+    for (p = 0; p < planKeys.length; p++) {
+      fresh();
+      base.plan = planKeys[p]; base.rule = null; base.field = null;
+      UI.drawPlanTrace(rec, base, 0x6d8a4e);
+      over('plan:' + planKeys[p]);
+    }
+    base.plan = null;
+    for (r = 0; r < ruleKeys.length; r++) {
+      for (wd = 0; wd < 2; wd++) {
+        fresh();
+        base.rule = ruleKeys[r]; base.wind = wd ? -1 : 1;
+        UI.drawRuleMark(rec, base, 0x6d8a4e);
+        over('rule:' + ruleKeys[r] + (wd ? '/←' : '/→'));
+      }
+    }
+    base.rule = null; base.wind = 1;
+    //  전장 규칙은 **극단값**으로 민다 — 규칙이 낼 수 있는 가장 큰 반경·가장 바깥 자리.
+    var fields = [
+      { kind: 'swamp', zones: [{ x: 0.02, y: 0.02, r: 0.15 }, { x: 0.98, y: 0.98, r: 0.15 }] },
+      { kind: 'lava', zones: [{ x: 0.02, y: 0.02, r: 0.06, maxR: 0.22 }, { x: 0.98, y: 0.98, r: 0.06, maxR: 0.22 }] },
+      { kind: 'fog' }, { kind: 'quake' },
+      { kind: 'storm', windDir: 0 }, { kind: 'storm', windDir: Math.PI }
+    ];
+    for (r = 0; r < fields.length; r++) {
+      fresh();
+      base.field = fields[r];
+      base.wind = (fields[r].windDir === Math.PI) ? -1 : 1;
+      UI.drawFieldGround(rec, base, 0x6d8a4e);
+      over('field:' + fields[r].kind + (base.wind < 0 ? '/←' : ''));
+    }
+    UI._wsKey = null;
+    return out;
+  };
+
+})(GAME.UI);
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  층 이야기 — 배경이 **이 층이 어떤 층인지** 말한다 (2026-09-09)
+//
+//  왜: 층마다 달라지는 축이 이미 셋 있는데 화면은 **글자로만** 알렸다.
+//     · `towerplan` 배치 원형 9+2종 — 적이 어떤 모양으로 서는가
+//     · `towerrule` 층 조건 7+4+3종 — 이 층의 규칙이 무엇인가
+//     · `towercurriculum.fieldFor` 전장 규칙 5종 — 땅이 무엇을 하는가
+//     전장은 화면에서 가장 큰 면적인데 셋 중 무엇도 안 말하고 있었다. 로딩 화면의
+//     `◈ 원형` / `⚠ 조건` 이 사라지는 순간 그 정보가 통째로 없어진다.
+//
+//  ── 어떻게 알아내는가 ────────────────────────────────────────────────────
+//  `drawArena` 는 **층 번호만** 받는다. 그걸로 충분하다 — 세 모듈이 전부
+//  `(floor, seed?)` 순수 함수이고 seed 기본값이 `climbSeed` 라, 여기서 부른 값이
+//  로딩 화면·전투가 쓰는 값과 **같은 값**이다. 씬에서 인자를 더 받아 오면 화면과
+//  전투가 갈라질 자리가 하나 더 생긴다(이 폴더가 `_hasDemo`·`quietLine` 에서
+//  이미 배운 것 — 두 벌로 두면 한쪽만 고쳐진다).
+//
+//  ── 켜지는 자리 ──────────────────────────────────────────────────────────
+//  통곡의 탑 **전투**에서만. 배치 화면(`opts.zones`)·수성의 탑(`opts.defend`)·
+//  층이 없는 모드(대전·도전)는 이야기가 없다. 수성의 탑의 `floor` 는 회차라
+//  거기에 통곡의 탑 원형·조건을 그리면 **화면이 거짓말을 한다.**
+//
+//  ── 대비 예산 (이 절이 지켜야 하는 제1규율) ──────────────────────────────
+//  「유닛이 서는 구간은 가장 조용해야 한다」(v1.6x 함정 1).
+//   · **원형 자국**은 적 배치 구역(아레나 0~30%) 한복판에 그린다 → 이 파일에서
+//     가장 조용하다: mix 0.10 × α 0.24 ≈ 명도차 2.4%. 능선(12%)·세계 중경(8%)보다
+//     낮다. 큰 도형 하나로만 말한다 — 잔 도형은 예고 원과 공간 주파수가 겹친다.
+//   · **조건 표식**·**전장 흔적**은 중경(38~70%)에 둔다. 거기는 유닛이 서지 않고
+//     지나만 간다 → 세계 중경과 같은 급(mix ≤0.22 × α ≤0.42).
+//   · 원경 띠(위 10%)에 얹는 것은 조건 둘(광란의 열기·폭풍의 관)뿐이고 색만 얹는다.
+//
+//  ── 예산 ────────────────────────────────────────────────────────────────
+//  이야기 하나당 **도형 ≤4**. 한 판에 최대 셋(원형·조건·전장) = ≤12 도형.
+//  대신 `drawArena` 의 앞마당 얼룩을 이야기 하나당 7개씩 줄인다(얼룩 하나가
+//  4~5 호출이라 순감이다).
+//
+//  ⚠ 판정·밸런스와 무관하다. 전부 화면 좌표이고 `state` 를 한 톨도 안 읽는다.
+// ═══════════════════════════════════════════════════════════════════════════
+(function (UI) {
+
+  var WB_FALLBACK = [31, 61, 101, 151];
+
+  //  세계 안에서 지금 얼마나 깊이 왔는가.
+  //    i     세계 인덱스 0..4 (UI.worldIndexForFloor 와 같은 경계)
+  //    t     그 세계 안의 진행도 0..1
+  //    stage 0 초입 · 1 중반 · 2 심부
+  //  ⚠ 마지막 세계(151+)는 **끝이 없다.** 100층 폭으로 잡아 251층부터는 심부에
+  //    머문다 — 끝없는 축을 0..1 로 억지로 정규화하면 300층과 900층이 또 같아진다.
+  //  ⚠ 경계는 `UI.WORLD_BOUNDS`(ui-hud.js) 한 곳이다. 그 파일이 없는 도구에서도
+  //    돌아야 하므로 같은 값을 폴백으로 둔다 — 값이 갈리면 배지와 바닥이 어긋난다.
+  UI.worldDepth = function (floor) {
+    var b = (UI.WORLD_BOUNDS && UI.WORLD_BOUNDS.length) ? UI.WORLD_BOUNDS : WB_FALLBACK;
+    var f = Math.max(1, Math.round(Number(floor) || 0));
+    var i = 0;
+    for (; i < b.length; i++) if (f < b[i]) break;
+    var from = (i === 0) ? 1 : b[i - 1];
+    var to = (i < b.length) ? b[i] : (from + 100);
+    var t = (f - from) / Math.max(1, to - from);
+    t = t < 0 ? 0 : (t > 1 ? 1 : t);
+    return { i: i, t: t, stage: t < 0.34 ? 0 : (t < 0.70 ? 1 : 2) };
+  };
+
+  //  원형·조건이 쓰는 것과 **같은 시드**. 없으면 0 — 그때는 모듈 기본값이 쓰인다.
+  function seedOf() {
+    try {
+      if (GAME.TowerCurriculum && GAME.TowerCurriculum._seedNow) {
+        return GAME.TowerCurriculum._seedNow() | 0;
+      }
+    } catch (e) { /* 저장소가 없는 도구 환경 */ }
+    return 0;
+  }
+
+  //  ── 이 층의 이야기 (한 번만 뽑아 캐시) ───────────────────────────────────
+  UI.floorStory = function (opts, R, farH, quietS, dep) {
+    opts = opts || {};
+    var floor = Math.max(0, Math.round(Number(opts.floor) || 0));
+    if (!dep) dep = UI.worldDepth(floor > 0 ? floor : 1);
+    //  통곡의 탑 전투에서만. (위 「켜지는 자리」)
+    var on = floor > 0 && !opts.zones && !opts.defend;
+    var key = floor + '|' + (on ? 1 : 0) + '|' + seedOf() + '|' + dep.stage + '|'
+            + Math.round(R.x) + ',' + Math.round(R.y) + ','
+            + Math.round(R.w) + ',' + Math.round(R.h) + '|'
+            + Math.round(quietS) + '|' + Math.round(farH);
+    if (UI._storyKey === key && UI._story) return UI._story;
+
+    var ST = {
+      key: key, floor: floor, stage: dep.stage, t: dep.t,
+      wind: 1, n: 0, plan: null, rule: null, field: null,
+      R: R, farH: farH, quietS: quietS
+    };
+    if (on) {
+      try {
+        if (GAME.TowerPlan && GAME.TowerPlan.planFor) {
+          var p = GAME.TowerPlan.planFor(floor);
+          if (p && p.key) ST.plan = p.key;
+        }
+      } catch (e) { /* 모듈이 없으면 이야기 하나가 없을 뿐이다 */ }
+      try {
+        if (GAME.TowerRule) {
+          //  층 조건이 먼저다 — 그것만이 **층마다 바뀌는** 축이다. 없는 층
+          //  (쉬어 가는 층·보스 층)에서는 세계 조건이 대신 말한다. 둘 다 그리면
+          //  같은 화면에 표식이 둘이 되어 어느 것이 이번 층 것인지 안 읽힌다.
+          var r = GAME.TowerRule.ruleFor ? GAME.TowerRule.ruleFor(floor) : null;
+          if (!r && GAME.TowerRule.worldRuleFor) r = GAME.TowerRule.worldRuleFor(floor);
+          if (r && r.key) ST.rule = r.key;
+        }
+      } catch (e) { /* 위와 같다 */ }
+      try {
+        if (GAME.TowerCurriculum && GAME.TowerCurriculum.fieldFor) {
+          ST.field = GAME.TowerCurriculum.fieldFor(floor) || null;
+        }
+      } catch (e) { /* 위와 같다 */ }
+    }
+    //  폭풍의 바람 방향 — 배경의 비·눕는 풀이 **실제로 미는 방향**을 따라간다.
+    //  이게 어긋나면 화면이 공략을 거꾸로 가르친다(바람 방향이 곧 폭풍 세계의 답이다).
+    if (ST.field && ST.field.kind === 'storm' && typeof ST.field.windDir === 'number') {
+      ST.wind = (Math.cos(ST.field.windDir) < 0) ? -1 : 1;
+    }
+    ST.n = (ST.plan ? 1 : 0) + (ST.rule ? 1 : 0) + (ST.field ? 1 : 0);
+    UI._storyKey = key; UI._story = ST;
+    return ST;
+  };
+
+  // ── 팔레트 ────────────────────────────────────────────────────────────────
+  //  trace : 적 배치 구역(유닛 자리) — 이 파일에서 가장 조용하다.
+  //  ink/lit: 중경 — 세계 중경과 같은 급.
+  //  ember/glow: 색으로만 말하는 것(열기·번개) — 알파를 0.22 이하로 묶는다.
+  function pal(baseFill) {
+    return {
+      base: baseFill,
+      //  원형 자국 — 실효 명도차 0.10 × 0.24 = **2.4%**.
+      //  (능선 0.14×0.85 = 11.9% · 세계 중경 0.16×0.52 = 8.3% · 앞마당 얼룩 0.30×0.36 = 10.8%)
+      //  즉 이 파일에서 가장 조용하다. 유닛 자리에 그리는 유일한 물건이라 그래야 한다.
+      trace: UI.mix(baseFill, 0x000000, 0.10),
+      traceL: UI.mix(baseFill, 0xffffff, 0.10),
+      ta: 0.24,
+      //  조건 표식 — 실효 0.20 × 0.40 = **8.0%**. 세계 중경(8.3%)과 같은 급이고
+      //  자리도 같다(중경 띠 38~70% — 유닛이 서지 않고 지나만 간다).
+      ink: UI.mix(baseFill, 0x000000, 0.20),
+      lit: UI.mix(baseFill, 0xffffff, 0.18),
+      a: 0.40,
+      ember: UI.mix(baseFill, 0xff6a2e, 0.50),
+      glow: UI.mix(baseFill, 0x8fd8ff, 0.50),
+      wet: UI.mix(baseFill, 0x2c4a52, 0.42)
+    };
+  }
+
+  // ── ① 원형 자국 — 적이 서기 전의 땅 ──────────────────────────────────────
+  //  `towerplan` 의 배치 원형을 **지면에 눌린 자국**으로 옮긴다. 원형마다 요구하는
+  //  답이 다르므로(요새=뭉침→광역기 · 산개=퍼짐 · 고리=파고들면 포위) 모양만 봐도
+  //  "무엇을 준비해야 하는지"가 읽힌다.
+  //  ⚠ 이 구역은 통째로 유닛 자리다. 그래서 **도형 하나가 크게**, α 0.24, 잔 도형 금지.
+  //  ⚠ 모르는 원형 키가 오면 아무것도 안 그린다 — 아무 모양이나 그리면 그림이
+  //    거짓말을 한다(새 원형을 넣으면 여기에도 한 줄 넣을 것).
+  UI.drawPlanTrace = function (g, ST, baseFill) {
+    if (!ST || !ST.plan) return 0;
+    var P = pal(baseFill), R = ST.R, k = ST.plan, n = 0, i;
+    var cx = R.x + R.w * 0.5;
+    var yT = R.y + R.h * 0.060, yM = R.y + R.h * 0.160, yB = R.y + R.h * 0.255;
+    var hh = R.h * 0.060;
+    g.fillStyle(P.trace, P.ta);
+    if (k === 'line') {                                   // 줄벽 — 가로로 긴 한 줄
+      g.fillEllipse(cx, yM, R.w * 0.80, hh * 1.1, 12); n = 1;
+    } else if (k === 'doubleWall') {                      // 이중벽 — 두 줄
+      g.fillEllipse(cx, yT + hh * 0.3, R.w * 0.78, hh * 0.8, 12);
+      g.fillEllipse(cx, yB, R.w * 0.64, hh * 0.8, 12); n = 2;
+    } else if (k === 'pincer') {                          // 집게 — 좌우 두 덩이
+      g.fillEllipse(R.x + R.w * 0.21, yM, R.w * 0.30, hh * 1.7, 12);
+      g.fillEllipse(R.x + R.w * 0.79, yM, R.w * 0.30, hh * 1.7, 12); n = 2;
+    } else if (k === 'keep' || k === 'lavaPress') {       // 요새 · 용암 밀집 — 뭉친다
+      g.fillEllipse(cx, yM, R.w * 0.34, hh * 2.1, 14);
+      g.fillStyle(P.traceL, P.ta * 0.8);
+      g.fillEllipse(cx, yM - hh * 0.35, R.w * 0.21, hh * 1.2, 12); n = 2;
+    } else if (k === 'scatter') {                         // 산개 — 흩어진 넷
+      for (i = 0; i < 4; i++) {
+        g.fillEllipse(R.x + R.w * (0.16 + i * 0.226), i % 2 ? yT + hh : yB - hh * 0.4,
+                      R.w * 0.15, hh * 1.0, 10);
+      }
+      n = 4;
+    } else if (k === 'wedge') {                           // 쐐기 — 앞으로 뾰족하다
+      g.fillTriangle(cx, yB, R.x + R.w * 0.24, yT, R.x + R.w * 0.76, yT); n = 1;
+    } else if (k === 'ambush') {                          // 매복 — 가장자리 둘, 가운데는 빈다
+      g.fillEllipse(R.x + R.w * 0.11, yM, R.w * 0.19, hh * 2.0, 12);
+      g.fillEllipse(R.x + R.w * 0.89, yM, R.w * 0.19, hh * 2.0, 12); n = 2;
+    } else if (k === 'echelon') {                         // 사선 — 비스듬히 물러난다
+      for (i = 0; i < 3; i++) {
+        g.fillEllipse(R.x + R.w * (0.24 + i * 0.26), yT + (yB - yT) * (i / 2),
+                      R.w * 0.26, hh * 0.9, 12);
+      }
+      n = 3;
+    } else if (k === 'ring' || k === 'bulwarkRing') {     // 고리 · 원형 방벽 — 파고들면 포위
+      g.lineStyle(Math.max(2, R.h * 0.012), P.trace, P.ta * 1.3);
+      g.strokeEllipse(cx, yM, R.w * 0.44, hh * 2.8, 16);
+      g.strokeEllipse(cx, yM, R.w * 0.25, hh * 1.6, 14); n = 2;
+    }
+    return n;
+  };
+
+  // ── ② 층 조건의 표식 ─────────────────────────────────────────────────────
+  //  조건은 난이도 장치가 아니라 **답을 바꾸는 장치**다(towerrule.js 설계 기준).
+  //  그러니 전장이 그것을 미리 말해 주는 것이 옳다. 표식은 하나뿐이다.
+  //  ⚠ 모르는 키는 아무것도 안 그린다 — 조건을 늘리면 이 표에도 한 줄 넣을 것.
+  var RULE_MOTIF = {
+    frenzy: 'heat', ashFrenzy: 'heat',          // 시간이 갈수록 세진다 → 땅이 달아오른다
+    ironclad: 'wall', bulwarkElite: 'wall',     // 단단하다 → 돌담
+    gale: 'wind',                               // 빠르다 → 바람 줄기
+    bond: 'bind', riftBond: 'bind',             // 곁이 세진다 → 서로 묶인 자국
+    nosupply: 'empty',                          // 물약이 없다 → 엎어진 빈 항아리
+    tenacious: 'tracks',                        // 끝까지 쫓는다 → 길게 끌린 자국
+    narrow: 'narrow', mireNarrow: 'narrow',     // 시야가 좁다 → 좌우에서 스미는 어둠
+    warlord: 'totem',                           // 두령이 있다 → 세워 둔 토템
+    bomber: 'scorch',                           // 죽으면 터진다 → 미리 난 그을음
+    stormCrown: 'crown'                         // 폭풍의 관 → 지평선의 번개 갈래
+  };
+  UI.RULE_MOTIF = RULE_MOTIF;
+
+  UI.drawRuleMark = function (g, ST, baseFill) {
+    var m = (ST && ST.rule) ? RULE_MOTIF[ST.rule] : null;
+    if (!m) return 0;
+    var P = pal(baseFill), R = ST.R, farH = ST.farH, n = 0, i;
+    var d = ST.wind < 0 ? -1 : 1;
+    //  중경 띠 — 유닛이 서지 않고 지나만 간다(38~70%).
+    var y0 = R.y + R.h * 0.44, y1 = R.y + R.h * 0.66;
+
+    if (m === 'heat') {
+      //  지평선 바로 아래가 달아오른다 + 지면에 붉은 실금 둘.
+      g.fillStyle(P.ember, 0.15);
+      g.fillRect(R.x, R.y + farH * 0.84, R.w, farH * 0.52);
+      g.lineStyle(Math.max(1.4, R.h * 0.006), P.ember, 0.18);
+      g.lineBetween(R.x + R.w * 0.14, y0, R.x + R.w * 0.42, y0 + R.h * 0.03);
+      g.lineBetween(R.x + R.w * 0.60, y1 - R.h * 0.02, R.x + R.w * 0.88, y1);
+      n = 3;
+
+    } else if (m === 'wall') {
+      //  낮은 돌담 세 토막(끊겨 있어야 '지나간 자리'로 읽힌다) + 윗면 하이라이트.
+      var bw = R.w * 0.19, bh = Math.max(3, R.h * 0.030), by = y0 + R.h * 0.04;
+      g.fillStyle(P.ink, P.a);
+      for (i = 0; i < 3; i++) g.fillRect(R.x + R.w * (0.13 + i * 0.29), by, bw, bh);
+      g.fillStyle(P.lit, P.a * 0.55);
+      g.fillRect(R.x + R.w * 0.13, by, bw, Math.max(1, bh * 0.34));
+      n = 4;
+
+    } else if (m === 'wind') {
+      //  길고 얇은 바람 줄기 셋. 바람 방향을 따른다.
+      g.lineStyle(Math.max(1.2, R.h * 0.005), P.lit, P.a * 0.62);
+      for (i = 0; i < 3; i++) {
+        var wy = y0 + (y1 - y0) * (i / 2);
+        g.lineBetween(R.x + R.w * (d > 0 ? 0.10 : 0.90), wy,
+                      R.x + R.w * (d > 0 ? 0.62 : 0.38), wy - R.h * 0.018);
+      }
+      n = 3;
+
+    } else if (m === 'bind') {
+      //  두 무리를 묶은 옅은 고리 둘.
+      g.lineStyle(Math.max(1.4, R.h * 0.006), P.ink, P.a * 0.66);
+      g.strokeEllipse(R.x + R.w * 0.30, y0 + R.h * 0.05, R.w * 0.20, R.h * 0.070, 14);
+      g.strokeEllipse(R.x + R.w * 0.70, y0 + R.h * 0.07, R.w * 0.20, R.h * 0.070, 14);
+      n = 2;
+
+    } else if (m === 'empty') {
+      //  엎어진 빈 항아리 둘 — 보급이 끊긴 자리.
+      var jr = Math.max(4, R.h * 0.026);
+      for (i = 0; i < 2; i++) {
+        var jx = R.x + R.w * (0.26 + i * 0.44), jy = y1 - R.h * 0.02;
+        g.fillStyle(P.ink, P.a);
+        g.fillEllipse(jx, jy, jr * 2.2, jr * 1.2, 9);
+        g.fillStyle(P.lit, P.a * 0.60);
+        g.fillEllipse(jx + jr * 0.9, jy - jr * 0.2, jr * 0.8, jr * 0.9, 8);
+      }
+      n = 4;
+
+    } else if (m === 'tracks') {
+      //  끌린 자국 넷 — 여기서 누군가 끝까지 쫓겼다.
+      g.lineStyle(Math.max(1.2, R.h * 0.005), P.ink, P.a * 0.52);
+      for (i = 0; i < 4; i++) {
+        var tx = R.x + R.w * (0.18 + i * 0.21);
+        g.lineBetween(tx, y0, tx + R.w * 0.05 * d, y1);
+      }
+      n = 4;
+
+    } else if (m === 'narrow') {
+      //  좌우에서 안으로 스미는 어둠 — 두 겹씩(한 겹이면 '막대'로 보인다).
+      var nw = R.w * 0.055;
+      for (i = 0; i < 2; i++) {
+        g.fillStyle(P.ink, P.a * (i === 0 ? 0.34 : 0.20));
+        g.fillRect(R.x, R.y, nw * (i + 1), R.h);
+        g.fillRect(R.right - nw * (i + 1), R.y, nw * (i + 1), R.h);
+      }
+      n = 4;
+
+    } else if (m === 'totem') {
+      //  세워 둔 토템 — 두령이 여기 있다.
+      var tw = Math.max(3, R.w * 0.008), th = R.h * 0.13, ty = y0 + R.h * 0.06;
+      g.fillStyle(P.ink, P.a * 0.90);
+      g.fillRect(R.x + R.w * 0.50 - tw * 0.5, ty - th, tw, th);
+      g.fillRect(R.x + R.w * 0.50 - tw * 2.6, ty - th * 0.72, tw * 5.2, Math.max(2, tw * 0.7));
+      g.fillStyle(P.lit, P.a * 0.55);
+      g.fillEllipse(R.x + R.w * 0.50, ty - th, tw * 2.0, tw * 1.6, 8);
+      n = 3;
+
+    } else if (m === 'scorch') {
+      //  이미 한 번 터진 자리 — 그을음.
+      for (i = 0; i < 2; i++) {
+        var sxp = R.x + R.w * (0.32 + i * 0.36), syp = y0 + R.h * (0.03 + i * 0.09);
+        g.fillStyle(P.ink, P.a * 0.72);
+        g.fillEllipse(sxp, syp, R.w * 0.11, R.h * 0.038, 12);
+        g.fillStyle(P.ember, 0.14);
+        g.fillEllipse(sxp, syp, R.w * 0.06, R.h * 0.020, 10);
+      }
+      n = 4;
+
+    } else if (m === 'crown') {
+      //  지평선 위 번개 갈래 둘 — 폭풍의 관.
+      g.lineStyle(Math.max(1.2, R.h * 0.005), P.glow, 0.20);
+      g.lineBetween(R.x + R.w * 0.26, R.y + farH * 0.20, R.x + R.w * 0.31, R.y + farH * 0.72);
+      g.lineBetween(R.x + R.w * 0.31, R.y + farH * 0.72, R.x + R.w * 0.27, R.y + farH * 1.05);
+      g.lineBetween(R.x + R.w * 0.72, R.y + farH * 0.16, R.x + R.w * 0.68, R.y + farH * 0.80);
+      n = 3;
+    }
+    return n;
+  };
+
+  // ── ③ 전장 규칙의 정지 흔적 ──────────────────────────────────────────────
+  //  `state.towerField` 는 `FXS.drawField` 가 **살아 움직이게** 그린다(안개 마스크·
+  //  늪 물결·용암 성장·낙뢰). 배경은 그 위가 아니라 **밑**을 맡는다 — 규칙이 오기
+  //  전부터 거기 있던 땅의 흔적.
+  //  ⚠⚠ **좌표를 지어내지 않는다.** 늪·용암은 규칙이 준 정규 좌표(0..1)를 그대로
+  //    아레나에 옮긴다(`Combat._buildField` 와 같은 산수: A.x + nx*A.w · A.y + ny*A.h).
+  //    그래야 살아 있는 이펙트와 같은 자리에 놓인다 — 자리가 다르면 따로 논다.
+  //  ⚠ 그리는 순서: 세계 중경 **뒤**, 소품 **앞**. 땅의 일부지 물건이 아니다.
+  UI.drawFieldGround = function (g, ST, baseFill) {
+    var F = ST && ST.field;
+    if (!F || !F.kind) return 0;
+    var A = GAME.CONFIG && GAME.CONFIG.ARENA, Iso = GAME.Iso;
+    if (!A || !Iso) return 0;
+    var P = pal(baseFill), R = ST.R, n = 0, i;
+    var d = ST.wind < 0 ? -1 : 1;
+    function sx(nx) { return A.x + nx * A.w; }
+    function sy(ny) { return Iso.toScreenY(A.y + ny * A.h); }
+    //  전장 밖으로 새지 않게 가둔다(보스 균열이 HUD 위까지 그어진 사고와 같은 규율).
+    function inx(v, half) { return Math.max(R.x + half + 4, Math.min(R.right - half - 4, v)); }
+    function iny(v, half) { return Math.max(R.y + half + 2, Math.min(R.bottom - half - 2, v)); }
+
+    if (F.kind === 'swamp' && F.zones && F.zones.length) {
+      for (i = 0; i < Math.min(2, F.zones.length); i++) {
+        var z = F.zones[i];
+        var zr = Math.min((z.r || 0.1) * A.w, R.w * 0.22);
+        var zh = zr * Iso.TILT;
+        var zx = inx(sx(z.x === undefined ? 0.5 : z.x), zr);
+        var zy = iny(sy(z.y === undefined ? 0.5 : z.y), zh);
+        g.fillStyle(P.wet, P.a * 0.60);                     // 젖어 검게 죽은 땅
+        g.fillEllipse(zx, zy, zr * 2, zh * 2, 14);
+        g.fillStyle(P.lit, P.a * 0.34);                     // 가장자리에 고인 물빛
+        g.fillEllipse(zx - zr * 0.22, zy - zh * 0.26, zr * 1.2, zh * 0.9, 12);
+        n += 2;
+      }
+
+    } else if (F.kind === 'lava' && F.zones && F.zones.length) {
+      for (i = 0; i < Math.min(2, F.zones.length); i++) {
+        var l = F.zones[i];
+        //  용암이 **끝내 차오를 자리**(maxR)를 그을린 분지로 미리 남긴다.
+        //  예고를 보고 피하는 게임이니 자리를 미리 말하는 것이 이 게임의 문법이다.
+        var lr = Math.min((l.maxR || l.r || 0.12) * A.w, R.w * 0.24);
+        var lh = lr * Iso.TILT;
+        var lx = inx(sx(l.x === undefined ? 0.5 : l.x), lr);
+        var ly = iny(sy(l.y === undefined ? 0.5 : l.y), lh);
+        g.fillStyle(P.ink, P.a * 0.66);
+        g.fillEllipse(lx, ly, lr * 2, lh * 2, 14);
+        g.lineStyle(Math.max(1.2, R.h * 0.005), P.ember, 0.20);
+        g.strokeEllipse(lx, ly, lr * 1.4, lh * 1.4, 14);
+        n += 2;
+      }
+
+    } else if (F.kind === 'fog') {
+      //  낮게 깔린 안개 — 세계 소품보다 **넓고 밝게**. "원거리 사거리가 준다"는
+      //  규칙을 "멀리가 안 보인다"로 옮긴다.
+      g.fillStyle(P.lit, P.a * 0.52);
+      g.fillEllipse(R.x + R.w * 0.34, R.y + R.h * 0.42, R.w * 0.60, R.h * 0.075, 14);
+      g.fillEllipse(R.x + R.w * 0.68, R.y + R.h * 0.52, R.w * 0.56, R.h * 0.065, 14);
+      n = 2;
+
+    } else if (F.kind === 'quake') {
+      //  이미 한 번 흔들린 땅 — 실금 셋(예고 원과 안 겹치게 아주 얇게).
+      g.lineStyle(Math.max(1.2, R.h * 0.005), P.ink, P.a * 0.50);
+      for (i = 0; i < 3; i++) {
+        var qy = R.y + R.h * (0.40 + i * 0.10);
+        g.lineBetween(R.x + R.w * 0.08, qy, R.x + R.w * 0.46, qy + R.h * 0.022);
+        n++;
+      }
+
+    } else if (F.kind === 'storm') {
+      //  바람이 쓸고 간 결 셋 — 방향은 규칙이 정한 `windDir` 그대로다.
+      g.lineStyle(Math.max(1.2, R.h * 0.005), P.lit, P.a * 0.46);
+      for (i = 0; i < 3; i++) {
+        var gy = R.y + R.h * (0.40 + i * 0.09);
+        g.lineBetween(R.x + R.w * (d > 0 ? 0.12 : 0.88), gy,
+                      R.x + R.w * (d > 0 ? 0.70 : 0.30), gy + R.h * 0.014);
+        n++;
+      }
+    }
+    return n;
   };
 
 })(GAME.UI);

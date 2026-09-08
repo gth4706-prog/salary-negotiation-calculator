@@ -1541,6 +1541,11 @@ GAME.BattleScene.prototype._updateOrbs = function (dt) {
     var dx = h.x - o.x, dy = h.y - o.y;
     if (dx * dx + dy * dy > pickR * pickR) continue;
     st.orbs.splice(i, 1);
+    //  ⚠ 줍는 순간이 **무음이었다** (2026-09-08). 구슬은 이 게임의 보상 축인데
+    //    화면에 토스트만 뜨고 소리가 없었다 — 이 저장소가 축복·구슬에서 두 번 겪은
+    //    "받은 줄도 몰랐다"의 소리 판이다. 보상은 귀로도 와야 손에 남는다.
+    //  ⚠ 새 소리를 만들지 않는다 — `coinPick`(무언가를 주웠다)이 이미 있다.
+    if (GAME.Sound && GAME.Sound.play) { try { GAME.Sound.play('coinPick'); } catch (eO) {} }
     if (GAME.Orb.take(st, o.key)) this._orbToast(GAME.Orb.lineFor(o.key));
   }
 };

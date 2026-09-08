@@ -135,23 +135,67 @@ GAME.TouchPad.prototype._build = function () {
   var stickDeco = scene.add.graphics().setDepth(899).setScrollFactor(0);
   (function () {
     var M = GAME.UI.MAT, R0 = S.stickR;
-    stickDeco.lineStyle(Math.max(2.5, R0 * 0.055), M.bone, PHONE ? 0.55 : 0.70);
-    stickDeco.strokeCircle(sx, baseY, R0 * 0.97);
-    //  방향 눈금 넷 — 밧줄을 감아 둔 자리. 스틱이 '어느 쪽으로 미는 물건'임을 말한다.
-    stickDeco.lineStyle(Math.max(2, R0 * 0.045), M.rope, PHONE ? 0.45 : 0.6);
-    [0, 90, 180, 270].forEach(function (d) {
-      var t = d * Math.PI / 180, c = Math.cos(t), s2 = Math.sin(t);
-      stickDeco.lineBetween(sx + c * R0 * 0.80, baseY + s2 * R0 * 0.80,
-                            sx + c * R0 * 1.02, baseY + s2 * R0 * 1.02);
-    });
+    //  ── 테는 **두 겹**으로 판다 (2026-09-08) ────────────────────────────────
+    //  한 겹 실선은 아무리 굵어도 '도형'으로 읽힌다. 어두운 바깥선 + 밝은 안쪽선을
+    //  겹치면 같은 알파로도 **깎아 만든 테**가 된다(면 알파를 못 올리므로 유일한 길).
+    stickDeco.lineStyle(Math.max(3, R0 * 0.075), M.leatherDark, PHONE ? 0.42 : 0.55);
+    stickDeco.strokeCircle(sx, baseY, R0 * 0.985);
+    stickDeco.lineStyle(Math.max(2, R0 * 0.042), M.bone, PHONE ? 0.62 : 0.78);
+    stickDeco.strokeCircle(sx, baseY, R0 * 0.95);
+    //  방향 눈금 — 넷에서 **여덟**로. 대각선이 짧아 '나침반'처럼 읽힌다
+    //  (스틱은 여덟 방향으로 미는 물건인데 눈금이 넷이라 십자로만 보였다).
+    for (var d = 0; d < 8; d++) {
+      var t = d * Math.PI / 4, c = Math.cos(t), s2 = Math.sin(t);
+      var long = (d % 2 === 0);
+      stickDeco.lineStyle(Math.max(long ? 2.4 : 1.6, R0 * (long ? 0.05 : 0.032)),
+                          M.rope, (long ? 0.62 : 0.34) * (PHONE ? 0.85 : 1));
+      var i0 = long ? 0.74 : 0.84;
+      stickDeco.lineBetween(sx + c * R0 * i0, baseY + s2 * R0 * i0,
+                            sx + c * R0 * 1.00, baseY + s2 * R0 * 1.00);
+    }
   })();
+
+  //  ── 노브를 **물건으로** 만든다 ──────────────────────────────────────────────
+  //  ⚠⚠ 이게 이번 변경의 본체다. 엄지가 실제로 잡는 것이 폰에서 알파 0.16 짜리
+  //    반투명 원이었다 — **화면에서 가장 흐린 것이 가장 자주 만지는 것**이었다.
+  //  ⚠ 그렇다고 링의 면을 올리면 안 된다(위 주석의 실측: 전장 왼쪽에 진흙 웅덩이).
+  //    노브는 작아서 진하게 해도 전장을 안 가린다 — 링은 공기처럼, 노브는 단단하게.
+  var knobDeco = scene.add.graphics().setDepth(902).setScrollFactor(0);
+  this.knobDeco = knobDeco;
+  this._paintKnob = function (kx, ky, pressed) {
+    var M = GAME.UI.MAT, r = S.knobR;
+    knobDeco.clear();
+    //  바닥 그림자 — 떠 있는 물건이라는 신호. 누르면 붙으므로 얕아진다.
+    knobDeco.fillStyle(0x000000, pressed ? 0.20 : 0.30);
+    knobDeco.fillEllipse(kx, ky + r * (pressed ? 0.16 : 0.26), r * 1.72, r * 0.78, 14);
+    //  몸 — 가죽 위에 뼈. 위쪽이 밝고 아래가 어둡다(광원은 위, UI.LIGHT 와 같은 방향).
+    knobDeco.fillStyle(M.leatherDark, 0.92);
+    knobDeco.fillCircle(kx, ky, r * 1.02);
+    knobDeco.fillStyle(M.bone, pressed ? 0.88 : 0.96);
+    knobDeco.fillCircle(kx, ky - r * 0.05, r * 0.86);
+    //  윗면 하이라이트
+    knobDeco.fillStyle(0xffffff, pressed ? 0.16 : 0.30);
+    knobDeco.fillEllipse(kx - r * 0.22, ky - r * 0.34, r * 0.86, r * 0.50, 12);
+    //  가운데 파인 자국 — 엄지가 놓이는 자리
+    knobDeco.fillStyle(M.leatherDark, 0.30);
+    knobDeco.fillEllipse(kx, ky + r * 0.08, r * 0.44, r * 0.26, 10);
+    //  테
+    knobDeco.lineStyle(Math.max(2, r * 0.10), M.leatherDark, 0.85);
+    knobDeco.strokeCircle(kx, ky, r * 1.02);
+  };
+  this._paintKnob(sx, baseY, false);
+  this.objects.push(knobDeco);      // 씬을 나갈 때 같이 지워진다(안 넣으면 유령이 남는다)
   this.objects.push(stickDeco);
   this.stickDeco = stickDeco;   // 영웅이 다가오면 링·노브와 **같이** 흐려져야 한다
 
   this.stickRing = scene.add.circle(sx, baseY, S.stickR, PAD.ring, fillA)
     .setStrokeStyle(PHONE ? 3 : 2, PAD.ink, lineA).setDepth(900).setScrollFactor(0);
-  this.stickKnob = scene.add.circle(sx, baseY, S.knobR, PAD.ink, knobA)
-    .setStrokeStyle(PHONE ? 3 : 2, PAD.ink, 0.55).setDepth(901).setScrollFactor(0);
+  //  ⚠ 이 원은 이제 **자리를 나르는 기준**이다(위치·알파 로직이 전부 여기 매달려 있다).
+  //    그림은 위 `knobDeco` 가 그리므로 원 자체는 보이지 않게 둔다 — 지우면
+  //    `setPosition`/`setAlpha` 를 부르는 다섯 자리를 전부 고쳐야 하고, 그게 이
+  //    저장소가 반복해서 겪은 "한쪽만 고쳐져 갈라진다" 다.
+  this.stickKnob = scene.add.circle(sx, baseY, S.knobR, PAD.ink, 0)
+    .setDepth(901).setScrollFactor(0);
   this.objects.push(this.stickRing, this.stickKnob);
 
   // 스틱은 링 밖에서 눌러도 잡히도록 넉넉한 판정 원을 따로 둔다
@@ -378,6 +422,7 @@ GAME.TouchPad.prototype._bind = function () {
     self.stick.cy = p.y;
     self.stickRing.setPosition(p.x, p.y);
     self.stickKnob.setPosition(p.x, p.y);
+    if (self._paintKnob) self._paintKnob(p.x, p.y, true);
     self._moveKnob(p);
   });
 
@@ -401,6 +446,7 @@ GAME.TouchPad.prototype._releaseStick = function () {
   this.stick.cy = this.stick.homeY;
   this.stickRing.setPosition(this.stick.homeX, this.stick.homeY);
   this.stickKnob.setPosition(this.stick.homeX, this.stick.homeY);
+  if (this._paintKnob) this._paintKnob(this.stick.homeX, this.stick.homeY, false);
 };
 
 GAME.TouchPad.prototype._moveKnob = function (p) {
@@ -410,6 +456,7 @@ GAME.TouchPad.prototype._moveKnob = function (p) {
   var max = S.stickR;
   if (len > max) { dx = dx / len * max; dy = dy / len * max; len = max; }
   this.stickKnob.setPosition(this.stick.cx + dx, this.stick.cy + dy);
+  if (this._paintKnob) this._paintKnob(this.stick.cx + dx, this.stick.cy + dy, true);
 
   // 데드존 — 손가락을 올려두기만 한 걸 이동으로 읽지 않는다
   var dead = max * 0.18;
@@ -561,6 +608,9 @@ GAME.TouchPad.prototype._applyFade = function (dtMs) {
     this.stickRing.setAlpha(sa);
     this.stickKnob.setAlpha(sa);
     if (this.stickDeco) this.stickDeco.setAlpha(sa);
+    //  ⚠ 노브 그림도 **같이** 흐려져야 한다. 빠뜨리면 영웅이 다가왔을 때
+    //    링만 사라지고 노브가 혼자 또렷하게 떠 있는다(그림을 따로 뺀 대가다).
+    if (this.knobDeco) this.knobDeco.setAlpha(sa);
   }
 };
 

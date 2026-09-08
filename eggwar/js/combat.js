@@ -4799,6 +4799,17 @@ GAME.Combat = {
         var ddx = o.x - p.x, ddy = o.y - p.y;
         if (Math.sqrt(ddx * ddx + ddy * ddy) > o.def.radius + p.radius) continue;
 
+        //  ── 투사체가 꽂히는 소리 (2026-09-08) ──────────────────────────────
+        //  ⚠⚠ `arrowHit` 은 **자산이 둘(arrowHit_0/1.wav) 있는데 부르는 곳이 0곳**
+        //    이었다. 궁수·투창병·쇠뇌 진지가 이 게임의 뼈대인데 화살이 꽂히는 소리가
+        //    없었다 — 맞은 쪽의 신음(hurt)만 났고, 그건 "아프다"지 "박혔다"가 아니다.
+        //  ⚠ 이 파일이 바로 위에서 경고한 함정을 그대로 밟지 않는다:
+        //    "스치는 피해까지 소리를 내면 전장이 계속 지글거려 정작 중요한 소리를 덮는다."
+        //    그래서 **게이트 55ms** 로 묶는다(sound.js 의 bow 와 같은 방식). 난전에서
+        //    초당 18회를 넘지 않으므로 소리가 뭉치지 않는다.
+        //  ⚠ 판정·피해는 한 줄도 안 건드린다 — 소리만 얹는다.
+        if (GAME.Sound && GAME.Sound.play) { try { GAME.Sound.play('arrowHit'); } catch (eA) {} }
+
         if (p.pierce) {
           if (p.hitSet.indexOf(o) !== -1) continue;
           p.hitSet.push(o);

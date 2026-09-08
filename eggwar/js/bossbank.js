@@ -74,7 +74,15 @@ GAME.BossBank = (function () {
     "w_mist_boss": {"art":"beast:bogmother:frost","tileW":1711,"tileH":1892,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11,"pivotY":1892},
     "w_ash_boss": {"art":"beast:ashlord:ember","tileW":1560,"tileH":1925,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.1919,"pivotY":1925},
     "w_rift_boss": {"art":"beast:riftgiant:ash","tileW":1970,"tileH":1829,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.6337,"pivotY":1829},
-    "w_storm_boss": {"art":"beast:stormking:storm","tileW":1831,"tileH":1878,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.9186,"pivotY":1878}
+    "w_storm_boss": {"art":"beast:stormking:storm","tileW":1831,"tileH":1878,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.9186,"pivotY":1878},
+    //  용의 발·날개 (2026-09-09) — v1.07 에서 래스터를 접고 벡터로 되돌렸던 둘이다.
+    //  이번에 제대로 된 그림이 나와 다시 시트로 돌아왔다(태현님: "동그라미 등 도형으로만
+    //  만들어진 용, 이거 깔끔히 다 교체해"). 임포터가 `-Radius` 를 줘야 들어간다 —
+    //  balance.json 에 이 둘의 유닛 키가 없어서 반경을 스스로 못 찾는다.
+    //  ⚠ 임포터가 `art` 를 `""` 로 넣는다. 이 둘은 units 키와 표 키가 같아 키 조회로
+    //    찾아지지만, 위 규약대로 손으로 채워 둔다(다음 사람이 규칙을 의심하지 않게).
+    "bossDragonFoot": {"art":"beast:foot:ember","tileW":1841,"tileH":1967,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.436,"pivotY":1967},
+    "bossDragonWing": {"art":"beast:wingpart:ember","tileW":1969,"tileH":1948,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.3256,"pivotY":1948}
   };
 
   //  보스 인트로 대사 (2026-08-23 4차 — battle._setupBossIntro 가 읽는다).

@@ -28,6 +28,10 @@ GAME.BossBank = (function () {
     //  안 주면 타일 바닥 — 지운 시트는 바닥에 투명 띠가 남아 발이 떠 보인다.
     //  sizeMul 0.8 — 2026-08-23 태현님: "40층 재파수병 크기를 20% 정도 줄여줘".
     "bossAshSentry": {"art":"beast:sentry:ash","tileW":1801,"tileH":1818,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.5698,"pivotY":1818,"sizeMul":0.8},
+    "bossAshSentry-death": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
+    "bossAshSentry-skill": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
+    "bossAshSentry-attack": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
+    "bossAshSentry-walk": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
     "bossChief": {"art":"chieftain","tileW":1918,"tileH":1919,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.157,"pivotY":1919},
     "bossDragonAwakened": {"art":"beast:awakened:ember","tileW":1324,"tileH":711,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.1337},
     "bossDragonClaw": {"art":"beast:claw:ember","tileW":1705,"tileH":1922,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.1744,"pivotY":1922},
@@ -37,12 +41,24 @@ GAME.BossBank = (function () {
     "bossDragonLord": {"art":"beast:dragon:ember","tileW":2048,"tileH":2017,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.7267,"pivotY":2017,"sizeMul":1.4},
     "bossDragonTail": {"art":"beast:tail:ember","tileW":1383,"tileH":481,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":2.7965},
     "bossDrakeAsh": {"art":"beast:drake:ash","tileW":1978,"tileH":1831,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.6453,"pivotY":1831},
+    "bossDrakeAsh-death": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
+    "bossDrakeAsh-skill": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossDrakeAsh-attack": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossDrakeAsh-walk": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320},
     "bossDrakeFrost": {"art":"beast:drake:frost","tileW":1969,"tileH":1853,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.7733,"pivotY":1853},
+    "bossDrakeFrost-death": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
+    "bossDrakeFrost-skill": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossDrakeFrost-attack": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossDrakeFrost-walk": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320},
     "bossDrakeStorm": {"art":"beast:drake:storm","tileW":1849,"tileH":1606,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":9.3372,"pivotY":1606},
     //  ⚠ 둥지 포탑 — **일부러 끈다**(2026-09-05 태현님: "둥지에서 화살쏘는건 롤백해").
     //     벡터 발리스타로 돌아간다. 시트 파일(assets/boss/bossNest.png)과 실측값은 남긴다.
     "bossNest": {"off":true,"art":"ballista","tileW":1298,"tileH":734,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.2674},
     "bossShell": {"art":"guardian","tileW":1761,"tileH":1876,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.907,"pivotY":1876},
+    "bossShell-death": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
+    "bossShell-skill": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossShell-attack": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossShell-walk": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320},
 
     //  ── 시즌2 「다섯 세계」 세계 보스 (2026-09-03 S-A) ─────────────────────────
     //  초원(1~30)은 현행 셋(bossChief·bossShell·bossNest)이 그대로 맡는다.
@@ -72,9 +88,25 @@ GAME.BossBank = (function () {
     //  그 새 항목들의 art 가 `""` 였다 — 시트는 들어왔는데 **아무 보스도 그걸 못 찾는**
     //  상태였다(중복 키라 뒤엣것이 이겨서 조용히 그렇게 된다). 임포터를 쓸 때마다 확인할 것.
     "w_mist_boss": {"art":"beast:bogmother:frost","tileW":1711,"tileH":1892,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11,"pivotY":1892},
+    "w_mist_boss-attack": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_mist_boss-death": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
+    "w_mist_boss-skill": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_mist_boss-walk": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320},
     "w_ash_boss": {"art":"beast:ashlord:ember","tileW":1560,"tileH":1925,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.1919,"pivotY":1925},
+    "w_ash_boss-death": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
+    "w_ash_boss-skill": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_ash_boss-attack": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_ash_boss-walk": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320},
     "w_rift_boss": {"art":"beast:riftgiant:ash","tileW":1970,"tileH":1829,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.6337,"pivotY":1829},
+    "w_rift_boss-death": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
+    "w_rift_boss-skill": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_rift_boss-attack": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_rift_boss-walk": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320},
     "w_storm_boss": {"art":"beast:stormking:storm","tileW":1831,"tileH":1878,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.9186,"pivotY":1878},
+    "w_storm_boss-death": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
+    "w_storm_boss-skill": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_storm_boss-attack": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_storm_boss-walk": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320},
     //  용의 발·날개 (2026-09-09) — v1.07 에서 래스터를 접고 벡터로 되돌렸던 둘이다.
     //  이번에 제대로 된 그림이 나와 다시 시트로 돌아왔다(태현님: "동그라미 등 도형으로만
     //  만들어진 용, 이거 깔끔히 다 교체해"). 임포터가 `-Radius` 를 줘야 들어간다 —
@@ -217,6 +249,109 @@ GAME.BossBank = (function () {
 
     //  한 뱅크 키를 불러온다. `ensure` 가 def 로 찾은 뒤 이걸 부르고, 모션 시트도
     //  같은 자리를 쓴다(`w_mist_boss-death` 처럼 키가 곧 파일명이다).
+    // ── 세계 색 (2026-09-09 태현님 지시: 골격 여덟 × 세계 다섯 = 마흔) ─────────
+    //  ⚠⚠ **색은 파일로 굽지 않는다.** 8골격 × 4모션 × 5세계 = 160장 = **260MB** 라
+    //    배포 저장소가 터진다(실측). 원본 32장(55MB)만 두고 **로드된 뒤 여기서** 돌린다.
+    //    결과는 같고 용량은 1/5 이며, 색을 바꾸고 싶으면 이 표 한 줄만 고치면 된다.
+    //  ⚠ 값은 `Season.WORLDS` 와 같아야 한다 — 갈라지면 메뉴는 「용암」인데 보스는
+    //    다른 주황이 된다. Season 이 있으면 그걸 읽고, 없을 때만 아래 사본을 쓴다.
+    //  ⚠ 저장 키는 `ash` 그대로다(진행 기록이 읽는다). 화면 이름만 「용암」이다.
+    WORLD_TINT: { meadow: 0x5CD971, mire: 0x7EC8E8, ash: 0xFF2E12, rift: 0x8A5230, storm: 0xFFD400 },
+
+    worldOf: function (scene) {
+      var f = scene && scene.tower;
+      if (!f) return '';                      // 대전·실시간은 색을 안 입힌다(양쪽이 같아야 한다)
+      var TC = GAME.TowerCurriculum;
+      if (!TC || !TC.worldFor) return '';
+      //  ⚠ `worldFor` 는 **세계 객체**(`{key,name,from,to,color…}`)를 돌려준다 —
+      //    문자열로 알고 쓰면 색이 조용히 안 걸린다(2026-09-09 실측: 어미가 늪에서
+      //    원본 초록 그대로 떴다). `world-shot` 이 「세계 [object Object]」를 찍고
+      //    있었는데 그게 같은 신호였다.
+      var w = TC.worldFor(f);
+      return (w && w.key) ? w.key : (typeof w === 'string' ? w : '');
+    },
+
+    _tintOf: function (world) {
+      var S = GAME.Season;
+      if (S && S.WORLDS) {
+        for (var i = 0; i < S.WORLDS.length; i++) {
+          if (S.WORLDS[i].key === world && S.WORLDS[i].color) return S.WORLDS[i].color;
+        }
+      }
+      return this.WORLD_TINT[world] || 0;
+    },
+
+    //  원본 텍스처를 그 세계 색으로 돌려 **새 텍스처**로 굽는다. 한 번만.
+    //  ⚠ 돌(채도 낮음)은 그대로 두고 빛나는 부분만 물들인다 — 전부 물들이면 색종이가 된다.
+    //  ⚠ 색조뿐 아니라 **채도·명도**도 옮긴다. 갈색(균열)은 채도 낮은 주황이라
+    //    색조만 돌리면 황금빛이 되어 노랑(벼락)과 안 갈린다(실측).
+    _tintTex: function (scene, srcKey, world) {
+      var dstKey = srcKey + '@' + world;
+      if (scene.textures.exists(dstKey)) return dstKey;
+      if (!scene.textures.exists(srcKey)) return null;
+      var hex = this._tintOf(world);
+      if (!hex) return null;
+      var src = scene.textures.get(srcKey).getSourceImage();
+      var w = src.width, h = src.height;
+      var cv = scene.textures.createCanvas(dstKey, w, h);
+      if (!cv) return null;
+      var ctx = cv.getContext();
+      ctx.drawImage(src, 0, 0);
+      var img = ctx.getImageData(0, 0, w, h), d = img.data;
+
+      function toHsv(r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        var mx = Math.max(r, g, b), mn = Math.min(r, g, b), df = mx - mn, hh = 0;
+        if (df) {
+          if (mx === r) hh = ((g - b) / df + (g < b ? 6 : 0)) / 6;
+          else if (mx === g) hh = ((b - r) / df + 2) / 6;
+          else hh = ((r - g) / df + 4) / 6;
+        }
+        return [hh, mx ? df / mx : 0, mx];
+      }
+      function toRgb(hh, s, v) {
+        var i = Math.floor(hh * 6), f = hh * 6 - i, p = v * (1 - s),
+            q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+        switch (i % 6) {
+          case 0: return [v, t, p];
+          case 1: return [q, v, p];
+          case 2: return [p, v, t];
+          case 3: return [p, q, v];
+          case 4: return [t, p, v];
+          default: return [v, p, q];
+        }
+      }
+      //  이 시트의 '빛나는 부분' 대표 색조·채도·명도 — 여기서 목표까지의 이동량이 나온다.
+      var sx = 0, sy = 0, ss = 0, sv = 0, n = 0, i, c;
+      for (i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 40) continue;
+        c = toHsv(d[i], d[i + 1], d[i + 2]);
+        if (c[1] > 0.30 && c[2] > 0.30) {
+          sx += Math.cos(c[0] * 6.283185); sy += Math.sin(c[0] * 6.283185);
+          ss += c[1]; sv += c[2]; n++;
+        }
+      }
+      if (!n) { return srcKey; }               // 물들일 색이 없다 — 원본 그대로
+      var bh = Math.atan2(sy, sx) / 6.283185; if (bh < 0) bh += 1;
+      var bs = ss / n, bv = sv / n;
+      var t = toHsv((hex >> 16) & 255, (hex >> 8) & 255, hex & 255);
+      var shift = ((t[0] - bh) % 1 + 1) % 1;
+      var smul = Math.max(0.35, Math.min(2.0, t[1] / Math.max(0.25, bs)));
+      var vmul = Math.max(0.45, Math.min(1.15, t[2] / Math.max(0.55, bv)));
+      for (i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 8) continue;
+        c = toHsv(d[i], d[i + 1], d[i + 2]);
+        if (c[1] <= 0.14) continue;
+        var o = toRgb((c[0] + shift) % 1, Math.min(1, c[1] * smul), Math.min(1, c[2] * vmul));
+        d[i] = Math.round(o[0] * 255); d[i + 1] = Math.round(o[1] * 255); d[i + 2] = Math.round(o[2] * 255);
+      }
+      ctx.putImageData(img, 0, 0);
+      cv.refresh();
+      //  ⚠ 칸(프레임)은 **색 텍스처에도 따로 등록**해야 한다 — 원본의 프레임은 안 따라온다.
+      this._ensureFrames(scene, dstKey, DATA[srcKey.replace('bossbank:', '')]);
+      return dstKey;
+    },
+
     ensureKey: function (scene, key) {
       var m = DATA[key];
       if (!m || m.pending || m.off || !scene || !scene.load) return;
@@ -446,6 +581,16 @@ GAME.BossBank = (function () {
       }
       var texKey = 'bossbank:' + e.key;
       if (!scene.textures.exists(texKey)) { this.ensure(scene, def); return false; }
+
+      //  ── 세계 색 (2026-09-09) ────────────────────────────────────────────
+      //  같은 골격이 세계마다 다른 색으로 선다. **파일이 아니라 여기서** 돌린다
+      //  (`_tintTex` 주석 — 파일로 구우면 260MB 다). 한 번 구우면 텍스처가 남는다.
+      //  ⚠ 탑에서만 — 대전·실시간은 `worldOf` 가 '' 를 돌려준다(양쪽이 같아야 한다).
+      var _w = this.worldOf(scene);
+      if (_w) {
+        var tinted = this._tintTex(scene, texKey, _w);
+        if (tinted) texKey = tinted;
+      }
 
       var m = e.m;
       //  다칸 시트인가 — 프레임이 등록돼야 참이다(크기가 어긋나면 정지 그림으로 남는다).

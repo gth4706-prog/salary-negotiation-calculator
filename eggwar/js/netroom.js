@@ -300,12 +300,17 @@ GAME.NetRoom = {
   //  ⚠ P2P 가 붙었으면 **직결 rtt 의 p95** 를 쓴다(2026-09-09, RT 인수인계 §netroom).
   //    중앙값을 쓰면 `rtflow` 의 delay 가 지터를 못 삼켜 strict lockstep 이 멈춘다.
   //    p95 가 아직 없으면(표본 부족) 중앙값으로, 직결이 없으면 WS rtt 로 떨어진다.
+  //  ⚠⚠ **중앙값을 돌려준다. p95 를 쓰면 안 된다** (2026-09-09 회귀 되돌림).
+  //    2026-09-09 오전에 "지터가 큰 쪽 때문에 버퍼가 넘친다"는 이유로 p95 로 바꿨는데,
+  //    그 값이 그대로 `rtflow` 의 입력 지연 계산에 들어가면서 **조작이 1초 가까이
+  //    늦어졌다**(태현님 신고: "움직이고나면 1초있다가 움직여 … 게임을할수가없는 지경").
+  //  ⚠ 결정적인 이유가 하나 더 있다 — 지연은 **연결 직후**에 한 번 정해지는데 그때
+  //    표본이 8개뿐이라 p95 는 사실상 **그 8개 중 최악**이다. 연결 직후 핑은 원래
+  //    가장 느리다(경로 워밍업). 즉 「가장 나쁜 순간」을 판 전체의 지연으로 굳혔다.
+  //  → 지연의 근거는 중앙값이다. p95 는 진단(`?diag=1` rt 줄)에만 쓴다.
   bestRtt: function () {
     var rc = GAME.NetRtc;
-    if (rc && rc.ready()) {
-      if (rc.rttP95Ms != null) return rc.rttP95Ms;
-      if (rc.rttMs != null) return rc.rttMs;
-    }
+    if (rc && rc.ready() && rc.rttMs != null) return rc.rttMs;
     return this.rttMs;
   },
 

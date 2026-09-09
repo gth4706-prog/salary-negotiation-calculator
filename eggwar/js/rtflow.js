@@ -489,14 +489,20 @@ GAME.RtFlow = {
     //  팀 라벨: 방장 = 'controller' 팀 · 손님 = 'strategist' 팀 (역할과 무관한 자리 이름).
     //  연습 대전은 언제나 내가 'controller' 팀 · 지연 2틱(네트워크 없음).
     var meTeam = this.local ? 'controller' : ((NR.me === NR.host) ? 'controller' : 'strategist');
-    //  ⚠⚠ **평균이 아니라 느린 쪽의 p95** (2026-09-09, RT 인수인계 §rtflow).
-    //    예전엔 두 사람 rtt 의 평균을 썼다. 그러면 **한쪽만 지터가 커도** 그 사람의
-    //    입력이 매번 버퍼를 넘겨 strict lockstep 이 멈춘다 — 그게 태현님이 신고한
-    //    "간헐적 렉"의 한 갈래다. 느린 경로에 맞추면 버퍼가 지터를 삼킨다.
+    //  ⚠⚠ **2026-09-09 되돌림 — 여기를 다시 키우지 말 것.**
+    //    오전에 "지터를 버퍼가 삼키게" 하려고 세 가지를 한꺼번에 키웠다:
+    //      ① rtt 를 중앙값 → p95   ② 두 사람 평균 → **최댓값**   ③ 계수 1.15 → 1.25
+    //    셋이 곱해져 입력 지연이 9틱(300ms) → 14~21틱(470~700ms)이 됐고, 태현님이
+    //    "움직이고나면 1초있다가 움직여 … 게임을할수가없는 지경"으로 신고했다.
+    //    **지연을 늘리는 것은 공짜가 아니다** — 간헐적 스톨을 줄이려다 매 순간을
+    //    느리게 만들면 그건 개선이 아니라 다른 종류의 렉이다.
+    //  ⚠ 지터가 정말 문제라면 **평균 위에 작게 얹는 것**이 맞지, 기준선을 p95 로
+    //    갈아치우는 것이 아니다. 그리고 그 값은 실기기에서 재고 나서 정해야 한다
+    //    (`?diag=1` 의 `rt` 줄) — 지금은 그 숫자가 없다.
     //  ⚠ 두 값은 **세팅 스냅샷에 실려 양쪽이 같은 값을 본다** — 결정적이다.
     //    런타임에 한쪽만 delay 를 바꾸면 즉시 갈라진다(미래 틱 합의 프로토콜이 따로 필요).
-    var pathRtt95 = Math.max(this.mySetup.rtt || 180, this.theirSetup.rtt || 180);
-    var delay = this.local ? 2 : Math.max(3, Math.min(24, Math.ceil(pathRtt95 * 1.25 / 33.4) + 2));
+    var oneWay = ((this.mySetup.rtt || 180) + (this.theirSetup.rtt || 180)) / 2;
+    var delay = this.local ? 2 : Math.max(3, Math.min(24, Math.ceil(oneWay * 1.15 / 33.4) + 2));
     var heroKey = this.mySetup.heroKey || this.theirSetup.heroKey || 'vanguard';
     var rt = {
       seed: this.startMsg.seed >>> 0,

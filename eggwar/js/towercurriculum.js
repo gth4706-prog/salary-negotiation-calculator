@@ -232,7 +232,10 @@ GAME.TowerCurriculum = {
   //  세계마다 다른 것 — 화면 한 줄(rule/field)과 세계 보스 키. 전장 규칙의 실제 값은
   //  `fieldFor`, 세계 조건의 실제 값은 js/towerrule.js `WORLD_RULES` 가 정본이다.
   WORLD_INFO: {
-    meadow: { boss: 'bossNest',
+    //  ⚠ 초원 세계 보스가 둥지 포탑이었는데 **모션이 없다**(2026-09-09 태현님 지시로
+    //    삭제 대상). 8골격만 남기기로 했으므로 네발 용이 받는다 — 초원 끝에서
+    //    처음 만나는 용이라 사건이 되기도 한다.
+    meadow: { boss: 'bossDrakeAsh',
               rule: '규칙 없음 — 기본 진형', field: null,
               short: '기본' },
     mire:   { boss: 'bossSwampMother',

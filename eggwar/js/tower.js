@@ -787,31 +787,40 @@ GAME.Tower = {
   //    용의 알 사다리(알→금 간 알→깨어지는 알→발→손→날개→본체)는 **순서를 지킨 채**
   //    세계 보스 층을 비켜 한 칸씩 앞으로 당겼다: 금 간 알 100→90 · 깨어지는 알 150→140 ·
   //    발 200→180. 손 230·날개 260·본체 300 은 그대로다("얼굴은 300층" 8차 결론 유지).
+  //  ── 층 재배치 (2026-09-09 태현님 지시) ──────────────────────────────────
+  //  보스 골격을 **여덟**으로 줄이고 세계마다 색을 갈아 마흔 마리를 만든다.
+  //  여기 적힌 여덟만 모션 시트(걷기·공격·스킬·사망 12칸)를 갖는다 —
+  //  나오지 않는 보스는 그림만 있고 판넬처럼 흔들려 태현님이 130층에서 신고했다.
+  //
+  //  ⚠ **지운 여덟**(용의 알 3 · 둥지 포탑 · 거대 족장 · 용의 발·손·날개):
+  //    `units.js` 의 def 는 **남긴다**. 여기서 안 부르면 안 나온다 — def 를 지우면
+  //    참조하는 자리(주술사 R 소환 후보·bossart 폴백·로딩 화면)가 조용히 깨진다.
+  //  ⚠ 30·60·100·150·200·250 은 `TowerCurriculum.worldBossKeyFor` 가 **먼저** 정한다
+  //    (`bossKeyFor` 순서). 여기 적어도 무시되므로 세계 보스는 `WORLD_INFO` 에서 바꾼다.
+  //  ⚠ 세계 안에서 층이 오를수록 체급이 커지고 같은 종이 연달아 안 나온다.
   BOSS_SCHEDULE: {
-    10: 'bossChief', 20: 'bossShell', 30: 'bossNest',        // ← 30 초원 세계 보스(현행)
-    40: 'bossAshSentry',
-    50: 'bossDragonEgg',                                    // ← 알(정체 회수)
-    60: 'bossSwampMother',                                  // ← 안개늪 세계 보스
-    70: 'bossDrakeFrost', 80: 'bossDrakeAsh',
-    90: 'bossDragonEggCracked',                             // ← 금 간 알 (100→90)
-    100: 'bossAshLord',                                     // ← 잿더미 세계 보스
-    110: 'bossDrakeFrost', 120: 'bossDrakeStorm',
-    130: 'bossDrakeAsh',
-    140: 'bossDragonCrack',                                 // ← 깨어지는 알(눈만) (150→140)
-    150: 'bossRiftGiant',                                   // ← 균열 세계 보스
-    160: 'bossDrakeStorm', 170: 'bossAshSentry',
-    180: 'bossDragonFoot',                                  // ← 발이 먼저 나온다 (200→180)
-    190: 'bossDrakeFrost',
-    200: 'bossStormKing',                                   // ← 폭풍 하늘 세계 보스(첫 50주기)
-    210: 'bossDrakeStorm', 220: 'bossDrakeAsh',
-    230: 'bossDragonClaw',                                  // ← 손
-    240: 'bossDrakeFrost',
-    250: 'bossStormKing',                                   // ← 50주기
-    260: 'bossDragonWing',                                  // ← 날개
-    300: 'bossDragonLord'                                   // ← 본체(얼굴 공개) — 이후 100마다
+    // 초원 (1~30)
+    10: 'bossShell', 20: 'bossAshSentry', 30: 'bossDrakeAsh',
+    // 안개늪 (31~60)
+    40: 'bossShell', 50: 'bossDrakeFrost', 60: 'bossSwampMother',
+    // 잿더미(용암, 61~100)
+    70: 'bossAshSentry', 80: 'bossDrakeAsh', 90: 'bossRiftGiant', 100: 'bossAshLord',
+    // 균열 (101~150)
+    110: 'bossShell', 120: 'bossAshSentry', 130: 'bossDrakeFrost',
+    140: 'bossDrakeAsh', 150: 'bossRiftGiant',
+    // 폭풍 하늘 (151~)
+    160: 'bossShell', 170: 'bossAshSentry', 180: 'bossSwampMother',
+    190: 'bossDrakeFrost', 200: 'bossStormKing',
+    210: 'bossDrakeAsh', 220: 'bossRiftGiant', 230: 'bossAshLord',
+    240: 'bossAshSentry', 250: 'bossStormKing',
+    260: 'bossDrakeFrost', 270: 'bossSwampMother', 280: 'bossDrakeAsh',
+    290: 'bossRiftGiant',
+    300: 'bossDragonLord'          // ← 태초의 용은 **보류**(모션 없이 정지 그림)
   },
-  //  표에 없는 10의 배수 층은 이 목록이 돈다.
-  BOSS_LATE: ['bossDrakeFrost', 'bossDrakeStorm', 'bossDrakeAsh', 'bossAshSentry'],
+
+  //  300층 뒤 순환 — 모션이 있는 일곱만 돈다(태초의 용은 DRAGON_* 가 따로 잡는다).
+  BOSS_LATE: ['bossShell', 'bossAshSentry', 'bossDrakeFrost', 'bossDrakeAsh',
+              'bossSwampMother', 'bossRiftGiant', 'bossAshLord'],
   //  300층을 넘어가면 본체가 **100층마다**(300·400…) 다시 나오고 그 사이 50주기(350·450…)는
   //  폭풍의 왕이다 — 꼭대기가 없는 탑이므로 '마지막 보스'는 끝이 아니라 **가장 무거운 주기**다.
   DRAGON_FROM: 300,

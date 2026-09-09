@@ -125,6 +125,10 @@ GAME.BattleScene.prototype.init = function (data) {
   //    되돌린다」의 네 번째 판이다. 값이 아니라 **자리**가 문제였다.
   this._dodge = null;
   this._dodgeG = null;
+  //  ⚠ 이펙트 시트 풀도 같은 계열이다 — 씬 인스턴스가 재사용되므로 안 비우면
+  //    지난 판의 파괴된 Image 를 다시 만지고 Phaser 내부에서 터진다(위 네 번의 전례).
+  this._corpse = null;          //  사망 모션 중인 보스 — 안 지우면 다음 판에 시체가 선다
+  if (GAME.FxSheet) GAME.FxSheet.reset();
   this._bubbles = [];           //  떠 있는 말풍선 — 지난 판 것이 파괴된 채 남으면 setPos 에서 터진다
   this._hapKillAt = -1e9;       //  처치 진동 간격(난전에서 연속으로 울리지 않게)
 };
@@ -1171,6 +1175,9 @@ GAME.BattleScene.prototype.create = function () {
   //  붙는다**(boss-shot 프로필을 지우고 재면 80층 이후 7개가 벡터 폴백으로 떴다).
   //  탑은 층 로딩 화면이 미리 불러 줘서 안 보였고, 협동·실시간은 그 화면을 안 지난다.
   this._ensureBossSheet();
+  //  이펙트 시트도 판 시작에 한 번 부른다 — 그리기 루프에서 부르면 첫 광역기가
+  //  터지는 그 순간에 로딩이 걸려 정작 봐야 할 정점을 놓친다(보스 시트와 같은 이유).
+  if (GAME.FxSheet) GAME.FxSheet.preload(this);
   this._setupBossIntro();
 
   this.events.on('shutdown', function () {
@@ -3854,7 +3861,34 @@ GAME.BattleScene.prototype._bakeArena = function () {
   }
 };
 
+//  막 죽은 보스를 **사망 모션이 끝날 때까지만** 그리기 목록에 남긴다.
+//  ⚠ opt-in — `<키>-death` 시트가 없는 보스는 null 을 돌려주므로 예전처럼 즉시 사라진다.
+//    (둥지 포탑처럼 일부러 끈 보스까지 시체로 세우면 그건 버그다.)
+//  ⚠ 시계는 **렌더 시계**다. 시뮬 시계를 쓰면 히트스톱·슬로모에 시체가 끌려간다.
+GAME.BattleScene.prototype._bossCorpse = function (s) {
+  var now = this.time.now, c = this._corpse, i, u;
+  if (c && (now - c.at > c.ms || !c.u)) { this._corpse = null; c = null; }
+  if (!c) {
+    for (i = 0; i < s.units.length; i++) {
+      u = s.units[i];
+      if (!u.def || !u.def.isBoss || u.alive || u._bbCorpsed) continue;
+      var BB = GAME.BossBank, e = BB && BB.metaOf && BB.metaOf(u.def);
+      if (!e) continue;
+      var dm = BB.DATA && BB.DATA[e.key + '-death'];
+      if (!dm || dm.pending || dm.off) continue;      // 사망 시트가 없으면 안 붙잡는다
+      u._bbCorpsed = 1;                                // 한 번만 — 매 프레임 다시 잡지 않는다
+      this._corpse = c = { u: u, at: now, ms: dm.loopMs || 1400 };
+      break;
+    }
+  }
+  return c ? c.u : null;
+};
+
 GAME.BattleScene.prototype.draw = function () {
+  //  이펙트 시트 — 칸을 넘기고 수명이 끝난 것을 숨긴다.
+  //  ⚠ 여기(draw)에 두는 이유: 시계가 **렌더 시계**여야 배속·히트스톱·슬로모에
+  //    그림이 안 끌려간다(bossbank 와 같은 규율). `update` 에 두면 시뮬을 따라간다.
+  if (GAME.FxSheet) GAME.FxSheet.update(this);
   var C = GAME.CONFIG.COLORS;
   var Iso = GAME.Iso;
   var g = this.g;
@@ -3935,6 +3969,29 @@ GAME.BattleScene.prototype.draw = function () {
   //  시안이 모르는 kind(검기·회복·차단·노른자·구체)는 자동으로 원래 코드로 떨어진다.
   var FXS = (GAME.SkillFX && GAME.SkillFX.begin) ? GAME.SkillFX.begin(g, FX, this) : null;
 
+  // ── 이펙트 스프라이트 층 (js/fxsheet.js) ─────────────────────────────
+  //  ⚠ 벡터(FXS)를 **대체하지 않는다.** 그 위에 그림 한 장을 얹는 층이다 —
+  //    보스를 그림으로 갈아엎고 나니 이펙트만 도형이라 격이 안 맞았다(태현님 신고).
+  //  ⚠ 시트가 없거나 파일이 없으면 FS 가 null 이라 **아무 일도 안 일어난다**(opt-in).
+  var FS = GAME.FxSheet || null;
+  //  이펙트 종류 → 시트. **여기 없는 kind 는 벡터만 그린다** — 표를 넓히기 전에
+  //  그 kind 가 실제로 그 그림이어야 하는지 보라(폭발이 아닌 것에 폭발을 얹으면
+  //  화면이 흰 얼룩으로 덮인다).
+  //  ⚠⚠ 이 표의 키는 **실제로 쌓이는 kind** 다(`state.effects.push` 를 세어 맞췄다).
+  //    짐작으로 적으면 한 칸도 안 걸린 채 "배선했다"가 된다 — 모션에서 이미 그렇게
+  //    빈 기계를 완성으로 보고했다(태현님이 130층에서 잡았다).
+  var FXKIND = {
+    blast: 'blast', quake: 'blast', ring: 'blast',   // 터진다
+    donut: 'circle', safezone: 'circle', mark: 'circle',   // 자리에 남는다
+    healPulse: 'aura'                                      // 솟는다
+  };
+  //  ⚠ `ring` 은 **26곳**이 쓰는 만능 고리다 — 흘림(반지름+12) 같은 잔 신호까지 그린다.
+  //    거기까지 그림을 얹으면 화면이 흰 얼룩으로 덮인다. 그래서 **큰 것만** 얹는다:
+  //    신고("이펙트가 초라하다")는 광역기의 정점에 대한 것이지 잔 신호가 아니었다.
+  var FXMIN_R = 70;
+  //  ⚠ `telegraph` 는 일부러 없다 — 예고는 **읽혀야 하는 정보**다. 그림을 얹으면
+  //    반경이 흐려져 "피할 수 없다"가 된다(이 게임이 알 보스에서 겪은 그것).
+
   //  근접 평타 참격 — `_juice` 가 쌓아 둔 렌더 전용 목록을 여기서 비운다.
   //  ⚠ `begin()` **뒤**여야 한다(S.g 가 그때 꽂힌다). 앞에 두면 조용히 아무 일도 안 한다.
   //  ⚠ 유닛보다 **먼저** 그린다 — 참격이 영웅을 덮으면 내가 어디 있는지 안 보인다.
@@ -3986,6 +4043,21 @@ GAME.BattleScene.prototype.draw = function () {
     var col = (e.heroKey && FX.heroFx && FX.heroFx[e.heroKey])
       ? FX.heroFx[e.heroKey]
       : (bossGlowOf(e) || (e.side === 'controller' ? C.controller : C.strategist));
+    //  ── 이펙트 스프라이트 (2026-09-09) ─────────────────────────────────
+    //  ⚠ 벡터를 **대체하지 않고 얹는다.** 시트가 없거나 풀이 찼으면 아무 일도
+    //    안 일어나고 예전처럼 벡터만 그려진다(opt-in). 그림이 벡터 위에 겹쳐
+    //    "터졌다"를 크게 말하고, 벡터가 반경·색 같은 판정 정보를 계속 지킨다.
+    //  ⚠ **터지는 순간에 한 번만** 건다(`_fxOnce`). 매 프레임 걸면 풀이 즉시
+    //    차고 같은 그림이 여러 겹 쌓여 화면이 하얘진다.
+    if (FS && e && !e._fxOnce) {
+      var _fk = FXKIND[e.kind];
+      var _r = e.r || 0;
+      if (_fk && _r >= FXMIN_R) {
+        //  ⚠ 좌표는 `Iso.toScreenY` 로만 옮긴다(x 는 그대로다). 이 게임의 입체 뷰는
+        //    **렌더 전용**이고 세로만 눌린다 — `js/iso.js` 경계 그대로다.
+        if (FS.play(this, _fk, e.x, Iso.toScreenY(e.y), _r, col)) e._fxOnce = 1;
+      }
+    }
     if (FXS && FXS.drawEffect(e, col)) continue;
 
     if (e.kind === 'telegraph') {
@@ -4266,6 +4338,15 @@ GAME.BattleScene.prototype.draw = function () {
   // ── 유닛: 뒤(위)에서 앞(아래) 순으로 그려 겹침이 자연스럽게 ──
   var alive = [];
   for (i = 0; i < s.units.length; i++) if (s.units[i].alive) alive.push(s.units[i]);
+  //  ── 보스 사망 모션 (2026-09-09) ─────────────────────────────────────────
+  //  ⚠⚠ 이 줄이 `alive` 만 담기 때문에 **보스는 죽는 프레임에 그대로 사라졌다.**
+  //    사망 시트 8장을 굽고 DATA 에 등록하고 배포까지 했는데 화면에서는 한 번도
+  //    못 봤다 — 태현님 신고 ③ "보스 사망모션도 없음" 이 바로 이 한 줄이다.
+  //    `bossbank._motionWant` 는 `hp<=0` 을 이미 'death' 로 읽고 latch 까지 건다.
+  //    없던 것은 기제가 아니라 **그릴 기회**였다.
+  //  ⚠ 그리기 목록에만 얹는다 — `s.units` 도 판정도 한 줄도 안 건드린다.
+  var _corpse = this._bossCorpse(s);
+  if (_corpse) alive.push(_corpse);
   //  반전 화면에서는 앞뒤가 뒤집힌다 — 정렬도 같이 뒤집어야 겹침이 자연스럽다.
   alive.sort(GAME.Iso.rtFlip ? function (a, b) { return b.y - a.y; }
                              : function (a, b) { return a.y - b.y; });

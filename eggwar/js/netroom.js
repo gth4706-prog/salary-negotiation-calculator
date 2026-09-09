@@ -226,6 +226,14 @@ GAME.NetRoom = {
         if (GAME.NetRtc) GAME.NetRtc.maybeStart();   // 2명 모이면 P2P 직결 시도
         break;
 
+      //  `/ice` 서명 티켓 (2026-09-09) — 방에 들어온 사람만 TURN 자격증명을 받는다.
+      //  ⚠ welcome 과 **따로** 온다(서버에서 서명이 비동기다). 늦게 와도 괜찮다 —
+      //    그때까지는 STUN 직결로 붙어 있고, 도착하면 다음 요청부터 TURN 이 붙는다.
+      //  ⚠ 방을 나가면 지운다 — 안 지우면 다음 방에서 옛 티켓을 보내 거절당한다.
+      case 'iceticket':
+        this.iceTicket = msg.ticket || '';
+        break;
+
       case 'peer':
         this.peers = msg.peers || this.peers;
         if (msg.host) this.host = msg.host;
@@ -363,6 +371,9 @@ GAME.NetRoom = {
     }
     this.connected = false;
     this.peers = [];
+    //  ⚠ 티켓은 **방마다** 다르다. 안 지우면 다음 방에서 옛 방 티켓을 보내고, 서버가
+    //    "그 방에 없는 사람"으로 거절해 TURN 이 조용히 안 붙는다.
+    this.iceTicket = '';
     this.rttSamples = [];
     this.rttMs = null;
     this._retry = 0;

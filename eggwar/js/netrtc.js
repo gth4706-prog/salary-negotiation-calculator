@@ -62,7 +62,11 @@ GAME.NetRtc = {
     var NR = GAME.NetRoom;
     var url = (NR && NR.BASE ? NR.BASE : '') + '/ice';
     if (!NR || !NR.BASE || typeof fetch !== 'function') return;
-    fetch(url, { cache: 'no-store' }).then(function (r) {
+    //  ⚠ 방에서 받은 서명 티켓을 실어 보낸다 — 없으면 서버가 STUN 만 돌려준다
+    //    (거절이 아니라 폴백이라 대전은 그대로 성립한다).
+    var opt = { cache: 'no-store' };
+    if (NR.iceTicket) opt.headers = { Authorization: 'Bearer ' + NR.iceTicket };
+    fetch(url, opt).then(function (r) {
       return r.ok ? r.json() : null;
     }).then(function (d) {
       if (!d || !d.iceServers || !d.iceServers.length) return;

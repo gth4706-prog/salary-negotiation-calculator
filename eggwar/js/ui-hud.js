@@ -481,6 +481,10 @@ window.GAME = window.GAME || {};
       height: H,
       top: top,
       bottom: top + H,
+      //  ⚠ 보스 바가 실제로 만들어졌는가 — 전투 씬이 **몸에 붙은 보스 체력바를 지울지**
+      //    이걸 보고 정한다(2026-09-09 태현님 ③). 이 HUD 를 안 쓰는 씬(수성의 탑)은
+      //    이 값이 없으므로 예전처럼 몸에 바를 그린다 — 정보가 사라지지 않는다.
+      bossBar: bossBar || null,
       update: function (info) {
         info = info || {};
         timer.setText(info.timeText === undefined ? '' : String(info.timeText));

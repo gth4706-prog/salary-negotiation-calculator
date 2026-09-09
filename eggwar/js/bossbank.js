@@ -28,10 +28,10 @@ GAME.BossBank = (function () {
     //  안 주면 타일 바닥 — 지운 시트는 바닥에 투명 띠가 남아 발이 떠 보인다.
     //  sizeMul 0.8 — 2026-08-23 태현님: "40층 재파수병 크기를 20% 정도 줄여줘".
     "bossAshSentry": {"art":"beast:sentry:ash","tileW":1801,"tileH":1818,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.5698,"pivotY":1818,"sizeMul":0.8},
-    "bossAshSentry-death": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
-    "bossAshSentry-skill": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
-    "bossAshSentry-attack": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
-    "bossAshSentry-walk": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
+    "bossAshSentry-death": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
+    "bossAshSentry-skill": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"pingpong","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
+    "bossAshSentry-attack": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"pingpong","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
+    "bossAshSentry-walk": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"pingpong","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
     "bossChief": {"art":"chieftain","tileW":1918,"tileH":1919,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.157,"pivotY":1919},
     "bossDragonAwakened": {"art":"beast:awakened:ember","tileW":1324,"tileH":711,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.1337},
     "bossDragonClaw": {"art":"beast:claw:ember","tileW":1705,"tileH":1922,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.1744,"pivotY":1922},
@@ -41,24 +41,24 @@ GAME.BossBank = (function () {
     "bossDragonLord": {"art":"beast:dragon:ember","tileW":2048,"tileH":2017,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.7267,"pivotY":2017,"sizeMul":1.4},
     "bossDragonTail": {"art":"beast:tail:ember","tileW":1383,"tileH":481,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":2.7965},
     "bossDrakeAsh": {"art":"beast:drake:ash","tileW":1978,"tileH":1831,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.6453,"pivotY":1831},
-    "bossDrakeAsh-death": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
-    "bossDrakeAsh-skill": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
-    "bossDrakeAsh-attack": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320},
-    "bossDrakeAsh-walk": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossDrakeAsh-death": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320},
+    "bossDrakeAsh-skill": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossDrakeAsh-attack": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossDrakeAsh-walk": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"pingpong","drawScale":1.8605,"pivotY":320},
     "bossDrakeFrost": {"art":"beast:drake:frost","tileW":1969,"tileH":1853,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.7733,"pivotY":1853},
-    "bossDrakeFrost-death": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
-    "bossDrakeFrost-skill": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
-    "bossDrakeFrost-attack": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320},
-    "bossDrakeFrost-walk": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossDrakeFrost-death": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320},
+    "bossDrakeFrost-skill": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossDrakeFrost-attack": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossDrakeFrost-walk": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"pingpong","drawScale":1.8605,"pivotY":320},
     "bossDrakeStorm": {"art":"beast:drake:storm","tileW":1849,"tileH":1606,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":9.3372,"pivotY":1606},
     //  ⚠ 둥지 포탑 — **일부러 끈다**(2026-09-05 태현님: "둥지에서 화살쏘는건 롤백해").
     //     벡터 발리스타로 돌아간다. 시트 파일(assets/boss/bossNest.png)과 실측값은 남긴다.
     "bossNest": {"off":true,"art":"ballista","tileW":1298,"tileH":734,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.2674},
     "bossShell": {"art":"guardian","tileW":1761,"tileH":1876,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.907,"pivotY":1876},
-    "bossShell-death": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
-    "bossShell-skill": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
-    "bossShell-attack": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320},
-    "bossShell-walk": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossShell-death": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320},
+    "bossShell-skill": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossShell-attack": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "bossShell-walk": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"pingpong","drawScale":1.8605,"pivotY":320},
 
     //  ── 시즌2 「다섯 세계」 세계 보스 (2026-09-03 S-A) ─────────────────────────
     //  초원(1~30)은 현행 셋(bossChief·bossShell·bossNest)이 그대로 맡는다.
@@ -88,25 +88,25 @@ GAME.BossBank = (function () {
     //  그 새 항목들의 art 가 `""` 였다 — 시트는 들어왔는데 **아무 보스도 그걸 못 찾는**
     //  상태였다(중복 키라 뒤엣것이 이겨서 조용히 그렇게 된다). 임포터를 쓸 때마다 확인할 것.
     "w_mist_boss": {"art":"beast:bogmother:frost","tileW":1711,"tileH":1892,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11,"pivotY":1892},
-    "w_mist_boss-attack": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320},
-    "w_mist_boss-death": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_mist_boss-skill": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
-    "w_mist_boss-walk": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_mist_boss-attack": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_mist_boss-death": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320},
+    "w_mist_boss-skill": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_mist_boss-walk": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"pingpong","drawScale":1.8605,"pivotY":320},
     "w_ash_boss": {"art":"beast:ashlord:ember","tileW":1560,"tileH":1925,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.1919,"pivotY":1925},
-    "w_ash_boss-death": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_ash_boss-skill": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
-    "w_ash_boss-attack": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320},
-    "w_ash_boss-walk": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_ash_boss-death": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320},
+    "w_ash_boss-skill": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_ash_boss-attack": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_ash_boss-walk": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"pingpong","drawScale":1.8605,"pivotY":320},
     "w_rift_boss": {"art":"beast:riftgiant:ash","tileW":1970,"tileH":1829,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.6337,"pivotY":1829},
-    "w_rift_boss-death": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_rift_boss-skill": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
-    "w_rift_boss-attack": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320},
-    "w_rift_boss-walk": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_rift_boss-death": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320},
+    "w_rift_boss-skill": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_rift_boss-attack": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_rift_boss-walk": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"pingpong","drawScale":1.8605,"pivotY":320},
     "w_storm_boss": {"art":"beast:stormking:storm","tileW":1831,"tileH":1878,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.9186,"pivotY":1878},
-    "w_storm_boss-death": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_storm_boss-skill": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
-    "w_storm_boss-attack": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":640,"play":"pingpong","drawScale":1.8605,"pivotY":320},
-    "w_storm_boss-walk": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":720,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_storm_boss-death": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320},
+    "w_storm_boss-skill": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_storm_boss-attack": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"pingpong","drawScale":1.8605,"pivotY":320},
+    "w_storm_boss-walk": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"pingpong","drawScale":1.8605,"pivotY":320},
     //  용의 발·날개 (2026-09-09) — v1.07 에서 래스터를 접고 벡터로 되돌렸던 둘이다.
     //  이번에 제대로 된 그림이 나와 다시 시트로 돌아왔다(태현님: "동그라미 등 도형으로만
     //  만들어진 용, 이거 깔끔히 다 교체해"). 임포터가 `-Radius` 를 줘야 들어간다 —
@@ -403,6 +403,15 @@ GAME.BossBank = (function () {
       var st = unit._bbMo || (unit._bbMo = { name: '', at: 0 });
       //  사망은 한 번 걸리면 안 풀린다 — 시체가 다시 걷기 시작하면 안 된다.
       if (st.name === 'death') want = 'death';
+      //  ⚠⚠ **공격·스킬은 한 바퀴를 다 돌고 나서 넘긴다** (2026-09-09 태현님 ④
+      //    "스킬이 너무 빨라서 뭐가뭔지 잘 보이지가않아").
+      //    `_motionWant` 는 `atk.strike > 0.02` 처럼 **순간값**을 읽는다 — 그 창이
+      //    닫히는 즉시 걷기로 돌아가 버려서, 공격 시트 12칸 중 앞 서너 칸만 스치고
+      //    사라졌다. 동작이 시작됐으면 **끝까지 보여준다**(사망은 위에서 이미 latch).
+      else if (st.name === 'attack' || st.name === 'skill') {
+        var mHold = DATA[e.key + '-' + st.name];
+        if (mHold && scene.time.now - st.at < (mHold.loopMs || 900)) want = st.name;
+      }
       if (want !== st.name) { st.name = want; st.at = scene.time.now; }
       if (!want) return null;
       var key = e.key + '-' + want;
@@ -622,6 +631,13 @@ GAME.BossBank = (function () {
       var limit = aTop - allow;
       var yFix = (top0 < limit) ? (limit - top0) : 0;
 
+      //  ⚠ **그린 높이를 유닛에 적어 둔다** (2026-09-09 태현님 ②).
+      //    타격 이펙트는 `radius`(판정 반지름)로 자리를 잡는데, 보스는 판정 반지름이
+      //    40 남짓인데 그림은 200px 이 넘는다 → 이펙트가 거대한 몸 **발치에서만** 터져
+      //    "히트박스가 따로 논다"로 읽혔다. 그린 높이를 알면 하반신을 짚을 수 있다.
+      //    렌더 전용 값이다 — 판정은 여전히 `def.radius` 가 정한다.
+      if (unit) { unit._bbH = h; unit._bbTop = sy + yFix - h * py; }
+
       //  발사 순간 이펙트(불티·먼지) — 리그/단일 공통, 렌더 전용.
       this._strikeFx(scene, e.key, def, sx, sy + yFix, w, h, py, flip, depth || 0, atk);
 
@@ -664,8 +680,24 @@ GAME.BossBank = (function () {
         //    넘기면 `t = now/loopMs` 가 이미 수천이라 `floor(t*n)` 이 언제나 상한에
         //    걸려 **처음부터 다 쓰러진 마지막 칸**만 나온다(쓰러지는 과정이 통째로
         //    사라진다). 왕복 재생은 주기 함수라 상관없지만 `once` 는 시작점이 전부다.
-        var clock = play === 'once' ? (scene.time.now - (e.motionAt || 0)) : scene.time.now;
-        var loopNow = m.loopMs * (1 - 0.25 * (atk.moving || 0));
+        //  ⚠⚠ **걷기는 시계가 아니라 «걸어간 거리»로 돈다** (2026-09-09 태현님 ④
+        //    "보스 걷는모션을 좀 더 보폭 관점으로 느리게해주거나").
+        //    시계로 돌리면 제자리에 서 있어도 다리가 같은 속도로 젓고, 느리게 움직여도
+        //    빨리 젓는다 — 발이 땅에서 미끄러진다. `st.walk` 는 **이동량 누적**이라
+        //    (`walk += dist * 0.055`) 여기에 묶으면 한 걸음이 곧 한 보폭이 된다:
+        //    천천히 걸으면 천천히, 멈추면 멈춘다.
+        //  ⚠ STRIDE 는 «한 바퀴에 나아가는 거리». 90px ≈ 보스 제 몸 너비 — 이보다
+        //    작으면 종종걸음, 크면 미끄러진다. 90 → **150**(2026-09-09 2차 지시:
+        //    "보스몹의 모든 프레임이 너무 빨라") — 거대한 것은 성큼성큼 걸어야 무겁다.
+        var isWalk = e.key.length > 5 && e.key.lastIndexOf('-walk') === e.key.length - 5;
+        var clock;
+        if (play === 'once') clock = scene.time.now - (e.motionAt || 0);
+        else if (isWalk) clock = (atk.walk || 0) * (m.loopMs / (0.055 * 150));
+        else clock = scene.time.now;
+        //  ⚠ 옛 코드는 **이동 중이면 모든 모션을 25% 빠르게** 돌렸다. 걷기는 이제
+        //    거리로 도니 필요 없고, 공격·스킬까지 빨라지던 것이 "너무 빨라서 뭐가뭔지
+        //    안 보인다"에 그대로 얹히고 있었다. 배수를 걷어낸다.
+        var loopNow = m.loopMs;
         var fi = this.frameIndex(clock, loopNow, m.phases, play, play === 'once' ? 0 : seedMs);
         var fname = 'p' + fi;
         if (!img.frame || img.frame.name !== fname) img.setFrame(fname);

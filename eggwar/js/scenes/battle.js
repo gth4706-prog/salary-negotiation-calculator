@@ -128,6 +128,7 @@ GAME.BattleScene.prototype.init = function (data) {
   //  ⚠ 이펙트 시트 풀도 같은 계열이다 — 씬 인스턴스가 재사용되므로 안 비우면
   //    지난 판의 파괴된 Image 를 다시 만지고 Phaser 내부에서 터진다(위 네 번의 전례).
   this._corpse = null;          //  사망 모션 중인 보스 — 안 지우면 다음 판에 시체가 선다
+  this._dmgRef = 0;             //  피해 숫자 크기의 기준(이 판의 규모) — 남기면 첫 숫자가 엉뚱해진다
   if (GAME.FxSheet) GAME.FxSheet.reset();
   this._bubbles = [];           //  떠 있는 말풍선 — 지난 판 것이 파괴된 채 남으면 setPos 에서 터진다
   this._hapKillAt = -1e9;       //  처치 진동 간격(난전에서 연속으로 울리지 않게)
@@ -2053,7 +2054,21 @@ GAME.BattleScene.prototype.drawNumbers = function () {
     //  ⚠ 내가 준 피해에만 적용한다. 맞은 쪽까지 커지면 "덜 튀게 한다"는 결정과 어긋난다.
     //  ⚠ 크기는 `setFontSize` 를 부르므로 값이 잘게 흔들리면 매 프레임 재래스터가 된다
     //    → **4px 격자로 양자화**해 캐시가 실제로 듣게 한다.
-    var mag = Math.min(1, Math.log(Math.max(1, n.value)) / Math.log(10000));
+    //  ⚠⚠ 기준이 **10,000 고정**이라 고층에서는 모든 피해가 mag=1 로 붙었다
+    //    (130층 실측: 한 방 134.6k → ln 비 1.28, 상한에 걸림). 그러면 "크기로 정보를
+    //    준다"는 원래 의도가 죽고 **화면만 덮는다** — 태현님 영상에서 「130.5k!」 한
+    //    개가 용을 통째로 가렸다(④ "뭐가뭔지 잘 보이지가않아").
+    //  → 기준을 **이 판의 실제 규모**로 옮긴다. 최근 피해의 지수이동평균과 견줘,
+    //    보통 한 방은 가운데 크기, 8배쯤 되는 한 방만 최대가 된다. 초반·고층 어디서나
+    //    변주가 살아 있고, 대부분의 숫자가 작아져 그림이 드러난다.
+    //  ⚠ 기준은 **내가 준 피해로만** 갱신한다(맞은 쪽까지 섞으면 두 분포가 뭉개진다).
+    //  ⚠ `_dmgRef` 는 `init` 에서 되돌린다 — 지난 판 규모가 남으면 새 판 첫 숫자가 엉뚱해진다.
+    if (mine && n.value > 0) {
+      this._dmgRef = this._dmgRef > 0 ? (this._dmgRef * 0.96 + n.value * 0.04) : n.value;
+    }
+    var ref = this._dmgRef > 0 ? this._dmgRef : 1;
+    var mag = Math.max(0, Math.min(1,
+      0.5 + Math.log(Math.max(1, n.value) / ref) / Math.log(8) * 0.5));
     if (mine) {
       size = Math.round((size * (1 + mag * 0.42)) / 4) * 4;
     }
@@ -3020,15 +3035,26 @@ GAME.BattleScene.prototype._juice = function (dt) {
         //    노른자 살아있는 수가 대부분 0). 이 게임의 피는 노른자다 — 방패를
         //    든 것(방패병 45)만 '단단한 것'이어야 한다.
         var hardHit = (u.def && (u.def.armor || 0) >= 40) || !!u.isBoss;
-        GAME.HitFX.hit(this, u.x, GAME.Iso.toScreenY(u.y) - (u.radius || 14) * 0.5,
+        GAME.HitFX.hit(this, u.x, GAME.Iso.toScreenY(u.y) - this._hitLift(u),
                        pct, hardHit ? 'hard' : 'soft');
       }
     }
     //  죽는 순간 노른자가 크게 터진다(combat.js 의 바닥 얼룩과 짝을 이룬다).
     if (prev !== undefined && prev > 0 && !u.alive && !u.__fxDead) {
       u.__fxDead = true;
+      //  ⚠ **보스가 쓰러지는 순간은 잠깐 늦춘다** (2026-09-09 태현님 ⑤ "사망모션도
+      //    있는지 없는지 안보여"). 사망 시트 12칸이 2초에 도는데, 난전 한복판에서
+      //    2초는 그냥 지나간다 — 반 박자 늦춰야 "쓰러졌다"가 사건이 된다.
+      //  ⚠ **렌더 시간만** 늦춘다(`_slowmo` 는 dt 만 건드리고 delta 는 그대로다) —
+      //    실시간 록스텝을 늦추면 상대를 스톨로 끌고 간다(파일 위쪽 규율).
+      //    그래도 실시간·협동에서는 아예 안 건다: 두 화면이 다르게 흐를 이유가 없다.
+      if (u.def && u.def.isBoss && !this.rt && GAME.Feel && this._slowmo <= 0) {
+        this._slowmo = 420;
+        this._slowmoScale = 0.55;
+      }
       if (GAME.HitFX) {
-        GAME.HitFX.death(this, u.x, GAME.Iso.toScreenY(u.y) - (u.radius || 14) * 0.4, u.radius);
+        GAME.HitFX.death(this, u.x, GAME.Iso.toScreenY(u.y) - this._hitLift(u) * 0.8,
+                         u._bbH > 0 ? u._bbH * 0.22 : u.radius);
       }
       //  처치 진동(2026-09-02) — **내가 적을 잡았을 때만**, 250ms 에 한 번(광역기로
       //  넷이 한 번에 죽으면 한 번만 울린다). 내 영웅의 죽음은 lose 가 담당한다.
@@ -3865,6 +3891,20 @@ GAME.BattleScene.prototype._bakeArena = function () {
 //  ⚠ opt-in — `<키>-death` 시트가 없는 보스는 null 을 돌려주므로 예전처럼 즉시 사라진다.
 //    (둥지 포탑처럼 일부러 끈 보스까지 시체로 세우면 그건 버그다.)
 //  ⚠ 시계는 **렌더 시계**다. 시뮬 시계를 쓰면 히트스톱·슬로모에 시체가 끌려간다.
+//  타격 이펙트가 앉을 **하반신 높이**(화면 px, 발밑에서 위로).
+//  ⚠⚠ 왜 있나 (2026-09-09 태현님 ②): 이펙트 자리를 `def.radius` 로 잡고 있었는데
+//    그건 **판정 반지름**이지 그림 크기가 아니다. 보스는 판정 40 남짓인데 그림이
+//    200px 이 넘어서, 타격 이펙트가 거대한 몸 **발치에서만** 터졌다 — 맞은 자리와
+//    보이는 자리가 따로 놀았다.
+//  ⚠ 그래서 **그린 높이의 30%**(하반신)를 쓴다. 배·다리께라 "여길 때렸다"로 읽히고,
+//    가슴·머리로 올리면 이번엔 발이 허전해진다.
+//  ⚠ 오라·발밑 링은 이 값을 **쓰지 않는다** — 그건 땅에 깔리는 것이라 발밑이 맞다
+//    (태현님: "공격반사 등 오라는 발밑에"). 여기는 타격 계열 전용이다.
+GAME.BattleScene.prototype._hitLift = function (u) {
+  if (u && u._bbH > 0) return u._bbH * 0.30;      // 보스 — 그린 높이 기준
+  return (u && u.radius || 14) * 0.5;             // 일반 유닛 — 예전 그대로
+};
+
 GAME.BattleScene.prototype._bossCorpse = function (s) {
   var now = this.time.now, c = this._corpse, i, u;
   if (c && (now - c.at > c.ms || !c.u)) { this._corpse = null; c = null; }
@@ -4337,6 +4377,8 @@ GAME.BattleScene.prototype.draw = function () {
 
   // ── 유닛: 뒤(위)에서 앞(아래) 순으로 그려 겹침이 자연스럽게 ──
   var alive = [];
+  //  HUD 오른쪽 위에 보스 바가 떠 있는가 — 몸에 붙은 바를 지울지 여기서 정한다.
+  var bossHudOn = !!(this.hud && this.hud.bossBar);
   for (i = 0; i < s.units.length; i++) if (s.units[i].alive) alive.push(s.units[i]);
   //  ── 보스 사망 모션 (2026-09-09) ─────────────────────────────────────────
   //  ⚠⚠ 이 줄이 `alive` 만 담기 때문에 **보스는 죽는 프레임에 그대로 사라졌다.**
@@ -4629,7 +4671,16 @@ GAME.BattleScene.prototype.draw = function () {
       bw: u.isHero ? 64 : Math.max(22, u.def.radius * 2.3),
       barH: u.isHero ? 7 : 4,
       //  황금알(noHpBar): 체력바 대신 균열 5단계가 상태를 말한다(태현님 지시).
-      noBar: !!u.def.noHpBar,
+      //  ⚠ 보스도 몸에 안 붙인다 (2026-09-09 태현님 ③ "보스 체력바는 우측 상단에
+      //    있으니 생략해"). 폭이 `radius*2.3` 이라 거대한 몸 한가운데 짧은 막대가
+      //    떠서 읽히지도 않았고, 같은 정보가 HUD 에 이미 크게 나와 있다.
+      //  ⚠ 몸에 붙은 바를 지우는 조건은 **HUD 가 그 보스를 실제로 띄울 때**다
+      //    — `updateHud` 가 살아 있는 보스를 찾아 그리므로(같은 조건) 정보가 사라지지 않는다.
+      //  ⚠ 조건은 **HUD 가 실제로 보스 바를 갖고 있을 때**로 좁힌다. `isBoss` 만 보고
+      //    지우면 수성의 탑(defend.js)이 다친다 — 그 씬은 이 HUD 를 안 쓰므로 보스
+      //    체력을 말해 줄 곳이 한 군데도 없어진다. "우측 상단에 있으니 생략"이지
+      //    "없어도 된다"가 아니다.
+      noBar: !!u.def.noHpBar || (!!u.def.isBoss && bossHudOn),
       ratio: u.hp / u.maxHp,
       shield: u.shield > 0 ? Math.min(1, u.shield / u.maxHp) : 0,
       unit: u                    // 시즌2 표식·소환 수명·페이즈 링이 오버레이에서 읽는다

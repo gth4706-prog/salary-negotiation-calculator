@@ -338,7 +338,7 @@ window.GAME = window.GAME || {};
     S.g.lineStyle(2.5, col, a * 0.85 * S.RA);
     S.g.lineBetween(e.x1, gy1, e.x2, gy2);
     // 도착 순간의 섬광 — '여기 꽂혔다'
-    var dburst = Math.max(0, 1 - p / 0.45);
+    var dburst = Math.max(0, 1 - p / 0.72);
     if (dburst > 0) {
       gfill(e.x2, e.y2, 14 + p * 40, col, 0.34 * dburst * dburst * S.FA);
       gink(e.x2, e.y2, 16 + p * 38, 2.5 + 3 * dburst, col, 0.95 * dburst * S.RA);
@@ -384,12 +384,12 @@ window.GAME = window.GAME || {};
     var M = S.MAT, r = e.r * (1 + p * 0.10);
     var G = gm(e);                                  // 위력 단계 — 굵기·장식 수만(2026-09-09)
     // 바닥 — 흙이 파인 자리. 세계관(원시 부족)의 재질은 여기가 지킨다.
-    gfill(e.x, e.y, r, grd(M.clay), 0.13 * a * S.FA);
+    gfill(e.x, e.y, r, grd(M.clay), 0.21 * a * S.FA);
     // 터지는 순간의 섬광 — 앞 30% 동안만, 안쪽에서 바깥으로.
     //  ⚠ 구간을 0.30 → 0.55 로 늘렸다. 320ms 짜리 이펙트에서 30% 는 **96ms** 라
     //    프레임 두세 장이고, 실제로 찍어 보니 섬광이 이미 사라진 뒤였다.
     //    '터졌다'가 읽히려면 사람 눈이 붙잡을 시간이 있어야 한다.
-    var burst = Math.max(0, 1 - p / 0.55);
+    var burst = Math.max(0, 1 - p / 0.84);
     if (burst > 0) {
       var bb = burst * burst;
       gfill(e.x, e.y, r * (0.26 + p * 1.9), col, 0.42 * bb * S.FA);
@@ -615,7 +615,7 @@ window.GAME = window.GAME || {};
     // 파헤쳐진 흙
     gfill(e.x, e.y, r * 0.92, grd(M.clay), (0.30 * b) * S.FA);
     // 터지는 순간 — 안에서 밖으로 확 퍼진다
-    var bburst = Math.max(0, 1 - p / 0.50);
+    var bburst = Math.max(0, 1 - p / 0.78);
     if (bburst > 0) {
       gfill(e.x, e.y, r * (0.35 + p * 1.6), BC, 0.40 * bburst * bburst * S.FA);
       gink(e.x, e.y, r * (0.40 + p * 1.4), (3 + 4 * bburst) * G, BC, bburst * S.RA);
@@ -738,7 +738,7 @@ window.GAME = window.GAME || {};
     dust(e.x, e.y, 9 + p * 10, a * 0.95);
     // 맞은 순간의 짧은 빛 — 누가 때렸는지가 색으로 남는다(2026-08-01)
     if (p < 0.5) {
-      var kb = 1 - p / 0.5;
+      var kb = 1 - p / 0.78;
       gfill(e.x, e.y, 7 + p * 22, col, 0.30 * kb * kb * S.FA);
     }
   }
@@ -878,7 +878,7 @@ window.GAME = window.GAME || {};
     var M = S.MAT;
     var G = gm(e);                              // 급 — 링 굵기만(반경 불변)
     // 몸을 감싸며 올라오는 빛 — 터지는 순간에 한 번 크게
-    var burst = Math.max(0, 1 - p / 0.45);
+    var burst = Math.max(0, 1 - p / 0.72);
     if (burst > 0) {
       gfill(e.x, e.y, e.r * (0.5 + p * 1.1), col, 0.30 * burst * burst * S.FA);
       gink(e.x, e.y, e.r * (0.6 + p * 1.0), (3 + 4 * burst) * G, col, 0.95 * burst * S.RA);
@@ -1030,7 +1030,7 @@ window.GAME = window.GAME || {};
     }
     // 부채꼴 테두리를 영웅 색으로 한 겹 더 — 흙빛만이면 누가 당겼는지 안 보인다
     groundArc(e.x, e.y, e.range * 1.01, e.angle - e.half, e.angle + e.half, 4 * G, col, a * 0.9);
-    var pburst = Math.max(0, 1 - p / 0.40);
+    var pburst = Math.max(0, 1 - p / 0.66);
     if (pburst > 0) {
       groundArc(e.x, e.y, e.range * (0.6 + p * 0.5), e.angle - e.half, e.angle + e.half,
                 (2 + 3 * pburst) * G, col, 0.85 * pburst);
@@ -1260,7 +1260,7 @@ window.GAME = window.GAME || {};
     var r = e.r || 80;
     var g = S.g;
     //  ① 일식 — 처음 30% 동안 중심이 어둡다가 걷힌다
-    var ecl = Math.max(0, 1 - p / 0.3);
+    var ecl = Math.max(0, 1 - p / 0.52);
     gfill(e.x, e.y, r * 0.55, S.INKA > 0 ? S.INK : 0x0b0b12, 0.55 * ecl * S.FA);
     //  ② 이중 링 — 본파와 0.12 늦은 잔파
     gink(e.x, e.y, r * (0.15 + p * 1.0), 3.5 * a + 1, col, a * 0.95 * S.RA);

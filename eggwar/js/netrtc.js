@@ -27,12 +27,19 @@ GAME.NetRtc = {
   _open: false,
   _dead: false,        // 이 방에서 P2P 포기(실패 확정) — reset() 전까지 재시도 없음
   rttMs: null,         // DataChannel 실측 왕복지연 (록스텝 입력 지연 산정에 쓰인다)
+  //  ⚠ **p95 를 따로 둔다** — 중앙값만 쓰면 모바일 지터가 입력 버퍼를 넘을 때마다
+  //    strict lockstep 이 멈춘다(그게 "간헐적 렉"으로 보인다). `rtflow` 가 이 값을 읽는다.
+  rttP95Ms: null,
+  _fastPingCount: 0,
   _samples: [],
   _pingSeq: 0,
   _pingAt: {},
   _pingTimer: null,
 
   supported: function () { return typeof RTCPeerConnection === 'function'; },
+  //  ⚠ `ready()`(붙었다)와 `measurementReady()`(잴 만큼 쟀다)는 **다른 질문**이다.
+  //    붙자마자 delay 를 굳히면 표본 한두 개로 정하게 된다 — 그 값이 판 내내 간다.
+  measurementReady: function () { return this.ready() && this._samples.length >= 8; },
   ready: function () {
     return this._open && !this._dead && this.dc && this.dc.readyState === 'open';
   },
@@ -166,11 +173,24 @@ GAME.NetRtc = {
   },
 
   // ── DataChannel 자체 왕복지연 — 록스텝 입력 지연은 **실제 경로**의 rtt 를 봐야 한다 ──
+  //  ⚠⚠ **빠른 워밍업** (2026-09-09, RT 인수인계 `INTEGRATION-MAP.md` §netrtc).
+  //    예전엔 2초마다 한 번이라 표본 8개를 모으는 데 **16초**가 걸렸다. 준비 화면이
+  //    60초라 판이 시작될 때까지 측정이 안 끝나고, 그러면 `rtflow` 가 기본값 180ms 로
+  //    입력 지연을 굳혀 **직결이 2ms 인데도 서버 경유 왕복 기준**으로 논다.
+  //    250ms × 12회 = 3초면 끝난다. 그 뒤엔 다시 2초 주기로 돌아간다(부하 없음).
   _startPing: function () {
     var self = this;
     this._stopPing();
+    this._fastPingCount = 0;
     this._ping();
-    this._pingTimer = setInterval(function () { self._ping(); }, 2000);
+    this._pingTimer = setInterval(function () {
+      self._ping();
+      self._fastPingCount++;
+      if (self._fastPingCount >= 12) {
+        self._stopPing();
+        self._pingTimer = setInterval(function () { self._ping(); }, 2000);
+      }
+    }, 250);
   },
   _stopPing: function () {
     if (this._pingTimer) { clearInterval(this._pingTimer); this._pingTimer = null; }
@@ -190,6 +210,7 @@ GAME.NetRtc = {
     if (this._samples.length > 9) this._samples.shift();
     var s = this._samples.slice().sort(function (a, b) { return a - b; });
     this.rttMs = s[(s.length - 1) >> 1];
+    this.rttP95Ms = s[Math.max(0, Math.ceil(s.length * 0.95) - 1)];
   },
 
   _fail: function () {
@@ -208,6 +229,6 @@ GAME.NetRtc = {
     if (this.pc) { try { this.pc.close(); } catch (e) {} }
     this.pc = null; this.dc = null;
     this._open = false; this._dead = false;
-    this.rttMs = null; this._samples = []; this._pingAt = {};
+    this.rttMs = null; this.rttP95Ms = null; this._samples = []; this._pingAt = {};
   }
 };

@@ -289,9 +289,15 @@ GAME.NetRoom = {
   },
 
   //  록스텝 입력 지연 산정용 — 실제로 메시지가 다닐 경로의 왕복지연.
+  //  ⚠ P2P 가 붙었으면 **직결 rtt 의 p95** 를 쓴다(2026-09-09, RT 인수인계 §netroom).
+  //    중앙값을 쓰면 `rtflow` 의 delay 가 지터를 못 삼켜 strict lockstep 이 멈춘다.
+  //    p95 가 아직 없으면(표본 부족) 중앙값으로, 직결이 없으면 WS rtt 로 떨어진다.
   bestRtt: function () {
     var rc = GAME.NetRtc;
-    if (rc && rc.ready() && rc.rttMs != null) return rc.rttMs;
+    if (rc && rc.ready()) {
+      if (rc.rttP95Ms != null) return rc.rttP95Ms;
+      if (rc.rttMs != null) return rc.rttMs;
+    }
     return this.rttMs;
   },
 

@@ -213,10 +213,22 @@ GAME.Lockstep = (function () {
   //  반환: 이번 호출에서 실행한 틱 수(0 이면 스톨 중 — 화면에 "동기화 중" 표시용).
   Session.prototype.advance = function (dtMs) {
     if (this.desynced || this.state.over) return 0;
+    var frameDt = dtMs;
     this.acc += dtMs;
     var ran = 0;
     while (this.acc >= TICK_MS && !this.state.over) {
-      if (!this.canRun()) { this.stalledMs += this.acc; this.acc = 0; break; }
+      //  ⚠⚠ 스톨 처리 (2026-09-09, RT 인수인계 §lockstep).
+      //   ① `stalledMs` 에 **실제 프레임 dt** 를 더한다. 예전엔 `acc`(누적값)를 더해
+      //      스톨이 길수록 같은 시간을 여러 번 세어 진단 줄이 부풀었다.
+      //   ② `acc` 를 전부 버리지 않고 **2틱 부채**를 남긴다. 예전엔 0 으로 밀어
+      //      네트워크가 풀릴 때마다 그만큼이 영영 사라졌다 — 판이 길수록
+      //      상대와 내 시계가 벌어지는 **영구 시간 지연**이 된다.
+      //      2틱이면 다음 프레임들에서 부드럽게 따라잡고 순간이동은 안 난다.
+      if (!this.canRun()) {
+        this.stalledMs += frameDt;
+        this.acc = Math.min(this.acc, TICK_MS * 2);
+        break;
+      }
       this.acc -= TICK_MS;
       this.step();
       ran++;

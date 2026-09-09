@@ -489,8 +489,14 @@ GAME.RtFlow = {
     //  팀 라벨: 방장 = 'controller' 팀 · 손님 = 'strategist' 팀 (역할과 무관한 자리 이름).
     //  연습 대전은 언제나 내가 'controller' 팀 · 지연 2틱(네트워크 없음).
     var meTeam = this.local ? 'controller' : ((NR.me === NR.host) ? 'controller' : 'strategist');
-    var oneWay = ((this.mySetup.rtt || 180) + (this.theirSetup.rtt || 180)) / 2;
-    var delay = this.local ? 2 : Math.max(3, Math.min(24, Math.ceil(oneWay * 1.15 / 33.4) + 2));
+    //  ⚠⚠ **평균이 아니라 느린 쪽의 p95** (2026-09-09, RT 인수인계 §rtflow).
+    //    예전엔 두 사람 rtt 의 평균을 썼다. 그러면 **한쪽만 지터가 커도** 그 사람의
+    //    입력이 매번 버퍼를 넘겨 strict lockstep 이 멈춘다 — 그게 태현님이 신고한
+    //    "간헐적 렉"의 한 갈래다. 느린 경로에 맞추면 버퍼가 지터를 삼킨다.
+    //  ⚠ 두 값은 **세팅 스냅샷에 실려 양쪽이 같은 값을 본다** — 결정적이다.
+    //    런타임에 한쪽만 delay 를 바꾸면 즉시 갈라진다(미래 틱 합의 프로토콜이 따로 필요).
+    var pathRtt95 = Math.max(this.mySetup.rtt || 180, this.theirSetup.rtt || 180);
+    var delay = this.local ? 2 : Math.max(3, Math.min(24, Math.ceil(pathRtt95 * 1.25 / 33.4) + 2));
     var heroKey = this.mySetup.heroKey || this.theirSetup.heroKey || 'vanguard';
     var rt = {
       seed: this.startMsg.seed >>> 0,

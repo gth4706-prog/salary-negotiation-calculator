@@ -537,7 +537,9 @@ GAME.BossBank = (function () {
       var now = scene.time.now;
       var st = u._bbAtk || (u._bbAtk = { prevAbil: 0, prevCd: 0, strikeAt: -1e9,
         px: u.x, py: u.y, walk: 0, mv: 0, introAt: now });
-      var abilT = u.abilT || 0;
+      //  ⚠ 궁극기(`ultT`)도 **예고**다 — 모션이 이걸 못 보면 궁극을 쓰는 동안
+      //    보스가 걷기 시트로 서 있게 된다(2026-09-10 궁극 도입과 짝).
+      var abilT = Math.max(u.abilT || 0, u.ultT || 0);
       //  예고 총 길이 — def 에서 읽는다(복수 스킬이면 붙잡힌 현재 스킬).
       var ab = u._abilCur || (u.def && u.def.ability) || null;
       var tel = (ab && ab.telegraph) || 600;

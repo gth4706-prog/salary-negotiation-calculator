@@ -3451,6 +3451,41 @@ GAME.Combat = {
     if (!ab) return false;
     var dtMs = dt * 1000;
 
+    //  ── 궁극기 — **자기 타이머로 돈다** (2026-09-10 태현님) ────────────────────
+    //  ⚠⚠ 왜 따로인가: 능력들은 `u.abilCd` **하나를 공유**한다. 궁극을 그 순환에
+    //    넣으면 다른 능력의 쿨까지 함께 밀려 "10초에 한 번"이 안 나온다(순환 순서에
+    //    따라 20초가 되기도 한다). 박자를 정확히 지키려면 시계가 따로여야 한다.
+    //  ⚠ `def.ultimate` 가 없으면 **아무 일도 안 일어난다**(opt-in) — 보스 여덟 말고는
+    //    한 줄도 안 바뀐다. 이 저장소가 `abilities`·`slowMul` 에서 쓴 패턴 그대로다.
+    //  ⚠ 궁극이 나가는 동안에는 일반 능력을 건드리지 않는다(예고↔폭발 일치).
+    var ult = u.def.ultimate;
+    if (ult && !u._ultDone) {
+      if (u.ultCd === undefined) u.ultCd = ult.cooldown * (0.55 + GAME.Combat.rand() * 0.35);
+      if (u.ultCd > 0) u.ultCd -= dtMs;
+      if (u.ultT > 0) {
+        u.ultT -= dtMs;
+        if (u.ultT <= 0) {
+          var selfU = this;
+          this._withAbilFx(state, u, ult, function () { selfU._execAbility(u, state, ult); });
+          u.ultCd = ult.cooldown;
+        }
+        return true;                       // 시전 중에는 다른 것을 안 한다
+      }
+      if (u.ultCd <= 0 && u.rootedFor <= 0) {
+        var uTgt = this.nearestEnemy(u, state.units, state);
+        if (uTgt) {
+          u.ultT = ult.telegraph;
+          u._abilCur = ult;                //  예고↔폭발이 같은 것을 가리키게(모션도 이걸 본다)
+          //  ⚠ 궁극은 **제 자리에서** 터지는 논타겟이다(도넛) — 조준점을 자기로 둔다.
+          u.abilX = u.x; u.abilY = u.y;
+          this._pushTelegraph(u, state, ult);
+          if (state) { state.abilCasts = state.abilCasts || {};
+            state.abilCasts[ult.type] = (state.abilCasts[ult.type] || 0) + 1; }
+          return true;
+        }
+      }
+    }
+
     if (u.abilCd === undefined) { u.abilCd = ab.cooldown * (0.35 + GAME.Combat.rand() * 0.5); u.abilT = 0; }
     if (u.abilCd > 0) u.abilCd -= dtMs;
 
@@ -3605,6 +3640,15 @@ GAME.Combat = {
       }
     }
     this.faceAttack(u, GAME.DetMath.atan2(u.abilY - u.y, u.abilX - u.x));
+    this._pushTelegraph(u, state, ab);
+    return true;
+  },
+
+  //  ── 예고 원을 띄운다 (2026-09-10 분리) ──────────────────────────────────────
+  //  ⚠⚠ 일반 능력과 **궁극기가 같은 예고를 쓰게** 하려고 뺐다. 베껴 두면 한쪽만
+  //    고쳐져 «그림과 판정이 다른 예고»가 된다 — 이 게임이 가장 크게 어긴 적 있는
+  //    약속(알 보스 10k, "예고를 보고 피했는데 맞았다")이 바로 그 자리다.
+  _pushTelegraph: function (u, state, ab) {
     state.effects.push({
       //  ⚠ `pull` 도 **제 자리에서** 퍼진다(덩굴채). 여기 안 넣으면 예고 원이
       //    `u.abilX`(=조준점) 에 떠서 "저기서 온다"고 거짓말을 한다.
@@ -3637,7 +3681,6 @@ GAME.Combat = {
       // 이미 owner 를 싣고 있었는데, 이 '예고 중' 미리보기 예고에는 없었다.
       owner: u
     });
-    return true;
   },
 
   _execAbility: function (u, state, ab) {

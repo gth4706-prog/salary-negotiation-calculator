@@ -279,20 +279,41 @@ GAME.BOSS_UNITS = {
     key: 'bossAshSentry', name: '재 파수병', art: 'beast:sentry:ash', isBoss: true,
     lore: '탑 위에서 내려온 재를 뒤집어쓴 채 굳어 버린 파수병. 뿔이 돋기 시작했다.',
     desc: '재를 뒤집어쓴 파수병. 재가 쌓인 자리를 넓게 짓밟는다.',
-    cost: 0, hp: 2310, armor: 30, speed: 92, range: 104, damage: 35, cooldown: 1250,
-    guard: { every: 12500, warn: 900, ms: 3800, cut: 0.15, reflect: 0.50 },
-    attack: 'melee', coneDeg: 120,
+    cost: 0, hp: 2310, armor: 30, speed: 92, range: 420, damage: 35, cooldown: 2500,
+    guard: { every: 12500, warn: 900, ms: 3800, cut: 0.15, reflect: 0.50 },    //  ⚠ 2026-09-10 태현님: "타겟스킬은 평타로 간주하여 공격모션을 쓰고 기본
+    //    원거리로 때릴 수 있게" → `targeted`(자동명중 원거리, 저격수와 같은 방식).
+    //    예전 `melee`(사거리 104~150) 로는 영웅이 안 붙으면 보스가 아무것도
+    //    못 했다. 회피 불가인 대신 **주기가 2.5초로 느리다**(이 게임의 스킬
+    //    경제 그대로: 타겟은 비싸고 소수, 논타겟은 싸고 회피 가능).
+
+    attack: 'targeted', coneDeg: 120,
     radius: 29, shape: 'star', weapon: 'riotShield',
     chase: 460, aggro: 460,
     //  궁극 「잿더미 붕괴」(2026-08-23 태현님: "맵 과반에 빨간 원, 피하는 플레이") —
     //  전장 절반을 덮는 거대 원 하나. fuse 2.6초 동안 걸어 나가면 피해진다.
+    //  ── 궁극기 (2026-09-10 태현님) ─────────────────────────────────────────
+    //  "별도 궁극기가 있어야하고 궁극기는 10초에 1번정도 써야하고 논타겟인데
+    //   전장 절반가까이에 해당하면서도 피할곳은 있어야해"
+    //  ⚠ **도넛**이라 «피할 곳»이 구조로 보장된다 — 가운데(inner)가 안전지대다.
+    //    전장은 1300x608 이라 바깥 430(지름 860)이면 폭의 66%, 높이보다 크다.
+    //  ⚠ 예고 1.65초 — 영웅 속도 158(가장 느린 축)이면 261px 를 움직인다.
+    //    바깥 430에서 안쪽 205까지는 225px 라 **여유 36px** 로 들어간다.
+    //    처음엔 1.5초/190 으로 뒀다가 감사가 «이동 237 < 띠 240» 으로 잡았다 —
+    //    3px 차이로 «못 피하는 한 방»이었다. 산수로 물었기에 잡혔다.
+    //    이 숫자를 만질 때는 그 관계를 같이 볼 것 — 안 그러면 못 피하는 한 방이 된다.
+    //  ⚠ `ultimate` 는 **자기 타이머**로 돈다(js/combat.js) — 일반 능력의 5초
+    //    주기를 밀지 않는다. 없는 유닛은 아무 일도 안 일어난다(opt-in).
+    ultimate: { type: 'donut', motif: 'ash', cooldown: 10000, telegraph: 1650,
+                minRange: 0, maxRange: 4000, radius: 430, inner: 205,
+                //  평타의 5배 — 큰 한 방이되 «피하면 안 맞는» 것이라 세도 된다.
+                damage: 175, knockback: 30 },
     abilities: [
-      { type: 'charge', cooldown: 6000, telegraph: 560,
+      { type: 'charge', cooldown: 5000, telegraph: 560,
         minRange: 150, maxRange: 500, dist: 500,
         damage: 140, radius: 70, knockback: 58 },
       //  ⚠ 잉걸불 — 예고 자리에 불을 남긴다. 회피 계약은 그대로다(보고 비키면 안 맞는다).
       //    대신 **비킨 그 자리를 몇 초간 못 쓴다** — 피하는 것과 자리를 잃는 것은 다르다.
-      { type: 'ember', motif: 'ember', cooldown: 11000, telegraph: 900,
+      { type: 'ember', motif: 'ember', cooldown: 5000, telegraph: 900,
         minRange: 0, maxRange: 4000,
         radius: 150, ms: 5200, dps: 95, maxZones: 3 }
     ]
@@ -302,22 +323,43 @@ GAME.BOSS_UNITS = {
     key: 'bossDrakeAsh', name: '잿날개', art: 'beast:drake:ash', isBoss: true,
     lore: '용이 거느린 것 중 가장 작은 것. 그런데도 부족 하나를 하룻밤에 지웠다.',
     desc: '용의 부하. 낮게 날아와 덮치고, 재를 흩뿌린다.',
-    cost: 0, hp: 2310, armor: 30, speed: 118, range: 112, damage: 32, cooldown: 1150,
-    guard: { every: 12000, warn:  900, ms: 4000, cut: 0.15, reflect: 0.50 },
-    attack: 'melee', coneDeg: 110,
+    cost: 0, hp: 2310, armor: 30, speed: 118, range: 420, damage: 32, cooldown: 2500,
+    guard: { every: 12000, warn:  900, ms: 4000, cut: 0.15, reflect: 0.50 },    //  ⚠ 2026-09-10 태현님: "타겟스킬은 평타로 간주하여 공격모션을 쓰고 기본
+    //    원거리로 때릴 수 있게" → `targeted`(자동명중 원거리, 저격수와 같은 방식).
+    //    예전 `melee`(사거리 104~150) 로는 영웅이 안 붙으면 보스가 아무것도
+    //    못 했다. 회피 불가인 대신 **주기가 2.5초로 느리다**(이 게임의 스킬
+    //    경제 그대로: 타겟은 비싸고 소수, 논타겟은 싸고 회피 가능).
+
+    attack: 'targeted', coneDeg: 110,
     radius: 30, shape: 'star', weapon: 'rifle',
     chase: 560, aggro: 560,
     // 급강하 — 가장 빠른 놈이라 거리를 더 멀리 지운다. 예고는 짧지만 사거리가 길다.
     //  궁극 「재구름 폭격」 — 중형 원 5개가 시차로 쏟아진다.
+    //  ── 궁극기 (2026-09-10 태현님) ─────────────────────────────────────────
+    //  "별도 궁극기가 있어야하고 궁극기는 10초에 1번정도 써야하고 논타겟인데
+    //   전장 절반가까이에 해당하면서도 피할곳은 있어야해"
+    //  ⚠ **도넛**이라 «피할 곳»이 구조로 보장된다 — 가운데(inner)가 안전지대다.
+    //    전장은 1300x608 이라 바깥 430(지름 860)이면 폭의 66%, 높이보다 크다.
+    //  ⚠ 예고 1.65초 — 영웅 속도 158(가장 느린 축)이면 261px 를 움직인다.
+    //    바깥 430에서 안쪽 205까지는 225px 라 **여유 36px** 로 들어간다.
+    //    처음엔 1.5초/190 으로 뒀다가 감사가 «이동 237 < 띠 240» 으로 잡았다 —
+    //    3px 차이로 «못 피하는 한 방»이었다. 산수로 물었기에 잡혔다.
+    //    이 숫자를 만질 때는 그 관계를 같이 볼 것 — 안 그러면 못 피하는 한 방이 된다.
+    //  ⚠ `ultimate` 는 **자기 타이머**로 돈다(js/combat.js) — 일반 능력의 5초
+    //    주기를 밀지 않는다. 없는 유닛은 아무 일도 안 일어난다(opt-in).
+    ultimate: { type: 'donut', motif: 'ash', cooldown: 10000, telegraph: 1650,
+                minRange: 0, maxRange: 4000, radius: 430, inner: 205,
+                //  평타의 5배 — 큰 한 방이되 «피하면 안 맞는» 것이라 세도 된다.
+                damage: 160, knockback: 30 },
     abilities: [
       //  ⚠ desc 가 "낮게 날아와 덮치고, **재를 흩뿌린다**" 인데 흩뿌리는 능력이
       //    없었다(돌진+폭격 둘뿐). 재는 스킬 쿨을 늘린다 — 한 번 쓸 때 확실히 쓰게 만든다.
-      { type: 'ashcloud', cooldown: 10000, telegraph: 800,
+      { type: 'ashcloud', cooldown: 5000, telegraph: 800,
         minRange: 0, maxRange: 4000,
         radius: 300, ms: 5000, cdMul: 1.4 },
       //  ⚠ 용은 **숨을 뿜는다** — 부채꼴이라 뒤로 도망가면 계속 맞는다. **옆으로** 비켜야 한다.
       //    원형 예고만 겪던 사람이 처음으로 "멀어지기"가 안 통하는 판을 만난다.
-      { type: 'breath', motif: 'ember', cooldown: 11000, telegraph: 1300,
+      { type: 'breath', motif: 'ember', cooldown: 5000, telegraph: 1300,
         minRange: 0, maxRange: 4000,
         damage: 185, coneDeg: 74, dist: 460, knockback: 30 }
     ]
@@ -327,9 +369,14 @@ GAME.BOSS_UNITS = {
     key: 'bossDrakeFrost', name: '서리 권속', art: 'beast:drake:frost', isBoss: true,
     lore: '숨을 뱉으면 골짜기가 하얗게 언다. 얼어붙은 것은 다시 움직이지 못한다.',
     desc: '서리를 뿌리는 권속. 넓은 자리를 얼려 발을 묶는다.',
-    cost: 0, hp: 2240, armor: 34, speed: 104, range: 120, damage: 35, cooldown: 1250,
-    guard: { every: 11800, warn:  900, ms: 4100, cut: 0.15, reflect: 0.52 },
-    attack: 'melee', coneDeg: 120,
+    cost: 0, hp: 2240, armor: 34, speed: 104, range: 420, damage: 35, cooldown: 2500,
+    guard: { every: 11800, warn:  900, ms: 4100, cut: 0.15, reflect: 0.52 },    //  ⚠ 2026-09-10 태현님: "타겟스킬은 평타로 간주하여 공격모션을 쓰고 기본
+    //    원거리로 때릴 수 있게" → `targeted`(자동명중 원거리, 저격수와 같은 방식).
+    //    예전 `melee`(사거리 104~150) 로는 영웅이 안 붙으면 보스가 아무것도
+    //    못 했다. 회피 불가인 대신 **주기가 2.5초로 느리다**(이 게임의 스킬
+    //    경제 그대로: 타겟은 비싸고 소수, 논타겟은 싸고 회피 가능).
+
+    attack: 'targeted', coneDeg: 120,
     radius: 30, shape: 'star', weapon: 'riotShield',
     chase: 560, aggro: 560,
     //  상시 한기(2026-08-23 광역 디버프) — 곁에 서 있는 동안만 느려진다(0.6초 갱신).
@@ -338,8 +385,24 @@ GAME.BOSS_UNITS = {
     // `slowMul`/`slowMs`는 늪지기 스킬이 이미 쓰는 필드라 combat.js 는 한 글자도
     // 안 바뀐다. "얼어붙은 것은 다시 움직이지 못한다"는 lore 그대로 실현된다.
     //  궁극 「눈사태」 — 전장 절반이 어는 거대 원. 맞으면 발이 거의 멎는다.
+    //  ── 궁극기 (2026-09-10 태현님) ─────────────────────────────────────────
+    //  "별도 궁극기가 있어야하고 궁극기는 10초에 1번정도 써야하고 논타겟인데
+    //   전장 절반가까이에 해당하면서도 피할곳은 있어야해"
+    //  ⚠ **도넛**이라 «피할 곳»이 구조로 보장된다 — 가운데(inner)가 안전지대다.
+    //    전장은 1300x608 이라 바깥 430(지름 860)이면 폭의 66%, 높이보다 크다.
+    //  ⚠ 예고 1.65초 — 영웅 속도 158(가장 느린 축)이면 261px 를 움직인다.
+    //    바깥 430에서 안쪽 205까지는 225px 라 **여유 36px** 로 들어간다.
+    //    처음엔 1.5초/190 으로 뒀다가 감사가 «이동 237 < 띠 240» 으로 잡았다 —
+    //    3px 차이로 «못 피하는 한 방»이었다. 산수로 물었기에 잡혔다.
+    //    이 숫자를 만질 때는 그 관계를 같이 볼 것 — 안 그러면 못 피하는 한 방이 된다.
+    //  ⚠ `ultimate` 는 **자기 타이머**로 돈다(js/combat.js) — 일반 능력의 5초
+    //    주기를 밀지 않는다. 없는 유닛은 아무 일도 안 일어난다(opt-in).
+    ultimate: { type: 'donut', motif: 'frost', cooldown: 10000, telegraph: 1650,
+                minRange: 0, maxRange: 4000, radius: 430, inner: 205,
+                //  평타의 5배 — 큰 한 방이되 «피하면 안 맞는» 것이라 세도 된다.
+                damage: 175, knockback: 30 },
     abilities: [
-      { type: 'barrage', cooldown: 6200, telegraph: 700,
+      { type: 'barrage', cooldown: 5000, telegraph: 700,
         minRange: 0, maxRange: 4000,
         damage: 110, radius: 130, repeat: 3, interval: 400, spread: 250,
         slowMul: 0.45, slowMs: 2200 },
@@ -347,7 +410,7 @@ GAME.BOSS_UNITS = {
       //    서리가 **발을 늦추는 것**(위 barrage 의 slowMul)에 더해 **손도 늦춘다**.
       //    타입 이름은 엔진 것이고 화면엔 안 나온다 — 새 타입을 만들면 포즈·감사·
       //    이펙트를 다섯 자리에 또 채워야 한다(v3.20 교훈).
-      { type: 'ashcloud', cooldown: 13000, telegraph: 900,
+      { type: 'ashcloud', cooldown: 5000, telegraph: 900,
         minRange: 0, maxRange: 4000,
         radius: 320, ms: 5000, cdMul: 1.45 }
     ]
@@ -673,9 +736,14 @@ lore: '버려진 알 껍질을 뒤집어쓴 커다란 것. 느리지만 한 번 
     //   '길고 안전한 체력 깎기'가 됐다(사냥꾼 20층 꼬리 22.2초).
     //   위 능력으로 위협을 주고 체력을 줄여 **짧고 무서운** 쪽으로 옮긴다.
     //   실측(사냥꾼 20층): hp 1420 꼬리 22.2초 → 1050 17.5초 → 900 13.6초.
-    cost: 0, hp: 2380, armor: 26, speed: 78, range: 104, damage: 45, cooldown: 1600,
-    guard: { every: 12000, warn: 950, ms: 4000, cut: 0.15, reflect: 0.45 },
-    attack: 'melee', coneDeg: 130,
+    cost: 0, hp: 2380, armor: 26, speed: 78, range: 420, damage: 45, cooldown: 2500,
+    guard: { every: 12000, warn: 950, ms: 4000, cut: 0.15, reflect: 0.45 },    //  ⚠ 2026-09-10 태현님: "타겟스킬은 평타로 간주하여 공격모션을 쓰고 기본
+    //    원거리로 때릴 수 있게" → `targeted`(자동명중 원거리, 저격수와 같은 방식).
+    //    예전 `melee`(사거리 104~150) 로는 영웅이 안 붙으면 보스가 아무것도
+    //    못 했다. 회피 불가인 대신 **주기가 2.5초로 느리다**(이 게임의 스킬
+    //    경제 그대로: 타겟은 비싸고 소수, 논타겟은 싸고 회피 가능).
+
+    attack: 'targeted', coneDeg: 130,
     radius: 30, shape: 'shield', weapon: 'riotShield',
     chase: 460, aggro: 460,
     // 껍질 구르기 — 셋 중 가장 느린 놈(속도 78)이라 거리 지우기가 가장 절실하다.
@@ -687,16 +755,32 @@ lore: '버려진 알 껍질을 뒤집어쓴 커다란 것. 느리지만 한 번 
     //   도로 길어진다(사냥꾼 20층 14.8초 → 19.8초). 보스는 두꺼워서가 아니라
     //   무서워서 어려워야 한다는 것이 이번 변경의 요지다.
     //  궁극 「산사태」 — 등껍질 조각이 여섯 자리로 쏟아진다.
+    //  ── 궁극기 (2026-09-10 태현님) ─────────────────────────────────────────
+    //  "별도 궁극기가 있어야하고 궁극기는 10초에 1번정도 써야하고 논타겟인데
+    //   전장 절반가까이에 해당하면서도 피할곳은 있어야해"
+    //  ⚠ **도넛**이라 «피할 곳»이 구조로 보장된다 — 가운데(inner)가 안전지대다.
+    //    전장은 1300x608 이라 바깥 430(지름 860)이면 폭의 66%, 높이보다 크다.
+    //  ⚠ 예고 1.65초 — 영웅 속도 158(가장 느린 축)이면 261px 를 움직인다.
+    //    바깥 430에서 안쪽 205까지는 225px 라 **여유 36px** 로 들어간다.
+    //    처음엔 1.5초/190 으로 뒀다가 감사가 «이동 237 < 띠 240» 으로 잡았다 —
+    //    3px 차이로 «못 피하는 한 방»이었다. 산수로 물었기에 잡혔다.
+    //    이 숫자를 만질 때는 그 관계를 같이 볼 것 — 안 그러면 못 피하는 한 방이 된다.
+    //  ⚠ `ultimate` 는 **자기 타이머**로 돈다(js/combat.js) — 일반 능력의 5초
+    //    주기를 밀지 않는다. 없는 유닛은 아무 일도 안 일어난다(opt-in).
+    ultimate: { type: 'donut', motif: 'earth', cooldown: 10000, telegraph: 1650,
+                minRange: 0, maxRange: 4000, radius: 430, inner: 205,
+                //  평타의 5배 — 큰 한 방이되 «피하면 안 맞는» 것이라 세도 된다.
+                damage: 225, knockback: 30 },
     abilities: [
       //  ⚠ 내리찍기 — 예고 2.2초 × 158px/s = 348px > 반경 210 × 1.5 이므로
       //    **걸어 나가면 피해진다**(이 저장소의 회피 규격). 속박은 짧아 못 피해도 안 죽는다.
-      { type: 'quake', cooldown: 9000, telegraph: 2200,
+      { type: 'quake', cooldown: 5000, telegraph: 2200,
         minRange: 0, maxRange: 4000,
         damage: 205, radius: 210, rootMs: 620 },
       //  ⚠ 껍질이 사방으로 터진다 — **바깥이 위험하고 중심이 안전하다.**
       //    20층은 두 번째 보스라, 여기서 "원이 아닌 광역"을 처음 만나게 된다.
       //    몸이 기억한 "멀어져라"를 그대로 하면 죽는 판이라 배움이 크다.
-      { type: 'donut', cooldown: 13000, telegraph: 1500,
+      { type: 'donut', cooldown: 5000, telegraph: 1500,
         minRange: 0, maxRange: 4000,
         damage: 175, radius: 360, inner: 150, knockback: 40 }
     ]
@@ -756,20 +840,41 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
     key: 'bossSwampMother', name: '늪의 어미', art: 'beast:bogmother:frost', isBoss: true,
     lore: '안개 아래 늪 바닥에서 알들을 품던 것. 늪이 넓어지는 것은 그것이 일어서는 것이다.',
     desc: '안개늪의 주인. 진흙을 던져 발을 묶고, 반쯤 잡히면 늪을 넓혀 새끼를 부른다.',
-    cost: 0, hp: 2300, armor: 30, speed: 74, range: 110, damage: 30, cooldown: 1400,
-    guard: { every: 12000, warn: 900, ms: 4000, cut: 0.15, reflect: 0.50 },
-    attack: 'melee', coneDeg: 100,
+    cost: 0, hp: 2300, armor: 30, speed: 74, range: 420, damage: 30, cooldown: 2500,
+    guard: { every: 12000, warn: 900, ms: 4000, cut: 0.15, reflect: 0.50 },    //  ⚠ 2026-09-10 태현님: "타겟스킬은 평타로 간주하여 공격모션을 쓰고 기본
+    //    원거리로 때릴 수 있게" → `targeted`(자동명중 원거리, 저격수와 같은 방식).
+    //    예전 `melee`(사거리 104~150) 로는 영웅이 안 붙으면 보스가 아무것도
+    //    못 했다. 회피 불가인 대신 **주기가 2.5초로 느리다**(이 게임의 스킬
+    //    경제 그대로: 타겟은 비싸고 소수, 논타겟은 싸고 회피 가능).
+
+    attack: 'targeted', coneDeg: 100,
     radius: 30, shape: 'star', weapon: 'launcher',
     chase: 460, aggro: 520,
     //  상시 한기(서리 권속과 같은 배선) — 곁에 서면 늪처럼 느려진다.
     auraSlowRadius: 220, auraSlowMul: 0.8,
+    //  ── 궁극기 (2026-09-10 태현님) ─────────────────────────────────────────
+    //  "별도 궁극기가 있어야하고 궁극기는 10초에 1번정도 써야하고 논타겟인데
+    //   전장 절반가까이에 해당하면서도 피할곳은 있어야해"
+    //  ⚠ **도넛**이라 «피할 곳»이 구조로 보장된다 — 가운데(inner)가 안전지대다.
+    //    전장은 1300x608 이라 바깥 430(지름 860)이면 폭의 66%, 높이보다 크다.
+    //  ⚠ 예고 1.65초 — 영웅 속도 158(가장 느린 축)이면 261px 를 움직인다.
+    //    바깥 430에서 안쪽 205까지는 225px 라 **여유 36px** 로 들어간다.
+    //    처음엔 1.5초/190 으로 뒀다가 감사가 «이동 237 < 띠 240» 으로 잡았다 —
+    //    3px 차이로 «못 피하는 한 방»이었다. 산수로 물었기에 잡혔다.
+    //    이 숫자를 만질 때는 그 관계를 같이 볼 것 — 안 그러면 못 피하는 한 방이 된다.
+    //  ⚠ `ultimate` 는 **자기 타이머**로 돈다(js/combat.js) — 일반 능력의 5초
+    //    주기를 밀지 않는다. 없는 유닛은 아무 일도 안 일어난다(opt-in).
+    ultimate: { type: 'donut', motif: 'frost', cooldown: 10000, telegraph: 1650,
+                minRange: 0, maxRange: 4000, radius: 430, inner: 205,
+                //  평타의 5배 — 큰 한 방이되 «피하면 안 맞는» 것이라 세도 된다.
+                damage: 150, knockback: 30 },
     abilities: [
-      { type: 'barrage', motif: 'bog', cooldown: 7000, telegraph: 800,
+      { type: 'barrage', motif: 'bog', cooldown: 5000, telegraph: 800,
         minRange: 0, maxRange: 4000, aimLead: 0.5,
         damage: 120, radius: 130, repeat: 3, spread: 220, interval: 380,
         slowMul: 0.5, slowMs: 2000 },
       //  궁극 「늪 범람」 — 전장 절반이 늪이 되는 거대 원. fuse 2.5초, 걸어 나가면 피해진다.
-      { type: 'pull', motif: 'bog', cooldown: 13000, telegraph: 900,
+      { type: 'pull', motif: 'bog', cooldown: 5000, telegraph: 900,
         minRange: 0, maxRange: 4000,
         dist: 430, coneDeg: 360, power: 190, keep: 110, damage: 165,
         slowMul: 0.4, slowMs: 2600 }
@@ -779,12 +884,12 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
         abilities: [
           //  소환 쿨 7초 — 다음 차례(지진)가 페이즈 진입 뒤 10초 안에 오게(감사 실측:
           //  9초면 영웅이 센 판에서 지진 전에 보스가 죽어 "페이즈 능력 절반만" 이 된다).
-          { type: 'summon', motif: 'bog', cooldown: 7000, telegraph: 900, minRange: 0, maxRange: 4000,
+          { type: 'summon', motif: 'bog', cooldown: 5000, telegraph: 900, minRange: 0, maxRange: 4000,
             unit: 'chemtrooper', count: 2, life: 14000, spread: 90, maxAlive: 4,
             unitMods: { hp: 1.7, damage: 1.6 } },
-          { type: 'quake', motif: 'bog', cooldown: 14000, telegraph: 2000, minRange: 0, maxRange: 4000,
+          { type: 'quake', motif: 'bog', cooldown: 5000, telegraph: 2000, minRange: 0, maxRange: 4000,
             damage: 160, radius: 190, rootMs: 600 },
-          { type: 'barrage', motif: 'bog', cooldown: 7000, telegraph: 800,
+          { type: 'barrage', motif: 'bog', cooldown: 5000, telegraph: 800,
             minRange: 0, maxRange: 4000, aimLead: 0.5,
             damage: 120, radius: 130, repeat: 3, spread: 220, interval: 380,
             slowMul: 0.5, slowMs: 2000 }
@@ -798,20 +903,41 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
     key: 'bossAshLord', name: '재의 군주', art: 'beast:ashlord:ember', isBoss: true,
     lore: '잿더미 한가운데 앉아 재를 다스리는 것. 그가 일어서면 땅이 다시 끓기 시작한다.',
     desc: '잿더미의 주인. 세 단계로 깨어나며 용암 고리를 점점 넓힌다.',
-    cost: 0, hp: 2400, armor: 34, speed: 96, range: 116, damage: 33, cooldown: 1300,
-    guard: { every: 12000, warn: 900, ms: 4000, cut: 0.15, reflect: 0.52 },
-    attack: 'melee', coneDeg: 120,
+    cost: 0, hp: 2400, armor: 34, speed: 96, range: 420, damage: 33, cooldown: 2500,
+    guard: { every: 12000, warn: 900, ms: 4000, cut: 0.15, reflect: 0.52 },    //  ⚠ 2026-09-10 태현님: "타겟스킬은 평타로 간주하여 공격모션을 쓰고 기본
+    //    원거리로 때릴 수 있게" → `targeted`(자동명중 원거리, 저격수와 같은 방식).
+    //    예전 `melee`(사거리 104~150) 로는 영웅이 안 붙으면 보스가 아무것도
+    //    못 했다. 회피 불가인 대신 **주기가 2.5초로 느리다**(이 게임의 스킬
+    //    경제 그대로: 타겟은 비싸고 소수, 논타겟은 싸고 회피 가능).
+
+    attack: 'targeted', coneDeg: 120,
     radius: 32, shape: 'star', weapon: 'riotShield',
     chase: 520, aggro: 560,
+    //  ── 궁극기 (2026-09-10 태현님) ─────────────────────────────────────────
+    //  "별도 궁극기가 있어야하고 궁극기는 10초에 1번정도 써야하고 논타겟인데
+    //   전장 절반가까이에 해당하면서도 피할곳은 있어야해"
+    //  ⚠ **도넛**이라 «피할 곳»이 구조로 보장된다 — 가운데(inner)가 안전지대다.
+    //    전장은 1300x608 이라 바깥 430(지름 860)이면 폭의 66%, 높이보다 크다.
+    //  ⚠ 예고 1.65초 — 영웅 속도 158(가장 느린 축)이면 261px 를 움직인다.
+    //    바깥 430에서 안쪽 205까지는 225px 라 **여유 36px** 로 들어간다.
+    //    처음엔 1.5초/190 으로 뒀다가 감사가 «이동 237 < 띠 240» 으로 잡았다 —
+    //    3px 차이로 «못 피하는 한 방»이었다. 산수로 물었기에 잡혔다.
+    //    이 숫자를 만질 때는 그 관계를 같이 볼 것 — 안 그러면 못 피하는 한 방이 된다.
+    //  ⚠ `ultimate` 는 **자기 타이머**로 돈다(js/combat.js) — 일반 능력의 5초
+    //    주기를 밀지 않는다. 없는 유닛은 아무 일도 안 일어난다(opt-in).
+    ultimate: { type: 'donut', motif: 'ember', cooldown: 10000, telegraph: 1650,
+                minRange: 0, maxRange: 4000, radius: 430, inner: 205,
+                //  평타의 5배 — 큰 한 방이되 «피하면 안 맞는» 것이라 세도 된다.
+                damage: 165, knockback: 30 },
     abilities: [
       //  ⚠ 군주 — 부하를 세게 만든다. 2페이즈에서 돌진이 돌아오므로(아래 phases)
       //    1페이즈는 "먼저 부하를 끊어라"는 판이 되고, 2페이즈에서 성격이 바뀐다.
-      { type: 'warcry', motif: 'ember', cooldown: 11000, telegraph: 700,
+      { type: 'warcry', motif: 'ember', cooldown: 5000, telegraph: 700,
         minRange: 0, maxRange: 4000,
         radius: 320, ms: 5000, dmgMul: 1.6 },
       //  ⚠ 잿더미가 전장을 덮고 **한 곳만 숨 쉴 수 있다.** 이 게임에서 유일하게
       //    "도망가는" 예고가 아니라 **"찾아 들어가는"** 예고다 — 답의 방향이 반대다.
-      { type: 'safezone', motif: 'ember', cooldown: 14000, telegraph: 1900,
+      { type: 'safezone', motif: 'ember', cooldown: 5000, telegraph: 1900,
         minRange: 0, maxRange: 4000,
         damage: 185, radius: 175 }
     ],
@@ -823,12 +949,12 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
                  pct: 0.02, tickMs: 500 } },
       { hpBelow: 0.33, name: '용암 고리',
         abilities: [
-          { type: 'quake', motif: 'ember', cooldown: 13000, telegraph: 2000, minRange: 0, maxRange: 4000,
+          { type: 'quake', motif: 'ember', cooldown: 5000, telegraph: 2000, minRange: 0, maxRange: 4000,
             damage: 170, radius: 190, rootMs: 600 },
-          { type: 'barrage', motif: 'ember', cooldown: 12000, telegraph: 700,
+          { type: 'barrage', motif: 'ember', cooldown: 5000, telegraph: 700,
             minRange: 0, maxRange: 4000,
             damage: 150, radius: 120, repeat: 4, interval: 260, spread: 380, fuse: 1500 },
-          { type: 'charge', motif: 'ember', cooldown: 6000, telegraph: 560,
+          { type: 'charge', motif: 'ember', cooldown: 5000, telegraph: 560,
             minRange: 150, maxRange: 520, dist: 520,
             damage: 140, radius: 72, knockback: 60 }
         ],
@@ -844,17 +970,38 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
     key: 'bossRiftGiant', name: '균열 거인', art: 'beast:riftgiant:ash', isBoss: true,
     lore: '갈라진 땅 자체가 일어선 것. 걸음마다 지진이고, 흔들리는 돌은 전부 무기다.',
     desc: '균열의 주인. 지진으로 발을 묶고 낙석을 퍼붓는다. 반쯤 잡히면 돌쌓이를 부른다.',
-    cost: 0, hp: 2350, armor: 44, speed: 60, range: 150, damage: 40, cooldown: 1500,
-    guard: { every: 11500, warn: 850, ms: 4400, cut: 0.12, reflect: 0.60 },
-    attack: 'melee', coneDeg: 150,
+    cost: 0, hp: 2350, armor: 44, speed: 60, range: 420, damage: 40, cooldown: 2500,
+    guard: { every: 11500, warn: 850, ms: 4400, cut: 0.12, reflect: 0.60 },    //  ⚠ 2026-09-10 태현님: "타겟스킬은 평타로 간주하여 공격모션을 쓰고 기본
+    //    원거리로 때릴 수 있게" → `targeted`(자동명중 원거리, 저격수와 같은 방식).
+    //    예전 `melee`(사거리 104~150) 로는 영웅이 안 붙으면 보스가 아무것도
+    //    못 했다. 회피 불가인 대신 **주기가 2.5초로 느리다**(이 게임의 스킬
+    //    경제 그대로: 타겟은 비싸고 소수, 논타겟은 싸고 회피 가능).
+
+    attack: 'targeted', coneDeg: 150,
     radius: 36, shape: 'bunker', weapon: 'riotShield',
     chase: 400, aggro: 500,
+    //  ── 궁극기 (2026-09-10 태현님) ─────────────────────────────────────────
+    //  "별도 궁극기가 있어야하고 궁극기는 10초에 1번정도 써야하고 논타겟인데
+    //   전장 절반가까이에 해당하면서도 피할곳은 있어야해"
+    //  ⚠ **도넛**이라 «피할 곳»이 구조로 보장된다 — 가운데(inner)가 안전지대다.
+    //    전장은 1300x608 이라 바깥 430(지름 860)이면 폭의 66%, 높이보다 크다.
+    //  ⚠ 예고 1.65초 — 영웅 속도 158(가장 느린 축)이면 261px 를 움직인다.
+    //    바깥 430에서 안쪽 205까지는 225px 라 **여유 36px** 로 들어간다.
+    //    처음엔 1.5초/190 으로 뒀다가 감사가 «이동 237 < 띠 240» 으로 잡았다 —
+    //    3px 차이로 «못 피하는 한 방»이었다. 산수로 물었기에 잡혔다.
+    //    이 숫자를 만질 때는 그 관계를 같이 볼 것 — 안 그러면 못 피하는 한 방이 된다.
+    //  ⚠ `ultimate` 는 **자기 타이머**로 돈다(js/combat.js) — 일반 능력의 5초
+    //    주기를 밀지 않는다. 없는 유닛은 아무 일도 안 일어난다(opt-in).
+    ultimate: { type: 'donut', motif: 'ash', cooldown: 10000, telegraph: 1650,
+                minRange: 0, maxRange: 4000, radius: 430, inner: 205,
+                //  평타의 5배 — 큰 한 방이되 «피하면 안 맞는» 것이라 세도 된다.
+                damage: 200, knockback: 30 },
     abilities: [
-      { type: 'quake', motif: 'rock', cooldown: 12000, telegraph: 2000, minRange: 0, maxRange: 4000,
+      { type: 'quake', motif: 'rock', cooldown: 5000, telegraph: 2000, minRange: 0, maxRange: 4000,
         damage: 150, radius: 190, rootMs: 600 },
       //  ⚠ 균열이 빨아들인다 — 원거리 영웅의 안전거리를 지운다(지진과 짝이다:
       //    끌려온 자리에서 발이 묶인다). `damage` 를 실어 이빨을 남긴다.
-      { type: 'pull', motif: 'rock', cooldown: 10000, telegraph: 900,
+      { type: 'pull', motif: 'rock', cooldown: 5000, telegraph: 900,
         minRange: 0, maxRange: 4000,
         dist: 460, coneDeg: 360, power: 210, keep: 110, damage: 140 }
     ],
@@ -863,12 +1010,12 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
       //    둬서 "깨어났다"가 곧바로 보이게 한다. 순서가 곧 첫인상이다.
       { hpBelow: 0.5, name: '거인이 깨어난다',
         abilities: [
-          { type: 'summon', motif: 'rock', cooldown: 9000, telegraph: 900, minRange: 0, maxRange: 4000,
+          { type: 'summon', motif: 'rock', cooldown: 5000, telegraph: 900, minRange: 0, maxRange: 4000,
             unit: 'stonepiler', count: 2, life: 15000, spread: 100, maxAlive: 4,
             unitMods: { hp: 2.8, damage: 2.5 } },
-          { type: 'quake', motif: 'rock', cooldown: 10000, telegraph: 2000, minRange: 0, maxRange: 4000,
+          { type: 'quake', motif: 'rock', cooldown: 5000, telegraph: 2000, minRange: 0, maxRange: 4000,
             damage: 150, radius: 190, rootMs: 600 },
-          { type: 'barrage', motif: 'rock', cooldown: 8000, telegraph: 800,
+          { type: 'barrage', motif: 'rock', cooldown: 5000, telegraph: 800,
             minRange: 0, maxRange: 4000,
             damage: 130, radius: 110, repeat: 5, interval: 300, spread: 420, fuse: 1400,
             knockback: 40 }
@@ -882,35 +1029,56 @@ lore: '산 위에 놓인 거대한 둥지. 쉬지 않고 온 골짜기에 화살
     key: 'bossStormKing', name: '폭풍의 왕', art: 'beast:stormking:storm', isBoss: true,
     lore: '하늘 꼭대기의 폭풍 그 자체. 태초의 용이 잠든 사이 하늘을 다스려 온 것이다.',
     desc: '폭풍 하늘의 주인. 낙뢰를 떨어뜨리고 돌풍으로 밀어낸다. 반쯤 잡히면 폭풍의 눈이 열린다.',
-    cost: 0, hp: 2300, armor: 34, speed: 120, range: 118, damage: 31, cooldown: 1150,
-    guard: { every: 11500, warn: 850, ms: 4200, cut: 0.14, reflect: 0.55 },
-    attack: 'melee', coneDeg: 115,
+    cost: 0, hp: 2300, armor: 34, speed: 120, range: 420, damage: 31, cooldown: 2500,
+    guard: { every: 11500, warn: 850, ms: 4200, cut: 0.14, reflect: 0.55 },    //  ⚠ 2026-09-10 태현님: "타겟스킬은 평타로 간주하여 공격모션을 쓰고 기본
+    //    원거리로 때릴 수 있게" → `targeted`(자동명중 원거리, 저격수와 같은 방식).
+    //    예전 `melee`(사거리 104~150) 로는 영웅이 안 붙으면 보스가 아무것도
+    //    못 했다. 회피 불가인 대신 **주기가 2.5초로 느리다**(이 게임의 스킬
+    //    경제 그대로: 타겟은 비싸고 소수, 논타겟은 싸고 회피 가능).
+
+    attack: 'targeted', coneDeg: 115,
     radius: 32, shape: 'star', weapon: 'rifle',
     chase: 640, aggro: 640,
+    //  ── 궁극기 (2026-09-10 태현님) ─────────────────────────────────────────
+    //  "별도 궁극기가 있어야하고 궁극기는 10초에 1번정도 써야하고 논타겟인데
+    //   전장 절반가까이에 해당하면서도 피할곳은 있어야해"
+    //  ⚠ **도넛**이라 «피할 곳»이 구조로 보장된다 — 가운데(inner)가 안전지대다.
+    //    전장은 1300x608 이라 바깥 430(지름 860)이면 폭의 66%, 높이보다 크다.
+    //  ⚠ 예고 1.65초 — 영웅 속도 158(가장 느린 축)이면 261px 를 움직인다.
+    //    바깥 430에서 안쪽 205까지는 225px 라 **여유 36px** 로 들어간다.
+    //    처음엔 1.5초/190 으로 뒀다가 감사가 «이동 237 < 띠 240» 으로 잡았다 —
+    //    3px 차이로 «못 피하는 한 방»이었다. 산수로 물었기에 잡혔다.
+    //    이 숫자를 만질 때는 그 관계를 같이 볼 것 — 안 그러면 못 피하는 한 방이 된다.
+    //  ⚠ `ultimate` 는 **자기 타이머**로 돈다(js/combat.js) — 일반 능력의 5초
+    //    주기를 밀지 않는다. 없는 유닛은 아무 일도 안 일어난다(opt-in).
+    ultimate: { type: 'donut', motif: 'storm', cooldown: 10000, telegraph: 1650,
+                minRange: 0, maxRange: 4000, radius: 430, inner: 205,
+                //  평타의 5배 — 큰 한 방이되 «피하면 안 맞는» 것이라 세도 된다.
+                damage: 155, knockback: 30 },
     abilities: [
       //  ⚠ **폭풍의 눈** — desc 가 "반쯤 잡히면 폭풍의 눈이 열린다"고 이미 말하고
       //    있었는데 정작 기제가 없었다. 고리는 그 문장 그대로다: 바깥이 폭풍이고
       //    **한가운데(눈)가 안전하다.** 돌풍(gust)이 밖으로 미는 것과 짝이라
       //    "밀려나지 않고 눈 안에 버티기"가 이 보스의 답이 된다.
-      { type: 'donut', motif: 'storm', cooldown: 12000, telegraph: 1600,
+      { type: 'donut', motif: 'storm', cooldown: 5000, telegraph: 1600,
         minRange: 0, maxRange: 4000,
         damage: 190, radius: 400, inner: 165, knockback: 40 },
       //  돌풍 — 예고 뒤 2.4초 동안 전역으로 민다(보스는 면역). 밀리는 동안 낙뢰 예고를 보라.
-      { type: 'gust', motif: 'storm', cooldown: 11000, telegraph: 900, minRange: 0, maxRange: 4000,
+      { type: 'gust', motif: 'storm', cooldown: 5000, telegraph: 900, minRange: 0, maxRange: 4000,
         ms: 2400, push: 150, radius: 0, dps: 20 }
     ],
     phases: [
       //  소환이 맨 앞 — 페이즈 진입이 곧 "궁수 셋이 하늘에서 내려온다"로 보인다.
       { hpBelow: 0.5, name: '폭풍의 눈',
         abilities: [
-          { type: 'summon', motif: 'storm', cooldown: 9000, telegraph: 900, minRange: 0, maxRange: 4000,
+          { type: 'summon', motif: 'storm', cooldown: 5000, telegraph: 900, minRange: 0, maxRange: 4000,
             unit: 'rifleman', count: 3, life: 12000, spread: 110, maxAlive: 6,
             unitMods: { hp: 3.5, damage: 3.0 } },
-          { type: 'barrage', motif: 'storm', cooldown: 10000, telegraph: 640,
+          { type: 'barrage', motif: 'storm', cooldown: 5000, telegraph: 640,
             minRange: 0, maxRange: 4000,
             damage: 120, radius: 88, repeat: 9, interval: 130, spread: 470, fuse: 1250,
             knockback: 62, rootMs: 350 },
-          { type: 'gust', motif: 'storm', cooldown: 11000, telegraph: 900, minRange: 0, maxRange: 4000,
+          { type: 'gust', motif: 'storm', cooldown: 5000, telegraph: 900, minRange: 0, maxRange: 4000,
             ms: 2400, push: 150, radius: 0, dps: 20 }
         ],
         mods: { damage: 1.15, speed: 1.15 },

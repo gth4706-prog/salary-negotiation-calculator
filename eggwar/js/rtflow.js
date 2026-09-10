@@ -64,10 +64,15 @@ GAME.RtCoop = {
   //  ⚠ 일괄 배수로는 안 맞는다 — ×1.05 면 총합은 75% 로 맞는데 ash·storm 이
   //    8/8(패가 없는 세계)이 된다. 그 둘은 원래 값 그대로 두고 나머지만 올렸다.
   //    결과: 70%(28/40) · meadow 4/8 · mire 4/8 · ash 7/8 · rift 6/8 · storm 7/8.
+  //  ⚠⚠ 2026-09-11 다시 한 번 — 영웅 다섯의 정체성 버프(공속·치명타·스킬배수)가
+  //    협동에도 그대로 걸려 봇 둘 승률이 70% → **98%**(거의 전승)으로 튀었다.
+  //    일괄 ×0.86 으로 63% — 세계마다 승·패가 공존한다(meadow 3/8 … ash 7/8).
+  //  ⚠ 이게 **두 번째**다 — 보스를 만져도, 영웅을 만져도 이 표가 같이 움직인다.
+  //    영웅·보스 수치를 건드리면 `rt-coop-audit` 을 반드시 같이 돌릴 것.
   //  ⚠ 표본이 세계당 8판뿐이라 해상도가 12.5%p 다 — 소수점 둘째까지 맞추려들지 말 것.
   //    (단조도 아니다 — 영웅을 약하게 했는데 승수가 늘는 구간이 있었다. 180초 제한과
   //     보스 페이즈 전환이 섞인다.)
-  HERO_WORLD_MUL: { meadow: 1.84, mire: 2.36, ash: 3.31, rift: 3.47, storm: 3.09 },
+  HERO_WORLD_MUL: { meadow: 1.58, mire: 2.03, ash: 2.85, rift: 2.98, storm: 2.66 },
   scaleHero: function (hu, world) {
     var m = this.HERO_WORLD_MUL[world];
     if (!(m > 0) || m === 1 || !hu || !hu.def) return hu;
@@ -318,6 +323,7 @@ GAME.RtFlow = {
     this.theirSetup = null;
     this.myHeroPick = null;     //  지난 판의 영웅 선택이 새 판에 새지 않게
     this.myRollFor = null; this.myPicks = null;   //  스킬도 판마다 새로 굴린다
+    this.theirPick = null; this.theirPickReady = false; this.myPickReady = false;
     //  컨트롤러 — 판마다 **초기화된** 임시 빌드(예산 500 드래프트, 2026-08-24 태현님 ④).
     //  이월 없음 · 저장 안 됨. TowerShop(mode:'arena') 왕복이 전부 여기에 쌓인다.
     if (GAME.ArenaBuild) {
@@ -344,6 +350,15 @@ GAME.RtFlow = {
       if (data && data.type === 'rtSetup' && data.setup) {
         self.theirSetup = data.setup;
         self.maybeBattle();
+      } else if (data && data.type === 'rtPick') {
+        //  ── 영웅 선택 단계 (2026-09-11 태현님) ────────────────────
+        //  "게임시작할때 영웅유닛을 뭔고르는지 먼저 선택하는걸 **실시간으로 서로
+        //   어디고르는지 보이게**해주고 그다음 넘어가면 상점에서 각자 구매"
+        //  ⚠ 선택은 **확정이 아니다** — 고르는 중에도 계속 바뀌고, 그게 보이는 것이
+        //    이 단계의 재미다(상대가 망설이는 것까지 보인다). 확정은 `ready` 가 한다.
+        self.theirPick = data.hero || null;
+        self.theirPickReady = !!data.ready;
+        if (self.onPick) self.onPick();
       }
     };
     //  ⚠ 준비 화면은 최대 60초 머무는 자리다 — 폰은 그 사이 화면이 꺼지고 소켓이
@@ -519,6 +534,27 @@ GAME.RtFlow = {
   //  유실 대비 재전송 — 값 불변으로 그대로 다시.
   resend: function () {
     if (this.mySetup) GAME.NetRoom.relay({ type: 'rtSetup', setup: this.mySetup });
+    if (this.myHeroPick) this.sendPick(this.myHeroPick, this.myPickReady);
+  },
+
+  //  ── 영웅 선택 단계 (2026-09-11 태현님) ───────────────────────
+  //  ⚠ **록스텝과 무관하다.** 이건 준비 화면의 서로 보기일 뿐이고, 판에 쓰이는 값은
+  //    여전히 `rtSetup` 스냅샷 하나다. 그래서 이 메시지가 유실돼도 판은 안 갈라진다.
+  //  ⚠ 연습·협동(local)에서는 보낼 곳이 없다 — 조용히 지나간다.
+  theirPick: null,
+  theirPickReady: false,
+  myPickReady: false,
+  onPick: null,
+  sendPick: function (heroKey, ready) {
+    this.myPickReady = !!ready;
+    if (this.local || !GAME.NetRoom || !GAME.NetRoom.connected) return;
+    GAME.NetRoom.relay({ type: 'rtPick', hero: heroKey || null, ready: !!ready });
+  },
+  //  둘 다 고르고 둘 다 «이거로 할래» 를 누르면 상점으로 넘어간다.
+  //  ⚠ 상대를 기다리지 만 만들지 않는다 — 상대가 자리를 비우면 60초를 통째 버리게 된다.
+  //    내가 준비되면 혼자도 상점으로 간다(상대 선택은 거기서도 계속 띄운다).
+  bothPicked: function () {
+    return !!(this.myHeroPick && this.myPickReady);
   },
 
   maybeBattle: function () {

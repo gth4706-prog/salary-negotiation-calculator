@@ -4575,12 +4575,21 @@ GAME.BattleScene.prototype.draw = function () {
     //  은신 알파(시즌2 S-A) — 내 편(내 팀)은 반투명 일렁임, 적 눈에는 0.10. 은신이 아니면 정확히 1.
     var uAlpha = (FXS && FXS.stealthAlpha && u.buffs && u.buffs.length)
       ? FXS.stealthAlpha(u, tRender, u.side === stealthSide) : 1;
+    //  ⚠ 은신 중이면 **장비를 통째 안 그린다**(2026-09-11 태현님). 알파만 낙추면
+    //    몸만 사라지고 단검이 떠 있는다(실측으로 확인했다).
+    //  ⚠ 반드시 복원한다 — 안 되돌리면 **다음 유닛부터 전원이 맨손**이 된다.
+    var _GB = GAME.GearBank, _muted = false;
+    if (_GB && uAlpha < 1 && u.buffs && u.buffs.length) {
+      for (var _si = 0; _si < u.buffs.length; _si++)
+        if (u.buffs[_si].stealthTag) { _GB.mute = true; _muted = true; break; }
+    }
     var pos = GAME.UI.drawUnit(g, u.def, u.x + dx, u.y + dy, color, uAlpha, drawFacing, walk,
                                undefined, { footRing: false, sizeMul: u.eliteDraw || 1,
                                             act: act, gearTier: u._gearTier, kit: u._kit,
                                             refine: u._rfStep,
                                             //  보스 생동화(2026-08-22) — 공격 위상 읽기용 렌더 참조
                                             unit: u });
+    if (_muted) _GB.mute = false;
 
     //  ── 방어 태세 표시 (2026-08-03) ──────────────────────────────────────────
     //  "때리면 안 되는 시간"을 **글자 없이** 알려야 한다. 두 단계로 보여준다:

@@ -271,7 +271,15 @@
      *                그림이 어긋나지 않게 한다(파수꾼 tipCap 사고의 교훈).
      * @param alpha
      */
+    //  ⚠⚠ `mute` — **은신 중에는 장비를 아예 안 그린다** (2026-09-11 태현님:
+    //    "암살자는 숨기하면 무기도 안보이게해야해"). 알파를 낙추는 것만으로는 부족했다 —
+    //    실측 스크린샷에서 몸은 사라졌는데 단검은 그대로 떠 있었다(«투구만 둥둥» 의 장비 판).
+    //  ⚠ 준비 여부와 무관하게 **언제나 true** 를 돌려준다 — false 면 호출부가
+    //    «백업으로 벡터로 그리기» 로 넘어가 결국 무기가 보인다. 그게 이 순간의 유일한 함정이다.
+    mute: false,
+
     draw: function (g, key, gripX, gripY, dirX, dirY, tipLen, alpha, tint) {
+      if (this.mute) return true;
       var scene = g.scene;
       if (!this.ready(key, scene)) return false;
       if (!scene || !scene.add) return true;   // 잉크 프록시 패스 — 실루엣 생략
@@ -299,6 +307,7 @@
     //  behind: 뒤를 보는 방향에서는 이미지를 Graphics(몸)보다 반 단계 아래에 둔다 —
     //  벡터 시절엔 "먼저 그려서" 가려졌지만 이미지는 별도 객체라 순서가 안 통한다.
     drawSpan: function (g, key, x0, y0, x1, y1, alpha, flipX, behind) {
+      if (this.mute) return true;
       var scene = g.scene;
       if (!this.ready(key, scene)) return false;
       if (!scene || !scene.add) return true;   // 잉크 프록시 패스 — 실루엣 생략
@@ -321,6 +330,7 @@
      *  behind: 몸(Graphics)보다 반 단계 아래 — 망토·화살통이 정면에서 등 뒤로 가는 길.
      *  벡터 시절엔 "먼저 그려서" 가려졌지만 이미지는 별도 객체라 순서가 안 통한다. */
     place: function (g, key, x, y, w, h, alpha, tint, add, behind) {
+      if (this.mute) return true;
       var scene = g.scene;
       if (!this.ready(key, scene)) return false;
       if (!scene || !scene.add) return true;   // 잉크 프록시 패스 — 실루엣 생략

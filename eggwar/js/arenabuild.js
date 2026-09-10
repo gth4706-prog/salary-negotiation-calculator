@@ -383,16 +383,28 @@ GAME.ArenaBuild = {
   //    흡혈을 깎은 만큼 방어를 조금 돌려줘 정체성('안 죽는 것')은 두께로 남긴다.
   //  ⚠ 사냥꾼 0승은 하네스가 사냥꾼을 근접 거리에 **세워 두고**(카이팅 없음) 재기 때문 —
   //    실전 사냥꾼의 축은 '안 맞는 것'이라 여기 숫자로 사냥꾼을 버프하면 안 된다.
+  //  ⚠⚠ 2026-09-11 — 태현님 «버프 방향성»(영웅 다섯의 정체성) 뒤 **전면 재산출**했다.
+  //    정체성을 날카롭게 하면 상성도 날카로워져 관문이 연쇄로 깨졌다(7/11 까지 떨어졌다).
+  //    스윙 순서가 곳 근거다 — 한 번에 하나씩만 움직였고, 매번 «지는 쪽이 누구인가» 를 읽었다:
+  //      · TTK 13.5초(목표 18~45) — 버프가 전부 화력 쪽이라 판이 짧아졌다 → **실시간 체력 ×1.30**
+  //        (탑은 안 건드린다 — 그게 이 표가 존재하는 이유다). 18초로 돌아왔다.
+  //      · 남은 구멍은 전부 **방어형 주술사가 공짜밥**이었다(평타 16→12 + 소환 감쇠).
+  //        상대를 깎는 대신 **주술사를 버티게** 했다(hp 1.90 · armor 1.45) — 상대를 깎으면
+  //        다른 대진이 대신 깨졌다(암살자 다섯 번 스윙이 전부 9/11 에서 멈춘 이유).
+  //      · 마지막 2판(ranger/armorMax vs warden/balanced 58%)은 **이 파일이 이미 적어 둔**
+  //        그 대진이고, 기록된 해법(파수꾼 hp)으로 그대로 풀렸다 — 1.12 → **1.04**.
+  //  ⚠ 파수꾼 흔혈 0.4→0.28: 그의 광역기가 주술사 소환수 무리를 치면 «대상 수 비례»로
+  //    흔혈이 증폭된다(이 저장소가 AOE_LIFESTEAL 에서 이미 잡은 기제). 소환 영웅이 둘이라 더 산다.
   RT_HERO_MOD: {
-    vanguard: { hp: 1.0, damage: 1.0, armor: 1.0, speed: 1.0, lifesteal: 1.0 },
-    ranger:   { hp: 1.0, damage: 1.0, armor: 1.0, speed: 1.0, lifesteal: 1.0 },
+    vanguard: { hp: 1.30, damage: 1.00, armor: 1.00, speed: 1.00, lifesteal: 1.00 },
+    ranger:   { hp: 1.30, damage: 1.00, armor: 1.00, speed: 1.00, lifesteal: 1.00 },
     //  2026-09-03 시즌2 재조정 — S-E 가 파수꾼 R 오라의 `u.damage` NaN(8/23~9/2 열흘간
     //  궁극 피해 0)을 고치자 위 값(armor 1.1·ls 0.5)이 ② 를 다시 깼다(warden vs shaman/armorMax
     //  67%). 스윕 18종(scratchpad/sweepR) 끝에 11/11 을 만든 조합만 채택:
     //    R 오라 dps 0.4(RT_SKILL_MOD) 가 ③ 을 풀고, 남은 ②(ranger/armorMax vs warden/balanced
     //    57~60%·2~5판)는 armor 1.1→1.0·ls 0.4 로 2판까지, **hp 0.95** 가 마지막 2판을 지웠다.
     //    (dmg 0.95 는 안 듣고, R dps 0.3 도 0.4 와 같다 — 잔여는 오라가 아니라 몸 두께였다.)
-    warden:   { hp: 0.95, damage: 1.0, armor: 1.0, speed: 1.0, lifesteal: 0.4 },
+    warden:   { hp: 1.04, damage: 1.00, armor: 1.00, speed: 1.00, lifesteal: 0.28 },
     //  시즌2 신규 둘(S-H) — 방어 몰빵 빌드가 하네스에서 못 잡는다(shaman/armorMax 승자 잔여
     //  66% · assassin/armorMax 64%). damage 1.2 로 초과 15판 → 1.3 에서 0판. hp 축은 안 듣는다.
     //  ⚠ 2026-09-03 주술사 스킬 전면 재설계 후 1.3 이 다시 깨졌다 — 평타 22→16(다섯 중
@@ -407,8 +419,8 @@ GAME.ArenaBuild = {
     //    dps 16×3.0/0.9=53.3 로 다섯 중 가장 높아지지만, 교차 대진 승수도 vanguard 30·
     //    ranger 2~8·warden 23·**shaman 6**·assassin 19 로 "여전히 최하위권이지만 0승은
     //    아니다"가 된다 — 탑에서는 여전히 최저 dps(17.8) 그대로다.
-    shaman:   { hp: 1.0, damage: 3.0, armor: 1.0, speed: 1.0, lifesteal: 1.0 },
-    assassin: { hp: 1.0, damage: 1.3, armor: 1.0, speed: 1.0, lifesteal: 1.0 }
+    shaman:   { hp: 1.90, damage: 3.40, armor: 1.45, speed: 1.00, lifesteal: 1.00 },
+    assassin: { hp: 1.30, damage: 1.30, armor: 1.00, speed: 1.00, lifesteal: 1.00 }
   },
 
   //  실시간 전용 스킬 배율표 — 스킬 이름 → { damage, shield, heal, dps }. combat.js

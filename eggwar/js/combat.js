@@ -260,6 +260,13 @@ GAME.Combat = {
       trampleKnock: h.trampleKnock, auraDps: h.auraDps, auraRadius: h.auraRadius,
       // 마법구체 투사체 렌더 스타일 (2026-09-03 · 주술사). 같은 화이트리스트 규율.
       projStyle: h.projStyle,
+      //  ── 영웅 정체성 축 (2026-09-11 태현님 «버프 방향성») ─────────────
+      //  ⚠⚠ **이 화이트리스트가 바로 그 함정이다.** 네 축을 heroes.js 에 적고
+      //    combat 에 판정까지 다 넣었는데, 여기 한 줄을 안 적어서 `u.def.closeMul` 이
+      //    **undefined** 였다 — 에러도 안 나고 대진표 숫자가 세 번 연속 띄같았다.
+      //    (이 저장소가 `auraDps`·`projStyle` 에서 이미 두 번 같은 걸 겉었다.)
+      skillMul: h.skillMul, skillCdMul: h.skillCdMul,
+      critAdd: h.critAdd, critMulAdd: h.critMulAdd, closeMul: h.closeMul,
       cost: GAME.HERO_BASE_COST
     };
 
@@ -852,9 +859,31 @@ GAME.Combat = {
     var crit = false;
     var critCh = (source && source.critChance) || GAME.CONFIG.CRIT_CHANCE;
     var critMu = (source && source.critMul) || GAME.CONFIG.CRIT_MULT;
+    //  ⚠ `def.critAdd` / `def.critMulAdd` — **타고난 치명타**(2026-09-11 태현님 ④ 암살자:
+    //    "공격력 높음 치명타 높음 치명타닥 높음"). 없으면 0 — 다른 유닛은 불변.
+    //  ⚠ 상점 치명타와 **더해진다**(덮지 않는다). 덮으면 탑에서 치명타를 산
+    //    암살자가 타고난 몴을 잃거나 그 반대가 된다(어느 쪽이든 산 것이 무효가 된다).
+    //  ⚠ 확률은 0.85 에서 멈춘다 — 100% 치명타는 치명타가 아니라 그냥 공격력이다.
+    if (source && source.def) {
+      if (source.def.critAdd > 0) critCh = Math.min(0.85, critCh + source.def.critAdd);
+      if (source.def.critMulAdd > 0) critMu += source.def.critMulAdd;
+    }
     if (!(opts && opts.noCrit) && GAME.Combat.rand() < critCh) {
       crit = true;
       dmg *= critMu;
+    }
+    //  ⚠ `def.closeMul` — **붙었을 때 힘이 극대화**(2026-09-11 태현님 ③ 파수꾼:
+    //    "이동속도 낮음 대신 가까이 붙었을때 힘이 극대화됐으면"). 없으면 배수 1.
+    //  ⚠ 거리는 **자기 사거리의 배수**로 적는다 — px 로 적으면 `WORLD_SCALE`(폰 0.556)에
+    //    안 따라가 **폰에서만 조용히 어긋난다**(파수꾼 창끝 사고와 같은 계열).
+    //  ⚠⚠ **스킬 피해에만** 걸린다(`opts.srcSkill`). 태현님 문장이 "**스킬토대로**
+    //    가까이 붙었을때 힘이 극대화" 였고, 평타까지 올리면 그건 그냥 «근접에서 센 영웅»
+    //    이 된다. 실측이 그걸 그대로 보여 줬다 — 평타까지 증폭하니 대진표 75% → **98%**
+    //    (하네스의 자동조종은 서로에게 걸어들어가므로 근접 증폭이 사실상 상시 켜진다).
+    var _cm = source && source.def && source.def.closeMul;
+    if (_cm && _cm.mul > 0 && unit && opts && opts.srcSkill) {
+      var _cr = this.effRange(source) * (_cm.rangeMul || 2);
+      if (this.dist(source, unit) <= _cr) dmg *= _cm.mul;
     }
 
     // 방어력은 '비율' 경감이다. 정액 차감으로 하면 방어력 높은 영웅에게
@@ -2176,7 +2205,12 @@ GAME.Combat = {
     var atk = (u && u.def && u.def.damage) || 0;
     // 기준 공격력에서 **손익 0** 이 되게 고정값을 미리 깎는다(SKILL_COEF 주석 참조).
     var flat = Math.max(base * S.floorRatio, base - S.refAtk * coef);
-    return Math.round(flat + atk * coef);
+    //  ⚠ `def.skillMul` — **영웅별 스킬 피해 배수**(2026-09-11 태현님 ① 광전사:
+    //    "평범하면서도 균등한 능력치 대신 스킬데미지가 강했으면"). 없으면 1 —
+    //    적지 않은 영웅은 한 톨도 안 바뀜다(회귀 기준선 보존).
+    //  ⚠ 계수(coef)가 아니라 **최종값**에 곱한다 — 계수에 곱하면 공격력이 높을 때만
+    //    세져 "스킬이 강한 영웅"이 아니라 "공격력이 중요한 영웅"이 된다.
+    return Math.round((flat + atk * coef) * ((u && u.def && u.def.skillMul) || 1));
   },
 
   // 구역(aura) 스킬의 초당 피해. `damage` 와 같은 규칙을 쓴다 —
@@ -2189,7 +2223,7 @@ GAME.Combat = {
     var S = GAME.SKILL_COEF;
     var atk = (u && u.def && u.def.damage) || 0;
     var flat = Math.max(base * S.floorRatio, base - S.refAtk * coef);
-    return Math.round(flat + atk * coef);
+    return Math.round((flat + atk * coef) * ((u && u.def && u.def.skillMul) || 1));
   },
 
   // 보호막·방어 부여는 **방어력**을 탄다(공격력을 태우면 딜러가 더 단단해진다).
@@ -2956,7 +2990,10 @@ GAME.Combat = {
     for (var _cb = 0; _cb < u.buffs.length; _cb++) {
       if (u.buffs[_cb].cdMul) _cdb *= u.buffs[_cb].cdMul;
     }
-    u.skillCd[slot] = sk.cooldown * (u.cdrMul || 1) * _cdb;
+    //  ⚠ `def.skillCdMul` — **영웅별 스킬 쿨 배수**(2026-09-11 태현님 ⑤ 주술사:
+    //    "평타 매우약함 스킬 쿨타임 빠름"). 없으면 1 — 다른 영웅은 불변이다.
+    //  ⚠ 아이템 쿨감(`cdrMul`)과 **곱**한다 — 더하면 한쪽이 다른 쪽을 물희석킨다.
+    u.skillCd[slot] = sk.cooldown * (u.cdrMul || 1) * _cdb * ((u.def && u.def.skillCdMul) || 1);
 
     // 이 시전이 만든 이펙트 전부에 시전자를 표시한다(위 `_fxMark` 주석 참조).
     this._tagSkillFx(state, _fxMark, u, sk);

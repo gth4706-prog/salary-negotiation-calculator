@@ -154,12 +154,17 @@ GAME.RtPrepScene.prototype.create = function () {
         twoCol ? (hd.name + ' · ' + (hd.trait || ''))
                : (hd.name + '   ·   ' + (hd.tagline || hd.desc || '').slice(0, 26)),
         function () {
+          //  ── 영웅 선택 단계 (2026-09-11 태현님) ────────────────────
+          //  예전에는 고르는 즉시 상점으로 넘어갔다(2026-08-24). 지금은 **고르는 단계와
+          //  사는 단계를 가른다** — 그래야 «서로 어디 고르는지 보이는» 시간이 생긴다.
+          //  ⚠ 이 단계에서는 **바꿀 수 있어야 한다** — 상대 선택을 보고 고치는 것이
+          //    이 화면의 유일한 재미다. 확정은 아래 [상점으로] 가 한다.
           self._pickedHero = hk;
           if (GAME.RtFlow.setHeroPick) GAME.RtFlow.setHeroPick(hk);
-          //  영웅을 고르면 **곧장 드래프트로** (2026-08-24 태현님: "준비완료하고
-          //  아이템·스킬 고르는 순간이 없어") — 별도 버튼은 폰에서 준비 버튼과
-          //  겹쳐 안 보였다. RtFlow 는 전역이라 씬을 떠나도 흐름이 안 죽는다.
-          self.scene.start('TowerShop', { mode: 'arena', backTo: 'RtPrep', tab: 'item' });
+          if (GAME.RtFlow.sendPick) GAME.RtFlow.sendPick(hk, false);
+          self._markHero(hks, hk);
+          self._refreshLoadout();
+          self._refresh();
         }, { fontSize: P ? 14 : 16 });
       self._heroBtns.push(b);
     });
@@ -192,14 +197,21 @@ GAME.RtPrepScene.prototype.create = function () {
   } else {
     //  컨트롤러 — 하단 한 줄에 [🛒 장비 다시] [⚔ 준비 완료] 나란히 (폰 겹침 방지)
     var halfW = Math.min((W - 60) / 2, 260);
-    UI.button(this, W / 2 - halfW / 2 - 8, readyY, halfW, P ? 52 : 60,
-      '🛒 장비 다시', function () {
+    //  ⚠ 라벨이 둘이다 — 아직 상점을 안 다녀왔으면 «상점으로», 다녀왔으면 «장비 다시».
+    //    같은 버튼이지만 말을 바꿔야 «지금 뭐할 차례인가» 가 읽힌다.
+    this._shopBtn = UI.button(this, W / 2 - halfW / 2 - 8, readyY, halfW, P ? 52 : 60,
+      '🛒 상점으로', function () {
         if (!self._pickedHero) { self._stateTxt.setText('⚠ 영웅부터 고르세요'); return; }
+        //  상점으로 넘어가는 순간이 «영웅 확정» 이다 — 상대 화면에 ✓ 로 뜼다.
+        if (GAME.RtFlow.sendPick) GAME.RtFlow.sendPick(self._pickedHero, true);
         self.scene.start('TowerShop', { mode: 'arena', backTo: 'RtPrep', tab: 'item' });
       }, { fontSize: P ? 13 : 15 });
     this._readyBtn = UI.button(this, W / 2 + halfW / 2 + 8, readyY, halfW,
       P ? 52 : 60, '⚔ 전투 준비 완료', function () { self._commit(); }, { fontSize: P ? 13 : 15 });
   }
+  var _self = this;
+  GAME.RtFlow.onPick = function () { if (_self.scene && _self.scene.isActive()) _self._refresh(); };
+  this.events.once('shutdown', function () { if (GAME.RtFlow.onPick) GAME.RtFlow.onPick = null; });
   this._stateTxt = UI.text(this, W / 2, byBottom, '', {
     size: 'caption', color: C.textDim, origin: 0.5 });
   this._stateTxt.setAlign('center');
@@ -213,6 +225,11 @@ GAME.RtPrepScene.prototype.create = function () {
   });
   this._refresh();
 };
+
+//  ⚠ 상대 선택이 오면 **그 자리에서** 줄을 고친다. 0.5초 틱을 기다리면
+//    «실시간으로 보인다» 가 아니라 «잠시 뒤에 보인다» 가 된다.
+//  ⚠ 씨를 떠날 때 반드시 떼다 — 상점을 다녀오는 사이에 파괴된 씨의 Text 를
+//    건드리면 그 자리에서 터진다(이 저장소의 «씨 재사용» 계열 사고).
 
 //  전장 브리핑 카드 — 탭하면 즉시 닫히고, 안 눈르면 스스로 사라진다.
 //  ⚠ 준비 버튼을 막지 않는 것이 이 카드의 유일한 제약이다 — 60초 시계가 돌고 있다.
@@ -336,6 +353,13 @@ GAME.RtPrepScene.prototype._commit = function () {
   this._refresh();
 };
 
+//  영웅 키 → 보이는 이름. 없거나 모르는 키면 null(화면은 «고르는 중» 으로 말한다).
+function _heroName(k) {
+  if (!k) return null;
+  var d = GAME.HEROES && GAME.HEROES[k];
+  return d ? d.name : null;
+}
+
 GAME.RtPrepScene.prototype._refresh = function () {
   var F = GAME.RtFlow;
   if (!F || !F.active) return;                  // Battle 전환 중이면 손대지 않는다
@@ -347,8 +371,30 @@ GAME.RtPrepScene.prototype._refresh = function () {
   var theirs = F.local
     ? (who + ': 🤖 봇(' + ((GAME.RtBot && GAME.RtBot.LEVELS[F.botLevel] || {}).name || F.botLevel) + ')')
     : (F.theirSetup ? who + ': 준비 완료 ✓' : who + ': 준비 중…');
-  this._stateTxt.setText(mine + '   ·   ' + theirs +
-    (F.mySetup && !F.theirSetup ? '\n' + who + '가 끝나면 바로 시작됩니다' : ''));
+  //  ── 서로 어디 고르는가 (2026-09-11 태현님) ──────────────────────
+  //  ⚠ **줄을 따로 늘리지 않는다.** 폰(H 390)에는 빈 줄이 없고, 이 줄이 이미
+  //    «상대가 뭐 하는가» 를 말하는 자리다. 새 줄을 놓으면 버튼과 겹친다.
+  //  ⚠ 상대가 고르는 중이면 «고르는 중» 으로 보여 준다 — **바뀌는 것까지 보이는 것**이
+  //    이 단계의 재미라고 태현님이 직접 짚었다("서로 어디고르는지 보이게").
+  var pickLine = '';
+  if (!F.coop) {
+    //  ⚠ 전략가는 영웅을 안 고른다 — 그쪽에 «나: 고르는 중» 을 띄우면 거짓말이다.
+    //    대신 **상대(컨트롤러)가 뭔 고르는지**만 보여 준다 — 그게 전략가에게는
+    //    배치를 고르는 정보기도 하다("서로 어디 고르는지 보이게" 의 절반).
+    var iAmCtrl = (F.myRole !== 'strategist');
+    var myH = iAmCtrl ? _heroName(this._pickedHero) : null;
+    var thH = F.local ? null : _heroName(F.theirPick);
+    if (myH || thH) {
+      pickLine = String.fromCharCode(10)
+        + (iAmCtrl ? ('⚔ 나: ' + (myH || '고르는 중…') + '   ·   ') : '⚔ ')
+        + who + ': '
+        + (F.local ? '🤖 봇'
+                   : ((thH || '고르는 중…') + (F.theirPickReady ? ' ✓' : '')));
+    }
+  }
+  this._stateTxt.setText(mine + '   ·   ' + theirs + pickLine +
+    (F.mySetup && !F.theirSetup ? (String.fromCharCode(10) + who + '가 끝나면 바로 시작됩니다') : ''));
+
   if (F.mySetup && this._readyBtn && this._readyBtn.text) {
     this._readyBtn.text.setText('⌛ ' + who + '를 기다리는 중…');
   }

@@ -218,6 +218,10 @@ GAME.NetRoom = {
         break;
 
       case 'welcome':
+        //  ⚠ 티켓이 **welcome 에 같이** 온다(2026-09-10 서버 변경). 예전처럼 뒤따라오는
+        //    `iceticket` 도 계속 받는다 — 옛 서버와 섞여도 안전하게.
+        //    이게 있어야 손님 쪽이 협상을 시작하는 그 순간에 이미 티켓을 들고 있다.
+        if (msg.iceTicket) this.iceTicket = msg.iceTicket;
         this.me = msg.you;
         this.host = msg.host;
         this.peers = msg.peers || [];
@@ -232,6 +236,9 @@ GAME.NetRoom = {
       //  ⚠ 방을 나가면 지운다 — 안 지우면 다음 방에서 옛 티켓을 보내 거절당한다.
       case 'iceticket':
         this.iceTicket = msg.ticket || '';
+        //  ⚠ 티켓이 오면 **TURN 을 다시 받아 온다.** 연결을 만들 때는 티켓이 아직
+        //    없어서 서버가 STUN 만 줬다 — 안 다시 부르면 TURN 이 영영 안 붙는다.
+        if (GAME.NetRtc && GAME.NetRtc.onTicket) GAME.NetRtc.onTicket();
         break;
 
       case 'peer':

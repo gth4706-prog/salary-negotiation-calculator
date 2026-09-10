@@ -4,7 +4,16 @@ window.GAME = window.GAME || {};
 //    2026-09-10 외부 자문 §7. 켜려면 콘솔에서 `GAME.RT_DELAY_V2 = true`.
 //    양쪽이 **같은 값**이어야 하므로 A/B 는 두 기기에서 같이 켜고 재야 한다.
 GAME.RT_DELAY_V2 = false;
-GAME.VERSION = 'v3.44';
+//  ── 실시간 경로 강제 `?rtpath=p2p|turn|ws|auto` (2026-09-10 자문 §9) ──────────
+//  ⚠ 시험 전용이다. 안 주면 `auto`(직결 → TURN → WS)로 평소와 같다.
+//  ⚠ 두 기기가 **같은 값**이어야 의미가 있다 — 한쪽만 relay 로 두면 그냥 안 붙는다.
+GAME.rtPath = function () {
+  try {
+    var m = /[?&]rtpath=(p2p|turn|ws|auto)/.exec(location.search);
+    return m ? m[1] : 'auto';
+  } catch (e) { return 'auto'; }
+};
+GAME.VERSION = 'v3.45';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');

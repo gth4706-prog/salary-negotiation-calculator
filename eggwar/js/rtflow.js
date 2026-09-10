@@ -57,7 +57,17 @@ GAME.RtCoop = {
   //  (개별 세계를 손대면 세계 간 상대 난이도가 흐트러진다 — 일괄이 맞다).
   //  일괄 −8% 뒤 균열·폭풍만 8/8 로 남아(그 둘은 원래 여유가 컸다) 두 값만 한 번 더
   //  −8% 했다 — 「세계마다 승·패가 다 있어야 한다」는 게이트가 그 둘을 지목한다.
-  HERO_WORLD_MUL: { meadow: 1.75, mire: 2.25, ash: 3.31, rift: 3.30, storm: 3.09 },
+  //  ⚠⚠ 2026-09-10 재조정 — **내가 이번 세션에 만든 뺚을 갑는 것**이다.
+  //    보스 단독화(BOSS_ESCORT 0) + 보스 보상 강화(×1.23) + 새 리듬(평타 2.5초·
+  //    논타겟 5초·궁극 10초)이 협동 보스에도 그대로 걸렸는데, 그쪽 손잡이를
+  //    안 만졌다. 실측: 봇 둘 승률 68% → **50%**(rt-coop 관문 실패).
+  //  ⚠ 일괄 배수로는 안 맞는다 — ×1.05 면 총합은 75% 로 맞는데 ash·storm 이
+  //    8/8(패가 없는 세계)이 된다. 그 둘은 원래 값 그대로 두고 나머지만 올렸다.
+  //    결과: 70%(28/40) · meadow 4/8 · mire 4/8 · ash 7/8 · rift 6/8 · storm 7/8.
+  //  ⚠ 표본이 세계당 8판뿐이라 해상도가 12.5%p 다 — 소수점 둘째까지 맞추려들지 말 것.
+  //    (단조도 아니다 — 영웅을 약하게 했는데 승수가 늘는 구간이 있었다. 180초 제한과
+  //     보스 페이즈 전환이 섞인다.)
+  HERO_WORLD_MUL: { meadow: 1.84, mire: 2.36, ash: 3.31, rift: 3.47, storm: 3.09 },
   scaleHero: function (hu, world) {
     var m = this.HERO_WORLD_MUL[world];
     if (!(m > 0) || m === 1 || !hu || !hu.def) return hu;
@@ -283,7 +293,20 @@ GAME.RtFlow = {
   _p95Frozen: null,
   _tickId: null,
 
-  begin: function (myRole, theirRole, startMsg) {
+  //  ⚠ `keep` — **재대결 전용**(2026-09-10 태현님 ① "한판 더할때 지금 설정
+  //    그대로"). 지난 판의 영웅·빌드·스킬·배치를 그대로 이어받는다.
+  //  ⚠ 기본값은 여전히 **전부 초기화**다 — 새 상대와 붙는 판까지 이월되면
+  //    "판마다 초기화된 스펙"(2026-08-23 태현님)이라는 약속이 깨진다.
+  //  ⚠ 스킬도 같이 이어받는다. «판마다 무작위»(v3.23 ①)와 부딪혀 보이지만
+  //    재대결은 «같은 판을 한 번 더» 이라 그쪽이 맞는 드이다(새 판은 새로 굴린다).
+  //    결정성은 그대로다 — 굴린 값은 세팅 스냅샷에 실려 양쪽이 같은 것을 본다.
+  begin: function (myRole, theirRole, startMsg, keep) {
+    var K = keep ? {
+      hero: this.myHeroPick || (GAME.ArenaBuild && GAME.ArenaBuild._rtRec && GAME.ArenaBuild._rtRec.heroKey) || null,
+      picks: this.myPicks, rollFor: this.myRollFor,
+      rec: (GAME.ArenaBuild && GAME.ArenaBuild._rtRec) || null,
+      form: this.lastFormation || null
+    } : null;
     this.active = true;
     this.local = false;
     this.coop = null;
@@ -300,6 +323,15 @@ GAME.RtFlow = {
     if (GAME.ArenaBuild) {
       if (myRole === 'controller') GAME.ArenaBuild.rtBegin();
       else GAME.ArenaBuild.rtEnd();
+    }
+    //  재대결 — 방금 지운 것을 그대로 되돌려 놓는다(위 `keep` 주석).
+    if (K) {
+      if (K.hero) this.myHeroPick = K.hero;
+      if (K.picks) { this.myPicks = K.picks; this.myRollFor = K.rollFor; }
+      if (myRole === 'controller' && K.rec) GAME.ArenaBuild._rtRec = K.rec;
+      this.lastFormation = K.form;
+    } else {
+      this.lastFormation = null;
     }
     this._started = false;
     this._rttFrozen = null;

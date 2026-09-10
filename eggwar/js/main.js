@@ -13,7 +13,7 @@ GAME.rtPath = function () {
     return m ? m[1] : 'auto';
   } catch (e) { return 'auto'; }
 };
-GAME.VERSION = 'v3.45';
+GAME.VERSION = 'v3.46';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -371,6 +371,10 @@ window.addEventListener('load', function () {
                  (NR.retrying ? ' reconnect' : '');
         } catch (e) { return 'err ' + String(e).slice(0, 40); }
       })() + '\n' +
+      //  ── 판 적재 (2026-09-10 태현님 ②) ─────────────────────────
+      //  «쌓이고 있는가» 를 폰에서 눈으로 확인한다 — 이 저장소가 반복해서 적어 둔
+      //  «기제를 넣으면 먼저 발동 횟수를 세라» 의 이번 판이다.
+      (GAME.RtLog ? (GAME.RtLog.diagLine() + String.fromCharCode(10)) : '') +
       //  ── 입력 (2026-08-20) ────────────────────────────────────────────────
       //  "조이스틱은 움직이는데 캐릭터가 안 움직인다"(영상 신고)를 **그 기기에서**
       //  가르기 위한 줄. 스틱값·이동속도·묶임·히트스톱이 그 순간 무엇이었는지가

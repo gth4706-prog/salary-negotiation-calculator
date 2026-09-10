@@ -1542,6 +1542,23 @@ GAME.Combat = {
     //  세운다, 2026-09-04 태현님 ②). 실시간은 성장이 없어 탑 경로가 통째로 비는데,
     //  그러면 주술사만 **아이템으로 산 마력이 소환수에 한 톨도 안 붙는다.**
     var own = (owner && owner.summonMul > 0) ? owner.summonMul : 1;
+    //  ⚠⚠ 실시간 감쇠는 **아래 조기 반환보다 먼저** 본다. 실시간은 `summonMods` 도
+    //    없고 `summonMul` 도 1 이라 그 줄에서 언제나 빠져나가 손잡이가 안 닿는다.
+    //    그리고 1:1 은 **둘 다 사람**이라 `strategist` 자리도 같이 깎아야 한다 —
+    //    한 자리만 깎으면 자리가 곳 승부가 된다(탑의 `strategist` 는 AI 진형이라 그대로 제외).
+    //  ⚠ **협동(state.coop)은 제외**한다. 태현님이 짚은 것은 1:1 실시간이고,
+    //    협동은 둘이 보스 하나를 치는 판이라 소환수가 «상대를 동시에 덮치는» 문제가
+    //    애초에 없다. 실측도 그렇다 — 감쇠를 협동에까지 걸었더니 `rt-coop-audit` 의
+    //    «세계마다 승·패» 가 깨졌다(storm 7/8 → 8/8). 요청된 적 없는 곳은 안 건드린다.
+    var rt = (state && state.pvpRealtime && !state.coop &&
+              GAME.ArenaBuild && GAME.ArenaBuild.RT_SUMMON_MUL) || null;
+    if (rt && owner) {
+      var o2 = {}, k2;
+      for (k2 in (skillMods || {})) o2[k2] = skillMods[k2];
+      o2.hp = (o2.hp || 1) * own * (rt.hp > 0 ? rt.hp : 1);
+      o2.damage = (o2.damage || 1) * (rt.damage > 0 ? rt.damage : 1);
+      return o2;
+    }
     if ((!sm && own === 1) || !owner || owner.side === 'strategist') return skillMods;
     var out = {}, k;
     for (k in (skillMods || {})) out[k] = skillMods[k];

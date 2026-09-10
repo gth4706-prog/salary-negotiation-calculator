@@ -23,6 +23,7 @@ GAME.RtPrepScene.prototype.init = function () {
   this._loadoutTxt = null;      // 씬 인스턴스는 재사용된다 — 파괴된 Text 참조 방지
   this._skillTxt = null;
   this._heroBtns = null;
+  this._brief = null;         //  전장 브리핑 카드(씨 재사용 — 파괴된 객체 참조 방지)
 };
 
 GAME.RtPrepScene.prototype.create = function () {
@@ -68,6 +69,16 @@ GAME.RtPrepScene.prototype.create = function () {
       UI.text(this, W / 2, P ? 70 : 124, '🗺 ' + mp.name + ' — ' + mp.desc,
         { size: 'caption', color: C.textDim, origin: 0.5, originY: 0 });
     }
+    //  ── 전장 브리핑 (2026-09-10 태현님 ④) ──────────────────────
+    //  ⚠⚠ 줄로 늘리지 않는다. 컨트롤러 쪽은 폰(H 390)에서 이미 꿉찬 차 있어
+    //    (영웅 6버튼 + 장비요약 + 스킬줄 + 하단 두 버튼) 그래서 **desc 가 전략가
+    //    쪽에만** 있었다 — 정작 태현님이 잡는 컨트롤러가 설명을 못 보던 것이 신고의 정체다.
+    //  ⚠ 준비 화면에 둔 이유 — 여기는 60초가 있고 **록스텝 밖**이다. 전투 시작을
+    //    늦추면 양쪽 시계가 갈라진다 — 그건 이 저장소가 이미 약속한 경계다.
+    if (GAME.RtFlow._mapBriefAt !== (F.startMsg.seed >>> 0)) {
+      GAME.RtFlow._mapBriefAt = (F.startMsg.seed >>> 0);   //  상점 왜복에는 다시 안 뜼다
+      this._showBrief(mp);
+    }
   }
 
   var top = P ? 96 : 150;
@@ -80,6 +91,14 @@ GAME.RtPrepScene.prototype.create = function () {
         '저장된 배치가 없습니다 — 대전 → 내 전장 만들기에서 먼저 만들어 두세요',
         { size: 'caption', color: C.textDim, origin: 0.5 });
     }
+    //  재대결 — 지난 판 배치를 미리 고른 채로 둔다(2026-09-10 태현님 ①).
+    //  ⚠ 그 배치가 사라졌으면(삭제·이름 변경) 그냥 안 고른 상태다 — 없는 배치로
+    //    확정되어 빈 진형으로 들어가는 것보다 낫다.
+    var keepId = GAME.RtFlow.lastFormation;
+    if (keepId) {
+      for (var ki = 0; ki < list.length; ki++)
+        if ((list[ki].id || list[ki].name) === keepId) { this._pickedFormation = list[ki]; break; }
+    }
     this._formBtns = [];
     var bw = Math.min(W - 40, 560), bh = P ? 46 : 56;
     list.forEach(function (f, i) {
@@ -87,6 +106,7 @@ GAME.RtPrepScene.prototype.create = function () {
         (f.name || '(이름 없음)') + '   ·   ' + (f.units ? f.units.length : 0) + '기',
         function () {
           self._pickedFormation = f;
+          GAME.RtFlow.lastFormation = f.id || f.name || null;   //  재대결이 이어받는다(①)
           self._formBtns.forEach(function (fb, j) {
             fb.rect.setStrokeStyle(list[j] === f ? 3 : 1,
               list[j] === f ? GAME.CONFIG.COLORS.strategist : UI.COL.borderUi);
@@ -94,6 +114,14 @@ GAME.RtPrepScene.prototype.create = function () {
         }, { fontSize: P ? 13 : 15 });
       self._formBtns.push(b);
     });
+    //  미리 고른 것을 **화면에도** 표시한다 — 고른 것과 보이는 것이 다르면
+    //  사람은 안 고른 줄 알고 다시 누른다(같은 것을 다시 고르게 만드는 셀).
+    if (this._pickedFormation) {
+      this._formBtns.forEach(function (fb, j) {
+        fb.rect.setStrokeStyle(list[j] === self._pickedFormation ? 3 : 1,
+          list[j] === self._pickedFormation ? GAME.CONFIG.COLORS.strategist : UI.COL.borderUi);
+      });
+    }
   } else {
     //  컨트롤러 — 영웅 3종을 **초기화된 스펙으로 새로 고른다** (2026-08-23 태현님).
     //  2026-08-24 ④: 영웅을 고른 뒤 **무기·스킬 드래프트**(예산 500)를 되살렸다 —
@@ -184,6 +212,69 @@ GAME.RtPrepScene.prototype.create = function () {
     delay: 400, loop: true, callback: function () { self._refresh(); }
   });
   this._refresh();
+};
+
+//  전장 브리핑 카드 — 탭하면 즉시 닫히고, 안 눈르면 스스로 사라진다.
+//  ⚠ 준비 버튼을 막지 않는 것이 이 카드의 유일한 제약이다 — 60초 시계가 돌고 있다.
+GAME.RtPrepScene.prototype._showBrief = function (mp) {
+  var UI = GAME.UI;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT, P = !!GAME.CONFIG.PHONE;
+  var self = this;
+  var isNew = GAME.RtMaps.isNew(mp.key);
+  GAME.RtMaps.markSeen(mp.key);
+
+  //  ⚠⚠ 색은 `UI.COL` 을 안 쓴다 — 첫 판이 그걸 썼다가 실측 스크린샷에서
+  //    **흰 판**으로 떴다(값이 없어 NaN → 흰색). 이 게임의 판은 양피지색이고,
+  //    v3.11 이 이미 결론을 내 둑다 — **밝은 판에는 진한 글자**(잍크 라벨).
+  var PAPER = 0xf6ead2, INK = '#241a10', EDGE = 0x5a4632, HI = '#8a3b12';
+
+  //  ⚠ 칸을 먼저 잡고 글자를 넣지 않는다 — **글자를 먼저 지어 재고** 그 크기로
+  //    칸을 그린다. 고정 높이를 박았더니 규칙줄이 칸 밖으로 샐다(실측).
+  //    이 저장소가 반복해서 적은 «고정 오프셋을 박지 말고 실측 높이에서 역산하라» 그대로다.
+  var cw = Math.min(W - 28, P ? 380 : 520);
+  var wrap = cw - (P ? 24 : 32);
+  var objs = [], texts = [], y = 0;
+  function put(t, o) {
+    o.origin = 0.5; o.originY = 0;
+    var x = UI.text(self, W / 2, y, t, o);
+    x.setAlign('center'); x.setWordWrapWidth(wrap);
+    x.setDepth(9001); x.__overlay = 1;
+    texts.push(x); objs.push(x);
+    y += x.height + (P ? 4 : 6);
+    return x;
+  }
+  put((isNew ? '✦ 새 전장 · ' : '전장 · ') + mp.name,
+      { size: P ? 'subhead' : 'head', color: isNew ? HI : INK });
+  put(mp.desc, { size: 'caption', color: INK });
+  GAME.RtMaps.rulesOf(mp).forEach(function (ln) { put(ln, { size: 'micro', color: INK }); });
+  put('화면을 한 번 탭하면 닫힙니다', { size: 'micro', color: INK });
+
+  var pad = P ? 12 : 16;
+  var ch = y + pad * 2 - (P ? 4 : 6);
+  var cy = H / 2, top = cy - ch / 2;
+  for (var i = 0; i < texts.length; i++) texts[i].y += top + pad;
+
+  var g = this.add.graphics();
+  g.fillStyle(0x1a140c, 0.55).fillRect(0, 0, W, H);                 //  장막 — 탭 받이도 겸한다
+  g.fillStyle(PAPER, 0.99).fillRoundedRect(W / 2 - cw / 2, top, cw, ch, 10);
+  g.lineStyle(2, EDGE, 1).strokeRoundedRect(W / 2 - cw / 2, top, cw, ch, 10);
+  g.setDepth(9000);
+  //  ⚠ 감사에게 «나는 덮개다» 를 알린다(tools/overlap-audit.js `ovl`).
+  //    이게 없으면 아래 버튼과의 겹침이 전부 결함으로 잡힌다.
+  g.__overlay = 1;
+  objs.push(g);
+
+  this._brief = objs;
+  function close() {
+    if (!self._brief) return;
+    self._brief.forEach(function (o) { try { if (o && o.destroy) o.destroy(); } catch (e) {} });
+    self._brief = null;
+  }
+  //  탭 — 장막이 전체를 덮으므로 아래 버튼이 오작동하지 않는다.
+  //  ⚠ 준비 버튼을 오래 막지 않는 것이 이 카드의 유일한 제약이다 — 60초 시계가 돌고 있다.
+  g.setInteractive(new Phaser.Geom.Rectangle(0, 0, W, H), Phaser.Geom.Rectangle.Contains);
+  g.once('pointerdown', close);
+  this.time.delayedCall(isNew ? 6500 : 4200, close);
 };
 
 GAME.RtPrepScene.prototype._markHero = function (hks, hk) {

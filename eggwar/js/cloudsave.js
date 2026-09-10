@@ -73,7 +73,11 @@ GAME.CloudSave = {
     { k: 'daily',  key: function () { return GAME.Daily && GAME.Daily.KEY; },               merge: 'daily' },
     { k: 'prog',   key: function () { return GAME.Progress && GAME.Progress.KEY; },         merge: 'prog' },
     { k: 'rt',     key: function () { return GAME.RtScore && GAME.RtScore.KEY; },           merge: 'rt' },
-    { k: 'abuild', key: function () { return GAME.ArenaBuild && GAME.ArenaBuild.KEY; },     merge: 'abuild' }
+    { k: 'abuild', key: function () { return GAME.ArenaBuild && GAME.ArenaBuild.KEY; },     merge: 'abuild' },
+    //  실시간 판 기록(2026-09-10 태현님 ②) — 밸런스 근거를 기기 밖으로 내보낸다.
+    //  ⚠ 병합은 **합집합**이다(다른 칸처럼 최댓값이 아니라) — 판 기록은
+    //    재지 않고 쌓는 것이라 한쪽을 버리면 그만큼 표본이 사라진다.
+    { k: 'rtlog',  key: function () { return GAME.RtLog && GAME.RtLog.KEY; },               merge: 'rtlog' }
   ],
 
   // ── 상태 ─────────────────────────────────────────────────────────────────
@@ -277,7 +281,20 @@ GAME.CloudSave = {
       return o;
     },
 
-    abuild: function (l, r) { return r === undefined ? l : r; }
+    abuild: function (l, r) { return r === undefined ? l : r; },
+
+    //  합집합 — 같은 판은 (시각 + 영웅)으로 가른다. 상한을 넘으면 오래된 것부터 버린다.
+    rtlog: function (l, r) {
+      var cap = (GAME.RtLog && GAME.RtLog.CAP) || 300;
+      var lr = (l && l.rows) || [], rr = (r && r.rows) || [];
+      if (!lr.length) return r === undefined ? l : r;
+      var seen = {}, all = [], i, x;
+      for (i = 0; i < lr.length; i++) { x = lr[i]; seen[x.t + '|' + (x.h || '')] = 1; all.push(x); }
+      for (i = 0; i < rr.length; i++) { x = rr[i]; if (!seen[x.t + '|' + (x.h || '')]) all.push(x); }
+      all.sort(function (a, b) { return (a.t || 0) - (b.t || 0); });
+      if (all.length > cap) all = all.slice(all.length - cap);
+      return { rows: all };
+    }
   },
 
   // ── 올리기 ───────────────────────────────────────────────────────────────

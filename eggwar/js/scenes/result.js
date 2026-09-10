@@ -170,7 +170,11 @@ GAME.ResultScene.prototype._rtGo = function (seed) {
   if (this._rtVoteTimer) { clearInterval(this._rtVoteTimer); this._rtVoteTimer = null; }
   //  협동(S-C)은 같은 세계·층으로 다시 — 시드만 새로(진형이 새로 섞인다).
   if (this.rtLive.coop) GAME.RtFlow.beginCoop(this.rtLive.coop, { seed: seed >>> 0 });
-  else GAME.RtFlow.begin(this.rtLive.myRole, this.rtLive.theirRole, { seed: seed >>> 0 });
+  //  ⚠ 넯째 인자 `true` — **지금 설정 그대로**(2026-09-10 태현님 ①).
+  //    재대결은 «같은 판을 한 번 더» 이다 — 영웅·장비·스킬·배치를 다시
+  //    고르게 하면 «한 판 더» 가 아니라 처음부터 다시가 된다.
+  //    로비에서 새로 잡는 판(rtlobby)은 keep 을 안 넘기므로 여전히 초기화된다.
+  else GAME.RtFlow.begin(this.rtLive.myRole, this.rtLive.theirRole, { seed: seed >>> 0 }, true);
   var sm = GAME.game.scene;
   sm.getScenes(true).forEach(function (s) { sm.stop(s.scene.key); });
   sm.start('RtPrep');

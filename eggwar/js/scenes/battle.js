@@ -2803,6 +2803,40 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
       }
     }
 
+    //  ── 판 적재 (2026-09-10 태현님 ②) ──────────────────────────
+    //  진짜 판만이 밸런스를 판정할 수 있는데 지금까지는 끝나면 사라졌다(js/rtlog.js 머릿글).
+    //  ⚠ try 로 감싼다 — **기록이 전투 종료를 죽이면 그건 기록이 아니라 사고다.**
+    //  ⚠ 검증(test) 판은 안 쌓는다 — 하네스가 사람의 표본을 오염시키면 안 된다.
+    if (this.rt && !this.test && GAME.RtLog) {
+      try {
+        //  ⚠ 1:1 은 `this.hero` 가 곳 내 영웅이다(_rtCompose 가 그렇게 심는다).
+        //    협동만 `_rtHeroes.controller` 가 **배열**이라 내 자리(_rtMyHeroId)를 짚는다.
+        var lgArr = (this._rtHeroes && this._rtHeroes.coop) ? this._rtHeroes.controller : null;
+        var lgMe = (lgArr && lgArr[this._rtMyHeroId || 0]) || this.hero || null;
+        var lgFoe = null, lgU = this.state.units;
+        for (var lgi = 0; lgi < lgU.length; lgi++)
+          if (lgU[lgi].isHero && lgU[lgi] !== lgMe) { lgFoe = lgU[lgi]; break; }
+        var N = GAME.NetRtc || {};
+        GAME.RtLog.push({
+          mode: this.rt.coop ? 'coop' : (this.rt.local ? 'practice' : 'rt'),
+          map: (this.state.rtMap && this.state.rtMap.key) || '',
+          role: (this.rt.my && this.rt.my.role) || '',
+          hero: (lgMe && lgMe.hero && lgMe.hero.key) || this.heroKey || '',
+          foeHero: (lgFoe && lgFoe.hero && lgFoe.hero.key) || '',
+          skills: (GAME.RtFlow && GAME.RtFlow.myPicks) ? [].concat(GAME.RtFlow.myPicks).join(',') : '',
+          won: rtResult ? !!rtResult.won : false,
+          invalid: rtResult ? !!rtResult.invalid : (this.state.winner === null),
+          sec: (this.state.elapsed || 0) / 1000,
+          myHpPct: (lgMe && lgMe.maxHp) ? Math.max(0, lgMe.hp / lgMe.maxHp) : 0,
+          foeHpPct: (lgFoe && lgFoe.maxHp) ? Math.max(0, lgFoe.hp / lgFoe.maxHp) : 0,
+          delay: (this._rtSession && this._rtSession.delay) || 0,
+          rttMs: N.pairRttMs || 0,
+          route: N.route || '',
+          stalls: Math.round((this._rtSession && this._rtSession.stalledMs) || 0)
+        });
+      } catch (eLg) { /* 기록 실패는 판을 막지 않는다 */ }
+    }
+
     // 대전(비동기 PvP) — 트로피를 정산한다
     var arenaResult = null;
     if (this.versus && !this.test && GAME.Arena) {

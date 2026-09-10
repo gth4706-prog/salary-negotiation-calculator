@@ -30,6 +30,22 @@ GAME.NetRtc = {
   //  ⚠ **p95 를 따로 둔다** — 중앙값만 쓰면 모바일 지터가 입력 버퍼를 넘을 때마다
   //    strict lockstep 이 멈춘다(그게 "간헐적 렉"으로 보인다). `rtflow` 가 이 값을 읽는다.
   rttP95Ms: null,
+  //  ── 실제 경로 (2026-09-10) ────────────────────────────────────────────────
+  //  ⚠⚠ **`dc=on` 은 P2P 성공을 뜻하지 않는다.** TURN 릴레이 위에서도 DataChannel 은
+  //    열린다. 그래서 지금까지 우리는 «직결이 붙었는가»를 한 번도 못 재고 있었다 —
+  //    서울 서버가 필요한지 아닌지의 근거가 바로 이 값인데 눈이 없었던 것이다.
+  //  → `getStats()` 의 **선택된 candidate pair** 를 읽어 분류한다:
+  //      · 어느 한쪽이라도 relay → TURN
+  //      · host/srflx/prflx 뿐   → P2P 직결
+  //  ⚠ 개인정보를 남기지 않는다 — **주소는 안 읽고 타입만** 읽는다(IP·SDP 저장 금지).
+  route: null,          // 'p2p' | 'turn' | null(아직 모름)
+  pairKind: null,       // 'srflx/srflx' 처럼 타입 쌍만
+  proto: null,          // udp | tcp
+  relayProto: null,     // udp | tcp | tls (relay 일 때만)
+  iceMs: null,          // 연결까지 걸린 시간
+  iceRestarts: 0,
+  pairChanges: null,
+  _iceT0: 0,
   _fastPingCount: 0,
   _samples: [],
   _pingSeq: 0,
@@ -97,6 +113,10 @@ GAME.NetRtc = {
         { urls: 'stun:stun.l.google.com:19302' }
       ];
       pc = new RTCPeerConnection({ iceServers: ICE });
+      //  ICE 협상 시작 시각 — 「붙는 데 몇 초 걸리나」는 직결 성공률만큼 중요한 값이다.
+      this._iceT0 = Date.now();
+      this.route = null; this.pairKind = null; this.proto = null;
+      this.relayProto = null; this.iceMs = null; this.pairRttMs = null;
       this._loadIce(pc, ICE);
     } catch (e) { this._fail(); return; }
     this.pc = pc;
@@ -129,6 +149,12 @@ GAME.NetRtc = {
     dc.onopen = function () {
       self._open = true;
       self._startPing();
+      //  ⚠ 경로 분류를 **돌린다.** 넣어 두고 안 부르면 `route` 가 영영 null 이다 —
+      //    이 저장소가 여러 번 겪은 「기제는 있는데 부르는 곳이 없다」의 자리다.
+      //    2초 주기: 경로는 자주 안 바뀌고, 자주 부르면 계측이 부하가 된다.
+      self._pollRoute();
+      if (self._routeTimer) clearInterval(self._routeTimer);
+      self._routeTimer = setInterval(function () { self._pollRoute(); }, 2000);
       GAME.NetRoom._emit('rtc', true);
     };
     dc.onclose = function () { self._fail(); };
@@ -182,6 +208,37 @@ GAME.NetRtc = {
   //    60초라 판이 시작될 때까지 측정이 안 끝나고, 그러면 `rtflow` 가 기본값 180ms 로
   //    입력 지연을 굳혀 **직결이 2ms 인데도 서버 경유 왕복 기준**으로 논다.
   //    250ms × 12회 = 3초면 끝난다. 그 뒤엔 다시 2초 주기로 돌아간다(부하 없음).
+  //  선택된 경로를 훑는다. 2초마다 — 경로는 자주 안 바뀌고, 자주 부르면 그 자체가 부하다.
+  //  ⚠ `getStats` 는 브라우저마다 필드가 조금씩 다르다. **없으면 조용히 넘어간다** —
+  //    진단이 게임을 멈추게 하면 안 된다(계측이 재려던 것을 망치지 않는다는 규율).
+  _pollRoute: function () {
+    var self = this;
+    if (!this.pc || !this.pc.getStats) return;
+    this.pc.getStats(null).then(function (rep) {
+      var pair = null, cands = {};
+      rep.forEach(function (r) {
+        if (r.type === 'local-candidate' || r.type === 'remote-candidate') cands[r.id] = r;
+        if (r.type === 'candidate-pair' && (r.selected || r.state === 'succeeded' || r.nominated)) {
+          if (!pair || r.selected || (r.nominated && !pair.selected)) pair = r;
+        }
+        if (r.type === 'transport' && r.selectedCandidatePairChanges != null) {
+          self.pairChanges = r.selectedCandidatePairChanges;
+        }
+      });
+      if (!pair) return;
+      var L = cands[pair.localCandidateId], R = cands[pair.remoteCandidateId];
+      var lt = L && L.candidateType, rt = R && R.candidateType;
+      if (!lt && !rt) return;
+      self.pairKind = (lt || '?') + '/' + (rt || '?');
+      self.route = (lt === 'relay' || rt === 'relay') ? 'turn' : 'p2p';
+      self.proto = (L && L.protocol) || (R && R.protocol) || null;
+      self.relayProto = (L && L.relayProtocol) || (R && R.relayProtocol) || null;
+      //  ⚠ `currentRoundTripTime` 은 **초 단위**다(ms 아님) — 그대로 쓰면 1000배 틀린다.
+      if (pair.currentRoundTripTime != null) self.pairRttMs = Math.round(pair.currentRoundTripTime * 1000);
+      if (self.iceMs == null && self._iceT0) self.iceMs = Date.now() - self._iceT0;
+    })['catch'](function () {});
+  },
+
   _startPing: function () {
     var self = this;
     this._stopPing();
@@ -198,6 +255,9 @@ GAME.NetRtc = {
   },
   _stopPing: function () {
     if (this._pingTimer) { clearInterval(this._pingTimer); this._pingTimer = null; }
+    //  ⚠ 경로 폴러도 같이 끈다 — 안 끄면 연결이 죽은 뒤에도 2초마다 getStats 를
+    //    부르며 남는다(씬을 오갈수록 쌓인다).
+    if (this._routeTimer) { clearInterval(this._routeTimer); this._routeTimer = null; }
   },
   _ping: function () {
     if (!this.ready()) return;

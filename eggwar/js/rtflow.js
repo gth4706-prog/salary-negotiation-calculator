@@ -280,6 +280,7 @@ GAME.RtFlow = {
   deadline: 0,
   _started: false,
   _rttFrozen: null,
+  _p95Frozen: null,
   _tickId: null,
 
   begin: function (myRole, theirRole, startMsg) {
@@ -302,6 +303,7 @@ GAME.RtFlow = {
     }
     this._started = false;
     this._rttFrozen = null;
+    this._p95Frozen = null;
     this.deadline = Date.now() + this.PREP_MS;
     var self = this;
     //  ⚠ NetRoom 콜백을 **여기서 쥔다** — RtPrep 이 상점을 다녀와도 안 끊긴다.
@@ -347,6 +349,7 @@ GAME.RtFlow = {
     if (GAME.ArenaBuild) GAME.ArenaBuild.rtBegin();
     this._started = false;
     this._rttFrozen = 0;
+    this._p95Frozen = 0;
     this.deadline = Date.now() + this.PREP_MS;
     var self = this;
     if (this._tickId) clearInterval(this._tickId);
@@ -461,6 +464,14 @@ GAME.RtFlow = {
     if (this._rttFrozen == null)
       this._rttFrozen = Math.round(GAME.NetRoom.bestRtt() || 180);
     setup.rtt = this._rttFrozen;
+    //  ⚠ 지터 계산용 p95 도 **같이 얼려서 싣는다.** 안 실으면 `RT_DELAY_V2` 의
+    //    지터가 늘 최소값(8ms)이 되어 «지터를 본다»는 말만 남는다.
+    //  ⚠ 양쪽이 같은 값을 봐야 하므로 스냅샷에 실어 보낸다(런타임 참조 금지).
+    if (this._p95Frozen == null) {
+      var rc95 = GAME.NetRtc && GAME.NetRtc.ready() ? GAME.NetRtc.rttP95Ms : null;
+      this._p95Frozen = Math.round(rc95 != null ? rc95 : (this._rttFrozen || 180));
+    }
+    setup.rttP95 = this._p95Frozen;
     setup.rtScore = GAME.RtScore ? GAME.RtScore.get().score : 0;
     this.mySetup = setup;
     if (this.local) {
@@ -501,8 +512,25 @@ GAME.RtFlow = {
     //    (`?diag=1` 의 `rt` 줄) — 지금은 그 숫자가 없다.
     //  ⚠ 두 값은 **세팅 스냅샷에 실려 양쪽이 같은 값을 본다** — 결정적이다.
     //    런타임에 한쪽만 delay 를 바꾸면 즉시 갈라진다(미래 틱 합의 프로토콜이 따로 필요).
-    var oneWay = ((this.mySetup.rtt || 180) + (this.theirSetup.rtt || 180)) / 2;
-    var delay = this.local ? 2 : Math.max(3, Math.min(24, Math.ceil(oneWay * 1.15 / 33.4) + 2));
+    //  ⚠⚠ **이름이 `oneWay` 지만 편도가 아니었다** — 두 사람 «왕복»의 평균이다.
+    //    록스텝이 요구하는 것은 "상대가 내 입력을 실행 전에 받는가" = **편도**인데,
+    //    왕복 전체를 지연으로 잡고 있었으니 **필요한 것의 두 배**를 걸어 온 셈이다.
+    //    (2026-09-10 외부 자문이 짚었고, 코드로 확인했다.)
+    var rttAvg = ((this.mySetup.rtt || 180) + (this.theirSetup.rtt || 180)) / 2;
+    var delay;
+    if (this.local) delay = 2;
+    else if (GAME.RT_DELAY_V2) {
+      //  ── 새 식 (플래그 뒤) ────────────────────────────────────────────────
+      //    편도(rtt/2) + 지터 여유. 상한을 8틱(267ms)으로 낮게 잡는다 — 그보다 큰
+      //    지연은 «느린 게임»이지 «안정된 게임»이 아니다(9/10 신고에서 배운 것).
+      //  ⚠ 지터는 p95−p50 의 절반으로 잡되 최소 8ms — 0 이면 표본이 모자란 것이지
+      //    지터가 없는 것이 아니다.
+      var jit = Math.max(8, ((this.mySetup.rttP95 || rttAvg) - rttAvg) / 2);
+      delay = Math.max(2, Math.min(8, Math.ceil((rttAvg / 2 + jit) / 33.4) + 1));
+    } else {
+      //  옛 식 — 되돌릴 자리를 남겨 둔다(A/B 비교용).
+      delay = Math.max(3, Math.min(24, Math.ceil(rttAvg * 1.15 / 33.4) + 2));
+    }
     var heroKey = this.mySetup.heroKey || this.theirSetup.heroKey || 'vanguard';
     var rt = {
       seed: this.startMsg.seed >>> 0,

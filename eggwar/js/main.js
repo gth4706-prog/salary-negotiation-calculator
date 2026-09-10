@@ -1,6 +1,10 @@
 window.GAME = window.GAME || {};
 
-GAME.VERSION = 'v3.43';
+//  ⚠ 실시간 입력 지연 «새 식»(편도 기준) 기능 플래그 — 기본 **꺼짐**.
+//    2026-09-10 외부 자문 §7. 켜려면 콘솔에서 `GAME.RT_DELAY_V2 = true`.
+//    양쪽이 **같은 값**이어야 하므로 A/B 는 두 기기에서 같이 켜고 재야 한다.
+GAME.RT_DELAY_V2 = false;
+GAME.VERSION = 'v3.44';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');
@@ -339,9 +343,22 @@ window.addEventListener('load', function () {
           var rtt = dc ? RC.rttMs : (NR.bestRtt ? NR.bestRtt() : null);
           var pct = (ss && ss.tick > 0 && sc.state && sc.state.elapsed > 0)
             ? Math.round(ss.stalledMs / sc.state.elapsed * 100) : 0;
-          return 'dc=' + (dc ? 'on' : (RC && RC._dead ? 'dead' : 'off')) +
-                 ' rtt=' + (rtt == null ? '?' : Math.round(rtt)) + 'ms' +
+          //  ⚠⚠ **`dc=on` 을 P2P 성공으로 읽지 말 것** — TURN 위에서도 채널은 열린다.
+          //    실제 경로는 `getStats()` 의 선택된 candidate pair 가 답한다(netrtc._pollRoute).
+          //    route 가 '?' 면 아직 못 정한 것이지 실패가 아니다.
+          var route = (RC && RC.route) || (dc ? '?' : (NR.retrying ? 'ws?' : 'ws'));
+          var med = RC && RC.rttMs, p95 = RC && RC.rttP95Ms;
+          return 'route=' + route +
+                 ' pair=' + ((RC && RC.pairKind) || '-') +
+                 ' proto=' + ((RC && RC.proto) || '-') +
+                 (RC && RC.relayProto ? ('/' + RC.relayProto) : '') +
+                 ' rtt50=' + (med == null ? '?' : Math.round(med)) +
+                 ' rtt95=' + (p95 == null ? '?' : Math.round(p95)) +
+                 ' pairRtt=' + ((RC && RC.pairRttMs != null) ? RC.pairRttMs : '?') +
+                 ' iceMs=' + ((RC && RC.iceMs != null) ? RC.iceMs : '?') +
                  (ss ? (' delay=' + ss.delay + ' tick=' + ss.tick + ' stall=' + pct + '%') : '') +
+                 ' dc=' + (dc ? 'on' : (RC && RC._dead ? 'dead' : 'off')) +
+                 ' wsRtt=' + (NR.rttMs == null ? '?' : Math.round(NR.rttMs)) +
                  (NR.retrying ? ' reconnect' : '');
         } catch (e) { return 'err ' + String(e).slice(0, 40); }
       })() + '\n' +

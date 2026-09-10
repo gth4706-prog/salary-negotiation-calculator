@@ -28,10 +28,10 @@ GAME.BossBank = (function () {
     //  안 주면 타일 바닥 — 지운 시트는 바닥에 투명 띠가 남아 발이 떠 보인다.
     //  sizeMul 0.8 — 2026-08-23 태현님: "40층 재파수병 크기를 20% 정도 줄여줘".
     "bossAshSentry": {"art":"beast:sentry:ash","tileW":1801,"tileH":1818,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.5698,"pivotY":1818,"sizeMul":0.8},
-    "bossAshSentry-death": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
-    "bossAshSentry-skill": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
-    "bossAshSentry-attack": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
-    "bossAshSentry-walk": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320,"sizeMul":0.8},
+    "bossAshSentry-death": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320,"sizeMul":0.8,"headY":0.078},
+    "bossAshSentry-skill": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320,"sizeMul":0.8,"headY":0.078},
+    "bossAshSentry-attack": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320,"sizeMul":0.8,"headY":0.078},
+    "bossAshSentry-walk": {"art":"beast:sentry:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320,"sizeMul":0.8,"headY":0.078},
     "bossChief": {"art":"chieftain","tileW":1918,"tileH":1919,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.157,"pivotY":1919},
     "bossDragonAwakened": {"art":"beast:awakened:ember","tileW":1324,"tileH":711,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.1337},
     "bossDragonClaw": {"art":"beast:claw:ember","tileW":1705,"tileH":1922,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.1744,"pivotY":1922},
@@ -41,24 +41,24 @@ GAME.BossBank = (function () {
     "bossDragonLord": {"art":"beast:dragon:ember","tileW":2048,"tileH":2017,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.7267,"pivotY":2017,"sizeMul":1.4},
     "bossDragonTail": {"art":"beast:tail:ember","tileW":1383,"tileH":481,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":2.7965},
     "bossDrakeAsh": {"art":"beast:drake:ash","tileW":1978,"tileH":1831,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.6453,"pivotY":1831},
-    "bossDrakeAsh-death": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320},
-    "bossDrakeAsh-skill": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320},
-    "bossDrakeAsh-attack": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
-    "bossDrakeAsh-walk": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320},
+    "bossDrakeAsh-death": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0},
+    "bossDrakeAsh-skill": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0},
+    "bossDrakeAsh-attack": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0},
+    "bossDrakeAsh-walk": {"art":"beast:drake:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320,"headY":0},
     "bossDrakeFrost": {"art":"beast:drake:frost","tileW":1969,"tileH":1853,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.7733,"pivotY":1853},
-    "bossDrakeFrost-death": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320},
-    "bossDrakeFrost-skill": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320},
-    "bossDrakeFrost-attack": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
-    "bossDrakeFrost-walk": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320},
+    "bossDrakeFrost-death": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "bossDrakeFrost-skill": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "bossDrakeFrost-attack": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "bossDrakeFrost-walk": {"art":"beast:drake:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320,"headY":0.078},
     "bossDrakeStorm": {"art":"beast:drake:storm","tileW":1849,"tileH":1606,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":9.3372,"pivotY":1606},
     //  ⚠ 둥지 포탑 — **일부러 끈다**(2026-09-05 태현님: "둥지에서 화살쏘는건 롤백해").
     //     벡터 발리스타로 돌아간다. 시트 파일(assets/boss/bossNest.png)과 실측값은 남긴다.
     "bossNest": {"off":true,"art":"ballista","tileW":1298,"tileH":734,"cols":1,"rows":1,"phases":1,"loopMs":0,"drawScale":4.2674},
     "bossShell": {"art":"guardian","tileW":1761,"tileH":1876,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.907,"pivotY":1876},
-    "bossShell-death": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320},
-    "bossShell-skill": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320},
-    "bossShell-attack": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
-    "bossShell-walk": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320},
+    "bossShell-death": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "bossShell-skill": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "bossShell-attack": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "bossShell-walk": {"art":"guardian","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320,"headY":0.078},
 
     //  ── 시즌2 「다섯 세계」 세계 보스 (2026-09-03 S-A) ─────────────────────────
     //  초원(1~30)은 현행 셋(bossChief·bossShell·bossNest)이 그대로 맡는다.
@@ -88,25 +88,25 @@ GAME.BossBank = (function () {
     //  그 새 항목들의 art 가 `""` 였다 — 시트는 들어왔는데 **아무 보스도 그걸 못 찾는**
     //  상태였다(중복 키라 뒤엣것이 이겨서 조용히 그렇게 된다). 임포터를 쓸 때마다 확인할 것.
     "w_mist_boss": {"art":"beast:bogmother:frost","tileW":1711,"tileH":1892,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11,"pivotY":1892},
-    "w_mist_boss-attack": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_mist_boss-death": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_mist_boss-skill": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_mist_boss-walk": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320},
+    "w_mist_boss-attack": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "w_mist_boss-death": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "w_mist_boss-skill": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "w_mist_boss-walk": {"art":"beast:bogmother:frost","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320,"headY":0.078},
     "w_ash_boss": {"art":"beast:ashlord:ember","tileW":1560,"tileH":1925,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":11.1919,"pivotY":1925},
-    "w_ash_boss-death": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_ash_boss-skill": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_ash_boss-attack": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_ash_boss-walk": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320},
+    "w_ash_boss-death": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "w_ash_boss-skill": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "w_ash_boss-attack": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "w_ash_boss-walk": {"art":"beast:ashlord:ember","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320,"headY":0.078},
     "w_rift_boss": {"art":"beast:riftgiant:ash","tileW":1970,"tileH":1829,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.6337,"pivotY":1829},
-    "w_rift_boss-death": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_rift_boss-skill": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_rift_boss-attack": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_rift_boss-walk": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320},
+    "w_rift_boss-death": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "w_rift_boss-skill": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "w_rift_boss-attack": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "w_rift_boss-walk": {"art":"beast:riftgiant:ash","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320,"headY":0.078},
     "w_storm_boss": {"art":"beast:stormking:storm","tileW":1831,"tileH":1878,"cols":1,"rows":1,"phases":1,"loopMs":0,"play":"static","drawScale":10.9186,"pivotY":1878},
-    "w_storm_boss-death": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_storm_boss-skill": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_storm_boss-attack": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320},
-    "w_storm_boss-walk": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320},
+    "w_storm_boss-death": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2600,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "w_storm_boss-skill": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1900,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "w_storm_boss-attack": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":1400,"play":"once","drawScale":1.8605,"pivotY":320,"headY":0.078},
+    "w_storm_boss-walk": {"art":"beast:stormking:storm","tileW":320,"tileH":320,"cols":12,"rows":1,"phases":12,"loopMs":2400,"play":"loop","drawScale":1.8605,"pivotY":320,"headY":0.078},
     //  용의 발·날개 (2026-09-09) — v1.07 에서 래스터를 접고 벡터로 되돌렸던 둘이다.
     //  이번에 제대로 된 그림이 나와 다시 시트로 돌아왔다(태현님: "동그라미 등 도형으로만
     //  만들어진 용, 이거 깔끔히 다 교체해"). 임포터가 `-Radius` 를 줘야 들어간다 —
@@ -409,8 +409,16 @@ GAME.BossBank = (function () {
       //    닫히는 즉시 걷기로 돌아가 버려서, 공격 시트 12칸 중 앞 서너 칸만 스치고
       //    사라졌다. 동작이 시작됐으면 **끝까지 보여준다**(사망은 위에서 이미 latch).
       else if (st.name === 'attack' || st.name === 'skill') {
-        var mHold = DATA[e.key + '-' + st.name];
-        if (mHold && scene.time.now - st.at < (mHold.loopMs || 900)) want = st.name;
+        //  ⚠⚠ **스킬은 공격을 끊고 들어간다** (2026-09-10 실측으로 잡음).
+        //    홀드를 넣었더니 진행 중인 `attack` 이 스킬 **예고**를 막았다 — 예고가
+        //    지나간 뒤에야 홀드가 풀리니 스킬 시트가 1~3칸만 스치고 사라졌다
+        //    (여덟 층 중 셋이 그렇게 빨간불이었다). 예고는 「피하라」는 신호라
+        //    평타보다 급하다. 반대(공격이 스킬을 끊는 것)는 막는다.
+        var jump = (want === 'skill' && st.name === 'attack');
+        if (!jump) {
+          var mHold = DATA[e.key + '-' + st.name];
+          if (mHold && scene.time.now - st.at < (mHold.loopMs || 900)) want = st.name;
+        }
       }
       //  ⚠⚠ `once` 로 바뀌면서 생긴 자리: 공격 중에 **또 때리면** 모션이 안 바뀌므로
       //    `st.at` 이 그대로라 두 번째 타격은 이미 끝난 마지막 칸에 머문다(= 안 움직인다).
@@ -639,7 +647,12 @@ GAME.BossBank = (function () {
       //    넘치게 두고 그 위는 내린다(거대함은 남기되 화면은 안 가린다).
       var aTop = (scene._zoomRect ? scene._zoomRect.y : 0) + 2;
       var allow = m.sizeMul ? h * 0.22 : 0;      // 확대 보스만 조금 넘치게 둔다
-      var limit = aTop - allow;
+      //  ⚠⚠ **머리 위에 체력바가 앉을 자리를 남긴다** (2026-09-10 태현님 ⑤).
+      //    실측: 130층 용의 스프라이트 위가 59, 아레나 위가 64 — 머리가 천장에 닿아
+      //    "머리 위"에 바를 놓을 공간이 아예 없었다. 바를 올렸는데 화면 맨 위에
+      //    붙어 버린 것이 이 때문이다(코드가 아니라 **자리**가 없었다).
+      var BAR_ROOM = 18;
+      var limit = aTop - allow + BAR_ROOM;
       var yFix = (top0 < limit) ? (limit - top0) : 0;
 
       //  ⚠ **그린 높이를 유닛에 적어 둔다** (2026-09-09 태현님 ②).
@@ -647,7 +660,15 @@ GAME.BossBank = (function () {
       //    40 남짓인데 그림은 200px 이 넘는다 → 이펙트가 거대한 몸 **발치에서만** 터져
       //    "히트박스가 따로 논다"로 읽혔다. 그린 높이를 알면 하반신을 짚을 수 있다.
       //    렌더 전용 값이다 — 판정은 여전히 `def.radius` 가 정한다.
-      if (unit) { unit._bbH = h; unit._bbTop = sy + yFix - h * py; }
+      //  ⚠⚠ `_bbTop` 은 타일의 위가 아니라 **그림이 실제로 시작되는 곳**이다
+      //    (2026-09-10). 타일은 정사각인데 보스는 그 안 아래쪽에만 그려져 있어서,
+      //    타일 위를 머리로 알고 체력바를 올렸더니 **화면 위쪽에 떠 버렸다**.
+      //    `headY`(그림 시작 비율)는 `tools/boss-headline.js` 가 시트 알파를 훑어
+      //    적어 둔 값이다 — 없으면 0(타일 위)이라 예전과 같게 동작한다.
+      if (unit) {
+        unit._bbH = h;
+        unit._bbTop = sy + yFix - h * py + h * (m.headY || 0);
+      }
 
       //  발사 순간 이펙트(불티·먼지) — 리그/단일 공통, 렌더 전용.
       this._strikeFx(scene, e.key, def, sx, sy + yFix, w, h, py, flip, depth || 0, atk);

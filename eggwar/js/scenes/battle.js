@@ -4377,8 +4377,6 @@ GAME.BattleScene.prototype.draw = function () {
 
   // ── 유닛: 뒤(위)에서 앞(아래) 순으로 그려 겹침이 자연스럽게 ──
   var alive = [];
-  //  HUD 오른쪽 위에 보스 바가 떠 있는가 — 몸에 붙은 바를 지울지 여기서 정한다.
-  var bossHudOn = !!(this.hud && this.hud.bossBar);
   for (i = 0; i < s.units.length; i++) if (s.units[i].alive) alive.push(s.units[i]);
   //  ── 보스 사망 모션 (2026-09-09) ─────────────────────────────────────────
   //  ⚠⚠ 이 줄이 `alive` 만 담기 때문에 **보스는 죽는 프레임에 그대로 사라졌다.**
@@ -4658,7 +4656,14 @@ GAME.BattleScene.prototype.draw = function () {
       // sx/sy = 화면 좌표(footRing 용), wx/wy = 월드 좌표(groundCircle 용).
       // 둘 다 휘청임(dx/dy)이 반영된 값이어야 한다 — 섞으면 맞은 동안 표식이 어긋난다.
       sx: pos.sx, sy: pos.sy, wx: u.x + dx, wy: u.y + dy,
-      by: pos.by - u.def.radius - 10,
+      //  ⚠ 보스는 `radius`(판정 반지름)가 아니라 **그린 높이**로 머리를 찾는다.
+      //    `_bbTop` 은 bossbank 가 그리며 적어 둔 화면 좌표다(렌더 전용, 판정 불변).
+      //    없으면(벡터 폴백·일반 유닛) 예전 식 그대로 — opt-in 이다.
+      //  ⚠ 확대 보스(태초의 용)는 일부러 아레나 위로 넘치므로 바가 화면 밖으로 나간다
+      //    → 아레나 안으로 붙든다. 「머리 위」가 원칙이고 「보이는 것」이 최소선이다.
+      by: (u._bbH > 0 && u._bbTop != null)
+            ? Math.max((this._zoomRect ? this._zoomRect.y : 0) + 4, u._bbTop - 12)
+            : (pos.by - u.def.radius - 10),
       r: u.def.radius * (u.eliteDraw || 1),
       drawR: u.def.radius * (GAME.UI.UNIT_DRAW_SCALE || 1) * (u.eliteDraw || 1),
       side: u.side, isHero: u.isHero, mine: (u === this.arrowOn),
@@ -4668,19 +4673,17 @@ GAME.BattleScene.prototype.draw = function () {
       //  "투구만 둥둥 떠다닌다"의 나머지 절반이었다.
       alpha: uAlpha,
       ground: GAME.UI.artOf(u.def).ground,
-      bw: u.isHero ? 64 : Math.max(22, u.def.radius * 2.3),
-      barH: u.isHero ? 7 : 4,
+      //  보스 바는 몸이 큰 만큼 길게 — 짧으면 머리 위에서 점처럼 보인다.
+      bw: u.def.isBoss ? Math.max(96, Math.min(220, (u._bbH || 140) * 0.62))
+                       : (u.isHero ? 64 : Math.max(22, u.def.radius * 2.3)),
+      barH: u.def.isBoss ? 8 : (u.isHero ? 7 : 4),
       //  황금알(noHpBar): 체력바 대신 균열 5단계가 상태를 말한다(태현님 지시).
-      //  ⚠ 보스도 몸에 안 붙인다 (2026-09-09 태현님 ③ "보스 체력바는 우측 상단에
-      //    있으니 생략해"). 폭이 `radius*2.3` 이라 거대한 몸 한가운데 짧은 막대가
-      //    떠서 읽히지도 않았고, 같은 정보가 HUD 에 이미 크게 나와 있다.
-      //  ⚠ 몸에 붙은 바를 지우는 조건은 **HUD 가 그 보스를 실제로 띄울 때**다
-      //    — `updateHud` 가 살아 있는 보스를 찾아 그리므로(같은 조건) 정보가 사라지지 않는다.
-      //  ⚠ 조건은 **HUD 가 실제로 보스 바를 갖고 있을 때**로 좁힌다. `isBoss` 만 보고
-      //    지우면 수성의 탑(defend.js)이 다친다 — 그 씬은 이 HUD 를 안 쓰므로 보스
-      //    체력을 말해 줄 곳이 한 군데도 없어진다. "우측 상단에 있으니 생략"이지
-      //    "없어도 된다"가 아니다.
-      noBar: !!u.def.noHpBar || (!!u.def.isBoss && bossHudOn),
+      //  ⚠⚠ 2026-09-10 태현님 ⑤ "체력바는 보스 머리위" — 09-09 에 뗐던 것을 되돌린다.
+      //    그때 뗀 진짜 이유는 «정보가 겹쳐서»가 아니라 `by` 가 `radius`(판정 반지름
+      //    40 남짓) 기준이라 **거대한 몸 한가운데** 짧은 막대가 떠서였다.
+      //    이제 그린 높이를 알므로(`_bbTop`) 진짜 머리 위에 올릴 수 있다 — 자리를
+      //    고치는 것이 답이었지 지우는 것이 아니었다.
+      noBar: !!u.def.noHpBar,
       ratio: u.hp / u.maxHp,
       shield: u.shield > 0 ? Math.min(1, u.shield / u.maxHp) : 0,
       unit: u                    // 시즌2 표식·소환 수명·페이즈 링이 오버레이에서 읽는다

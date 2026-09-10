@@ -134,7 +134,12 @@ GAME.FxSheet = (function () {
       slot.startedAt = scene.time.now;
       var img = slot.img;
       img.setTexture(k, 'f0');
-      img.setPosition(x, y);
+      //  ⚠⚠ **서는 것과 눕는 것의 자리가 다르다** (2026-09-10 태현님 ⑥
+      //    "공격반사를 알려주는 원형이나 스킬 오라는 발 쪽에 위치하도록").
+      //    마법진(ground)은 땅에 그린 원이라 **중심이 곧 그 지점**이다.
+      //    폭발·오라는 땅에서 **솟는** 것이라 가운데를 지점에 두면 절반이 땅에 묻힌다
+      //    → 바닥이 지점에 닿도록 위로 올린다(원본 영상도 바닥면 기준으로 찍혔다).
+      img.setPosition(x, m.ground ? y : (y - r * 0.62));
       //  ⚠ 지름 = 반지름 × 2. 시트 타일이 정사각이므로 한 변으로 맞춘다.
       //    지면에 눕는 것만 세로를 눌러 기울인 화면에 붙인다.
       var ty = m.ground ? ((GAME.Iso && GAME.Iso.TILT) || 0.72) : 1;

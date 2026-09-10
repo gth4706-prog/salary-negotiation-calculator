@@ -414,7 +414,11 @@ GAME.BossBank = (function () {
         //    지나간 뒤에야 홀드가 풀리니 스킬 시트가 1~3칸만 스치고 사라졌다
         //    (여덟 층 중 셋이 그렇게 빨간불이었다). 예고는 「피하라」는 신호라
         //    평타보다 급하다. 반대(공격이 스킬을 끊는 것)는 막는다.
-        var jump = (want === 'skill' && st.name === 'attack');
+        //  ⚠⚠ **사망은 어떤 홀드도 막지 못한다** (2026-09-10 실측으로 잡음).
+        //    스킬 도중에 죽으면 홀드가 최대 1.9초 동안 `skill` 을 붙들어 그 사이
+        //    사망 모션이 아예 안 나왔다(160층에서 「사망 모션 안 나옴」으로 잡혔다).
+        //    죽는 것은 «다음에 보여줄 동작»이 아니라 **지금 벌어진 일**이다.
+        var jump = (want === 'death') || (want === 'skill' && st.name === 'attack');
         if (!jump) {
           var mHold = DATA[e.key + '-' + st.name];
           if (mHold && scene.time.now - st.at < (mHold.loopMs || 900)) want = st.name;
@@ -647,12 +651,9 @@ GAME.BossBank = (function () {
       //    넘치게 두고 그 위는 내린다(거대함은 남기되 화면은 안 가린다).
       var aTop = (scene._zoomRect ? scene._zoomRect.y : 0) + 2;
       var allow = m.sizeMul ? h * 0.22 : 0;      // 확대 보스만 조금 넘치게 둔다
-      //  ⚠⚠ **머리 위에 체력바가 앉을 자리를 남긴다** (2026-09-10 태현님 ⑤).
-      //    실측: 130층 용의 스프라이트 위가 59, 아레나 위가 64 — 머리가 천장에 닿아
-      //    "머리 위"에 바를 놓을 공간이 아예 없었다. 바를 올렸는데 화면 맨 위에
-      //    붙어 버린 것이 이 때문이다(코드가 아니라 **자리**가 없었다).
-      var BAR_ROOM = 18;
-      var limit = aTop - allow + BAR_ROOM;
+      //  ⚠ 한때 «머리 위 체력바» 자리로 18px 를 비워 뒀다가 되돌렸다 (2026-09-10) —
+      //    바를 HUD 하나로 일원화했으므로 비워 둘 이유가 사라졌다.
+      var limit = aTop - allow;
       var yFix = (top0 < limit) ? (limit - top0) : 0;
 
       //  ⚠ **그린 높이를 유닛에 적어 둔다** (2026-09-09 태현님 ②).

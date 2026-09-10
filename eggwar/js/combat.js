@@ -257,7 +257,9 @@ GAME.Combat = {
       lifesteal: st.lifesteal,
       // 달려들며 치기 — 영웅 def 는 화이트리스트라 여기 안 적으면 조용히 사라진다.
       chargeKnock: h.chargeKnock, chargeDamageMul: h.chargeDamageMul,
-      trampleKnock: h.trampleKnock, auraDps: h.auraDps, auraRadius: h.auraRadius,
+      //  ⚠ 밟힐 피해도 **여기 적어야** 한다 — 어제 closeMul 을 빼먹고 세 번 헛츠다.
+      trampleKnock: h.trampleKnock, trampleDamage: h.trampleDamage,
+      trampleEvery: h.trampleEvery, auraDps: h.auraDps, auraRadius: h.auraRadius,
       // 마법구체 투사체 렌더 스타일 (2026-09-03 · 주술사). 같은 화이트리스트 규율.
       projStyle: h.projStyle,
       //  ── 영웅 정체성 축 (2026-09-11 태현님 «버프 방향성») ─────────────
@@ -1585,7 +1587,13 @@ GAME.Combat = {
       var o2 = {}, k2;
       for (k2 in (skillMods || {})) o2[k2] = skillMods[k2];
       o2.hp = (o2.hp || 1) * own * (rt.hp > 0 ? rt.hp : 1);
-      o2.damage = (o2.damage || 1) * (rt.damage > 0 ? rt.damage : 1);
+      //  ⚠ 실시간에서는 마력(`own`)이 소환수 **화력에도** 붙는다(탑은 체력에만).
+      //  — 주술사의 화력이 사실상 소환수뿐이라 마력이 체력에만 붙으면
+      //    **공격 빌드가 아무 의미가 없고 방어 몰빙이 언제나 정답**이 된다(실측:
+      //    armorMax 가 같은 주술사 balanced 를 잔여 93% 로 이겼다 — 빌드 선택이 죽은 것).
+      //  ⚠ 탑은 그대로다 — 거긴 성장 추종(summonModsFor)이 따로 있고, 그 곱은
+      //    이미 밸런스가 잡혀 있다(2026-09-04 절).
+      o2.damage = (o2.damage || 1) * own * (rt.damage > 0 ? rt.damage : 1);
       return o2;
     }
     if ((!sm && own === 1) || !owner || owner.side === 'strategist') return skillMods;
@@ -4734,7 +4742,13 @@ GAME.Combat = {
     // "실제로 걸어간 길"을 알 수 있다. 루프 안에서 하면 유닛마다 시점이 어긋난다.
     for (i = 0; i < state.units.length; i++) {
       var tu2 = state.units[i];
-      if (!tu2.alive || !tu2.def.trampleKnock || !this.isCharging(tu2)) continue;
+      //  ⚠ 밀어내기는 **걸을 때만**(isCharging), 피해는 **닿기만 하면**이다.
+      //    태현님 문장이 "밟는다는 설정으로 **부딪히면** 피해입히도록" 이라,
+      //    서 있는 파수꾼에게 달려든 쪽도 개짐을 치르는 것이 맞다.
+      var _tDmg = tu2.def.trampleDamage;
+      if (!tu2.alive || (!tu2.def.trampleKnock && !(_tDmg > 0))) continue;
+      var _canPush = tu2.def.trampleKnock && this.isCharging(tu2);
+      if (!_canPush && !(_tDmg > 0)) continue;
       var didTrample = false;
       for (k = 0; k < state.units.length; k++) {
         var tv = state.units[k];
@@ -4742,10 +4756,29 @@ GAME.Combat = {
         var td = this.dist(tu2, tv);
         var contact = tu2.def.radius + tv.def.radius + 4;
         if (td > contact || td <= 0.1) continue;
-        this.displace(tv, ((tv.x - tu2.x) / td) * tu2.def.trampleKnock,
-                          ((tv.y - tu2.y) / td) * tu2.def.trampleKnock);
-        this.clampToArena(tv); this.clampToLeash(tv, state);
-        didTrample = true;
+        if (_canPush) {
+          this.displace(tv, ((tv.x - tu2.x) / td) * tu2.def.trampleKnock,
+                            ((tv.y - tu2.y) / td) * tu2.def.trampleKnock);
+          this.clampToArena(tv); this.clampToLeash(tv, state);
+          didTrample = true;
+        }
+        //  ── 밟힐 피해 (2026-09-11 태현님 ① 파수꾼) ──────────────────
+        //  ⚠⚠ **대상별 쿨타임이 이 기제의 전부다.** 이 루프는 매 프레임(초당 30회)
+        //    돌아서, 그냥 부르면 접촉 1초에 30번 때리는 세상에서 가장 센 영웅이 된다.
+        //    흔혈도 같이 30배로 터진다(이 저장소가 AOE_LIFESTEAL 에서 이미 겪은 유형).
+        //    피해 숫자도 초당 30개가 쌓인다.
+        if (_tDmg > 0) {
+          tv._trampledBy = tv._trampledBy || {};
+          //  ⚠ 유닛에 고유 id 가 없다(실측해서 확인했다) — «종류+진영» 으로 가른다.
+          //    록스텝 digest 는 x/y/hp/alive/cd 만 읽으므로 이 필드는 결정성을 안 깨뜨린다.
+          var _tk = (tu2.type || '?') + '|' + tu2.side;
+          var _next = tv._trampledBy[_tk] || 0;
+          if (state.elapsed >= _next) {
+            tv._trampledBy[_tk] = state.elapsed + (tu2.def.trampleEvery || 450);
+            this.applyDamage(tv, _tDmg, tu2, state, { srcSkill: '밟힐' });
+            didTrample = true;
+          }
+        }
       }
       // 흙먼지는 **묶어서 하나만** 띄운다. 밟기는 매 프레임 도는 판정이라 접촉마다
       // 이펙트를 밀면 초당 수십 개가 쌓인다(피해 숫자로 이미 겪은 유형).

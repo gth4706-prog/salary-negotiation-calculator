@@ -4591,6 +4591,22 @@ GAME.BattleScene.prototype.draw = function () {
                                             unit: u });
     if (_muted) _GB.mute = false;
 
+    //  ── 밟힐 표시 (2026-09-11 태현님 ①) ──────────────────────────
+    //  "당연히 **서로에게 안내해줘야하고**" — 닿기만 해도 아프다는 것은 보이지
+    //  않으면 그냥 함정이다(반사 표시를 만든 것과 같은 이유, 아래 절 참조).
+    //  ⚠ **발밑**에 깔아 지면에 누워 그린다(태현님 2026-09-09 ②: "오라는 발밑").
+    //  ⚠ 반경은 **실제 접촉 반경**(내 반지름 + 보통 유닛 반지름)과 같아야 한다 —
+    //    그림과 판정이 어긋나면 "안 닿았는데 맞았다"가 된다(파수꾼 창끝 사고의 교훈).
+    if (pos && u.def && u.def.trampleDamage > 0 && u.alive) {
+      var trR = (u.def.radius || 20) + 22;
+      var trT = (GAME.Iso && GAME.Iso.now) || 0;
+      var trP = 1 + Math.sin(trT / 260) * 0.04;
+      g.lineStyle(3, 0xd88a2a, 0.55);
+      g.strokeEllipse(pos.sx, pos.by, trR * 2 * trP, trR * 2 * trP * GAME.Iso.TILT);
+      g.lineStyle(1, 0x6b3d10, 0.5);
+      g.strokeEllipse(pos.sx, pos.by, trR * 2 * trP + 3, (trR * 2 * trP + 3) * GAME.Iso.TILT);
+    }
+
     //  ── 방어 태세 표시 (2026-08-03) ──────────────────────────────────────────
     //  "때리면 안 되는 시간"을 **글자 없이** 알려야 한다. 두 단계로 보여준다:
     //    예고(warn) — 노란 링이 빠르게 조여든다 → "곧 들어간다, 손 떼라"

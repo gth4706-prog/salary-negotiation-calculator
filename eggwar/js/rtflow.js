@@ -78,7 +78,7 @@ GAME.RtCoop = {
   //  ⚠ 표본이 세계당 8판뿐이라 해상도가 12.5%p 다 — 소수점 둘째까지 맞추려들지 말 것.
   //    (단조도 아니다 — 영웅을 약하게 했는데 승수가 늘는 구간이 있었다. 180초 제한과
   //     보스 페이즈 전환이 섞인다.)
-  HERO_WORLD_MUL: { meadow: 1.36, mire: 1.75, ash: 2.15, rift: 2.57, storm: 2.29 },
+  HERO_WORLD_MUL: { meadow: 1.44, mire: 1.85, ash: 2.28, rift: 2.72, storm: 2.43 },
   scaleHero: function (hu, world) {
     var m = this.HERO_WORLD_MUL[world];
     if (!(m > 0) || m === 1 || !hu || !hu.def) return hu;

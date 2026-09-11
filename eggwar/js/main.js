@@ -13,7 +13,7 @@ GAME.rtPath = function () {
     return m ? m[1] : 'auto';
   } catch (e) { return 'auto'; }
 };
-GAME.VERSION = 'v3.51';
+GAME.VERSION = 'v3.52';
 
 // 주소에 ?admin=1 을 붙이면 닉네임 관리 화면에 들어갈 수 있다
 GAME.isAdmin = /[?&]admin=1/.test(location.search || '');

@@ -432,8 +432,8 @@ GAME.ArenaBuild = {
   //    가치가 없고, 그러면 방어가 언제나 정답이 된다. 마력을 소환수 화력에도
   //    붙였지만(js/combat.js) 모자란다 — 제대로 풀려면 주술사 아이템 렌즈를 다시 짜야 한다.
   RT_HERO_MOD: {
-    vanguard: { hp: 1.62, damage: 1.00, armor: 1.00, speed: 1.00, lifesteal: 1.00 },
-    ranger:   { hp: 1.62, damage: 1.00, armor: 1.00, speed: 1.00, lifesteal: 1.00 },
+    vanguard: { hp: 1.62, damage: 0.78, armor: 1.00, speed: 1.00, lifesteal: 1.00 },
+    ranger:   { hp: 1.85, damage: 1.00, armor: 1.00, speed: 1.00, lifesteal: 1.00 },
     //  2026-09-03 시즌2 재조정 — S-E 가 파수꾼 R 오라의 `u.damage` NaN(8/23~9/2 열흘간
     //  궁극 피해 0)을 고치자 위 값(armor 1.1·ls 0.5)이 ② 를 다시 깼다(warden vs shaman/armorMax
     //  67%). 스윕 18종(scratchpad/sweepR) 끝에 11/11 을 만든 조합만 채택:
@@ -456,7 +456,7 @@ GAME.ArenaBuild = {
     //    ranger 2~8·warden 23·**shaman 6**·assassin 19 로 "여전히 최하위권이지만 0승은
     //    아니다"가 된다 — 탑에서는 여전히 최저 dps(17.8) 그대로다.
     shaman:   { hp: 1.62, damage: 2.00, armor: 1.00, speed: 1.00, lifesteal: 1.00 },
-    assassin: { hp: 1.62, damage: 1.30, armor: 1.00, speed: 1.00, lifesteal: 1.00 }
+    assassin: { hp: 1.85, damage: 1.30, armor: 1.00, speed: 1.00, lifesteal: 1.00 }
   },
 
   //  실시간 전용 스킬 배율표 — 스킬 이름 → { damage, shield, heal, dps }. combat.js
@@ -499,7 +499,7 @@ GAME.ArenaBuild = {
   //      아이템 방어를 반으로(렌즈 armorAdd 0.5) 줄여도 관문 숫자가 한 칸도 안 움직였다
   //    → 방어력은 지시대로 낮추되(22→12), 관문을 움직인 것은 이 줄이다(8/11 → 9/11).
   //  ⚠ 수는 여전히 안 줄인다 — «무리를 부른다» 가 그의 정체성이다.
-  RT_SUMMON_MUL: { hp: 0.20, damage: 0.55 },
+  RT_SUMMON_MUL: { hp: 0.20, damage: 0.24 },
 
   //  ── 영역전개의 실시간 보정 (2026-09-04) ─────────────────────────────────────
   //  암살자 W 를 대상 표식(`mark`)에서 **영역**(`markZone`)으로 바꾸자 실시간 1:1 의

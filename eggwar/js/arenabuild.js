@@ -260,10 +260,26 @@ GAME.ArenaBuild = {
       for (var i = 0; i < D.length; i++) if (D[i].key === key) return D[i];
       return null;
     },
+    //  ⚠⚠ 2026-09-11 태현님 ⑤ — "실시간대전 능력치 구매는 구매한다해서
+    //    구매비용이 더 올라가지않게해줘". **계단(step)을 끈다** — 정가로 고정.
+    //  ⚠ 탑(TowerChar)은 그대로다 — 거기는 영구 성장이라 오르는 가격이
+    //    «무한히 찍지 못하게» 하는 유일한 장치다. 실시간은 판마다 예산이 리셋되고
+    //    예산 자체가 상한이라 계단이 두 번 제한하는 셈이었다.
+    //  ⚠⚠ 정가 배수 — 계단(step)을 끈 대가로 **정가를 3배**로 올렸다.
+    //    계단이 하던 일은 두 가지였는데(① 반복 구매를 비싸게 ② 한 축 몰빙을 막기),
+    //    태현님이 빼라고 한 것은 ① 이다. ② 는 정가로도 된다 — 예산 300을 방어에
+    //    전부 써도 **방어력 +11**(관문 상한 12)로 예전과 같다(실측).
+    //  ⚠ 3.0 은 «예산 300을 방어에 몰아도 열한 번 남지» 에서 역산한 값이다 —
+    //    옆 값(1.75·2.1·2.6)은 전부 방어력 +13 이 나왔다.
+    FLAT_K: 3.0,
     costOf: function (key, level) {
       var d = this.statDef(key);
       if (!d) return Infinity;
-      return d.cost + d.step * (level || 0);
+      //  ⚠ 계단을 끈 대신 **정가를 올렸다**(cost × FLAT_K). 그냥 계단만 끈었더니
+      //    같은 예산으로 산 능력치가 1.8배가 돼 `rt-balance` 가 11 → 6 으로 무너졌다.
+      //    가격이 **오르지 않는 것**과 값이 싸지는 것은 다른 문제다 — 태현님이 짚은 건 앞쪽이다.
+      //  ⚠ K 는 «5회 살 때 옵 가격과 같아지는» 값에서 잡았다(70/40 ≈ 1.75).
+      return Math.round(d.cost * this.FLAT_K);
     },
     //  UI 가 읽는 캐릭터 뷰 — gold 자리에 **남은 예산**을 넣는다.
     rec: function () {
@@ -393,6 +409,12 @@ GAME.ArenaBuild = {
   //        다른 대진이 대신 깨졌다(암살자 다섯 번 스윙이 전부 9/11 에서 멈춘 이유).
   //      · 마지막 2판(ranger/armorMax vs warden/balanced 58%)은 **이 파일이 이미 적어 둔**
   //        그 대진이고, 기록된 해법(파수꾼 hp)으로 그대로 풀렸다 — 1.12 → **1.04**.
+  //  ⚠⚠ 2026-09-11 3차 — 능력치 정가제(태현님 ⑤)로 같은 예산이 더 많이 사져
+  //    TTK 가 17초로 내려갔다 → 실시간 체력 ×1.40 → **×1.62**(파수꾼만 0.76).
+  //  ⚠ 남은 관문 3건은 어제와 같은 **방어 몰빙 주술사** 묶음이다(거울전 99% ·
+  //    사냥꾼이 못 잡는다). 마력 렌즈를 2.5→4.0→5.5 로 올려 봤지만 한 칸도 안 움직여
+  //    되돌렸다 — 원인은 «공격 빌드가 값어치 없다» 가 아니라 «단단한 소환사를
+  //    못 죽인다» 이다. 제대로 풀려면 주술사 아이템 렌즈를 다시 짜야 한다.
   //  ⚠ 파수꾼 흔혈 0.4→0.28: 그의 광역기가 주술사 소환수 무리를 치면 «대상 수 비례»로
   //    흔혈이 증폭된다(이 저장소가 AOE_LIFESTEAL 에서 이미 잡은 기제). 소환 영웅이 둘이라 더 산다.
   //  ⚠⚠ 2026-09-11 2차 — 파수꾼 체력 2000·밟힐, 주술사 평타 무력화 뒤 **전면 재산출**.
@@ -410,15 +432,15 @@ GAME.ArenaBuild = {
   //    가치가 없고, 그러면 방어가 언제나 정답이 된다. 마력을 소환수 화력에도
   //    붙였지만(js/combat.js) 모자란다 — 제대로 풀려면 주술사 아이템 렌즈를 다시 짜야 한다.
   RT_HERO_MOD: {
-    vanguard: { hp: 1.40, damage: 1.00, armor: 1.00, speed: 1.00, lifesteal: 1.00 },
-    ranger:   { hp: 1.40, damage: 1.00, armor: 1.00, speed: 1.00, lifesteal: 1.00 },
+    vanguard: { hp: 1.62, damage: 1.00, armor: 1.00, speed: 1.00, lifesteal: 1.00 },
+    ranger:   { hp: 1.62, damage: 1.00, armor: 1.00, speed: 1.00, lifesteal: 1.00 },
     //  2026-09-03 시즌2 재조정 — S-E 가 파수꾼 R 오라의 `u.damage` NaN(8/23~9/2 열흘간
     //  궁극 피해 0)을 고치자 위 값(armor 1.1·ls 0.5)이 ② 를 다시 깼다(warden vs shaman/armorMax
     //  67%). 스윕 18종(scratchpad/sweepR) 끝에 11/11 을 만든 조합만 채택:
     //    R 오라 dps 0.4(RT_SKILL_MOD) 가 ③ 을 풀고, 남은 ②(ranger/armorMax vs warden/balanced
     //    57~60%·2~5판)는 armor 1.1→1.0·ls 0.4 로 2판까지, **hp 0.95** 가 마지막 2판을 지웠다.
     //    (dmg 0.95 는 안 듣고, R dps 0.3 도 0.4 와 같다 — 잔여는 오라가 아니라 몸 두께였다.)
-    warden:   { hp: 0.66, damage: 1.00, armor: 1.00, speed: 1.00, lifesteal: 0.28 },
+    warden:   { hp: 0.76, damage: 1.00, armor: 1.00, speed: 1.00, lifesteal: 0.28 },
     //  시즌2 신규 둘(S-H) — 방어 몰빵 빌드가 하네스에서 못 잡는다(shaman/armorMax 승자 잔여
     //  66% · assassin/armorMax 64%). damage 1.2 로 초과 15판 → 1.3 에서 0판. hp 축은 안 듣는다.
     //  ⚠ 2026-09-03 주술사 스킬 전면 재설계 후 1.3 이 다시 깨졌다 — 평타 22→16(다섯 중
@@ -433,8 +455,8 @@ GAME.ArenaBuild = {
     //    dps 16×3.0/0.9=53.3 로 다섯 중 가장 높아지지만, 교차 대진 승수도 vanguard 30·
     //    ranger 2~8·warden 23·**shaman 6**·assassin 19 로 "여전히 최하위권이지만 0승은
     //    아니다"가 된다 — 탑에서는 여전히 최저 dps(17.8) 그대로다.
-    shaman:   { hp: 1.40, damage: 2.00, armor: 1.00, speed: 1.00, lifesteal: 1.00 },
-    assassin: { hp: 1.40, damage: 1.30, armor: 1.00, speed: 1.00, lifesteal: 1.00 }
+    shaman:   { hp: 1.62, damage: 2.00, armor: 1.00, speed: 1.00, lifesteal: 1.00 },
+    assassin: { hp: 1.62, damage: 1.30, armor: 1.00, speed: 1.00, lifesteal: 1.00 }
   },
 
   //  실시간 전용 스킬 배율표 — 스킬 이름 → { damage, shield, heal, dps }. combat.js

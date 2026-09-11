@@ -188,7 +188,7 @@ GAME.BattleScene.prototype.create = function () {
     //    그것을 진형 조립보다 먼저 하면 자리 계산이 섞인다.
     if (this.rt.coop) this._rtComposeCoop(); else this._rtCompose();
     if (GAME.RtMaps && !this.rt.coop) {
-      GAME.Combat.applyRtMap(this.state, GAME.RtMaps.forSeed(this.rt.seed));
+      GAME.Combat.applyRtMap(this.state, GAME.RtMaps.forSeed(this.rt.seed), this.rt.seed);
     }
   }
 

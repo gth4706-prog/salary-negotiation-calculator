@@ -99,11 +99,14 @@ GAME.ResultScene.prototype._rtWire = function () {
     if (!data) return;
     if (data.type === 'rtAgain') {
       self._rtTheirVote = true;
+      //  ⚠ 명시하지 않은 예전 판(undefined)은 «설정 그대로» 로 읽는다 —
+      //    구버전과 섞여도 양쪽이 같은 해석을 하게.
+      self._rtTheirKeep = (data.keep !== false);
       if (self._rtAgainBtn && self._rtAgainBtn.text && !self._rtVoted)
         self._rtAgainBtn.text.setText('🔔 상대가 한판 더를 원합니다!');
       self._maybeRestart();
     } else if (data.type === 'rtRestart' && data.seed !== undefined) {
-      self._rtGo(data.seed);
+      self._rtGo(data.seed, data.keep !== false);
     }
   };
   GAME.NetRoom.on.close = function () {
@@ -124,7 +127,9 @@ GAME.ResultScene.prototype._rtWire = function () {
   });
 };
 
-GAME.ResultScene.prototype._rtAgainClick = function () {
+//  keep=true «설정 그대로» · keep=false «이 상대와 새로» (2026-09-11 태현님 ②)
+GAME.ResultScene.prototype._rtAgainClick = function (keep) {
+  this._rtKeep = (keep !== false);
   //  협동 봇 파트너 판(S-C) — 같은 세계로 곧장 다시. 방·서버 없음.
   if (this.rtResult && this.rtResult.coop && this.rtResult.partnerBot) {
     if (this._rtGoing) return;
@@ -145,10 +150,11 @@ GAME.ResultScene.prototype._rtAgainClick = function () {
   if (this._rtVoted || !this.rtLive || !GAME.NetRoom.connected) return;
   this._rtVoted = true;
   var self = this;
-  GAME.NetRoom.relay({ type: 'rtAgain' });
+  //  ⚠ 내 선택을 실어 보낸다 — 한 쌍이라도 «새로» 면 새로 간다(아래 _rtGo).
+  GAME.NetRoom.relay({ type: 'rtAgain', keep: this._rtKeep });
   this._rtVoteTimer = setInterval(function () {
     if (self._rtGoing || !GAME.NetRoom.connected) { clearInterval(self._rtVoteTimer); return; }
-    GAME.NetRoom.relay({ type: 'rtAgain' });
+    GAME.NetRoom.relay({ type: 'rtAgain', keep: self._rtKeep });
   }, 1000);
   if (this._rtAgainBtn && this._rtAgainBtn.text)
     this._rtAgainBtn.text.setText('⌛ 상대를 기다리는 중…');
@@ -160,11 +166,13 @@ GAME.ResultScene.prototype._maybeRestart = function () {
   if (!this._rtVoted || !this._rtTheirVote || this._rtGoing) return;
   if (GAME.NetRoom.me !== GAME.NetRoom.host) return;
   var seed = (Math.floor(Math.random() * 0x7fffffff) || 1) >>> 0;
-  GAME.NetRoom.relay({ type: 'rtRestart', seed: seed });
-  this._rtGo(seed);
+  //  ⚠ **한 쌍이라도 새로면 새로** — 방장이 결정해 둘에게 같은 값을 보낸다.
+  var keep = !!this._rtKeep && this._rtTheirKeep !== false;
+  GAME.NetRoom.relay({ type: 'rtRestart', seed: seed, keep: keep });
+  this._rtGo(seed, keep);
 };
 
-GAME.ResultScene.prototype._rtGo = function (seed) {
+GAME.ResultScene.prototype._rtGo = function (seed, keep) {
   if (this._rtGoing || !this.rtLive) return;
   this._rtGoing = true;
   if (this._rtVoteTimer) { clearInterval(this._rtVoteTimer); this._rtVoteTimer = null; }
@@ -174,7 +182,9 @@ GAME.ResultScene.prototype._rtGo = function (seed) {
   //    재대결은 «같은 판을 한 번 더» 이다 — 영웅·장비·스킬·배치를 다시
   //    고르게 하면 «한 판 더» 가 아니라 처음부터 다시가 된다.
   //    로비에서 새로 잡는 판(rtlobby)은 keep 을 안 넘기므로 여전히 초기화된다.
-  else GAME.RtFlow.begin(this.rtLive.myRole, this.rtLive.theirRole, { seed: seed >>> 0 }, true);
+  //  ⚠ 넷째 인자가 갈래를 정한다(2026-09-11 ②): true «설정 그대로» ·
+  //    false «이 상대와 새로»(영웅 선택 10초부터 다시).
+  else GAME.RtFlow.begin(this.rtLive.myRole, this.rtLive.theirRole, { seed: seed >>> 0 }, keep !== false);
   var sm = GAME.game.scene;
   sm.getScenes(true).forEach(function (s) { sm.stop(s.scene.key); });
   sm.start('RtPrep');
@@ -477,9 +487,27 @@ GAME.ResultScene.prototype.create = function () {
   else if (this.defendMode) b1 = '배치 고쳐 다시';
   else b1 = '같은 진형에 다시 도전';
   if (this.rtResult) {
-    if (b1) {
+    //  ── 한판 더 — **갈래가 둘이다** (2026-09-11 태현님 ②) ──────────────
+    //  "이 설정그대로 한판더, 이 유저와 한판더로 나뉘어"
+    //    · 설정 그대로 — 영웅·장비·스킬·배치를 이어받고 **상점 단계부터** 시작
+    //    · 이 유저와  — 같은 상대와 다시, 단 **영웅부터 새로** 고른다
+    //  ⚠ 둘 다 상대 동의가 필요하고, **한 쌍이라도 «새로» 를 고르면 새로** 간다 —
+    //    한 쌍은 빌드를 이어받고 한 쌍은 안 되면 그건 공정한 판이 아니다.
+    if (b1 && this.rtLive && GAME.NetRoom.connected && !this.rtResult.coop) {
+      var hw = Math.min((bw - 10) / 2, 260);
+      this._rtAgainBtn = GAME.UI.button(this, W / 2 - hw / 2 - 5, btnTop, hw, u * 7,
+        '🔁 설정 그대로',
+        function () { self._rtAgainClick(true); },
+        { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
+          hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 14 : 16 });
+      this._rtFreshBtn = GAME.UI.button(this, W / 2 + hw / 2 + 5, btnTop, hw, u * 7,
+        '🔄 이 상대와 새로',
+        function () { self._rtAgainClick(false); },
+        { fill: GAME.UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
+          hover: GAME.UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: P ? 14 : 16 });
+    } else if (b1) {
       this._rtAgainBtn = GAME.UI.button(this, W / 2, btnTop, bw, u * 7, b1,
-        function () { self._rtAgainClick(); },
+        function () { self._rtAgainClick(true); },
         { fill: GAME.UI.COL.panelTeal, line: GAME.CONFIG.COLORS.controller,
           hover: GAME.UI.COL.panelTealHi, color: C.accent, fontSize: P ? 16 : 17 });
     } else {

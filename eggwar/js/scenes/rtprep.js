@@ -45,7 +45,11 @@ GAME.RtPrepScene.prototype.create = function () {
   UI.text(this, W / 2, P ? 10 : 26,
     F.coop ? ('🤝 협동 보스전 — ' + coopLbl + (P ? '' : ' · 영웅과 무기를 고르세요'))
            : (F.local ? '🤖 연습 대전 — 영웅과 무기를 고르세요'
-            : (isStrat ? '🛡 전투 준비 — 배치를 고르세요' : '⚔ 전투 준비 — 영웅과 무기를 고르세요')),
+            : (isStrat ? '🛡 전투 준비 — 배치를 고르세요'
+                       //  ⚠ 단계를 제목이 말한다 — 10초짜리 영웅 단계는 «서로 보이는» 구간이고
+                       //    상점 단계는 «서로 모르는» 구간이다. 섞이면 사람이 손해를 본다.
+                       : (F.phase === 'hero' ? '⚔ 영웅 선택 — 서로 보입니다'
+                                             : '🛒 장비 구매 — 서로 보이지 않습니다'))),
     { size: P ? 'subhead' : 'head', color: C.accent, origin: 0.5, originY: 0 });
 
   this._timerTxt = UI.text(this, W / 2, P ? 44 : 78, '', {
@@ -75,7 +79,10 @@ GAME.RtPrepScene.prototype.create = function () {
     //    쪽에만** 있었다 — 정작 태현님이 잡는 컨트롤러가 설명을 못 보던 것이 신고의 정체다.
     //  ⚠ 준비 화면에 둔 이유 — 여기는 60초가 있고 **록스텝 밖**이다. 전투 시작을
     //    늦추면 양쪽 시계가 갈라진다 — 그건 이 저장소가 이미 약속한 경계다.
-    if (GAME.RtFlow._mapBriefAt !== (F.startMsg.seed >>> 0)) {
+    //  ⚠⚠ **1:1 에서는 안 띄운다.** v3.46 에 넣을 땐 이게 유일한 안내였지만,
+    //    2026-09-11 순서가 «영웅 → 상점 → 맵» 으로 정해졌고 설명은 룰렛이 맡는다.
+    //    둘 다 띄우면 룰렛이 «이미 아는 것» 을 돌리는 장치가 된다.
+    if (false && GAME.RtFlow._mapBriefAt !== (F.startMsg.seed >>> 0)) {
       GAME.RtFlow._mapBriefAt = (F.startMsg.seed >>> 0);   //  상점 왜복에는 다시 안 뜼다
       this._showBrief(mp);
     }
@@ -169,6 +176,18 @@ GAME.RtPrepScene.prototype.create = function () {
       self._heroBtns.push(b);
     });
     if (this._pickedHero) this._markHero(hks, this._pickedHero);
+    //  ⚠⚠ 상점 단계에서는 **영웅을 못 바꿈다**(2026-09-11 ①).
+    //    바꿀 수 있으면 «10초 안에 고르고 서로 보여 준다» 는 약속이 무너진다 —
+    //    상대는 내 영웅을 알고 장비를 사는데 나만 나중에 갈아타면 그건 속이는 것이다.
+    //  ⚠ 숨기지 않고 **흐려서 남긴다** — 내가 뭔 고를는지는 계속 보여야 한다.
+    if (F.phase !== 'hero') {
+      this._heroBtns.forEach(function (hb, hi) {
+        if (hb.rect && hb.rect.disableInteractive) hb.rect.disableInteractive();
+        var on = (hks[hi] === self._pickedHero);
+        if (hb.rect && hb.rect.setAlpha) hb.rect.setAlpha(on ? 1 : 0.42);
+        if (hb.text && hb.text.setAlpha) hb.text.setAlpha(on ? 1 : 0.42);
+      });
+    }
 
     //  장비 요약은 타이머 아래 빈 줄에 — 영웅 목록 아래는 폰(H 390)에서 하단
     //  버튼 줄과 겹친다(스크린샷 실측 2026-08-24).
@@ -199,19 +218,38 @@ GAME.RtPrepScene.prototype.create = function () {
     var halfW = Math.min((W - 60) / 2, 260);
     //  ⚠ 라벨이 둘이다 — 아직 상점을 안 다녀왔으면 «상점으로», 다녀왔으면 «장비 다시».
     //    같은 버튼이지만 말을 바꿔야 «지금 뭐할 차례인가» 가 읽힌다.
-    this._shopBtn = UI.button(this, W / 2 - halfW / 2 - 8, readyY, halfW, P ? 52 : 60,
-      '🛒 상점으로', function () {
-        if (!self._pickedHero) { self._stateTxt.setText('⚠ 영웅부터 고르세요'); return; }
-        //  상점으로 넘어가는 순간이 «영웅 확정» 이다 — 상대 화면에 ✓ 로 뜼다.
-        if (GAME.RtFlow.sendPick) GAME.RtFlow.sendPick(self._pickedHero, true);
-        self.scene.start('TowerShop', { mode: 'arena', backTo: 'RtPrep', tab: 'item' });
-      }, { fontSize: P ? 13 : 15 });
-    this._readyBtn = UI.button(this, W / 2 + halfW / 2 + 8, readyY, halfW,
-      P ? 52 : 60, '⚔ 전투 준비 완료', function () { self._commit(); }, { fontSize: P ? 13 : 15 });
+    //  ⚠ 단계마다 아래 버튼이 다르다(2026-09-11 ①):
+    //    · 영웅 단계 — [상점으로] 하나. 여기서 준비 완료를 누를 수 있으면
+    //      장비를 안 사고 전투로 가는 길이 생겨 «10초 + 60초» 순서가 무너진다.
+    //    · 상점 단계 — [장비 다시] + [준비 완료].
+    if (F.phase === 'hero') {
+      this._shopBtn = UI.button(this, W / 2, readyY, Math.min(W - 40, 380), P ? 52 : 60,
+        '🛒 상점으로', function () {
+          if (!self._pickedHero) { self._stateTxt.setText('⚠ 영웅부터 고르세요'); return; }
+          //  상점으로 넘어가는 순간이 «영웅 확정» 이다 — 상대 화면에 ✓ 로 뜼다.
+          if (GAME.RtFlow.sendPick) GAME.RtFlow.sendPick(self._pickedHero, true);
+          GAME.RtFlow.toShop();
+          self.scene.start('TowerShop', { mode: 'arena', backTo: 'RtPrep', tab: 'item' });
+        }, { fontSize: P ? 14 : 16 });
+    } else {
+      this._shopBtn = UI.button(this, W / 2 - halfW / 2 - 8, readyY, halfW, P ? 52 : 60,
+        '🛒 장비 다시', function () {
+          if (!self._pickedHero) { self._stateTxt.setText('⚠ 영웅부터 고르세요'); return; }
+          self.scene.start('TowerShop', { mode: 'arena', backTo: 'RtPrep', tab: 'item' });
+        }, { fontSize: P ? 13 : 15 });
+      this._readyBtn = UI.button(this, W / 2 + halfW / 2 + 8, readyY, halfW,
+        P ? 52 : 60, '⚔ 전투 준비 완료', function () { self._commit(); }, { fontSize: P ? 13 : 15 });
+    }
   }
   var _self = this;
   GAME.RtFlow.onPick = function () { if (_self.scene && _self.scene.isActive()) _self._refresh(); };
-  this.events.once('shutdown', function () { if (GAME.RtFlow.onPick) GAME.RtFlow.onPick = null; });
+  //  ⚠ 단계가 바뀌면 **화면을 다시 짓는다** — 영웅 단계와 상점 단계는 보여 주는
+  //    것이 아예 다르다. 줄만 바꾸려고 하면 안 쓰는 버튼이 남아 오작동한다.
+  GAME.RtFlow.onPhase = function () { if (_self.scene && _self.scene.isActive()) _self.scene.restart(); };
+  this.events.once('shutdown', function () {
+    if (GAME.RtFlow.onPick) GAME.RtFlow.onPick = null;
+    if (GAME.RtFlow.onPhase) GAME.RtFlow.onPhase = null;
+  });
   this._stateTxt = UI.text(this, W / 2, byBottom, '', {
     size: 'caption', color: C.textDim, origin: 0.5 });
   this._stateTxt.setAlign('center');
@@ -365,7 +403,11 @@ GAME.RtPrepScene.prototype._refresh = function () {
   if (!F || !F.active) return;                  // Battle 전환 중이면 손대지 않는다
   if (!this._timerTxt || !this._timerTxt.scene) return;
   var s = Math.ceil(F.remainMs() / 1000);
-  this._timerTxt.setText('⏳ ' + s + '초' + (this._mapName ? '  ·  🗺 ' + this._mapName : ''));
+  //  ⚠ 맵 이름을 **안 띄운다**(2026-09-11 태현님 ① 순서) — 전장은 상점이 끝난 뒤
+  //    룰렛이 보여 준다. 여기서 미리 띄우면 룰렛이 이미 아는 것을 돌리는 장치가 된다.
+  //  ⚠ 협동은 룰렛을 안 돌린다 — 거긴 계속 층·보스를 띄운다.
+  this._timerTxt.setText('⏳ ' + s + '초'
+    + ((F.coop && this._mapName) ? ('  ·  ' + this._mapName) : ''));
   var who = F.coop ? '파트너' : '상대';
   var mine = F.mySetup ? '나: 준비 완료 ✓' : '나: 준비 중…';
   var theirs = F.local

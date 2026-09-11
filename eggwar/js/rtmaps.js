@@ -38,7 +38,10 @@
         desc: '가운데 짐승이 산다 — 눈이 마주치면 둘 다 물린다',
         rules: ['중립 짐승 1기 — 양쪽을 다 공격한다',
                 '매우 단단하다 — 잡는 동안 등을 내주게 된다'],
-        beast: { key: 'bossShell', hpMul: 2.2, dmgMul: 0.55, x: 0.5, y: 0.5 } },
+        //  ⚠ 키를 박지 않는다 — **보스 전체에서 시드로 하나**를 고른다(2026-09-11 ③).
+        //    고르는 것은 build() 가 한다 — 시드가 거기까지 가야 양쪽이 같은 놈을 본다.
+        //  ⚠ 크기는 20% 더 줄인다(drawMul 0.8) — 그리는 크기만, 반지름은 원본.
+        beast: { pick: 'boss', hpMul: 2.2, dmgMul: 0.55, drawMul: 0.8, x: 0.5, y: 0.5 } },
 
       //  ③ 회복의 샘 — 주기적으로 샘이 솔아난다. 먼저 밟는 쪽이 먹는다.
       { key: 'spring', name: '회복의 샘', w: 20,
@@ -72,7 +75,10 @@
         desc: '서로의 황금알을 깨면 이긴다',
         rules: ['내 알이 깨지면 그 자리에서 진다',
                 '영웅을 잡아도 이긴다 — 길이 둘이다'],
-        egg: { key: 'bossShell', hpMul: 0.9, drawMul: 0.58, y: 0.12 } },
+        //  ⚠⚠ **진짜 황금알을 쓴다**(2026-09-11 ④: "보스몹이 나와 엉망이야").
+        //    `bonusEggBreak` 은 보너스 판용 황금알이고 전용 벡터 아트(`goldegg`)가 있다 —
+        //    내가 처음에 `bossShell`(껍질 골렘, 진짜 보스)을 박아서 보스몹이 서 있었다.
+        egg: { key: 'bonusEggBreak', hpMul: 1.6, drawMul: 0.72, yRatio: 0.12 } },
 
       //  ⑦ 십자 성벽 — 가운데가 십자로 막혀 네 칸이 된다.
       //  ⚠ 가운데를 통째 막으면 서로 만날 수가 없다 — **네 끝에 틈**을 둠다.
@@ -193,7 +199,7 @@
         walls: toWorld(def.walls),
         thorns: toWorld(def.thorns),
         pits: toWorld(def.pits),
-        beast: pt(def.beast),
+        beast: pt(def.beast),   //  key 는 applyRtMap 이 시드로 고른다(pick:'boss')
         spring: def.spring ? pt(def.spring) : null,
         egg: def.egg ? pt(def.egg) : null,
         field: def.field || null

@@ -1896,14 +1896,29 @@ GAME.Combat = {
   //    이 맵들을 통째 못 본다 — 이 저장소가 healzone 에서 이미 겪은 사고다
   //    ("피해 기제의 갱신은 씨가 아니라 Combat.update 에 둔다").
   //  ⚠ 전부 **결정적**이다(난수 없음) — 록스텝이라 양쪽이 같은 것을 봐야 한다.
-  applyRtMap: function (state, map) {
+  applyRtMap: function (state, map, seed) {
     if (!state || !map) return;
     state.rtMap = map;
+    //  ⚠ 시드를 상태에 남긴다 — 중립 짐승을 보스 전체에서 고를 때 쓴다.
+    //    없으면 0 이라 언제나 같은 놈이 나온다(랜덤이 아니게 된다).
+    if (seed !== undefined) state.rtMapSeed = seed >>> 0;
     if (map.field) this.setField(state, map.field);
 
     //  ② 중립 짐승 — side 'field' 라 **양쪽 모두의 적**이다(nearestEnemy 가
     //    side 불일치로 고르므로 새 기제가 필요 없다). 승패는 영웅/진영을 보므로
     //    이 놈은 이기거나 지는 데 안 여미한다 — «방해» 가 전부다.
+    //  ⚠ `pick:'boss'` 이면 **보스 전체에서 시드로** 하나 고른다(2026-09-11 ③).
+    //    명단은 `GAME.UNITS` 에서 매번 도출한다 — 보스를 더 넣으면 저절로 후보가 된다
+    //    (이 저장소가 반복해서 겪은 «도구가 명단을 박아 둔다» 의 반대 설계).
+    //  ⚠ 정렬한 뒤 고른다 — `for..in` 순서는 보장이 없어 두 클라이언트가 갈라질 수 있다.
+    if (map.beast && map.beast.pick === 'boss' && !map.beast.key) {
+      var pool = [];
+      for (var bk in GAME.UNITS) if (GAME.UNITS[bk] && GAME.UNITS[bk].isBoss) pool.push(bk);
+      pool.sort();
+      var bseed = (state.rtMapSeed >>> 0) || 0;
+      bseed ^= bseed << 13; bseed >>>= 0; bseed ^= bseed >>> 17; bseed ^= bseed << 5; bseed >>>= 0;
+      map.beast.key = pool.length ? pool[bseed % pool.length] : null;
+    }
     if (map.beast && GAME.UNITS[map.beast.key]) {
       var bu = this.createUnit(map.beast.key, map.beast.x, map.beast.y, 'field');
       bu.def.hp = Math.round(bu.def.hp * (map.beast.hpMul || 1));
@@ -1913,6 +1928,8 @@ GAME.Combat = {
       //    보스로 오인하면 화면과 점수가 다 어긋난다(주술사 미니보스와 같은 처리).
       bu.def.isBoss = false; bu.def.phases = undefined;
       if (bu.def.abilities && bu.def.abilities.length > 1) bu.def.abilities = bu.def.abilities.slice(0, 1);
+      //  ⚠ 그리는 크기만 줄인다(반지름은 원본) — 파수꾼 radius 실측이 남긴 규율.
+      if (map.beast.drawMul > 0) bu.eliteDraw = map.beast.drawMul;
       bu.mapBeast = true;
       state.units.push(bu);
       state.mapBeast = bu;

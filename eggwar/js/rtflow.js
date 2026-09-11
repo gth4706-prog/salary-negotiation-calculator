@@ -72,10 +72,13 @@ GAME.RtCoop = {
   //  ⚠⚠ 2026-09-11 2차 — 파수꾼 체력 2000·밟힐, 사냥꾼 공속, 광전사 스킬 1.5배가
   //    또 협동으로 샐다 — 봇 둘 승률 63% → **98%**. 다시 ×0.76 (전반 ×0.86에서 또 내렸다).
   //    **세 번째**다. 영웅이든 보스든 수치를 건드리면 이 표도 같이 움직인다.
+  //  ⚠⚠ 2026-09-11 3차 — 능력치 정가제 + 실시간 체력 ×1.62 가 협동에도 그대로 걸렸다.
+  //    일괄 ×0.74 로 내리고, **ash 만 따로** 더 낮추었다(그 세계만 8/8 로 패가 없었다).
+  //    일괄 배수만으로는 한 세계의 치우침을 못 고친다 — 세 번 헛쥁2해 보고 알았다.
   //  ⚠ 표본이 세계당 8판뿐이라 해상도가 12.5%p 다 — 소수점 둘째까지 맞추려들지 말 것.
   //    (단조도 아니다 — 영웅을 약하게 했는데 승수가 늘는 구간이 있었다. 180초 제한과
   //     보스 페이즈 전환이 섞인다.)
-  HERO_WORLD_MUL: { meadow: 1.40, mire: 1.79, ash: 2.52, rift: 2.64, storm: 2.35 },
+  HERO_WORLD_MUL: { meadow: 1.36, mire: 1.75, ash: 2.15, rift: 2.57, storm: 2.29 },
   scaleHero: function (hu, world) {
     var m = this.HERO_WORLD_MUL[world];
     if (!(m > 0) || m === 1 || !hu || !hu.def) return hu;
@@ -287,7 +290,15 @@ GAME.RtCoop = {
 //  시간이 다 되면 자동 확정(컨트롤러 = 대전 준비창 마지막 구성 · 전략가 = 첫 저장 배치).
 // ============================================================================
 GAME.RtFlow = {
-  PREP_MS: 60000,
+  //  ── 준비를 두 단계로 (2026-09-11 태현님 ①) ─────────────────────
+  //  "유닛선택 10초, 서로 뭐고르는지 보이게하고 상점 60초 이건 서로 모르게"
+  //  ⚠ 두 시계를 따로 둔다 — 70초 하나로 두면 «영웅을 55초 고르고 상점을 15초»
+  //    가 가능해져 «서로 보이는 구간» 이 늘어난다.
+  PREP_HERO_MS: 10000,
+  PREP_SHOP_MS: 60000,
+  PREP_MS: 60000,          //  협동·연습처럼 단계가 없는 흐름은 이 한 번으로 간다.
+  phase: 'shop',           //  'hero' | 'shop'
+  onPhase: null,           //  씨가 걸어 두는 훅 — 단계가 바뀌면 화면을 다시 짓는다
 
   active: false,
   myRole: null,
@@ -345,7 +356,10 @@ GAME.RtFlow = {
     this._started = false;
     this._rttFrozen = null;
     this._p95Frozen = null;
-    this.deadline = Date.now() + this.PREP_MS;
+    //  ⚠ 1:1 은 **영웅 선택부터** 시작한다. 재대결에서 설정을 그대로 이어받았으면
+    //    고를 것이 없으므로 바로 상점 단계로 간다(그게 «설정 그대로 한판 더» 의 뜻이다).
+    this.phase = (K && K.hero) ? 'shop' : 'hero';
+    this.deadline = Date.now() + (this.phase === 'hero' ? this.PREP_HERO_MS : this.PREP_SHOP_MS);
     var self = this;
     //  ⚠ NetRoom 콜백을 **여기서 쥔다** — RtPrep 이 상점을 다녀와도 안 끊긴다.
     //    Battle 이 시작되면 battle.js 가 다시 가져간다(교대 계약).
@@ -400,6 +414,8 @@ GAME.RtFlow = {
     this._started = false;
     this._rttFrozen = 0;
     this._p95Frozen = 0;
+    //  ⚠ 단계 없는 흐름 — 이전 판의 'hero' 가 남아 있으면 10초만 주고 넘어간다.
+    this.phase = 'shop';
     this.deadline = Date.now() + this.PREP_MS;
     var self = this;
     if (this._tickId) clearInterval(this._tickId);
@@ -414,6 +430,10 @@ GAME.RtFlow = {
   beginCoop: function (coop, startMsg) {
     this.begin('controller', 'controller', startMsg);
     this.coop = { world: coop.world, floor: coop.floor || GAME.RtCoop.floorOf(coop.world) };
+    //  ⚠ 협동은 영웅 선택 단계를 안 쓴다(둘 다 영웅이고 서로 보여 줄 상대가 없다).
+    //    begin() 이 'hero' 로 세워 놓았으므로 여기서 되돌린다 — 안 하면 10초만 주고 넘어간다.
+    this.phase = 'shop';
+    this.deadline = Date.now() + this.PREP_SHOP_MS;
   },
   beginLocalCoop: function (coop, level) {
     this.beginLocal(level || GAME.RtCoop.BOT_LEVEL);
@@ -422,9 +442,30 @@ GAME.RtFlow = {
 
   remainMs: function () { return Math.max(0, this.deadline - Date.now()); },
 
+  //  영웅 단계 → 상점 단계. 시간이 다 되거나 사람이 [상점으로] 를 누를 때.
+  //  ⚠ 되돌아가지 않는다 — 오가면 상대 영웅을 보고 나서 바꾸는 것이 되어
+  //    «10초 안에 고른다» 가 의미를 잃는다.
+  toShop: function () {
+    if (this.phase === 'shop' || !this.active) return false;
+    this.phase = 'shop';
+    this.deadline = Date.now() + this.PREP_SHOP_MS;
+    if (this.onPhase) this.onPhase();
+    return true;
+  },
+
   _check: function () {
     if (!this.active) { this._stopTick(); return; }
     //  시간이 다 되면 내 세팅을 자동 확정한다 — 상대만 기다리는 상태로는 안 넘어간다.
+    //  영웅 단계가 끝나면 상점 단계로 — 안 고른 사람은 기본값으로 들어간다.
+    if (this.phase === 'hero' && this.remainMs() <= 0) {
+      if (!this.myHeroPick && this.myRole !== 'strategist') {
+        var hks = GAME.HERO_ORDER || ['vanguard'];
+        this.setHeroPick(hks[0]);
+        this.sendPick(hks[0], true);
+      }
+      this.toShop();
+      return;
+    }
     if (!this.mySetup && this.remainMs() <= 0) this.commitDefault();
   },
 

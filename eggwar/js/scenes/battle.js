@@ -184,8 +184,12 @@ GAME.BattleScene.prototype.create = function () {
     this.state.pvpRealtime = true;
     //  맵 변형(2026-08-31 태현님 ④) — 같은 시드라 양쪽이 같은 맵을 고른다.
     //  협동(S-C)은 세계 보스 층 전장이라 대전 맵을 안 깐다(전장 규칙은 RtCoop.spawn 이 얹는다).
-    if (GAME.RtMaps && !this.rt.coop) this.state.rtMap = GAME.RtMaps.forSeed(this.rt.seed);
+    //  ⚠ 진형을 **먼저** 세우고 맵을 얹는다 — 맵이 짐승·황금알을 units 에 넣는데
+    //    그것을 진형 조립보다 먼저 하면 자리 계산이 섞인다.
     if (this.rt.coop) this._rtComposeCoop(); else this._rtCompose();
+    if (GAME.RtMaps && !this.rt.coop) {
+      GAME.Combat.applyRtMap(this.state, GAME.RtMaps.forSeed(this.rt.seed));
+    }
   }
 
   // 난이도 — 탑은 층수로, 일반 대전은 격파 횟수(escalation)로 강해진다

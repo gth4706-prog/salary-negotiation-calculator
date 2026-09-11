@@ -1833,6 +1833,11 @@ GAME.Combat = {
       //  낙뢰 — 영웅 자리에 예고(aimLead 0: 걸어 나가면 안 맞는다). side 'field' 라 양편 다 맞는다.
       F._bolt -= dtMs;
       if (F._bolt <= 0) {
+        //  ⚠ 램프 — "번개가 **점점 많이** 떨어지는"(2026-09-11 태현님 ④).
+        //    상한(boltMinMs)이 없으면 판이 길어질수록 매 프레임 낙뢰가 되어 조작이 안 된다.
+        if (F.boltRampMs > 0) {
+          F.boltEveryMs = Math.max(F.boltMinMs || 1200, (F.boltEveryMs || 6000) - F.boltRampMs);
+        }
         F._bolt += (F.boltEveryMs || 6000);
         var tg = (F.boltTelegraph === undefined) ? 2000 : F.boltTelegraph;
         var br = (F.boltRadius || 0.11) * GAME.CONFIG.ARENA.w;
@@ -1847,9 +1852,124 @@ GAME.Combat = {
           state.stormBolts = (state.stormBolts || 0) + 1;
         }
       }
+    } else if (F.kind === 'arrows') {
+      //  ── 화살비 (2026-09-11 태현님 ⑤) ───────────────────────────
+      //  낙뢰와 같은 «점점 많아진다» 지만 성격이 다르다:
+      //    · 낙뢰는 **영웅 자리**에 떨어진다(피하는 것이 질문)
+      //    · 화살은 **아무 데나** 떨어진다(버티는 것이 질문). 한 발이 약고 수가 많다.
+      //  ⚠⚠ 자리는 **난수가 아니라 결정적 수열**로 정한다 — `Math.random` 을 쓰면
+      //    두 클라이언트가 다른 자리에 화살을 뿌려 판이 그 자리에서 갈라진다.
+      //    `Combat.rand()` 도 쓸 수 있지만 호출 횟수가 달라지면 그 뒤 모든 난수가
+      //    밀린다 — 전장 규칙은 전투 난수에서 **뗳어** 놓는 것이 안전하다.
+      if (F._ar === undefined) F._ar = (F.firstMs === undefined) ? (F.everyMs || 2600) : F.firstMs;
+      F._arN = F._arN || 0;
+      F._ar -= dtMs;
+      if (F._ar <= 0) {
+        if (F.rampMs > 0) F.everyMs = Math.max(F.minMs || 600, (F.everyMs || 2600) - F.rampMs);
+        F._ar += (F.everyMs || 2600);
+        var atg = (F.telegraph === undefined) ? 1050 : F.telegraph;
+        var arr = (F.radius || 0.04) * GAME.CONFIG.ARENA.w;
+        var AR = GAME.CONFIG.ARENA;
+        var acnt = F.count || 2;
+        for (var ai = 0; ai < acnt; ai++) {
+          F._arN++;
+          var afx = (F._arN * 0.6180339887) % 1;
+          var afy = (F._arN * 0.4142135624) % 1;
+          var axw = AR.x + (0.06 + afx * 0.88) * AR.w;
+          var ayw = AR.y + (0.08 + afy * 0.84) * AR.h;
+          state.effects.push({ kind: 'telegraph', x: axw, y: ayw, r: arr, t: atg, total: atg,
+                               damage: F.damage || 1,
+                               pctMaxHp: F.damage ? undefined : (F.pct || 0.045),
+                               side: 'field', owner: null, abil: true, arrowRain: true });
+          state.fieldFx.push({ kind: 'arrowWarn', x: axw, y: ayw, r: arr, t: atg, total: atg });
+          state.arrowDrops = (state.arrowDrops || 0) + 1;
+        }
+        hit++;
+      }
     }
     //  fog 는 effRange 가 읽기만 한다 — 여기서 할 일이 없다(감사는 effRange 로 잰다).
     if (hit) state.fieldTicks[F.kind] = (state.fieldTicks[F.kind] || 0) + hit;
+  },
+
+  //  ── 실시간 맵의 살아있는 것들 (2026-09-11 태현님 «전장 재생성») ────────
+  //  ⚠⚠ **씨가 아니라 여기(엔진)에 둔다.** battle.js 에 두면 헤드리스 도구가
+  //    이 맵들을 통째 못 본다 — 이 저장소가 healzone 에서 이미 겪은 사고다
+  //    ("피해 기제의 갱신은 씨가 아니라 Combat.update 에 둔다").
+  //  ⚠ 전부 **결정적**이다(난수 없음) — 록스텝이라 양쪽이 같은 것을 봐야 한다.
+  applyRtMap: function (state, map) {
+    if (!state || !map) return;
+    state.rtMap = map;
+    if (map.field) this.setField(state, map.field);
+
+    //  ② 중립 짐승 — side 'field' 라 **양쪽 모두의 적**이다(nearestEnemy 가
+    //    side 불일치로 고르므로 새 기제가 필요 없다). 승패는 영웅/진영을 보므로
+    //    이 놈은 이기거나 지는 데 안 여미한다 — «방해» 가 전부다.
+    if (map.beast && GAME.UNITS[map.beast.key]) {
+      var bu = this.createUnit(map.beast.key, map.beast.x, map.beast.y, 'field');
+      bu.def.hp = Math.round(bu.def.hp * (map.beast.hpMul || 1));
+      bu.maxHp = bu.def.hp; bu.hp = bu.def.hp;
+      bu.def.damage = Math.round(bu.def.damage * (map.beast.dmgMul || 1));
+      //  ⚠ 보스 표시를 내린다 — HUD 보스 체력바·인트로·업적이 이 놈을 진짜
+      //    보스로 오인하면 화면과 점수가 다 어긋난다(주술사 미니보스와 같은 처리).
+      bu.def.isBoss = false; bu.def.phases = undefined;
+      if (bu.def.abilities && bu.def.abilities.length > 1) bu.def.abilities = bu.def.abilities.slice(0, 1);
+      bu.mapBeast = true;
+      state.units.push(bu);
+      state.mapBeast = bu;
+    }
+
+    //  ⑥ 황금알 — 진영마다 하나씩. 깨지면 그쪽이 진다.
+    //  ⚠ 크기는 `eliteDraw`(그리는 크기)로만 줄인다 — `def.radius` 를 줄이면
+    //    사거리 판정이 같이 움직인다(파수꾼 radius 실측이 남긴 규율).
+    if (map.egg && GAME.UNITS[map.egg.key]) {
+      var A = GAME.CONFIG.ARENA;
+      var yr = (map.egg.yRatio === undefined) ? 0.12 : map.egg.yRatio;
+      var self = this;
+      state.mapEggs = {};
+      [['strategist', A.y + yr * A.h], ['controller', A.y + (1 - yr) * A.h]].forEach(function (p) {
+        var eu = self.createUnit(map.egg.key, A.x + A.w * 0.5, p[1], p[0]);
+        eu.def.hp = Math.round(eu.def.hp * (map.egg.hpMul || 1));
+        eu.maxHp = eu.def.hp; eu.hp = eu.def.hp;
+        eu.def.isBoss = false; eu.def.phases = undefined;
+        eu.def.immobile = true;
+        eu.eliteDraw = (map.egg.drawMul || 0.58);
+        eu.mapEgg = p[0];
+        state.units.push(eu);
+        state.mapEggs[p[0]] = eu;
+      });
+    }
+
+    //  ③ 회복의 샘 — 주기적으로 솔는다. 놓는 것은 updateRtSpring 이 한다.
+    if (map.spring) {
+      //  ⚠ `healZones` 가 없으면 샘은 **조용히 한 개도 안 솔는다**(틱이 첫 줄에서
+      //    빠져나간다). 씨가 세워 주는 것에 기대지 말고 여기서 보장한다 —
+      //    헤드리스 도구는 씨를 안 타므로 그렇게 안 하면 감사가 0 을 본다(실제로 그러였다).
+      if (!state.healZones) state.healZones = [];
+      state.mapSpring = { t: (map.spring.firstMs === undefined ? (map.spring.everyMs || 8000)
+                                                              : map.spring.firstMs),
+                          every: map.spring.everyMs || 8000,
+                          max: map.spring.max || 4, n: 0 };
+    }
+  },
+
+  //  ⚠ `HealZone.maybeDrop` 은 **`Math.random` 을 쓴다** — 록스텝에서 그걸 부르면
+  //    두 사람의 샘 자리가 갈라진다. 그래서 배열에 **직접** 넣는다.
+  //  ⚠ 가운데 띄를 비워 놓는다 — 둘 사이에 놓으면 «먼저 밟는 쪽» 이 아니라
+  //    «먼저 싸우러 가는 쪽» 이 되어 샘이 그냥 전투 장소가 된다.
+  updateRtSpring: function (state, dtMs) {
+    var S = state.mapSpring;
+    if (!S || !state.healZones) return;
+    S.t -= dtMs;
+    if (S.t > 0) return;
+    S.t += S.every;
+    if (state.healZones.length >= S.max) return;
+    var A = GAME.CONFIG.ARENA;
+    S.n++;
+    var fx = (S.n * 0.6180339887) % 1;
+    var fy = (S.n * 0.7548776662) % 1;
+    var band = (S.n % 2) ? (0.06 + fy * 0.24) : (0.70 + fy * 0.24);
+    state.healZones.push({ x: A.x + (0.08 + fx * 0.84) * A.w, y: A.y + band * A.h, t: 0 });
+    state.springDrops = (state.springDrops || 0) + 1;
   },
 
   //  원(유닛) vs AABB(벽) — 겹친 만큼 가장 얕은 축으로 밀어낸다.
@@ -4483,6 +4603,7 @@ GAME.Combat = {
     //  ── 실시간 맵 지형 (2026-08-31 태현님 ④, js/rtmaps.js) ──────────────
     //  벽 밀어내기·가시밭 도트·균열 낙사를 시뮬이 직접 굴린다(양쪽 동일).
     if (state.pvpRealtime && state.rtMap) this.updateRtMap(state, dtMs);
+    if (state.pvpRealtime && state.mapSpring) this.updateRtSpring(state, dtMs);
 
     //  ── 전장 규칙 (시즌2 S-E) — towerField 가 없으면 fieldFx 수명만 늙힌다(비용 0).
     if (state.towerField || (state.fieldFx && state.fieldFx.length)) this.updateArenaRule(state, dtMs);
@@ -5143,6 +5264,22 @@ GAME.Combat = {
       }
       //  ⚠ 비대칭 실시간(2026-08-20 확정 사양: 전략가 vs 컨트롤러)에서는 전략가에
       //    영웅이 없다 — 그쪽은 **전멸 = 패배**다. 영웅이 있으면 영웅 사망 = 패배.
+      //  ── 황금알 맵 (2026-09-11 태현님 ⑥) ───────────────────────
+      //  "서로 황금알이 있고 그걸 먼저깨거나 죽이면 이기는 맵"
+      //  ⚠ 영웅 사망 판정을 **안 건드린다** — 길을 하나 더 여는 것이지 기존 길을
+      //    막는 것이 아니다(이 저장소가 층 목표에서 정한 규율 그대로:
+      //    "목표는 **이기는 길만** 바꿈 · 패배 조건은 안 건드린다").
+      if (state.mapEggs) {
+        var eggC = state.mapEggs.controller, eggS = state.mapEggs.strategist;
+        var eggCDead = eggC ? !eggC.alive : false;
+        var eggSDead = eggS ? !eggS.alive : false;
+        if (eggCDead || eggSDead) {
+          state.over = true;
+          state.eggBroken = true;
+          state.winner = (eggCDead && eggSDead) ? 'draw' : (eggCDead ? 'strategist' : 'controller');
+          return;
+        }
+      }
       var cDead = hC ? !hC.alive : this.aliveCount(state, 'controller') === 0;
       var sDead = hS ? !hS.alive : this.aliveCount(state, 'strategist') === 0;
       if (cDead && sDead) { state.over = true; state.winner = 'draw'; }

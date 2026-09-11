@@ -20,41 +20,107 @@
   var RM = {
     //  key/name/desc + walls(이동 불가·투사체 차단) / thorns(밟으면 도트) /
     //  pits(영웅 즉사) — 전부 {x,y,w,h} 비율 사각형.
+    //  ── 2026-09-11 태현님 «전장이 너무 진부해» — 일\곱 종으로 재생성 ─────
+    //  ⚠⚠ 받은 확률의 합이 **140%** 다(30+20+20+20+10+20+20).
+    //    그래서 그대로 확률로 쓰지 않고 **가중치**로 읽어 140 으로 나눔다 —
+    //    순서와 상대 비율은 지시 그대로고(평범 최다 · 화살비 최소), 합만 100% 가 된다.
+    //    실제 확률: 평원 21.4% · 나머지 각 14.3% · 화살비 7.1%.
+    //  ⚠ 좌표는 여전히 아레나 비율이고 지형은 180° 회전 대칭이다(위 머릿글).
     LIST: [
-      { key: 'plain', name: '초원', desc: '아무것도 없는 순수한 결투장' },
-      //  ⚠⚠ '균열 지대'(사방 낭떠러지)는 **지웠다** — 2026-09-10 태현님:
-      //    "사방이 낭떠러지인맵은 없애자". 네 변이 전부 즉사이면 물러날 곳이 없어
-      //    밀어내기·돌진이 «피해» 가 아니라 «처형» 이 된다 — 이 게임이 약속한
-      //    "논타겟은 피할 곳이 있어야 한다"와 같은 종류의 위반이다.
-      //  ⚠ 그래서 지금 `pits`(영웅 즉사)를 쓰는 맵이 **하나도 없다.** 판정 코드는
-      //    js/combat.js 에 그대로 남겨 둔다 — 두 변짜리 낭떠러지로 되살리려면
-      //    여기 항목을 다시 넣는 것만으로 된다(태현님 결정).
-      { key: 'thorn', name: '가시밭', desc: '가시덤불을 밟으면 피가 마른다',
-        thorns: [
-          { x: 0.14, y: 0.32, w: 0.28, h: 0.15 },
-          { x: 0.58, y: 0.53, w: 0.28, h: 0.15 },
-          { x: 0.40, y: 0.425, w: 0.20, h: 0.15 }
-        ] },
-      { key: 'wall', name: '외벽 협곡', desc: '중앙 돌벽 — 가운데 틈으로만 오간다',
+      { key: 'plain', name: '평원', w: 30,
+        desc: '아무것도 없는 순수한 결투장',
+        rules: ['장애물 없음 — 실력만으로 갈린다'] },
+
+      //  ② 방해꾼 — 어느 편도 아닌 짐승이 가운데 서서 둘 다 때린다.
+      //  ⚠ 어렵게 죽는다(체력 배수) — "죽이기 어려운 보스몹"이라 하셨다.
+      //    죽일 수 있긴 하되 그걸 하는 동안 상대가 나를 친다 — 그게 이 맵의 질문이다.
+      { key: 'beast', name: '야수의 터', w: 20,
+        desc: '가운데 짐승이 산다 — 눈이 마주치면 둘 다 물린다',
+        rules: ['중립 짐승 1기 — 양쪽을 다 공격한다',
+                '매우 단단하다 — 잡는 동안 등을 내주게 된다'],
+        beast: { key: 'bossShell', hpMul: 2.2, dmgMul: 0.55, x: 0.5, y: 0.5 } },
+
+      //  ③ 회복의 샘 — 주기적으로 샘이 솔아난다. 먼저 밟는 쪽이 먹는다.
+      { key: 'spring', name: '회복의 샘', w: 20,
+        desc: '샘이 솔는다 — 먼저 닿는 쪽이 마신다',
+        rules: ['8초마다 샘이 하나씩 · 동시에 최대 4개',
+                '가운데에서 멀리 솔는다 — 가지러 가야 한다'],
+        spring: { everyMs: 8000, max: 4, firstMs: 4000 } },
+
+      //  ④ 벼락 벌판 — 낙뢰가 **점점 자주** 떨어진다.
+      //  ⚠ 기제는 이미 있었다(전장 규칙 storm, side 'field' 라 양편 다 맞는다).
+      //    여기서 새로 만든 것은 **램프**(boltRampMs) 하나뿐이다.
+      { key: 'bolt', name: '벼락 벌판', w: 20,
+        desc: '하늘이 점점 사나워진다 — 한자리에 오래 서 있지 말 것',
+        rules: ['낙뢰가 예고 뒤 떨어진다 — 걸어 나가면 피한다',
+                '시간이 갈수록 간격이 짧아진다'],
+        field: { kind: 'storm', windPx: 0, boltEveryMs: 5200, boltFirst: 3000,
+                 boltRampMs: 320, boltMinMs: 1300,
+                 boltRadius: 0.062, boltTelegraph: 2000, boltPct: 0.11 } },
+
+      //  ⑤ 화살비 — 위와 같은 «점점 많아진다» 이지만 한 발이 약고 수가 많다.
+      { key: 'arrowrain', name: '화살비', w: 10,
+        desc: '화살이 쌀아진다 — 멈춰 서 있으면 쌀인다',
+        rules: ['예고 뒤 화살이 떨어진다 · 한 발은 약하다',
+                '시간이 갈수록 더 많이 쌀아진다'],
+        field: { kind: 'arrows', everyMs: 2600, firstMs: 2500, rampMs: 95, minMs: 620,
+                 radius: 0.038, telegraph: 1050, pct: 0.045, count: 2 } },
+
+      //  ⑥ 황금알 — 서로의 알을 깨면 이긴다(영웅을 잡아도 이긴다).
+      //  ⚠ 크기는 기존보다 줄였다(태현님 지시) — drawMul 0.58.
+      { key: 'goldenegg', name: '황금알', w: 20,
+        desc: '서로의 황금알을 깨면 이긴다',
+        rules: ['내 알이 깨지면 그 자리에서 진다',
+                '영웅을 잡아도 이긴다 — 길이 둘이다'],
+        egg: { key: 'bossShell', hpMul: 0.9, drawMul: 0.58, y: 0.12 } },
+
+      //  ⑦ 십자 성벽 — 가운데가 십자로 막혀 네 칸이 된다.
+      //  ⚠ 가운데를 통째 막으면 서로 만날 수가 없다 — **네 끝에 틈**을 둠다.
+      { key: 'cross', name: '십자 성벽', w: 20,
+        desc: '가운데 십자 벙이 전장을 네 칸으로 가른다',
+        rules: ['몸도 화살도 못 지나간다', '뒤로 돌아 가야 만난다'],
+        //  ⚠⚠ 세로 막대는 **y 0.32~0.68 안에만** 둔다. 처음엔 0.10~0.40 으로
+        //    길게 뽑았는데 그건 **진형 배치 구역(위아래 각 30%)을 침범**한다 —
+        //    유닛이 벙 안에 배치되고 밀려나가서 진형이 무너진다.
+        //    `rt-map-audit` 의 스폰 안전선이 이걸 그 자리에서 잡았다(침범 2개).
         walls: [
-          { x: 0.00, y: 0.47, w: 0.34, h: 0.06 },
-          { x: 0.66, y: 0.47, w: 0.34, h: 0.06 }
-        ] },
-      { key: 'cover', name: '바위 엄폐지', desc: '바위 뒤에 숨으면 화살이 닿지 않는다',
-        walls: [
-          { x: 0.20, y: 0.34, w: 0.13, h: 0.07 },
-          { x: 0.67, y: 0.34, w: 0.13, h: 0.07 },
-          { x: 0.20, y: 0.59, w: 0.13, h: 0.07 },
-          { x: 0.67, y: 0.59, w: 0.13, h: 0.07 }
+          { x: 0.475, y: 0.325, w: 0.05, h: 0.145 },
+          { x: 0.475, y: 0.530, w: 0.05, h: 0.145 },
+          { x: 0.14, y: 0.475, w: 0.29, h: 0.05 },
+          { x: 0.57, y: 0.475, w: 0.29, h: 0.05 }
         ] }
     ],
 
     //  시드 → 맵. **월드 좌표로 환산된 사본**을 돌려준다(원본 LIST 는 불변).
     //  ⚠ 환산은 이 시점의 GAME.CONFIG.ARENA 기준이다 — 배틀 진입(create)에서
     //    부르므로 프로필이 이미 확정돼 있다.
+    //  ⚠⚠ **가중치 추첨이고 반드시 결정적이어야 한다.** 서버가 뿌린 시드 하나로
+    //    양쪽 클라이언트가 같은 맵을 뽑아야 한다 — `Math.random` 을 쓰면 그 자리에서
+    //    두 사람이 다른 전장을 보게 된다(룰렛이 돌아도 결과는 이미 정해져 있다).
+    //  ⚠ 시드를 그대로 쓰지 않고 한 번 섮는다 — 서버 시드는 방 코드에서 오므로
+    //    낮은 비트가 고르게 퍼져 있다는 보장이 없다.
+    weightTotal: function () {
+      var t = 0;
+      for (var i = 0; i < this.LIST.length; i++) t += (this.LIST[i].w || 1);
+      return t;
+    },
+    defForSeed: function (seed) {
+      var x = (seed >>> 0);
+      x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0;
+      var total = this.weightTotal();
+      var pick = x % total, acc = 0;
+      for (var i = 0; i < this.LIST.length; i++) {
+        acc += (this.LIST[i].w || 1);
+        if (pick < acc) return this.LIST[i];
+      }
+      return this.LIST[0];
+    },
     forSeed: function (seed) {
-      var def = this.LIST[(seed >>> 0) % this.LIST.length];
-      return this.build(def);
+      return this.build(this.defForSeed(seed));
+    },
+    //  화면에 띄울 확률(%) — 룰렛이 칸 크기를 여기서 얻는다.
+    pctOf: function (def) {
+      return (def.w || 1) / this.weightTotal() * 100;
     },
 
     //  ── 이 전장을 본 적 있나 (2026-09-10 태현님 ④) ───────────────
@@ -110,11 +176,27 @@
         }
         return out;
       }
+      //  ⚠ 새 기제들도 **여기서 월드 좌표로 풀어야** 한다 — 비율로 둔 채로
+      //    넘기면 폰과 PC 에서 다른 자리가 된다(이 파일 머릿글의 이유 그대로).
+      function pt(o) {
+        if (!o) return null;
+        var c = {}, k;
+        for (k in o) c[k] = o[k];
+        if (o.x !== undefined) c.x = A.x + o.x * A.w;
+        if (o.y !== undefined) c.y = A.y + o.y * A.h;
+        return c;
+      }
       return {
         key: def.key, name: def.name, desc: def.desc,
+        rules: (def.rules || []).slice(),
+        pct: RM.pctOf(def),
         walls: toWorld(def.walls),
         thorns: toWorld(def.thorns),
-        pits: toWorld(def.pits)
+        pits: toWorld(def.pits),
+        beast: pt(def.beast),
+        spring: def.spring ? pt(def.spring) : null,
+        egg: def.egg ? pt(def.egg) : null,
+        field: def.field || null
       };
     }
   };

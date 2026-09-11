@@ -619,7 +619,11 @@ GAME.RtFlow = {
     this.active = false;
     var sm = GAME.game.scene;
     sm.getScenes(true).forEach(function (s) { sm.stop(s.scene.key); });
-    sm.start('Battle', { rt: rt, heroKey: heroKey, formationId: null });
+    //  ⚠ 장비까지 다 고른 뒤에 **전장 룰렛**을 한 번 돌린다(2026-09-11 태현님).
+    //    협동은 전장이 아니라 세계 보스 층이라 건너뛴다.
+    //  ⚠ 결과는 이미 시드로 정해져 있다 — 룰렛은 보여 주기만 한다(rtspin.js 머릿글).
+    if (GAME.RtSpinScene && !rt.coop) sm.start('RtSpin', { rt: rt, heroKey: heroKey });
+    else sm.start('Battle', { rt: rt, heroKey: heroKey, formationId: null });
   },
 
   abort: function (msg) {

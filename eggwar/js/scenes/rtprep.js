@@ -23,7 +23,9 @@ GAME.RtPrepScene.prototype.init = function () {
   this._loadoutTxt = null;      // 씬 인스턴스는 재사용된다 — 파괴된 Text 참조 방지
   this._skillTxt = null;
   this._heroBtns = null;
-  this._brief = null;         //  전장 브리핑 카드(씨 재사용 — 파괴된 객체 참조 방지)
+  this._brief = null;
+  this._leaving = false;   //  씨 재사용 — 안 되돌리면 두 번째 판부터 단계 전환이 죽는다
+  this._skillCard = null;         //  전장 브리핑 카드(씨 재사용 — 파괴된 객체 참조 방지)
 };
 
 GAME.RtPrepScene.prototype.create = function () {
@@ -283,8 +285,16 @@ GAME.RtPrepScene.prototype.create = function () {
           if (!self._pickedHero) { self._stateTxt.setText('⚠ 영웅부터 고르세요'); return; }
           //  상점으로 넘어가는 순간이 «영웅 확정» 이다 — 상대 화면에 ✓ 로 뜼다.
           if (GAME.RtFlow.sendPick) GAME.RtFlow.sendPick(self._pickedHero, true);
+          //  ⚠ 단계를 먼저 넘긴다(10초 시계를 멈춰야 카드를 보는 동안 안 넘어간다).
+          //    `_leaving` 은 단계 전환이 씨를 다시 짓는 것을 막는다 — 그러면 카드가 날아간다.
+          self._leaving = true;
           GAME.RtFlow.toShop();
-          self.scene.start('TowerShop', { mode: 'arena', backTo: 'RtPrep', tab: 'item' });
+          GAME.RtFlow.skillCardSeen = true;
+          //  ── 스킬 설명 카드 (2026-09-13 태현님 ①) ──────────────────
+          //  "유닛고르고나면 스킬4종에대해 설명하는 카드띄워주고 그다음 상점으로"
+          self._showSkillCard(function () {
+            self.scene.start('TowerShop', { mode: 'arena', backTo: 'RtPrep', tab: 'item' });
+          });
         }, { fontSize: P ? 14 : 16 });
     } else {
       this._shopBtn = UI.button(this, W / 2 - halfW / 2 - 8, readyY, halfW, P ? 52 : 60,
@@ -300,7 +310,11 @@ GAME.RtPrepScene.prototype.create = function () {
   GAME.RtFlow.onPick = function () { if (_self.scene && _self.scene.isActive()) _self._refresh(); };
   //  ⚠ 단계가 바뀌면 **화면을 다시 짓는다** — 영웅 단계와 상점 단계는 보여 주는
   //    것이 아예 다르다. 줄만 바꾸려고 하면 안 쓰는 버튼이 남아 오작동한다.
-  GAME.RtFlow.onPhase = function () { if (_self.scene && _self.scene.isActive()) _self.scene.restart(); };
+  //  ⚠ 내가 직접 넘기는 중이면(_leaving) 다시 짓지 않는다 — 스킬 카드가 그 위에 떠 있다.
+  GAME.RtFlow.onPhase = function () {
+    if (_self._leaving) return;
+    if (_self.scene && _self.scene.isActive()) _self.scene.restart();
+  };
   this.events.once('shutdown', function () {
     if (GAME.RtFlow.onPick) GAME.RtFlow.onPick = null;
     if (GAME.RtFlow.onPhase) GAME.RtFlow.onPhase = null;
@@ -326,6 +340,73 @@ GAME.RtPrepScene.prototype.create = function () {
 
 //  전장 브리핑 카드 — 탭하면 즉시 닫히고, 안 눈르면 스스로 사라진다.
 //  ⚠ 준비 버튼을 막지 않는 것이 이 카드의 유일한 제약이다 — 60초 시계가 돌고 있다.
+//  ── 이번 판 스킬 넷 설명 카드 (2026-09-13 태현님 ①) ───────────────
+//  ⚠⚠ 실시간은 스킬을 **고를 수 없고 판마다 무작위**다. 그런데 준비 화면은
+//    이름만 한 줄로 줄어 줘서, 뭐하는 스킬인지 모른 채 60초 장비를 사고 전투에 들어갔다.
+//  ⚠ 설명은 **실제 수치에서 만든다**(js/skillblurb.js) — 손으로 적으면 값이 바뀔 날
+//    화면이 거짓말을 하게 된다(상점 note 에서 이미 겪은 사고).
+//  ⚠ 닫히면 곳 상점으로 간다 — 태현님이 정한 순서가 «영웅 → 카드 → 상점» 이다.
+GAME.RtPrepScene.prototype._showSkillCard = function (onClose) {
+  var UI = GAME.UI, self = this;
+  var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT, P = !!GAME.CONFIG.PHONE;
+  var hk = this._pickedHero || (GAME.RtFlow && GAME.RtFlow.myHeroPick) || 'vanguard';
+  var hd = GAME.HEROES[hk];
+  var picks = (GAME.RtFlow && GAME.RtFlow.myPicks) || GAME.defaultSkillPicks();
+  var sks = [];
+  try { sks = GAME.buildSkills(hk, picks) || []; } catch (e) { sks = []; }
+  if (!sks.length || !GAME.skillBlurb) { if (onClose) onClose(); return; }
+
+  var INK = '#241a10', PAPER = 0xf6ead2, EDGE = 0x5a4632, HI = '#8a3b12';
+  var cw = Math.min(W - 24, P ? 460 : 620), wrap = cw - (P ? 22 : 30);
+  var texts = [], y = 0, objs = [];
+  function put(t, o) {
+    o.origin = o.origin === undefined ? 0.5 : o.origin;
+    o.originY = 0;
+    var x = UI.text(self, o.origin === 0 ? (W / 2 - cw / 2 + (P ? 11 : 15)) : W / 2, y, t, o);
+    x.setAlign(o.origin === 0 ? 'left' : 'center');
+    x.setWordWrapWidth(wrap); x.setDepth(9101); x.__overlay = 1;
+    texts.push(x); objs.push(x);
+    y += x.height + (P ? 3 : 5);
+    return x;
+  }
+  put('✦ ' + (hd ? hd.name : '') + ' — 이번 판 스킬',
+      { size: P ? 'subhead' : 'head', color: HI });
+  put('실시간은 스킬을 판마다 무작위로 받는다', { size: 'micro', color: '#6b5a44' });
+  y += (P ? 3 : 5);
+  sks.forEach(function (sk) {
+    put(sk.slot + '  ' + sk.name, { size: P ? 'caption' : 'body', color: INK, origin: 0 });
+    put('      ' + GAME.skillBlurb(sk), { size: 'micro', color: '#6b5a44', origin: 0 });
+    y += (P ? 2 : 4);
+  });
+  put('화면을 탭하면 상점으로', { size: 'micro', color: INK });
+
+  var pad = P ? 11 : 15, ch = y + pad * 2 - (P ? 3 : 5);
+  var top = Math.max(6, H / 2 - ch / 2);
+  for (var i = 0; i < texts.length; i++) texts[i].y += top + pad;
+
+  var g = this.add.graphics();
+  g.fillStyle(0x1a140c, 0.72).fillRect(0, 0, W, H);
+  g.fillStyle(PAPER, 0.99).fillRoundedRect(W / 2 - cw / 2, top, cw, ch, 10);
+  g.lineStyle(2, EDGE, 1).strokeRoundedRect(W / 2 - cw / 2, top, cw, ch, 10);
+  g.setDepth(9100);
+  g.__overlay = 1;
+  objs.push(g);
+  this._skillCard = objs;
+
+  var done = false;
+  function close() {
+    if (done) return;
+    done = true;
+    objs.forEach(function (o) { try { if (o && o.destroy) o.destroy(); } catch (e) {} });
+    self._skillCard = null;
+    if (onClose) onClose();
+  }
+  g.setInteractive(new Phaser.Geom.Rectangle(0, 0, W, H), Phaser.Geom.Rectangle.Contains);
+  g.once('pointerdown', close);
+  //  ⚠ 스스로도 닫힌다 — 안 누르면 상점 60초를 카드 보며 날린다.
+  this.time.delayedCall(P ? 7000 : 8000, close);
+};
+
 GAME.RtPrepScene.prototype._showBrief = function (mp) {
   var UI = GAME.UI;
   var W = GAME.CONFIG.WIDTH, H = GAME.CONFIG.HEIGHT, P = !!GAME.CONFIG.PHONE;

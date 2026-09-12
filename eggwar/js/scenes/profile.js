@@ -82,7 +82,24 @@ GAME.ProfileScene.prototype._stats = function () {
     { label: '탑 최고층',   value: towerBest ? towerBest + '층' : '-' },
     { label: '수성 최고회차', value: dtowerBest ? dtowerBest + '회차' : '-' },
     { label: '실시간 점수', value: played ? Math.round(rt.score).toLocaleString('ko-KR') + '점' : '-' },
-    { label: '실시간 전적', value: played ? (rt.wins || 0) + '승 ' + (rt.losses || 0) + '패' : '-' }
+    { label: '실시간 전적', value: played ? (rt.wins || 0) + '승 ' + (rt.losses || 0) + '패' : '-' },
+    //  ── 판 기록(js/rtlog.js) — 볼 곳을 만든다 (2026-09-13 태현님 ②) ──────
+    //  ⚠ 쌓기만 하고 **보여 주지 않으면** 사람은 그게 있는지도 모른다 —
+    //    이 저장소가 축복·구슬에서 두 번 배운 것("받은 줄을 모른다")과 같은 종류다.
+    //  ⚠ 평균이 아니라 **이긴 판의 영웅**을 보여 준다 — 밸런스를 말할 때 필요한 것이 그것이다.
+    { label: '실시간 판 기록', value: (function () {
+        try {
+          if (!GAME.RtLog) return '-';
+          var rows = GAME.RtLog.load().rows || [];
+          if (!rows.length) return '아직 없음';
+          var sm = GAME.RtLog.summary();
+          var top = sm.rows.slice(0, 2).map(function (r) {
+            var d = GAME.HEROES[r.hero];
+            return (d ? d.name : r.hero) + ' ' + Math.round(r.rate * 100) + '%';
+          }).join(' · ');
+          return rows.length + '판' + (top ? ('  ·  ' + top) : '');
+        } catch (e) { return '-'; }
+      })() }
   ];
 };
 

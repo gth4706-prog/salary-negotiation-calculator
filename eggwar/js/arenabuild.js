@@ -271,7 +271,8 @@ GAME.ArenaBuild = {
     //    전부 써도 **방어력 +11**(관문 상한 12)로 예전과 같다(실측).
     //  ⚠ 3.0 은 «예산 300을 방어에 몰아도 열한 번 남지» 에서 역산한 값이다 —
     //    옆 값(1.75·2.1·2.6)은 전부 방어력 +13 이 나왔다.
-    FLAT_K: 3.0,
+    FLAT_K: 1.8,        //  2026-09-13 태현님 ④ — 3.0 의 60%("개성이 있을듯해")
+    PRICE_MUL: { armor: 1.55 },
     costOf: function (key, level) {
       var d = this.statDef(key);
       if (!d) return Infinity;
@@ -279,7 +280,10 @@ GAME.ArenaBuild = {
       //    같은 예산으로 산 능력치가 1.8배가 돼 `rt-balance` 가 11 → 6 으로 무너졌다.
       //    가격이 **오르지 않는 것**과 값이 싸지는 것은 다른 문제다 — 태현님이 짚은 건 앞쪽이다.
       //  ⚠ K 는 «5회 살 때 옵 가격과 같아지는» 값에서 잡았다(70/40 ≈ 1.75).
-      return Math.round(d.cost * this.FLAT_K);
+      //  ⚠ 방어만 살짝 비싸다(PRICE_MUL) — 가격을 60% 로 내리자 예산 300 을
+      //    방어에 다 쓰면 **방어력 +13**(관문 상한 12)이 됐다 — 세 번 돌려 같은 값,
+      //    즉 노이즈가 아니다. 나머지 일곱은 그대로 60% 라 «개성» 은 살아 있다.
+      return Math.round(d.cost * this.FLAT_K * ((this.PRICE_MUL && this.PRICE_MUL[key]) || 1));
     },
     //  UI 가 읽는 캐릭터 뷰 — gold 자리에 **남은 예산**을 넣는다.
     rec: function () {

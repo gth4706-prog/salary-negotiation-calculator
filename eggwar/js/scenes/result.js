@@ -664,6 +664,27 @@ GAME.ResultScene.prototype._rewards = function (bx, ry, bw, tierObj) {
     var r2 = GAME.UI.rewardRow(this, bx, ry, bw, 'AI 컨트롤러 숙련도',
       Math.round(this.aiSkill * 100) + '%', { valueSize: 'body' });
     blocks.push(r2); ry = r2.bottom + 8;
+  } else if (this.rtResult && !this.rtResult.coop) {
+    //  ── 실시간 — 이 판에 대해 말해야 할 것만 (2026-09-13) ─────────────
+    //  ⚠⚠ 예전에는 아래 `formationId` 갈래로 떨어져 **비동기 대전 패널**이 뗴다:
+    //    «상대 진형 ?» «이 진형 상대 전적 — 전적 없음». 실시간에는 «상대 진형» 이라는
+    //    것이 없고(사람과 붙었다), 그래서 물음표와 «첨 도전자» 만 떠 있었다(실측 스크린샷).
+    //    `formationId` 가 실시간에서도 `__rt` 로 **참이라** 그 갈래에 들어갔다.
+    //  ⚠ 대신 «이 판이 어떤 판이었나» 를 말한다 — 전장과 길이. 자세한 숫자는
+    //    이미 «전투 요약» 팝업이 자동으로 띄운다(중복으로 적지 않는다).
+    var rtMapName = (this.rtResult.map && GAME.RtMaps && GAME.RtMaps.byKey(this.rtResult.map))
+                    ? GAME.RtMaps.byKey(this.rtResult.map).name : null;
+    if (rtMapName) {
+      var rm = GAME.UI.rewardRow(this, bx, ry, bw, '전장', rtMapName,
+        { valueSize: 'body', valueColor: GAME.UI.TXT.text, accent: tierObj.hex });
+      blocks.push(rm); ry = rm.bottom + 8;
+    }
+    var rs2 = GAME.UI.rewardRow(this, bx, ry, bw, '판 길이',
+      (this.battleSec || 0) + '초'
+      + (this.timeUp ? '  ·  시간 초과' : '')
+      + (this.rtResult.eggBroken ? '  ·  황금알이 깨졌다' : ''),
+      { valueSize: 'body', valueColor: GAME.UI.TXT.text });
+    blocks.push(rs2); ry = rs2.bottom + 8;
   } else if (this.formationId) {
     var f = GAME.Formations.getById(this.formationId);
     var sum = GAME.Learn.summary(this.formationId);

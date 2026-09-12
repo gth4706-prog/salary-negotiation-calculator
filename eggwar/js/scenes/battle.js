@@ -978,7 +978,9 @@ GAME.BattleScene.prototype.create = function () {
   // 세로 터치·폰 가로에서는 HUD 를 **맨 위**에 둔다(아레나는 그 아래에서 시작).
   this.hud = GAME.UI.battleHud(this, {
     top: PHONE ? 2 : (padMode0 ? 6 : hud.top),
-    boss: !!this.formation.boss,
+    //  ⚠ 황금알 맵은 **알이 깨지면 진다** — 그 체력이 화면에 없으면 승패를 정하는
+    //    것이 보이지 않는다(유닛 위 작은 바뿐이었다). 보스 바 자리를 빌린다.
+    boss: !!this.formation.boss || !!(this.rt && !this.rt.coop && this.state.mapEggs),
     tierIndex: tierObj.i,
     tierLabel: tierLabel
   });
@@ -2835,7 +2837,11 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
       } else {
         var rtWon = this.state.winner === this.rt.meTeam;
         var rr = GAME.RtScore.record(rtWon, (this.rt.their && this.rt.their.rtScore) || 0);
-        rtResult = { won: rtWon, delta: rr.delta, score: rr.score };
+        //  ⚠ 전장 키를 실어 보낸다 — 결과 화면이 «어떤 판이었나» 를 말하려면 필요하다.
+        //    알이 깨져 끝난 판인지도 같이 넣는다(그게 이 맵의 승패 규칙이다).
+        rtResult = { won: rtWon, delta: rr.delta, score: rr.score,
+                     map: (this.state.rtMap && this.state.rtMap.key) || '',
+                     eggBroken: !!this.state.eggBroken };
       }
     }
 
@@ -3805,7 +3811,12 @@ GAME.BattleScene.prototype.updateHud = function () {
 
   // 보스가 살아 있으면 전용 바로 보여준다 — 보스 층의 목표가 눈에 박힌다
   var bossU = null;
-  if (this.formation.boss) {
+  //  ⚠ 황금알 — **내 알**을 보여 준다(상대 알이 아니라). 지켜야 하는 것이 내 것이고,
+  //    상대 알은 전장에서 눈으로 보면 된다(화면 위에 두 바를 걹면 둘 다 안 읽힌다).
+  var eggMine = (this.rt && this.state.mapEggs) ? this.state.mapEggs[this.rt.meTeam] : null;
+  if (eggMine) {
+    bossU = eggMine;
+  } else if (this.formation.boss) {
     for (var bi = 0; bi < this.state.units.length; bi++) {
       if (this.state.units[bi].def.isBoss) { bossU = this.state.units[bi]; break; }
     }
@@ -3825,9 +3836,11 @@ GAME.BattleScene.prototype.updateHud = function () {
 
     enemyText:  '남은 적 ' + GAME.Combat.aliveCount(this.state, 'strategist') + '기',
 
-    bossName:   bossAlive ? bossU.def.name : '보스 처치',
+    bossName:   bossAlive ? (eggMine ? '내 황금알' : bossU.def.name)
+                          : (eggMine ? '알이 깨졌다' : '보스 처치'),
     bossFrac:   (bossAlive && bossU.maxHp) ? bossU.hp / bossU.maxHp : 0,
-    bossText:   bossAlive ? (GAME.UI.numAbbr(Math.ceil(bossU.hp)) + ' / ' + GAME.UI.numAbbr(bossU.maxHp)) : '처치'
+    bossText:   bossAlive ? (GAME.UI.numAbbr(Math.ceil(bossU.hp)) + ' / ' + GAME.UI.numAbbr(bossU.maxHp))
+                          : (eggMine ? '파괴' : '처치')
   });
 
   //  ── 긴장 겹(시즌2 S-S) — 영웅 체력이 깎일수록·보스가 2페이즈 이후면 tense 레이어를 올린다.

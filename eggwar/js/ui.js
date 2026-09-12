@@ -610,8 +610,14 @@ GAME.UI = {
     return y;
   },
 
+  //  ⚠⚠ **'field' 는 중립이다** (2026-09-13). 예전에는 이 함수가 «컨트롤러가
+  //    아니면 전략가» 로 갈랐고, 그래서 야수의 터 맵의 중립 짐승이 **전략가 색**으로
+  //    그려졌다 — 전략가 쪽 사람은 그걸 **자기 편**으로 보면서 자기를 때리는 것을 본다.
+  //  ⚠ 색은 두 진영 어느 쪽과도 안 섮이는 황토색이다(청록·보라 밖).
   sideColor: function (side) {
-    return side === 'controller' ? GAME.CONFIG.COLORS.controller : GAME.CONFIG.COLORS.strategist;
+    if (side === 'controller') return GAME.CONFIG.COLORS.controller;
+    if (side === 'field') return 0xd88a2a;
+    return GAME.CONFIG.COLORS.strategist;
   },
 
   inZone: function (zone, x, y) {

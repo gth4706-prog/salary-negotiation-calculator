@@ -180,6 +180,26 @@ GAME.BattleScene.prototype.create = function () {
   //  실시간: 시뮬 난수를 서버 시드로 고정 + 승패 규칙 전환(P1 의 pvpRealtime).
   //  ⚠ 유닛 생성 **전에** 걸어야 한다 — 생성 순서·초기값까지 결정론에 들어간다.
   if (this.rt) {
+    //  ── 기하를 한 종류로 고정한다 (2026-09-12 태현님 ②) ────────────────
+    //  ⚠⚠ **이게 «시작하자마자 동기화 어긋남» 의 정체다.** 프로필이 다르면
+    //    아예 다른 크기의 전장을 돌렸다(PC 1300×608 vs 폰 808×378). digest 는
+    //    x/y 를 그대로 해시하므로 첫 교환(1초)에서 **반드시** 갈라졌다.
+    //  ⚠ 반드시 유닛 생성 **전**에 바꿔야 한다 — `scaleDef` 가 생성 순간의
+    //    WORLD_SCALE 로 거리 스택을 환산하기 때문이다.
+    //  ⚠ 화면은 카메라가 아레나를 맞춰 키우므로 작아 보이지 않는다 — 비율이 같기 때문이다.
+    this._rtGeoSaved = null;
+    if (GAME.CONFIG.RT_GEO && GAME.CONFIG.PROFILE !== 'phone') {
+      var RG = GAME.CONFIG.RT_GEO, CF = GAME.CONFIG;
+      this._rtGeoSaved = { ARENA: CF.ARENA, WORLD_SCALE: CF.WORLD_SCALE,
+                           ZONE_STRATEGIST: CF.ZONE_STRATEGIST,
+                           ZONE_CONTROLLER: CF.ZONE_CONTROLLER, MAP_SPAN: CF.MAP_SPAN };
+      CF.ARENA = RG.ARENA; CF.WORLD_SCALE = RG.WORLD_SCALE;
+      CF.ZONE_STRATEGIST = RG.ZONE_STRATEGIST; CF.ZONE_CONTROLLER = RG.ZONE_CONTROLLER;
+      CF.MAP_SPAN = RG.MAP_SPAN;
+      //  스폰도 바뀜 구역에서 다시 잡는다(init 이 예전 값으로 계산해 둑다).
+      var Z2 = CF.ZONE_CONTROLLER;
+      this.startPos = { x: Z2.x + Z2.w / 2, y: Z2.y + Z2.h * 0.55 };
+    }
     GAME.Combat.seedRng(this.rt.seed);
     this.state.pvpRealtime = true;
     //  맵 변형(2026-08-31 태현님 ④) — 같은 시드라 양쪽이 같은 맵을 고른다.
@@ -920,6 +940,18 @@ GAME.BattleScene.prototype.create = function () {
   GAME.Iso.setMode('default');
   if (padMode0) {
     this.events.once('shutdown', function () { GAME.Iso.setMode('default'); });
+  //  ⚠ 실시간 전용 기하를 쓰고 있었으면 **반드시 되돌린다** — 안 되돌리면
+  //    탑·수성·로비가 폰 크기로 굴러간다(씨를 떠나도 CONFIG 는 살아있다).
+  var _geoSelf = this;
+  this.events.once('shutdown', function () {
+    var g = _geoSelf._rtGeoSaved;
+    if (!g) return;
+    var CF = GAME.CONFIG;
+    CF.ARENA = g.ARENA; CF.WORLD_SCALE = g.WORLD_SCALE;
+    CF.ZONE_STRATEGIST = g.ZONE_STRATEGIST; CF.ZONE_CONTROLLER = g.ZONE_CONTROLLER;
+    CF.MAP_SPAN = g.MAP_SPAN;
+    _geoSelf._rtGeoSaved = null;
+  });
     this.input.addPointer(2);          // 기본 1개 + 2개 = 스틱 + 버튼 2개 동시
   }
 

@@ -143,49 +143,103 @@ GAME.RtPrepScene.prototype.create = function () {
       this._pickedHero = AB0._rtRec.heroKey;
       if (GAME.RtFlow.setHeroPick) GAME.RtFlow.setHeroPick(this._pickedHero);
     }
+    //  ── 영웅 카드 (2026-09-12 태현님 ③) ─────────────────────────
+    //  > "단순 버튼이 아니라 각 영웅의 그림과 각 능력치를 게이지로 보여줬으면"
+    //  ⚠ 게이지는 **다섯 영웅 사이의 상대값**이다 — 절대치를 보여 줘봐야
+    //    «체력 2000» 이 많은 건지 알 수 없다. 최대인 영웅이 꿉 차고 나머지는 그 비율이다.
+    //  ⚠ 카드 크기를 화면에서 역산하되 **글자 하한**을 먼저 지킨다 — 폰(H 390)에서
+    //    다섯 칸을 족히려다 글자가 막 눈는 사고를 이 저장소가 두 번 겪었다.
     this._heroBtns = [];
     var hks = GAME.HERO_ORDER || ['vanguard', 'ranger', 'warden'];
-    var hbw = Math.min(W - 40, 560), hbh = P ? 46 : 56;
-    //  영웅이 넷 이상이면 2열(시즌2 다섯 영웅) — 폰 가로(H 390)에서 한 열 다섯 줄은
-    //  다섯째 버튼(중심 338)이 준비 버튼(중심 298)을 덮는다(산수: top 96 + 26 + 4×54).
-    //  2열 3행이면 마지막 행 바닥 253 < 준비 버튼 위 272. 문구는 이름·정체성만(폭 276).
-    var twoCol = hks.length > 3;
-    var hcols = twoCol ? GAME.Layout.cols(2, { gap: 8, width: hbw, left: (W - hbw) / 2, pad: 0 }) : null;
+    //  게이지 축 — 다섯 사이의 최댓값으로 정규화한다.
+    var AXES = [
+      { k: '체력', f: function (d) { return d.hp * (1 + (d.armor || 0) / 100); } },
+      { k: '공격', f: function (d) { return d.damage / (d.cooldown / 1000); } },
+      { k: '방어', f: function (d) { return d.armor || 0; } },
+      { k: '이속', f: function (d) { return d.speed; } },
+      { k: '사거리', f: function (d) { return d.range; } }
+    ];
+    var mx = AXES.map(function (ax) {
+      var m = 0;
+      hks.forEach(function (k) { var v = ax.f(GAME.HEROES[k]); if (v > m) m = v; });
+      return m || 1;
+    });
+
+    var cols = GAME.Layout.cols(hks.length, { gap: P ? 6 : 10, width: W - (P ? 20 : 40),
+                                              left: (P ? 10 : 20), pad: 0 });
+    //  ⚠ 자리를 위에서 부터 쌓는다 — 제목(10) · 시계(44) · 안내(70) 아래가 카드의 자리다.
+    //    아래로는 스킬 줄·버튼(298)을 비워 둔다 — 처음엔 64/196 으로 잡았다가
+    //    시계·안내·스킬 줄이 전부 카드에 묻혔다(실측 스크린샷).
+    var cTop = P ? 88 : 116;
+    var cH = P ? 150 : 200;
+    var self2 = this;
     hks.forEach(function (hk, i) {
       var hd = GAME.HEROES[hk];
       if (!hd) return;
-      var bx = twoCol ? hcols[i % 2].cx : W / 2;
-      var bwid = twoCol ? hcols[i % 2].w : hbw;
-      var brow = twoCol ? Math.floor(i / 2) : i;
-      var b = UI.button(self, bx, top + 26 + brow * (hbh + 8), bwid, hbh,
-        twoCol ? (hd.name + ' · ' + (hd.trait || ''))
-               : (hd.name + '   ·   ' + (hd.tagline || hd.desc || '').slice(0, 26)),
-        function () {
-          //  ── 영웅 선택 단계 (2026-09-11 태현님) ────────────────────
-          //  예전에는 고르는 즉시 상점으로 넘어갔다(2026-08-24). 지금은 **고르는 단계와
-          //  사는 단계를 가른다** — 그래야 «서로 어디 고르는지 보이는» 시간이 생긴다.
-          //  ⚠ 이 단계에서는 **바꿀 수 있어야 한다** — 상대 선택을 보고 고치는 것이
-          //    이 화면의 유일한 재미다. 확정은 아래 [상점으로] 가 한다.
-          self._pickedHero = hk;
-          if (GAME.RtFlow.setHeroPick) GAME.RtFlow.setHeroPick(hk);
-          if (GAME.RtFlow.sendPick) GAME.RtFlow.sendPick(hk, false);
-          self._markHero(hks, hk);
-          self._refreshLoadout();
-          self._refresh();
-        }, { fontSize: P ? 14 : 16 });
-      self._heroBtns.push(b);
+      var cx = cols[i].cx, cw = cols[i].w;
+      var g = self2.add.graphics();
+      var box = { x: cx - cw / 2, y: cTop, w: cw, h: cH };
+
+      //  카드 판 + 테두리(고른 것은 굵게)
+      function paint(on) {
+        g.clear();
+        g.fillStyle(0xf6ead2, on ? 0.98 : 0.88).fillRoundedRect(box.x, box.y, box.w, box.h, 8);
+        g.lineStyle(on ? 3 : 1, on ? GAME.CONFIG.COLORS.controller : 0x8a6a3a, 1)
+         .strokeRoundedRect(box.x, box.y, box.w, box.h, 8);
+        //  초상 — 카드 위쪽. facing +PI/2 가 정면이다(defend-tower 와 같은 규약).
+        //  ⚠ `drawUnitFlat` 은 **발 위치**를 받아 몸을 그 위로 그린다 — 카드 위쪽에
+        //    바짝 붙이면 머리가 카드 밖으로 솔아오른다(실측).
+        var pr = P ? 14 : 20;
+        UI.drawUnitFlat(g, hd, cx, box.y + (P ? 36 : 50), GAME.CONFIG.COLORS.controller,
+                        on ? 1 : 0.55, pr / (hd.radius || 17), Math.PI / 2, null, 0);
+        //  게이지
+        var gy = box.y + (P ? 62 : 84);
+        var gw = cw - (P ? 18 : 26);
+        var gx = cx - gw / 2;
+        for (var a2 = 0; a2 < AXES.length; a2++) {
+          var frac = Math.max(0.06, Math.min(1, AXES[a2].f(hd) / mx[a2]));
+          var bh = P ? 5 : 7;
+          g.fillStyle(0x000000, 0.10).fillRoundedRect(gx, gy + 1, gw, bh, bh / 2);
+          g.fillStyle(on ? 0xd88a2a : 0xa08050, on ? 0.95 : 0.6)
+           .fillRoundedRect(gx, gy + 1, gw * frac, bh, bh / 2);
+          gy += (P ? 17 : 22);
+        }
+      }
+      paint(self2._pickedHero === hk);
+
+      //  글자는 Graphics 위에 따로 — 다시 그릴 때 매번 만들지 않는다.
+      var nameT = UI.text(self2, cx, box.y + (P ? 44 : 60), hd.name,
+        { size: P ? 'caption' : 'body', color: '#241a10', origin: 0.5 });
+      nameT.__box = box;
+      var labs = [];
+      var ly = box.y + (P ? 58 : 79);
+      for (var a3 = 0; a3 < AXES.length; a3++) {
+        var lt = UI.text(self2, box.x + (P ? 9 : 13), ly, AXES[a3].k,
+          { size: 'micro', color: '#6b5a44', origin: 0, originY: 0 });
+        lt.__box = box;
+        labs.push(lt);
+        ly += (P ? 17 : 22);
+      }
+
+      //  탭 — Graphics 에 직접 건다(버튼 원단을 안 쓰므로 내가 잡는다).
+      g.setInteractive(new Phaser.Geom.Rectangle(box.x, box.y, box.w, box.h),
+                       Phaser.Geom.Rectangle.Contains);
+      g.on('pointerdown', function () {
+        if (GAME.RtFlow.phase !== 'hero') return;   //  상점 단계에서는 잠긴다
+        self2._pickedHero = hk;
+        if (GAME.RtFlow.setHeroPick) GAME.RtFlow.setHeroPick(hk);
+        if (GAME.RtFlow.sendPick) GAME.RtFlow.sendPick(hk, false);
+        self2._heroBtns.forEach(function (c) { c.paint(c.key === hk); });
+        self2._refreshLoadout();
+        self2._refresh();
+      });
+      self2._heroBtns.push({ key: hk, g: g, paint: paint, rect: g, text: nameT });
     });
-    if (this._pickedHero) this._markHero(hks, this._pickedHero);
-    //  ⚠⚠ 상점 단계에서는 **영웅을 못 바꿈다**(2026-09-11 ①).
-    //    바꿀 수 있으면 «10초 안에 고르고 서로 보여 준다» 는 약속이 무너진다 —
-    //    상대는 내 영웅을 알고 장비를 사는데 나만 나중에 갈아타면 그건 속이는 것이다.
-    //  ⚠ 숨기지 않고 **흐려서 남긴다** — 내가 뭔 고를는지는 계속 보여야 한다.
     if (F.phase !== 'hero') {
-      this._heroBtns.forEach(function (hb, hi) {
-        if (hb.rect && hb.rect.disableInteractive) hb.rect.disableInteractive();
-        var on = (hks[hi] === self._pickedHero);
-        if (hb.rect && hb.rect.setAlpha) hb.rect.setAlpha(on ? 1 : 0.42);
-        if (hb.text && hb.text.setAlpha) hb.text.setAlpha(on ? 1 : 0.42);
+      //  상점 단계 — 고른 것만 선명하게 남기고 나머지는 흐린다(숨기지 않는다).
+      this._heroBtns.forEach(function (c) {
+        if (c.key !== self2._pickedHero && c.g.setAlpha) c.g.setAlpha(0.45);
+        if (c.key !== self2._pickedHero && c.text && c.text.setAlpha) c.text.setAlpha(0.45);
       });
     }
 
@@ -199,8 +253,9 @@ GAME.RtPrepScene.prototype.create = function () {
     //    (96+26-23 = 99)을 1px 침범한다(overlap-audit 실측 겹침 2건). 자리는
     //    **영웅 버튼 블록 바로 아래**의 빈 띠 — 마지막 행 바닥에서 역산한다
     //    (고정 y 를 박으면 영웅 수가 늘 때 또 겹친다, 이 폴더의 반복 함정).
-    var rows = twoCol ? Math.ceil(hks.length / 2) : hks.length;
-    var skillY = top + 26 + (rows - 1) * (hbh + 8) + hbh / 2 + (P ? 3 : 8);
+    //  ⚠ 카드 블록 **바로 아래**에서 시작한다 — 고정 y 를 박으면 카드 높이가
+    //    바뀌는 순간 겹친다(이 파일이 반복해서 겪은 함정).
+    var skillY = cTop + cH + (P ? 4 : 8);
     this._skillTxt = UI.text(this, W / 2, skillY, '', {
       size: 'micro', color: C.textDim, origin: 0.5, originY: 0 });
     this._skillTxt.setAlign('center');
@@ -332,11 +387,12 @@ GAME.RtPrepScene.prototype._showBrief = function (mp) {
   this.time.delayedCall(isNew ? 6500 : 4200, close);
 };
 
+//  ⚠ 영웅 카드는 버튼 원단이 아니라 Graphics 다 — 표시는 각 카드의 paint() 가 한다.
+//  ⚠ 예전에는 `rect.setStrokeStyle` 로 테두리만 바꿔지만, 카드는 초상·게이지도
+//    같이 진해져야 해서 통째 다시 그린다.
 GAME.RtPrepScene.prototype._markHero = function (hks, hk) {
-  this._heroBtns.forEach(function (hb, j) {
-    hb.rect.setStrokeStyle(hks[j] === hk ? 3 : 1,
-      hks[j] === hk ? GAME.CONFIG.COLORS.controller : GAME.UI.COL.borderUi);
-  });
+  if (!this._heroBtns) return;
+  this._heroBtns.forEach(function (c) { if (c.paint) c.paint(c.key === hk); });
 };
 
 GAME.RtPrepScene.prototype._refreshLoadout = function () {

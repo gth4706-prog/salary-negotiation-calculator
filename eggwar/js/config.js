@@ -135,6 +135,29 @@ GAME.CONFIG = (function () {
     HEIGHT: H,
     ARENA: arena,
 
+    //  ── 실시간 전용 기하 (2026-09-12 태현님 ②) ─────────────────────
+    //  > "게임시작하자마자 동기화가 어긋났다며 게임이 끝나버리는 경우가 너무 자주"
+    //
+    //  ⚠⚠ **원인을 찾았다 — 프로필이 다르면 아예 다른 크기의 전장을 돌린다.**
+    //    PC  ARENA 1300×608 · WORLD_SCALE 0.895 · 스폰 670,546
+    //    폰  ARENA  808×378 · WORLD_SCALE 0.556 · 스폰 410,333
+    //    록스텝 digest 는 x/y/hp 를 그대로 해시하므로 첫 교환(30틱=1초)에서
+    //    **반드시** 갈라진다. 폰↔PC 로 붙으면 100% 재현된다.
+    //  ⚠ 둘은 **비율이 같고 크기만 1.609배** 다(위 REF 절). 그래서 실시간은
+    //    «폰 기하» 하나로 고정하고 화면은 카메라가 맞춰 키우면 된다 — 게임이 바뀌지 않는다.
+    //  ⚠ 세로(PORTRAIT)도 같은 값을 쓴다 — 어느 프로필이든 실시간은 한 종류의 전장이어야 한다.
+    RT_GEO: (function () {
+      var a = { x: 6, y: 6, w: REF.w, h: REF.h };
+      var zh = Math.round(a.h * 0.30);
+      return {
+        ARENA: a,
+        WORLD_SCALE: REF_SCALE,
+        ZONE_STRATEGIST: { x: a.x, y: a.y, w: a.w, h: zh },
+        ZONE_CONTROLLER: { x: a.x, y: a.y + a.h - zh, w: a.w, h: zh },
+        MAP_SPAN: Math.ceil(Math.sqrt(a.w * a.w + a.h * a.h))
+      };
+    })(),
+
     ZONE_STRATEGIST: { x: arena.x, y: arena.y, w: arena.w, h: zoneH },
     ZONE_CONTROLLER: { x: arena.x, y: arena.y + arena.h - zoneH, w: arena.w, h: zoneH },
 

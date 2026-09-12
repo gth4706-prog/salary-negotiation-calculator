@@ -180,6 +180,16 @@ GAME.TowerShopScene.prototype.create = function () {
   });
 
   this.goldLabel = GAME.UI.label(this, W - PAD, 10, '', 20, C.accent, 1).setOrigin(1, 0);
+  //  ── 실시간 준비 시계 (2026-09-12 태현님 ①) ─────────────────────
+  //  "실시간대전 상점에서도 시간카운트가 보여야해" — 준비 화면에만 시계가 있어
+  //  상점에 들어오면 얼마 남았는지 모른 채 사게 된다. 60초짜리 단계라 가혹하다.
+  //  ⚠ 골드 라벨 **아래에** 둔다 — 같은 줄에 붙이면 폰에서 예산과 겹친다.
+  //  ⚠ 10초 이하면 경고색 — 숫자만 있으면 급한 줄을 모른다.
+  this._rtTimer = null;
+  if (this.mode === 'arena' && GAME.RtFlow && GAME.RtFlow.active && !GAME.RtFlow.local) {
+    this._rtTimer = GAME.UI.label(this, W - PAD, 34, '', GAME.CONFIG.SMALL ? 15 : 17,
+                                  C.accentAlt, 1).setOrigin(1, 0);
+  }
 
   var tabY = 46;
   var TABS = this.src.tabs.slice();
@@ -258,6 +268,27 @@ GAME.TowerShopScene.prototype._arenaSortie = function () {
   });
 };
 
+//  실시간 준비 시계 — 준비 화면과 **같은 시계**(RtFlow.remainMs)를 읽는다.
+//  ⚠ 두 곳이 각자 세면 사람이 두 개의 남은 시간을 보게 된다 — 한 고데에서 읽는다.
+GAME.TowerShopScene.prototype._paintRtTimer = function () {
+  if (!this._rtTimer || !this._rtTimer.scene) return;
+  var F = GAME.RtFlow;
+  if (!F || !F.active) { this._rtTimer.setText(''); return; }
+  var s = Math.ceil(F.remainMs() / 1000);
+  this._rtTimer.setText('⏳ ' + s + '초');
+  this._rtTimer.setColor(s <= 10 ? GAME.CONFIG.COLORS.crit : GAME.CONFIG.COLORS.accentAlt);
+};
+
+GAME.TowerShopScene.prototype.update = function () {
+  //  ⚠ 매 프레임 그리지 않는다 — 초 단위라 250ms 면 충분하고,
+  //    Text.setText 는 텍스처를 다시 굽는다(이 저장소가 렝 조사에서 재는 비용).
+  if (!this._rtTimer) return;
+  var now = (this.time && this.time.now) || 0;
+  if (now - (this._rtTimerAt || 0) < 250) return;
+  this._rtTimerAt = now;
+  this._paintRtTimer();
+};
+
 GAME.TowerShopScene.prototype._clearBody = function () {
   this._body.forEach(function (o) { if (o && o.destroy) o.destroy(); });
   this._body = [];
@@ -289,6 +320,8 @@ GAME.TowerShopScene.prototype._buildBody = function (bump) {
   });
 
   this.goldLabel.setText(this.src.purseLabel + this.src.purse(this.char));
+  //  시계 갱신 — 갱신될 때마다 같이 그린다(이 함수가 화면의 숫자를 쌓는 자리다).
+  this._paintRtTimer();
   if (bump) {
     this.goldLabel.setScale(1.25);
     this.tweens.add({ targets: this.goldLabel, scale: 1, duration: 260, ease: 'Back.easeOut' });

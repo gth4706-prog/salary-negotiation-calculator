@@ -81,6 +81,12 @@ GAME.ProfileScene.prototype._stats = function () {
   return [
     { label: '탑 최고층',   value: towerBest ? towerBest + '층' : '-' },
     { label: '수성 최고회차', value: dtowerBest ? dtowerBest + '회차' : '-' },
+    //  ⚠ 티어를 **점수보다 먼저** 놓는다 — 사람이 자기를 부르는 이름이 그쪽이다.
+    { label: '실시간 티어', value: (played && GAME.RtScore && GAME.RtScore.tierOf)
+        ? (GAME.RtScore.tierOf(rt.score).label
+           + (GAME.RtScore.toNext(rt.score) !== null
+              ? ('  ·  승급까지 ' + GAME.RtScore.toNext(rt.score) + '점') : ''))
+        : '-' },
     { label: '실시간 점수', value: played ? Math.round(rt.score).toLocaleString('ko-KR') + '점' : '-' },
     { label: '실시간 전적', value: played ? (rt.wins || 0) + '승 ' + (rt.losses || 0) + '패' : '-' },
     //  ── 판 기록(js/rtlog.js) — 볼 곳을 만든다 (2026-09-13 태현님 ②) ──────

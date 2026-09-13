@@ -368,12 +368,23 @@ GAME.ResultScene.prototype.create = function () {
       var lvName = (GAME.RtBot && GAME.RtBot.LEVELS[rr.practice] && GAME.RtBot.LEVELS[rr.practice].name) || rr.practice;
       title = rr.won ? '연습 대전 승리' : '연습 대전 패배'; color = rr.won ? C.accent : C.textDim;
       sub = '봇(' + lvName + ') 상대 연습 — 실시간 점수는 움직이지 않습니다.';
-    } else if (rr.won) {
-      title = '실시간 대전 승리'; color = C.accent;
-      sub = '실시간 점수 +' + rr.delta + ' → ' + rr.score;
     } else {
-      title = '실시간 대전 패배'; color = C.accentAlt;
-      sub = '실시간 점수 ' + rr.delta + ' → ' + rr.score + '. 다시 도전해 보세요.';
+      //  ── 랭크 (2026-09-14 태현님) ─────────────────────────────────────
+      //  ⚠ **승급·강등이 가장 큰 소식이다.** 점수는 매 판 움직이지만 칸이 바뀌는
+      //    것은 몇 판에 한 번이라, 그때 제목이 바뀌어야 «올랐다» 가 몸에 남는다.
+      //  ⚠ 티어는 `rr.tier`(점수를 매긴 쪽이 실어 보낸 값)를 쓴다 — 여기서 점수로
+      //    다시 계산하면 판정이 두 벌이 되어 언젠가 갈라진다.
+      var tNow = rr.tier || (GAME.RtScore ? GAME.RtScore.tierOf(rr.score) : null);
+      var tLab = tNow ? tNow.label : '';
+      var toNext = (GAME.RtScore && GAME.RtScore.toNext) ? GAME.RtScore.toNext(rr.score) : null;
+      if (rr.promoted) { title = '승급 — ' + tLab; color = C.accent; }
+      else if (rr.demoted) { title = '강등 — ' + tLab; color = C.warn; }
+      else {
+        title = rr.won ? '실시간 대전 승리' : '실시간 대전 패배';
+        color = rr.won ? C.accent : C.accentAlt;
+      }
+      sub = tLab + '  ·  ' + rr.score + '점 (' + (rr.delta >= 0 ? '+' : '') + rr.delta + ')'
+          + (toNext !== null ? ('  ·  승급까지 ' + toNext + '점') : '');
     }
   } else if (this.versus && this.arenaResult) {
     // 대전(비동기 PvP) — 승패보다 **트로피가 얼마나 움직였는지**가 결과다

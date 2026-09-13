@@ -437,6 +437,9 @@ GAME.RankScene.prototype._metaOf = function (r) {
     }
     var hasRec = (typeof w === 'number' && typeof l === 'number' && (w + l) > 0);
     var parts = [];
+    //  ⚠ 티어를 **맨 앞**에 둔다(2026-09-14) — 점수는 이미 오른쪽 칸에 숫자로 있다.
+    //    여기서까지 숫자를 되풀이하면 «이 사람이 어디쯤인가» 는 여전히 안 읽힌다.
+    if (GAME.RtScore && GAME.RtScore.tierOf) parts.push(GAME.RtScore.tierOf(r.value).label);
     if (hasRec) parts.push(w + '승 ' + l + '패');
     if (r.at) parts.push(this._ago(r.at));
     return parts.length ? parts.join(' · ') : '실시간 대전';

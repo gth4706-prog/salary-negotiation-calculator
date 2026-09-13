@@ -528,6 +528,13 @@ GAME.RtPrepScene.prototype._commit = function () {
   this._refresh();
 };
 
+//  점수 → «골드 3 · » 꼴. 점수가 없으면(연습·옛 클라이언트) 빈 문자열이라
+//  문장이 그대로 자연스럽게 읽힌다.
+function _tierLab(score) {
+  if (!(score > 0) || !GAME.RtScore || !GAME.RtScore.tierOf) return '';
+  return GAME.RtScore.tierOf(score).label + ' · ';
+}
+
 //  영웅 키 → 보이는 이름. 없거나 모르는 키면 null(화면은 «고르는 중» 으로 말한다).
 function _heroName(k) {
   if (!k) return null;
@@ -565,7 +572,13 @@ GAME.RtPrepScene.prototype._refresh = function () {
   var mine = F.mySetup ? '나: 준비 완료 ✓' : '나: 준비 중…';
   var theirs = F.local
     ? (who + ': 🤖 봇(' + ((GAME.RtBot && GAME.RtBot.LEVELS[F.botLevel] || {}).name || F.botLevel) + ')')
-    : (F.theirSetup ? who + ': 준비 완료 ✓' : who + ': 준비 중…');
+    //  ⚠ 상대 점수는 **이미 세팅 스냅샷에 실려 온다**(`setup.rtScore`, 점수 계산용).
+    //    새로 주고받을 것이 없으니 같은 줄에 칸 이름만 얹는다 — «누구랑 붙는가» 가
+    //    준비 화면에서 가장 알고 싶은 것인데 지금까지 아무 데도 안 적혀 있었다.
+    //  ⚠ 줄을 새로 만들지 않는다(폰 H 390 에는 빈 줄이 없다 — 이 화면의 반복 함정).
+    : (F.theirSetup
+        ? (who + ': ' + _tierLab(F.theirSetup.rtScore) + '준비 완료 ✓')
+        : (who + ': 준비 중…'));
   //  ── 서로 어디 고르는가 (2026-09-11 태현님) ──────────────────────
   //  ⚠ **줄을 따로 늘리지 않는다.** 폰(H 390)에는 빈 줄이 없고, 이 줄이 이미
   //    «상대가 뭐 하는가» 를 말하는 자리다. 새 줄을 놓으면 버튼과 겹친다.

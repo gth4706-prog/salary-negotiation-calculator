@@ -44,7 +44,7 @@ BO.Rooms = (function () {
       objects: [
         { id: 'bed', kind: 'bed', name: '침대', x: 1, y: 1, w: 2, h: 3, material: 'fabric' },
         { id: 'nightstand', kind: 'nightstand', name: '협탁', x: 3, y: 1, w: 1, h: 1, material: 'wood' },
-        { id: 'dresser', kind: 'cabinet', name: '옷장', x: 5, y: 1, w: 3, h: 1, material: 'wood' },
+        { id: 'dresser', kind: 'cabinet', name: '수납장', x: 5, y: 1, w: 3, h: 1, material: 'wood' },
         { id: 'rug', kind: 'rug', name: '러그', x: 3, y: 4, w: 3, h: 2, material: 'fabric', walkable: true },
         { id: 'basket', kind: 'basket', name: '빨래 바구니', x: 7, y: 6, w: 1, h: 1, material: 'fabric' }
       ] },
@@ -52,17 +52,17 @@ BO.Rooms = (function () {
       //  . . . . . . . .
       //  . . T T . . . .     T TV 장
       //  . . . . . . . .
-      //  . S S S . . P .     S 소파  P 화분
+      //  . S S S . . P .     S 긴 의자  P 화분
       //  . t t . . . . .     t 탁자
-      //  . . . . r r r .     r 러그
-      //  . . . . r r r .
+      //  . . . . r r . .     r 둥근 러그(2×2)
+      //  . . . . r r . .
       //  . . . . . . . .
       objects: [
         { id: 'tv', kind: 'cabinet', name: 'TV 장', x: 2, y: 1, w: 2, h: 1, material: 'wood' },
-        { id: 'sofa', kind: 'sofa', name: '소파', x: 1, y: 3, w: 3, h: 1, material: 'fabric' },
+        { id: 'sofa', kind: 'sofa', name: '긴 의자', x: 1, y: 3, w: 3, h: 1, material: 'fabric' },
         { id: 'plant', kind: 'plant', name: '화분', x: 6, y: 3, w: 1, h: 1, material: 'fabric' },
         { id: 'table', kind: 'desk', name: '탁자', x: 1, y: 4, w: 2, h: 1, material: 'wood' },
-        { id: 'rug', kind: 'rug', name: '러그', x: 4, y: 5, w: 3, h: 2, material: 'fabric', walkable: true }
+        { id: 'rug', kind: 'rug', name: '러그', x: 4, y: 5, w: 2, h: 2, material: 'fabric', walkable: true }
       ] }
   ];
   function copy(value) { return JSON.parse(JSON.stringify(value)); }

@@ -1,7 +1,29 @@
 {
   "files": [
+    "furniture/basket-1x1.png",
+    "furniture/bed-2x3.png",
+    "furniture/cabinet-1x2.png",
+    "furniture/cabinet-2x1.png",
+    "furniture/cabinet-3x1.png",
+    "furniture/chair-1x1.png",
+    "furniture/desk-2x1.png",
+    "furniture/desk-3x1.png",
+    "furniture/nightstand-1x1.png",
+    "furniture/papers-2x1.png",
+    "furniture/plant-1x1.png",
+    "furniture/rug-2x2.png",
+    "furniture/rug-3x2.png",
+    "furniture/shelf-3x1.png",
+    "furniture/sofa-3x1.png",
+    "rooms/bedroom.jpg",
+    "rooms/living.jpg",
+    "rooms/office.jpg",
     "sprites/footprint-foe.png",
     "sprites/footprint-me.png",
-    "sprites/kid-top.png"
+    "sprites/kid-top.png",
+    "sprites/splat-1.png",
+    "sprites/splat-2.png",
+    "sprites/splat-3.png",
+    "sprites/splat-4.png"
   ]
 }

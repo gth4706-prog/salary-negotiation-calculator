@@ -17,7 +17,12 @@ window.BO = window.BO || {};
 //  ES5 · 의존성 없음.
 // ============================================================================
 BO.Art = (function () {
-  var BASE = 'assets/';
+  //  ⚠ 절대 주소여야 한다. CSS 변수(--art, --floor, --splat)에 넣은 url() 은 크롬이 «변수를
+  //    쓴 스타일시트(css/rooms.css)» 기준으로 풀어서, 상대 주소면 css/assets/… 로 가 404 가
+  //    났다(실측: 마루·가구 그림이 전부 검게 나왔다). 문서 기준으로 미리 풀어 둔다.
+  var BASE = (function () {
+    try { var a = document.createElement('a'); a.href = 'assets/'; return a.href; } catch (e) { return 'assets/'; }
+  })();
   var found = {};     // 경로 → true/false (한 번 물어본 건 기억한다)
   var manifest = null, manifestState = 'idle', waiting = [];
 
@@ -62,28 +67,38 @@ BO.Art = (function () {
     return 'url(' + url + ') ' + px + '% ' + py + '% / ' + (w * 100) + '% ' + (h * 100) + '% no-repeat';
   }
 
-  //  방 바닥 — assets/rooms/<id>.png. 있으면 칸마다 제 조각을 --art 로 받는다(rooms.css).
+  //  방 바닥 — assets/rooms/<id>.jpg(또는 .png). 있으면 칸마다 제 조각을 --art 로 받는다(rooms.css).
+  //  사진 같은 마루는 JPG 가 PNG 의 1/8 크기다(2MB 예산).
   function floor(board, roomId) {
-    probe('rooms/' + roomId + '.png', function (ok) {
-      board.classList.toggle('has-floor', ok);
-      board.style.setProperty('--floor', ok ? 'url(' + BASE + 'rooms/' + roomId + '.png)' : 'none');
+    probe('rooms/' + roomId + '.jpg', function (okJpg) {
+      if (okJpg) { set('rooms/' + roomId + '.jpg'); return; }
+      probe('rooms/' + roomId + '.png', function (okPng) { set(okPng ? 'rooms/' + roomId + '.png' : null); });
     });
+    function set(path) {
+      board.classList.toggle('has-floor', !!path);
+      board.style.setProperty('--floor', path ? 'url(' + BASE + path + ')' : 'none');
+    }
   }
 
-  //  가구 조각 — assets/furniture/<kind>.png (가로 w칸 × 세로 h칸 비율, 투명 배경).
+  //  가구 조각 — assets/furniture/<kind>-<w>x<h>.png (크기별), 없으면 <kind>.png.
   //  칸 하나가 알려지는 순간 불린다. 그림이 있으면 그 칸의 조각을 --art 로 넣는다.
   //  ⚠ 먼저 내장 SVG(svgart.js)를 깔고, 그림 파일이 있으면 그걸로 덮는다. 그래서
-  //    파일이 하나도 없어도 «방»처럼 보인다.
+  //    파일이 하나도 없어도 «방»처럼 보인다. 크기별 파일을 먼저 찾는 이유: 같은 kind 라도
+  //    1×2 서랍장과 3×1 수납장은 다른 그림이다(늘려 쓰면 찌그러진다).
   function tile(cell, t, roomId) {
     cell.style.removeProperty('--art');
     if (!t || t.kind === 'floor') return;
     var builtin = BO.SvgArt ? BO.SvgArt.furniture(t) : null;
     if (builtin) cell.style.setProperty('--art', builtin + ' ' + slicePos(t.ox, t.oy, t.w, t.h));
-    var path = 'furniture/' + t.kind + (t.w > 1 && t.h === 1 && t.kind === 'cabinet' && t.w >= 3 ? '-wide' : '') + '.png';
-    probe(path, function (ok) {
-      cell.classList.toggle('has-art', ok);
-      if (ok) cell.style.setProperty('--art', slice(BASE + path, t.ox, t.oy, t.w, t.h));
+    var sized = 'furniture/' + t.kind + '-' + t.w + 'x' + t.h + '.png', plain = 'furniture/' + t.kind + '.png';
+    probe(sized, function (ok) {
+      if (ok) { use(sized); return; }
+      probe(plain, function (ok2) { if (ok2) use(plain); else cell.classList.remove('has-art'); });
     });
+    function use(path) {
+      cell.classList.add('has-art');
+      cell.style.setProperty('--art', slice(BASE + path, t.ox, t.oy, t.w, t.h));
+    }
   }
   function slicePos(ox, oy, w, h) {
     var px = w > 1 ? (ox / (w - 1) * 100) : 0, py = h > 1 ? (oy / (h - 1) * 100) : 0;

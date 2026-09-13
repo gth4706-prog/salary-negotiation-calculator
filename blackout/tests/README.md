@@ -51,7 +51,8 @@ node blackout/tests/tutorial.test.js  # 튜토리얼 8단계를 사람처럼 끝
 안내판은 이제 클릭을 통과시킨다.
 
 `assets-manifest.js` 는 테스트가 아니라 도구다 — 그림을 넣거나 뺀 뒤 한 번 돌려
-`assets/manifest.json` 을 다시 만든다.
+`assets/manifest.json` 을 다시 만든다. `concept-crops.py`(python3 + Pillow)도 도구다 —
+컨셉아트에서 가구·마루·얼룩을 오려 `assets/` 를 만든다. 좌표는 그 파일 안에 있다.
 
 ## 배포할 때
 

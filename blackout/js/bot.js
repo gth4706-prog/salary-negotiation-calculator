@@ -222,7 +222,9 @@ BO.Bot = (function () {
       var nx = me.x + C.DX[d], ny = me.y + C.DY[d];
       var s = Math.random() * 0.9;                       // 예측 불가능해야 한다
       if (paintAt[nx + ',' + ny]) s -= 4;                // 밟으면 윤곽이 보인다
-      if (!tile(v, nx, ny)) s -= 0.15;                   // 모르는 칸: 부딪힐 수도
+      //  모르는 칸은 부딪힐 수 있다. 시야가 두 칸 줄기라 옆은 늘 모른다 — 벌점을 세게 두지
+      //  않으면 판당 50번을 부딪힌다(실측). 앞(보이는 칸)으로 가는 걸 좋아하게.
+      if (!tile(v, nx, ny)) s -= 1.1;
       if (toward) {
         var was = dists[me.x + ',' + me.y], nowd = dists[nx + ',' + ny];
         if (nowd == null) continue;

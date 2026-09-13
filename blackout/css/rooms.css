@@ -40,8 +40,8 @@
 
 /* ── 2층: 안개 · 빛 · 격자선 (판 전체 SVG, ui.js buildOverlays) ────────── */
 .board .fogsvg,.board .beam,.board .gridsvg{position:absolute;inset:-2px;width:calc(100% + 4px);height:calc(100% + 4px);z-index:2;pointer-events:none}
-.board .fogsvg{filter:blur(6px)}
-.board .beam{filter:blur(9px);mix-blend-mode:screen}
+.board .fogsvg{filter:blur(4px)}
+.board .beam{filter:blur(6px);mix-blend-mode:screen}
 .board .fogsvg rect{transition:opacity .35s}
 .board .beam rect{transition:opacity .3s}
 @supports not (mix-blend-mode:screen){.board .beam{opacity:.7}}

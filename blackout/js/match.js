@@ -22,7 +22,11 @@ window.BO = window.BO || {};
 BO.Match = (function () {
   var C = BO.Core;
 
-  var TURN_MS  = 20000;   // 내 턴 제한시간. 「실시간 대전」이 되려면 시계가 있어야 한다.
+  //  내 턴 제한시간. 「실시간 대전」이 되려면 시계가 있어야 한다 — 그러나 생각할 시간은
+  //  줘야 한다. 처음 20초는 실서버 3판째에 「맘대로 턴이 넘어간다」로 돌아왔다(어둠 속
+  //  추리 게임에서 20초는 읽는 시간도 안 된다). 90초, 마지막 10초는 초읽기를 보여 준다.
+  //  테스트는 setTurnMs 로 줄인다.
+  var TURN_MS  = 90000;
   var GRACE_MS = 10000;   // 상대 턴이 이만큼 더 늦으면 「응답 없음」을 보여준다.
   var BOT_MS   = 800;     // 봇이 생각하는 척하는 시간(즉답하면 사람이 못 따라 읽는다)
   var BOT_STEP_MS = 650;  // 봇의 첫 수와 둘째 수 사이 — 둘이 한꺼번에 터지면 못 읽는다
@@ -79,6 +83,7 @@ BO.Match = (function () {
     m.partial = [];
     m.deadline = now() + (m.noTimer ? 1e12 : TURN_MS);
     m.waitingSince = now();
+    m.lastWarn = 0;
     if (m.timer) clearInterval(m.timer);
     m.timer = setInterval(tick, 200);
 
@@ -130,7 +135,10 @@ BO.Match = (function () {
     if (m.noTimer) { render(true); return; }
     var left = m.deadline - now();
     if (m.st.side === m.mine) {
-      if (left <= 0) { commit(true); return; }   // 시간이 다 되면 남은 행동력은 버린다
+      if (left <= 0) { say('⏱ 시간이 다 되어 턴이 넘어갔습니다', 'warn'); commit(true); return; }   // 남은 행동력은 버린다
+      //  초읽기 — 넘어가기 전에 반드시 알린다. 예고 없이 넘어가면 «맘대로 넘어갔다»가 된다.
+      var secs = Math.ceil(left / 1000);
+      if (secs <= 10 && secs !== m.lastWarn) { m.lastWarn = secs; say('⏱ ' + secs + '초 뒤 턴이 자동으로 넘어갑니다', 'warn'); }
     } else if (!m.vsBot) {
       //  ⚠ 상대 턴을 **대신 끝내지 않는다.** 양쪽이 제각기 「시간 됐으니 넘긴다」를
       //    하면 그 순간 두 판이 갈라진다. 기다리는 쪽은 보여 주기만 한다.
@@ -362,6 +370,8 @@ BO.Match = (function () {
 
   return {
     TURN_MS: TURN_MS,
+    turnMs: function () { return TURN_MS; },
+    setTurnMs: function (ms) { TURN_MS = Math.max(3000, ms | 0); },   // 테스트용
     start: start, stop: stop, active: active, view: view,
     doAct: doAct, pass: pass, timeLeft: timeLeft,
     onMessage: onMessage, onReopen: onReopen, resync: resync,

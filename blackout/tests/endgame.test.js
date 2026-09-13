@@ -17,6 +17,7 @@ async function pair(b, maxTurns) {
   const A = await mk(b, '가영'), B = await mk(b, '나연');
   //  양쪽이 똑같이 눈금을 바꾼다 — 상태가 같으니 해시도 같다. (제한 턴을 짧게 해 종료 흐름을 본다)
   if (maxTurns) for (const p of [A, B]) await p.evaluate(n => { BO.Core.C.MAX_TURNS = n; }, maxTurns);
+  for (const p of [A, B]) await p.evaluate(() => { BO.Match.setTurnMs(8000); });   // 실전은 90초 — 시험은 8초
   await A.click('#go-pvp'); await A.waitForTimeout(200); await A.click('#make-room');
   await A.waitForFunction(() => document.getElementById('room-code').textContent.length >= 3);
   const code = (await A.textContent('#room-code')).trim();
@@ -65,8 +66,8 @@ async function pair(b, maxTurns) {
     const [A, B] = await pair(b);
     const active = (await isMine(A)) ? A : B, other = active === A ? B : A;
     ok(!(await isMine(other)), '처음엔 상대 턴');
-    await active.waitForTimeout(21500);           // 20초 제한 + 여유
-    ok(await isMine(other), '20초 지나면 턴이 자동으로 넘어간다', await turnOf(other));
+    await active.waitForTimeout(9500);            // 8초 제한(시험값) + 여유
+    ok(await isMine(other), '제한시간이 지나면 턴이 자동으로 넘어간다', await turnOf(other));
     ok(!(await isMine(active)), '넘긴 쪽은 상대 턴이 된다');
     const errs = [...A._errs, ...B._errs]; ok(!errs.length, 'JS 오류 없음', errs.join(' / '));
     await A.context().close(); await B.context().close();

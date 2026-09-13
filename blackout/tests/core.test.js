@@ -194,21 +194,21 @@ section('상대와 겹쳐도 이동 단서가 새지 않는다');
   ok(!st.ev.some(function (e) { return e.k === 'bump'; }), '충돌 사건 없음');
 })();
 
-section('시야각 — 바라보는 방향 앞 1·2·3칸 부채꼴');
+section('시야 — 바라보는 방향 바로 앞 두 칸(손전등 줄기)');
 (function () {
-  //  (3,6) 에서 위를 본다: 5줄 x2~4 · 4줄 x2~4 · 3줄 x1~5
+  //  (3,6) 에서 위를 본다: (3,5) · (3,4) 두 칸만
   var st = board([3, 6], [3, 4], 0); st.ps[0].face = UP;
   var v = C.view(st, 0);
   ok(!!v.foe && v.foe.why === 'seen', '두 칸 앞의 상대가 보인다', JSON.stringify(v.foe));
-  eq(v.seen.length, 1 + 3 + 3 + 5, '시야 칸 수 = 자기 칸 + 3 + 3 + 5');
+  eq(v.seen.length, 1 + 1 + 1, '시야 칸 수 = 자기 칸 + 앞 두 칸');
   st.ps[1] = { x: 3, y: 7, hp: 5, painted: false, face: 0, known: zeros() };
   eq(C.view(st, 0).foe, null, '바로 뒤는 안 보인다');
-  st.ps[1].x = 6; st.ps[1].y = 3;
-  eq(C.view(st, 0).foe, null, '세 칸 앞 부채꼴 밖(좌우 2칸 초과)은 안 보인다');
-  st.ps[1].x = 5; st.ps[1].y = 3;
-  eq(C.view(st, 0).foe.why, 'seen', '세 칸 앞 좌우 2칸 안쪽은 보인다');
-  st.ps[1].x = 3; st.ps[1].y = 2;
-  eq(C.view(st, 0).foe, null, '네 칸 앞은 안 보인다');
+  st.ps[1].x = 4; st.ps[1].y = 5;
+  eq(C.view(st, 0).foe, null, '앞 대각선은 안 보인다 — 줄기는 폭이 없다');
+  st.ps[1].x = 2; st.ps[1].y = 6;
+  eq(C.view(st, 0).foe, null, '바로 옆도 안 보인다(인기척으로만 느낀다)');
+  st.ps[1].x = 3; st.ps[1].y = 3;
+  eq(C.view(st, 0).foe, null, '세 칸 앞은 안 보인다');
   //  격자 밖으로 나가는 부채꼴은 잘린다
   var e = board([0, 0], [7, 7], 0); e.ps[0].face = UP;
   eq(C.view(e, 0).seen.length, 1, '벽을 보고 있으면 자기 칸만');
@@ -222,11 +222,10 @@ section('시야각 — 가구 뒤는 안 보인다 (LOS)');
   eq(v.foe, null, '책상 바로 뒤의 상대는 안 보인다');
   ok(v.tiles[C.idx(3, 5)] && v.tiles[C.idx(3, 5)].kind === 'desk', '책상 자체는 보인다(아는 칸이 된다)');
   eq(v.tiles[C.idx(3, 4)], null, '책상 뒤 칸은 모른다');
-  ok(v.tiles[C.idx(2, 5)] && v.tiles[C.idx(2, 5)].kind === 'floor', '책상 옆 칸은 보인다');
-  st.ps[1].x = 5; st.ps[1].y = 3;
-  ok(!!C.view(st, 0).foe, '책상을 비껴 선 상대는 보인다');
-  st.ps[1].x = 4; st.ps[1].y = 3;
-  eq(C.view(st, 0).foe, null, '시선이 책상 모서리를 스치는 자리도 가려진다(브레젠험 선)');
+  eq(v.tiles[C.idx(2, 5)], null, '책상 옆 칸은 줄기 밖이라 모른다');
+  var s2 = board([3, 6], [3, 4], 0, [{ id: 'd', kind: 'desk', name: '책상', x: 2, y: 5, w: 1, h: 1, material: 'wood' }]);
+  s2.ps[0].face = UP; C.look(s2, 0);
+  ok(!!C.view(s2, 0).foe, '줄기 옆의 책상은 시선을 막지 않는다');
 })();
 
 section('시야로 본 것은 본 쪽만 안다');

@@ -15,18 +15,18 @@
 <!-- 홈 화면 설치(PWA). 홈 화면에서 열면 주소창이 사라져 뷰포트가 흔들리지 않는다 —
      에그워에서 기종별 레이아웃 사고를 없앤 방법 그대로. 서비스워커는 일부러 안 둔다:
      캐시가 붙으면 배포해도 옛 버전이 남는 사고가 생긴다. -->
-<link rel="manifest" href="manifest.json?v=0.7">
+<link rel="manifest" href="manifest.json?v=0.8">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="블랙아웃">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="assets/sprites/kid-top.png?v=0.7">
-<link rel="icon" type="image/png" sizes="256x256" href="assets/sprites/kid-top.png?v=0.7">
+<link rel="apple-touch-icon" href="assets/sprites/kid-top.png?v=0.8">
+<link rel="icon" type="image/png" sizes="256x256" href="assets/sprites/kid-top.png?v=0.8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=0.7">
-<link rel="stylesheet" href="css/rooms.css?v=0.7">
+<link rel="stylesheet" href="css/style.css?v=0.8">
+<link rel="stylesheet" href="css/rooms.css?v=0.8">
 </head>
 <body>
 
@@ -67,9 +67,9 @@
         <li>불 꺼진 <b>8×8 방</b>(사무실·침실·거실 중 하나, 판마다 정해진다). <b>가구는 미리 보이지 않는다.</b>
             시작 구역만 공개 — 청록은 위 2줄, 분홍은 아래 2줄.</li>
         <li>한 턴에 <b>행동 2번</b> — 이동 2 / 이동 1 + 사격 1 / 사격 2.</li>
-        <li class="new"><b>시야각</b> — 마지막으로 움직인 방향으로 앞 1·2·3칸 부채꼴이 보인다. 그 안에 든 가구와
-            <b>상대</b>가 보인다. 가구 뒤는 안 보인다. 옆·뒤는 안 보인다 — 모르는 칸으로 가다 가구에 <b>부딪히면</b>
-            행동 하나를 잃고, 대신 그쪽을 보게 된다.</li>
+        <li class="new"><b>시야</b> — 손전등 줄기처럼, 마지막으로 움직인 방향으로 <b>바로 앞 두 칸</b>만 보인다.
+            그 안에 든 가구와 <b>상대</b>가 보인다. 가구 뒤는 안 보인다. 옆·뒤·대각선은 안 보인다 — 모르는 칸으로
+            가다 가구에 <b>부딪히면</b> 행동 하나를 잃고, 대신 그쪽을 보게 된다.</li>
         <li>사격은 <b>어느 칸이든</b>(가구 칸 포함) 겨눌 수 있다. 맞으면 체력 1, <b>5번 맞으면 패배.</b>
             사격은 내 위치를 알려주지 않는다 — 상대는 「어딘가에서 한 발 나갔고 이 칸에 떨어졌다」만 안다.</li>
         <li class="new"><b>페인트는 야광이다.</b> 맞은 칸이든 빗나간 칸이든 얼룩이 <b>판이 끝날 때까지</b> 남고,
@@ -84,7 +84,7 @@
             ⚠ 불은 켠 사람도 비춘다. <b>마지막 행동으로 켜면 그 불빛이 상대 차례로 넘어간다.</b></li>
         <li><b>인기척</b> — 바로 옆 한 칸까지 가까워지면 양쪽 다 낌새를 챈다. 방향은 알 수 없다.</li>
         <li>140턴이 지나면 체력이 많은 쪽이 이긴다. 같으면 무승부.
-            (턴 제한시간 20초는 <b>상한</b>입니다 — 보통 한 판 5분 안팎.)</li>
+            턴 제한시간은 <b>90초</b>. 마지막 10초는 초읽기가 뜨고, 지나면 남은 행동력을 버리고 넘어간다.</li>
       </ol>
       <p class="muted" style="margin-top:10px">친구와 즐기는 시험판입니다. 가구를 맞혀도 통로가 바뀌거나 주변 칸에 피해가 생기지 않습니다.</p>
       <button class="btn" id="rules-back" style="margin-top:10px">돌아가기</button>
@@ -207,16 +207,16 @@
   </div>
 </div>
 
-<script src="js/rooms.js?v=0.7"></script>
-<script src="js/svgart.js?v=0.7"></script>
-<script src="js/art.js?v=0.7"></script>
-<script src="js/core.js?v=0.7"></script>
-<script src="js/net.js?v=0.7"></script>
-<script src="js/bot.js?v=0.7"></script>
-<script src="js/match.js?v=0.7"></script>
-<script src="js/tutorial.js?v=0.7"></script>
-<script src="js/sfx.js?v=0.7"></script>
-<script src="js/ui.js?v=0.7"></script>
-<script src="js/main.js?v=0.7"></script>
+<script src="js/rooms.js?v=0.8"></script>
+<script src="js/svgart.js?v=0.8"></script>
+<script src="js/art.js?v=0.8"></script>
+<script src="js/core.js?v=0.8"></script>
+<script src="js/net.js?v=0.8"></script>
+<script src="js/bot.js?v=0.8"></script>
+<script src="js/match.js?v=0.8"></script>
+<script src="js/tutorial.js?v=0.8"></script>
+<script src="js/sfx.js?v=0.8"></script>
+<script src="js/ui.js?v=0.8"></script>
+<script src="js/main.js?v=0.8"></script>
 </body>
 </html>

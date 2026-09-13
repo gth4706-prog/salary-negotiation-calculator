@@ -106,7 +106,7 @@ BO.UI = (function () {
                      '<stop offset=".55" stop-color="#ffd28a" stop-opacity=".18"/><stop offset="1" stop-color="#ffd28a" stop-opacity="0"/></radialGradient>';
     els.beam.appendChild(defs);
     glowDot = document.createElementNS(NS, 'circle');
-    glowDot.setAttribute('r', '1.15'); glowDot.setAttribute('fill', 'url(#bo-pglow)');
+    glowDot.setAttribute('r', '0.75');   // 내 주위 빛은 반 칸 남짓 — 어둠이 먼저다 glowDot.setAttribute('fill', 'url(#bo-pglow)');
     els.beam.appendChild(glowDot);
     //  격자선 — 컨셉의 점선 칸. 어둠 위에 아주 옅게.
     var path = '';
@@ -316,7 +316,7 @@ BO.UI = (function () {
 
       //  어둠의 두께(안개 SVG) · 시야의 빛(빛 SVG)
       var fi = y * C.C.W + x;
-      if (fogRects[fi]) fogRects[fi].setAttribute('opacity', v.lit > 0 ? '0' : (!t ? '1' : (seen[key] ? '0.05' : '0.72')));
+      if (fogRects[fi]) fogRects[fi].setAttribute('opacity', v.lit > 0 ? '0' : (!t ? '1' : (seen[key] ? '0.05' : '0.84')));
       if (beamRects[fi]) beamRects[fi].setAttribute('opacity', seen[key] && v.lit <= 0 ? '0.17' : '0');
 
       var sp = c.children[2], sm = c.children[3], sn = c.children[4], sd = c.children[5], sg = c.children[6];

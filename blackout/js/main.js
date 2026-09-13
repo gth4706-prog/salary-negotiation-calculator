@@ -292,7 +292,7 @@ window.BO = window.BO || {};
       on: {
         render: function (v, light) {
           UI.render(v, light);
-          UI.clock(Match.timeLeft(), Match.TURN_MS, v.myTurn);
+          UI.clock(Match.timeLeft(), Match.turnMs(), v.myTurn);
           if (!light && v.myTurn && v.ap === C.C.AP) BO.Sfx.play('turn');
           if (!light) BO.Tutorial.onRender(v);
         },

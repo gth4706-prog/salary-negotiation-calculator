@@ -626,6 +626,7 @@ BO.UI = (function () {
       var c = cells[i];
       if (c.dataset.kind) c.classList.remove('k-' + c.dataset.kind);
       c.dataset.kind = ''; c.className = 'cell unknown';
+      BO.Art.tile(c, null);
       if (c._box) c._box.className = 'box hide';
       c.style.removeProperty('--art'); c.style.removeProperty('--edge');
     }

@@ -1,11 +1,11 @@
 const { chromium } = require('playwright');
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
+  const b = await chromium.launch({ executablePath: process.env.BROWSER_PATH || (process.platform === 'win32' ? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' : '/opt/pw-browsers/chromium'), args: ['--no-sandbox'] });
   const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => { if (m.type() === 'error' && !/fonts\.g/.test((m.location() && m.location().url) || '')) errs.push(m.text()); });   // 막힌 글꼴 서버는 게임 오류가 아니다
   let fail = 0; const ok = (c, n, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + n + (x ? ' → ' + x : '')); if (!c) fail++; };
-  await p.goto('http://localhost:8765/blackout/?x=' + Date.now(), { waitUntil: 'networkidle' });
+  await p.goto((process.env.URL || 'http://localhost:8765/blackout/') + '?x=' + Date.now(), { waitUntil: 'networkidle' });
   await p.screenshot({ path: (process.env.SP || '/tmp') + '/v04-menu.png' });
   await p.click('#go-bot'); await p.waitForTimeout(600);
   for (let i = 0; i < 40 && !(await p.textContent('#turn-info')).includes('내 턴'); i++) await p.waitForTimeout(200);

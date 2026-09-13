@@ -1,5 +1,7 @@
 # 블랙아웃 인수인계 (v1.2 기준, 2026-09-13)
 
+> 2026-09-14: 최신 main 71f228c에 자체 생성 원화 4종과 홈 캐릭터를 통합했다. 이후 작업 위치·순서·크레딧 원칙은 [WORKPLAN.md](WORKPLAN.md)를 먼저 읽을 것. 게임 로직은 v1.2를 유지한다.
+
 이 문서 하나로 다음 사람(또는 다음 AI)이 이어받을 수 있게 쓴다. 코드를 읽기 전에 이걸
 먼저 읽으면 「왜 이렇게 돼 있나」를 두 번 묻지 않아도 된다. 문서는 **이것 하나**다
 (README.md 는 설계 배경, assets/README.md 는 그림 규격, tests/README.md 는 검증 방법).
@@ -9,7 +11,7 @@
 | 배포 주소 | https://joeltool.com/blackout/ — `main` 에 합쳐지면 GitHub Pages 가 자동 배포(약 1분) |
 | 저장소 경로 | `blackout/` · 작업 브랜치 `claude/realtime-turn-based-dark-battle-xc922d` (ff-merge 로 `main` 에 올린다) |
 | 빌드 | 없음. `index.html` 을 열면 돈다. ES5, 외부 의존성은 Google Fonts «Jua» 하나(없어도 돈다) |
-| 지금 버전 | **v1.1** · 넷코드 버전 `bo1.0-track1`(규칙은 v1.0 그대로) · 캐시 꼬리표 `?v=1.1` |
+| 지금 버전 | **v1.2** · 넷코드 버전 `bo1.2-drop1` · 아트 통합 캐시 `?v=1.2-art2` |
 | 그림의 정답 | `assets/concept/concept-01.jpg` · `office.jpg`. 결국 이 느낌이 나와야 한다 |
 | 미감의 기준 | 멧챠 카멜레온(2026) — 알록달록·어수선한 방을 장난감 디오라마처럼 |
 | 크기 | 코드 3,800줄 · 그림 1.2MB(예산 2MB) · 폴더 1.6MB |

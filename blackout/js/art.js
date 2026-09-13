@@ -70,22 +70,29 @@ BO.Art = (function () {
   //  방 바닥 — assets/rooms/<id>.jpg(또는 .png). 있으면 칸마다 제 조각을 --art 로 받는다(rooms.css).
   //  사진 같은 마루는 JPG 가 PNG 의 1/8 크기다(2MB 예산).
   function floor(board, roomId) {
+    var ticket = board._floorTicket = (board._floorTicket || 0) + 1;
+    board.classList.remove('has-floor');
+    board.style.removeProperty('--floor');
+    board.style.removeProperty('--floor-edge');
     probe('rooms/' + roomId + '.jpg', function (okJpg) {
       if (okJpg) { set('rooms/' + roomId + '.jpg'); return; }
       probe('rooms/' + roomId + '.png', function (okPng) { set(okPng ? 'rooms/' + roomId + '.png' : null); });
     });
     function set(path) {
+      if (board._floorTicket !== ticket) return;
       board.classList.toggle('has-floor', !!path);
       board.style.setProperty('--floor', path ? 'url(' + BASE + path + ')' : 'none');
       board.style.removeProperty('--floor-edge');
-      if (path) edges(BASE + path, function (e) { board.style.setProperty('--floor-edge', e); });
+      if (path) edges(BASE + path, function (e) { if (board._floorTicket === ticket) board.style.setProperty('--floor-edge', e); });
     }
   }
   //  내장 마루(SVG)의 윤곽 — svgart 가 심은 --floor-<id> 로부터. 판에 한 번.
   function floorEdgesBuiltin(board, roomId) {
+    var ticket = board._builtinTicket = (board._builtinTicket || 0) + 1;
+    board.style.removeProperty('--floor-edge-builtin');
     var v = getComputedStyle(document.body).getPropertyValue('--floor-' + roomId);
     if (!v) return;
-    edges(v.trim(), function (e) { board.style.setProperty('--floor-edge-builtin', e); });
+    edges(v.trim(), function (e) { if (board._builtinTicket === ticket) board.style.setProperty('--floor-edge-builtin', e); });
   }
 
   //  가구 조각 — assets/furniture/<kind>-<w>x<h>.png (크기별), 없으면 <kind>.png.
@@ -94,22 +101,26 @@ BO.Art = (function () {
   //    파일이 하나도 없어도 «방»처럼 보인다. 크기별 파일을 먼저 찾는 이유: 같은 kind 라도
   //    1×2 서랍장과 3×1 수납장은 다른 그림이다(늘려 쓰면 찌그러진다).
   function tile(cell, t, roomId) {
+    var ticket = cell._artTicket = (cell._artTicket || 0) + 1;
+    cell.classList.remove('has-art');
     cell.style.removeProperty('--art'); cell.style.removeProperty('--edge');
     if (!t || t.kind === 'floor') return;
     var builtin = BO.SvgArt ? BO.SvgArt.furniture(t) : null;
     if (builtin) {
       cell.style.setProperty('--art', builtin + ' ' + slicePos(t.ox, t.oy, t.w, t.h));
-      edges(builtin, function (e) { if (!cell.classList.contains('has-art')) cell.style.setProperty('--edge', e + ' ' + slicePos(t.ox, t.oy, t.w, t.h)); });
+      edges(builtin, function (e) { if (cell._artTicket === ticket && !cell.classList.contains('has-art')) cell.style.setProperty('--edge', e + ' ' + slicePos(t.ox, t.oy, t.w, t.h)); });
     }
     var sized = 'furniture/' + t.kind + '-' + t.w + 'x' + t.h + '.png', plain = 'furniture/' + t.kind + '.png';
     probe(sized, function (ok) {
+      if (cell._artTicket !== ticket) return;
       if (ok) { use(sized); return; }
-      probe(plain, function (ok2) { if (ok2) use(plain); else cell.classList.remove('has-art'); });
+      probe(plain, function (ok2) { if (cell._artTicket !== ticket) return; if (ok2) use(plain); else cell.classList.remove('has-art'); });
     });
     function use(path) {
+      if (cell._artTicket !== ticket) return;
       cell.classList.add('has-art');
       cell.style.setProperty('--art', slice(BASE + path, t.ox, t.oy, t.w, t.h));
-      edges(BASE + path, function (e) { cell.style.setProperty('--edge', e + ' ' + slicePos(t.ox, t.oy, t.w, t.h)); });
+      edges(BASE + path, function (e) { if (cell._artTicket === ticket) cell.style.setProperty('--edge', e + ' ' + slicePos(t.ox, t.oy, t.w, t.h)); });
     }
   }
   function slicePos(ox, oy, w, h) {
@@ -122,6 +133,7 @@ BO.Art = (function () {
     probe('sprites/splat-1.png', function (ok) { document.body.classList.toggle('has-splats', ok); });
     probe('sprites/lamp-off.png', function (ok) { document.body.classList.toggle('has-lamp', ok); });
     probe('sprites/kid-top.png', function (ok) { document.body.classList.toggle('has-kid', ok); });
+    probe('sprites/kid-full.png', function (ok) { document.body.classList.toggle('has-kid-full', ok); });
     probe('sprites/footprint-me.png', function (ok) { document.body.classList.toggle('has-prints', ok); });
   }
 

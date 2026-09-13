@@ -9,7 +9,7 @@
 //   그래서 여기서는 사람이 하는 그대로 — **걸어가서 줍는다.**
 const { chromium } = require('playwright');
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
+  const b = await chromium.launch({ executablePath: process.env.BROWSER_PATH || (process.platform === 'win32' ? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' : '/opt/pw-browsers/chromium'), args: ['--no-sandbox'] });
   const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => { if (m.type() === 'error' && !/fonts\.g/.test((m.location() && m.location().url) || '')) errs.push(m.text()); });
@@ -18,7 +18,7 @@ const { chromium } = require('playwright');
   const mine = async () => (await p.textContent('#turn-info')).includes('내 턴');
   const waitMine = async () => { for (let i = 0; i < 100 && !(await mine()); i++) await p.waitForTimeout(150); return mine(); };
 
-  await p.goto('http://localhost:8765/blackout/?x=' + Date.now(), { waitUntil: 'networkidle' });
+  await p.goto((process.env.URL || 'http://localhost:8765/blackout/') + '?x=' + Date.now(), { waitUntil: 'networkidle' });
   await p.click('#go-bot'); await p.waitForTimeout(600);
   await waitMine();
   ok(await p.locator('#mode-item').isDisabled(), '빈손이면 [📦 도구] 버튼이 꺼져 있다');

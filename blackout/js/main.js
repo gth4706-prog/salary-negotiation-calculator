@@ -93,9 +93,12 @@ window.BO = window.BO || {};
       rooms.slice(0, 12).forEach(function (r) {
         var b = document.createElement('button');
         b.className = 'room';
+        //  ⚠ 인원수 필드는 `members` 다 — 에그워 로비(rtlobby.js)가 그렇게 읽는다.
+        //    `count` 로 읽으면 실제 서버에서 늘 1/2 로 보인다.
+        var n = r.members != null ? r.members : (r.count != null ? r.count : 1);
         b.innerHTML = '<span class="code">' + esc(r.code) + '</span>' +
                       '<span class="who">' + esc(r.name || r.host || '') + '</span>' +
-                      '<span>' + (r.count || 1) + '/2</span>';
+                      '<span>' + n + '/2' + (n >= 2 ? ' · 진행 중' : '') + '</span>';
         b.onclick = function () { enter(r.code); };
         $('rooms').appendChild(b);
       });
@@ -143,7 +146,7 @@ window.BO = window.BO || {};
   // ── 연결 이벤트 ───────────────────────────────────────────────────────────
   function wireNet() {
     Net.on.open  = function () { roomInfo(); };
-    Net.on.peers = function () { roomInfo(); };
+    Net.on.peers = function (peers) { roomInfo(); watchLeave(peers); };
     Net.on.rtt   = function () { roomInfo(); };
     Net.on.rtc   = function () { roomInfo(); };
     Net.on.message = function (from, d) { Match.onMessage(from, d); };
@@ -191,6 +194,42 @@ window.BO = window.BO || {};
     };
   }
 
+  //  ── 대전 중 상대가 사라졌다 ────────────────────────────────────────────
+  //  폰 화면이 꺼진 것일 수 있다(그러면 곧 돌아온다). 그래서 바로 끝내지 않는다.
+  //  ⚠ 이게 없으면 상대가 앱을 닫아 버렸을 때 내 화면은 영원히 「상대 턴」이다.
+  //
+  //  ⚠ 처음엔 「서버가 1명이라 하는 순간 직결이 살아 있나」로 한 번 판단했는데
+  //    그건 틀렸다 — 그 순간엔 살아 있다가 몇 초 뒤 죽으면 아무도 다시 안 본다
+  //    (테스트가 실제로 그렇게 멈췄다). 서버가 1명이라 하는 **동안 계속** 지켜보며
+  //    «상대가 없는 초»를 센다. 직결 핑에 답하면 0으로 되돌리고, 30초가 쌓이면 끝낸다.
+  var leaveTimer = null, LEAVE_SEC = 30;
+  function watchLeave(peers) {
+    if (!Match.active() || vsBot) { stopLeaveTimer(); return; }
+    var n = (peers || Net.peers || []).length;
+    if (n >= 2) { if (leaveTimer) { stopLeaveTimer(); UI.status('상대가 돌아왔습니다', 'ok'); } return; }
+    if (leaveTimer) return;                       // 이미 지켜보는 중
+    var absent = 0;
+    leaveTimer = setInterval(function () {
+      if (!Match.active()) { stopLeaveTimer(); return; }
+      if ((Net.peers || []).length >= 2) { stopLeaveTimer(); UI.status('상대가 돌아왔습니다', 'ok'); return; }
+      //  서버 소켓은 끊겼지만 직결로 핑이 오간다 — 상대는 있다. 세지 않는다.
+      if (BO.Rtc.alive()) {
+        if (absent > 0) UI.status('직결로 이어져 있습니다', 'ok');
+        absent = 0; return;
+      }
+      absent++;
+      if (absent < LEAVE_SEC) {
+        UI.status('상대 연결이 끊겼습니다 — ' + (LEAVE_SEC - absent) + '초 안에 돌아오지 않으면 끝납니다', 'warn');
+        return;
+      }
+      stopLeaveTimer();
+      Match.stop();
+      BO.Sfx.play('win');
+      endScreen(true, '상대 퇴장', '상대가 ' + LEAVE_SEC + '초 안에 돌아오지 않아 판이 끝났습니다. 기권승입니다.');
+    }, 1000);
+  }
+  function stopLeaveTimer() { if (leaveTimer) { clearInterval(leaveTimer); leaveTimer = null; } }
+
   function roomInfo() {
     if (Match.active()) { UI.status(Net.statusText(), Net.connected ? '' : 'warn'); return; }
     var n = (Net.peers || []).length;
@@ -209,6 +248,7 @@ window.BO = window.BO || {};
 
   // ── 대전 ──────────────────────────────────────────────────────────────────
   function beginMatch(seed, foeName) {
+    stopLeaveTimer();
     UI.reset();
     show('game');
     BO.Sfx.play('turn');
@@ -246,6 +286,7 @@ window.BO = window.BO || {};
 
   function quitMatch() {
     if (!confirm('판을 포기하고 나갈까요?')) return;
+    stopLeaveTimer();
     Match.stop();
     if (!vsBot) Net.leave();
     show('menu');
@@ -253,6 +294,7 @@ window.BO = window.BO || {};
 
   // ── 결과 ──────────────────────────────────────────────────────────────────
   function endScreen(win, title, detail) {
+    stopLeaveTimer();
     lastResult = win;
     var over = $('over');
     over.classList.remove('hide');

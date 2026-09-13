@@ -347,6 +347,15 @@ BO.Rtc = {
 
   supported: function () { return typeof RTCPeerConnection === 'function'; },
   ready: function () { return this._open && !this._dead && this.dc && this.dc.readyState === 'open'; },
+  //  ⚠ `ready()` 는 「채널이 열려 있나」다. 상대 폰이 죽어도 readyState 는 한참
+  //    'open' 으로 남는다(ICE 끊김 감지가 수십 초 걸린다). 「상대가 정말 있나」는
+  //    **2초마다 보내는 핑에 최근에 답했나**로 본다. 6초 안에 답이 없으면 없는 것.
+  lastPongAt: 0,
+  alive: function () {
+    if (!this.ready()) return false;
+    var now = (window.performance && performance.now) ? performance.now() : Date.now();
+    return this.lastPongAt > 0 && (now - this.lastPongAt) < 6000;
+  },
 
   //  방에 둘이 모이면 방장이 offer 를 낸다.
   //  (양쪽이 동시에 offer 를 내면 충돌한다 — 방장 단독이라야 결정적이다.)
@@ -519,6 +528,7 @@ BO.Rtc = {
     delete this._pingAt[n];
     if (t0 === undefined) return;
     var now = (window.performance && performance.now) ? performance.now() : Date.now();
+    this.lastPongAt = now;
     this._samples.push(now - t0);
     if (this._samples.length > 9) this._samples.shift();
     var s = this._samples.slice().sort(function (a, b) { return a - b; });
@@ -540,7 +550,7 @@ BO.Rtc = {
     if (this.pc) { try { this.pc.close(); } catch (e) {} }
     this.pc = null; this.dc = null;
     this._open = false; this._dead = false;
-    this.rttMs = null; this._samples = []; this._pingAt = {};
+    this.rttMs = null; this._samples = []; this._pingAt = {}; this.lastPongAt = 0;
     this.route = null; this.pairKind = null; this.iceMs = null;
   }
 };

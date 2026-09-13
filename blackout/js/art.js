@@ -15,14 +15,43 @@ window.BO = window.BO || {};
 BO.Art = (function () {
   var BASE = 'assets/';
   var found = {};     // 경로 → true/false (한 번 물어본 건 기억한다)
+  var manifest = null, manifestState = 'idle', waiting = [];
+
+  //  ── 목록을 먼저 읽는다 ────────────────────────────────────────────────
+  //  `assets/manifest.json` 에 적힌 파일만 쓴다. 처음엔 파일을 하나하나 더듬었는데
+  //  그러면 **접속마다 404 가 열다섯 개** 난다(브라우저 콘솔이 빨갛게 찬다, 실서버
+  //  에선 헛요청). 목록 하나면 요청 한 번이다. 목록이 없으면 옛 방식으로 더듬는다 —
+  //  그래서 「파일만 넣어도 된다」는 약속은 유지된다. 목록은
+  //  `node blackout/tests/assets-manifest.js` 가 만들어 준다.
+  function loadManifest(cb) {
+    if (manifestState === 'done') { cb(); return; }
+    waiting.push(cb);
+    if (manifestState === 'loading') return;
+    manifestState = 'loading';
+    var finish = function (list) {
+      manifest = list;                 // 배열이면 목록, null 이면 더듬기
+      manifestState = 'done';
+      var w = waiting; waiting = [];
+      for (var i = 0; i < w.length; i++) w[i]();
+    };
+    if (typeof fetch !== 'function') { finish(null); return; }
+    fetch(BASE + 'manifest.json', { cache: 'no-cache' }).then(function (r) {
+      return r.ok ? r.json() : null;
+    }).then(function (j) {
+      finish(j && j.files && j.files.length !== undefined ? j.files : null);
+    })['catch'](function () { finish(null); });
+  }
 
   //  있으면 cb(true), 없으면 cb(false). 같은 파일은 한 번만 물어본다.
   function probe(path, cb) {
-    if (found[path] !== undefined) { cb(found[path]); return; }
-    var img = new Image();
-    img.onload = function () { found[path] = true; cb(true); };
-    img.onerror = function () { found[path] = false; cb(false); };
-    img.src = BASE + path;
+    loadManifest(function () {
+      if (manifest) { cb(manifest.indexOf(path) >= 0); return; }   // 목록이 정답
+      if (found[path] !== undefined) { cb(found[path]); return; }
+      var img = new Image();
+      img.onload = function () { found[path] = true; cb(true); };
+      img.onerror = function () { found[path] = false; cb(false); };
+      img.src = BASE + path;
+    });
   }
 
   //  방 바닥 — assets/rooms/<id>.png (1000×1000, 격자 딱 맞춤). 있으면 격자 뒤에 깐다.

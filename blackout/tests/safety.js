@@ -39,9 +39,12 @@ async function pair(b) {
 // 한 턴 둔다(사격 한 발 + 넘기기)
 async function playTurn(p) {
   await p.click('#mode-shoot'); await p.waitForTimeout(60);
-  const i = Math.floor(Math.random() * 100);
-  await p.locator('.cell').nth(i).click(); await p.waitForTimeout(50);
-  await p.locator('.cell').nth(i).click(); await p.waitForTimeout(120);
+  //  ⚠ 방 안 칸만 고른다. 실내 맵이 생긴 뒤 «방 밖» 칸은 클릭이 안 되는데(pointer-events
+  //    없음), 0~99 무작위로 고르면 가끔 거기 걸려 테스트가 통째로 죽었다.
+  const cells = p.locator('.cell:not(.outside):not(.me)');
+  const i = Math.floor(Math.random() * await cells.count());
+  await cells.nth(i).click(); await p.waitForTimeout(50);
+  await cells.nth(i).click(); await p.waitForTimeout(120);
   await p.click('#mode-move'); await p.waitForTimeout(50);
   await p.click('#pass'); await p.waitForTimeout(400);
 }

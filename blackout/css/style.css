@@ -36,9 +36,11 @@ button{font:inherit; color:inherit; background:none; border:0; cursor:pointer}
    body 가 min-height 라서 물려줄 «확정된 높이»가 없었기 때문이다. 빼는 값은
    추측이 아니라 실측이다(blackout/tests/layout.js 가 360×640·400×860·820×1180 에서
    넘침 0 을 확인한다). 조작부를 고치면 그 숫자도 같이 고쳐야 한다. */
-.board{width:min(100%, calc(100dvh - 430px))}
-@media (max-height:660px){ .board{width:min(100%, calc(100dvh - 370px))} }
-@media (max-height:560px){ .board{width:min(100%, calc(100dvh - 240px))} }
+/* ⚠ dvh 를 모르는 브라우저(iOS 15.3 이하)는 그 줄을 통째로 버린다 — 그러면 격자에
+   너비 규칙이 하나도 없어 화면을 넘긴다. vh 로 먼저 적고 dvh 로 덮어쓴다. */
+.board{width:min(100%, calc(100vh - 430px)); width:min(100%, calc(100dvh - 430px))}
+@media (max-height:660px){ .board{width:min(100%, calc(100vh - 370px)); width:min(100%, calc(100dvh - 370px))} }
+@media (max-height:560px){ .board{width:min(100%, calc(100vh - 240px)); width:min(100%, calc(100dvh - 240px))} }
 .hide{display:none !important}
 
 /* ── 공통 패널 ─────────────────────────────────────────────────────────── */

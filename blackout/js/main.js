@@ -71,10 +71,19 @@ window.BO = window.BO || {};
   }
 
   // ── 로비 ──────────────────────────────────────────────────────────────────
+  //  로비에 있는 동안만 10초마다 목록을 다시 읽는다. 모르는 사람과 붙으려면 «누가
+  //  방을 열었는지»가 손대지 않아도 보여야 한다. 10초인 이유: 무료 플랜의 DO 요청
+  //  한도(하루 10만) 안에서 사람 몇 명이 로비에 머물러도 넉넉한 간격이다.
+  var lobbyPoll = null;
   function openLobby() {
     if (!Net.enabled()) { UI.hint('방 서버 주소가 설정되지 않았습니다'); return; }
     show('lobby');
     listRooms();
+    if (lobbyPoll) clearInterval(lobbyPoll);
+    lobbyPoll = setInterval(function () {
+      if (scr.lobby.classList.contains('hide') || document.visibilityState !== 'visible') return;
+      listRooms();
+    }, 10000);
   }
 
   function listRooms() {

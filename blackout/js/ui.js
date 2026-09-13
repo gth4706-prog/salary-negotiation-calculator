@@ -22,6 +22,7 @@ BO.UI = (function () {
     els.sense = $('sense');
     buildBoard(handlers);
     bindControls(handlers);
+    BO.Art.globals();
     return els;
   }
 
@@ -132,8 +133,10 @@ BO.UI = (function () {
       els.sense.className = 'lit-badge';
     } else {
       //  인기척은 **양쪽 다** 느낀다 — 내가 들었으면 상대도 들었다는 뜻이다.
-      els.sense.textContent = v.room.name + ' · 발자국을 찾아보세요';
-      els.sense.className = 'sense-badge off';
+      els.sense.textContent = v.sense
+        ? '👂 인기척 — 바로 옆에 있다 (상대도 나를 느낀다)'
+        : v.room.name + ' · 인기척 없음';
+      els.sense.className = 'sense-badge' + (v.sense ? '' : ' off');
     }
 
     els.modeMove.classList.toggle('on', mode === 'move');
@@ -192,10 +195,11 @@ BO.UI = (function () {
       if (p) {
         sp.style.opacity = 0.35 + 0.55 * (p.left / C.C.PAINT_TURNS);
         sp.style.setProperty('--b', blob(x, y));
+        sp.style.setProperty('--splat', 'url(' + BO.Art.BASE + BO.Art.splat(x, y) + ')');
         sp.title = '페인트 ' + p.left + '턴 남음';
       }
       var mk = mark[key];
-      sm.className = 'mark' + (mk ? '' : ' hide');
+      sm.className = 'mark' + (mk ? (mk.side === v.mine ? ' mine' : ' foe') : ' hide');
       if (mk) {
         sm.textContent = '';
         sm.style.color = mk.side === v.mine ? 'var(--me)' : 'var(--foe)';
@@ -232,8 +236,10 @@ BO.UI = (function () {
       item.style.width = (o.w * 10) + '%'; item.style.height = (o.h * 10) + '%';
       item.innerHTML = '<i></i><b></b>';
       layer.appendChild(item);
+      BO.Art.furniture(item, o.kind);      // 그림이 있으면 CSS 가구 대신 그림
     });
     els.board.appendChild(layer);
+    BO.Art.floor(els.board, room.id);      // 바닥 그림이 있으면 격자 뒤에 깐다
     for (var y = 0; y < C.C.H; y++) for (var x = 0; x < C.C.W; x++) {
       var c = cellAt(x, y), obj = BO.Rooms.objectAt(room, x, y);
       var inside = BO.Rooms.inside(room, x, y), walk = BO.Rooms.walkable(room, x, y);

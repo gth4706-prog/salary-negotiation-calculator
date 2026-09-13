@@ -340,12 +340,17 @@ section('전등 — 판마다 자리가 다르고 가운데 띠에 있다');
   eq(outside, 0, '시작 구역 안에는 절대 안 놓인다(한쪽만 유리해진다)');
 })();
 
-section('인기척은 사용하지 않는다');
+section('인기척 — 바로 옆 한 칸, 양쪽 다, 한 비트만');
 (function () {
-  var st = board([4, 4], [5, 4]);
-  eq(C.C.SENSE, 0, '자동 위치 감지 비활성');
-  eq(C.view(st, 0).sense, false, '바로 옆이어도 감지하지 않음');
-  eq(C.view(st, 1).sense, false, '양쪽 동일');
+  //  ⚠ Codex 는 인기척을 0 으로 껐다가 테스트도 「감지하지 않는다」로 바꿨는데,
+  //    이 규칙은 설계자가 "인기척은 좋다"고 확정한 것이다. 반경 1 을 검사한다.
+  var near = board([4, 4], [4, 5], 0), far = board([4, 4], [6, 4], 0);
+  eq(C.C.SENSE, 1, '인기척 반경은 1 (설계자 확정값)');
+  ok(C.view(near, 0).sense, '바로 옆이면 인기척이 켜진다');
+  ok(C.view(near, 1).sense, '인기척은 양쪽 다 느낀다');
+  ok(!C.view(far, 0).sense, '두 칸 떨어지면 꺼진다');
+  ok(typeof C.view(near, 0).sense === 'boolean', '새는 것은 참/거짓 한 비트뿐이다');
+  ok(C.view(near, 0).foe === null, '인기척이 켜져도 상대 좌표는 안 준다');
 })();
 
 console.log('\n' + (fail ? '✗ ' : '✓ ') + pass + ' 통과 · ' + fail + ' 실패');

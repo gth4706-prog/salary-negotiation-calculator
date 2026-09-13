@@ -90,3 +90,42 @@
 @keyframes absorb{0%{opacity:.8;transform:scale(.3)}100%{opacity:0;transform:scale(1.1)}}
 @keyframes splash{0%{opacity:1;transform:scale(.2)}100%{opacity:0;transform:scale(1.1)}}
 @media(prefers-reduced-motion:reduce){.reaction{animation:none!important}.cell{animation:none!important}}
+
+
+/* ── 그림이 있을 때 (js/art.js 가 has-* 를 붙인다) ─────────────────────────
+   그림이 없으면 위의 CSS 시험 자산이 그대로 보인다. 파일만 넣으면 갈아탄다. */
+
+/* 바닥: assets/rooms/<id>.png — 격자 100% 에 딱 맞춰 뒤에 깔린다 */
+.board.has-floor{background-size:100% 100%;background-repeat:no-repeat}
+.board.has-floor .cell:not(.outside){background:transparent;outline:1px dashed #ffffff22;outline-offset:-2px}
+.board.has-floor .cell.alt{background:transparent}
+.board.has-floor.lit .cell:not(.outside){background:#ffd98a12}
+
+/* 가구: assets/furniture/<kind>.png — 칸 수에 딱 맞는 비율, 투명 배경 */
+.furniture.has-art{background-size:100% 100%;background-repeat:no-repeat;padding:0;filter:brightness(.72)}
+.board.lit .furniture.has-art{filter:brightness(1.08)}
+.furniture.has-art i,.furniture.has-art b{display:none}
+
+/* 아이 토큰: assets/sprites/kid-top.png — 위에서 본 아이, 원형 */
+body.has-kid .cell.me:after,body.has-kid .cell.foe:after{
+  inset:6%;border:0;border-radius:50%;background:url(../assets/sprites/kid-top.png) center/cover no-repeat;
+  box-shadow:0 0 0 2px var(--me),0 0 14px var(--me),0 3px 4px #000a}
+body.has-kid .cell.foe:after{box-shadow:0 0 0 2px var(--foe),0 0 14px var(--foe),0 3px 4px #000a}
+
+/* 발자국: assets/sprites/footprint-me.png / footprint-foe.png */
+body.has-prints .mark:before,body.has-prints .mark:after{display:none}
+body.has-prints .mark{background:url(../assets/sprites/footprint-me.png) center/78% no-repeat}
+body.has-prints .mark.foe{background-image:url(../assets/sprites/footprint-foe.png)}
+
+/* 얼룩: assets/sprites/splat-1..4.png — 칸마다 다른 장을 고른다(ui.js 의 --splat) */
+body.has-splats .cell .paint{clip-path:none;inset:4%;transform:none;
+  background:var(--splat) center/contain no-repeat;
+  filter:none}
+body.has-splats .paint.mine{filter:hue-rotate(0deg)}
+body.has-splats .paint.foe{filter:hue-rotate(0deg)}
+body.has-splats .paint.material-fabric{filter:blur(.6px) saturate(.85)}
+
+/* 전등 버튼: assets/sprites/lamp-off.png / lamp-on.png */
+body.has-lamp .cell .lamp{inset:12%;border:0;background:url(../assets/sprites/lamp-off.png) center/contain no-repeat;box-shadow:none}
+body.has-lamp .cell .lamp:after{display:none}
+body.has-lamp .cell .lamp.on{background-image:url(../assets/sprites/lamp-on.png);box-shadow:0 0 14px #e5bc7490}

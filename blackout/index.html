@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>블랙아웃 — 어둠 속 페인트건 실시간 대전</title>
+<meta name="description" content="불 꺼진 10×10 방에서 서로의 위치를 추리해 페인트건을 쏘는 턴제 실시간 대전. 설치 없이 브라우저에서 바로.">
+<!-- ⚠️ 이 줄을 지우지 마세요. 전체 화면 게임이라 크롤러가 읽을 본문이 거의 없습니다.
+     색인되면 사이트 평균 품질을 끌어내려 2026-08-03 애드센스 저품질 판정의 실제
+     원인 중 하나였습니다(에그워에서 같은 일을 겪었습니다).
+     robots.txt Disallow 로는 해결되지 않습니다 — 크롤링을 막으면 이 메타를 읽지
+     못해 색인 제외가 오히려 안 됩니다. -->
+<meta name="robots" content="noindex,follow">
+<meta name="theme-color" content="#07090d">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%A6%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css?v=0.1">
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ── 메뉴 ─────────────────────────────────────────────────────────── -->
+  <section id="s-menu">
+    <div class="title">
+      <div class="lamp">🔦</div>
+      <h1>블랙아웃</h1>
+      <p>불 꺼진 방. 서로 보이지 않는다.<br>소리와 얼룩만으로 상대를 찾아내라.</p>
+    </div>
+    <div class="panel" style="display:flex;flex-direction:column;gap:8px">
+      <label class="muted" for="nick">이름</label>
+      <input type="text" id="nick" maxlength="12" autocomplete="off" spellcheck="false">
+      <button class="btn primary" id="go-pvp">실시간 대전</button>
+      <button class="btn" id="go-bot">연습 (봇과 한 판)</button>
+      <div class="row">
+        <button class="btn ghost" id="go-rules">규칙</button>
+        <button class="btn ghost" id="mute" style="flex:0 0 60px">🔊</button>
+      </div>
+    </div>
+    <p class="muted" style="text-align:center">v<span id="ver"></span></p>
+  </section>
+
+  <!-- ── 규칙 ─────────────────────────────────────────────────────────── -->
+  <section id="s-rules" class="hide">
+    <div class="panel">
+      <h2>규칙</h2>
+      <ol class="rules">
+        <li>불 꺼진 <b>10×10</b> 방. <b>서로의 모습은 절대 보이지 않는다.</b></li>
+        <li>한 턴에 <b>행동 2번</b> — 이동 2번 / 이동 1 + 사격 1 / 사격 2번.</li>
+        <li>사격은 <b>어느 칸이든</b> 겨눌 수 있다. 맞으면 체력 1, <b>5번 맞으면 패배.</b></li>
+        <li>맞은 칸이든 빗나간 칸이든 <b>페인트는 5턴 동안</b> 바닥에 남는다. 얼룩은 둘 다 본다.</li>
+        <li>맞으면 신발에 페인트가 묻는다. 그 상태로 <b>한 칸만 움직이면 발을 뗀 칸에
+            발자국</b>이 남고, <b>두 칸 움직이면 남지 않는다</b>(대신 그 턴엔 못 쏜다).
+            안 움직이면 페인트는 그대로 남아 다음 턴으로 넘어간다.</li>
+        <li>바닥의 <b>페인트를 밟아도</b> 똑같이 묻는다 — 효과는 다음 턴부터.</li>
+        <li>어둠 속에서 <b>상대 칸으로 들어가면 부딪힌다.</b> 제자리로 돌아오지만
+            <b>둘 다 위치가 드러난다.</b></li>
+        <li class="new">사격하면 <b>총성이 난다</b> — 쏜 자리가 상대 화면에 2턴간 뜬다.
+            그러니 <b>쏘고 나면 움직여라.</b></li>
+        <li class="new"><b>인기척</b> — 두 칸 안으로 가까워지면 양쪽 다 낌새를 챈다.
+            방향은 알 수 없다.</li>
+        <li>140턴이 지나면 체력이 많은 쪽이 이긴다. 같으면 무승부.
+            (턴 제한시간 20초는 <b>상한</b>입니다 — 보통 한 판 10분 안팎.)</li>
+      </ol>
+      <p class="muted" style="margin-top:10px">
+        8·9번은 처음 설계에 없던 규칙입니다. 없이 돌려 보니 아무도 서로를 못 찾아
+        한 판도 끝나지 않아서 넣었습니다. 근거는 <code>js/core.js</code> 주석과
+        <code>tests/balance.js</code> 에 있습니다.</p>
+      <button class="btn" id="rules-back" style="margin-top:10px">돌아가기</button>
+    </div>
+  </section>
+
+  <!-- ── 로비 ─────────────────────────────────────────────────────────── -->
+  <section id="s-lobby" class="hide">
+    <div class="panel">
+      <h2>실시간 대전</h2>
+      <button class="btn primary" id="make-room">방 만들기</button>
+      <div class="row" style="margin-top:8px">
+        <input type="text" id="code" placeholder="방 코드" maxlength="8"
+               autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <button class="btn" id="join-code" style="flex:0 0 90px">입장</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>열린 방</h2>
+      <div class="rooms" id="rooms"></div>
+      <button class="btn ghost" id="refresh" style="margin-top:8px">새로고침</button>
+    </div>
+    <button class="btn ghost" id="lobby-back">돌아가기</button>
+  </section>
+
+  <!-- ── 방 ───────────────────────────────────────────────────────────── -->
+  <section id="s-room" class="hide">
+    <div class="panel">
+      <h2>방 코드</h2>
+      <div class="code-big" id="room-code">····</div>
+      <p class="muted" id="room-hint">이 코드를 상대에게 보내세요.</p>
+      <p class="muted" id="room-status">접속 중…</p>
+      <button class="btn primary" id="ready" disabled>준비</button>
+      <button class="btn ghost" id="room-leave" style="margin-top:8px">나가기</button>
+    </div>
+  </section>
+
+  <!-- ── 대전 ─────────────────────────────────────────────────────────── -->
+  <section id="s-game" class="hide">
+    <div class="panel hud">
+      <div class="hp me" id="hp-me" data-label="<b>나</b>"></div>
+      <div class="mid" id="turn-info"></div>
+      <div class="hp foe" id="hp-foe" data-label="<b>적</b>"></div>
+      <button class="x" id="quit" title="판 포기하고 나가기">✕</button>
+    </div>
+    <div class="clock" id="clock"><i id="clock-bar"></i></div>
+
+    <div class="boardwrap">
+      <div class="board" id="board"></div>
+    </div>
+
+    <div class="sense-badge off" id="sense"></div>
+    <div class="ap" id="ap"></div>
+
+    <div class="modes">
+      <button class="mode on" id="mode-move">🏃 이동</button>
+      <button class="mode shoot" id="mode-shoot">🎯 사격</button>
+    </div>
+
+    <div class="pad" id="pad">
+      <span class="sp"></span><button id="pad-0">▲</button><span class="sp"></span>
+      <button id="pad-3">◀</button><span class="sp"></span><button id="pad-1">▶</button>
+      <span class="sp"></span><button id="pad-2">▼</button><span class="sp"></span>
+    </div>
+    <div class="row">
+      <button class="btn hide" id="fire">발사</button>
+      <button class="btn ghost" id="pass">턴 넘기기</button>
+    </div>
+
+    <div class="status" id="status"></div>
+    <div class="panel log" id="log"></div>
+  </section>
+
+</div>
+
+<!-- ── 결과 ───────────────────────────────────────────────────────────── -->
+<div class="over hide" id="over">
+  <div class="panel card">
+    <div class="big" id="over-title"></div>
+    <p class="muted" id="over-detail"></p>
+    <button class="btn primary" id="over-again" style="margin-top:12px">한 판 더</button>
+    <button class="btn ghost" id="over-menu" style="margin-top:8px">메뉴로</button>
+  </div>
+</div>
+
+<!-- ── 판이 어긋났을 때 ───────────────────────────────────────────────── -->
+<!-- 조용히 계속 두면 두 사람이 서로 다른 판을 보면서 싸우게 된다. 멈추고 알린다. -->
+<div class="over hide" id="desync">
+  <div class="panel card">
+    <div class="big lose">판이 어긋났습니다</div>
+    <p class="muted" id="desync-why"></p>
+    <p class="muted">두 기기의 판이 달라졌습니다. 상대의 기록으로 다시 맞출 수 있습니다.</p>
+    <button class="btn primary" id="resync" style="margin-top:12px">다시 맞추기</button>
+  </div>
+</div>
+
+<script src="js/core.js?v=0.1"></script>
+<script src="js/net.js?v=0.1"></script>
+<script src="js/bot.js?v=0.1"></script>
+<script src="js/match.js?v=0.1"></script>
+<script src="js/sfx.js?v=0.1"></script>
+<script src="js/ui.js?v=0.1"></script>
+<script src="js/main.js?v=0.1"></script>
+</body>
+</html>

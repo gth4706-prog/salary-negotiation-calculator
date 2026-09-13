@@ -146,6 +146,43 @@
   filter:drop-shadow(0 3px 3px #000a)}
 .cell .lamp.on{background-image:var(--lamp-on);animation:lampglow 1.2s infinite alternate}
 @keyframes lampglow{from{filter:drop-shadow(0 0 6px #ffcc4d99)}to{filter:drop-shadow(0 0 16px #ffcc4dcc)}}
+/* ── 보급 상자 — 어둠 속에서 **둘 다 보이는** 유일한 물건 ──────────────────
+   그래서 안개보다 위(z5)에 있고 제 빛으로 빛난다. 종이상자 색(--hot)에 낙하산 끈처럼
+   테이프 두 줄. 한가운데 내용물 기호. 갓 떨어진 것은 한 번 튀어오른다. */
+.cell .box{z-index:5;inset:16%;pointer-events:none;border-radius:2px;
+  background:linear-gradient(135deg,#e7ba70 0 46%,#c08f3d 50%,#9d722c 100%);
+  border:1px solid #ffe2ad;
+  box-shadow:0 0 0 1px #00000077,0 0 12px #e5bc7477,0 4px 5px #000b,inset 0 0 0 1px #ffffff22;
+  display:flex;align-items:center;justify-content:center}
+.cell .box.hide{display:none}
+/* 위에서 본 골판지 상자 — 날개 넷이 가운데서 만나 십자 이음매가 생긴다.
+   가로 줄 하나만 그렸더니 «상자»가 아니라 «버튼»으로 읽혔다. */
+.cell .box:before{content:'';position:absolute;inset:7%;
+  background:linear-gradient(#0000 calc(50% - .7px),#6b4a1aaa calc(50% - .7px) calc(50% + .7px),#0000 calc(50% + .7px)),
+             linear-gradient(90deg,#0000 calc(50% - .7px),#6b4a1aaa calc(50% - .7px) calc(50% + .7px),#0000 calc(50% + .7px))}
+/* 내용물은 상자에 붙은 **동그란 라벨**로 — 기호를 이음매 위에 그냥 얹으면 둘 다 안 읽힌다 */
+.cell .box>i{position:relative;z-index:1;font-style:normal;line-height:1;
+  display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:7%;
+  place-items:stretch;place-content:center;width:58%;height:58%;padding:9%;border-radius:50%;
+  background:radial-gradient(circle at 38% 32%,#fff8ea,#ffdfa4);
+  box-shadow:0 0 0 1px #00000055,0 1px 2px #0006}
+.cell .box>i>s{display:block;text-decoration:none;border-radius:1px;background:#3a260622}
+.cell .box>i>s.on{background:#3a2606;box-shadow:0 0 2px #3a260688}
+/* 반창고만 모양이 없다 — 글자 하나로 */
+.cell .box>i>.plus{grid-column:1/4;grid-row:1/4;display:flex;align-items:center;justify-content:center;
+  font:700 min(4vw,17px)/1 var(--display),system-ui,sans-serif;color:#c0365c}
+.cell .box.fresh{animation:box-land .6s cubic-bezier(.2,1.5,.4,1)}
+@keyframes box-land{0%{transform:translateY(-90%) scale(.5);opacity:0}
+  55%{transform:translateY(6%) scale(1.12);opacity:1}100%{transform:translateY(0) scale(1)}}
+/* 아직 아무도 안 가져간 상자는 조용히 숨 쉰다 — 「저기로 가라」는 신호 */
+.cell .box:not(.hide):not(.fresh){animation:box-breathe 2.6s ease-in-out infinite}
+@keyframes box-breathe{0%,100%{box-shadow:0 0 0 1px #00000066,0 0 8px #e5bc7455,0 3px 4px #000a}
+  50%{box-shadow:0 0 0 1px #00000066,0 0 18px #e5bc74cc,0 3px 4px #000a}}
+
+/* 도구가 칠할 칸 — 던지기 전에 «여기까지 간다»를 보여 준다 */
+.cell.blast .fog{box-shadow:inset 0 0 0 2px #ffd98acc!important;background:rgba(229,188,116,.16)}
+.board.throwing .cell{cursor:cell}
+
 .cell .ghost{z-index:8;pointer-events:none;display:flex;align-items:center;justify-content:center;
   font-size:min(3.4vw,15px);color:var(--pf);opacity:.7;text-shadow:0 0 8px var(--pf)}
 

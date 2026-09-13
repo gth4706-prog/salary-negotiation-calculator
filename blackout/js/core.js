@@ -27,6 +27,17 @@ window.BO = window.BO || {};
 //  → 상태에 «아는 칸(known)»과 «바라보는 방향(face)»이 들어갔고, 페인트·발자국에서
 //    기한이 사라졌다. 화면은 view() 의 tiles(아는 칸만 채워짐)·seen(지금 시야)·
 //    foe(보이는 이유 why 포함)만 본다.
+//
+//  ── v1.2 «보급 상자» ────────────────────────────────────────────────────
+//  「게임에 더 재밌는 요소를 추가해보자. 지금 너무 지루하다 — 그냥 서로 찾기 전까지」
+//  (설계자, 2026-09-13). 진단은 분명하다: **찾는 동안 할 일이 없다.** 어둠에서 둘이
+//  각자 훑고 다니면 만날 이유가 없어서 스무 턴이 빈다.
+//  그래서 몇 턴마다 상자가 하나 떨어진다 — **자리도 내용물도 둘 다 공개**다.
+//  둘 다 같은 칸을 원하게 되니 판이 저절로 한 점으로 모인다(만들어진 조우).
+//   · 집으면 그 자리가 **드러난다**(공개 노출). 도구를 얻는 대신 위치를 파는 거래다.
+//   · 도구는 겨눈 칸을 **모양대로** 칠한다 — 스프레이 3칸·롤러 2×2·물풍선 십자 5칸.
+//     한 번에 넓게 긁어내니 방이 «드러나는» 속도가 붙는다(v1.1 의 연장선이다).
+//   · 쓴 사람의 자리는 여전히 안 남는다 — 사격과 같은 규칙(설계자 확정).
 // ============================================================================
 BO.Core = (function () {
 
@@ -62,8 +73,53 @@ BO.Core = (function () {
     //  사거리 — 무제한(원래 규칙). 야광 페인트를 «긁어내는» 도구이기도 하니까.
     RANGE: 0,
     //  인기척 — 맨해튼 이 거리 안에 상대가 있으면 **양쪽 다** 낌새를 챈다. 한 비트뿐.
-    SENSE: 1
+    SENSE: 1,
+
+    //  ── 보급 상자 ──────────────────────────────────────────────────────────
+    //  «턴» 기준이다(한 사람 차례 = 1턴). 3이면 한 바퀴 반마다 하나씩 떨어진다.
+    //  바닥에 세 개까지만 쌓인다 — 아무도 안 주우면 더 안 떨어진다(줍게 만드는 압력).
+    DROP_EVERY: 3,
+    DROP_MAX: 3
   };
+
+  // ── 도구 ──────────────────────────────────────────────────────────────────
+  //  상자에서 나오는 것. **한 손에 하나**만 든다. 이미 들고 있으면 상자를 밟아도
+  //  안 집는다 — 원치 않는 교환으로 위치가 드러나면 안 되니까.
+  //  ⚠ 내용물은 네트워크로 나가지 않는다. 나가는 건 씨앗과 턴 기록뿐이고, 상자는
+  //    양쪽이 같은 씨앗·같은 턴 번호로 **같은 순서로** 뽑는다(maybeDrop).
+  var SHAPE = {
+    hline: [[-1, 0], [0, 0], [1, 0]],                    // 가로 스프레이 — 3칸
+    vline: [[0, -1], [0, 0], [0, 1]],                    // 세로 스프레이 — 3칸
+    wide:  [[0, 0], [1, 0], [0, 1], [1, 1]],             // 롤러 — 2×2
+    bomb:  [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]    // 물풍선 — 십자 5칸
+  };
+  //  이름표는 화면과 규칙 설명이 **같은 말을 쓰게** 하려고 여기 둔다(규칙의 일부다).
+  //  `grid` 는 3×3 점판에 그린 **실제 발자취**(가운데가 겨눈 칸). 상자 라벨은 이걸 쓴다 —
+  //  이모지는 기기마다 모양도 색도 달라서 「무엇이 들었나」가 화면마다 다르게 읽힌다.
+  //  배울 기호가 아니라 보면 아는 그림이어야 한다. `icon` 은 글자 옆에 이름이 같이 붙는
+  //  자리(버튼·기록)에서만 쓴다.
+  //  `short` 는 폭이 좁은 버튼용이다 — 320px 폰에서 모드 버튼 셋이 한 줄에 들어가야 한다.
+  var ITEMS = {
+    heal:  { name: '반창고',       short: '반창고', icon: '🩹', tip: '제자리에서 체력 +1',           grid: null },
+    hline: { name: '가로 스프레이', short: '가로',   icon: '↔',  tip: '겨눈 칸을 가운데로 가로 3칸',   grid: '...###...' },
+    vline: { name: '세로 스프레이', short: '세로',   icon: '↕',  tip: '겨눈 칸을 가운데로 세로 3칸',   grid: '.#..#..#.' },
+    wide:  { name: '롤러',         short: '롤러',   icon: '▩',  tip: '겨눈 칸에서 오른쪽·아래로 2×2', grid: '....##.##' },
+    bomb:  { name: '물풍선',       short: '물풍선', icon: '💣', tip: '겨눈 칸과 상하좌우 — 십자 5칸',  grid: '.#.###.#.' }
+  };
+  //  뽑기표 — 같은 항목을 여러 번 넣어 확률을 준다(인덱스만 뽑으니 결정론).
+  //  반창고는 하나뿐이다(8분의 1). 회복이 흔하면 판이 안 끝난다.
+  var DROP_KINDS = ['hline', 'vline', 'wide', 'bomb', 'hline', 'vline', 'wide', 'heal'];
+
+  //  도구가 칠할 칸들 — 격자 밖은 버린다(구석에서 쓰면 그만큼 손해다).
+  function shapeTiles(kind, x, y) {
+    var s = SHAPE[kind], out = [];
+    if (!s) return out;
+    for (var i = 0; i < s.length; i++) {
+      var tx = x + s[i][0], ty = y + s[i][1];
+      if (inBoard(tx, ty)) out.push({ x: tx, y: ty });
+    }
+    return out;
+  }
 
   // 방향: 0=위 1=오른쪽 2=아래 3=왼쪽. 이 순서는 **네트워크로 나가는 숫자**다 —
   // 바꾸면 구버전과 말이 안 통한다.
@@ -167,6 +223,7 @@ BO.Core = (function () {
       //    페인트»(wasPainted)·«첫 걸음 칸»(stepFrom)·«이번 턴에 밟았나»(gotPaint) 같은
       //    턴 단위 장부가 통째로 필요 없어졌다. 젖은 신발은 `ps[i].painted` 하나뿐이다.
       ps: [], paint: [], marks: [],
+      drops: [],         // 바닥의 보급 상자 {x,y,kind,turn} — **자리도 내용물도 공개**
       lamp: null,        // 전등 버튼 자리(판마다 다르다)
       lit: 0,            // 불이 켜진 채로 남은 «행동» 수
       seen: [null, null],   // 공개 노출(맞음·전등) — 둘 다 안다
@@ -206,7 +263,7 @@ BO.Core = (function () {
     var p = cells[Math.floor(r() * cells.length)];
     var known = [];
     for (var i = 0; i < C.W * C.H; i++) known.push(0);
-    return { x: p.x, y: p.y, hp: C.HP, painted: false, face: face, known: known };
+    return { x: p.x, y: p.y, hp: C.HP, painted: false, face: face, item: null, known: known };
   }
 
   // ── 조회 ──────────────────────────────────────────────────────────────────
@@ -214,6 +271,13 @@ BO.Core = (function () {
     for (var i = 0; i < st.paint.length; i++) {
       var p = st.paint[i];
       if (p.x === x && p.y === y) return p;
+    }
+    return null;
+  }
+  function dropAt(st, x, y) {
+    for (var i = 0; i < st.drops.length; i++) {
+      var d = st.drops[i];
+      if (d.x === x && d.y === y) return d;
     }
     return null;
   }
@@ -243,6 +307,7 @@ BO.Core = (function () {
     var k = a[0], err;
     if (k === 'm') err = _move(st, side, a[1] | 0);
     else if (k === 's') err = _shoot(st, side, a[1] | 0, a[2] | 0);
+    else if (k === 'u') err = _use(st, side, a[1] | 0, a[2] | 0);
     else return '알 수 없는 행동: ' + k;
     if (err) return err;
 
@@ -298,6 +363,22 @@ BO.Core = (function () {
       st.ev.push({ k: 'step', by: side });   // 밟은 본인만 아는 사건
     }
 
+    //  ── 보급 상자를 집었다 ────────────────────────────────────────────────
+    //  **손이 비어 있을 때만** 집는다. 들고 있으면 그냥 지나간다 — 원치 않는 교환으로
+    //  위치가 드러나는 함정을 만들지 않는다.
+    //  ⚠ 집으면 상자가 사라지고, 상자는 공개 정보다. 그러니 상대는 「방금 저 칸에
+    //    누가 있었다」를 안다. **그게 값이다** — 도구를 얻는 대신 자리를 판다.
+    //    쏘는 것과는 다르다(사격은 여전히 위치를 안 알린다). 걸어가서 집는 행동만 그렇다.
+    if (!me.item) {
+      var box = dropAt(st, nx, ny);
+      if (box) {
+        me.item = box.kind;
+        st.drops.splice(st.drops.indexOf(box), 1);
+        st.seen[side] = { x: nx, y: ny, turn: st.turn };    // 공개 노출 — 둘 다 안다
+        st.ev.push({ k: 'take', x: nx, y: ny, by: side, kind: box.kind });
+      }
+    }
+
     //  ── 전등 버튼을 밟았다 ────────────────────────────────────────────────
     //  불이 켜지고 방 전체가 드러난다 — 가구도, **둘 다**. 켠 사람도 예외가 아니다.
     if (st.lamp && nx === st.lamp.x && ny === st.lamp.y && C.LAMP_ACTIONS > 0) {
@@ -318,21 +399,9 @@ BO.Core = (function () {
     st.ap--;
 
     var hit = (x === foe.x && y === foe.y);
-    if (hit) {
-      foe.hp--;
-      foe.painted = true;                      // 맞은 사람 신발에 야광 페인트 — 발자국 규칙
-      //  맞은 순간 야광이 튀어 **이 턴 동안** 상대가 보인다(남은 한 발을 쏠 수 있다).
-      //  턴이 넘어가면 다시 어둠 — 「다음 턴에서는 당연히 캐릭터까지는 안 보여야 해」(설계자).
-      st.glow = { side: 1 - side, turn: st.turn };
-      st.seen[1 - side] = { x: x, y: y, turn: st.turn };
-      if (foe.hp <= 0) { st.over = true; st.winner = side; st.reason = 'kill'; }
-    }
-    //  맞았든 빗나갔든 **그 칸에 페인트가 남는다 — 판이 끝날 때까지.** 같은 칸을 다시
-    //  쏘면 덧칠(기록만 새로 고친다). 얼룩은 야광이라 둘 다 보고, 그 칸이 뭔지도 드러난다.
-    var old = paintAt(st, x, y);
-    if (old) { old.turn = st.turn; old.by = side; if (hit) old.hit = true; }
-    else st.paint.push({ x: x, y: y, turn: st.turn, by: side, hit: hit });
-    st.ps[0].known[idx(x, y)] = 1; st.ps[1].known[idx(x, y)] = 1;
+    if (hit) wound(st, side, x, y);
+    //  맞았든 빗나갔든 **그 칸에 페인트가 남는다 — 판이 끝날 때까지.**
+    splat(st, x, y, side, hit);
 
     //  ⚠ **쏜 사람의 위치는 남기지 않는다.** 상대가 아는 것은 「어딘가에서 한 발
     //    나갔고, 그게 이 칸에 떨어졌다」뿐이다. 소리와 얼룩이 전부다.
@@ -340,6 +409,65 @@ BO.Core = (function () {
     st.ev.push({ k: hit ? 'hit' : 'miss', x: x, y: y, by: side,
       material: BO.Rooms.material(st.room, x, y), object: object ? object.id : null,
       kind: object ? object.kind : 'floor' });
+    return null;
+  }
+
+  //  얼룩 하나 — **판이 끝날 때까지** 남는다. 같은 칸이면 덧칠(기록만 새로 고친다).
+  //  칠한 칸은 둘 다 알게 된다: 야광이라 보이고, 그 자리에 있던 것의 윤곽이 드러난다.
+  function splat(st, x, y, side, hit) {
+    var old = paintAt(st, x, y);
+    if (old) { old.turn = st.turn; old.by = side; if (hit) old.hit = true; }
+    else st.paint.push({ x: x, y: y, turn: st.turn, by: side, hit: !!hit });
+    st.ps[0].known[idx(x, y)] = 1; st.ps[1].known[idx(x, y)] = 1;
+  }
+
+  //  한 대 맞았다 — 체력 하나가 깎이고, 신발이 젖고(발자국 규칙), **이 턴 동안**
+  //  야광 윤곽이 보인다. 턴이 넘어가면 다시 어둠이다.
+  function wound(st, side, x, y) {
+    var foe = st.ps[1 - side];
+    foe.hp--;
+    foe.painted = true;
+    st.glow = { side: 1 - side, turn: st.turn };
+    st.seen[1 - side] = { x: x, y: y, turn: st.turn };
+    if (foe.hp <= 0) { st.over = true; st.winner = side; st.reason = 'kill'; }
+  }
+
+  // ── 도구 쓰기 ─────────────────────────────────────────────────────────────
+  //  행동력 하나를 쓰고 손에 든 것이 사라진다.
+  //   · 반창고 — **제자리에서** 체력 +1(상한 C.HP). 아무것도 칠하지 않는다.
+  //   · 나머지 — 겨눈 칸을 중심으로 **모양대로** 칠한다. 사거리는 사격과 같다(무제한).
+  //     그 안에 상대가 있으면 한 대. 여러 칸에 걸쳐도 **한 번만** 아프다.
+  //  ⚠ 사격과 같은 규칙으로 **쓴 사람의 자리는 남지 않는다.** 상대가 아는 건
+  //    「이 칸들이 칠해졌다」뿐이다(설계자 확정: 쏘면 들킨다는 설정은 없다).
+  function _use(st, side, x, y) {
+    var me = st.ps[side], foe = st.ps[1 - side];
+    if (!me.item) return '가진 도구가 없습니다';
+    if (!inBoard(x, y)) return '격자 밖은 겨냥할 수 없습니다';
+    var kind = me.item;
+    if (kind === 'heal' && (x !== me.x || y !== me.y)) return '반창고는 제자리에서만 씁니다';
+    st.ap--;
+    me.item = null;
+
+    if (kind === 'heal') {
+      var was = me.hp;
+      me.hp = Math.min(C.HP, me.hp + 1);
+      //  ⚠ 좌표를 **넣지 않는다.** 사건은 양쪽 화면으로 같이 나간다 — 여기에 내 칸을
+      //    적으면 반창고 한 장이 내 자리를 통째로 알려 준다.
+      st.ev.push({ k: 'heal', by: side, hp: me.hp, gain: me.hp - was });
+      return null;
+    }
+
+    //  ⚠ 맞았는지를 **칠하기 전에** 다 정해 둔다. 칠하면서 판정하면 모양의 첫 칸이
+    //    상대를 쓰러뜨리고 나머지 칸이 «끝난 판»에 칠해진다 — 순서가 규칙이 된다.
+    var tiles = shapeTiles(kind, x, y), hit = false, i, t;
+    for (i = 0; i < tiles.length; i++)
+      if (tiles[i].x === foe.x && tiles[i].y === foe.y) hit = true;
+    for (i = 0; i < tiles.length; i++) {
+      t = tiles[i];
+      splat(st, t.x, t.y, side, hit && t.x === foe.x && t.y === foe.y);
+    }
+    st.ev.push({ k: 'use', kind: kind, x: x, y: y, by: side, hit: hit, tiles: tiles });
+    if (hit) wound(st, side, foe.x, foe.y);
     return null;
   }
 
@@ -374,6 +502,38 @@ BO.Core = (function () {
     st.side = 1 - side;
     st.ap = C.AP;
     st.moves = 0;
+    maybeDrop(st);
+  }
+
+  // ── 보급 상자를 떨어뜨린다 ─────────────────────────────────────────────────
+  //  ⚠ 여기서도 Math.random 은 못 쓴다. **씨앗과 턴 번호만으로** 뽑는다 — 두 브라우저가
+  //    같은 칸에 같은 것을 놓지 않으면 그 다음 턴부터 해시가 어긋난다.
+  //    턴마다 새 난수열을 여는 이유는 재접속 복구(replay) 때문이다: 판을 처음부터 다시
+  //    돌려도 각 턴의 상자가 **그 턴 번호만으로** 정해져야 같은 판이 나온다.
+  function maybeDrop(st) {
+    if (C.DROP_EVERY <= 0 || st.turn % C.DROP_EVERY !== 0) return;
+    if (st.drops.length >= C.DROP_MAX) return;
+    var r = rng((st.seed ^ (st.turn * 2654435761)) >>> 0);
+    r(); r();                       // 앞 한두 개는 씨앗 냄새가 난다 — 버린다
+    var cells = [], x, y;
+    for (y = 0; y < C.H; y++) for (x = 0; x < C.W; x++) {
+      if (!BO.Rooms.walkable(st.room, x, y)) continue;
+      if (st.lamp && st.lamp.x === x && st.lamp.y === y) continue;   // 전등과 겹치면 둘 다 안 읽힌다
+      if (dropAt(st, x, y)) continue;
+      //  ⚠ 사람이 서 있는 칸은 피한다. 머리 위에 떨어지면 본인 의사와 상관없이 집히고
+      //    (=위치가 드러나고) 「걸어가서 집는다」는 거래가 깨진다. 여기서 새는 정보는
+      //    「상대는 저 한 칸에는 없다」뿐이라 64칸 중 하나 — 무시할 만하다.
+      if ((st.ps[0].x === x && st.ps[0].y === y) || (st.ps[1].x === x && st.ps[1].y === y)) continue;
+      cells.push({ x: x, y: y });
+    }
+    if (!cells.length) return;
+    var c = cells[Math.floor(r() * cells.length)];
+    var kind = DROP_KINDS[Math.floor(r() * DROP_KINDS.length)];
+    st.drops.push({ x: c.x, y: c.y, kind: kind, turn: st.turn });
+    //  자리는 **공개**다 — 둘 다 그 칸을 알게 된다(어둠이 한 칸 걷힌다).
+    st.ps[0].known[idx(c.x, c.y)] = 1;
+    st.ps[1].known[idx(c.x, c.y)] = 1;
+    st.ev.push({ k: 'drop', x: c.x, y: c.y, kind: kind });
   }
 
   // ── 턴 하나를 통째로 적용 ─────────────────────────────────────────────────
@@ -401,7 +561,8 @@ BO.Core = (function () {
          JSON.stringify(st.glow) + '|';
     for (var i = 0; i < 2; i++) {
       var p = st.ps[i];
-      s += p.x + ',' + p.y + ',' + p.hp + ',' + (p.painted ? 1 : 0) + ',' + p.face + ',' + p.known.join('') + ';';
+      s += p.x + ',' + p.y + ',' + p.hp + ',' + (p.painted ? 1 : 0) + ',' + p.face + ',' +
+           (p.item || '-') + ',' + p.known.join('') + ';';
     }
     s += '|';
     for (var j = 0; j < st.paint.length; j++) {
@@ -412,6 +573,12 @@ BO.Core = (function () {
     for (var k = 0; k < st.marks.length; k++) {
       var m = st.marks[k];
       s += m.x + ',' + m.y + ',' + m.turn + ',' + m.side + ',' + m.dir + ';';
+    }
+    s += '|';
+    //  보급 상자 — 한쪽만 다른 자리에 놓아도 그 뒤 판이 통째로 갈린다.
+    for (var b = 0; b < st.drops.length; b++) {
+      var dp = st.drops[b];
+      s += dp.x + ',' + dp.y + ',' + dp.kind + ',' + dp.turn + ';';
     }
     s += '|' + (st.lamp ? st.lamp.x + ',' + st.lamp.y : '-') + ',' + st.lit;
     s += '|' + (st.over ? 1 : 0) + ',' + st.winner;
@@ -475,6 +642,16 @@ BO.Core = (function () {
       //  전등 버튼 자리는 **공개 정보**다. 둘 다 어디로 가야 하는지 안다.
       lamp: st.lamp ? { x: st.lamp.x, y: st.lamp.y } : null,
       lit: st.lit,
+      //  ── 보급 상자도 **공개**다 — 자리도 내용물도 둘 다 본다. 그래야 같은 칸을
+      //     원하게 되고, 어둠 속에서 만날 이유가 생긴다.
+      drops: st.drops.map(function (d) {
+        return { x: d.x, y: d.y, kind: d.kind, age: st.turn - d.turn };
+      }),
+      //  내가 든 도구. ⚠ **상대가 든 것은 주지 않는다** — 상자가 사라진 걸 보고
+      //  「저건 물풍선이었지」까지는 추리할 수 있다. 거기까지가 공개다.
+      item: P.item,
+      //  다음 상자까지 몇 턴 — 공개 규칙이니 숨길 이유가 없다(기다릴 값이 생긴다).
+      nextDrop: C.DROP_EVERY > 0 ? (C.DROP_EVERY - (st.turn % C.DROP_EVERY)) : 0,
       foe: foeWhy ? { x: F.x, y: F.y, why: foeWhy, glow: glowing } : null,   // glow: 이 턴에 맞아 야광에 젖어 있다(불빛 아래서도 칠은 보인다)
       moves: st.side === me ? st.moves : 0,
       range: C.RANGE, senseR: C.SENSE,
@@ -486,10 +663,11 @@ BO.Core = (function () {
   }
 
   return {
-    C: C, DX: DX, DY: DY,
+    C: C, DX: DX, DY: DY, ITEMS: ITEMS,
     rng: rng, create: create, act: act, endTurn: endTurn, applyTurn: applyTurn,
     hash: hash, replay: replay, view: view,
-    paintAt: paintAt, legalDirs: legalDirs, inBoard: inBoard, idx: idx,
+    paintAt: paintAt, dropAt: dropAt, shapeTiles: shapeTiles,
+    legalDirs: legalDirs, inBoard: inBoard, idx: idx,
     dist: dist, shootable: shootable, cone: cone, los: los, look: look
   };
 })();

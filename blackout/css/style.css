@@ -149,6 +149,11 @@ input[type=text]{width:100%; padding:12px; border-radius:var(--r); background:#0
 .mode[disabled]{opacity:.35}
 .mode.on{background:linear-gradient(180deg,#1f4a56,#173842); border-color:var(--me); color:#d9fffb; box-shadow:0 3px 0 #0a2a30}
 .mode.shoot.on{background:linear-gradient(180deg,#5a2438,#421a2a); border-color:var(--foe); color:#ffe0ec; box-shadow:0 3px 0 #2a0a16}
+/* 📦 도구 — 빈손이면 꺼져 있고, 주우면 «들고 있다»가 한눈에 보여야 한다(깜빡이며 부른다) */
+.mode.item{font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mode.item.has{border-color:var(--hot); color:#ffe6b8; animation:item-ready 1.6s ease-in-out infinite}
+.mode.item.on{background:linear-gradient(180deg,#5a4520,#3f3016); border-color:var(--hot); color:#ffeecb; box-shadow:0 3px 0 #2a1d08; animation:none}
+@keyframes item-ready{0%,100%{box-shadow:0 3px 0 #05080c}50%{box-shadow:0 3px 0 #05080c,0 0 12px #e5bc7466}}
 
 /* ⚠ 조작부는 **작게**. 처음엔 십자키를 크게 뒀더니 400×860(보급형 폰) 에서 기록과
    나가기 버튼이 화면 밖으로 밀려났다. 격자가 먼저고 조작은 그 다음이다.
@@ -214,6 +219,9 @@ input[type=text]{width:100%; padding:12px; border-radius:var(--r); background:#0
 .confirm{flex:1; font-size:22px; letter-spacing:.5px; min-height:0}
 .confirm[disabled]{opacity:.45; background:#16202d; border-color:var(--line); color:var(--dim); font-size:14px; font-family:inherit; font-weight:600; box-shadow:none}
 .confirm.shoot:not([disabled]){background:linear-gradient(180deg,#ff7ab5,#e0347e); border-color:#ff9cc9; color:#2a0a18; box-shadow:0 4px 0 #7a1a47, inset 0 1px 0 #ffffff55}
+.confirm.item:not([disabled]){background:linear-gradient(180deg,#ffd98a,#e0a12e); border-color:#ffe9bb; color:#2e1d03; box-shadow:0 4px 0 #7a5410, inset 0 1px 0 #ffffff66}
+/* 손에 든 도구 — 행동력 줄에 같이 붙는다 */
+.ap .held{color:var(--hot); font-weight:700}
 .btn.small{padding:8px 12px; font-size:13px}
 
 /* 고른 칸 */

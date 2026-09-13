@@ -11,6 +11,8 @@ if (process.env.LAMP  !== undefined) BO.Core.C.LAMP_ACTIONS = +process.env.LAMP;
 if (process.env.MAXT  !== undefined) BO.Core.C.MAX_TURNS = +process.env.MAXT;
 if (process.env.CONE  !== undefined) BO.Core.C.CONE = process.env.CONE.split(',').map(Number);   // 예: CONE=1,1,2
 if (process.env.LOS   !== undefined) BO.Core.C.LOS = +process.env.LOS;
+if (process.env.DROP  !== undefined) BO.Core.C.DROP_EVERY = +process.env.DROP;   // 0 이면 상자 없음(v1.1 비교용)
+if (process.env.DMAX  !== undefined) BO.Core.C.DROP_MAX = +process.env.DMAX;
 
 require('../js/bot.js');
 var C = BO.Core;
@@ -18,6 +20,7 @@ var C = BO.Core;
 function game(seed) {
   var st = C.create(seed);
   var shots = 0, hits = 0, bumps = 0, marks = 0, steps = 0, lamps = 0, firstHit = null;
+  var drops = 0, takes = 0, uses = 0, useHits = 0, heals = 0, painted = 0;
   var guard = 0;
   while (!st.over && guard++ < 400) {
     var side = st.side, ev = [];
@@ -42,16 +45,23 @@ function game(seed) {
       else if (e.k === 'mark') marks++;
       else if (e.k === 'step') steps++;
       else if (e.k === 'lamp') lamps++;
+      else if (e.k === 'drop') drops++;
+      else if (e.k === 'take') takes++;
+      else if (e.k === 'heal') heals++;
+      else if (e.k === 'use') { uses++; if (e.hit) { useHits++; if (firstHit === null) firstHit = st.turn; } }
     }
   }
   return { turns: st.turn, reason: st.reason, winner: st.winner, first: seed & 1,
            hp: [st.ps[0].hp, st.ps[1].hp], shots: shots, hits: hits,
-           bumps: bumps, marks: marks, steps: steps, lamps: lamps, firstHit: firstHit };
+           bumps: bumps, marks: marks, steps: steps, lamps: lamps, firstHit: firstHit,
+           drops: drops, takes: takes, uses: uses, useHits: useHits, heals: heals,
+           painted: st.paint.length };
 }
 
 var N = parseInt(process.argv[2] || '2000', 10);
 var agg = { kill: 0, timeup: 0, shots: 0, hits: 0, bumps: 0, marks: 0, steps: 0,
-            turns: 0, draws: 0, w0: 0, firstHits: [], dmgTotal: 0, lamps: 0, err: 0 };
+            turns: 0, draws: 0, w0: 0, firstHits: [], dmgTotal: 0, lamps: 0, err: 0,
+            drops: 0, takes: 0, uses: 0, useHits: 0, heals: 0, painted: 0 };
 for (var s = 1; s <= N; s++) {
   var g = game(s * 7919);
   //  ⚠ 규칙 오류는 **크게** 실패한다. 조용히 세고 넘어가면 「오류가 난 판은 통계에서
@@ -60,6 +70,8 @@ for (var s = 1; s <= N; s++) {
   agg[g.reason]++;
   agg.shots += g.shots; agg.hits += g.hits; agg.bumps += g.bumps;
   agg.marks += g.marks; agg.steps += g.steps; agg.turns += g.turns; agg.lamps += g.lamps;
+  agg.drops += g.drops; agg.takes += g.takes; agg.uses += g.uses; agg.useHits += g.useHits;
+  agg.heals += g.heals; agg.painted += g.painted;
   agg.dmgTotal += (10 - g.hp[0] - g.hp[1]);
   if (g.winner === -1) agg.draws++; else if (g.winner === g.first) agg.w0++;
   if (g.firstHit !== null) agg.firstHits.push(g.firstHit);
@@ -84,3 +96,10 @@ console.log('평균 발자국/판  ', (agg.marks / N).toFixed(2));
 console.log('평균 페인트밟기/판', (agg.steps / N).toFixed(2));
 console.log('평균 부딪힘/판  ', (agg.bumps / N).toFixed(2));
 console.log('평균 전등켜기/판', (agg.lamps / N).toFixed(2));
+//  ── 보급 상자(v1.2) — 「지루하다」에 대한 답이 실제로 판을 움직였나 ──────────
+//  줍는 비율이 낮으면 상자는 그냥 배경이다. 도구 명중률이 사격보다 높아야 «가러 갈 값»이 있다.
+console.log('평균 상자낙하/판', (agg.drops / N).toFixed(2), '· 주워간 비율', pct(agg.takes, agg.drops || 1));
+console.log('평균 도구사용/판', (agg.uses / N).toFixed(2), '· 도구 명중률', pct(agg.useHits, agg.uses || 1),
+            '· 반창고', (agg.heals / N).toFixed(2));
+console.log('평균 칠한 칸/판 ', (agg.painted / N).toFixed(1), '/ ' + (C.C.W * C.C.H) + '칸',
+            pct(agg.painted / N, C.C.W * C.C.H), '(방이 드러난 넓이)');

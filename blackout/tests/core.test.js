@@ -21,10 +21,11 @@ function section(t) { console.log('\n' + t); }
 function board(p0, p1, side, objects) {
   var st = C.create(1);
   st.room = { id: 'test', name: 'test', floor: 'wood', objects: objects || [] };
-  st.ps[0] = { x: p0[0], y: p0[1], hp: 5, painted: false, face: 2, known: zeros() };
-  st.ps[1] = { x: p1[0], y: p1[1], hp: 5, painted: false, face: 0, known: zeros() };
+  st.ps[0] = { x: p0[0], y: p0[1], hp: 5, painted: false, face: 2, item: null, known: zeros() };
+  st.ps[1] = { x: p1[0], y: p1[1], hp: 5, painted: false, face: 0, item: null, known: zeros() };
   st.side = side || 0; st.ap = 2; st.turn = 1; st.lamp = null; st.lit = 0;
   st.seen = [null, null]; st.spot = [null, null]; st.paint = []; st.marks = []; st.glow = null;
+  st.drops = [];
   C.look(st, 0); C.look(st, 1);                 // 판을 만들 때처럼 각자 제 시야만큼 안다                 // 판을 만들 때처럼 각자 제 시야만큼 안다
   return st;
 }
@@ -490,6 +491,122 @@ section('인기척 — 바로 옆 한 칸, 양쪽 다, 한 비트만');
   ok(!C.view(far, 0).sense, '두 칸 떨어지면 꺼진다');
   ok(typeof C.view(near, 0).sense === 'boolean', '새는 것은 참/거짓 한 비트뿐이다');
   ok(C.view(near, 0).foe === null, '인기척이 켜져도(시야 밖이면) 상대 좌표는 안 준다');
+})();
+
+section('보급 상자 — 몇 턴마다 하나, 자리도 내용물도 공개, 씨앗으로만 정해진다');
+(function () {
+  var st = C.create(12345), spawned = 0, turns = 0;
+  while (turns < 30 && !st.over) {
+    var r = C.applyTurn(st, st.side, []);
+    turns++;
+    r.ev.forEach(function (e) { if (e.k === 'drop') spawned++; });
+  }
+  ok(spawned > 0, '몇 턴 지나면 상자가 떨어진다', spawned + '개');
+  ok(st.drops.length <= C.C.DROP_MAX, '바닥에 DROP_MAX 를 넘겨 쌓이지 않는다', st.drops.length + '개');
+
+  //  ⚠ 이 게임에서 제일 비싼 버그는 desync 다. 상자는 Math.random 을 쓰면 안 된다.
+  var again = C.replay(12345, new Array(turns).fill([]));
+  ok(again.ok, '같은 씨앗·같은 기록으로 다시 돌릴 수 있다', again.err);
+  eq(C.hash(again.st), C.hash(st), '다시 돌린 판의 해시가 같다 — 상자가 결정론이다');
+  eq(JSON.stringify(again.st.drops), JSON.stringify(st.drops), '상자 자리·내용물까지 똑같다');
+
+  //  둘 다 본다 — 이게 «만날 이유»의 전부다.
+  var v0 = C.view(st, 0), v1 = C.view(st, 1);
+  eq(JSON.stringify(v0.drops), JSON.stringify(v1.drops), '상자는 양쪽에 똑같이 보인다(공개 정보)');
+  if (st.drops.length) {
+    ok(!!v0.drops[0].kind, '내용물도 미리 보인다 — 갈 값이 있는지 판단할 수 있어야 한다');
+    ok(v0.tiles[C.idx(st.drops[0].x, st.drops[0].y)] !== null, '상자가 놓인 칸은 둘 다 알게 된다');
+  }
+  var seeds = {};
+  for (var i = 1; i <= 40; i++) {
+    var t = C.create(i * 7919);
+    for (var k = 0; k < C.C.DROP_EVERY; k++) C.applyTurn(t, t.side, []);
+    if (t.drops.length) seeds[t.drops[0].x + ',' + t.drops[0].y + ':' + t.drops[0].kind] = 1;
+  }
+  ok(Object.keys(seeds).length > 10, '판마다 자리도 내용물도 달라진다', Object.keys(seeds).length + '가지');
+})();
+
+section('보급 상자 — 밟으면 줍고, 그 순간 자리가 드러난다(그게 값이다)');
+(function () {
+  var st = board([3, 3], [7, 7], 0);
+  st.drops = [{ x: 3, y: 4, kind: 'bomb', turn: 1 }];
+  eq(C.act(st, 0, ['m', DOWN]), null, '상자 칸으로 걸어갈 수 있다');
+  eq(st.ps[0].item, 'bomb', '밟으면 줍는다');
+  eq(st.drops.length, 0, '주운 상자는 바닥에서 사라진다');
+  ok(!!st.seen[0] && st.seen[0].x === 3 && st.seen[0].y === 4, '주운 자리가 공개 노출로 남는다');
+  ok(C.view(st, 1).foeSeen && C.view(st, 1).foeSeen.y === 4, '상대는 「방금 거기 있었다」를 안다');
+  eq(C.view(st, 0).item, 'bomb', '내 손에 든 것은 내게만 보인다');
+  ok(C.view(st, 1).item == null, '⚠ 상대가 든 도구는 절대 넘어가지 않는다');
+
+  //  손이 차 있으면 안 집는다 — 원치 않는 교환으로 자리가 팔리면 안 된다.
+  var st2 = board([3, 3], [7, 7], 0);
+  st2.ps[0].item = 'heal';
+  st2.drops = [{ x: 3, y: 4, kind: 'bomb', turn: 1 }];
+  C.act(st2, 0, ['m', DOWN]);
+  eq(st2.ps[0].item, 'heal', '손이 차 있으면 상자를 밟아도 안 바뀐다');
+  eq(st2.drops.length, 1, '상자도 그대로 남는다');
+  ok(st2.seen[0] == null, '그러니 자리도 안 드러난다');
+})();
+
+section('도구 — 모양대로 칠하고, 쓴 사람의 자리는 사격과 똑같이 안 드러난다');
+(function () {
+  var st = board([0, 0], [4, 4], 0);
+  st.ps[0].item = 'bomb';
+  eq(C.act(st, 0, ['u', 4, 4]), null, '겨눈 칸에 던질 수 있다');
+  eq(st.ps[1].hp, 4, '십자 안에 상대가 있으면 한 대');
+  eq(st.paint.length, 5, '닿은 칸이 전부 칠해진다 — 그만큼 방이 드러난다');
+  eq(st.ps[0].item, null, '쓰면 손이 빈다');
+  eq(st.ap, 1, '행동력 하나를 쓴다');
+  ok(C.view(st, 1).foeSeen == null || C.view(st, 1).foeSeen.x !== 0,
+     '⚠ 던진 사람의 자리는 상대에게 안 간다(설계자 확정: 쏘면 들킨다는 설정은 없다)');
+  ok(!!C.view(st, 0).foe, '맞힌 턴 동안은 상대가 야광으로 보인다');
+
+  //  가장자리에 걸친 모양은 잘린다 — 구석에서 쓰면 그만큼 손해다.
+  var edge = board([0, 0], [7, 7], 0);
+  edge.ps[0].item = 'bomb';
+  C.act(edge, 0, ['u', 0, 7]);
+  eq(edge.paint.length, 3, '격자 밖으로 나간 칸은 버린다');
+
+  //  여러 칸에 걸쳐도 한 번만 아프다.
+  var once = board([0, 0], [3, 3], 0);
+  once.ps[0].item = 'wide';
+  C.act(once, 0, ['u', 3, 3]);
+  eq(once.ps[1].hp, 4, '2×2 가 겹쳐도 체력은 하나만 깎인다');
+  eq(once.paint.length, 4, '2×2 는 네 칸');
+})();
+
+section('도구 — 반창고는 제자리에서만, 그리고 자리를 알려주지 않는다');
+(function () {
+  var st = board([2, 2], [7, 7], 0);
+  st.ps[0].item = 'heal'; st.ps[0].hp = 2;
+  ok(!!C.act(st, 0, ['u', 5, 5]), '엉뚱한 칸에는 못 쓴다');
+  eq(st.ps[0].hp, 2, '규칙 위반은 상태를 안 바꾼다');
+  eq(C.act(st, 0, ['u', 2, 2]), null, '제자리에서는 쓸 수 있다');
+  eq(st.ps[0].hp, 3, '체력이 하나 돌아온다');
+  eq(st.paint.length, 0, '아무것도 칠하지 않는다');
+  var ev = st.ev[st.ev.length - 1];
+  eq(ev.k, 'heal', '회복 사건이 난다');
+  ok(ev.x == null && ev.y == null, '⚠ 사건에 좌표가 없다 — 반창고로 내 자리가 새면 안 된다');
+
+  var full = board([2, 2], [7, 7], 0);
+  full.ps[0].item = 'heal';
+  C.act(full, 0, ['u', 2, 2]);
+  eq(full.ps[0].hp, C.C.HP, '체력 상한을 넘지 않는다');
+
+  var empty = board([2, 2], [7, 7], 0);
+  ok(!!C.act(empty, 0, ['u', 2, 2]), '빈손이면 규칙이 받지 않는다');
+  eq(empty.ap, 2, '거절된 행동은 행동력도 안 쓴다');
+})();
+
+section('도구 — 해시에 들어간다(한쪽만 달라지면 그 자리에서 잡혀야 한다)');
+(function () {
+  var a = board([0, 0], [4, 4], 0), b = board([0, 0], [4, 4], 0);
+  eq(C.hash(a), C.hash(b), '같은 판은 같은 해시');
+  b.ps[0].item = 'bomb';
+  ok(C.hash(a) !== C.hash(b), '손에 든 도구가 다르면 해시가 다르다');
+  var c = board([0, 0], [4, 4], 0);
+  c.drops = [{ x: 2, y: 2, kind: 'wide', turn: 1 }];
+  ok(C.hash(a) !== C.hash(c), '바닥의 상자가 다르면 해시가 다르다');
 })();
 
 console.log('\n' + (fail ? '✗ ' : '✓ ') + pass + ' 통과 · ' + fail + ' 실패');

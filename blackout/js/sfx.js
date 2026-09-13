@@ -59,6 +59,10 @@ BO.Sfx = (function () {
     spot:  function () { blip(520, 1040, 0.14, 'sine', 0.07); blip(1040, 1300, 0.10, 'sine', 0.05, 0.1); },
     turn:  function () { blip(520, 520, 0.06, 'sine', 0.05); },
     lamp:  function () { blip(300, 1200, 0.22, 'square', 0.08); },   // 딸깍—탁, 불 들어오는 소리
+    //  보급 상자: 「슈욱—툭」 내려오다 바닥에 닿는 소리. 둘 다 듣는다.
+    drop:  function () { blip(1400, 420, 0.30, 'sine', 0.06); blip(160, 70, 0.14, 'triangle', 0.11, 0.28); splash(0.12, 0.07, 700, 0.28); },
+    //  도구를 던졌다: 널찍하게 퍼지는 철퍽. 사격보다 낮고 길다.
+    burst: function () { blip(260, 90, 0.20, 'sawtooth', 0.07); splash(0.34, 0.15, 1100); },
     win:   function () { blip(523, 1046, 0.30, 'triangle', 0.10); },
     lose:  function () { blip(330, 110, 0.45, 'triangle', 0.10); }
   };

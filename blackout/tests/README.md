@@ -37,6 +37,7 @@ python3 -m http.server 8765           # 저장소 루트에서
 node blackout/tests/roomserver.js     # 방 서버 대역 (:8767)
 
 node blackout/tests/layout.js         # 일곱 기종에서 화면이 안 넘치는지
+node blackout/tests/drops.js          # 📦 보급 상자·도구가 화면에서 도는지(v1.2)
 node blackout/tests/pvp.js            # 브라우저 둘을 붙여 한 판
 node blackout/tests/safety.js         # 어긋남 감지·복구 · 재접속 따라잡기
 node blackout/tests/invite.test.js    # 초대 링크 복사 → ?room= 으로 바로 입장 → 시작

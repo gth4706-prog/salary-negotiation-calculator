@@ -133,10 +133,20 @@ BO.Bot = (function () {
       g[q.y][q.x] *= q.age <= 1 ? 0.05 : (q.age <= 4 ? 0.3 : 0.8);
     }
 
-    //  ⑤ **지금 내 시야에 있는 칸에는 없다** — 있었으면 보였을 테니. 제일 확실한 부정 단서.
+    //  ⑤ **상대도 상자를 노린다.** 상자 자리는 둘 다 아는 유일한 목적지다 — 단서가
+    //     없을 때도 「저기로 오고 있을 것」이라는 약한 예측을 세울 수 있다. 약하게만.
+    for (var b = 0; b < (v.drops || []).length; b++) {
+      var dd = v.drops[b];
+      for (y = 0; y < H(); y++) for (x = 0; x < W(); x++) {
+        var dm2 = C.dist(x, y, dd.x, dd.y);
+        if (dm2 <= 2) g[y][x] += 0.5 / (1 + dm2);
+      }
+    }
+
+    //  ⑥ **지금 내 시야에 있는 칸에는 없다** — 있었으면 보였을 테니. 제일 확실한 부정 단서.
     if (!v.foe) for (var s = 0; s < v.seen.length; s++) g[v.seen[s].y][v.seen[s].x] = 0;
 
-    //  ⑥ **인기척** — 켜지면 반경 안 어딘가, 꺼지면 반경 안에는 확실히 없다.
+    //  ⑦ **인기척** — 켜지면 반경 안 어딘가, 꺼지면 반경 안에는 확실히 없다.
     if (v.senseR > 0) {
       for (y = 0; y < H(); y++) for (x = 0; x < W(); x++) {
         var dm = C.dist(x, y, v.me.x, v.me.y);
@@ -166,29 +176,63 @@ BO.Bot = (function () {
     //     떼고 멈추면 화살표 끝이 곧 내 자리다 — 두 걸음을 붙여 끝자리를 흐린다.
     if (v.me.painted) return mv(pickMove(v, null, true));
 
-    //  ③ 단서가 있으면 쏜다. 없으면 **쏘지 않는다** — 64칸에 대고 찍는 건 낭비다.
+    //  ③ 손에 도구가 있으면 — 반창고는 아플 때, 나머지는 **덮은 칸의 합**이 제일 큰 곳에.
+    //     도구는 한 발보다 넓으니 단서가 흐려도 던질 값이 있다(문턱을 낮게 둔다).
+    if (v.item === 'heal') {
+      if (v.me.hp <= 2) return ['u', v.me.x, v.me.y];
+      //  체력이 가득인데 반창고를 쥐고 있으면 **다음 상자를 못 줍는다**(한 손에 하나).
+      //  코앞에 상자가 있으면 감고 버린다 — 손을 비우는 것도 수다.
+      if (v.me.hp >= C.C.HP && v.drops && v.drops.length) {
+        var near0 = nearestDrop(v);
+        if (near0 && near0.n <= 2) return ['u', v.me.x, v.me.y];
+      }
+    } else if (v.item && hasLead(v)) {
+      var blast = bestBlast(g, v);
+      if (blast && blast.s > 0.9) return ['u', blast.x, blast.y];
+    }
+
+    //  ④ **코앞의 상자는 단서보다 먼저다.** 두 걸음 안이면 주워 두고 쫓는다 — 도구 하나가
+    //     한 발보다 넓고, 무엇보다 상대도 그리로 오는 중이다.
+    if (!v.item && v.drops && v.drops.length) {
+      var near = nearestDrop(v);
+      if (near && near.n > 0 && near.n <= 2) {
+        var grab = pickMove(v, near, false, g);
+        if (grab != null) return ['m', grab];
+      }
+    }
+
+    //  ⑤ 단서가 있으면 쏜다. 없으면 **쏘지 않는다** — 64칸에 대고 찍는 건 낭비다.
     if (hasLead(v)) {
       var shot = bestShot(g, v);
       if (shot && shot.s > 0.4) return ['s', shot.x, shot.y];
     }
 
     // ── 여기부터는 «단서가 없다». 정보를 얻으러 간다. ────────────────────────
+    //  ⑥ **보급 상자** — 손이 비었으면 제일 가까운 상자로 간다. 전등보다 먼저인 이유:
+    //     도구도 얻고, 무엇보다 **상대도 거기로 온다.** 어둠에서 만날 유일한 약속이다.
+    if (!v.item && v.drops && v.drops.length) {
+      var box = nearestDrop(v);
+      if (box && !(v.me.x === box.x && v.me.y === box.y)) {
+        var toBox = pickMove(v, box, false, g);
+        if (toBox != null) return ['m', toBox];
+      }
+    }
     if (v.lamp) {
       var onLamp = (v.me.x === v.lamp.x && v.me.y === v.lamp.y);
       var adj = -1;
       for (var d = 0; d < 4; d++)
         if (v.me.x + C.DX[d] === v.lamp.x && v.me.y + C.DY[d] === v.lamp.y) adj = d;
-      //  ④ 버튼이 바로 옆이고 **첫 행동**이면 켠다(마지막 행동으로 켜면 상대가 그 불을 쓴다).
+      //  ⑦ 버튼이 바로 옆이고 **첫 행동**이면 켠다(마지막 행동으로 켜면 상대가 그 불을 쓴다).
       if (adj >= 0 && first) return ['m', adj];
-      //  ⑤ 버튼 위에 서 있다 → 한 칸 물러난다. 다음 턴 첫 행동으로 다시 밟으려고.
+      //  ⑧ 버튼 위에 서 있다 → 한 칸 물러난다. 다음 턴 첫 행동으로 다시 밟으려고.
       if (onLamp) return mv(pickMove(v, null, false, g));
-      //  ⑥ 아직 멀다 → 다가간다(아는 가구만 피해서. 모르는 가구면 부딪히고 배운다).
+      //  ⑨ 아직 멀다 → 다가간다(아는 가구만 피해서. 모르는 가구면 부딪히고 배운다).
       if (adj < 0) {
         var toLamp = pickMove(v, v.lamp, false, g);
         if (toLamp != null) return ['m', toLamp];
       }
     }
-    //  ⑦ 버튼이 없거나 갈 데가 없으면 — 새 칸을 제일 많이 보게 되는 쪽으로 훑는다.
+    //  ⑩ 버튼이 없거나 갈 데가 없으면 — 새 칸을 제일 많이 보게 되는 쪽으로 훑는다.
     var sweep = pickMove(v, null, false, g);
     if (sweep != null) return ['m', sweep];
     var fb = bestShot(g, v);
@@ -204,6 +248,35 @@ BO.Bot = (function () {
   }
 
   function mv(d) { return d != null ? ['m', d] : null; }
+
+  //  제일 가까운 상자 — 아는 가구만 피해서 걸어갔을 때. 못 가는 상자는 뺀다.
+  function nearestDrop(v) {
+    var best = null;
+    for (var i = 0; i < v.drops.length; i++) {
+      var d = v.drops[i], pp = paths(v, d.x, d.y), n = pp[v.me.x + ',' + v.me.y];
+      if (n == null) continue;
+      if (d.kind === 'heal' && v.me.hp >= C.C.HP - 1) n += 6;   // 멀쩡할 땐 반창고가 안 급하다
+      if (!best || n < best.n) best = { x: d.x, y: d.y, n: n };
+    }
+    return best;
+  }
+
+  //  도구는 모양대로 여러 칸을 덮는다 — 그러니 «한 칸 최고점»이 아니라 **덮은 칸의 합**이
+  //  제일 큰 자리에 던진다. 사람이 손으로 하는 계산과 같다.
+  function bestBlast(g, v) {
+    var best = null;
+    for (var y = 0; y < H(); y++) for (var x = 0; x < W(); x++) {
+      var ts = C.shapeTiles(v.item, x, y), s = 0;
+      for (var i = 0; i < ts.length; i++) {
+        var t = ts[i];
+        if (knownBlocked(v, t.x, t.y)) continue;
+        if (t.x === v.me.x && t.y === v.me.y) continue;    // 제 발밑은 어차피 못 맞힌다
+        s += g[t.y][t.x];
+      }
+      if (!best || s > best.s) best = { x: x, y: y, s: s };
+    }
+    return best;
+  }
 
   //  사정권 안에서 점수가 가장 높은 칸.
   function bestShot(g, v) {
@@ -225,12 +298,17 @@ BO.Bot = (function () {
     var dists = toward ? paths(v, toward.x, toward.y) : null;
     var paintAt = {};
     for (var i = 0; i < v.paint.length; i++) paintAt[v.paint[i].x + ',' + v.paint[i].y] = 1;
+    var boxAt = {};
+    if (!v.item) for (var b = 0; b < (v.drops || []).length; b++) boxAt[v.drops[b].x + ',' + v.drops[b].y] = 1;
 
     for (var j = 0; j < v.legalDirs.length; j++) {
       var d = v.legalDirs[j];
       var nx = me.x + C.DX[d], ny = me.y + C.DY[d];
       var s = Math.random() * 0.9;                       // 예측 불가능해야 한다
       if (paintAt[nx + ',' + ny]) s -= 4;                // 밟으면 윤곽이 보인다
+      //  상자 위로 한 걸음이면 도구 하나. 얼룩을 밟는 값(−4)보다 크게 둔다 — 그래야
+      //  얼룩 위에 놓인 상자도 주우러 간다(그게 이 판에서 제일 재미있는 선택이다).
+      if (boxAt[nx + ',' + ny]) s += 6;
       //  모르는 칸은 부딪힐 수 있다. 시야가 두 칸 줄기라 옆은 늘 모른다 — 벌점을 세게 두지
       //  않으면 판당 50번을 부딪힌다(실측). 앞(보이는 칸)으로 가는 걸 좋아하게.
       if (!tile(v, nx, ny)) s -= 1.1;

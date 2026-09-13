@@ -28,7 +28,7 @@ BO.UI = (function () {
     els.board = $('board'); els.log = $('log'); els.status = $('status');
     els.hpMe = $('hp-me'); els.hpFoe = $('hp-foe'); els.turn = $('turn-info');
     els.clock = $('clock'); els.clockBar = $('clock-bar'); els.ap = $('ap');
-    els.modeMove = $('mode-move'); els.modeShoot = $('mode-shoot');
+    els.modeMove = $('mode-move'); els.modeShoot = $('mode-shoot'); els.modeItem = $('mode-item');
     els.confirm = $('confirm'); els.pass = $('pass'); els.pad = $('pad');
     els.sense = $('sense'); els.logToggle = $('log-toggle');
     els.toast = $('toast'); els.hurt = $('hurt');
@@ -64,7 +64,11 @@ BO.UI = (function () {
                     '<i class="shape"><b class="pic"></b><b class="tint"></b><b class="edge"></b></i></span>' +
                     '<span class="mark hide"><i></i></span><span class="lamp hide"></span>' +
                     '<span class="dir hide"></span><span class="ghost hide"></span><span class="reaction"></span>' +
-                    '<span class="glowfx"></span><span class="memo"></span>';
+                    '<span class="glowfx"></span><span class="memo"></span>' +
+                    '<span class="box hide"><i></i></span>';
+      //  ⚠ 아래 그리기 코드가 층을 **번호로** 찾는다(children[7] 등). 새 층은 반드시
+      //    끝에 붙이고, 끝에 붙인 것은 번호 대신 이름표로 잡아 둔다.
+      d._box = d.lastChild;
       (function (px, py, node) {
         node.addEventListener('click', function () { onTile(px, py, h); });
       })(x, y, d);
@@ -136,6 +140,10 @@ BO.UI = (function () {
       var d = dirTo(v.me, x, y);
       if (d == null) { flashHint('한 칸씩만 움직일 수 있습니다'); return; }
       if (v.legalDirs.indexOf(d) < 0) { flashHint('가구가 있는 칸 — 못 갑니다. 사격으로 칠할 수는 있습니다'); return; }
+    } else if (mode === 'item') {
+      if (!v.item) { flashHint('가진 도구가 없습니다'); return; }
+      //  반창고는 겨냥이 없다 — 어디를 짚어도 제자리에서 쓴다.
+      if (v.item === 'heal') { x = v.me.x; y = v.me.y; }
     } else if (x === v.me.x && y === v.me.y) { flashHint('제 발밑은 쏘지 않습니다'); return; }
     if (sel && sel.x === x && sel.y === y) { confirm(h); return; }   // 같은 칸 두 번 = 확정
     sel = { x: x, y: y };
@@ -150,7 +158,8 @@ BO.UI = (function () {
     var nx = from.x + C.DX[d], ny = from.y + C.DY[d];
     if (mode === 'move') {
       if (v.legalDirs.indexOf(d) < 0) { flashHint(C.inBoard(nx, ny) ? '가구가 있는 칸 — 못 갑니다' : '벽입니다'); return; }
-    } else if (!C.inBoard(nx, ny)) { flashHint('격자 밖입니다'); return; }
+    } else if (mode === 'item' && v.item === 'heal') { flashHint('반창고는 제자리에서 씁니다 — [쓰기]'); return; }
+    else if (!C.inBoard(nx, ny)) { flashHint('격자 밖입니다'); return; }
     sel = { x: nx, y: ny };
     render(v);
   }
@@ -159,12 +168,16 @@ BO.UI = (function () {
   function confirm(h) {
     var v = h.view();
     if (!v || !v.myTurn) return;
-    if (!sel) { flashHint(mode === 'move' ? '갈 칸을 먼저 고르세요' : '쏠 칸을 먼저 고르세요'); return; }
+    if (!sel) { flashHint(mode === 'move' ? '갈 칸을 먼저 고르세요'
+                        : (mode === 'item' ? '던질 칸을 먼저 고르세요' : '쏠 칸을 먼저 고르세요')); return; }
     var t = sel; sel = null;
     if (mode === 'move') {
       var d = dirTo(v.me, t.x, t.y);
       if (d == null) { render(v); return; }
       h.act(['m', d]);
+    } else if (mode === 'item') {
+      if (!v.item) { flashHint('가진 도구가 없습니다'); render(v); return; }
+      h.act(['u', t.x, t.y]);
     } else {
       if (t.x === v.me.x && t.y === v.me.y) { flashHint('제 발밑은 쏘지 않습니다'); render(v); return; }
       h.act(['s', t.x, t.y]);
@@ -177,13 +190,18 @@ BO.UI = (function () {
   }
 
   function setMode(m, h) {
+    var v = h.view();
+    if (m === 'item' && v && !v.item) { flashHint('가진 도구가 없습니다 — 📦 상자를 밟아 주우세요'); return; }
     mode = m; sel = null;
-    var v = h.view(); if (v) render(v);
+    //  반창고는 겨냥할 게 없다. 바로 제자리를 골라 두고 [쓰기] 한 번이면 끝.
+    if (m === 'item' && v && v.item === 'heal') sel = { x: v.me.x, y: v.me.y };
+    if (v) render(v);
   }
 
   function bindControls(h) {
     els.modeMove.onclick = function () { setMode('move', h); };
     els.modeShoot.onclick = function () { setMode('shoot', h); };
+    els.modeItem.onclick = function () { setMode('item', h); };
     els.confirm.onclick = function () { confirm(h); };
     els.pass.onclick = function () { sel = null; h.pass(); };
     for (var d = 0; d < 4; d++) (function (dir) {
@@ -203,7 +221,12 @@ BO.UI = (function () {
       else if (k === 'arrowdown' || k === 's') d = 2;
       else if (k === 'arrowleft' || k === 'a') d = 3;
       if (d != null) { e.preventDefault(); pad(d, h); return; }
-      if (k === ' ') { e.preventDefault(); setMode(mode === 'move' ? 'shoot' : 'move', h); }
+      if (k === ' ') {
+        e.preventDefault();
+        //  이동 → 사격 → (도구가 있으면) 도구 → 이동
+        setMode(mode === 'move' ? 'shoot' : (mode === 'shoot' && v.item ? 'item' : 'move'), h);
+      }
+      else if (k === 'e') { e.preventDefault(); setMode('item', h); }
       else if (k === 'enter') { e.preventDefault(); confirm(h); }
       else if (k === 'escape') { sel = null; render(v); }
     });
@@ -213,13 +236,19 @@ BO.UI = (function () {
   function render(v, light) {
     if (!v) return;
     if (!v.myTurn) sel = null;             // 내 턴이 아니면 고른 것도 없다
+    //  도구를 써 버렸으면 손이 비었다 — 모드를 이동으로 되돌린다(빈손 모드는 함정이다)
+    if (mode === 'item' && !v.item) { mode = 'move'; sel = null; }
     pips(els.hpMe, v.me.hp); pips(els.hpFoe, v.foeHp);
     els.turn.innerHTML = '<b>' + (v.over ? '판 종료' : (v.myTurn ? '내 턴' : '상대 턴')) + '</b>' +
       v.turn + ' / ' + v.maxTurns + '턴';
 
     var dots = '';
     for (var i = 0; i < C.C.AP; i++) dots += '<span class="dot' + (i < v.ap ? ' on' : '') + '"></span>';
+    var it = v.item ? C.ITEMS[v.item] : null;
     els.ap.innerHTML = (v.myTurn ? '행동력 ' : '상대 행동력 ') + dots +
+      (it ? ' <span class="held">· ' + it.icon + ' ' + it.name + ' — ' +
+            (v.item === 'heal' && v.me.hp >= C.C.HP ? '체력이 가득이다. 버리면 다음 상자를 주울 수 있다' : it.tip) +
+            '</span>' : '') +
       (v.me.painted ? ' <span class="glowing">· 신발이 젖었다 — 다음 걸음에 발자국이 찍힌다</span>' : '');
 
     if (v.lit > 0) {
@@ -240,19 +269,30 @@ BO.UI = (function () {
 
     els.modeMove.classList.toggle('on', mode === 'move');
     els.modeShoot.classList.toggle('on', mode === 'shoot');
+    els.modeItem.classList.toggle('on', mode === 'item');
+    els.modeItem.classList.toggle('has', !!it);
+    els.modeItem.textContent = it ? it.icon + ' ' + (it.short || it.name) : '📦 도구';
+    els.modeItem.title = it ? it.tip : '보급 상자를 밟으면 줍습니다';
     els.pass.textContent = v.ap === C.C.AP ? '턴 넘기기' : '남은 행동력 버리고 넘기기';
 
     var lock = !v.myTurn || v.over;
     els.pass.disabled = lock;
     els.modeMove.disabled = lock; els.modeShoot.disabled = lock;
+    els.modeItem.disabled = lock || !it;
     els.confirm.disabled = lock || !sel;
-    els.confirm.textContent = mode === 'move' ? (sel ? '이동 확정' : '갈 칸을 고르세요')
-                                              : (sel ? '발사' : '쏠 칸을 고르세요');
+    els.confirm.textContent =
+      mode === 'move' ? (sel ? '이동 확정' : '갈 칸을 고르세요')
+      : mode === 'item' ? (v.item === 'heal'
+            ? (v.me.hp >= C.C.HP ? '🩹 반창고 버리기 (체력 가득)' : '🩹 반창고 쓰기')
+            : (sel ? (it ? it.icon + ' 던지기' : '던지기') : '던질 칸을 고르세요'))
+      : (sel ? '발사' : '쏠 칸을 고르세요');
     els.confirm.classList.toggle('shoot', mode === 'shoot');
+    els.confirm.classList.toggle('item', mode === 'item');
     for (var d = 0; d < 4; d++) {
       var b = $('pad-' + d);
       if (!b) continue;
-      b.disabled = lock || (mode === 'move' && v.legalDirs.indexOf(d) < 0);
+      b.disabled = lock || (mode === 'move' && v.legalDirs.indexOf(d) < 0) ||
+                   (mode === 'item' && v.item === 'heal');
     }
 
     if (light) return;   // 시계만 도는 갱신 — 격자는 안 건드린다(깜빡임 방지)
@@ -269,6 +309,7 @@ BO.UI = (function () {
     }
     els.board.classList.toggle('moving', mode === 'move' && v.myTurn);
     els.board.classList.toggle('shooting', mode === 'shoot' && v.myTurn);
+    els.board.classList.toggle('throwing', mode === 'item' && v.myTurn);
     els.board.classList.toggle('lit', v.lit > 0);
     var movable = {}, d;
     if (v.myTurn && mode === 'move') {
@@ -281,10 +322,17 @@ BO.UI = (function () {
     els.board.style.setProperty('--reveal', cov.toFixed(3));
     //  기억 칸은 이제 «선»이라 안개를 많이 씌울 필요가 없다 — 선 자체가 흐리다.
     var knownFog = (0.5 - 0.12 * cov).toFixed(3);
-    var paint = {}, mark = {}, seen = {};
+    var paint = {}, mark = {}, seen = {}, box = {}, blast = {};
     v.paint.forEach(function (p) { paint[p.x + ',' + p.y] = p; });
     v.marks.forEach(function (m) { mark[m.x + ',' + m.y] = m; });
     v.seen.forEach(function (s) { seen[s.x + ',' + s.y] = 1; });
+    (v.drops || []).forEach(function (b) { box[b.x + ',' + b.y] = b; });
+    //  ── 도구 미리보기 ──────────────────────────────────────────────────────
+    //  「어디가 칠해지는지」를 던지기 **전에** 보여 준다. 모양이 세 가지라 안 보여 주면
+    //  매번 헛던진다(2×2 는 오른쪽·아래로 자란다 — 말로 설명해서는 안 읽힌다).
+    if (mode === 'item' && v.myTurn && sel && v.item && v.item !== 'heal') {
+      C.shapeTiles(v.item, sel.x, sel.y).forEach(function (t) { blast[t.x + ',' + t.y] = 1; });
+    }
 
     //  상대가 새로 «보이게» 된 순간 — 발견을 알린다(놓치면 게임이 안 된다)
     var foeKey = v.foe ? v.foe.why + v.foe.x + ',' + v.foe.y : '';
@@ -324,6 +372,7 @@ BO.UI = (function () {
       c.classList.toggle('movable', !!movable[key]);
       c.classList.toggle('step', isSel && mode === 'move');    // 갈 칸
       c.classList.toggle('aim', isSel && mode === 'shoot');    // 쏠 칸
+      c.classList.toggle('blast', !!blast[key]);               // 도구가 칠할 칸(미리보기)
       c.classList.toggle('sensed', !!(v.sense && C.dist(x, y, v.me.x, v.me.y) <= v.senseR));
 
       //  어둠의 두께(안개 SVG) · 시야의 빛(빛 SVG)
@@ -356,6 +405,18 @@ BO.UI = (function () {
 
       //  내가 바라보는 방향 — 시야각이 어디로 열렸는지 한눈에
       sd.className = 'dir' + (isMe ? ' f' + v.me.face : ' hide');
+
+      //  ── 보급 상자 — **둘 다 본다.** 어둠을 뚫고 보이는 유일한 «약속된 자리»다.
+      var bx = box[key];
+      if (bx) {
+        var bi = C.ITEMS[bx.kind] || {};
+        c._box.className = 'box k-' + bx.kind + (bx.age === 0 ? ' fresh' : '');
+        if (c._box.dataset.kind !== bx.kind) {
+          c._box.dataset.kind = bx.kind;
+          c._box.firstChild.innerHTML = itemGlyph(bx.kind);
+        }
+        c._box.title = '보급 상자 · ' + (bi.name || bx.kind) + ' — ' + (bi.tip || '');
+      } else c._box.className = 'box hide';
 
       var ghost = v.foeSeen && v.foeSeen.x === x && v.foeSeen.y === y &&
                   (v.turn - v.foeSeen.turn) <= 3 && !isFoe;
@@ -422,15 +483,74 @@ BO.UI = (function () {
                  : '👣 상대 발자국! ' + at + ' 에서 ' + way + ' — ' + to + ' 로 갔다', byMe ? 'foe' : 'me');
         if (!byMe) { toast('👣 ' + way + '!', 'spot'); BO.Sfx.play('clue'); }
       } else if (e.k === 'step') {
+        //  ⚠ **밟은 본인만 아는 사건**이다. 예전엔 양쪽 기록에 다 찍혀서, 상대가
+        //    「지금 얼룩 위에 있다」를 공짜로 알았다(얼룩 칸은 공개라 후보가 확 줄어든다).
+        if (!byMe) return;
         say('🎨 얼룩을 밟았다 — 신발이 젖었다. 다음 걸음에 발자국이 찍힌다', 'hot');
-        if (byMe) toast('얼룩을 밟았다', 'bump');
+        toast('얼룩을 밟았다', 'bump');
         BO.Sfx.play('clue');
+
+      // ── 보급 상자 ─────────────────────────────────────────────────────────
+      } else if (e.k === 'drop') {
+        //  ⚠ 양쪽이 **똑같이** 보는 사건이다 — byMe 로 갈리지 않는다. 그게 요점이다:
+        //    어둠 속에서 둘 다 아는 목적지가 하나 생기면 만날 이유가 생긴다.
+        var di = C.ITEMS[e.kind] || {};
+        say('📦 보급 상자가 떨어졌다 — ' + at + ' · ' + di.icon + ' ' + di.name + '(' + di.tip + ')', 'hot');
+        toast('📦 보급 상자', 'lamp');
+        BO.Sfx.play('drop');
+      } else if (e.k === 'take') {
+        var ti = C.ITEMS[e.kind] || {};
+        if (byMe) {
+          say('📦 ' + ti.icon + ' ' + ti.name + ' 획득 — ' + ti.tip +
+              '. ⚠ 상자가 사라졌으니 이 자리가 상대에게 드러났다', 'hot');
+          toast('📦 ' + ti.name, 'bump'); BO.Sfx.play('clue'); buzz([25]);
+        } else {
+          //  상자가 사라졌다 = 상대가 **방금 저 칸에 있었다**. 어둠에서 제일 비싼 정보다.
+          say('📦 상대가 ' + at + ' 의 상자를 가져갔다 — 거기 있다! 들고 있는 것: ' + ti.name, 'me');
+          toast('📦 상대 발견!', 'spot'); flash(e.x, e.y); BO.Sfx.play('spot');
+        }
+      } else if (e.k === 'use') {
+        var ui2 = C.ITEMS[e.kind] || {};
+        (e.tiles || []).forEach(function (t) { flash(t.x, t.y); });
+        BO.Sfx.play('burst');
+        if (e.hit) {
+          if (byMe) {
+            say('🎯 ' + ui2.name + ' 명중! ' + at + ' 주변 ' + (e.tiles || []).length + '칸 — 윤곽이 보인다, 한 발 더!', 'me');
+            toast('명중!', 'hitme'); burst(e.x, e.y, 'me'); shake('sm');
+            BO.Sfx.play('hit'); buzz([40]);
+          } else {
+            say('💥 피격! ' + at + ' 주변이 ' + ui2.name + '에 통째로 칠해졌다 — 야광이 묻었다, 움직여라', 'foe');
+            toast('맞았다! −1', 'hurt'); burst(e.x, e.y, 'foe'); shake('big'); hurtFlash(); jolt(e.x, e.y);
+            BO.Sfx.play('hurt'); buzz([90, 50, 130]);
+          }
+        } else {
+          //  ⚠ 쓴 사람의 자리는 **안 나간다**(사격과 같은 규칙). 칠해진 칸만 보인다.
+          say(byMe ? '· ' + ui2.name + ' — ' + at + ' 주변 ' + (e.tiles || []).length + '칸을 칠했다'
+                   : '🎨 어딘가에서 ' + ui2.name + ' — ' + at + ' 주변이 통째로 칠해졌다', byMe ? '' : 'foe');
+          if (!byMe) { toast('🎨 ' + ui2.name, 'foeshot'); shake('sm'); }
+        }
+      } else if (e.k === 'heal') {
+        //  ⚠ 이 사건엔 좌표가 없다(core.js) — 반창고로 자리가 드러나면 안 된다.
+        say(byMe ? '🩹 반창고 — 체력 ' + e.hp + ' 로 돌아왔다'
+                 : '🩹 상대가 반창고를 썼다 — 상대 체력 ' + e.hp + ' (자리는 알 수 없다)', byMe ? 'me' : 'foe');
+        if (byMe) { toast('🩹 +' + e.gain, 'hitme'); BO.Sfx.play('clue'); }
       }
     });
   }
 
   //  방향 이름 — 기록과 도움말이 같은 말을 쓴다(0=위 1=오른쪽 2=아래 3=왼쪽).
   var DIRNAME = ['위쪽', '오른쪽', '아래쪽', '왼쪽'];
+
+  //  상자 라벨 — **글꼴에 기대지 않는다.** 도구가 칠할 자리를 3×3 점판에 그대로 그린다
+  //  (가운데가 겨눈 칸). 이모지로 하면 기기마다 모양·색이 달라 같은 상자가 다르게 읽힌다.
+  //  반창고만 모양이 없으니 «+» 하나 — 어느 글꼴에나 있는 글자다.
+  function itemGlyph(kind) {
+    var g = C.ITEMS[kind] && C.ITEMS[kind].grid;
+    if (!g) return '<b class="plus">+</b>';
+    var s = '';
+    for (var i = 0; i < 9; i++) s += '<s' + (g.charAt(i) === '#' ? ' class="on"' : '') + '></s>';
+    return s;
+  }
 
   function kindName(k) {
     return { floor: '바닥', desk: '책상', chair: '의자', cabinet: '수납장', papers: '서류', shelf: '책장',
@@ -506,6 +626,7 @@ BO.UI = (function () {
       var c = cells[i];
       if (c.dataset.kind) c.classList.remove('k-' + c.dataset.kind);
       c.dataset.kind = ''; c.className = 'cell unknown';
+      if (c._box) c._box.className = 'box hide';
       c.style.removeProperty('--art'); c.style.removeProperty('--edge');
     }
   }

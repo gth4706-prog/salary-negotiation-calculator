@@ -29,7 +29,12 @@ const { chromium } = require('playwright');
   // 방 안 칸으로 보정
   const inside = await p.evaluate(t => { const v = BO.Match.view(); const W = BO.Core.C.W, H = BO.Core.C.H; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { if (!(x === v.me.x && y === v.me.y) && Math.abs(y - v.me.y) >= 3) return { x, y }; } return null; });
   await shootAt(inside.x, inside.y);
-  ok(await waitStep(4), '한 발 쏘니 4단계 전등으로');
+  //  v1.2: 사격 다음이 «보급 상자» 단계다. 주우러 가는 건 판마다 거리가 달라 여기서는
+  //  설명만 확인하고 [다음]으로 넘긴다(단계 자체가 next:true 로 건너뛸 수 있게 돼 있다).
+  ok(await waitStep(4), '한 발 쏘니 4단계 보급 상자로');
+  ok((await p.textContent('#tut-text')).includes('보급 상자'), '보급 상자를 설명한다');
+  await p.click('#tut-next');
+  ok(await waitStep(5), '5단계 전등으로');
   // 전등까지 걷기 (공개 정보만: 내 위치·버튼·방 구조)
   for (let guard = 0; guard < 40; guard++) {
     v = await waitMine(); if (!v) break;
@@ -43,27 +48,27 @@ const { chromium } = require('playwright');
     await stepDir(d);
     if (await p.evaluate(() => BO.Match.view().lit > 0)) break;
   }
-  ok(await waitStep(5), '버튼을 밟으니 5단계(불빛 아래)로');
+  ok(await waitStep(6), '버튼을 밟으니 6단계(불빛 아래)로');
   // 보이는 상대를 쏜다 — 보일 때까지 기다린다(내 턴에)
   let foe = null;
   for (let i = 0; i < 60 && !foe; i++) { v = await waitMine(); if (v && v.foe) foe = v.foe; else await p.waitForTimeout(200); }
   ok(!!foe, '불빛 아래 상대 좌표가 보인다', JSON.stringify(foe));
   await shootAt(foe.x, foe.y);
-  ok(await waitStep(6), '맞히니 6단계(발자국)로');
+  ok(await waitStep(7), '맞히니 7단계(발자국)로');
   // 남은 행동력 버리고 넘겨 상대가 움직이게
   v = await waitMine(); if (v && v.ap > 0) { await p.click('#pass'); }
-  ok(await waitStep(7), '상대가 한 칸 움직여 발자국 → 7단계(추적)');
+  ok(await waitStep(8), '상대가 한 칸 움직여 발자국 → 8단계(추적)');
   // 발자국 옆 칸들을 쏜다
   let hitDone = false;
   for (let round = 0; round < 6 && !hitDone; round++) {
     v = await waitMine();
     const cand = await p.evaluate(() => { const v = BO.Match.view(); const m = v.marks.filter(m => m.side !== v.mine)[0]; if (!m) return [];
       const DX = [0,1,0,-1], DY = [-1,0,1,0]; const out = []; for (let d = 0; d < 4; d++) { const x = m.x + DX[d], y = m.y + DY[d]; const t = BO.Core.inBoard(x, y) ? v.tiles[y * BO.Core.C.W + x] : { walk: false }; if ((!t || t.walk) && !(x === v.me.x && y === v.me.y)) out.push({ x, y }); } return out; });
-    for (const c of cand.slice(round * 2, round * 2 + 2)) { await shootAt(c.x, c.y); if ((await step()).indexOf('8 /') > 0) { hitDone = true; break; } }
+    for (const c of cand.slice(round * 2, round * 2 + 2)) { await shootAt(c.x, c.y); if ((await step()).indexOf('9 /') > 0) { hitDone = true; break; } }
     if (!hitDone && cand.length <= (round + 1) * 2) { round = 0; }
     if (!hitDone) { const vv = await view(); if (vv && vv.myTurn && vv.ap > 0) await p.click('#pass'); }
   }
-  ok(await waitStep(8), '맞히니 8단계(끝)로');
+  ok(await waitStep(9), '맞히니 9단계(끝)로');
   ok((await p.textContent('#tut-next')).trim() === '실전으로', '마지막 버튼 = 실전으로');
   await p.click('#tut-next'); await p.waitForTimeout(600);
   ok(!(await p.locator('#tut').isVisible()), '안내판이 닫힌다');

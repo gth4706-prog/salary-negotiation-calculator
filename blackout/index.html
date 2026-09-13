@@ -15,18 +15,18 @@
 <!-- 홈 화면 설치(PWA). 홈 화면에서 열면 주소창이 사라져 뷰포트가 흔들리지 않는다 —
      에그워에서 기종별 레이아웃 사고를 없앤 방법 그대로. 서비스워커는 일부러 안 둔다:
      캐시가 붙으면 배포해도 옛 버전이 남는 사고가 생긴다. -->
-<link rel="manifest" href="manifest.json?v=1.1">
+<link rel="manifest" href="manifest.json?v=1.2">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="블랙아웃">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="assets/sprites/kid-top.png?v=1.1">
-<link rel="icon" type="image/png" sizes="256x256" href="assets/sprites/kid-top.png?v=1.1">
+<link rel="apple-touch-icon" href="assets/sprites/kid-top.png?v=1.2">
+<link rel="icon" type="image/png" sizes="256x256" href="assets/sprites/kid-top.png?v=1.2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=1.1">
-<link rel="stylesheet" href="css/rooms.css?v=1.1">
+<link rel="stylesheet" href="css/style.css?v=1.2">
+<link rel="stylesheet" href="css/rooms.css?v=1.2">
 </head>
 <body>
 
@@ -89,6 +89,15 @@
         <li><b>전등 버튼</b> — 방 가운데 어딘가에 하나(매 판 자리가 바뀐다). <b>밟으면 불이 켜지고 방 전체와 서로가 보인다.</b>
             <b>행동 하나</b>가 지나면 꺼지지만 그때 본 가구는 기억한다.
             ⚠ 불은 켠 사람도 비춘다. <b>마지막 행동으로 켜면 그 불빛이 상대 차례로 넘어간다.</b></li>
+        <li class="new"><b>보급 상자 📦</b> — 세 턴마다 바닥에 상자가 하나 떨어진다(바닥에 셋까지).
+            <b>자리도 내용물도 둘 다 보인다</b> — 어둠 속에서 유일하게 서로가 아는 목적지다.
+            <b>밟으면 줍는다(손이 비어 있을 때만).</b> ⚠ 줍는 순간 <b>그 자리가 상대에게 드러난다</b> —
+            도구를 얻는 대신 위치를 파는 거래다.<br>
+            · <b>↔ 가로 스프레이 / ↕ 세로 스프레이</b> — 겨눈 칸을 가운데로 3칸<br>
+            · <b>▩ 롤러</b> — 겨눈 칸에서 오른쪽·아래로 2×2 · <b>💣 물풍선</b> — 십자 5칸<br>
+            · <b>🩹 반창고</b> — 제자리에서 체력 +1<br>
+            도구는 <b>행동 하나</b>를 쓴다. 닿은 칸은 전부 칠해지고(그만큼 방이 드러난다),
+            그 안에 상대가 있으면 체력 1 — 여러 칸에 걸쳐도 한 번만. <b>쓴 사람의 자리는 사격과 똑같이 안 드러난다.</b></li>
         <li><b>인기척</b> — 바로 옆 한 칸까지 가까워지면 양쪽 다 낌새를 챈다. 방향은 알 수 없다.</li>
         <li>140턴이 지나면 체력이 많은 쪽이 이긴다. 같으면 무승부.
             턴 제한시간은 <b>90초</b>. 마지막 10초는 초읽기가 뜨고, 지나면 남은 행동력을 버리고 넘어간다.</li>
@@ -171,6 +180,7 @@
       <div class="modes">
         <button class="mode on" id="mode-move">🏃 이동</button>
         <button class="mode shoot" id="mode-shoot">🎯 사격</button>
+        <button class="mode item" id="mode-item" disabled>📦 도구</button>
       </div>
       <div class="ctl-row">
         <div class="pad" id="pad">
@@ -216,16 +226,16 @@
   </div>
 </div>
 
-<script src="js/rooms.js?v=1.1"></script>
-<script src="js/svgart.js?v=1.1"></script>
-<script src="js/art.js?v=1.1"></script>
-<script src="js/core.js?v=1.1"></script>
-<script src="js/net.js?v=1.1"></script>
-<script src="js/bot.js?v=1.1"></script>
-<script src="js/match.js?v=1.1"></script>
-<script src="js/tutorial.js?v=1.1"></script>
-<script src="js/sfx.js?v=1.1"></script>
-<script src="js/ui.js?v=1.1"></script>
-<script src="js/main.js?v=1.1"></script>
+<script src="js/rooms.js?v=1.2"></script>
+<script src="js/svgart.js?v=1.2"></script>
+<script src="js/art.js?v=1.2"></script>
+<script src="js/core.js?v=1.2"></script>
+<script src="js/net.js?v=1.2"></script>
+<script src="js/bot.js?v=1.2"></script>
+<script src="js/match.js?v=1.2"></script>
+<script src="js/tutorial.js?v=1.2"></script>
+<script src="js/sfx.js?v=1.2"></script>
+<script src="js/ui.js?v=1.2"></script>
+<script src="js/main.js?v=1.2"></script>
 </body>
 </html>

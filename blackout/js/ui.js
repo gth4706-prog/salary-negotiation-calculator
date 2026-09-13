@@ -57,12 +57,14 @@ BO.UI = (function () {
       //  내장 마루: 3칸짜리 널빤지의 몇 번째 조각인가(줄마다 한 칸씩 어긋난다) · 톤 차이
       d.style.setProperty('--px', (((x + y) % 3) * 50) + '%');
       d.style.setProperty('--fb', (0.93 + ((x * 3 + y * 7) % 5) * 0.035).toFixed(3));
-      //  얼룩은 세 겹: 빛(.splat, 글로우) > 모양(.shape, 얼룩 마스크) > 그림(.paint) + 윤곽(.edge)
+      //  얼룩 = 어둠을 긁어낸 창. 글로우(.splat) > 번진 테(.halo) + 마스크(.shape) >
+      //  그림(.pic) + 페인트 색(.tint) + 윤곽선(.edge). 자세한 건 css/rooms.css.
       d.innerHTML = '<span class="art"></span><span class="fog"></span>' +
-                    '<span class="splat hide"><i class="shape"><b class="paint"></b><b class="edge"></b></i></span>' +
+                    '<span class="splat hide"><i class="halo"></i>' +
+                    '<i class="shape"><b class="pic"></b><b class="tint"></b><b class="edge"></b></i></span>' +
                     '<span class="mark hide"><i></i></span><span class="lamp hide"></span>' +
                     '<span class="dir hide"></span><span class="ghost hide"></span><span class="reaction"></span>' +
-                    '<span class="glowfx"></span>';
+                    '<span class="glowfx"></span><span class="memo"></span>';
       (function (px, py, node) {
         node.addEventListener('click', function () { onTile(px, py, h); });
       })(x, y, d);
@@ -273,6 +275,12 @@ BO.UI = (function () {
       for (d = 0; d < 4; d++) if (v.legalDirs.indexOf(d) >= 0)
         movable[(v.me.x + C.DX[d]) + ',' + (v.me.y + C.DY[d])] = 1;
     }
+    //  칠한 만큼 방이 드러난다 — 아는 칸의 안개가 옅어지고 전체가 아주 조금 밝아진다(«전개»).
+    //  ⚠ 루프 **전에** 구해야 한다. var 는 끌어올려지니 뒤에 두면 루프 안에서 undefined 다.
+    var cov = Math.min(1, v.paint.length / 24);
+    els.board.style.setProperty('--reveal', cov.toFixed(3));
+    //  기억 칸은 이제 «선»이라 안개를 많이 씌울 필요가 없다 — 선 자체가 흐리다.
+    var knownFog = (0.5 - 0.12 * cov).toFixed(3);
     var paint = {}, mark = {}, seen = {};
     v.paint.forEach(function (p) { paint[p.x + ',' + p.y] = p; });
     v.marks.forEach(function (m) { mark[m.x + ',' + m.y] = m; });
@@ -320,7 +328,7 @@ BO.UI = (function () {
 
       //  어둠의 두께(안개 SVG) · 시야의 빛(빛 SVG)
       var fi = y * C.C.W + x;
-      if (fogRects[fi]) fogRects[fi].setAttribute('opacity', v.lit > 0 ? '0' : (!t ? '1' : (seen[key] ? '0.05' : '0.84')));
+      if (fogRects[fi]) fogRects[fi].setAttribute('opacity', v.lit > 0 ? '0' : (!t ? '1' : (seen[key] ? '0.05' : knownFog)));
       if (beamRects[fi]) beamRects[fi].setAttribute('opacity', seen[key] && v.lit <= 0 ? '0.17' : '0');
 
       var sp = c.children[2], sm = c.children[3], sn = c.children[4], sd = c.children[5], sg = c.children[6];
@@ -328,8 +336,9 @@ BO.UI = (function () {
       if (p) {
         sp.className = 'splat' + (p.by === v.mine ? ' mine' : ' foe') +
           (p.hit ? ' hit' : '') + (p.age === 0 ? ' fresh' : '');
-        sp.style.setProperty('--rot', ((x * 37 + y * 91) % 360) + 'deg');
         sp.style.setProperty('--sv', 'var(--splat-' + (1 + ((x * 7 + y * 13) % 4)) + ')');
+        //  크기를 칸마다 흔든다 — 회전을 뺀 대신의 변화(회전하면 안쪽 그림이 칸과 어긋난다).
+        sp.style.setProperty('--sz', (92 + ((x * 11 + y * 19) % 5) * 5) + '%');
         sp.style.setProperty('--splat', 'url(' + BO.Art.BASE + BO.Art.splat(x, y) + ')');
         sp.title = (p.by === v.mine ? '내' : '상대') + ' 페인트' + (p.hit ? ' · 여기서 맞았다' : '');
       } else sp.className = 'splat hide';

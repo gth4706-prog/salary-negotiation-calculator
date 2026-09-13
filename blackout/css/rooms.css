@@ -16,7 +16,10 @@
   border:9px solid var(--wall);border-top-color:var(--wall2);border-left-color:#3b4459;
   border-radius:6px;background:#040507;
   box-shadow:0 0 0 3px var(--wall3),0 18px 40px #000d,inset 0 0 0 2px #00000088}
-.cell{position:relative;overflow:hidden;background:#040507;border-radius:0;outline:0}
+/* ⚠ overflow 를 열어 둔다. 칸이 얼룩을 **네모로 잘라내서** 칠한 칸이 «빛나는 사각형»으로
+   보였다(v1.0 첫 시도). 번진 테와 글로우가 이웃 칸으로 넘어가야 얼룩 둘이 하나로 이어진다.
+   그림(.art/.pic)은 inset:0 이라 넘칠 일이 없다 — 넘치는 건 색과 빛뿐이다. */
+.cell{position:relative;overflow:visible;background:#040507;border-radius:0;outline:0}
 .cell>span{position:absolute;inset:0;display:block}
 .board.shooting .cell{cursor:crosshair}
 .cell.blocked.known{cursor:default}
@@ -25,6 +28,10 @@
   background:radial-gradient(ellipse at 22% 10%,#ffcc4d12,transparent 45%),
              radial-gradient(ellipse at 50% 50%,transparent 50%,#00000066 100%)}
 .board.lit::before{background:radial-gradient(ellipse at 50% 40%,#ffd98a26,transparent 70%)}
+/* 칠한 칸이 늘수록 방 전체가 아주 조금씩 밝아진다 — 이 게임의 «전개». ui.js 가 --reveal 을 준다. */
+.board::after{content:'';position:absolute;inset:0;z-index:10;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%,rgba(255,216,164,.13),transparent 74%);
+  opacity:var(--reveal,0);transition:opacity 1.4s ease-out}
 
 /* ── 1층: 그림 ─────────────────────────────────────────────────────────── */
 .cell .art{z-index:1;background:var(--art);filter:brightness(var(--fb,1))}
@@ -34,9 +41,23 @@
 .board[data-room=living] .cell.k-floor,.board[data-room=living] .cell.k-rug{--art:var(--floor-living) var(--px,0) 0/300% 100% no-repeat}
 /* 러그는 바닥 위에 얹힌다 — art.js 가 --art 를 인라인으로 덮어쓰므로 여기 선언은 마루 «밑칠» */
 .board.lit .cell .art{filter:brightness(calc(var(--fb,1) * 1.18)) saturate(1.08)}
-/* 방금 알게 된 칸 — 어둠에서 떠오른다 */
+/* ── 기억 — 본 적 있는 칸은 **선으로만** 남는다 ─────────────────────────────
+   예전엔 아는 칸에 그림을 통째로 깔고 안개를 74% 씌웠다. 그러면 칠한 칸마다 «희끄무레한
+   네모»가 생겨 방이 격자로 잘려 보인다(설계자: 「단순한 페인트 자국 말고 그를 통해 맵이
+   보이는 예술적인 전개」). 이제 기억은 채움 없이 **윤곽선**뿐이다 — 네모가 생기지 않고,
+   색이 칠해진 곳만 진짜로 드러난다. 지금 보는 칸과 불 켜진 칸만 그림을 다 보여 준다. */
+.cell .memo{z-index:1;pointer-events:none;opacity:0;background:#93a7bd;
+  -webkit-mask:var(--edge,none);mask:var(--edge,none);transition:opacity .4s}
+.cell.known .memo{opacity:.34}
+.cell.known .art{opacity:0}
+.cell.seen .art,.board.lit .cell .art{opacity:1}
+.board.lit .cell .memo{opacity:0}
+
+/* 방금 알게 된 칸 — 선이 한 번 밝아졌다 가라앉는다 */
 .cell.reveal .art{animation:reveal-art .6s ease-out}
+.cell.reveal .memo{animation:reveal-memo .7s ease-out}
 @keyframes reveal-art{from{filter:brightness(2.4)}to{filter:brightness(var(--fb,1))}}
+@keyframes reveal-memo{from{opacity:.9}to{opacity:.34}}
 
 /* ── 2층: 안개 · 빛 · 격자선 (판 전체 SVG, ui.js buildOverlays) ────────── */
 .board .fogsvg,.board .beam,.board .gridsvg{position:absolute;inset:-2px;width:calc(100% + 4px);height:calc(100% + 4px);z-index:2;pointer-events:none}
@@ -58,24 +79,52 @@
 .cell.flash .fog{animation:flash .5s ease-out}
 @keyframes flash{from{background:#fff}to{background:transparent}}
 
-/* ── 4층: 야광 얼룩 — 튄 자리의 그림을 뚫고, 그 자리의 «윤곽»이 야광선으로 드러난다 ── */
-.cell .splat{z-index:4;inset:3%;pointer-events:none;
-  filter:drop-shadow(0 0 3px var(--c)) drop-shadow(0 0 10px var(--c))}
+/* ── 4층: 야광 페인트 = 어둠을 긁어낸 «창» ─────────────────────────────────
+   얼룩은 «색칠»이 아니라 **구멍**이다. 그 칸의 진짜 그림(--art)이 얼룩 모양대로 뚫려
+   보이고, 페인트는 색(hue)만 입힌다 — 밝기는 그림 것을 쓴다(mix-blend-mode:color).
+   그래서 어둠 속에 «젖은 그림 조각»이 뜬다. 검은 크레파스를 긁어내는 스크래치 아트.
+
+   ⚠ .splat 은 칸과 **정확히 같은 상자**여야 한다(inset:0). 예전엔 inset:3% + contain 이라
+     안쪽 그림이 칸의 .art 와 어긋났고, 그래서 그림이 아니라 «색 덩어리»로 보였다.
+     상자를 맞추면 얼룩 속 그림이 칸 그림과 픽셀 단위로 포개지고, 옆 칸 얼룩과도
+     **이어진다** — 책상 모서리가 두 칸에 걸쳐 이어지고, 칠할수록 방이 드러난다.
+   ⚠ 회전은 뺐다. 마스크를 돌리면 안쪽 그림도 같이 돌아 칸과 어긋난다(그게 어긋남의
+     절반이었다). 모양 네 가지 × 크기 흔들기(--sz)로 변화를 준다.
+   ⚠ 층을 둘로 나눈 이유: 글로우(filter)는 마스크 **전에** 적용된다. 마스크를 자식
+     (.shape)에 걸어야 글로우가 얼룩 실루엣을 따라간다. 부모에 같이 걸면 네모 글로우가 된다. */
+.cell .splat{z-index:4;inset:0;pointer-events:none;
+  filter:drop-shadow(0 0 3px var(--c)) drop-shadow(0 0 9px var(--c))}
 .cell .splat.hide{display:none}
-.splat .shape{position:absolute;inset:0;display:block;transform:rotate(var(--rot,0deg));
-  -webkit-mask:var(--sv) center/contain no-repeat;mask:var(--sv) center/contain no-repeat}
-.splat .shape>b{position:absolute;inset:0;display:block;transform:rotate(calc(-1 * var(--rot,0deg)))}
-/* 그림: 페인트 색으로 젖은 밑그림(마루·가구) */
-.splat .paint{background:linear-gradient(var(--tint),var(--tint)),var(--art,#333)}
-/* 윤곽: 그 칸 그림의 경계선이 야광으로(art.js 가 소벨로 뽑은 --edge). 마루는 널빤지 결. */
-.splat .edge{background:var(--c);-webkit-mask:var(--edge,none);mask:var(--edge,none);opacity:.95}
-.cell.k-floor .splat .edge{--edge:var(--floor-edge-builtin,none) var(--px,0) 0/300% 100% no-repeat}
-.board.has-floor .cell.k-floor .splat .edge{--edge:var(--floor-edge,none) var(--fx) var(--fy)/calc(var(--n)*100%) calc(var(--n)*100%) no-repeat}
-.splat.mine{--c:var(--pm);--tint:rgba(79,240,220,.55)}
-.splat.foe{--c:var(--pf);--tint:rgba(255,90,160,.55)}
-.splat.hit{filter:drop-shadow(0 0 3px #fff) drop-shadow(0 0 12px var(--c))}
-.splat.fresh .shape{animation:splat-pop .45s cubic-bezier(.2,1.5,.4,1)}
-@keyframes splat-pop{from{transform:rotate(var(--rot,0deg)) scale(.15);opacity:0}to{transform:rotate(var(--rot,0deg)) scale(1);opacity:1}}
+/* 젖은 페인트의 테 — 창 둘레로 번진 색. 칸 밖으로 넘쳐서 옆 얼룩과 만난다. */
+.splat .halo{position:absolute;inset:-16%;display:block;background:var(--c);opacity:.2;
+  -webkit-mask:var(--sv) center/calc(var(--sz,100%) * .86) no-repeat;
+  mask:var(--sv) center/calc(var(--sz,100%) * .86) no-repeat;
+  filter:blur(3px)}
+/* 창 — 얼룩 실루엣만큼 뚫린다 */
+.splat .shape{position:absolute;inset:0;display:block;
+  -webkit-mask:var(--sv) center/var(--sz,100%) no-repeat;
+  mask:var(--sv) center/var(--sz,100%) no-repeat}
+.splat .shape>b{position:absolute;inset:0;display:block}
+/* ① 진짜 그림 — 칸의 .art 와 픽셀이 맞는다. 야광이 비추니 밝게. */
+.splat .pic{background:var(--art,#2c2a28);filter:brightness(2) saturate(1.25) contrast(1.1)}
+/* ② 페인트 색 — 색만 입힌다. 밝기는 그림 것 = «젖은 그림» */
+.splat .tint{background:var(--c);mix-blend-mode:color;opacity:.6}
+/* ③ 윤곽선 — 그 칸 그림의 경계가 야광선으로(art.js 가 소벨로 뽑은 --edge). 마루는 널빤지 결. */
+.splat .edge{background:var(--c);-webkit-mask:var(--edge,none);mask:var(--edge,none);
+  mix-blend-mode:screen;opacity:.85}
+/* 마루의 윤곽(널빤지 결)은 칸 자체에 올려 둔다 — 얼룩 윤곽과 «기억 스케치»가 같이 쓴다.
+   가구 칸의 --edge 는 art.js 가 칸에 직접 넣는다(소벨). */
+.cell.k-floor{--edge:var(--floor-edge-builtin,none) var(--px,0) 0/300% 100% no-repeat}
+.board.has-floor .cell.k-floor{--edge:var(--floor-edge,none) var(--fx) var(--fy)/calc(var(--n)*100%) calc(var(--n)*100%) no-repeat}
+.splat.mine{--c:var(--pm)}
+.splat.foe{--c:var(--pf)}
+.splat.hit{filter:drop-shadow(0 0 4px #fff) drop-shadow(0 0 16px var(--c))}
+.splat.hit .tint{opacity:.46}
+/* 방금 튄 얼룩 — 마스크가 **열리면서** 그림이 드러난다. 이 게임에서 가장 중요한 순간. */
+.splat.fresh .shape,.splat.fresh .halo{animation:splat-open .55s cubic-bezier(.2,1.4,.35,1)}
+@keyframes splat-open{
+  0%{-webkit-mask-size:10%;mask-size:10%;opacity:.4}
+  100%{-webkit-mask-size:var(--sz,100%);mask-size:var(--sz,100%);opacity:1}}
 
 /* ── 5층: 발자국 · 전등 ────────────────────────────────────────────────── */
 /* 발자국 — 두 짝이 **간 쪽**을 향해 돌아 있고(--mrot), 앞머리에 갈매기표가 하나.
@@ -188,6 +237,7 @@ body.has-kid .cell.foe-glow:after{box-shadow:0 0 0 2px var(--pm),0 0 18px var(--
 body.has-prints .mark:before,body.has-prints .mark:after{display:none}
 body.has-prints .mark{background:url(../assets/sprites/footprint-me.png) center/72% no-repeat;filter:drop-shadow(0 0 5px var(--c))}
 body.has-prints .mark.foe{background-image:url(../assets/sprites/footprint-foe.png)}
-body.has-splats .splat .paint{-webkit-mask:var(--splat) center/contain no-repeat;mask:var(--splat) center/contain no-repeat}
+body.has-splats .splat .shape{-webkit-mask:var(--splat) center/var(--sz,100%) no-repeat;mask:var(--splat) center/var(--sz,100%) no-repeat}
+body.has-splats .splat .halo{-webkit-mask:var(--splat) center/calc(var(--sz,100%) * .86) no-repeat;mask:var(--splat) center/calc(var(--sz,100%) * .86) no-repeat}
 body.has-lamp .cell .lamp{background-image:url(../assets/sprites/lamp-off.png)}
 body.has-lamp .cell .lamp.on{background-image:url(../assets/sprites/lamp-on.png)}

@@ -43,12 +43,20 @@ window.BO = window.BO || {};
     $('refresh').onclick = listRooms;
     $('lobby-back').onclick = function () { show('menu'); };
     $('room-leave').onclick = function () { Net.leave(); show('lobby'); listRooms(); };
+    $('share').onclick = shareRoom;
     $('ready').onclick = onReady;
     $('quit').onclick = quitMatch;
 
     wireNet();
     watchDesync();
     show('menu');
+
+    //  ── 링크로 바로 입장 ─────────────────────────────────────────────────
+    //  친구가 보낸 `?room=코드` 링크를 열면 메뉴를 건너뛰고 그 방으로 들어간다.
+    //  폰에서 「코드를 받아 적고 → 게임 열고 → 로비 가서 → 입력」은 네 단계다.
+    //  링크 하나면 한 번이다. 실제 대전이 성사되느냐는 여기서 갈린다.
+    var qs = /[?&]room=([A-Za-z0-9]{3,8})/.exec(location.search || '');
+    if (qs && Net.enabled()) { show('lobby'); enter(qs[1].toUpperCase()); }
     if (location.hostname !== 'joeltool.com' && Net.BASE === 'https://arena-room.gth3941.workers.dev') {
       $('preview-note').textContent = '미리보기에서는 봇 연습을 이용하세요. 기존 온라인 서버는 joeltool.com에서의 접속을 허용합니다.';
       $('preview-note').classList.remove('hide');
@@ -103,6 +111,22 @@ window.BO = window.BO || {};
       $('lobby-status').textContent = '';
       enter(room.code);
     });
+  }
+
+  //  방 링크를 공유한다. 폰이면 공유 시트(카톡·문자), 아니면 클립보드.
+  function shareRoom() {
+    if (!myRoom) return;
+    var url = location.origin + location.pathname + '?room=' + myRoom;
+    var text = '블랙아웃 한 판 하자 — 방 코드 ' + myRoom;
+    if (navigator.share) {
+      navigator.share({ title: '블랙아웃', text: text, url: url })['catch'](function () {});
+      return;
+    }
+    var done = function () { $('share').textContent = '복사됐습니다 ✓';
+      setTimeout(function () { $('share').textContent = '초대 링크 복사'; }, 1800); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done, function () { prompt('이 링크를 보내세요', url); });
+    } else { prompt('이 링크를 보내세요', url); }
   }
 
   function enter(code) {

@@ -1,0 +1,14 @@
+{
+  "name": "블랙아웃 — 어둠 속 페인트건 대전",
+  "short_name": "블랙아웃",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07090d",
+  "theme_color": "#07090d",
+  "lang": "ko",
+  "icons": [
+    { "src": "assets/sprites/kid-top.png", "sizes": "256x256", "type": "image/png", "purpose": "any" }
+  ]
+}

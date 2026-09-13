@@ -12,7 +12,16 @@
      못해 색인 제외가 오히려 안 됩니다. -->
 <meta name="robots" content="noindex,follow">
 <meta name="theme-color" content="#07090d">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%A6%3C/text%3E%3C/svg%3E">
+<!-- 홈 화면 설치(PWA). 홈 화면에서 열면 주소창이 사라져 뷰포트가 흔들리지 않는다 —
+     에그워에서 기종별 레이아웃 사고를 없앤 방법 그대로. 서비스워커는 일부러 안 둔다:
+     캐시가 붙으면 배포해도 옛 버전이 남는 사고가 생긴다. -->
+<link rel="manifest" href="manifest.json?v=0.3">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="블랙아웃">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="assets/sprites/kid-top.png?v=0.3">
+<link rel="icon" type="image/png" sizes="256x256" href="assets/sprites/kid-top.png?v=0.3">
 <link rel="stylesheet" href="css/style.css?v=0.3">
 <link rel="stylesheet" href="css/rooms.css?v=0.3">
 </head>
@@ -101,7 +110,8 @@
       <div class="code-big" id="room-code">····</div>
       <p class="muted" id="room-hint">이 코드를 상대에게 보내세요.</p>
       <p class="muted" id="room-status">접속 중…</p>
-      <button class="btn primary" id="ready" disabled>준비</button>
+      <button class="btn" id="share">초대 링크 복사</button>
+      <button class="btn primary" id="ready" disabled style="margin-top:8px">준비</button>
       <button class="btn ghost" id="room-leave" style="margin-top:8px">나가기</button>
     </div>
   </section>

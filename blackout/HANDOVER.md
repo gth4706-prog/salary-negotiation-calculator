@@ -181,7 +181,13 @@ node blackout/tests/roomserver.js     # 방 서버 대역 :8767
 node blackout/tests/layout.js         # 6기종 넘침 0
 node blackout/tests/pvp.js            # 브라우저 둘 붙여 한 판
 node blackout/tests/safety.js         # 어긋남 감지·복구 · 재접속 따라잡기
+node blackout/tests/invite.test.js    # 초대 링크로 입장 → 시작
+node blackout/tests/endgame.test.js   # 종료 → 한 판 더 · 턴 시간 초과
+node blackout/tests/leave.test.js     # 상대 퇴장 → 30초 → 기권승
 ```
+
+**배포할 때 `index.html` 의 `?v=` 를 올린다.** 안 올리면 되돌아온 방문자가 캐시된 옛
+코드를 최대 10분 본다.
 
 ---
 

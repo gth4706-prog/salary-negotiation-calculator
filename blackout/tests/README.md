@@ -38,7 +38,18 @@ node blackout/tests/roomserver.js     # 방 서버 대역 (:8767)
 node blackout/tests/layout.js         # 여섯 기종에서 화면이 안 넘치는지
 node blackout/tests/pvp.js            # 브라우저 둘을 붙여 한 판
 node blackout/tests/safety.js         # 어긋남 감지·복구 · 재접속 따라잡기
+node blackout/tests/invite.test.js    # 초대 링크 복사 → ?room= 으로 바로 입장 → 시작
+node blackout/tests/endgame.test.js   # 판 종료 → 결과 → 한 판 더 · 턴 시간 초과 자동 넘김
+node blackout/tests/leave.test.js     # 대전 중 상대가 앱을 닫으면 30초 뒤 기권승
 ```
+
+`assets-manifest.js` 는 테스트가 아니라 도구다 — 그림을 넣거나 뺀 뒤 한 번 돌려
+`assets/manifest.json` 을 다시 만든다.
+
+## 배포할 때
+
+`index.html` 의 `?v=` 꼬리표를 올릴 것. GitHub Pages 가 파일을 캐시하므로 꼬리표가
+같으면 되돌아온 방문자가 최대 10분 옛 코드를 본다.
 
 `roomserver.js` 는 **실제 방 서버가 아니다.** 실제 서버는 Cloudflare Durable
 Object(`arena-room`)이고 그 소스는 이 저장소에 없다. 규약(입장·준비→시작·릴레이)만

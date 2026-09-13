@@ -27,16 +27,17 @@ const { chromium } = require('playwright');
   v = await waitMine();
   const tgt = v.me.y < 5 ? { x: v.me.x, y: 9 } : { x: v.me.x, y: 0 };
   // 방 안 칸으로 보정
-  const inside = await p.evaluate(t => { const v = BO.Match.view(); for (let y = 0; y < 10; y++) for (let x = 0; x < 10; x++) { if (BO.Rooms.inside(v.room, x, y) && !(x === v.me.x && y === v.me.y) && Math.abs(y - v.me.y) > 3) return { x, y }; } return null; });
+  const inside = await p.evaluate(t => { const v = BO.Match.view(); const W = BO.Core.C.W, H = BO.Core.C.H; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { if (!(x === v.me.x && y === v.me.y) && Math.abs(y - v.me.y) >= 3) return { x, y }; } return null; });
   await shootAt(inside.x, inside.y);
   ok(await waitStep(4), '한 발 쏘니 4단계 전등으로');
   // 전등까지 걷기 (공개 정보만: 내 위치·버튼·방 구조)
   for (let guard = 0; guard < 40; guard++) {
     v = await waitMine(); if (!v) break;
     if (v.me.x === v.lamp.x && v.me.y === v.lamp.y) break;
-    const d = await p.evaluate(() => { const v = BO.Match.view(); const dist = BO.Rooms.distances(v.room, v.lamp.x, v.lamp.y);
+    //  사람처럼: 아는 칸만으로 길을 잡는다(모르는 칸은 갈 수 있다고 치고, 부딪히면 다시 잡는다)
+    const d = await p.evaluate(() => { const v = BO.Match.view(); const dist = BO.Bot.paths(v, v.lamp.x, v.lamp.y);
       const DX = [0,1,0,-1], DY = [-1,0,1,0]; let best = null, bd = 1e9;
-      for (let d = 0; d < 4; d++) { const nx = v.me.x + DX[d], ny = v.me.y + DY[d]; const k = nx + ',' + ny; if (dist[k] != null && dist[k] < bd) { bd = dist[k]; best = d; } }
+      for (const d of v.legalDirs) { const nx = v.me.x + DX[d], ny = v.me.y + DY[d]; const k = nx + ',' + ny; if (dist[k] != null && dist[k] < bd) { bd = dist[k]; best = d; } }
       return best; });
     if (d == null) break;
     await stepDir(d);
@@ -57,7 +58,7 @@ const { chromium } = require('playwright');
   for (let round = 0; round < 6 && !hitDone; round++) {
     v = await waitMine();
     const cand = await p.evaluate(() => { const v = BO.Match.view(); const m = v.marks.filter(m => m.side !== v.mine)[0]; if (!m) return [];
-      const DX = [0,1,0,-1], DY = [-1,0,1,0]; const out = []; for (let d = 0; d < 4; d++) { const x = m.x + DX[d], y = m.y + DY[d]; if (BO.Rooms.walkable(v.room, x, y) && !(x === v.me.x && y === v.me.y)) out.push({ x, y }); } return out; });
+      const DX = [0,1,0,-1], DY = [-1,0,1,0]; const out = []; for (let d = 0; d < 4; d++) { const x = m.x + DX[d], y = m.y + DY[d]; const t = BO.Core.inBoard(x, y) ? v.tiles[y * BO.Core.C.W + x] : { walk: false }; if ((!t || t.walk) && !(x === v.me.x && y === v.me.y)) out.push({ x, y }); } return out; });
     for (const c of cand.slice(round * 2, round * 2 + 2)) { await shootAt(c.x, c.y); if ((await step()).indexOf('8 /') > 0) { hitDone = true; break; } }
     if (!hitDone && cand.length <= (round + 1) * 2) { round = 0; }
     if (!hitDone) { const vv = await view(); if (vv && vv.myTurn && vv.ap > 0) await p.click('#pass'); }

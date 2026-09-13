@@ -68,10 +68,10 @@ const isMine = async p => (await turnOf(p)).includes('내 턴');
     const cells = me.locator('.cell:not(.outside):not(.me)');
     const i = (17 + t * 11) % await cells.count();
     await cells.nth(i).click(); await me.waitForTimeout(50);
-    const foeBefore = await other.locator('.cell .paint.foe:not(.hide)').count();
+    const foeBefore = await other.locator('.cell .splat.foe:not(.hide)').count();
     await me.click('#confirm'); await me.waitForTimeout(350);
     // ⚠ «상대가 쏘자마자 나한테도 보여야 함» — 턴이 끝나기 전에 상대 화면에 얼룩이 떠야 한다
-    const foeAfter = await other.locator('.cell .paint.foe:not(.hide)').count();
+    const foeAfter = await other.locator('.cell .splat.foe:not(.hide)').count();
     if (foeAfter > foeBefore && (await turnOf(other)) === beforeOther) streamed++;
     // ── 이동: 방향 짚고 [이동 확정] ──
     await me.click('#mode-move'); await me.waitForTimeout(60);

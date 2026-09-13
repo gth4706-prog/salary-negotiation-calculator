@@ -9,8 +9,10 @@ function client(mine) {
   });
   var rawCreate = box.BO.Core.create;
   box.BO.Core.create = function (seed) {
-    var st = rawCreate(seed); st.room.rows = Array(10).fill('..........'); st.room.objects = [];
-    st.ps = [{ x: 0, y: 0, hp: 5, painted: false }, { x: 5, y: 5, hp: 1, painted: false }];
+    var st = rawCreate(seed); st.room.objects = [];
+    var k0 = [], k1 = []; for (var i = 0; i < 64; i++) { k0.push(0); k1.push(0); }
+    st.ps = [{ x: 0, y: 0, hp: 5, painted: false, face: 2, known: k0 },
+             { x: 5, y: 5, hp: 1, painted: false, face: 0, known: k1 }];
     st.side = 0; st.lamp = null; return st;
   };
   box.sent = []; box.ended = 0;

@@ -105,56 +105,17 @@ input[type=text]{width:100%; padding:12px; border-radius:var(--r); background:#0
 .clock.warn i{background:var(--hot)}
 
 /* ── 격자 ──────────────────────────────────────────────────────────────── */
-.board{display:grid; grid-template-columns:repeat(10,1fr); grid-template-rows:repeat(10,1fr);
+/* 칸 수는 ui.js 가 인라인(grid-template-*)으로 넣는다 — 규칙 상수 하나로 8×8 이 정해진다.
+   칸의 층(그림·어둠·얼룩·사람)은 전부 rooms.css 에 있다. 여기는 크기와 배치만. */
+.board{display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);
   gap:2px; aspect-ratio:1;
   background:#0a0e14; border:1px solid var(--line); border-radius:var(--r); padding:2px;
   touch-action:manipulation}
 .cell{position:relative; border-radius:3px; background:var(--tile); overflow:hidden}
-.cell.alt{background:var(--tile2)}
-/* 어둠: 기본은 아무것도 안 보인다 */
-.cell .paint,.cell .mark,.cell .lamp,.cell .ghost{position:absolute; inset:0}
-
-/* 페인트 얼룩 — 이미지 없이 CSS 로. 모양은 칸마다 다르게(--b 를 JS 가 넣는다) */
-.paint{border-radius:var(--b,50%); transform:scale(.82)}
-.paint.mine{background:radial-gradient(circle at 40% 35%, #7ffbef, #2aa79a)}
-.paint.foe{background:radial-gradient(circle at 40% 35%, #ff9dc0, #c02a5f)}
-.paint.hit{box-shadow:0 0 0 2px #fff6, 0 0 12px #fff8}
-
-/* 발자국 · 전등 버튼 · 마지막 목격 */
-.mark{display:flex; align-items:center; justify-content:center; font-size:min(3.2vw,15px)}
-.lamp{display:flex; align-items:center; justify-content:center; font-size:min(4vw,19px);
-  box-shadow:inset 0 0 0 1px #6b5a2a; border-radius:3px}
-.lamp.on{box-shadow:inset 0 0 0 2px var(--hot); background:#ffcc4d22}
-.cell .ghost{display:flex; align-items:center; justify-content:center; font-size:min(4vw,18px);
-  color:var(--foe); text-shadow:0 0 10px var(--foe)}
-@keyframes pulse{0%,100%{opacity:1} 50%{opacity:.45}}
-
-/* 불이 켜졌다 — 방 전체가 잠깐 밝아지고 상대가 보인다 */
-.board.lit{background:#141a23; box-shadow:0 0 40px #ffcc4d33 inset}
-.board.lit .cell{background:#1a212c}
-.board.lit .cell.alt{background:#1c242f}
-.cell.foe::after{content:''; position:absolute; inset:14%; border-radius:50%;
-  background:radial-gradient(circle,#ffd0e2,var(--foe)); box-shadow:0 0 18px var(--foe);
-  animation:reveal .25s ease-out}
-@keyframes reveal{from{transform:scale(.3); opacity:0} to{transform:scale(1); opacity:1}}
-
-/* 나 */
-.cell.me::after{content:''; position:absolute; inset:14%; border-radius:50%;
-  background:radial-gradient(circle,#bffff7,var(--me)); box-shadow:0 0 16px var(--me)}
-.cell.me.painted::before{content:''; position:absolute; inset:0; border-radius:3px;
-  box-shadow:inset 0 0 0 2px var(--foe)}
-
-/* 조작 가능 표시 */
-.cell.movable{box-shadow:inset 0 0 0 1px #2e4a63}
-.cell.aim{box-shadow:inset 0 0 0 2px var(--hot)}
 .cell.aim::before{content:'✛'; position:absolute; inset:0; display:flex; align-items:center;
-  justify-content:center; color:var(--hot); font-size:min(4vw,18px)}
-.cell.sensed{animation:sense 1.8s infinite}
-@keyframes sense{0%,100%{box-shadow:inset 0 0 0 1px #ffcc4d22} 50%{box-shadow:inset 0 0 0 1px #ffcc4d77}}
-
-/* 피격 섬광 */
-.cell.flash{animation:flash .5s ease-out}
-@keyframes flash{from{background:#fff} to{background:var(--tile)}}
+  justify-content:center; color:var(--hot); font-size:min(5vw,22px); z-index:9; pointer-events:none;
+  text-shadow:0 0 6px #000}
+@keyframes pulse{0%,100%{opacity:1} 50%{opacity:.45}}
 
 /* 인기척 배지 — 켜진 순간이 눈에 확 들어와야 한다. 격자 음영만으로는 놓친다. */
 .lit-badge{text-align:center; font-size:12.5px; font-weight:700; color:#0d1117;
@@ -236,9 +197,8 @@ input[type=text]{width:100%; padding:12px; border-radius:var(--r); background:#0
 .btn.small{padding:8px 12px; font-size:13px}
 
 /* 고른 칸 */
-.cell.step{box-shadow:inset 0 0 0 3px var(--me)}
 .cell.step::before{content:'⬆'; position:absolute; inset:0; display:flex; align-items:center;
-  justify-content:center; color:var(--me); font-size:min(4vw,18px); z-index:9; pointer-events:none;
+  justify-content:center; color:var(--me); font-size:min(5vw,22px); z-index:9; pointer-events:none;
   text-shadow:0 0 6px #000}
 
 /* 기록 접기 */
@@ -248,9 +208,13 @@ input[type=text]{width:100%; padding:12px; border-radius:var(--r); background:#0
 
 /* ── 튜토리얼 안내판 — 격자 위 ──────────────────────────────────────────── */
 .boardwrap{position:relative}
-.tut{position:absolute; left:6px; right:6px; top:6px; z-index:30}
-.tut-card{background:#0e141df2; border:1px solid var(--hot); border-radius:10px; padding:10px 12px;
-  box-shadow:0 10px 30px #000b}
+.tut{position:absolute; left:6px; right:6px; top:6px; z-index:30; pointer-events:none}
+/* ⚠ 안내판은 격자 위에 겹치므로 **클릭을 통과시킨다.** 8×8 로 칸이 커지자 안내판
+   밑의 칸(내 시작 줄!)을 누를 수 없었다(tests/tutorial.test.js 가 잡았다). 글은
+   반투명, 버튼만 눌린다. */
+.tut-card{background:#0e141dd6; border:1px solid var(--hot); border-radius:10px; padding:10px 12px;
+  box-shadow:0 10px 30px #000b; pointer-events:none}
+.tut-card .row button{pointer-events:auto}
 .tut-step{font-size:11px; color:var(--hot); letter-spacing:.6px; font-weight:700}
 .tut-card p{margin:4px 0 8px; font-size:13.5px; line-height:1.5}
 .tut-card .row{justify-content:flex-end} .tut-card .row>*{flex:0 0 auto}

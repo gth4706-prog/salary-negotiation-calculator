@@ -25,7 +25,7 @@ const { chromium } = require('playwright');
   ok(await p.locator('.cell.aim').count() === 1, '칸을 짚으면 조준점이 표시된다');
   ok((await p.textContent('#confirm')).trim() === '발사', '[확정] 라벨 = 발사');
   await p.click('#confirm'); await p.waitForTimeout(300);
-  ok(await p.locator('.cell .paint.mine:not(.hide)').count() >= 1, '[발사] 뒤 내 얼룩이 생긴다');
+  ok(await p.locator('.cell .splat.mine:not(.hide)').count() >= 1, '[발사] 뒤 내 얼룩이 생긴다');
   await p.click('#log-toggle'); await p.waitForTimeout(100);
   ok(await p.evaluate(() => document.getElementById('log').classList.contains('open')), '기록 [더 보기] 가 펼쳐진다');
   await p.click('#log-toggle');

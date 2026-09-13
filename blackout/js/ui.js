@@ -4,18 +4,22 @@ window.BO = window.BO || {};
 //  블랙아웃 — **화면**. 규칙도 네트워크도 모른다.
 //
 //  ⚠ 여기서는 `Core.view(st, 나)` 가 내준 것만 그린다. 상태 객체를 직접 받지 않는다.
-//    숨김 정보 게임에서 제일 흔한 사고가 «화면이 무심코 상대를 그려 버리는 것»인데,
-//    받는 물건에 애초에 상대 좌표가 없으면 그 사고가 구조적으로 안 난다.
+//    숨김 정보 게임에서 제일 흔한 사고가 «화면이 무심코 상대나 안 본 가구를 그려
+//    버리는 것»인데, 받는 물건에 애초에 그게 없으면 그 사고가 구조적으로 안 난다.
 //
-//  ── 조작은 「고르고 → 확정」이다 (실서버 첫 판 뒤 바뀜) ─────────────────────
+//  ── v0.5 그림의 원리: 스크래치 아트 ────────────────────────────────────────
+//  칸마다 층이 있다. 맨 아래 «그림»(바닥·가구 조각) → 그 위 «어둠»(fog) →
+//  그 위 «야광 얼룩»(splat). 얼룩은 그림을 얼룩 모양으로 뚫어 보여 준다 — 검은
+//  크레파스를 긁어내면 밑의 색이 나오듯. 어둠은 칸을 아느냐(known)·지금 보느냐(seen)에
+//  따라 두께가 다르다. 불이 켜지면 어둠이 전부 걷힌다.
+//
+//  ── 조작은 「고르고 → 확정」이다 ─────────────────────────────────────────
 //  이동이든 사격이든 방향키·터치로 **대상 칸을 먼저 짚고**, [확정]을 눌러야 행동한다.
-//  처음엔 방향키를 누르면 바로 움직였는데, 폰에서 손가락이 미끄러져 행동력을
-//  날리는 일이 생긴다. 한 번 더 누르는 값이 잘못 둔 한 수보다 싸다.
-//  같은 칸을 두 번 짚는 것도 확정으로 친다 — 확신 있는 사람은 톡톡, 아니면 보고.
+//  같은 칸을 두 번 짚는 것도 확정으로 친다.
 // ============================================================================
 BO.UI = (function () {
   var C = BO.Core;
-  var els = {}, cells = [], mode = 'move', sel = null, roomKey = '';
+  var els = {}, cells = [], mode = 'move', sel = null, roomKey = '', lastFoeKey = '';
 
   function $(id) { return document.getElementById(id); }
 
@@ -26,23 +30,32 @@ BO.UI = (function () {
     els.modeMove = $('mode-move'); els.modeShoot = $('mode-shoot');
     els.confirm = $('confirm'); els.pass = $('pass'); els.pad = $('pad');
     els.sense = $('sense'); els.logToggle = $('log-toggle');
+    els.toast = $('toast'); els.hurt = $('hurt');
     buildBoard(handlers);
     bindControls(handlers);
     BO.Art.globals();
     return els;
   }
 
-  //  칸 100개는 **한 번만** 만든다. 매 턴 innerHTML 을 새로 쓰면 애니메이션이 끊기고
+  //  칸은 **한 번만** 만든다. 매 턴 innerHTML 을 새로 쓰면 애니메이션이 끊기고
   //  탭 도중에 DOM 이 갈려서 입력이 씹힌다.
   function buildBoard(h) {
+    var W = C.C.W, H = C.C.H;
     els.board.innerHTML = '';
+    els.board.style.gridTemplateColumns = 'repeat(' + W + ',1fr)';
+    els.board.style.gridTemplateRows = 'repeat(' + H + ',1fr)';
     cells = [];
-    for (var y = 0; y < C.C.H; y++) for (var x = 0; x < C.C.W; x++) {
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
       var d = document.createElement('div');
-      d.className = 'cell' + ((x + y) % 2 ? ' alt' : '');
+      d.className = 'cell unknown';
       d.dataset.x = x; d.dataset.y = y;
-      d.innerHTML = '<span class="paint hide"></span><span class="mark hide"></span>' +
-                    '<span class="lamp hide"></span><span class="ghost hide"></span><span class="reaction"></span>';
+      //  바닥 그림을 칸 단위로 잘라 붙일 때의 위치(art.js / rooms.css 의 has-floor)
+      d.style.setProperty('--fx', (W > 1 ? x / (W - 1) * 100 : 0) + '%');
+      d.style.setProperty('--fy', (H > 1 ? y / (H - 1) * 100 : 0) + '%');
+      d.innerHTML = '<span class="art"></span><span class="fog"></span>' +
+                    '<span class="splat hide"><i class="paint"></i></span>' +
+                    '<span class="mark hide"></span><span class="lamp hide"></span>' +
+                    '<span class="dir hide"></span><span class="ghost hide"></span><span class="reaction"></span>';
       (function (px, py, node) {
         node.addEventListener('click', function () { onTile(px, py, h); });
       })(x, y, d);
@@ -52,15 +65,16 @@ BO.UI = (function () {
   }
 
   function cellAt(x, y) { return cells[y * C.C.W + x]; }
+  function tileOf(v, x, y) { return v.tiles[y * C.C.W + x]; }
 
   // ── 입력: 고르기 ──────────────────────────────────────────────────────────
   function onTile(x, y, h) {
     var v = h.view();
     if (!v || !v.myTurn) return;
-    if (!BO.Rooms.inside(v.room, x, y)) { flashHint('여기는 방 밖입니다'); return; }
     if (mode === 'move') {
-      if (!BO.Rooms.walkable(v.room, x, y)) { flashHint('가구는 걸어갈 수 없습니다 · 사격으로 맞혀보세요'); return; }
-      if (dirTo(v.me, x, y) == null) { flashHint('한 칸씩만 움직일 수 있습니다'); return; }
+      var d = dirTo(v.me, x, y);
+      if (d == null) { flashHint('한 칸씩만 움직일 수 있습니다'); return; }
+      if (v.legalDirs.indexOf(d) < 0) { flashHint('가구가 있는 칸 — 못 갑니다. 사격으로 칠할 수는 있습니다'); return; }
     } else if (x === v.me.x && y === v.me.y) { flashHint('제 발밑은 쏘지 않습니다'); return; }
     if (sel && sel.x === x && sel.y === y) { confirm(h); return; }   // 같은 칸 두 번 = 확정
     sel = { x: x, y: y };
@@ -74,8 +88,8 @@ BO.UI = (function () {
     var from = (mode === 'move' || !sel) ? v.me : sel;
     var nx = from.x + C.DX[d], ny = from.y + C.DY[d];
     if (mode === 'move') {
-      if (!BO.Rooms.walkable(v.room, nx, ny)) { flashHint('그쪽으로는 갈 수 없습니다'); return; }
-    } else if (!BO.Rooms.inside(v.room, nx, ny)) { flashHint('방 밖입니다'); return; }
+      if (v.legalDirs.indexOf(d) < 0) { flashHint(C.inBoard(nx, ny) ? '가구가 있는 칸 — 못 갑니다' : '벽입니다'); return; }
+    } else if (!C.inBoard(nx, ny)) { flashHint('격자 밖입니다'); return; }
     sel = { x: nx, y: ny };
     render(v);
   }
@@ -118,9 +132,7 @@ BO.UI = (function () {
       var open = els.log.classList.toggle('open');
       els.logToggle.textContent = open ? '접기' : '더 보기';
     };
-
-    //  키보드 — 데스크톱에서 훨씬 빠르다. 방향키/WASD 고르기, Enter 확정,
-    //  Space 모드 전환, Esc 취소.
+    //  키보드 — 방향키/WASD 고르기, Enter 확정, Space 모드 전환, Esc 취소.
     document.addEventListener('keydown', function (e) {
       if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
       var v = h.view(); if (!v || !v.myTurn) return;
@@ -147,15 +159,21 @@ BO.UI = (function () {
     var dots = '';
     for (var i = 0; i < C.C.AP; i++) dots += '<span class="dot' + (i < v.ap ? ' on' : '') + '"></span>';
     els.ap.innerHTML = (v.myTurn ? '행동력 ' : '상대 행동력 ') + dots +
-      (v.me.painted ? ' <span style="color:var(--foe)">· 페인트 묻음</span>' : '');
+      (v.me.painted ? ' <span class="glowing">· 야광이 묻었다 — 상대에게 윤곽이 보인다</span>' : '');
 
     if (v.lit > 0) {
-      els.sense.textContent = '💡 불이 켜졌다 — 서로가 보인다 (행동 ' + v.lit + '번 뒤 꺼짐)';
+      els.sense.textContent = '💡 불이 켜졌다 — 방 전체가 보인다 (행동 ' + v.lit + '번 뒤 꺼짐)';
       els.sense.className = 'lit-badge';
+    } else if (v.foe && v.foe.why === 'seen') {
+      els.sense.textContent = '👀 시야에 상대가 있다!';
+      els.sense.className = 'sense-badge';
+    } else if (v.foe && v.foe.why === 'glow') {
+      els.sense.textContent = '✨ 상대에게 야광이 묻어 윤곽이 보인다';
+      els.sense.className = 'sense-badge';
     } else {
       els.sense.textContent = v.sense
         ? '👂 인기척 — 바로 옆에 있다 (상대도 나를 느낀다)'
-        : v.room.name + ' · 인기척 없음';
+        : '어둠 · 바라보는 쪽만 보인다 · 인기척 없음';
       els.sense.className = 'sense-badge' + (v.sense ? '' : ' off');
     }
 
@@ -163,8 +181,6 @@ BO.UI = (function () {
     els.modeShoot.classList.toggle('on', mode === 'shoot');
     els.pass.textContent = v.ap === C.C.AP ? '턴 넘기기' : '남은 행동력 버리고 넘기기';
 
-    //  상대 턴에는 조작부를 눌리지 않는 모양으로. 멀쩡해 보이는 버튼이 반응이 없으면
-    //  사람은 「고장났나?」 하고 또 누른다.
     var lock = !v.myTurn || v.over;
     els.pass.disabled = lock;
     els.modeMove.disabled = lock; els.modeShoot.disabled = lock;
@@ -175,7 +191,6 @@ BO.UI = (function () {
     for (var d = 0; d < 4; d++) {
       var b = $('pad-' + d);
       if (!b) continue;
-      //  이동 모드는 갈 수 있는 방향만, 사격 모드는 조준점을 옮기니 늘 켜 둔다
       b.disabled = lock || (mode === 'move' && v.legalDirs.indexOf(d) < 0);
     }
 
@@ -184,100 +199,98 @@ BO.UI = (function () {
   }
 
   function paintBoard(v) {
-    renderRoom(v.room);
+    if (roomKey !== v.room.id) {
+      roomKey = v.room.id;
+      els.board.setAttribute('data-room', v.room.id);
+      els.board.setAttribute('aria-label', '어두운 방 전장');
+      BO.Art.floor(els.board, v.room.id);
+    }
     els.board.classList.toggle('moving', mode === 'move' && v.myTurn);
     els.board.classList.toggle('shooting', mode === 'shoot' && v.myTurn);
     els.board.classList.toggle('lit', v.lit > 0);
     var movable = {}, d;
     if (v.myTurn && mode === 'move') {
-      for (d = 0; d < 4; d++) {
-        var nx = v.me.x + C.DX[d], ny = v.me.y + C.DY[d];
-        if (BO.Rooms.walkable(v.room, nx, ny)) movable[nx + ',' + ny] = 1;
-      }
+      for (d = 0; d < 4; d++) if (v.legalDirs.indexOf(d) >= 0)
+        movable[(v.me.x + C.DX[d]) + ',' + (v.me.y + C.DY[d])] = 1;
     }
-    var paint = {}, mark = {};
+    var paint = {}, mark = {}, seen = {};
     v.paint.forEach(function (p) { paint[p.x + ',' + p.y] = p; });
     v.marks.forEach(function (m) { mark[m.x + ',' + m.y] = m; });
+    v.seen.forEach(function (s) { seen[s.x + ',' + s.y] = 1; });
+
+    //  상대가 새로 «보이게» 된 순간 — 발견을 알린다(놓치면 게임이 안 된다)
+    var foeKey = v.foe ? v.foe.why + v.foe.x + ',' + v.foe.y : '';
+    if (foeKey && foeKey !== lastFoeKey && (v.foe.why === 'seen' || v.foe.why === 'lit')) {
+      if (!lastFoeKey || lastFoeKey.charAt(0) !== v.foe.why.charAt(0)) { toast('👀 상대 발견!', 'spot'); BO.Sfx.play('spot'); }
+    }
+    lastFoeKey = foeKey;
 
     for (var y = 0; y < C.C.H; y++) for (var x = 0; x < C.C.W; x++) {
-      var key = x + ',' + y, c = cellAt(x, y);
+      var key = x + ',' + y, c = cellAt(x, y), t = tileOf(v, x, y);
       var isMe = (x === v.me.x && y === v.me.y);
+      var isFoe = !!(v.foe && v.foe.x === x && v.foe.y === y);
       var isSel = !!(sel && sel.x === x && sel.y === y);
+
+      //  어둠의 두께: 모르는 칸 / 아는 칸(기억) / 지금 보는 칸
+      c.classList.toggle('unknown', !t);
+      c.classList.toggle('known', !!t && !seen[key]);
+      c.classList.toggle('seen', !!seen[key]);
+      c.classList.toggle('blocked', !!(t && !t.walk));
+      var kind = t ? t.kind : '';
+      if (c.dataset.kind !== kind) {
+        if (c.dataset.kind) c.classList.remove('k-' + c.dataset.kind);
+        c.dataset.kind = kind;
+        if (kind) { c.classList.add('k-' + kind); c.classList.add('reveal'); }
+        BO.Art.tile(c, t, v.room.id);
+        var label = (x + 1) + ',' + (y + 1) + ' · ' + (!t ? '모르는 칸' :
+          (t.kind === 'floor' ? '바닥' : t.name + (t.walk ? ' · 밟을 수 있다' : ' · 못 지나간다, 사격은 된다')));
+        c.title = label; c.setAttribute('aria-label', label);
+      }
+
       c.classList.toggle('me', isMe);
-      c.classList.toggle('foe', !!(v.foe && v.foe.x === x && v.foe.y === y));
+      c.classList.toggle('foe', isFoe);
+      c.classList.toggle('foe-glow', isFoe && v.foe.why === 'glow');
+      c.classList.toggle('foe-seen', isFoe && v.foe.why === 'seen');
+      c.classList.toggle('foe-lit', isFoe && v.foe.why === 'lit');
       c.classList.toggle('painted', isMe && v.me.painted);
       c.classList.toggle('movable', !!movable[key]);
       c.classList.toggle('step', isSel && mode === 'move');    // 갈 칸
       c.classList.toggle('aim', isSel && mode === 'shoot');    // 쏠 칸
       c.classList.toggle('sensed', !!(v.sense && C.dist(x, y, v.me.x, v.me.y) <= v.senseR));
 
-      var sp = c.children[0], sm = c.children[1], sn = c.children[2], sg = c.children[3];
+      var sp = c.children[2], sm = c.children[3], sn = c.children[4], sd = c.children[5], sg = c.children[6];
       var p = paint[key];
-      sp.className = 'paint material-' + BO.Rooms.material(v.room, x, y) +
-        ' v' + (1 + ((x * 7 + y * 13) % 2)) +
-        (p ? (p.by === v.mine ? ' mine' : ' foe') + (p.hit ? ' hit' : '') : ' hide');
       if (p) {
-        sp.style.opacity = 0.4 + 0.5 * (p.left / C.C.PAINT_TURNS);
+        sp.className = 'splat v' + (1 + ((x * 7 + y * 13) % 2)) + (p.by === v.mine ? ' mine' : ' foe') +
+          (p.hit ? ' hit' : '') + (p.age === 0 ? ' fresh' : '');
         sp.style.setProperty('--rot', ((x * 37 + y * 91) % 360) + 'deg');
         sp.style.setProperty('--splat', 'url(' + BO.Art.BASE + BO.Art.splat(x, y) + ')');
-        sp.title = '페인트 ' + p.left + '턴 남음';
-      }
+        sp.title = (p.by === v.mine ? '내' : '상대') + ' 페인트' + (p.hit ? ' · 여기서 맞았다' : '');
+      } else sp.className = 'splat hide';
+
       var mk = mark[key];
       sm.className = 'mark' + (mk ? (mk.side === v.mine ? ' mine' : ' foe') : ' hide');
-      if (mk) {
-        sm.textContent = '';
-        sm.style.color = mk.side === v.mine ? 'var(--me)' : 'var(--foe)';
-        sm.title = '발자국 ' + mk.left + '턴 남음';
-        sm.style.opacity = 0.35 + 0.6 * (mk.left / C.C.MARK_TURNS);
-      }
+      if (mk) sm.title = (mk.side === v.mine ? '내' : '상대') + ' 발자국 — 여기서 발을 뗐다';
+
       var isLamp = !!(v.lamp && v.lamp.x === x && v.lamp.y === y);
       sn.className = 'lamp' + (isLamp ? (v.lit > 0 ? ' on' : '') : ' hide');
       if (isLamp) sn.textContent = v.lit > 0 ? '💡' : '🔘';
 
-      var seen = v.foeSeen && v.foeSeen.x === x && v.foeSeen.y === y &&
-                 (v.turn - v.foeSeen.turn) <= 3 && !(v.foe && v.foe.x === x && v.foe.y === y);
-      sg.className = 'ghost' + (seen ? '' : ' hide');
-      if (seen) sg.textContent = '✖';
-    }
-  }
+      //  내가 바라보는 방향 — 시야각이 어디로 열렸는지 한눈에
+      sd.className = 'dir' + (isMe ? ' f' + v.me.face : ' hide');
 
-  function renderRoom(room) {
-    if (roomKey === room.id) return;
-    roomKey = room.id;
-    els.board.setAttribute('data-room', room.id);
-    els.board.setAttribute('aria-label', room.name + ' 전장');
-    var old = els.board.querySelector('.furniture-layer');
-    if (old) els.board.removeChild(old);
-    var layer = document.createElement('div');
-    layer.className = 'furniture-layer';
-    layer.setAttribute('aria-hidden', 'true');
-    room.objects.forEach(function (o) {
-      var item = document.createElement('div');
-      item.className = 'furniture ' + o.kind;
-      item.style.left = (o.x * 10) + '%'; item.style.top = (o.y * 10) + '%';
-      item.style.width = (o.w * 10) + '%'; item.style.height = (o.h * 10) + '%';
-      item.innerHTML = '<i></i><b></b>';
-      layer.appendChild(item);
-      BO.Art.furniture(item, o.kind);      // 그림이 있으면 CSS 가구 대신 그림
-    });
-    els.board.appendChild(layer);
-    BO.Art.floor(els.board, room.id);      // 바닥 그림이 있으면 격자 뒤에 깐다
-    for (var y = 0; y < C.C.H; y++) for (var x = 0; x < C.C.W; x++) {
-      var c = cellAt(x, y), obj = BO.Rooms.objectAt(room, x, y);
-      var inside = BO.Rooms.inside(room, x, y), walk = BO.Rooms.walkable(room, x, y);
-      c.classList.toggle('outside', !inside);
-      c.classList.toggle('blocked', inside && !walk);
-      c.classList.toggle('rug-floor', !!(obj && obj.kind === 'rug'));
-      var label = (x + 1) + ',' + (y + 1) + ' · ' +
-        (!inside ? '방 밖' : obj ? obj.name + (walk ? ' · 이동 가능' : ' · 이동 불가, 사격 가능') : '바닥 · 이동 가능');
-      c.title = label; c.setAttribute('aria-label', label);
+      var ghost = v.foeSeen && v.foeSeen.x === x && v.foeSeen.y === y &&
+                  (v.turn - v.foeSeen.turn) <= 3 && !isFoe;
+      sg.className = 'ghost' + (ghost ? '' : ' hide');
+      if (ghost) sg.textContent = '✖';
     }
   }
 
   function pips(el, hp) {
-    var s = '';
-    for (var i = 0; i < C.C.HP; i++) s += '<span class="pip' + (i < hp ? ' on' : '') + '"></span>';
+    var s = '', was = el._hp;
+    for (var i = 0; i < C.C.HP; i++) s += '<span class="pip' + (i < hp ? ' on' : (was != null && i < was ? ' lost' : '')) + '"></span>';
     el.innerHTML = el.dataset.label + s;
+    el._hp = hp;
   }
 
   // ── 시계 ──────────────────────────────────────────────────────────────────
@@ -288,48 +301,83 @@ BO.UI = (function () {
   }
 
   // ── 사건 → 기록 · 효과 ────────────────────────────────────────────────────
+  //  ⚠ 「맞았는지 맞혔는지 모르겠다」(실서버 2판째). 타격은 **네 겹**으로 알린다:
+  //    큰 글자(toast) · 화면 흔들림·번쩍임 · 소리 · 진동. 하나만으로는 놓친다.
   function events(evs, byMe) {
     evs.forEach(function (e) {
       if (e.k === 'hit' || e.k === 'miss') react(e.x, e.y, e.material || 'wood');
       var at = '(' + (e.x + 1) + ',' + (e.y + 1) + ')';
       if (e.k === 'hit') {
-        say(byMe ? '🎯 명중! ' + at : '💥 피격! ' + at + ' 에서 맞았다', byMe ? 'me' : 'foe');
-        flash(e.x, e.y); BO.Sfx.play(byMe ? 'hit' : 'hurt');
+        if (byMe) {
+          say('🎯 명중! ' + at + ' — 윤곽이 보인다, 한 발 더!', 'me');
+          toast('명중!', 'hitme'); burst(e.x, e.y, 'me'); shake('sm');
+          BO.Sfx.play('hit'); BO.Sfx.play('splat'); buzz([40]);
+        } else {
+          say('💥 피격! ' + at + ' 에서 맞았다 — 야광이 묻었다, 움직여라', 'foe');
+          toast('맞았다! −1', 'hurt'); burst(e.x, e.y, 'foe'); shake('big'); hurtFlash(); jolt(e.x, e.y);
+          BO.Sfx.play('hurt'); BO.Sfx.play('splat'); buzz([90, 50, 130]);
+        }
       } else if (e.k === 'miss') {
-        say(byMe ? '· ' + at + ' 빗나감' : '상대가 ' + at + ' 을 쐈다', byMe ? '' : 'foe');
-        if (!byMe) flash(e.x, e.y);
-        BO.Sfx.play('shot');
+        if (byMe) { say('· ' + at + ' 빗나감 — ' + kindName(e.kind) + '에 얼룩', ''); }
+        else { say('상대가 ' + at + ' 을 쐈다 — 어딘가에서 한 발', 'foe'); flash(e.x, e.y); toast('어딘가에서 한 발', 'foeshot'); }
+        BO.Sfx.play('shot'); BO.Sfx.play('splat');
       } else if (e.k === 'bump') {
-        say('🫨 어둠 속에서 부딪혔다 — 서로 위치가 드러났다', 'hot');
-        flash(e.x, e.y); BO.Sfx.play('bump');
+        if (byMe) {
+          say('🫨 쿵! ' + kindName(e.kind) + '에 부딪혔다 — 이제 그쪽이 보인다', 'hot');
+          toast('쿵! ' + kindName(e.kind), 'bump'); shake('sm'); flash(e.x, e.y);
+          BO.Sfx.play('bump'); buzz([30]);
+        }
       } else if (e.k === 'lamp') {
         say(byMe ? '💡 불을 켰다! 상대는 (' + (e.fx + 1) + ',' + (e.fy + 1) + ') — 다음 행동 하나까지만 보인다'
                  : '💡 상대가 불을 켰다! 상대는 ' + at + ' — 내 위치도 드러났다', 'hot');
+        toast(byMe ? '💡 불을 켰다' : '💡 상대가 불을 켰다', 'lamp');
         BO.Sfx.play('lamp');
       } else if (e.k === 'mark') {
-        say(byMe ? '👣 내 발자국이 ' + at + ' 에 남았다' : '👣 상대 발자국 발견 ' + at,
-            byMe ? 'foe' : 'me');
-        if (!byMe) BO.Sfx.play('clue');
+        say(byMe ? '👣 내 발자국이 ' + at + ' 에 남았다' : '👣 상대 발자국 발견 ' + at, byMe ? 'foe' : 'me');
+        if (!byMe) { toast('👣 발자국!', 'spot'); BO.Sfx.play('clue'); }
       } else if (e.k === 'step') {
-        say('🎨 페인트를 밟았다 — 다음 턴에 한 칸만 움직이면 발자국이 남는다', 'hot');
+        say('🎨 얼룩을 밟았다 — 야광이 묻어 상대에게 윤곽이 보인다. 다음 턴에 움직여라', 'hot');
+        if (byMe) toast('얼룩을 밟았다', 'bump');
         BO.Sfx.play('clue');
       }
     });
   }
 
+  function kindName(k) {
+    return { floor: '바닥', desk: '책상', chair: '의자', cabinet: '수납장', papers: '서류', shelf: '책장',
+             bed: '침대', nightstand: '협탁', rug: '러그', basket: '바구니', sofa: '소파', plant: '화분' }[k] || '무언가';
+  }
+
   //  표적 칸에서만 나는 연출. 쏜 자리·이동·숨은 상대 어느 것도 여기 안 들어온다.
   function react(x, y, material) {
-    var c = cellAt(x, y), fx = c.children[4];
+    var c = cellAt(x, y), fx = c.children[7];
     fx.className = 'reaction';
     void fx.offsetWidth;
     fx.className = 'reaction react-' + material;
   }
-
-  function flash(x, y) {
-    var c = cellAt(x, y);
-    c.classList.remove('flash');
-    void c.offsetWidth;            // 리플로우 — 같은 칸에 연속으로 터져도 다시 재생된다
-    c.classList.add('flash');
+  function flash(x, y) { replay(cellAt(x, y), 'flash'); }
+  function burst(x, y, who) { replay(cellAt(x, y), 'burst-' + who); }
+  function jolt(x, y) { replay(cellAt(x, y), 'jolt'); }
+  function shake(kind) { replay(els.board, kind === 'big' ? 'shake' : 'shake-sm'); }
+  function hurtFlash() { if (els.hurt) replay(els.hurt, 'on'); }
+  //  같은 효과가 연달아 터져도 다시 재생되게 — 클래스를 뗐다 붙인다(리플로우 한 번)
+  function replay(el, cls) {
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+  }
+  function buzz(pattern) {
+    try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {}
+  }
+  //  격자 한가운데 큰 글자. 한 줄만, 잠깐.
+  function toast(text, cls) {
+    if (!els.toast) return;
+    els.toast.textContent = text;
+    els.toast.className = 'toast ' + (cls || '');
+    void els.toast.offsetWidth;
+    els.toast.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { els.toast.classList.remove('show'); }, cls === 'hurt' || cls === 'hitme' ? 1100 : 850);
   }
 
   function say(text, cls) {
@@ -348,7 +396,6 @@ BO.UI = (function () {
     els.status.className = 'status ' + (kind || '');
   }
 
-  //  짧은 안내는 상태줄을 잠깐 빌려 쓴다. 줄을 따로 두면 낮은 화면에서 격자가 작아진다.
   var savedStatus = null;
   function flashHint(t) {
     if (savedStatus === null) savedStatus = { t: els.status.textContent, c: els.status.className };
@@ -362,12 +409,19 @@ BO.UI = (function () {
   }
 
   function reset() {
-    els.log.innerHTML = ''; sel = null; mode = 'move'; roomKey = '';
+    els.log.innerHTML = ''; sel = null; mode = 'move'; roomKey = ''; lastFoeKey = '';
+    els.hpMe._hp = null; els.hpFoe._hp = null;
     els.log.classList.remove('open');
     if (els.logToggle) els.logToggle.textContent = '더 보기';
+    for (var i = 0; i < cells.length; i++) {
+      var c = cells[i];
+      if (c.dataset.kind) c.classList.remove('k-' + c.dataset.kind);
+      c.dataset.kind = ''; c.className = 'cell unknown';
+      c.style.removeProperty('--art');
+    }
   }
 
   return { init: init, render: render, events: events, status: status, clock: clock,
-           say: say, reset: reset, setMode: setMode, hint: flashHint,
+           say: say, reset: reset, setMode: setMode, hint: flashHint, toast: toast,
            mode: function () { return mode; } };
 })();

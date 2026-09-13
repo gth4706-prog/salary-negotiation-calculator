@@ -9,6 +9,8 @@ if (process.env.RANGE !== undefined) BO.Core.C.RANGE = +process.env.RANGE;
 if (process.env.SENSE !== undefined) BO.Core.C.SENSE = +process.env.SENSE;
 if (process.env.LAMP  !== undefined) BO.Core.C.LAMP_ACTIONS = +process.env.LAMP;
 if (process.env.MAXT  !== undefined) BO.Core.C.MAX_TURNS = +process.env.MAXT;
+if (process.env.CONE  !== undefined) BO.Core.C.CONE = process.env.CONE.split(',').map(Number);   // 예: CONE=1,1,2
+if (process.env.LOS   !== undefined) BO.Core.C.LOS = +process.env.LOS;
 
 require('../js/bot.js');
 var C = BO.Core;
@@ -64,7 +66,8 @@ for (var s = 1; s <= N; s++) {
 }
 function pct(a, b) { return (100 * a / b).toFixed(1) + '%'; }
 var fh = agg.firstHits.slice().sort(function (a, b) { return a - b; });
-console.log('규칙            ', '사거리 ' + (C.C.RANGE || '무제한') + ' · 인기척 ' + C.C.SENSE +
+console.log('규칙            ', C.C.W + '×' + C.C.H + ' · 시야각 ' + C.C.CONE.join('/') + (C.C.LOS ? '(가구가 가림)' : '') +
+            ' · 사거리 ' + (C.C.RANGE || '무제한') + ' · 인기척 ' + C.C.SENSE +
             ' · 전등 ' + C.C.LAMP_ACTIONS + '행동 · 제한 ' + C.C.MAX_TURNS + '턴');
 console.log('판수            ', N);
 console.log('격추로 끝난 판  ', agg.kill, pct(agg.kill, N));
@@ -79,5 +82,5 @@ console.log('첫 명중 턴 중앙값', fh.length ? fh[fh.length >> 1] : '—',
             '· 한 번도 못 맞힌 판', pct(N - fh.length, N));
 console.log('평균 발자국/판  ', (agg.marks / N).toFixed(2));
 console.log('평균 페인트밟기/판', (agg.steps / N).toFixed(2));
-console.log('평균 충돌/판    ', (agg.bumps / N).toFixed(2));
+console.log('평균 부딪힘/판  ', (agg.bumps / N).toFixed(2));
 console.log('평균 전등켜기/판', (agg.lamps / N).toFixed(2));

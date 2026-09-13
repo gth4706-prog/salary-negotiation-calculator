@@ -2993,6 +2993,10 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         //  재대결용 — 방이 살아 있을 때만. 역할은 지난 판 그대로 잇는다(협동은 세계·층도).
         rtLive: (self._rtKeepRoom && self.rt && self.rt.my) ? {
           myRole: self.rt.my.role, theirRole: self.rt.their.role,
+          //  ⚠ **시드도 싣는다** (2026-09-13 태현님) — «이 설정 그대로» 는 전장까지
+          //    같아야 한다. 시드 하나가 전장·중립보스·황금알 자리를 전부 정하므로,
+          //    재대결이 이 값을 그대로 쓰면 «같은 판을 한 번 더» 가 성립한다.
+          seed: self.rt.seed >>> 0,
           coop: self.rt.coop ? { world: self.rt.coop.world, floor: self.rt.coop.floor } : null
         } : null,
         //  ⚠ 이 콜백의 this 는 씬이 아니라 타이머다 — this.state 로 썼다가 결과 전환이

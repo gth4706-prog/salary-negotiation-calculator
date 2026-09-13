@@ -308,7 +308,23 @@ GAME.RtFlow = {
   theirSetup: null,
   deadline: 0,
   _started: false,
-  _lastRec: null,   //  전투 직전의 임시 빌드 — 재대결 «설정 그대로» 전용
+  _lastRec: null,
+  _lastSeed: null,  //  지난 판 시드 — «전장 그대로» 인지 가리는 데 쓴다
+
+  //  재대결 시드 — **«이 설정 그대로» 는 전장까지 그대로다**(2026-09-13 태현님).
+  //  ⚠ 시드 하나가 전장·중립보스·황금알 자리를 전부 정한다. 새로 굴리면 영웅·장비·
+  //    스킬을 지켜도 «전장만 딴 판» 이 되어 «같은 판 한 번 더» 가 성립하지 않는다.
+  //  ⚠⚠ **이 계산을 씬에 두지 않는다.** 씬 안에 두면 헤드리스 도구가 그 코드를 못 타
+  //    «실제 게임과 다른 것» 을 재게 된다(v3.14 에서 소환수 배수로 겪은 그것).
+  //    result.js 와 tools/rtprep-audit.js 가 **이 함수 하나**를 부른다.
+  //  ⚠ 시드가 없던 옛 판(prev == null)은 새로 굴린다 — 없는 값으로 판을 만들면
+  //    양쪽이 서로 다른 전장에 들어간다.
+  rematchSeed: function (keep, prev, roll) {
+    if (keep && prev !== undefined && prev !== null) return prev >>> 0;
+    var r = (typeof roll === 'number') ? roll : Math.floor(Math.random() * 0x7fffffff);
+    return ((r | 0) || 1) >>> 0;
+  },
+  _sameMap: false,  //  이번 판이 지난 판과 **같은 전장**인가(룰렛을 건너뛴다)   //  전투 직전의 임시 빌드 — 재대결 «설정 그대로» 전용
 
   _rttFrozen: null,
   _p95Frozen: null,
@@ -374,6 +390,12 @@ GAME.RtFlow = {
     this._p95Frozen = null;
     //  ⚠ 1:1 은 **영웅 선택부터** 시작한다. 재대결에서 설정을 그대로 이어받았으면
     //    고를 것이 없으므로 바로 상점 단계로 간다(그게 «설정 그대로 한판 더» 의 뜻이다).
+    //  ⚠ **같은 전장인가** — 시드가 전장을 정하므로 시드가 같으면 전장이 같다.
+    //    같으면 전장 룰렛을 건너뛴다: 이미 아는 답을 4.8초 동안 돌려 보여 주는 것은
+    //    연출이 아니라 기다림이다. 양쪽이 같은 값으로 같이 건너뛰므로 록스텝이
+    //    어긋날 자리는 없다(한쪽만 건너뛰면 그 시간을 스톨로 먹는다 — rtspin.js 머릿글).
+    this._sameMap = !!(K && this._lastSeed !== null && startMsg &&
+                       (startMsg.seed >>> 0) === (this._lastSeed >>> 0));
     this.phase = (K && K.hero) ? 'shop' : 'hero';
     this.deadline = Date.now() + (this.phase === 'hero' ? this.PREP_HERO_MS : this.PREP_SHOP_MS);
     var self = this;
@@ -643,6 +665,7 @@ GAME.RtFlow = {
     //  ⚠ 지우기 **전에** 사본을 남긴다 — 재대결(«설정 그대로»)이 이것으로 되돌린다.
     //    남기지 않으면 다음 판이 빈 DEFAULT 에서 시작한다(위 `begin` 의 K 주석).
     this._lastRec = (GAME.ArenaBuild && GAME.ArenaBuild._rtRec) || this._lastRec || null;
+    this._lastSeed = this.startMsg.seed >>> 0;   //  다음 판이 «전장 그대로» 인지 가릴 근거
     if (GAME.ArenaBuild) GAME.ArenaBuild.rtEnd();
     var NR = GAME.NetRoom;
     //  팀 라벨: 방장 = 'controller' 팀 · 손님 = 'strategist' 팀 (역할과 무관한 자리 이름).
@@ -699,7 +722,10 @@ GAME.RtFlow = {
     //  ⚠ 장비까지 다 고른 뒤에 **전장 룰렛**을 한 번 돌린다(2026-09-11 태현님).
     //    협동은 전장이 아니라 세계 보스 층이라 건너뛴다.
     //  ⚠ 결과는 이미 시드로 정해져 있다 — 룰렛은 보여 주기만 한다(rtspin.js 머릿글).
-    if (GAME.RtSpinScene && !rt.coop) sm.start('RtSpin', { rt: rt, heroKey: heroKey });
+    //  ⚠ 전장이 지난 판 그대로면 룰렛을 건너뛴다(2026-09-13 태현님) — 준비 화면이
+    //    이미 «전장 OOO (그대로)» 라고 말해 두었다.
+    if (GAME.RtSpinScene && !rt.coop && !this._sameMap)
+      sm.start('RtSpin', { rt: rt, heroKey: heroKey });
     else sm.start('Battle', { rt: rt, heroKey: heroKey, formationId: null });
   },
 

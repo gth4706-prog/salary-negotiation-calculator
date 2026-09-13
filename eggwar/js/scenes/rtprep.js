@@ -555,7 +555,11 @@ GAME.RtPrepScene.prototype._refresh = function () {
   var _warn = (s > 5) ? ''
     : (F.phase === 'hero' ? '  ·  곧 상점으로 넘어갑니다' : '  ·  곧 자동 확정됩니다');
   this._timerTxt.setText('⏳ ' + s + '초'
-    + ((F.coop && this._mapName) ? ('  ·  ' + this._mapName) : '') + _warn);
+    //  ⚠ 평소에는 전장을 **안 띄운다**(룰렛이 보여 줄 몫이다). 다만 «이 설정 그대로»
+    //    재대결은 지난 판과 같은 전장이라 이미 아는 값이고, 룰렛도 건너뛴다 —
+    //    그러면 아무도 말해 주지 않는 상태가 되므로 여기서 말한다.
+    + (((F.coop || F._sameMap) && this._mapName)
+        ? ('  ·  ' + this._mapName + (F._sameMap ? ' (그대로)' : '')) : '') + _warn);
   this._timerTxt.setColor(s <= 5 ? GAME.CONFIG.COLORS.crit : GAME.CONFIG.COLORS.accentAlt);
   var who = F.coop ? '파트너' : '상대';
   var mine = F.mySetup ? '나: 준비 완료 ✓' : '나: 준비 중…';

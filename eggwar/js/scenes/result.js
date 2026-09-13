@@ -165,9 +165,11 @@ GAME.ResultScene.prototype._maybeRestart = function () {
   //  방장만 시드를 만든다 — 두 명이 각자 만들면 서로 다른 판이 된다.
   if (!this._rtVoted || !this._rtTheirVote || this._rtGoing) return;
   if (GAME.NetRoom.me !== GAME.NetRoom.host) return;
-  var seed = (Math.floor(Math.random() * 0x7fffffff) || 1) >>> 0;
-  //  ⚠ **한 쌍이라도 새로면 새로** — 방장이 결정해 둘에게 같은 값을 보낸다.
+  //  ⚠ 시드 결정은 `RtFlow.rematchSeed` 한 곳에 있다 — 여기에 베껴 두면 헤드리스
+  //    관문이 씬을 못 타서 **다른 규칙**을 재게 된다(v3.14 교훈).
   var keep = !!this._rtKeep && this._rtTheirKeep !== false;
+  var seed = GAME.RtFlow.rematchSeed(keep, this.rtLive && this.rtLive.seed);
+  //  ⚠ **한 쌍이라도 새로면 새로** — 방장이 결정해 둘에게 같은 값을 보낸다.
   GAME.NetRoom.relay({ type: 'rtRestart', seed: seed, keep: keep });
   this._rtGo(seed, keep);
 };
@@ -505,6 +507,12 @@ GAME.ResultScene.prototype.create = function () {
         function () { self._rtAgainClick(false); },
         { fill: GAME.UI.COL.panelPurple, line: GAME.CONFIG.COLORS.strategist,
           hover: GAME.UI.COL.panelPurpleHi, color: C.accentAlt, fontSize: P ? 14 : 16 });
+      //  ⚠ 두 버튼의 이름만으로는 **무엇이 유지되고 무엇이 새로 굴려지는지** 모른다
+      //    (2026-09-13 태현님이 직접 풀어서 다시 말해 주셨다 — 그게 안 읽혔다는 뜻이다).
+      //    한 줄로 좌·우 버튼에 각각 대응시킨다. 화살표가 어느 버튼 이야기인지 가리킨다.
+      GAME.UI.text(this, W / 2, btnTop + u * 4.6,
+        '← 전장·영웅·장비·스킬 그대로     전부 새로 →',
+        { size: 'micro', color: C.textDim, origin: 0.5, originY: 0 });
     } else if (b1) {
       this._rtAgainBtn = GAME.UI.button(this, W / 2, btnTop, bw, u * 7, b1,
         function () { self._rtAgainClick(true); },

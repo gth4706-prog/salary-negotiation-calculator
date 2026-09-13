@@ -10,6 +10,7 @@ async function stepAny(p) {
 }
 
 const BASE = 'http://localhost:8765/blackout/';
+const RT = process.env.RT || 'http://localhost:8767';
 
 async function mk(b, nick) {
   const ctx = await b.newContext({ viewport: { width: 400, height: 860 } });
@@ -18,11 +19,11 @@ async function mk(b, nick) {
   p.on('pageerror', e => errs.push(nick + ' PAGEERROR: ' + e.message));
   p.on('console', m => { if (m.type() === 'error') errs.push(nick + ' CONSOLE: ' + m.text()); });
   await p.goto(BASE);
-  await p.evaluate(n => {
-    localStorage.setItem('blackout.rtbase', 'http://localhost:8767');
+  await p.evaluate(({ n, rt }) => {
+    localStorage.setItem('blackout.rtbase', rt);
     localStorage.setItem('blackout.nick', n);
     localStorage.setItem('blackout.cid', n + '-cid');
-  }, nick);
+  }, { n: nick, rt: RT });
   await p.reload({ waitUntil: 'networkidle' });
   p._errs = errs; p._nick = nick;
   return p;
@@ -31,7 +32,7 @@ const turnOf = async p => (await p.textContent('#turn-info')).replace(/\s+/g, ' 
 const isMine = async p => (await turnOf(p)).includes('내 턴');
 
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
+  const b = await chromium.launch({ executablePath: process.env.BROWSER_PATH || (process.platform === 'win32' ? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' : '/opt/pw-browsers/chromium'), args: ['--no-sandbox'] });
   const A = await mk(b, '가영'), B = await mk(b, '나연');
 
   await A.click('#go-pvp'); await A.waitForTimeout(300);
@@ -64,9 +65,10 @@ const isMine = async p => (await turnOf(p)).includes('내 턴');
     const beforeOther = await turnOf(other);
     // 한 발 쏘고 한 칸 이동
     await me.click('#mode-shoot'); await me.waitForTimeout(60);
-    const i = (17 + t * 11) % 100;
-    await me.locator('.cell').nth(i).click(); await me.waitForTimeout(50);
-    await me.locator('.cell').nth(i).click(); await me.waitForTimeout(150);
+    const targets = me.locator('.cell:not(.outside):not(.me)');
+    const i = (17 + t * 11) % await targets.count();
+    await targets.nth(i).click(); await me.waitForTimeout(50);
+    await targets.nth(i).click(); await me.waitForTimeout(150);
     await me.click('#mode-move'); await me.waitForTimeout(60);
     await stepAny(me);
     await me.waitForTimeout(500);
@@ -87,6 +89,7 @@ const isMine = async p => (await turnOf(p)).includes('내 턴');
 
   const errs = [...A._errs, ...B._errs];
   console.log(errs.length ? '\n!! 오류 !!\n' + errs.join('\n') : '\n오류 없음');
+  await A.evaluate(() => BO.Net.leave()); await B.evaluate(() => BO.Net.leave());
   await b.close();
   process.exit(errs.length || desync || turns < 4 ? 1 : 0);
 })();

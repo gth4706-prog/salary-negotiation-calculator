@@ -1,3 +1,5 @@
+> v0.2 추가 검사: `node blackout/tests/rooms.test.js`, `node blackout/tests/match.test.js`. 브라우저/서버 테스트 의존성은 `playwright`와 `ws`이며 배포 게임에는 포함하지 않습니다. Windows Edge와 `BROWSER_PATH` 환경변수를 지원합니다. 실제 서버는 joeltool.com만 허용하므로 로컬에서는 아래 대역을 사용합니다.
+
 # 블랙아웃 검증
 
 빌드 도구가 없는 정적 사이트라, 확인은 전부 여기서 한다.

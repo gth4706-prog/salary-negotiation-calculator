@@ -109,7 +109,11 @@ BO.Bot = (function () {
       }
     }
 
-    //  ⑦ 내가 선 칸에는 상대가 있을 수 없다(있었으면 부딪혔다).
+    // Public room geometry excludes furniture, not hidden player occupancy.
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+      if (!BO.Rooms.walkable(v.room, x, y)) g[y][x] = 0;
+    }
+    // Shooting one's own floor cell is not allowed, even when players overlap.
     g[v.me.y][v.me.x] = 0;
     return g;
   }
@@ -134,7 +138,8 @@ BO.Bot = (function () {
     var first = (v.ap === C.C.AP);
 
     //  ① **불빛 아래** — 상대가 그냥 보인다. 이때 안 쏘면 언제 쏘겠는가.
-    if (v.foe) return ['s', v.foe.x, v.foe.y];
+    if (v.foe && (v.foe.x !== v.me.x || v.foe.y !== v.me.y)) return ['s', v.foe.x, v.foe.y];
+    if (v.foe) return mv(pickMove(v, null, false));
 
     var g = belief(v), exposed = v.meSeen && (v.turn - v.meSeen.turn) <= 2;
     var lead = hasLead(v);
@@ -152,7 +157,7 @@ BO.Bot = (function () {
     //       무제한이라 그 둘이 **언제나 같은 값**이었다. 그래서 봇은 단서가
     //       없어도 늘 쏘는 쪽을 골랐고, 전등을 판당 0.02회밖에 안 썼다(실측).
     if (lead) {
-      var shot = bestShot(g, v.me);
+      var shot = bestShot(g, v.me, v.room);
       if (shot) return ['s', shot.x, shot.y];
     }
 
@@ -179,7 +184,7 @@ BO.Bot = (function () {
     }
 
     //  ⑧ 버튼이 없거나(규칙 꺼짐) 갈 데가 없으면 그나마 그럴듯한 칸에 쏜다.
-    var fb = bestShot(g, v.me);
+    var fb = bestShot(g, v.me, v.room);
     return fb ? ['s', fb.x, fb.y] : mv(pickMove(v, null, false));
   }
 
@@ -201,10 +206,11 @@ BO.Bot = (function () {
   }
 
   //  사정권 안에서 점수가 가장 높은 칸(이번 턴에 이미 쏜 칸은 뺀다).
-  function bestShot(g, me) {
-    var cells = C.shootable(me.x, me.y), best = null;
+  function bestShot(g, me, room) {
+    var cells = C.shootable(me.x, me.y, room), best = null;
     for (var i = 0; i < cells.length; i++) {
       var c = cells[i];
+      if (!BO.Rooms.walkable(room, c.x, c.y)) continue;
       if (!best || g[c.y][c.x] > best.s) best = { x: c.x, y: c.y, s: g[c.y][c.x] };
     }
     return best;
@@ -215,18 +221,20 @@ BO.Bot = (function () {
   //   · `toward` 쪽으로 좁혀 간다 / `flee` 면 최근에 들킨 자리에서 멀어진다
   function pickMove(v, toward, flee) {
     var me = v.me, best = null, bestScore = -1e9;
+    var paths = toward ? BO.Rooms.distances(v.room, toward.x, toward.y) : null;
     var paintAt = {};
     for (var i = 0; i < v.paint.length; i++) paintAt[v.paint[i].x + ',' + v.paint[i].y] = 1;
 
     for (var d = 0; d < 4; d++) {
       var nx = me.x + C.DX[d], ny = me.y + C.DY[d];
-      if (!C.inBoard(nx, ny)) continue;
+      if (!BO.Rooms.walkable(v.room, nx, ny)) continue;
       var s = Math.random() * 0.9;                       // 예측 불가능해야 한다
       if (paintAt[nx + ',' + ny]) s -= 2.5;              // 밟으면 흔적이 생긴다
       if (toward) {
-        var was = C.dist(me.x, me.y, toward.x, toward.y);
-        var nowd = C.dist(nx, ny, toward.x, toward.y);
-        s += (was - nowd) * 2.0;
+        var was = paths[me.x + ',' + me.y];
+        var nowd = paths[nx + ',' + ny];
+        if (nowd == null) continue;
+        s += (was - nowd) * 4.0;
       }
       //  도망은 «상대가 안다고 믿는 내 자리»에서 멀어지는 것이다.
       if (flee && v.meSeen) {

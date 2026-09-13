@@ -80,7 +80,7 @@ BO.Core = (function () {
     //    이유: 반경이 넓으면 「어중간한 단서」가 자주 떠서, 13칸짜리 복권을 긁느라
     //    행동력을 쓰고 정작 **전등을 하러 안 간다**(전등 사용 3.16회 → 1.68회).
     //    바로 옆 한 칸만 느끼게 두면 「모르겠으면 버튼을 하러 간다」가 분명해진다.
-    SENSE: 1
+    SENSE: 0              // bo0.2: footprints only; historical tuning above is v0.1.
   };
 
   // 방향: 0=위 1=오른쪽 2=아래 3=왼쪽. 이 순서는 **네트워크로 나가는 숫자**다 —
@@ -103,10 +103,11 @@ BO.Core = (function () {
   function dist(x1, y1, x2, y2) { return Math.abs(x1 - x2) + Math.abs(y1 - y2); }
 
   //  지금 자리에서 쏠 수 있는 칸들. 화면의 조준 가능 범위 표시와 봇이 같이 쓴다.
-  function shootable(x, y) {
+  function shootable(x, y, room) {
     var out = [];
     for (var yy = 0; yy < C.H; yy++) for (var xx = 0; xx < C.W; xx++) {
       if (xx === x && yy === y) continue;
+      if (room && !BO.Rooms.inside(room, xx, yy)) continue;
       if (C.RANGE > 0 && dist(x, y, xx, yy) > C.RANGE) continue;
       out.push({ x: xx, y: yy });
     }
@@ -118,6 +119,7 @@ BO.Core = (function () {
     var r = rng(seed);
     var st = {
       seed: seed >>> 0,
+      room: BO.Rooms.create(seed),
       turn: 1,
       side: (seed >>> 0) & 1,   // 선공도 씨앗이 정한다(둘이 서로 다른 답을 내면 안 된다)
       ap: C.AP,
@@ -128,31 +130,44 @@ BO.Core = (function () {
       ps: [], paint: [], marks: [],
       lamp: null,        // 전등 버튼 자리(판마다 다르다)
       lit: 0,            // 불이 켜진 채로 남은 «행동» 수
-      seen: [null, null],   // 정확한 위치가 드러난 마지막 순간(피격·충돌)
+      seen: [null, null],   // 마지막 직접 명중·전등 공개
       ev: [],               // 방금 처리한 턴에 일어난 일(화면이 읽는다)
       over: false, winner: null, reason: null
     };
     // 0번은 위 3줄, 1번은 아래 3줄. 어느 칸인지는 서로 모르지만 **어느 구역인지는**
     // 둘 다 안다 — 첫 몇 턴이 완전한 무작위 찍기가 되지 않게 하는 최소한의 실마리다.
-    st.ps.push(spawn(r, 0));
-    st.ps.push(spawn(r, 1));
-    st.lamp = spawnLamp(r);
+    st.ps.push(spawn(r, 0, st.room));
+    st.ps.push(spawn(r, 1, st.room));
+    st.lamp = spawnLamp(r, st);
     st.wasPainted = false;
     return st;
   }
 
   //  전등 버튼 — 가운데 띠에서만 뽑는다(위 LAMP_ACTIONS 주석 참조).
-  function spawnLamp(r) {
+  function spawnLamp(r, st) {
     if (C.LAMP_ACTIONS <= 0) return null;
-    var band = C.H - C.SPAWN_BAND * 2;
-    return { x: Math.floor(r() * C.W), y: C.SPAWN_BAND + Math.floor(r() * band) };
+    // Use PUBLIC spawn bands, never actual hidden spawn positions.
+    var choices = [];
+    for (var y = C.SPAWN_BAND; y < C.H - C.SPAWN_BAND; y++) {
+      for (var x = 0; x < C.W; x++) {
+        if (!BO.Rooms.walkable(st.room, x, y)) continue;
+        // Authored layouts have one connected floor component (room tests).
+        // Keep random variety across the middle band, independent of spawns.
+        choices.push({ x: x, y: y });
+      }
+    }
+    return choices.length ? choices[Math.floor(r() * choices.length)] : null;
   }
 
-  function spawn(r, side) {
-    var x = Math.floor(r() * C.W);
-    var y = side === 0 ? Math.floor(r() * C.SPAWN_BAND)
-                       : C.H - 1 - Math.floor(r() * C.SPAWN_BAND);
-    return { x: x, y: y, hp: C.HP, painted: false };
+  function spawn(r, side, room) {
+    var cells = [];
+    for (var y = 0; y < C.H; y++) for (var x = 0; x < C.W; x++) {
+      if ((side === 0 ? y < C.SPAWN_BAND : y >= C.H - C.SPAWN_BAND) &&
+          BO.Rooms.walkable(room, x, y)) cells.push({ x: x, y: y });
+    }
+    if (!cells.length) throw new Error('Room has no spawn cells');
+    var p = cells[Math.floor(r() * cells.length)];
+    return { x: p.x, y: p.y, hp: C.HP, painted: false };
   }
 
   // ── 조회 ──────────────────────────────────────────────────────────────────
@@ -164,12 +179,10 @@ BO.Core = (function () {
     return null;
   }
 
-  //  이번 턴에 쓸 수 있는 이동 방향(격자 밖으로는 못 나간다).
-  //  ⚠ 상대가 있는 칸은 **막지 않는다** — 막으면 "막혔다"는 사실 자체가 위치를
-  //    알려주는 정보가 된다. 대신 부딪히면 둘 다 드러난다(아래 _move 의 충돌).
+  // 이동 가능 여부는 공개된 방 구조만으로 정한다. 상대 위치는 참조하지 않는다.
   function legalDirs(st, side) {
     var p = st.ps[side], out = [];
-    for (var d = 0; d < 4; d++) if (inBoard(p.x + DX[d], p.y + DY[d])) out.push(d);
+    for (var d = 0; d < 4; d++) if (BO.Rooms.walkable(st.room, p.x + DX[d], p.y + DY[d])) out.push(d);
     return out;
   }
 
@@ -201,18 +214,11 @@ BO.Core = (function () {
     if (d < 0 || d > 3) return '방향 범위 밖';
     var me = st.ps[side], foe = st.ps[1 - side];
     var nx = me.x + DX[d], ny = me.y + DY[d];
-    if (!inBoard(nx, ny)) return '벽 밖으로는 못 간다';
+    if (!BO.Rooms.walkable(st.room, nx, ny)) return '벽이나 가구가 있는 칸은 걸어갈 수 없습니다';
     st.ap--;
 
-    //  ── 어둠 속 충돌 ──────────────────────────────────────────────────────
-    //  상대가 선 칸으로 들어가면 부딪힌다. 데미지는 없지만 **둘 다 위치가 드러난다.**
-    //  일부러 대칭으로 뒀다: 더듬어 찾아낸 쪽도 대가를 치른다.
-    if (nx === foe.x && ny === foe.y) {
-      st.seen[side] = { x: me.x, y: me.y, turn: st.turn };
-      st.seen[1 - side] = { x: foe.x, y: foe.y, turn: st.turn };
-      st.ev.push({ k: 'bump', x: foe.x, y: foe.y, mx: me.x, my: me.y, by: side });
-      return null;   // 제자리. 행동력만 쓴다.
-    }
+    // bo0.2: players may share/pass through a floor cell. A rejected move or a
+    // bump event would itself disclose a hidden opponent. Only furniture blocks.
 
     if (st.moves === 0) st.stepFrom = { x: me.x, y: me.y };
     me.x = nx; me.y = ny;
@@ -236,7 +242,7 @@ BO.Core = (function () {
   }
 
   function _shoot(st, side, x, y) {
-    if (!inBoard(x, y)) return '격자 밖';
+    if (!BO.Rooms.inside(st.room, x, y)) return '방 밖은 겨냥할 수 없습니다';
     var me = st.ps[side], foe = st.ps[1 - side];
     if (x === me.x && y === me.y) return '제 발밑은 쏘지 않는다';
     if (C.RANGE > 0 && dist(me.x, me.y, x, y) > C.RANGE) return '사거리 밖';
@@ -257,7 +263,9 @@ BO.Core = (function () {
 
     //  ⚠ **쏜 사람의 위치는 남기지 않는다.** 상대가 아는 것은 「어딘가에서 한 발
     //    나갔고, 그게 이 칸에 떨어졌다」뿐이다. 소리와 얼룩이 전부다.
-    st.ev.push({ k: hit ? 'hit' : 'miss', x: x, y: y, by: side });
+    var object = BO.Rooms.objectAt(st.room, x, y);
+    st.ev.push({ k: hit ? 'hit' : 'miss', x: x, y: y, by: side,
+      material: BO.Rooms.material(st.room, x, y), object: object ? object.id : null });
     return null;
   }
 
@@ -331,6 +339,8 @@ BO.Core = (function () {
   function hash(st) {
     var s = st.turn + '|' + st.side + '|' + st.ap + '|' + st.moves + '|' +
             (st.wasPainted ? 1 : 0) + (st.gotPaint ? 1 : 0) + '|';
+    s += JSON.stringify(st.room) + '|' + JSON.stringify(st.seen) + '|' +
+         JSON.stringify(st.stepFrom) + '|';
     for (var i = 0; i < 2; i++) {
       var p = st.ps[i];
       s += p.x + ',' + p.y + ',' + p.hp + ',' + (p.painted ? 1 : 0) + ';';
@@ -382,8 +392,10 @@ BO.Core = (function () {
       //  ⚠ 상대가 페인트를 묻혔는지는 **넣지 않는다.** 내가 맞혔다면 어차피 내 눈으로
       //    봤고, 상대가 스스로 페인트 칸을 밟은 것은 어둠 속에서 알 길이 없다.
       //    여기에 한 줄 넣어 두면 화면이 무심코 그려서 게임이 통째로 싱거워진다.
-      foeSeen: st.seen[foe],
-      meSeen: st.seen[me],
+      room: BO.Rooms.copy(st.room),
+      legalDirs: legalDirs(st, me),
+      foeSeen: st.seen[foe] ? BO.Rooms.copy(st.seen[foe]) : null,
+      meSeen: st.seen[me] ? BO.Rooms.copy(st.seen[me]) : null,
       paint: st.paint.map(function (p) {
         return { x: p.x, y: p.y, left: p.until - st.turn, by: p.by, hit: !!p.hit };
       }),
@@ -396,7 +408,8 @@ BO.Core = (function () {
       //  ⚠ 상대 좌표가 이 객체에 들어오는 **유일한 경우**가 여기다 — 불이 켜져 있을 때.
       //    꺼져 있으면 아예 없는 열쇠라, 화면이 실수로 그릴 수가 없다.
       foe: st.lit > 0 ? { x: st.ps[foe].x, y: st.ps[foe].y } : null,
-      moves: st.moves, stepFrom: st.stepFrom,
+      moves: st.side === me ? st.moves : 0,
+      stepFrom: st.side === me && st.stepFrom ? BO.Rooms.copy(st.stepFrom) : null,
       range: C.RANGE, senseR: C.SENSE,
       //  ⚠ 새어 나가는 정보는 **참/거짓 한 비트뿐**이다. 방향도 거리도 안 준다.
       //    움직여 보고 켜졌다 꺼졌다를 읽어 좁혀 가는 것이 이 게임의 추적이다.

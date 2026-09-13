@@ -1,0 +1,92 @@
+/* Room prototype: DOM geometry stays authoritative. Visual furniture never
+   moves on footsteps and does not enlarge the target's hit area. */
+:root{--bg:#0d1013;--panel:#15191d;--line:#303336;--dim:#939794;--text:#ede9df;
+  --tile:#262321;--tile2:#292522;--me:#57cabb;--foe:#ef719e;--hot:#e5bc74}
+.title{padding-top:12px;padding-bottom:18px}
+.title h1{font-size:38px;letter-spacing:5px;margin-top:8px}
+.eyebrow{display:block;color:var(--hot);font-size:11px;letter-spacing:2px;margin-top:14px}
+.home-room{position:relative;width:210px;height:105px;margin:0 auto;overflow:hidden;
+  border:5px solid #45403a;border-bottom-color:#605044;border-radius:4px;
+  background:repeating-linear-gradient(0deg,#282624 0px,#282624 19px,#3c322a 20px,#292421 21px);
+  transform:perspective(500px) rotateX(18deg);box-shadow:0 14px 28px #0007}
+.home-desk{position:absolute;left:15px;top:12px;width:72px;height:35px;background:#584535;
+  border:3px solid #6a503a;box-shadow:0 6px #0008}
+.home-desk:after{content:'';position:absolute;left:22px;top:4px;width:25px;height:14px;
+  border:3px solid #343b3d;background:#0a1115}
+.home-paint{position:absolute;right:20px;bottom:15px;width:40px;height:29px;
+  background:radial-gradient(at 20% 25%,#f4bb78,transparent 55%),linear-gradient(40deg,#ef719e,#57cabb);
+  border-radius:28% 62% 35% 52%;transform:rotate(-20deg)}
+.home-prints{position:absolute;left:108px;bottom:25px;width:8px;height:16px;background:var(--foe);
+  border-radius:50% 50% 20% 20%;box-shadow:13px -13px var(--foe);transform:rotate(30deg)}
+.btn.primary{background:linear-gradient(#30675e,#254e49);border-color:#50897b}
+.pad{width:168px}
+.board{position:relative;isolation:isolate;gap:0;padding:0;border:5px solid #393b3b;
+  border-radius:3px;background:transparent;box-shadow:0 8px 24px #0008}
+.cell{border-radius:0;overflow:visible;background:linear-gradient(0deg,#1b1c1d66,transparent),
+  repeating-linear-gradient(0deg,#272521 0,#272521 31%,#383027 32%,#272521 34%,#262523 65%);
+  outline:1px solid #39342d55;outline-offset:-1px}
+.cell.alt{background-color:#292420;background-image:inherit}
+.cell.outside,.board.lit .cell.outside{background:var(--bg);outline:0;pointer-events:none}
+.cell.blocked{cursor:default}
+.board.shooting .cell:not(.outside){cursor:crosshair}
+.board.moving .cell.movable{box-shadow:inset 0 0 0 2px #90c5b67a;background-color:#466653;
+  outline:1px solid #bcdfcf55}
+.board.shooting .cell.aim{box-shadow:inset 0 0 0 2px var(--hot)}
+.cell.aim:before{z-index:9;pointer-events:none}
+.furniture-layer{position:absolute;inset:0;z-index:2;pointer-events:none}
+.furniture{position:absolute;padding:3px;filter:brightness(.66);pointer-events:none}
+.board.lit .furniture{filter:brightness(1.15)}
+.furniture i,.furniture b{display:block;position:absolute;font-weight:normal}
+.furniture.desk i,.furniture.papers i,.furniture.nightstand i{inset:7%;background:#72523b;
+  border:2px solid #927054;border-radius:3px;box-shadow:0 4px 3px #000a}
+.furniture.desk b{left:35%;top:18%;width:32%;height:42%;border:3px solid #3b444a;background:#111b20;
+  box-shadow:0 5px 0 -2px #53616a,12px 8px 0 -4px #d0c1a0}
+.furniture.chair i{inset:14%;border-radius:35%;border:3px solid #676161;background:#3e494d;
+  box-shadow:0 3px 0 #141819}
+.furniture.chair b{inset:7% 10% 65%;border-radius:4px;background:#687178}
+.furniture.cabinet i,.furniture.shelf i{inset:7%;border:2px solid #826449;border-radius:2px;
+  background:repeating-linear-gradient(90deg,#5a493b 0,#5a493b 30%,#937558 31%,#4e4033 33%);
+  box-shadow:0 3px 3px #000a}
+.furniture.shelf b{inset:24% 14%;background:repeating-linear-gradient(90deg,#627d75 0,#627d75 8%,#a88f6a 9%,#a88f6a 17%,#78646e 18%,#78646e 25%)}
+.furniture.bed i{inset:4%;background:linear-gradient(#70523d 0 7%,#ddd1b7 8% 25%,#7c9190 27% 84%,#607571 86%);
+  border:3px solid #785c45;border-radius:4px;box-shadow:0 4px 5px #0009}
+.furniture.bed b{left:15%;top:12%;width:30%;height:15%;border-radius:5px;background:#e8ddc9;
+  box-shadow:30px 0 #e8ddc9}
+.furniture.nightstand b{inset:20%;border-radius:50%;background:#a98b58;box-shadow:inset 0 0 0 3px #776342}
+.furniture.basket i{inset:13%;border-radius:35%;border:4px solid #8d7857;
+  background:repeating-linear-gradient(30deg,#b4a48b 0,#b4a48b 4px,#655e55 5px,#655e55 8px)}
+.furniture.rug i{inset:4%;border:3px double #806763;background:repeating-linear-gradient(45deg,#554348 0,#554348 5px,#615151 6px,#615151 7px);opacity:.6}
+.furniture.papers b{inset:18% 20%;background:#ddd8bf;border:1px solid #938d7d;
+  transform:rotate(-8deg);box-shadow:3px 2px #aaa38d,-3px -2px #e0d7c5}
+.cell .paint{z-index:3;inset:12%;pointer-events:none;transform:scale(.9);
+  clip-path:polygon(38% 0,49% 17%,69% 6%,68% 28%,97% 25%,82% 46%,100% 65%,72% 67%,80% 96%,56% 82%,39% 100%,31% 77%,4% 86%,18% 57%,0 41%,26% 36%,16% 8%)}
+.paint.mine{background:radial-gradient(at 30% 30%,#dfbe76,transparent 35%),radial-gradient(at 80% 70%,#bf87af,transparent 45%),linear-gradient(120deg,#80ddd1,#369b92)}
+.paint.foe{background:radial-gradient(at 30% 30%,#dfbe76,transparent 35%),radial-gradient(at 80% 70%,#61bcbc,transparent 45%),linear-gradient(120deg,#ffb1c9,#d75b85)}
+.paint.material-fabric{clip-path:none;filter:blur(1px) saturate(.8) brightness(.8);transform:scale(.85)}
+.cell .mark{z-index:5;pointer-events:none}
+.mark:before,.mark:after{content:'';position:absolute;width:20%;height:35%;top:20%;left:24%;
+  background:currentColor;border-radius:48% 48% 20% 20%;transform:rotate(0deg);
+  box-shadow:0 3px 0 -1px currentColor}
+.mark:after{left:55%;top:42%}
+.cell .lamp{z-index:5;inset:20%;font-size:0;background:#afa58f;border:2px solid #5d594e;
+  border-radius:4px;box-shadow:0 2px 2px #0009}
+.cell .lamp:after{content:'';position:absolute;inset:22% 28%;background:#333a37;border-top:2px solid #d7cfac}
+.cell .lamp.on{background:var(--hot);box-shadow:0 0 12px #e5bc7470}
+.cell .ghost{z-index:7;pointer-events:none;font-size:12px;opacity:.7}
+.cell.me:after,.cell.foe:after{z-index:6;inset:13% 20% 9%;border:2px solid #ad8564;
+  border-radius:45% 45% 30% 30%;background:radial-gradient(ellipse at 50% 29%,#594b3d 0 31%,#deb48a 34% 48%,transparent 50%),linear-gradient(var(--me),#348779);
+  box-shadow:0 2px 3px #0009}
+.cell.foe:after{background:radial-gradient(ellipse at 50% 29%,#594b3d 0 31%,#deb48a 34% 48%,transparent 50%),linear-gradient(var(--foe),#a9506f)}
+.cell.me.painted:before{z-index:7;pointer-events:none}
+.board.lit .cell:not(.outside){background-color:#594b36;background-image:linear-gradient(#bc9b591a,#bc9b591a)}
+.cell .reaction{position:absolute;inset:0;z-index:8;pointer-events:none;opacity:0}
+.reaction.react-paper:before,.reaction.react-paper:after{content:'';position:absolute;left:20%;top:20%;width:35%;height:45%;
+  background:linear-gradient(25deg,#d981aa 0 15%,#e6dfcb 18% 100%);border:1px solid #bbb098}
+.reaction.react-paper:after{left:52%;top:37%;transform:rotate(35deg)}
+.reaction.react-paper{animation:papers .65s ease-out}
+.reaction.react-fabric{border-radius:40%;background:radial-gradient(#e8abc77a,transparent 70%);animation:absorb .8s ease-out}
+.reaction.react-wood{border:4px dotted #80d8c5;border-radius:40%;animation:splash .5s ease-out}
+@keyframes papers{0%{opacity:1;transform:translateY(0) rotate(0)}60%{opacity:1;transform:translateY(-35%) rotate(18deg)}100%{opacity:0;transform:translateY(15%) rotate(30deg)}}
+@keyframes absorb{0%{opacity:.8;transform:scale(.3)}100%{opacity:0;transform:scale(1.1)}}
+@keyframes splash{0%{opacity:1;transform:scale(.2)}100%{opacity:0;transform:scale(1.1)}}
+@media(prefers-reduced-motion:reduce){.reaction{animation:none!important}.cell{animation:none!important}}

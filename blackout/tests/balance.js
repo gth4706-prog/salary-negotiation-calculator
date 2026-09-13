@@ -1,5 +1,6 @@
 // 밸런스 실측 — 봇끼리 N판. 규칙이 「맞긴 맞는 게임」인지 숫자로 본다.
 globalThis.window = globalThis;
+require('../js/rooms.js');
 require('../js/core.js');
 
 //  눈금을 환경변수로 돌린다 — 규칙 하나하나가 판을 어떻게 바꾸는지 재려고 만들었다.
@@ -41,7 +42,7 @@ function game(seed) {
       else if (e.k === 'lamp') lamps++;
     }
   }
-  return { turns: st.turn, reason: st.reason, winner: st.winner,
+  return { turns: st.turn, reason: st.reason, winner: st.winner, first: seed & 1,
            hp: [st.ps[0].hp, st.ps[1].hp], shots: shots, hits: hits,
            bumps: bumps, marks: marks, steps: steps, lamps: lamps, firstHit: firstHit };
 }
@@ -58,7 +59,7 @@ for (var s = 1; s <= N; s++) {
   agg.shots += g.shots; agg.hits += g.hits; agg.bumps += g.bumps;
   agg.marks += g.marks; agg.steps += g.steps; agg.turns += g.turns; agg.lamps += g.lamps;
   agg.dmgTotal += (10 - g.hp[0] - g.hp[1]);
-  if (g.winner === -1) agg.draws++; else if (g.winner === 0) agg.w0++;
+  if (g.winner === -1) agg.draws++; else if (g.winner === g.first) agg.w0++;
   if (g.firstHit !== null) agg.firstHits.push(g.firstHit);
 }
 function pct(a, b) { return (100 * a / b).toFixed(1) + '%'; }

@@ -13,7 +13,7 @@ const SIZES = [
   { w: 900, h: 500, n: '가로로 눕힌 폰' }
 ];
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
+  const b = await chromium.launch({ executablePath: process.env.BROWSER_PATH || (process.platform === 'win32' ? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' : '/opt/pw-browsers/chromium'), args: ['--no-sandbox'] });
   let bad = 0;
   for (const s of SIZES) {
     const p = await b.newPage({ viewport: { width: s.w, height: s.h } });

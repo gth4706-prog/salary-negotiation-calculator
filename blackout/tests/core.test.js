@@ -4,6 +4,7 @@
 // 그건 화면을 보고는 확인이 어렵다(어둠 속이라 눈으로 못 본다). 그래서 규칙은
 // 눈이 아니라 여기서 확인한다.
 globalThis.window = globalThis;
+require('../js/rooms.js');
 require('../js/core.js');
 var C = BO.Core;
 
@@ -18,6 +19,7 @@ function section(t) { console.log('\n' + t); }
 // 원하는 배치를 직접 만든다 — 씨앗으로 우연히 나오길 기다리지 않는다.
 function board(p0, p1, side) {
   var st = C.create(1);
+  st.room = { id: 'test', name: 'test', floor: 'wood', rows: Array(10).fill('..........'), objects: [] };
   st.ps[0] = { x: p0[0], y: p0[1], hp: 5, painted: false };
   st.ps[1] = { x: p1[0], y: p1[1], hp: 5, painted: false };
   st.side = side || 0; st.ap = 2; st.turn = 1;
@@ -145,14 +147,15 @@ section('규칙 6 — 밟고 다시 밟으면 계속 묻어 있다');
   ok(st.ps[1].painted, '두 걸음이어도 새로 밟았으면 다시 묻는다');
 })();
 
-section('어둠 속 충돌');
+section('상대와 겹쳐도 이동 단서가 새지 않는다');
 (function () {
-  var st = board([4, 5], [5, 5], 0);
-  C.act(st, 0, ['m', RIGHT]);                         // 상대 칸으로
-  eq(st.ps[0].x + ',' + st.ps[0].y, '4,5', '부딪히면 제자리');
-  eq(st.ap, 1, '행동력은 쓴다');
-  ok(!!st.seen[0] && !!st.seen[1], '둘 다 위치가 드러난다');
-  eq(st.moves, 0, '부딪힘은 이동으로 세지 않는다');
+  var st = board([4, 4], [5, 4]);
+  eq(C.act(st, 0, ['m', RIGHT]), null, '상대 칸도 정상 이동');
+  eq(st.ps[0].x, 5, '멈추거나 되돌아가지 않는다');
+  eq(st.ap, 1, '일반 이동과 같은 행동력');
+  eq(st.seen[0], null, '이동자 위치 공개 없음');
+  eq(st.seen[1], null, '상대 위치 공개 없음');
+  ok(!st.ev.some(function (e) { return e.k === 'bump'; }), '충돌 사건 없음');
 })();
 
 section('승패');
@@ -197,15 +200,15 @@ section('결정론 — 같은 입력이면 같은 상태');
           var dirs = C.legalDirs(st, st.side);
           acts.push(['m', dirs[Math.floor(r() * dirs.length)]]);
         } else {
-          var x, y, me = st.ps[st.side], guard = 0;
-          do { x = Math.floor(r() * 10); y = Math.floor(r() * 10); }
-          while (x === me.x && y === me.y && guard++ < 20);
-          if (x === me.x && y === me.y) continue;   // 제 발밑은 못 쏜다
-          acts.push(['s', x, y]);
+          var me = st.ps[st.side], targets = C.shootable(me.x, me.y, st.room);
+          var target = targets[Math.floor(r() * targets.length)];
+          acts.push(['s', target.x, target.y]);
         }
+        var err = C.act(st, st.side, acts[acts.length - 1]);
+        if (err) return { ok: false, err: err, log: log, st: st };
+        if (st.over) break;
       }
-      var res = C.applyTurn(st, st.side, acts);
-      if (!res.ok) return { ok: false, err: res.err, log: log, st: st };
+      C.endTurn(st);
       log.push(acts);
     }
     return { ok: true, log: log, st: st };
@@ -337,14 +340,12 @@ section('전등 — 판마다 자리가 다르고 가운데 띠에 있다');
   eq(outside, 0, '시작 구역 안에는 절대 안 놓인다(한쪽만 유리해진다)');
 })();
 
-section('인기척 — 가까우면 한 비트만 샌다');
+section('인기척은 사용하지 않는다');
 (function () {
-  var near = board([4, 4], [4, 5], 0), far = board([0, 0], [9, 9], 0);
-  ok(C.view(near, 0).sense, '반경 안이면 인기척이 켜진다');
-  ok(C.view(near, 1).sense, '인기척은 양쪽 다 느낀다');
-  ok(!C.view(far, 0).sense, '멀면 꺼진다');
-  var v = C.view(near, 0);
-  ok(typeof v.sense === 'boolean', '새는 것은 참/거짓 한 비트뿐이다');
+  var st = board([4, 4], [5, 4]);
+  eq(C.C.SENSE, 0, '자동 위치 감지 비활성');
+  eq(C.view(st, 0).sense, false, '바로 옆이어도 감지하지 않음');
+  eq(C.view(st, 1).sense, false, '양쪽 동일');
 })();
 
 console.log('\n' + (fail ? '✗ ' : '✓ ') + pass + ' 통과 · ' + fail + ' 실패');

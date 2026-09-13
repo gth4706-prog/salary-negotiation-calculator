@@ -49,6 +49,10 @@ window.BO = window.BO || {};
     wireNet();
     watchDesync();
     show('menu');
+    if (location.hostname !== 'joeltool.com' && Net.BASE === 'https://arena-room.gth3941.workers.dev') {
+      $('preview-note').textContent = '미리보기에서는 봇 연습을 이용하세요. 기존 온라인 서버는 joeltool.com에서의 접속을 허용합니다.';
+      $('preview-note').classList.remove('hide');
+    }
     if (!Net.enabled()) $('go-pvp').textContent = '실시간 대전 (서버 미설정)';
   }
 
@@ -92,9 +96,11 @@ window.BO = window.BO || {};
 
   function makeRoom() {
     $('make-room').disabled = true;
+    $('lobby-status').textContent = '방을 만드는 중…';
     Net.createRoom({}, function (err, room) {
       $('make-room').disabled = false;
-      if (err) { UI.hint('방을 못 만들었습니다 — ' + err.message); return; }
+      if (err) { $('lobby-status').textContent = '방을 못 만들었습니다 — ' + err.message; return; }
+      $('lobby-status').textContent = '';
       enter(room.code);
     });
   }

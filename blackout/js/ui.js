@@ -9,7 +9,7 @@ window.BO = window.BO || {};
 // ============================================================================
 BO.UI = (function () {
   var C = BO.Core;
-  var els = {}, cells = [], mode = 'move', aim = null, lastLog = 0;
+  var els = {}, cells = [], mode = 'move', aim = null, lastLog = 0, roomKey = '';
 
   function $(id) { return document.getElementById(id); }
 
@@ -35,7 +35,7 @@ BO.UI = (function () {
       d.className = 'cell' + ((x + y) % 2 ? ' alt' : '');
       d.dataset.x = x; d.dataset.y = y;
       d.innerHTML = '<span class="paint hide"></span><span class="mark hide"></span>' +
-                    '<span class="lamp hide"></span><span class="ghost hide"></span>';
+                    '<span class="lamp hide"></span><span class="ghost hide"></span><span class="reaction"></span>';
       (function (px, py, node) {
         node.addEventListener('click', function () { onTile(px, py, h); });
       })(x, y, d);
@@ -50,7 +50,9 @@ BO.UI = (function () {
   function onTile(x, y, h) {
     var v = h.view();
     if (!v || !v.myTurn) return;
+    if (!BO.Rooms.inside(v.room, x, y)) { flashHint('여기는 방 밖입니다'); return; }
     if (mode === 'move') {
+      if (!BO.Rooms.walkable(v.room, x, y)) { flashHint('가구는 걸어갈 수 없습니다 · 사격으로 맞혀보세요'); return; }
       var d = dirTo(v.me, x, y);
       if (d == null) { flashHint('한 칸씩만 움직일 수 있습니다'); return; }
       h.act(['m', d]);
@@ -130,10 +132,8 @@ BO.UI = (function () {
       els.sense.className = 'lit-badge';
     } else {
       //  인기척은 **양쪽 다** 느낀다 — 내가 들었으면 상대도 들었다는 뜻이다.
-      els.sense.textContent = v.sense
-        ? '👂 인기척 — 바로 옆에 있다 (상대도 나를 느낀다)'
-        : '· 인기척 없음';
-      els.sense.className = 'sense-badge' + (v.sense ? '' : ' off');
+      els.sense.textContent = v.room.name + ' · 발자국을 찾아보세요';
+      els.sense.className = 'sense-badge off';
     }
 
     els.modeMove.classList.toggle('on', mode === 'move');
@@ -149,7 +149,7 @@ BO.UI = (function () {
     els.modeMove.disabled = lock; els.modeShoot.disabled = lock;
     for (var d = 0; d < 4; d++) {
       var b = document.getElementById('pad-' + d);
-      if (b) b.disabled = lock || !C.inBoard(v.me.x + C.DX[d], v.me.y + C.DY[d]);
+      if (b) b.disabled = lock || v.legalDirs.indexOf(d) < 0;
     }
 
     if (light) return;   // 시계만 도는 갱신 — 격자는 안 건드린다(깜빡임 방지)
@@ -157,11 +157,14 @@ BO.UI = (function () {
   }
 
   function paintBoard(v) {
+    renderRoom(v.room);
+    els.board.classList.toggle('moving', mode === 'move' && v.myTurn);
+    els.board.classList.toggle('shooting', mode === 'shoot' && v.myTurn);
     var movable = {}, d;
     if (v.myTurn && mode === 'move') {
       for (d = 0; d < 4; d++) {
         var nx = v.me.x + C.DX[d], ny = v.me.y + C.DY[d];
-        if (C.inBoard(nx, ny)) movable[nx + ',' + ny] = 1;
+        if (BO.Rooms.walkable(v.room, nx, ny)) movable[nx + ',' + ny] = 1;
       }
     }
     var paint = {}, mark = {};
@@ -184,17 +187,21 @@ BO.UI = (function () {
 
       var sp = c.children[0], sm = c.children[1], sn = c.children[2], sg = c.children[3];
       var p = paint[key];
-      sp.className = 'paint' + (p ? (p.by === v.mine ? ' mine' : ' foe') + (p.hit ? ' hit' : '') : ' hide');
+      sp.className = 'paint material-' + BO.Rooms.material(v.room, x, y) +
+        (p ? (p.by === v.mine ? ' mine' : ' foe') + (p.hit ? ' hit' : '') : ' hide');
       if (p) {
         sp.style.opacity = 0.35 + 0.55 * (p.left / C.C.PAINT_TURNS);
         sp.style.setProperty('--b', blob(x, y));
+        sp.title = '페인트 ' + p.left + '턴 남음';
       }
       var mk = mark[key];
       sm.className = 'mark' + (mk ? '' : ' hide');
       if (mk) {
-        sm.textContent = '👣';
+        sm.textContent = '';
+        sm.style.color = mk.side === v.mine ? 'var(--me)' : 'var(--foe)';
+        sm.title = '발자국 ' + mk.left + '턴 남음';
         sm.style.opacity = 0.3 + 0.6 * (mk.left / C.C.MARK_TURNS);
-        sm.style.filter = mk.side === v.mine ? 'grayscale(1)' : 'none';
+        sm.style.filter = 'none';
       }
       var isLamp = !!(v.lamp && v.lamp.x === x && v.lamp.y === y);
       sn.className = 'lamp' + (isLamp ? (v.lit > 0 ? ' on' : '') : ' hide');
@@ -205,6 +212,37 @@ BO.UI = (function () {
                  (v.turn - v.foeSeen.turn) <= 3;
       sg.className = 'ghost' + (seen ? '' : ' hide');
       if (seen) sg.textContent = '✖';
+    }
+  }
+
+  function renderRoom(room) {
+    if (roomKey === room.id) return;
+    roomKey = room.id;
+    els.board.setAttribute('data-room', room.id);
+    els.board.setAttribute('aria-label', room.name + ' 전장');
+    var old = els.board.querySelector('.furniture-layer');
+    if (old) els.board.removeChild(old);
+    var layer = document.createElement('div');
+    layer.className = 'furniture-layer';
+    layer.setAttribute('aria-hidden', 'true');
+    room.objects.forEach(function (o) {
+      var item = document.createElement('div');
+      item.className = 'furniture ' + o.kind;
+      item.style.left = (o.x * 10) + '%'; item.style.top = (o.y * 10) + '%';
+      item.style.width = (o.w * 10) + '%'; item.style.height = (o.h * 10) + '%';
+      item.innerHTML = '<i></i><b></b>';
+      layer.appendChild(item);
+    });
+    els.board.appendChild(layer);
+    for (var y = 0; y < C.C.H; y++) for (var x = 0; x < C.C.W; x++) {
+      var c = cellAt(x, y), obj = BO.Rooms.objectAt(room, x, y);
+      var inside = BO.Rooms.inside(room, x, y), walk = BO.Rooms.walkable(room, x, y);
+      c.classList.toggle('outside', !inside);
+      c.classList.toggle('blocked', inside && !walk);
+      c.classList.toggle('rug-floor', !!(obj && obj.kind === 'rug'));
+      var label = (x + 1) + ',' + (y + 1) + ' · ' +
+        (!inside ? '방 밖' : obj ? obj.name + (walk ? ' · 이동 가능' : ' · 이동 불가, 사격 가능') : '바닥 · 이동 가능');
+      c.title = label; c.setAttribute('aria-label', label);
     }
   }
 
@@ -232,6 +270,7 @@ BO.UI = (function () {
   // ── 사건 → 기록 · 효과 ────────────────────────────────────────────────────
   function events(evs, byMe) {
     evs.forEach(function (e) {
+      if (e.k === 'hit' || e.k === 'miss') react(e.x, e.y, e.material || 'wood');
       var at = '(' + (e.x + 1) + ',' + (e.y + 1) + ')';
       if (e.k === 'hit') {
         say(byMe ? '🎯 명중! ' + at : '💥 피격! ' + at + ' 에서 맞았다', byMe ? 'me' : 'foe');
@@ -255,6 +294,15 @@ BO.UI = (function () {
         BO.Sfx.play('clue');
       }
     });
+  }
+
+  // Target-only animation. No source point, movement event or hidden occupant
+  // enters this effect. Papers are decorative: no extra hit cells or damage.
+  function react(x, y, material) {
+    var c = cellAt(x, y), fx = c.children[4];
+    fx.className = 'reaction';
+    void fx.offsetWidth;
+    fx.className = 'reaction react-' + material;
   }
 
   function flash(x, y) {
@@ -295,7 +343,10 @@ BO.UI = (function () {
     }, 1600);
   }
 
-  function reset() { els.log.innerHTML = ''; aim = null; mode = 'move'; }
+  function reset() {
+    els.log.innerHTML = ''; aim = null; mode = 'move'; roomKey = '';
+    els.fire.classList.add('hide'); els.pad.classList.remove('hide');
+  }
 
   return { init: init, render: render, events: events, status: status, clock: clock,
            say: say, reset: reset, setMode: setMode, hint: flashHint };

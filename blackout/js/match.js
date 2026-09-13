@@ -164,10 +164,12 @@ BO.Match = (function () {
   function pass() { return commit(true); }
 
   function commit(byPass) {
-    if (!m || m.st.side !== m.mine || m.st.over) return;
+    // A killing shot sets over BEFORE commit. Still send its final turn once.
+    if (!m || m.st.side !== m.mine || (m.st.over && !m.pending.length)) return;
     if (m.timer) { clearInterval(m.timer); m.timer = null; }
     var n = m.log.length;
     var acts = m.pending.slice();
+    m.pending = [];
     //  ⚠ 이번 턴 사건 중 **아직 안 내보낸 것만** 내보낸다. 예전엔 `st.ev` 를 통째로
     //    다시 넘겨서 사격 한 번이 기록에 두 줄로 찍혔다(브라우저 실측에서 걸렸다).
     //    행동 하나하나는 `doAct` 가 이미 그때그때 내보냈다 — 여기서 새로 생기는 것은

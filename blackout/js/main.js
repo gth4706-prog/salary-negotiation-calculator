@@ -15,6 +15,7 @@ window.BO = window.BO || {};
   function $(id) { return document.getElementById(id); }
   function show(name) {
     Object.keys(scr).forEach(function (k) { scr[k].classList.toggle('hide', k !== name); });
+    document.body.classList.toggle('in-game', name === 'game');   // PC 에서 전장만 넓게
   }
 
   // ── 시작 ──────────────────────────────────────────────────────────────────
@@ -30,6 +31,7 @@ window.BO = window.BO || {};
 
     $('go-pvp').onclick = function () { BO.Sfx.wake(); openLobby(); };
     $('go-bot').onclick = function () { BO.Sfx.wake(); startBot(); };
+    $('go-tutorial').onclick = function () { BO.Sfx.wake(); startTutorial(); };
     $('go-rules').onclick = function () { show('rules'); };
     $('rules-back').onclick = function () { show('menu'); };
     $('mute').onclick = function () { this.textContent = BO.Sfx.toggle() ? '🔊' : '🔇'; };
@@ -67,7 +69,19 @@ window.BO = window.BO || {};
   // ── 연습 ──────────────────────────────────────────────────────────────────
   function startBot() {
     vsBot = true; mine = 0;
+    BO.Tutorial.stop(); BO.Bot.setMode('normal');
     beginMatch((Math.random() * 0xffffffff) >>> 0, '연습 상대');
+  }
+
+  //  튜토리얼 = 가르치는 봇 + 시계 없음 + 고정 판. 안내판은 tutorial.js 가 띄운다.
+  function startTutorial() {
+    vsBot = true; mine = 0;
+    BO.Bot.setMode('tutorial');
+    beginMatch(BO.Tutorial.SEED, '연습 상대', { noTimer: true });
+    BO.Tutorial.start({
+      done: function () { Match.stop(); BO.Bot.setMode('normal'); show('menu'); if (Net.enabled()) openLobby(); },
+      keepPlaying: function () { BO.Bot.setMode('normal'); UI.say('연습을 이어갑니다 — 이제 상대도 쏩니다', 'hot'); }
+    });
   }
 
   // ── 로비 ──────────────────────────────────────────────────────────────────
@@ -90,23 +104,34 @@ window.BO = window.BO || {};
     $('rooms').innerHTML = '<div class="muted">불러오는 중…</div>';
     Net.listRooms(function (err, res) {
       if (err) { $('rooms').innerHTML = '<div class="muted">목록을 못 불러왔습니다 — ' +
-        esc(err.message) + '</div>'; return; }
-      var rooms = res.rooms || [];
+        esc(err.message) + '</div>'; $('rooms-count').textContent = ''; return; }
+      var rooms = (res.rooms || []).slice();
+      //  ⚠ 아무것도 숨기지 않는다. 우리 방을 앞에, 다른 게임 방은 뒤에 흐리게.
+      //    (처음엔 mode 로 걸렀다가 실서버에서 방이 통째로 안 보였다.)
+      rooms.sort(function (a, b) { return (b.ours ? 1 : 0) - (a.ours ? 1 : 0); });
+      var ours = rooms.filter(function (r) { return r.ours; }).length;
+      $('rooms-count').textContent = rooms.length
+        ? '서버에 방 ' + rooms.length + '개 · 이 게임 ' + ours + '개'
+        : '';
+      if (/[?&]diag=1/.test(location.search)) {
+        $('lobby-diag').classList.remove('hide');
+        $('lobby-diag').textContent = JSON.stringify(res.raw).slice(0, 800);
+      }
       if (!rooms.length) {
         //  ⚠ 빈 목록은 **고장이 아니다.** 그렇게 말해 주고, 할 수 있는 일을 옆에 둔다.
         $('rooms').innerHTML = '<div class="muted">지금 열린 방이 없습니다. ' +
-          '방을 만들어 코드를 친구에게 보내거나, 연습으로 한 판 하세요.</div>';
+          '방을 만들어 초대 링크를 친구에게 보내거나, 연습으로 한 판 하세요.</div>';
         return;
       }
       $('rooms').innerHTML = '';
       rooms.slice(0, 12).forEach(function (r) {
         var b = document.createElement('button');
-        b.className = 'room';
+        b.className = 'room' + (r.ours ? '' : ' other');
         //  ⚠ 인원수 필드는 `members` 다 — 에그워 로비(rtlobby.js)가 그렇게 읽는다.
-        //    `count` 로 읽으면 실제 서버에서 늘 1/2 로 보인다.
         var n = r.members != null ? r.members : (r.count != null ? r.count : 1);
         b.innerHTML = '<span class="code">' + esc(r.code) + '</span>' +
-                      '<span class="who">' + esc(r.name || r.host || '') + '</span>' +
+                      '<span class="who">' + esc(r.name || r.host || '') +
+                      (r.ours ? '' : ' <em>(다른 게임의 방)</em>') + '</span>' +
                       '<span>' + n + '/2' + (n >= 2 ? ' · 진행 중' : '') + '</span>';
         b.onclick = function () { enter(r.code); };
         $('rooms').appendChild(b);
@@ -256,20 +281,22 @@ window.BO = window.BO || {};
   }
 
   // ── 대전 ──────────────────────────────────────────────────────────────────
-  function beginMatch(seed, foeName) {
+  function beginMatch(seed, foeName, extra) {
     stopLeaveTimer();
     UI.reset();
     show('game');
     BO.Sfx.play('turn');
     Match.start({
       seed: seed, mine: mine, vsBot: vsBot, foeName: foeName,
+      noTimer: !!(extra && extra.noTimer),
       on: {
         render: function (v, light) {
           UI.render(v, light);
           UI.clock(Match.timeLeft(), Match.TURN_MS, v.myTurn);
           if (!light && v.myTurn && v.ap === C.C.AP) BO.Sfx.play('turn');
+          if (!light) BO.Tutorial.onRender(v);
         },
-        events: function (evs, by) { UI.events(evs, by === mine); },
+        events: function (evs, by) { UI.events(evs, by === mine); BO.Tutorial.onEvents(evs, by === mine); },
         status: function (t, k) { UI.status(t, k); },
         end: function (v) {
           var win = v.winner === -1 ? null : (v.winner === mine);
@@ -296,6 +323,7 @@ window.BO = window.BO || {};
   function quitMatch() {
     if (!confirm('판을 포기하고 나갈까요?')) return;
     stopLeaveTimer();
+    BO.Tutorial.stop(); BO.Bot.setMode('normal');
     Match.stop();
     if (!vsBot) Net.leave();
     show('menu');
@@ -304,6 +332,7 @@ window.BO = window.BO || {};
   // ── 결과 ──────────────────────────────────────────────────────────────────
   function endScreen(win, title, detail) {
     stopLeaveTimer();
+    BO.Tutorial.stop(); BO.Bot.setMode('normal');
     lastResult = win;
     var over = $('over');
     over.classList.remove('hide');

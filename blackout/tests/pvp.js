@@ -57,26 +57,32 @@ const isMine = async p => (await turnOf(p)).includes('내 턴');
   console.log('A:', await turnOf(A), '| B:', await turnOf(B));
 
   // 한쪽이 내 턴이면 두고, 상대가 받는지 확인
-  let turns = 0, desync = false;
+  let turns = 0, desync = false, streamed = 0;
   for (let t = 0; t < 14; t++) {
     const me = (await isMine(A)) ? A : ((await isMine(B)) ? B : null);
     if (!me) { await A.waitForTimeout(300); continue; }
     const other = me === A ? B : A;
     const beforeOther = await turnOf(other);
-    // 한 발 쏘고 한 칸 이동
+    // ── 사격: 칸 짚고 [발사] ──
     await me.click('#mode-shoot'); await me.waitForTimeout(60);
-    const targets = me.locator('.cell:not(.outside):not(.me)');
-    const i = (17 + t * 11) % await targets.count();
-    await targets.nth(i).click(); await me.waitForTimeout(50);
-    await targets.nth(i).click(); await me.waitForTimeout(150);
+    const cells = me.locator('.cell:not(.outside):not(.me)');
+    const i = (17 + t * 11) % await cells.count();
+    await cells.nth(i).click(); await me.waitForTimeout(50);
+    const foeBefore = await other.locator('.cell .paint.foe:not(.hide)').count();
+    await me.click('#confirm'); await me.waitForTimeout(350);
+    // ⚠ «상대가 쏘자마자 나한테도 보여야 함» — 턴이 끝나기 전에 상대 화면에 얼룩이 떠야 한다
+    const foeAfter = await other.locator('.cell .paint.foe:not(.hide)').count();
+    if (foeAfter > foeBefore && (await turnOf(other)) === beforeOther) streamed++;
+    // ── 이동: 방향 짚고 [이동 확정] ──
     await me.click('#mode-move'); await me.waitForTimeout(60);
-    await stepAny(me);
+    if (await stepAny(me)) { await me.click('#confirm'); }
     await me.waitForTimeout(500);
     const afterOther = await turnOf(other);
     if (beforeOther !== afterOther) turns++;
     if (await A.locator('#desync').isVisible() || await B.locator('#desync').isVisible()) { desync = true; break; }
     if (await A.locator('#over').isVisible()) break;
   }
+  console.log('턴이 끝나기 전에 상대 화면에 사격이 뜬 횟수:', streamed, '/ ' + turns);
   console.log('상대 화면까지 넘어간 턴 수:', turns);
   console.log('어긋남 배너:', desync);
   console.log('A 로그 마지막:', (await A.locator('#log div').allTextContents()).slice(-3).join(' / '));
@@ -91,5 +97,5 @@ const isMine = async p => (await turnOf(p)).includes('내 턴');
   console.log(errs.length ? '\n!! 오류 !!\n' + errs.join('\n') : '\n오류 없음');
   await A.evaluate(() => BO.Net.leave()); await B.evaluate(() => BO.Net.leave());
   await b.close();
-  process.exit(errs.length || desync || turns < 4 ? 1 : 0);
+  process.exit(errs.length || desync || turns < 4 || streamed < 4 ? 1 : 0);
 })();

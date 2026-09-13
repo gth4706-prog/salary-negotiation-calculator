@@ -6,10 +6,16 @@ window.BO = window.BO || {};
 //  ⚠ 여기서는 `Core.view(st, 나)` 가 내준 것만 그린다. 상태 객체를 직접 받지 않는다.
 //    숨김 정보 게임에서 제일 흔한 사고가 «화면이 무심코 상대를 그려 버리는 것»인데,
 //    받는 물건에 애초에 상대 좌표가 없으면 그 사고가 구조적으로 안 난다.
+//
+//  ── 조작은 「고르고 → 확정」이다 (실서버 첫 판 뒤 바뀜) ─────────────────────
+//  이동이든 사격이든 방향키·터치로 **대상 칸을 먼저 짚고**, [확정]을 눌러야 행동한다.
+//  처음엔 방향키를 누르면 바로 움직였는데, 폰에서 손가락이 미끄러져 행동력을
+//  날리는 일이 생긴다. 한 번 더 누르는 값이 잘못 둔 한 수보다 싸다.
+//  같은 칸을 두 번 짚는 것도 확정으로 친다 — 확신 있는 사람은 톡톡, 아니면 보고.
 // ============================================================================
 BO.UI = (function () {
   var C = BO.Core;
-  var els = {}, cells = [], mode = 'move', aim = null, lastLog = 0, roomKey = '';
+  var els = {}, cells = [], mode = 'move', sel = null, roomKey = '';
 
   function $(id) { return document.getElementById(id); }
 
@@ -18,8 +24,8 @@ BO.UI = (function () {
     els.hpMe = $('hp-me'); els.hpFoe = $('hp-foe'); els.turn = $('turn-info');
     els.clock = $('clock'); els.clockBar = $('clock-bar'); els.ap = $('ap');
     els.modeMove = $('mode-move'); els.modeShoot = $('mode-shoot');
-    els.fire = $('fire'); els.pass = $('pass'); els.pad = $('pad');
-    els.sense = $('sense');
+    els.confirm = $('confirm'); els.pass = $('pass'); els.pad = $('pad');
+    els.sense = $('sense'); els.logToggle = $('log-toggle');
     buildBoard(handlers);
     bindControls(handlers);
     BO.Art.globals();
@@ -47,31 +53,47 @@ BO.UI = (function () {
 
   function cellAt(x, y) { return cells[y * C.C.W + x]; }
 
-  // ── 입력 ──────────────────────────────────────────────────────────────────
+  // ── 입력: 고르기 ──────────────────────────────────────────────────────────
   function onTile(x, y, h) {
     var v = h.view();
     if (!v || !v.myTurn) return;
     if (!BO.Rooms.inside(v.room, x, y)) { flashHint('여기는 방 밖입니다'); return; }
     if (mode === 'move') {
       if (!BO.Rooms.walkable(v.room, x, y)) { flashHint('가구는 걸어갈 수 없습니다 · 사격으로 맞혀보세요'); return; }
-      var d = dirTo(v.me, x, y);
-      if (d == null) { flashHint('한 칸씩만 움직일 수 있습니다'); return; }
-      h.act(['m', d]);
-      return;
-    }
-    //  사격: 한 번 누르면 조준, 같은 칸을 또 누르면 발사.
-    //  ⚠ 한 번에 쏘게 하면 잘못 눌러 행동력을 날린다. 두 번 누르게 하면 신중한 사람이
-    //    느려진다. 그래서 **같은 칸 두 번**이 곧 발사다 — 확신 있으면 톡톡, 아니면 보고.
-    if (aim && aim.x === x && aim.y === y) { fire(h); return; }
-    if (x === v.me.x && y === v.me.y) { flashHint('제 발밑은 쏘지 않습니다'); return; }
-    aim = { x: x, y: y };
+      if (dirTo(v.me, x, y) == null) { flashHint('한 칸씩만 움직일 수 있습니다'); return; }
+    } else if (x === v.me.x && y === v.me.y) { flashHint('제 발밑은 쏘지 않습니다'); return; }
+    if (sel && sel.x === x && sel.y === y) { confirm(h); return; }   // 같은 칸 두 번 = 확정
+    sel = { x: x, y: y };
     render(v);
   }
 
-  function fire(h) {
-    if (!aim) { flashHint('쏠 칸을 먼저 고르세요'); return; }
-    var t = aim; aim = null;
-    h.act(['s', t.x, t.y]);
+  //  방향키: 이동 모드면 «그쪽 옆 칸»을 고르고, 사격 모드면 조준점을 한 칸 옮긴다.
+  function pad(d, h) {
+    var v = h.view();
+    if (!v || !v.myTurn) return;
+    var from = (mode === 'move' || !sel) ? v.me : sel;
+    var nx = from.x + C.DX[d], ny = from.y + C.DY[d];
+    if (mode === 'move') {
+      if (!BO.Rooms.walkable(v.room, nx, ny)) { flashHint('그쪽으로는 갈 수 없습니다'); return; }
+    } else if (!BO.Rooms.inside(v.room, nx, ny)) { flashHint('방 밖입니다'); return; }
+    sel = { x: nx, y: ny };
+    render(v);
+  }
+
+  // ── 입력: 확정 ────────────────────────────────────────────────────────────
+  function confirm(h) {
+    var v = h.view();
+    if (!v || !v.myTurn) return;
+    if (!sel) { flashHint(mode === 'move' ? '갈 칸을 먼저 고르세요' : '쏠 칸을 먼저 고르세요'); return; }
+    var t = sel; sel = null;
+    if (mode === 'move') {
+      var d = dirTo(v.me, t.x, t.y);
+      if (d == null) { render(v); return; }
+      h.act(['m', d]);
+    } else {
+      if (t.x === v.me.x && t.y === v.me.y) { flashHint('제 발밑은 쏘지 않습니다'); render(v); return; }
+      h.act(['s', t.x, t.y]);
+    }
   }
 
   function dirTo(me, x, y) {
@@ -80,44 +102,44 @@ BO.UI = (function () {
   }
 
   function setMode(m, h) {
-    mode = m;
-    if (m === 'move') aim = null;
-    els.modeMove.classList.toggle('on', m === 'move');
-    els.modeShoot.classList.toggle('on', m === 'shoot');
-    els.fire.classList.toggle('hide', m !== 'shoot');
-    els.pad.classList.toggle('hide', m !== 'move');
+    mode = m; sel = null;
     var v = h.view(); if (v) render(v);
   }
 
   function bindControls(h) {
     els.modeMove.onclick = function () { setMode('move', h); };
     els.modeShoot.onclick = function () { setMode('shoot', h); };
-    els.fire.onclick = function () { fire(h); };
-    els.pass.onclick = function () { h.pass(); };
+    els.confirm.onclick = function () { confirm(h); };
+    els.pass.onclick = function () { sel = null; h.pass(); };
     for (var d = 0; d < 4; d++) (function (dir) {
-      $('pad-' + dir).onclick = function () {
-        var v = h.view(); if (!v || !v.myTurn) return;
-        h.act(['m', dir]);
-      };
+      $('pad-' + dir).onclick = function () { pad(dir, h); };
     })(d);
+    if (els.logToggle) els.logToggle.onclick = function () {
+      var open = els.log.classList.toggle('open');
+      els.logToggle.textContent = open ? '접기' : '더 보기';
+    };
 
-    //  키보드 — 데스크톱에서 훨씬 빠르다. 방향키/WASD 이동, Space 로 모드, Enter 발사.
+    //  키보드 — 데스크톱에서 훨씬 빠르다. 방향키/WASD 고르기, Enter 확정,
+    //  Space 모드 전환, Esc 취소.
     document.addEventListener('keydown', function (e) {
+      if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
       var v = h.view(); if (!v || !v.myTurn) return;
       var k = e.key.toLowerCase(), d = null;
       if (k === 'arrowup' || k === 'w') d = 0;
       else if (k === 'arrowright' || k === 'd') d = 1;
       else if (k === 'arrowdown' || k === 's') d = 2;
       else if (k === 'arrowleft' || k === 'a') d = 3;
-      if (d != null) { e.preventDefault(); h.act(['m', d]); return; }
+      if (d != null) { e.preventDefault(); pad(d, h); return; }
       if (k === ' ') { e.preventDefault(); setMode(mode === 'move' ? 'shoot' : 'move', h); }
-      else if (k === 'enter') { e.preventDefault(); if (mode === 'shoot') fire(h); else h.pass(); }
+      else if (k === 'enter') { e.preventDefault(); confirm(h); }
+      else if (k === 'escape') { sel = null; render(v); }
     });
   }
 
   // ── 그리기 ────────────────────────────────────────────────────────────────
   function render(v, light) {
     if (!v) return;
+    if (!v.myTurn) sel = null;             // 내 턴이 아니면 고른 것도 없다
     pips(els.hpMe, v.me.hp); pips(els.hpFoe, v.foeHp);
     els.turn.innerHTML = '<b>' + (v.over ? '판 종료' : (v.myTurn ? '내 턴' : '상대 턴')) + '</b>' +
       v.turn + ' / ' + v.maxTurns + '턴';
@@ -127,12 +149,10 @@ BO.UI = (function () {
     els.ap.innerHTML = (v.myTurn ? '행동력 ' : '상대 행동력 ') + dots +
       (v.me.painted ? ' <span style="color:var(--foe)">· 페인트 묻음</span>' : '');
 
-    //  불이 켜졌다는 건 **둘 다** 보고 있다는 뜻이다. 그 사실을 크게 말해 준다.
     if (v.lit > 0) {
       els.sense.textContent = '💡 불이 켜졌다 — 서로가 보인다 (행동 ' + v.lit + '번 뒤 꺼짐)';
       els.sense.className = 'lit-badge';
     } else {
-      //  인기척은 **양쪽 다** 느낀다 — 내가 들었으면 상대도 들었다는 뜻이다.
       els.sense.textContent = v.sense
         ? '👂 인기척 — 바로 옆에 있다 (상대도 나를 느낀다)'
         : v.room.name + ' · 인기척 없음';
@@ -143,16 +163,20 @@ BO.UI = (function () {
     els.modeShoot.classList.toggle('on', mode === 'shoot');
     els.pass.textContent = v.ap === C.C.AP ? '턴 넘기기' : '남은 행동력 버리고 넘기기';
 
-    //  ⚠ 상대 턴에는 조작부를 **눌리지 않는 모양으로** 만든다. 눌러도 아무 일이
-    //    없게 막아 두는 것만으로는 부족하다 — 멀쩡해 보이는 버튼을 눌렀는데
-    //    반응이 없으면 사람은 「고장났나?」 하고 또 누른다.
+    //  상대 턴에는 조작부를 눌리지 않는 모양으로. 멀쩡해 보이는 버튼이 반응이 없으면
+    //  사람은 「고장났나?」 하고 또 누른다.
     var lock = !v.myTurn || v.over;
     els.pass.disabled = lock;
-    els.fire.disabled = lock;
     els.modeMove.disabled = lock; els.modeShoot.disabled = lock;
+    els.confirm.disabled = lock || !sel;
+    els.confirm.textContent = mode === 'move' ? (sel ? '이동 확정' : '갈 칸을 고르세요')
+                                              : (sel ? '발사' : '쏠 칸을 고르세요');
+    els.confirm.classList.toggle('shoot', mode === 'shoot');
     for (var d = 0; d < 4; d++) {
-      var b = document.getElementById('pad-' + d);
-      if (b) b.disabled = lock || v.legalDirs.indexOf(d) < 0;
+      var b = $('pad-' + d);
+      if (!b) continue;
+      //  이동 모드는 갈 수 있는 방향만, 사격 모드는 조준점을 옮기니 늘 켜 둔다
+      b.disabled = lock || (mode === 'move' && v.legalDirs.indexOf(d) < 0);
     }
 
     if (light) return;   // 시계만 도는 갱신 — 격자는 안 건드린다(깜빡임 방지)
@@ -163,6 +187,7 @@ BO.UI = (function () {
     renderRoom(v.room);
     els.board.classList.toggle('moving', mode === 'move' && v.myTurn);
     els.board.classList.toggle('shooting', mode === 'shoot' && v.myTurn);
+    els.board.classList.toggle('lit', v.lit > 0);
     var movable = {}, d;
     if (v.myTurn && mode === 'move') {
       for (d = 0; d < 4; d++) {
@@ -173,28 +198,27 @@ BO.UI = (function () {
     var paint = {}, mark = {};
     v.paint.forEach(function (p) { paint[p.x + ',' + p.y] = p; });
     v.marks.forEach(function (m) { mark[m.x + ',' + m.y] = m; });
-    //  불이 켜져 있는 동안에만 상대가 보인다. 꺼져 있으면 v.foe 가 아예 null 이라
-    //  화면이 그리고 싶어도 그릴 것이 없다(규칙 엔진이 안 준다).
-    els.board.classList.toggle('lit', v.lit > 0);
 
     for (var y = 0; y < C.C.H; y++) for (var x = 0; x < C.C.W; x++) {
       var key = x + ',' + y, c = cellAt(x, y);
       var isMe = (x === v.me.x && y === v.me.y);
+      var isSel = !!(sel && sel.x === x && sel.y === y);
       c.classList.toggle('me', isMe);
       c.classList.toggle('foe', !!(v.foe && v.foe.x === x && v.foe.y === y));
       c.classList.toggle('painted', isMe && v.me.painted);
       c.classList.toggle('movable', !!movable[key]);
-      c.classList.toggle('aim', !!(aim && aim.x === x && aim.y === y));
-      //  인기척은 **내 주변 반경**을 은은하게 물들일 뿐 방향을 알려 주지 않는다.
+      c.classList.toggle('step', isSel && mode === 'move');    // 갈 칸
+      c.classList.toggle('aim', isSel && mode === 'shoot');    // 쏠 칸
       c.classList.toggle('sensed', !!(v.sense && C.dist(x, y, v.me.x, v.me.y) <= v.senseR));
 
       var sp = c.children[0], sm = c.children[1], sn = c.children[2], sg = c.children[3];
       var p = paint[key];
       sp.className = 'paint material-' + BO.Rooms.material(v.room, x, y) +
+        ' v' + (1 + ((x * 7 + y * 13) % 2)) +
         (p ? (p.by === v.mine ? ' mine' : ' foe') + (p.hit ? ' hit' : '') : ' hide');
       if (p) {
-        sp.style.opacity = 0.35 + 0.55 * (p.left / C.C.PAINT_TURNS);
-        sp.style.setProperty('--b', blob(x, y));
+        sp.style.opacity = 0.4 + 0.5 * (p.left / C.C.PAINT_TURNS);
+        sp.style.setProperty('--rot', ((x * 37 + y * 91) % 360) + 'deg');
         sp.style.setProperty('--splat', 'url(' + BO.Art.BASE + BO.Art.splat(x, y) + ')');
         sp.title = '페인트 ' + p.left + '턴 남음';
       }
@@ -204,16 +228,14 @@ BO.UI = (function () {
         sm.textContent = '';
         sm.style.color = mk.side === v.mine ? 'var(--me)' : 'var(--foe)';
         sm.title = '발자국 ' + mk.left + '턴 남음';
-        sm.style.opacity = 0.3 + 0.6 * (mk.left / C.C.MARK_TURNS);
-        sm.style.filter = 'none';
+        sm.style.opacity = 0.35 + 0.6 * (mk.left / C.C.MARK_TURNS);
       }
       var isLamp = !!(v.lamp && v.lamp.x === x && v.lamp.y === y);
       sn.className = 'lamp' + (isLamp ? (v.lit > 0 ? ' on' : '') : ' hide');
       if (isLamp) sn.textContent = v.lit > 0 ? '💡' : '🔘';
 
-      //  마지막으로 상대가 «확실히» 있었던 자리.
       var seen = v.foeSeen && v.foeSeen.x === x && v.foeSeen.y === y &&
-                 (v.turn - v.foeSeen.turn) <= 3;
+                 (v.turn - v.foeSeen.turn) <= 3 && !(v.foe && v.foe.x === x && v.foe.y === y);
       sg.className = 'ghost' + (seen ? '' : ' hide');
       if (seen) sg.textContent = '✖';
     }
@@ -252,14 +274,6 @@ BO.UI = (function () {
     }
   }
 
-  //  칸마다 다른 얼룩 모양 — 이미지 없이. 좌표로 정하니 다시 그려도 안 흔들린다.
-  function blob(x, y) {
-    var h = (x * 73856093) ^ (y * 19349663);
-    function n(i) { return 30 + ((h >>> (i * 3)) % 45); }
-    return n(0) + '% ' + n(1) + '% ' + n(2) + '% ' + n(3) + '% / ' +
-           n(4) + '% ' + n(5) + '% ' + n(6) + '% ' + n(7) + '%';
-  }
-
   function pips(el, hp) {
     var s = '';
     for (var i = 0; i < C.C.HP; i++) s += '<span class="pip' + (i < hp ? ' on' : '') + '"></span>';
@@ -283,18 +297,19 @@ BO.UI = (function () {
         flash(e.x, e.y); BO.Sfx.play(byMe ? 'hit' : 'hurt');
       } else if (e.k === 'miss') {
         say(byMe ? '· ' + at + ' 빗나감' : '상대가 ' + at + ' 을 쐈다', byMe ? '' : 'foe');
+        if (!byMe) flash(e.x, e.y);
         BO.Sfx.play('shot');
       } else if (e.k === 'bump') {
         say('🫨 어둠 속에서 부딪혔다 — 서로 위치가 드러났다', 'hot');
         flash(e.x, e.y); BO.Sfx.play('bump');
-      } else if (e.k === 'mark') {
-        say(byMe ? '👣 내 발자국이 ' + at + ' 에 남았다' : '👣 상대 발자국 발견 ' + at,
-            byMe ? 'foe' : 'me');
-        if (!byMe) BO.Sfx.play('clue');
       } else if (e.k === 'lamp') {
         say(byMe ? '💡 불을 켰다! 상대는 (' + (e.fx + 1) + ',' + (e.fy + 1) + ') — 다음 행동 하나까지만 보인다'
                  : '💡 상대가 불을 켰다! 상대는 ' + at + ' — 내 위치도 드러났다', 'hot');
         BO.Sfx.play('lamp');
+      } else if (e.k === 'mark') {
+        say(byMe ? '👣 내 발자국이 ' + at + ' 에 남았다' : '👣 상대 발자국 발견 ' + at,
+            byMe ? 'foe' : 'me');
+        if (!byMe) BO.Sfx.play('clue');
       } else if (e.k === 'step') {
         say('🎨 페인트를 밟았다 — 다음 턴에 한 칸만 움직이면 발자국이 남는다', 'hot');
         BO.Sfx.play('clue');
@@ -302,8 +317,7 @@ BO.UI = (function () {
     });
   }
 
-  // Target-only animation. No source point, movement event or hidden occupant
-  // enters this effect. Papers are decorative: no extra hit cells or damage.
+  //  표적 칸에서만 나는 연출. 쏜 자리·이동·숨은 상대 어느 것도 여기 안 들어온다.
   function react(x, y, material) {
     var c = cellAt(x, y), fx = c.children[4];
     fx.className = 'reaction';
@@ -325,18 +339,16 @@ BO.UI = (function () {
     els.log.appendChild(d);
     while (els.log.children.length > 60) els.log.removeChild(els.log.firstChild);
     els.log.scrollTop = els.log.scrollHeight;
-    lastLog = Date.now();
   }
 
   function status(t, kind) {
-    savedStatus = null;            // 새 상태가 오면 잠깐 빌려 준 안내는 버린다
+    savedStatus = null;
     clearTimeout(flashHint._t);
     els.status.textContent = t || '';
     els.status.className = 'status ' + (kind || '');
   }
 
-  //  짧은 안내는 **상태줄을 잠깐 빌려 쓴다.** 줄을 따로 두면 낮은 화면에서 격자가
-  //  그만큼 작아진다 — 늘 비어 있는 줄에 세로 공간을 낼 만큼 중요하지 않다.
+  //  짧은 안내는 상태줄을 잠깐 빌려 쓴다. 줄을 따로 두면 낮은 화면에서 격자가 작아진다.
   var savedStatus = null;
   function flashHint(t) {
     if (savedStatus === null) savedStatus = { t: els.status.textContent, c: els.status.className };
@@ -350,10 +362,12 @@ BO.UI = (function () {
   }
 
   function reset() {
-    els.log.innerHTML = ''; aim = null; mode = 'move'; roomKey = '';
-    els.fire.classList.add('hide'); els.pad.classList.remove('hide');
+    els.log.innerHTML = ''; sel = null; mode = 'move'; roomKey = '';
+    els.log.classList.remove('open');
+    if (els.logToggle) els.logToggle.textContent = '더 보기';
   }
 
   return { init: init, render: render, events: events, status: status, clock: clock,
-           say: say, reset: reset, setMode: setMode, hint: flashHint };
+           say: say, reset: reset, setMode: setMode, hint: flashHint,
+           mode: function () { return mode; } };
 })();

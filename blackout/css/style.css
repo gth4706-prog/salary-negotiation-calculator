@@ -34,13 +34,38 @@ button{font:inherit; color:inherit; background:none; border:0; cursor:pointer}
 /* ⚠ 격자 크기는 **화면 높이에서 조작부 높이를 뺀 값**으로 직접 정한다.
    부모 높이를 %로 물려받는 방법(height:100%)을 먼저 썼다가 격자가 24px 로 접혔다 —
    body 가 min-height 라서 물려줄 «확정된 높이»가 없었기 때문이다. 빼는 값은
-   추측이 아니라 실측이다(blackout/tests/layout.js 가 360×640·400×860·820×1180 에서
-   넘침 0 을 확인한다). 조작부를 고치면 그 숫자도 같이 고쳐야 한다. */
-/* ⚠ dvh 를 모르는 브라우저(iOS 15.3 이하)는 그 줄을 통째로 버린다 — 그러면 격자에
-   너비 규칙이 하나도 없어 화면을 넘긴다. vh 로 먼저 적고 dvh 로 덮어쓴다. */
-.board{width:min(100%, calc(100vh - 430px)); width:min(100%, calc(100dvh - 430px))}
-@media (max-height:660px){ .board{width:min(100%, calc(100vh - 370px)); width:min(100%, calc(100dvh - 370px))} }
-@media (max-height:560px){ .board{width:min(100%, calc(100vh - 240px)); width:min(100%, calc(100dvh - 240px))} }
+   추측이 아니라 실측이다(tests/layout.js). 조작부를 고치면 그 숫자도 같이 고쳐야 한다.
+   ⚠ 실서버 첫 판에서 "전장이 더 커야 한다"가 나왔다. 667px 폰에서 격자가 237px
+   까지 줄고 있었다(빼는 값 430). 조작부를 눌러 빼는 값을 줄이고, PC 에서는
+   480px 상한을 풀었다(body.in-game 의 .wrap).
+   dvh 를 모르는 브라우저(iOS 15.3 이하)는 그 줄을 통째로 버리므로 vh 로 먼저 적는다. */
+.board{width:min(100%, calc(100vh - 372px)); width:min(100%, calc(100dvh - 372px))}
+/* 실측: 기록을 숨기면 조작부 321px, 십자키·행동력까지 숨기면 ~201px (tests/layout.js) */
+@media (max-height:720px){
+  .logwrap{display:none}
+  .board{width:min(100%, calc(100vh - 328px)); width:min(100%, calc(100dvh - 328px))}
+}
+@media (max-height:600px){
+  .ctl-row .pad{display:none}
+  .ap{display:none}
+  .board{width:min(100%, calc(100vh - 276px)); width:min(100%, calc(100dvh - 276px))}
+}
+/* 가로로 눕힌 폰: 격자를 왼쪽에, 조작부를 오른쪽에. 세로로 쌓으면 절대 안 들어간다. */
+@media (orientation:landscape) and (max-height:600px){
+  body.in-game .wrap{max-width:none}
+  #s-game{display:grid; grid-template-columns:auto minmax(190px,1fr); column-gap:10px; row-gap:5px; align-items:start}
+  #s-game .hud,#s-game .clock{grid-column:1 / -1}
+  /* 그리드 칸(auto)은 %폭인 자식의 크기를 못 정한다 — 격자 폭을 픽셀로 못 박는다 */
+  #s-game .boardwrap{grid-column:1; grid-row:3 / span 6; width:calc(100vh - 96px); width:calc(100dvh - 96px)}
+  #s-game .sense-badge,#s-game .lit-badge,#s-game .ap,#s-game .ctl,#s-game .status,#s-game .logwrap{grid-column:2; min-width:0}
+  .board{width:100%}
+  .ctl-row .pad{display:grid} .ap{display:flex} .logwrap{display:block}
+  .log{height:70px}
+}
+/* PC·태블릿: 대전 화면만 넓게. 메뉴는 480 그대로(글 폭이 넓으면 읽기 나쁘다) */
+body.in-game .wrap{max-width:820px}
+body.in-game{padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
+#s-game{gap:5px}
 .hide{display:none !important}
 
 /* ── 공통 패널 ─────────────────────────────────────────────────────────── */
@@ -64,10 +89,10 @@ input[type=text]{width:100%; padding:12px; border-radius:var(--r); background:#0
 .title p{margin:6px 0 0; color:var(--dim); font-size:13px}
 
 /* ── HUD ───────────────────────────────────────────────────────────────── */
-.hud{display:flex; align-items:center; gap:10px; padding:8px 12px}
+.hud{display:flex; align-items:center; gap:10px; padding:6px 10px}
 .hp{display:flex; gap:3px; align-items:center}
 .hp b{font-size:11px; letter-spacing:.5px; margin-right:4px; color:var(--dim)}
-.pip{width:11px; height:11px; border-radius:50%; background:#1d2836}
+.pip{width:10px; height:10px; border-radius:50%; background:#1d2836}
 .hp.me .pip.on{background:var(--me); box-shadow:0 0 7px var(--me)}
 .hp.foe .pip.on{background:var(--foe); box-shadow:0 0 7px var(--foe)}
 .hud .mid{flex:1; text-align:center; font-size:12px; color:var(--dim)}
@@ -144,7 +169,7 @@ input[type=text]{width:100%; padding:12px; border-radius:var(--r); background:#0
 .ap .dot.on{background:var(--me); box-shadow:0 0 8px var(--me)}
 
 .modes{display:flex; gap:8px}
-.mode{flex:1; padding:9px; border-radius:var(--r); background:#121a25; border:1px solid var(--line);
+.mode{flex:1; padding:8px; border-radius:var(--r); background:#121a25; border:1px solid var(--line);
   font-weight:700; text-align:center; font-size:14px}
 .mode[disabled]{opacity:.35}
 .mode.on{background:#1d3b47; border-color:var(--me); color:#d9fffb}
@@ -160,7 +185,7 @@ input[type=text]{width:100%; padding:12px; border-radius:var(--r); background:#0
 .pad .sp{visibility:hidden}
 
 /* ── 기록 ──────────────────────────────────────────────────────────────── */
-.log{height:52px; overflow-y:auto; flex:0 0 auto; font-size:12.5px; line-height:1.6; color:var(--dim)}
+.log{height:40px; overflow-y:auto; flex:0 0 auto; transition:height .2s; font-size:12.5px; line-height:1.6; color:var(--dim)}
 .log div{padding:1px 0}
 .log .me{color:var(--me)} .log .foe{color:var(--foe)} .log .hot{color:var(--hot)}
 
@@ -195,12 +220,49 @@ input[type=text]{width:100%; padding:12px; border-radius:var(--r); background:#0
 /* 아주 낮은 화면에서는 **격자가 먼저다.** 기록과 십자키는 없어도 놀 수 있다
    (칸을 직접 눌러도 움직인다). 없으면 못 노는 것만 남긴다. */
 @media (max-height:660px){
-  .log{display:none}
   .title{padding:8px 0 0}
-  .pad button{padding:7px 0; font-size:14px}
   .sense-badge{font-size:11.5px}
 }
-@media (max-height:560px){
-  .pad{display:none}
-  .ap{display:none}
-}
+
+
+/* ── 조작부: 고르고 → 확정 ──────────────────────────────────────────────── */
+.ctl{display:flex; flex-direction:column; gap:5px}
+.ctl-row{display:flex; gap:8px; align-items:stretch}
+.ctl-row .pad{flex:0 0 138px; margin:0; gap:4px}
+.ctl-row .pad button{padding:6px 0; font-size:14px}
+.confirm{flex:1; font-size:18px; font-weight:800; letter-spacing:.3px; min-height:0}
+.confirm[disabled]{opacity:.45; background:#16202d; border-color:var(--line); color:var(--dim); font-size:14px; font-weight:600}
+.confirm.shoot:not([disabled]){background:linear-gradient(180deg,#8a3a2c,#6e2a20); border-color:#c25a45; color:#ffe9dc}
+.btn.small{padding:8px 12px; font-size:13px}
+
+/* 고른 칸 */
+.cell.step{box-shadow:inset 0 0 0 3px var(--me)}
+.cell.step::before{content:'⬆'; position:absolute; inset:0; display:flex; align-items:center;
+  justify-content:center; color:var(--me); font-size:min(4vw,18px); z-index:9; pointer-events:none;
+  text-shadow:0 0 6px #000}
+
+/* 기록 접기 */
+.logwrap{position:relative}
+.log.open{height:180px}
+.log-toggle{position:absolute; right:8px; top:-2px; font-size:11px; color:var(--dim); padding:4px 6px}
+
+/* ── 튜토리얼 안내판 — 격자 위 ──────────────────────────────────────────── */
+.boardwrap{position:relative}
+.tut{position:absolute; left:6px; right:6px; top:6px; z-index:30}
+.tut-card{background:#0e141df2; border:1px solid var(--hot); border-radius:10px; padding:10px 12px;
+  box-shadow:0 10px 30px #000b}
+.tut-step{font-size:11px; color:var(--hot); letter-spacing:.6px; font-weight:700}
+.tut-card p{margin:4px 0 8px; font-size:13.5px; line-height:1.5}
+.tut-card .row{justify-content:flex-end} .tut-card .row>*{flex:0 0 auto}
+.tut-card.done{border-color:var(--me)}
+
+/* ── 메뉴: 컨셉아트 배경 ───────────────────────────────────────────────── */
+.title.hero{position:relative; height:230px; border-radius:14px; overflow:hidden; text-align:left;
+  padding:0; background:#0b0f16 url(../assets/concept/office.jpg) center 40%/cover no-repeat;
+  box-shadow:0 12px 32px #000a}
+.title.hero::after{content:''; position:absolute; inset:0;
+  background:linear-gradient(180deg,#07090d22 0%,#07090d55 45%,#07090df0 100%)}
+.hero-text{position:absolute; left:16px; right:16px; bottom:14px; z-index:1}
+.hero-text .eyebrow{display:block; color:var(--hot); font-size:11px; letter-spacing:2px; margin:0 0 4px}
+.hero-text h1{font-size:34px; letter-spacing:4px; margin:0; text-shadow:0 2px 12px #000}
+.hero-text p{margin:6px 0 0; color:#dbe6f3; font-size:13px; text-shadow:0 1px 6px #000}

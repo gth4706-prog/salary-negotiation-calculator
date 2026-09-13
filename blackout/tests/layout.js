@@ -6,6 +6,7 @@ const { chromium } = require('playwright');
 const URL = process.env.URL || 'http://localhost:8765/blackout/';
 const SIZES = [
   { w: 320, h: 568, n: '아이폰SE 1세대' },
+  { w: 375, h: 667, n: '아이폰SE 2·3세대' },
   { w: 360, h: 640, n: '보급형 안드로이드' },
   { w: 390, h: 844, n: '아이폰 14' },
   { w: 412, h: 915, n: '픽셀' },

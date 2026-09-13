@@ -122,17 +122,21 @@ BO.Net = {
 
   //  공개 방 목록. **비어 있는 것이 기본 상태다** — 실사용자가 몇 명뿐이다.
   //  호출부는 "아직 아무도 없습니다"를 정직하게 보여주고 나갈 길을 준다.
-  //  ⚠ 방 서버는 에그워와 공용이다. 우리 꼬리표(mode)가 붙은 방만 걸러 낸다.
+  //  ⚠ 방 서버는 에그워와 공용이다. 처음엔 `mode === 'dark'` 인 방만 남기고 나머지를
+  //    **버렸는데**, 실제 서버가 mode 를 그대로 돌려주지 않아 태현님이 만든 방이
+  //    목록에서 사라졌다(실서버 첫 테스트에서 걸림). 이제 **아무것도 버리지 않는다.**
+  //    우리 방인지는 `ours` 로만 표시한다 — mode 가 맞거나, 방 이름의 🕶 표식으로.
+  //    엉뚱한 방에 들어가도 버전 악수(4009)가 막고 로비가 사유를 보여 준다.
   listRooms: function (cb) {
     var self = this;
     this._http('/rooms', { method: 'GET' }, function (err, j) {
       if (err) { cb(err); return; }
       var rooms = (j && j.rooms) || [];
-      var mine = rooms.filter(function (r) { return r && r.mode === self.MODE; });
-      //  서버가 mode 를 안 돌려주는 옛 버전이면 거를 수가 없다 — 그때는 전부 보여주되
-      //  버전 악수가 잘못된 방 입장을 막는다(입장 시 4009).
-      var hasMode = rooms.some(function (r) { return r && r.mode !== undefined; });
-      cb(null, { rooms: hasMode ? mine : rooms, filtered: hasMode });
+      rooms.forEach(function (r) {
+        if (!r) return;
+        r.ours = (r.mode === self.MODE) || /^🕶/.test(String(r.name || ''));
+      });
+      cb(null, { rooms: rooms, raw: j });
     });
   },
 

@@ -41,7 +41,11 @@ node blackout/tests/safety.js         # 어긋남 감지·복구 · 재접속 �
 node blackout/tests/invite.test.js    # 초대 링크 복사 → ?room= 으로 바로 입장 → 시작
 node blackout/tests/endgame.test.js   # 판 종료 → 결과 → 한 판 더 · 턴 시간 초과 자동 넘김
 node blackout/tests/leave.test.js     # 대전 중 상대가 앱을 닫으면 30초 뒤 기권승
+node blackout/tests/ui.test.js        # 고르고→확정 조작 · 기록 접기 · 스크린샷
+node blackout/tests/tutorial.test.js  # 튜토리얼 8단계를 사람처럼 끝까지
 ```
+
+`pvp.js` 는 «상대가 쏘자마자 내 화면에 뜨는지»도 센다(턴이 끝나기 전에 얼룩이 보인 횟수).
 
 `assets-manifest.js` 는 테스트가 아니라 도구다 — 그림을 넣거나 뺀 뒤 한 번 돌려
 `assets/manifest.json` 을 다시 만든다.

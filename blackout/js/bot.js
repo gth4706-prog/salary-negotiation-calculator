@@ -22,9 +22,21 @@ BO.Bot = (function () {
   //    첫 수가 **충돌**이면 제자리에 남는데(규칙) 계획은 이미 옮겨 간 걸로 쳐서,
   //    둘째 수가 벽 밖으로 나갔다. 한 수씩 두면 이 버그 종류가 통째로 없어진다 —
   //    그리고 사람과 같아진다: 부딪혀 보고 나서 다음 수를 정하는 것.
+  //  ── 모드 ──  'normal' 이 실전. 'tutorial' 은 가르치는 상대다:
+  //   쏘지 않고, 페인트가 묻으면 **딱 한 칸** 움직여 발자국 규칙을 보여 주고,
+  //   그 외엔 턴을 넘긴다. 사람이 규칙 하나씩 손으로 해 보게 두는 상대.
+  var mode = 'normal';
+
   function think(st, side) {
     var v = C.view(st, side);        // ← 여기서부터 st 는 없는 셈 친다
+    if (mode === 'tutorial') return teach(v);
     return decide(v);
+  }
+
+  function teach(v) {
+    if (v.ap <= 0) return null;
+    if (v.me.painted && v.moves === 0) return mv(pickMove(v, null, false));   // 한 칸만 → 발자국
+    return null;                                                             // 나머지는 넘긴다
   }
 
   // ── 믿음 격자 ─────────────────────────────────────────────────────────────
@@ -250,5 +262,7 @@ BO.Bot = (function () {
     return best;
   }
 
-  return { think: think, belief: belief };
+  return { think: think, belief: belief,
+           setMode: function (m) { mode = m === 'tutorial' ? 'tutorial' : 'normal'; },
+           getMode: function () { return mode; } };
 })();

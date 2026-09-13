@@ -15,15 +15,15 @@
 <!-- 홈 화면 설치(PWA). 홈 화면에서 열면 주소창이 사라져 뷰포트가 흔들리지 않는다 —
      에그워에서 기종별 레이아웃 사고를 없앤 방법 그대로. 서비스워커는 일부러 안 둔다:
      캐시가 붙으면 배포해도 옛 버전이 남는 사고가 생긴다. -->
-<link rel="manifest" href="manifest.json?v=0.3.4">
+<link rel="manifest" href="manifest.json?v=0.4">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="블랙아웃">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="assets/sprites/kid-top.png?v=0.3.4">
-<link rel="icon" type="image/png" sizes="256x256" href="assets/sprites/kid-top.png?v=0.3.4">
-<link rel="stylesheet" href="css/style.css?v=0.3.4">
-<link rel="stylesheet" href="css/rooms.css?v=0.3.4">
+<link rel="apple-touch-icon" href="assets/sprites/kid-top.png?v=0.4">
+<link rel="icon" type="image/png" sizes="256x256" href="assets/sprites/kid-top.png?v=0.4">
+<link rel="stylesheet" href="css/style.css?v=0.4">
+<link rel="stylesheet" href="css/rooms.css?v=0.4">
 </head>
 <body>
 
@@ -31,16 +31,22 @@
 
   <!-- ── 메뉴 ─────────────────────────────────────────────────────────── -->
   <section id="s-menu">
-    <div class="title">
-      <div class="home-room" aria-hidden="true"><i class="home-desk"></i><i class="home-paint"></i><i class="home-prints"></i></div><span class="eyebrow">불이 꺼지면, 한 판 시작.</span>
-      <h1>블랙아웃</h1>
-      <p>불 꺼진 방. 서로 보이지 않는다.<br>페인트 발자국으로 상대를 찾아내라.</p>
+    <!-- 메뉴 배경은 컨셉아트의 사무실 장면(assets/concept/office.jpg). 이 느낌이 정답이다. -->
+    <div class="title hero">
+      <div class="hero-text">
+        <span class="eyebrow">불이 꺼지면, 한 판 시작.</span>
+        <h1>블랙아웃</h1>
+        <p>불 꺼진 방. 서로 보이지 않는다.<br>얼룩과 발자국으로 상대를 찾아내라.</p>
+      </div>
     </div>
     <div class="panel" style="display:flex;flex-direction:column;gap:8px">
       <label class="muted" for="nick">이름</label>
       <input type="text" id="nick" maxlength="12" autocomplete="off" spellcheck="false">
       <button class="btn primary" id="go-pvp">실시간 대전</button>
-      <button class="btn" id="go-bot">연습 (봇과 한 판)</button>
+      <div class="row">
+        <button class="btn" id="go-tutorial">튜토리얼 (3분)</button>
+        <button class="btn" id="go-bot">연습 (봇과 한 판)</button>
+      </div>
       <p class="muted hide" id="preview-note"></p>
       <div class="row">
         <button class="btn ghost" id="go-rules">규칙</button>
@@ -98,6 +104,8 @@
     <div class="panel">
       <h2>열린 방</h2>
       <div class="rooms" id="rooms"></div>
+      <p class="muted" id="rooms-count" style="margin:6px 0 0"></p>
+      <pre class="muted hide" id="lobby-diag" style="white-space:pre-wrap;font-size:11px;max-height:120px;overflow:auto"></pre>
       <button class="btn ghost" id="refresh" style="margin-top:8px">새로고침</button>
     </div>
     <button class="btn ghost" id="lobby-back">돌아가기</button>
@@ -109,6 +117,7 @@
       <h2>방 코드</h2>
       <div class="code-big" id="room-code">····</div>
       <p class="muted" id="room-hint">이 코드를 상대에게 보내세요.</p>
+      <p class="muted">⚠ <b>이 화면을 열어 둔 채로</b> 기다리세요. 나가면 방이 사라집니다.</p>
       <p class="muted" id="room-status">접속 중…</p>
       <button class="btn" id="share">초대 링크 복사</button>
       <button class="btn primary" id="ready" disabled style="margin-top:8px">준비</button>
@@ -128,28 +137,44 @@
 
     <div class="boardwrap">
       <div class="board" id="board"></div>
+      <!-- 튜토리얼 안내판 — 격자 위에 겹쳐 뜬다(레이아웃을 안 밀어낸다) -->
+      <div class="tut hide" id="tut">
+        <div class="tut-card">
+          <div class="tut-step" id="tut-step"></div>
+          <p id="tut-text"></p>
+          <div class="row">
+            <button class="btn ghost small" id="tut-skip">건너뛰기</button>
+            <button class="btn primary small" id="tut-next">다음</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="sense-badge off" id="sense"></div>
     <div class="ap" id="ap"></div>
 
-    <div class="modes">
-      <button class="mode on" id="mode-move">🏃 이동</button>
-      <button class="mode shoot" id="mode-shoot">🎯 사격</button>
-    </div>
-
-    <div class="pad" id="pad">
-      <span class="sp"></span><button id="pad-0">▲</button><span class="sp"></span>
-      <button id="pad-3">◀</button><span class="sp"></span><button id="pad-1">▶</button>
-      <span class="sp"></span><button id="pad-2">▼</button><span class="sp"></span>
-    </div>
-    <div class="row">
-      <button class="btn hide" id="fire">발사</button>
-      <button class="btn ghost" id="pass">턴 넘기기</button>
+    <!-- 조작: ① 이동/사격 고르고 ② 방향키·터치로 칸 짚고 ③ 확정 -->
+    <div class="ctl">
+      <div class="modes">
+        <button class="mode on" id="mode-move">🏃 이동</button>
+        <button class="mode shoot" id="mode-shoot">🎯 사격</button>
+      </div>
+      <div class="ctl-row">
+        <div class="pad" id="pad">
+          <span class="sp"></span><button id="pad-0">▲</button><span class="sp"></span>
+          <button id="pad-3">◀</button><span class="sp"></span><button id="pad-1">▶</button>
+          <span class="sp"></span><button id="pad-2">▼</button><span class="sp"></span>
+        </div>
+        <button class="btn primary confirm" id="confirm" disabled>갈 칸을 고르세요</button>
+      </div>
+      <button class="btn ghost small" id="pass">턴 넘기기</button>
     </div>
 
     <div class="status" id="status"></div>
-    <div class="panel log" id="log"></div>
+    <div class="logwrap">
+      <div class="panel log" id="log"></div>
+      <button class="log-toggle" id="log-toggle">더 보기</button>
+    </div>
   </section>
 
 </div>
@@ -175,14 +200,15 @@
   </div>
 </div>
 
-<script src="js/rooms.js?v=0.3.4"></script>
-<script src="js/art.js?v=0.3.4"></script>
-<script src="js/core.js?v=0.3.4"></script>
-<script src="js/net.js?v=0.3.4"></script>
-<script src="js/bot.js?v=0.3.4"></script>
-<script src="js/match.js?v=0.3.4"></script>
-<script src="js/sfx.js?v=0.3.4"></script>
-<script src="js/ui.js?v=0.3.4"></script>
-<script src="js/main.js?v=0.3.4"></script>
+<script src="js/rooms.js?v=0.4"></script>
+<script src="js/art.js?v=0.4"></script>
+<script src="js/core.js?v=0.4"></script>
+<script src="js/net.js?v=0.4"></script>
+<script src="js/bot.js?v=0.4"></script>
+<script src="js/match.js?v=0.4"></script>
+<script src="js/tutorial.js?v=0.4"></script>
+<script src="js/sfx.js?v=0.4"></script>
+<script src="js/ui.js?v=0.4"></script>
+<script src="js/main.js?v=0.4"></script>
 </body>
 </html>

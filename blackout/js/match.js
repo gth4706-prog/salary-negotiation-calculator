@@ -46,7 +46,9 @@ BO.Match = (function () {
       foeName: opts.foeName || '상대',
       on: opts.on || {},
       log: [],            // 확정된 턴 기록 — 재접속 복구의 전부
-      pending: [],        // 내가 이번 턴에 쌓아 둔 행동(아직 안 보냄)
+      pending: [],        // 내가 이번 턴에 쌓아 둔 행동(턴 확정 때 통째로 한 번 더 보낸다)
+      partial: [],        // 상대의 «진행 중인 턴»에서 이미 받아 적용한 행동들
+      noTimer: !!opts.noTimer,   // 튜토리얼: 시계를 안 돌린다(읽을 시간을 준다)
       botActs: [],        // 봇이 이번 턴에 둔 수
       inbox: {},          // 순서보다 먼저 온 턴(n → acts)
       desync: null,       // 어긋남이 확정되면 여기에 사유가 들어온다
@@ -74,7 +76,8 @@ BO.Match = (function () {
     if (!m || m.st.over) return;
     m.st.ev = [];
     m.pending = [];
-    m.deadline = now() + TURN_MS;
+    m.partial = [];
+    m.deadline = now() + (m.noTimer ? 1e12 : TURN_MS);
     m.waitingSince = now();
     if (m.timer) clearInterval(m.timer);
     m.timer = setInterval(tick, 200);
@@ -124,6 +127,7 @@ BO.Match = (function () {
   //  남은 시간 · 상대가 너무 오래 말이 없으면 알려 주기.
   function tick() {
     if (!m || m.st.over || m.desync) return;
+    if (m.noTimer) { render(true); return; }
     var left = m.deadline - now();
     if (m.st.side === m.mine) {
       if (left <= 0) { commit(true); return; }   // 시간이 다 되면 남은 행동력은 버린다
@@ -139,6 +143,7 @@ BO.Match = (function () {
 
   function timeLeft() {
     if (!m || m.st.over) return 0;
+    if (m.noTimer) return TURN_MS;
     return Math.max(0, m.deadline - now());
   }
 
@@ -153,6 +158,12 @@ BO.Match = (function () {
     if (err) return err;
     m.pending.push(a);
     fire(m.st.ev.slice(before), m.mine);
+    //  ── 행동 하나를 **그 즉시** 보낸다 ────────────────────────────────────
+    //  예전엔 턴이 끝나야 두 행동을 한꺼번에 보냈다. 그러면 상대 화면엔 내 첫 발이
+    //  최대 20초 뒤에야 뜬다("상대가 쏘자마자 나한테도 보여야 함" — 실서버 첫 판
+    //  에서 바로 나온 말). 턴 확정(`t`)은 그대로 한 번 더 가니(해시 포함) 이 메시지가
+    //  없어져도 판은 안 어긋난다 — 순수하게 «빨리 보여 주기» 용이다.
+    if (!m.vsBot) BO.Net.relay({ t: 'a', n: m.log.length, k: m.pending.length - 1, a: a });
     //  ⚠ 행동력이 남았어도 **판이 끝났으면 즉시 확정**한다. 안 그러면 마지막 한 발로
     //    이긴 턴이 전송되지 않아 진 쪽 화면이 영원히 「상대 턴」에 멈춘다.
     if (m.st.ap <= 0 || m.st.over) commit(false);
@@ -201,11 +212,9 @@ BO.Match = (function () {
     }
     if (m.st.side === m.mine) { flagDesync('턴 주인이 어긋났습니다'); return; }
 
-    m.st.ev = [];
-    var r = C.applyTurn(m.st, m.st.side, acts || []);
-    if (!r.ok) { flagDesync('상대 턴을 규칙이 받지 않습니다: ' + r.err); return; }
+    var r = applyRest(acts || []);
+    if (!r.ok) { flagDesync(r.err); return; }
     m.log.push(acts || []);
-    fire(m.st.ev.slice(), m.foe);
 
     //  ⚠ 해시 대조 — 이 두 줄이 이 파일의 존재 이유다.
     if (theirHash != null && (C.hash(m.st) >>> 0) !== (theirHash >>> 0)) {
@@ -217,6 +226,41 @@ BO.Match = (function () {
     // 먼저 와서 기다리던 다음 턴이 있으면 이어서 처리한다.
     var nx = m.inbox[m.log.length];
     if (nx) { delete m.inbox[m.log.length]; applyForeign(m.log.length, nx.a, nx.h); }
+  }
+
+  //  상대 턴의 행동 목록 `acts` 를 적용한다 — **이미 받아 둔 앞부분은 건너뛰고.**
+  //  `partial` 에 있는 것과 `acts` 의 앞부분이 다르면 판이 어긋난 것이다.
+  function applyRest(acts) {
+    if (acts.length > C.C.AP) return { ok: false, err: '행동 수 초과' };
+    for (var i = 0; i < m.partial.length; i++) {
+      if (JSON.stringify(m.partial[i]) !== JSON.stringify(acts[i]))
+        return { ok: false, err: '상대 행동 순서가 어긋났습니다' };
+    }
+    m.st.ev = [];
+    for (var j = m.partial.length; j < acts.length; j++) {
+      if (m.st.over) break;
+      var err = C.act(m.st, m.st.side, acts[j]);
+      if (err) return { ok: false, err: '상대 턴을 규칙이 받지 않습니다: ' + err };
+    }
+    C.endTurn(m.st);
+    fire(m.st.ev.slice(), m.foe);
+    m.partial = [];
+    return { ok: true };
+  }
+
+  //  상대의 행동 하나 — 턴이 끝나기 전에 온다. 순서가 맞을 때만 적용하고, 아니면
+  //  버린다(턴 확정 `t` 가 어차피 전부 들고 온다).
+  function foreignAct(n, k, a) {
+    if (!m || m.desync || m.st.over) return;
+    if (n !== m.log.length || k !== m.partial.length) return;
+    if (m.st.side === m.mine) return;
+    m.st.ev = [];
+    var err = C.act(m.st, m.st.side, a);
+    if (err) { flagDesync('상대 행동을 규칙이 받지 않습니다: ' + err); return; }
+    m.partial.push(a);
+    m.waitingSince = now();            // 상대가 살아서 두고 있다 — «응답 없음» 셈 초기화
+    fire(m.st.ev.slice(), m.foe);
+    render();
   }
 
   function afterTurn() {
@@ -252,6 +296,9 @@ BO.Match = (function () {
   function onMessage(from, d) {
     if (!m || !d || !d.t) return;
     switch (d.t) {
+      case 'a':
+        foreignAct(d.n | 0, d.k | 0, d.a);
+        break;
       case 't':
         applyForeign(d.n | 0, d.a || [], d.h);
         break;
@@ -277,7 +324,7 @@ BO.Match = (function () {
     if (from === 0) {
       var r = C.replay(m.seed, acts);
       if (!r.ok) { flagDesync('상대 기록도 규칙에 맞지 않습니다: ' + r.err); return; }
-      m.st = r.st; m.log = acts.slice(); m.inbox = {}; m.desync = null;
+      m.st = r.st; m.log = acts.slice(); m.inbox = {}; m.partial = []; m.desync = null;
       say('판을 다시 맞췄습니다', 'ok');
       afterTurn();
       return;
@@ -285,7 +332,7 @@ BO.Match = (function () {
     if (from > m.log.length) { BO.Net.relay({ t: 'need', n: m.log.length }); return; }
     for (var i = m.log.length - from; i < acts.length; i++) {
       if (m.st.side === m.mine) break;     // 내 턴 차례까지 따라잡았다
-      var res = C.applyTurn(m.st, m.st.side, acts[i]);
+      var res = applyRest(acts[i]);        // 진행 중이던 턴의 앞부분은 이미 적용돼 있을 수 있다
       if (!res.ok) { flagDesync('빠진 턴 적용 실패: ' + res.err); return; }
       m.log.push(acts[i]);
     }

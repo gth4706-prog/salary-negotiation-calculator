@@ -7,7 +7,7 @@
   --bg:#07090d; --panel:#0e141d; --line:#1d2836; --dim:#5b6b80; --text:#dbe6f3;
   --me:#3de1d0;            /* 나 — 청록 */
   --foe:#ff4d8d;           /* 상대 — 자홍 */
-  --hot:#ffcc4d;           /* 총성·경보 */
+  --hot:#ffcc4d;           /* 전등·경보 */
   --tile:#0b1119; --tile2:#0d141e;
   --r:10px;
 }

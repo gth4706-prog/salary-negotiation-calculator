@@ -34,6 +34,7 @@ BO.Sfx = (function () {
     bump:  function () { blip(140, 200, 0.14, 'triangle', 0.10); },
     clue:  function () { blip(660, 880, 0.10, 'sine', 0.06); },
     turn:  function () { blip(520, 520, 0.06, 'sine', 0.05); },
+    lamp:  function () { blip(300, 1200, 0.22, 'square', 0.08); },   // 딸깍—탁, 불 들어오는 소리
     win:   function () { blip(523, 1046, 0.30, 'triangle', 0.10); },
     lose:  function () { blip(330, 110, 0.45, 'triangle', 0.10); }
   };

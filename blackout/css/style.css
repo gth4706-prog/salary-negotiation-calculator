@@ -85,7 +85,7 @@ input[type=text]{width:100%; padding:12px; border-radius:var(--r); background:#0
 .cell{position:relative; border-radius:3px; background:var(--tile); overflow:hidden}
 .cell.alt{background:var(--tile2)}
 /* 어둠: 기본은 아무것도 안 보인다 */
-.cell .paint,.cell .mark,.cell .noise,.cell .ghost{position:absolute; inset:0}
+.cell .paint,.cell .mark,.cell .lamp,.cell .ghost{position:absolute; inset:0}
 
 /* 페인트 얼룩 — 이미지 없이 CSS 로. 모양은 칸마다 다르게(--b 를 JS 가 넣는다) */
 .paint{border-radius:var(--b,50%); transform:scale(.82)}
@@ -93,13 +93,23 @@ input[type=text]{width:100%; padding:12px; border-radius:var(--r); background:#0
 .paint.foe{background:radial-gradient(circle at 40% 35%, #ff9dc0, #c02a5f)}
 .paint.hit{box-shadow:0 0 0 2px #fff6, 0 0 12px #fff8}
 
-/* 발자국 · 총성 · 마지막 목격 */
+/* 발자국 · 전등 버튼 · 마지막 목격 */
 .mark{display:flex; align-items:center; justify-content:center; font-size:min(3.2vw,15px)}
-.noise{border-radius:3px; box-shadow:inset 0 0 0 2px var(--hot); animation:pulse 1.4s infinite}
-.noise::after{content:''; position:absolute; inset:0; background:var(--hot); opacity:.1}
+.lamp{display:flex; align-items:center; justify-content:center; font-size:min(4vw,19px);
+  box-shadow:inset 0 0 0 1px #6b5a2a; border-radius:3px}
+.lamp.on{box-shadow:inset 0 0 0 2px var(--hot); background:#ffcc4d22}
 .ghost{display:flex; align-items:center; justify-content:center; font-size:min(4vw,18px);
   color:var(--foe); text-shadow:0 0 10px var(--foe)}
 @keyframes pulse{0%,100%{opacity:1} 50%{opacity:.45}}
+
+/* 불이 켜졌다 — 방 전체가 잠깐 밝아지고 상대가 보인다 */
+.board.lit{background:#141a23; box-shadow:0 0 40px #ffcc4d33 inset}
+.board.lit .cell{background:#1a212c}
+.board.lit .cell.alt{background:#1c242f}
+.cell.foe::after{content:''; position:absolute; inset:14%; border-radius:50%;
+  background:radial-gradient(circle,#ffd0e2,var(--foe)); box-shadow:0 0 18px var(--foe);
+  animation:reveal .25s ease-out}
+@keyframes reveal{from{transform:scale(.3); opacity:0} to{transform:scale(1); opacity:1}}
 
 /* 나 */
 .cell.me::after{content:''; position:absolute; inset:14%; border-radius:50%;
@@ -120,6 +130,8 @@ input[type=text]{width:100%; padding:12px; border-radius:var(--r); background:#0
 @keyframes flash{from{background:#fff} to{background:var(--tile)}}
 
 /* 인기척 배지 — 켜진 순간이 눈에 확 들어와야 한다. 격자 음영만으로는 놓친다. */
+.lit-badge{text-align:center; font-size:12.5px; font-weight:700; color:#0d1117;
+  background:var(--hot); border-radius:6px; padding:3px 0; letter-spacing:.3px}
 .sense-badge{text-align:center; font-size:12.5px; font-weight:700; color:var(--hot);
   min-height:17px; letter-spacing:.3px}
 .sense-badge.off{color:var(--dim); font-weight:400}

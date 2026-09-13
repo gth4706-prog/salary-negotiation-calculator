@@ -35,7 +35,7 @@ BO.UI = (function () {
       d.className = 'cell' + ((x + y) % 2 ? ' alt' : '');
       d.dataset.x = x; d.dataset.y = y;
       d.innerHTML = '<span class="paint hide"></span><span class="mark hide"></span>' +
-                    '<span class="noise hide"></span><span class="ghost hide"></span>';
+                    '<span class="lamp hide"></span><span class="ghost hide"></span>';
       (function (px, py, node) {
         node.addEventListener('click', function () { onTile(px, py, h); });
       })(x, y, d);
@@ -124,11 +124,17 @@ BO.UI = (function () {
     els.ap.innerHTML = (v.myTurn ? '행동력 ' : '상대 행동력 ') + dots +
       (v.me.painted ? ' <span style="color:var(--foe)">· 페인트 묻음</span>' : '');
 
-    //  인기척은 **양쪽 다** 느낀다 — 내가 들었으면 상대도 들었다는 뜻이다.
-    els.sense.textContent = v.sense
-      ? '👂 인기척 — ' + v.senseR + '칸 안에 있다 (상대도 나를 느낀다)'
-      : '· 인기척 없음';
-    els.sense.className = 'sense-badge' + (v.sense ? '' : ' off');
+    //  불이 켜졌다는 건 **둘 다** 보고 있다는 뜻이다. 그 사실을 크게 말해 준다.
+    if (v.lit > 0) {
+      els.sense.textContent = '💡 불이 켜졌다 — 서로가 보인다 (행동 ' + v.lit + '번 뒤 꺼짐)';
+      els.sense.className = 'lit-badge';
+    } else {
+      //  인기척은 **양쪽 다** 느낀다 — 내가 들었으면 상대도 들었다는 뜻이다.
+      els.sense.textContent = v.sense
+        ? '👂 인기척 — 바로 옆에 있다 (상대도 나를 느낀다)'
+        : '· 인기척 없음';
+      els.sense.className = 'sense-badge' + (v.sense ? '' : ' off');
+    }
 
     els.modeMove.classList.toggle('on', mode === 'move');
     els.modeShoot.classList.toggle('on', mode === 'shoot');
@@ -158,15 +164,18 @@ BO.UI = (function () {
         if (C.inBoard(nx, ny)) movable[nx + ',' + ny] = 1;
       }
     }
-    var paint = {}, mark = {}, noise = {};
+    var paint = {}, mark = {};
     v.paint.forEach(function (p) { paint[p.x + ',' + p.y] = p; });
     v.marks.forEach(function (m) { mark[m.x + ',' + m.y] = m; });
-    v.noise.forEach(function (n) { noise[n.x + ',' + n.y] = n; });
+    //  불이 켜져 있는 동안에만 상대가 보인다. 꺼져 있으면 v.foe 가 아예 null 이라
+    //  화면이 그리고 싶어도 그릴 것이 없다(규칙 엔진이 안 준다).
+    els.board.classList.toggle('lit', v.lit > 0);
 
     for (var y = 0; y < C.C.H; y++) for (var x = 0; x < C.C.W; x++) {
       var key = x + ',' + y, c = cellAt(x, y);
       var isMe = (x === v.me.x && y === v.me.y);
       c.classList.toggle('me', isMe);
+      c.classList.toggle('foe', !!(v.foe && v.foe.x === x && v.foe.y === y));
       c.classList.toggle('painted', isMe && v.me.painted);
       c.classList.toggle('movable', !!movable[key]);
       c.classList.toggle('aim', !!(aim && aim.x === x && aim.y === y));
@@ -187,8 +196,9 @@ BO.UI = (function () {
         sm.style.opacity = 0.3 + 0.6 * (mk.left / C.C.MARK_TURNS);
         sm.style.filter = mk.side === v.mine ? 'grayscale(1)' : 'none';
       }
-      var nz = noise[key];
-      sn.className = 'noise' + (nz && !nz.mine ? '' : ' hide');
+      var isLamp = !!(v.lamp && v.lamp.x === x && v.lamp.y === y);
+      sn.className = 'lamp' + (isLamp ? (v.lit > 0 ? ' on' : '') : ' hide');
+      if (isLamp) sn.textContent = v.lit > 0 ? '💡' : '🔘';
 
       //  마지막으로 상대가 «확실히» 있었던 자리.
       var seen = v.foeSeen && v.foeSeen.x === x && v.foeSeen.y === y &&
@@ -236,6 +246,10 @@ BO.UI = (function () {
         say(byMe ? '👣 내 발자국이 ' + at + ' 에 남았다' : '👣 상대 발자국 발견 ' + at,
             byMe ? 'foe' : 'me');
         if (!byMe) BO.Sfx.play('clue');
+      } else if (e.k === 'lamp') {
+        say(byMe ? '💡 불을 켰다! 상대는 (' + (e.fx + 1) + ',' + (e.fy + 1) + ') — 다음 행동 하나까지만 보인다'
+                 : '💡 상대가 불을 켰다! 상대는 ' + at + ' — 내 위치도 드러났다', 'hot');
+        BO.Sfx.play('lamp');
       } else if (e.k === 'step') {
         say('🎨 페인트를 밟았다 — 다음 턴에 한 칸만 움직이면 발자국이 남는다', 'hot');
         BO.Sfx.play('clue');

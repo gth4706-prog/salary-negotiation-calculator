@@ -250,12 +250,19 @@ section('잘못된 턴은 조용히 넘어가지 않는다');
 section('화면이 보는 것에는 상대 좌표가 없다');
 (function () {
   var st = board([2, 2], [7, 7], 0);
+  st.lit = 0;
   var v = C.view(st, 0);
   var s = JSON.stringify(v);
   ok(v.me.x === 2 && v.me.y === 2, '내 좌표는 보인다');
-  ok(v.foe === undefined, 'view 에 상대 좌표 객체가 없다');
+  //  ⚠ 이제 `foe` 열쇠는 **있다** — 다만 불이 켜졌을 때만 값이 찬다. 열쇠가
+  //    없는 것과 null 인 것은 다르니, 검사도 「불 꺼짐 → null」로 바뀐다.
+  ok(v.foe === null, '불이 꺼져 있으면 상대 좌표는 null 이다');
   ok(v.foeHp === 5, '상대 체력은 공개 정보');
   ok(s.indexOf('"foeSeen":null') >= 0, '드러난 적이 없으면 목격 정보도 없다');
+  //  불이 꺼진 view 를 통째로 훑어 상대 좌표가 새는 곳이 없는지 본다.
+  st.ps[1] = { x: 7, y: 7, hp: 5, painted: false };
+  ok(JSON.stringify(C.view(st, 0)).indexOf('"x":7,"y":7') === -1,
+     '불이 꺼져 있으면 어느 구석에도 상대 좌표가 없다');
 })();
 
 section('마지막 한 발로 이긴 턴');
@@ -271,25 +278,63 @@ section('마지막 한 발로 이긴 턴');
   eq(C.paintAt(st, 4, 4), null, '죽은 뒤의 남은 행동은 버려진다');
 })();
 
-section('총성 — 쏘면 대략 위치가 샌다');
+section('사격은 위치를 흘리지 않는다');
 (function () {
+  //  ⚠ 한때 총성 규칙(쏘면 쏜 자리가 상대에게 뜬다)을 넣었다가 뺐다. 설계에 없던
+  //    규칙이었다. 다시 기어들어오지 않게 여기서 못을 박는다.
   var st = board([2, 2], [7, 7], 0);
+  var v0 = C.view(st, 1);
   C.applyTurn(st, 0, [['s', 7, 7]]);
-  ok(st.noise.length === 1, '사격 한 번에 총성 하나');
-  var n = st.noise[0];
-  ok(C.dist(n.x, n.y, 2, 2) <= C.C.NOISE_BLUR * 2,
-     '총성은 쏜 자리에서 흐린 폭 안에 찍힌다', n.x + ',' + n.y);
+  var v1 = C.view(st, 1);
+  ok(v1.foe === null, '맞은 쪽 화면에도 쏜 사람 좌표는 없다');
+  eq(JSON.stringify(v1).indexOf('noise'), -1, '총성 같은 열쇠가 아예 없다');
+  //  맞은 쪽이 아는 것: 「어딘가에서 한 발 나갔고 이 칸에 떨어졌다」 뿐이다.
+  eq(v1.paint.length, 1, '떨어진 칸의 얼룩은 보인다');
+  ok(v1.me.hp === 4, '맞았다는 사실도 안다');
+})();
 
-  //  결정론: 같은 판 같은 수면 총성 자리도 같아야 한다(양쪽 브라우저가 같아야 하므로).
-  var a = C.replay(4242, [[['s', 3, 3]]]), b = C.replay(4242, [[['s', 3, 3]]]);
-  ok(a.ok && b.ok, '재생 성공');
-  eq(JSON.stringify(a.st.noise), JSON.stringify(b.st.noise), '총성 자리는 결정론적이다');
+section('전등 버튼');
+(function () {
+  var st = board([0, 0], [9, 9], 0);
+  st.lamp = { x: 1, y: 0 }; st.lit = 0;
+  eq(C.view(st, 0).foe, null, '불이 꺼져 있으면 상대 좌표가 없다');
+  ok(!!C.view(st, 0).lamp, '버튼 자리는 양쪽 다 안다');
 
-  //  만료
-  var st2 = board([2, 2], [7, 7], 0);
-  C.applyTurn(st2, 0, [['s', 3, 3]]);
-  for (var t = 0; t < C.C.NOISE_TURNS; t++) C.applyTurn(st2, st2.side, []);
-  eq(st2.noise.length, 0, '총성은 ' + C.C.NOISE_TURNS + '턴 뒤 사라진다');
+  eq(C.act(st, 0, ['m', 1]), null, '버튼 칸으로 이동');
+  eq(st.lit, C.C.LAMP_ACTIONS, '불이 켜진다');
+  ok(!!C.view(st, 0).foe, '켠 사람에게 상대가 보인다');
+  ok(!!C.view(st, 1).foe, '**상대에게도** 켠 사람이 보인다 — 켜는 건 공짜가 아니다');
+  ok(!!st.seen[0] && !!st.seen[1], '둘 다 드러난 것으로 기록된다');
+
+  C.act(st, 0, ['s', 9, 9]);
+  eq(st.lit, 0, '행동 하나가 지나면 꺼진다');
+  eq(C.view(st, 0).foe, null, '꺼지면 다시 안 보인다');
+  eq(st.ps[1].hp, 4, '불빛 아래 쏜 한 발은 맞았다');
+})();
+
+section('전등 — 마지막 행동으로 켜면 상대가 그 불빛을 쓴다');
+(function () {
+  //  설계상 중요한 결과다: 언제 켜느냐가 이 버튼의 전부다.
+  var st = board([0, 0], [9, 9], 0);
+  st.lamp = { x: 1, y: 0 }; st.lit = 0;
+  C.applyTurn(st, 0, [['s', 5, 5], ['m', 1]]);   // 쏘고 나서 마지막 행동으로 켬
+  eq(st.lit, C.C.LAMP_ACTIONS, '턴이 끝나도 불은 켜진 채로 남는다');
+  ok(!!C.view(st, 1).foe, '상대 차례가 되었는데 불이 켜져 있다');
+  C.act(st, 1, ['s', 1, 0]);
+  eq(st.ps[0].hp, 4, '상대가 그 불빛으로 켠 사람을 맞힌다');
+  eq(st.lit, 0, '그 한 행동으로 불이 꺼진다');
+})();
+
+section('전등 — 판마다 자리가 다르고 가운데 띠에 있다');
+(function () {
+  var seen = {}, outside = 0;
+  for (var i = 1; i <= 200; i++) {
+    var st = C.create(i * 104729);
+    seen[st.lamp.x + ',' + st.lamp.y] = 1;
+    if (st.lamp.y < C.C.SPAWN_BAND || st.lamp.y >= C.C.H - C.C.SPAWN_BAND) outside++;
+  }
+  ok(Object.keys(seen).length > 20, '판마다 자리가 바뀐다', Object.keys(seen).length + '가지');
+  eq(outside, 0, '시작 구역 안에는 절대 안 놓인다(한쪽만 유리해진다)');
 })();
 
 section('인기척 — 가까우면 한 비트만 샌다');

@@ -89,17 +89,7 @@ BO.Bot = (function () {
       evidence = true;
     }
 
-    //  ⑤ **상대의 총성** — 가장 최근이고 가장 정확한 위치 단서다.
-    //     흐려져 있으니 「그 근처 어딘가」로 읽는다(흐린 폭 + 지난 턴만큼 더 퍼진다).
-    for (var t = 0; t < v.noise.length; t++) {
-      var nz = v.noise[t];
-      if (nz.mine) continue;                       // 내 총성은 나에 대한 단서다
-      var ageN = C.C.NOISE_TURNS - nz.left;
-      ring(nz.x, nz.y, C.C.NOISE_BLUR + ageN, 9);
-      evidence = true;
-    }
-
-    //  ⑥ 내가 쏴서 빗나간 칸 — 그때 상대는 거기 없었다. 최근일수록 강한 부정 단서.
+    //  ⑤ 내가 쏴서 빗나간 칸 — 그때 상대는 거기 없었다. 최근일수록 강한 부정 단서.
     //  ⚠ 나이에 따라 벌점을 풀어 주면 두 턴 만에 같은 칸으로 돌아온다(실측:
     //    60턴 내내 같은 두 칸만 쐈다). 얼룩이 살아 있는 동안은 계속 배제한다 —
     //    그래야 새 땅을 쓸어 나간다.
@@ -109,7 +99,7 @@ BO.Bot = (function () {
       g[q.y][q.x] *= 0.12;
     }
 
-    //  ⑦ **인기척** — 켜지면 반경 안 어딘가, 꺼지면 반경 안에는 확실히 없다. 켜졌으면 내 주변 반경 안 어딘가,
+    //  ⑥ **인기척** — 켜지면 반경 안 어딘가, 꺼지면 반경 안에는 확실히 없다. 켜졌으면 내 주변 반경 안 어딘가,
     //     꺼졌으면 그 반경 안에는 «확실히 없다»(부정 단서도 그만큼 세다).
     if (v.senseR > 0) {
       for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
@@ -119,7 +109,7 @@ BO.Bot = (function () {
       }
     }
 
-    //  ⑧ 내가 선 칸에는 상대가 있을 수 없다(있었으면 부딪혔다).
+    //  ⑦ 내가 선 칸에는 상대가 있을 수 없다(있었으면 부딪혔다).
     g[v.me.y][v.me.x] = 0;
     return g;
   }
@@ -141,40 +131,64 @@ BO.Bot = (function () {
 
   function decide(v) {
     if (v.ap <= 0) return null;
-    var g = belief(v), gb = globalBest(g);
     var first = (v.ap === C.C.AP);
-    var shotsDone = (C.C.AP - v.ap) - v.moves;
 
-    //  내가 방금 들켰나 — 상대가 **내 정확한 위치**를 안다면 그 자리는 죽음이다.
-    var exposed = v.meSeen && (v.turn - v.meSeen.turn) <= 2;
+    //  ① **불빛 아래** — 상대가 그냥 보인다. 이때 안 쏘면 언제 쏘겠는가.
+    if (v.foe) return ['s', v.foe.x, v.foe.y];
 
-    //  ① 페인트가 묻은 채 한 칸 움직였다 → **반드시 한 칸 더.** 여기서 쏘면
+    var g = belief(v), exposed = v.meSeen && (v.turn - v.meSeen.turn) <= 2;
+    var lead = hasLead(v);
+
+    //  ② 페인트가 묻은 채 한 칸 움직였다 → **반드시 한 칸 더.** 여기서 쏘면
     //     발자국이 남아 다음 턴에 그 자리로 두 발이 날아온다(규칙 5).
     if (v.me.painted && v.moves === 1) return mv(pickMove(v, null, true));
 
-    //  ② 페인트가 묻은 채 들켰다 → 두 칸 도망을 시작한다. 쏘는 것보다 사는 게 먼저다.
+    //  ③ 페인트가 묻은 채 들켰다 → 두 칸 도망을 시작한다.
     if (v.me.painted && exposed && first) return mv(pickMove(v, null, true));
 
-    var shot = bestShot(g, v.me);
-    //  사정권 안 최선이 판 전체 최선에 한참 못 미치면 «허공에 쏘는 것»이다.
-    var worth = v.sense || (shot && gb && shot.s >= gb.s * SHOOT_RATIO);
-
-    //  ③ 첫 수는 **무조건 사격이 먼저**다.
-    //     ⚠ 순서가 승패를 가른다. 총성은 **쏜 그 순간의 자리**를 가리킨다. 쏘고 나서
-    //       옮기면 상대가 받아 든 좌표는 이미 헛자리다. 반대로 움직이고 쏘면 새 자리를
-    //       그대로 불러 주는 꼴이 된다. (처음에 거꾸로 짰다가 실측에서 격추율이
-    //       99%→55% 로 주저앉았다.)
-    if (first) return worth ? ['s', shot.x, shot.y] : mv(pickMove(v, gb, false));
-
-    //  ④ 둘째 수 — 이미 쐈으면 그 자리를 뜬다.
-    //     단 **페인트가 묻었으면 움직이지 않는다**: 한 칸만 움직이면 발자국이 남는데
-    //     남은 행동력으로는 두 칸을 못 채운다(규칙 5). 그럴 땐 버티고 한 발 더 쏜다.
-    if (shotsDone >= 1 && !v.me.painted) {
-      var d = pickMove(v, null, true);
-      if (d != null) return ['m', d];
+    //  ④ 단서가 있으면 쏜다. 없으면 **쏘지 않는다** — 100칸에 대고 찍는 것은
+    //     행동력 낭비다(그 찍기가 판을 무승부로 끌고 간다).
+    //     ⚠ 예전엔 「사정권 안 최선 vs 판 전체 최선」으로 판단했는데, 사거리가
+    //       무제한이라 그 둘이 **언제나 같은 값**이었다. 그래서 봇은 단서가
+    //       없어도 늘 쏘는 쪽을 골랐고, 전등을 판당 0.02회밖에 안 썼다(실측).
+    if (lead) {
+      var shot = bestShot(g, v.me);
+      if (shot) return ['s', shot.x, shot.y];
     }
-    if (worth) return ['s', shot.x, shot.y];
-    return mv(pickMove(v, gb, false));
+
+    // ── 여기부터는 «단서가 없다». 정보를 얻으러 간다. ────────────────────────
+    if (v.lamp) {
+      var onLamp = (v.me.x === v.lamp.x && v.me.y === v.lamp.y);
+      var adj = -1;
+      for (var d = 0; d < 4; d++)
+        if (v.me.x + C.DX[d] === v.lamp.x && v.me.y + C.DY[d] === v.lamp.y) adj = d;
+
+      //  ⑤ 버튼이 바로 옆이고 **첫 행동**이면 켠다.
+      //     마지막 행동으로 켜면 남은 불빛 한 행동이 상대 차례로 넘어간다.
+      if (adj >= 0 && first) return ['m', adj];
+
+      //  ⑥ 버튼 위에 서 있다 → 한 칸 물러난다. 다음 턴 첫 행동으로 다시 밟으려고.
+      //     («밟은 자리에 그대로 서 있기»로는 다시 켤 수가 없다.)
+      if (onLamp) return mv(pickMove(v, null, false));
+
+      //  ⑦ 아직 멀다 → 다가간다.
+      if (adj < 0) {
+        var toLamp = pickMove(v, v.lamp, false);
+        if (toLamp != null) return ['m', toLamp];
+      }
+    }
+
+    //  ⑧ 버튼이 없거나(규칙 꺼짐) 갈 데가 없으면 그나마 그럴듯한 칸에 쏜다.
+    var fb = bestShot(g, v.me);
+    return fb ? ['s', fb.x, fb.y] : mv(pickMove(v, null, false));
+  }
+
+  //  쫓을 만한 단서가 있나 — 없으면 추리해 봐야 허공이다.
+  function hasLead(v) {
+    if (v.sense) return true;
+    if (v.foeSeen && (v.turn - v.foeSeen.turn) <= 6) return true;
+    for (var i = 0; i < v.marks.length; i++) if (v.marks[i].side !== v.mine) return true;
+    return false;
   }
 
   function mv(d) { return d != null ? ['m', d] : null; }
@@ -214,16 +228,13 @@ BO.Bot = (function () {
         var nowd = C.dist(nx, ny, toward.x, toward.y);
         s += (was - nowd) * 2.0;
       }
-      //  도망은 «상대가 안다고 믿는 내 자리»에서 멀어지는 것이다. 그 자리는 둘이다:
-      //  내가 드러난 마지막 지점과, 내 총성이 찍힌 지점.
-      if (flee) {
-        var away = [];
-        if (v.meSeen) away.push(v.meSeen);
-        for (var q = 0; q < v.noise.length; q++) if (v.noise[q].mine) away.push(v.noise[q]);
-        for (var w = 0; w < away.length; w++) {
-          s += (C.dist(nx, ny, away[w].x, away[w].y) - C.dist(me.x, me.y, away[w].x, away[w].y)) * 2.0;
-        }
+      //  도망은 «상대가 안다고 믿는 내 자리»에서 멀어지는 것이다.
+      if (flee && v.meSeen) {
+        s += (C.dist(nx, ny, v.meSeen.x, v.meSeen.y) - C.dist(me.x, me.y, v.meSeen.x, v.meSeen.y)) * 2.0;
       }
+      //  ⚠ 마지막 행동으로 버튼을 밟으면 남은 불빛 한 행동이 상대에게 간다.
+      //    이 함수는 «지금이 마지막 행동인지»를 v.ap 로 안다.
+      if (v.lamp && nx === v.lamp.x && ny === v.lamp.y && v.ap <= 1) s -= 5;
       var edge = Math.min(nx, ny, C.C.W - 1 - nx, C.C.H - 1 - ny);
       if (edge === 0) s -= 0.4;
       if (s > bestScore) { bestScore = s; best = d; }

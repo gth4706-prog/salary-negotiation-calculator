@@ -17,17 +17,17 @@ BO.Tutorial = (function () {
     { id: 'intro', text: '불이 꺼졌습니다. 8×8 방. 당신(청록)은 위쪽 2줄, 상대(분홍)는 아래쪽 2줄 어딘가. 보이는 건 손전등 줄기처럼 당신이 바라보는 쪽 앞 두 칸뿐 — 가구도 상대도 그 안에 들어와야 보입니다. 한 턴에 행동 2번.', next: true },
     { id: 'move', text: '① 이동 — [🏃 이동] 상태에서 방향키를 누르거나 옆 칸을 짚고 [이동 확정]. 움직인 방향 앞 두 칸이 보입니다. 모르는 칸으로 가다 가구에 부딪히면 행동 하나를 잃고 그쪽을 보게 됩니다.',
       done: function (ev, byMe, v) { return !!(v && v.myTurn && v.moves > 0); } },
-    { id: 'shoot', text: '② 사격 — [🎯 사격]으로 바꾸고 아무 칸이나 짚은 뒤 [발사]. 페인트는 야광이라 판이 끝날 때까지 남고, 튄 자리에 있던 것의 윤곽이 야광선으로 드러납니다. 얼룩을 밟으면 신발에 묻어 발자국을 남기게 됩니다.',
+    { id: 'shoot', text: '② 사격 — [🎯 사격]으로 바꾸고 아무 칸이나 짚은 뒤 [발사]. 페인트는 야광이라 판이 끝날 때까지 남고, 튄 자리에 있던 것의 윤곽이 야광선으로 드러납니다. 그 얼룩을 밟으면 신발이 젖어 다음 걸음에 발자국이 찍힙니다.',
       done: function (ev, byMe) { return !!(ev && byMe && (ev.k === 'miss' || ev.k === 'hit')); } },
     { id: 'lamp', text: '③ 전등 — 바닥의 버튼(🔘)까지 걸어가 밟아 보세요. 불이 켜지고 방 전체와 상대가 보입니다. ⚠ 첫 행동으로 켜야 둘째 행동으로 쏠 수 있습니다.',
       done: function (ev, byMe) { return !!(ev && byMe && ev.k === 'lamp'); } },
     { id: 'lampshot', text: '④ 불빛 아래 — 상대가 보입니다. [🎯 사격]으로 상대 칸을 짚고 [발사]! 행동 하나가 지나면 다시 꺼지지만, 본 가구는 기억합니다.',
       done: function (ev, byMe) { return !!(ev && byMe && ev.k === 'hit'); } },
-    { id: 'mark', text: '⑤ 야광과 발자국 — 맞은 순간 상대가 야광에 젖어 보였죠. 다음 턴엔 다시 어둠이지만, 신발의 야광 때문에 한 칸만 움직이면 발을 뗀 칸에 발자국이 남습니다. 턴을 넘기고 지켜보세요.',
+    { id: 'mark', text: '⑤ 발자국 — 맞은 순간 상대가 야광에 젖어 보였죠. 다음 턴엔 다시 어둠이지만 신발이 젖었습니다. 걸음을 떼면 발을 뗀 칸에 발자국이 찍히고 **화살표가 간 쪽을 가리킵니다.** 턴을 넘기고 지켜보세요.',
       done: function (ev, byMe) { return !!(ev && !byMe && ev.k === 'mark'); } },
-    { id: 'track', text: '⑥ 추적 — 발자국 바로 옆 칸 어딘가에 있습니다. 후보를 골라 쏘세요. 맞히면 그 턴 동안 보이니 한 발 더!',
+    { id: 'track', text: '⑥ 추적 — 발자국의 화살표를 따라가세요. 화살표가 가리키는 칸, 아니면 거기서 한 칸 더. 후보를 골라 쏘세요. 맞히면 그 턴 동안 보이니 한 발 더!',
       done: function (ev, byMe) { return !!(ev && byMe && ev.k === 'hit'); } },
-    { id: 'end', text: '끝. 핵심 넷 — 바라보는 쪽 두 칸만 보인다 · 야광 얼룩은 지워지지 않는다 · 맞으면 그 턴엔 보이고 다음 턴엔 어둠, 발자국을 조심 · 모르겠으면 버튼. 이제 실전으로.', next: true, final: true }
+    { id: 'end', text: '끝. 핵심 넷 — 바라보는 쪽 두 칸만 보인다 · 야광 얼룩은 지워지지 않는다 · 젖은 신발은 걸음마다 방향이 있는 발자국을 남긴다(맞았으면 두 칸 도망) · 모르겠으면 버튼. 이제 실전으로.', next: true, final: true }
   ];
   var i = -1, active = false, api = null, els = null;
 
@@ -35,7 +35,7 @@ BO.Tutorial = (function () {
 
   function start(hooks) {
     api = hooks || {};
-    els = { box: $('tut'), step: $('tut-step'), text: $('tut-text'), next: $('tut-next'), skip: $('tut-skip') };
+    els = { box: $('tut'), bar: $('tut-bar'), step: $('tut-step'), text: $('tut-text'), next: $('tut-next'), skip: $('tut-skip') };
     els.next.onclick = function () { if (steps[i].final) finish(true); else advance(); };
     els.skip.onclick = function () { finish(false); };
     active = true; i = -1;
@@ -45,6 +45,8 @@ BO.Tutorial = (function () {
   function show() {
     var s = steps[i];
     els.box.classList.remove('hide');
+    els.bar.classList.remove('hide');
+    document.body.classList.add('tut-on');      // 격자를 버튼 줄만큼 줄인다(style.css)
     els.box.querySelector('.tut-card').classList.remove('done');
     els.step.textContent = '튜토리얼 ' + (i + 1) + ' / ' + steps.length;
     els.text.textContent = s.text;
@@ -90,7 +92,7 @@ BO.Tutorial = (function () {
     if (!active) return;
     active = false;
     for (var k = 0; k < steps.length; k++) steps[k]._hit = false;
-    if (els && els.box) els.box.classList.add('hide');
+    hideBox();
     BO.Bot.setMode('normal');
     if (api && (toLobby ? api.done : api.keepPlaying)) (toLobby ? api.done : api.keepPlaying)();
   }
@@ -98,7 +100,13 @@ BO.Tutorial = (function () {
   function stop() {
     active = false;
     for (var k = 0; k < steps.length; k++) steps[k]._hit = false;
+    hideBox();
+  }
+
+  function hideBox() {
     if (els && els.box) els.box.classList.add('hide');
+    if (els && els.bar) els.bar.classList.add('hide');
+    document.body.classList.remove('tut-on');
   }
 
   return { SEED: SEED, start: start, stop: stop, onEvents: onEvents, onRender: onRender,

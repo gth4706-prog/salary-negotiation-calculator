@@ -15,18 +15,18 @@
 <!-- 홈 화면 설치(PWA). 홈 화면에서 열면 주소창이 사라져 뷰포트가 흔들리지 않는다 —
      에그워에서 기종별 레이아웃 사고를 없앤 방법 그대로. 서비스워커는 일부러 안 둔다:
      캐시가 붙으면 배포해도 옛 버전이 남는 사고가 생긴다. -->
-<link rel="manifest" href="manifest.json?v=0.9">
+<link rel="manifest" href="manifest.json?v=1.0">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="블랙아웃">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="assets/sprites/kid-top.png?v=0.9">
-<link rel="icon" type="image/png" sizes="256x256" href="assets/sprites/kid-top.png?v=0.9">
+<link rel="apple-touch-icon" href="assets/sprites/kid-top.png?v=1.0">
+<link rel="icon" type="image/png" sizes="256x256" href="assets/sprites/kid-top.png?v=1.0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=0.9">
-<link rel="stylesheet" href="css/rooms.css?v=0.9">
+<link rel="stylesheet" href="css/style.css?v=1.0">
+<link rel="stylesheet" href="css/rooms.css?v=1.0">
 </head>
 <body>
 
@@ -76,9 +76,14 @@
             그 자리에 있던 것의 <b>윤곽</b>(마루 결·책상 모서리·침대…)이 야광선으로 드러난다. 까맣던 방을 긁어내듯
             조금씩 알게 된다.</li>
         <li class="new"><b>맞으면 그 순간 야광에 젖어 상대에게 보인다</b> — 쏜 사람의 그 턴 동안만. 남은 행동으로 한 발 더
-            맞힐 수 있다. <b>다음 턴부터는 다시 어둠.</b> 신발에 묻은 야광은 <b>한 칸만</b> 움직이면 발을 뗀 칸에
-            <b>발자국</b>(야광, 영구)을 남기고, <b>두 칸</b> 움직이면 남기지 않는다(대신 그 턴엔 못 쏜다).
-            바닥의 <b>얼룩을 밟아도</b> 신발에 묻는다(다음 턴부터).</li>
+            맞힐 수 있다. <b>다음 턴부터는 다시 어둠.</b> 다만 <b>신발이 젖는다.</b></li>
+        <li class="new"><b>젖은 신발은 걸음마다 발자국을 남긴다</b> — 발을 뗀 칸에, <b>어느 쪽으로 갔는지 화살표까지.</b>
+            한 걸음이면 야광을 다 쓰고 마른다.<br>
+            · <b>한 칸만</b> 움직이면 화살표 끝이 곧 지금 서 있는 칸이다 — 다음 턴에 그 칸으로 두 발이 날아온다.<br>
+            · <b>두 칸</b> 움직이면 첫 걸음만 찍힌다. 화살표가 가리키는 칸에서 <b>한 번 더</b> 갔으니 끝자리는 갈린다
+            (대신 그 턴엔 못 쏜다). <b>맞았으면 두 칸 도망쳐라.</b><br>
+            · 바닥의 <b>얼룩을 밟아도</b> 신발이 젖는다 — 밟고 계속 걸으면 <b>밟았던 칸에</b> 바로 찍힌다.
+            얼룩 위를 지나간 사람은 반드시 자취를 남긴다.</li>
         <li>책상·침대·의자 같은 가구는 못 지나간다. 러그는 밟을 수 있다. 캐릭터끼리는 막지 않아 접촉으로
             위치가 드러나지 않는다. 가구를 맞히면 재질대로 반응하지만 연출일 뿐 단서는 아니다.</li>
         <li><b>전등 버튼</b> — 방 가운데 어딘가에 하나(매 판 자리가 바뀐다). <b>밟으면 불이 켜지고 방 전체와 서로가 보인다.</b>
@@ -148,12 +153,14 @@
         <div class="tut-card">
           <div class="tut-step" id="tut-step"></div>
           <p id="tut-text"></p>
-          <div class="row">
-            <button class="btn ghost small" id="tut-skip">건너뛰기</button>
-            <button class="btn primary small" id="tut-next">다음</button>
-          </div>
         </div>
       </div>
+    </div>
+    <!-- ⚠ 안내판 «버튼»은 격자 밖에 둔다. 글자판은 클릭을 통과시키지만 버튼은 못 통과시켜서,
+         버튼에 깔린 칸을 아예 못 누르는 구멍이 있었다(튜토리얼 테스트가 잡았다). -->
+    <div class="row tut-bar hide" id="tut-bar">
+      <button class="btn ghost small" id="tut-skip">건너뛰기</button>
+      <button class="btn primary small" id="tut-next">다음</button>
     </div>
 
     <div class="sense-badge off" id="sense"></div>
@@ -209,16 +216,16 @@
   </div>
 </div>
 
-<script src="js/rooms.js?v=0.9"></script>
-<script src="js/svgart.js?v=0.9"></script>
-<script src="js/art.js?v=0.9"></script>
-<script src="js/core.js?v=0.9"></script>
-<script src="js/net.js?v=0.9"></script>
-<script src="js/bot.js?v=0.9"></script>
-<script src="js/match.js?v=0.9"></script>
-<script src="js/tutorial.js?v=0.9"></script>
-<script src="js/sfx.js?v=0.9"></script>
-<script src="js/ui.js?v=0.9"></script>
-<script src="js/main.js?v=0.9"></script>
+<script src="js/rooms.js?v=1.0"></script>
+<script src="js/svgart.js?v=1.0"></script>
+<script src="js/art.js?v=1.0"></script>
+<script src="js/core.js?v=1.0"></script>
+<script src="js/net.js?v=1.0"></script>
+<script src="js/bot.js?v=1.0"></script>
+<script src="js/match.js?v=1.0"></script>
+<script src="js/tutorial.js?v=1.0"></script>
+<script src="js/sfx.js?v=1.0"></script>
+<script src="js/ui.js?v=1.0"></script>
+<script src="js/main.js?v=1.0"></script>
 </body>
 </html>

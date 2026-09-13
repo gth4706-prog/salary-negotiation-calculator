@@ -25,8 +25,7 @@ function board(p0, p1, side, objects) {
   st.ps[1] = { x: p1[0], y: p1[1], hp: 5, painted: false, face: 0, known: zeros() };
   st.side = side || 0; st.ap = 2; st.turn = 1; st.lamp = null; st.lit = 0;
   st.seen = [null, null]; st.spot = [null, null]; st.paint = []; st.marks = []; st.glow = null;
-  st.wasPainted = st.ps[st.side].painted;
-  C.look(st, 0); C.look(st, 1);                 // 판을 만들 때처럼 각자 제 시야만큼 안다
+  C.look(st, 0); C.look(st, 1);                 // 판을 만들 때처럼 각자 제 시야만큼 안다                 // 판을 만들 때처럼 각자 제 시야만큼 안다
   return st;
 }
 function zeros() { var k = []; for (var i = 0; i < W * H; i++) k.push(0); return k; }
@@ -122,63 +121,99 @@ section('페인트·발자국은 판이 끝날 때까지 남는다');
   C.applyTurn(m, 1, [['m', LEFT]]);
   for (var u = 0; u < 40; u++) C.applyTurn(m, m.side, []);
   eq(m.marks.length, 1, '발자국도 판이 끝날 때까지');
+  eq(C.view(m, 0).marks[0].dir, LEFT, '방향도 그대로 남는다');
 })();
 
-section('규칙 5 — 맞은 사람이 한 칸 움직이면 발자국이 보인다');
+section('발자국 — 젖은 신발은 걸음마다, 발을 뗀 칸에, 방향까지 남긴다');
 (function () {
   var st = board([3, 3], [5, 5], 0);
-  C.applyTurn(st, 0, [['s', 5, 5]]);            // 0번이 1번을 맞힘 → 1번 페인트
-  ok(st.ps[1].painted, '맞은 뒤 페인트 상태');
-  ok(st.wasPainted, '다음 턴 시작 시점 기준이 잡힌다');
+  C.applyTurn(st, 0, [['s', 5, 5]]);            // 0번이 1번을 맞힘 → 1번 신발이 젖는다
+  ok(st.ps[1].painted, '맞은 뒤 신발이 젖는다');
   var r = C.applyTurn(st, 1, [['m', LEFT], ['s', 0, 0]]);   // 한 칸 + 사격
   ok(r.ok, '턴 적용 성공');
   eq(st.marks.length, 1, '발자국이 하나 남는다');
   eq(st.marks[0].x + ',' + st.marks[0].y, '5,5', '발자국은 **발을 뗀 칸**에 남는다');
-  ok(!st.ps[1].painted, '한 걸음에 페인트가 닳았다 — 윤곽이 꺼진다');
+  eq(st.marks[0].dir, LEFT, '**어느 쪽으로 갔는지**가 같이 남는다');
+  eq(st.marks[0].x + C.DX[st.marks[0].dir] + ',' + (st.marks[0].y + C.DY[st.marks[0].dir]),
+     st.ps[1].x + ',' + st.ps[1].y, '한 칸만 갔으면 화살표 끝이 곧 지금 자리다 — 치명적이다');
+  ok(!st.ps[1].painted, '한 걸음이 야광을 다 쓴다');
 })();
 
-section('규칙 5 — 두 칸 움직이면 발자국이 안 보인다');
+section('발자국 — 두 칸 도망은 첫 걸음만 남기고 끝자리를 흐린다');
 (function () {
   var st = board([3, 3], [5, 5], 0);
   C.applyTurn(st, 0, [['s', 5, 5]]);
   C.applyTurn(st, 1, [['m', LEFT], ['m', LEFT]]);
-  eq(st.marks.length, 0, '두 걸음이면 흔적이 남지 않는다');
-  ok(!st.ps[1].painted, '두 걸음이면 페인트가 다 닳는다');
-  eq(st.ps[1].x + ',' + st.ps[1].y, '3,5', '두 칸 이동한 위치');
+  eq(st.marks.length, 1, '두 걸음이어도 발자국은 하나(첫 걸음)');
+  eq(st.marks[0].x + ',' + st.marks[0].y, '5,5', '첫 걸음을 뗀 칸');
+  eq(st.marks[0].dir, LEFT, '방향은 첫 걸음의 방향');
+  eq(st.ps[1].x + ',' + st.ps[1].y, '3,5', '실제로는 한 칸 더 갔다 — 화살표 끝이 아니다');
+  ok(!st.ps[1].painted, '두 걸음이면 당연히 말라 있다');
 })();
 
-section('규칙 5 — 안 움직이면 페인트는 다음 턴으로 넘어간다');
+section('발자국 — 안 움직이면 젖은 채로 다음 턴, 첫 걸음에 찍힌다');
 (function () {
   var st = board([3, 3], [5, 5], 0);
   C.applyTurn(st, 0, [['s', 5, 5]]);
   C.applyTurn(st, 1, [['s', 0, 0], ['s', 1, 1]]);   // 제자리에서 두 발
   eq(st.marks.length, 0, '안 움직였으니 발자국도 없다');
-  ok(st.ps[1].painted, '페인트는 그대로 신발에 남는다');
+  ok(st.ps[1].painted, '야광은 그대로 신발에 남는다');
   C.applyTurn(st, 0, []);                            // 0번 턴 넘김
   C.applyTurn(st, 1, [['m', LEFT]]);                 // 이제 한 칸
   eq(st.marks.length, 1, '움직인 그 턴에 발자국이 남는다');
+  eq(st.marks[0].dir, LEFT, '방향도 같이');
 })();
 
-section('규칙 6 — 페인트 칸을 밟으면 다음 턴에 발자국이 남는다');
+section('규칙 6 — 얼룩 위를 지나가면 **그 자리에** 발자국이 남는다');
 (function () {
+  //  ⚠ v1.0 의 핵심. 예전엔 밟아도 «다음 턴부터»라, 얼룩을 밟고 계속 걸으면 아무 흔적이
+  //    없었다. 이제 밟는 순간 신발이 젖고 **다음 걸음에** 바로 찍힌다.
   var st = board([3, 3], [5, 5], 0);
   C.applyTurn(st, 0, [['s', 4, 5]]);                 // (4,5) 를 칠했다(빗나감)
   ok(!st.ps[1].painted, '빗나갔으니 아직 안 묻었다');
-  C.applyTurn(st, 1, [['m', LEFT]]);                 // (5,5)→(4,5) 페인트 밟음
-  eq(st.marks.length, 0, '밟은 그 턴에는 발자국이 없다(효과는 다음 턴부터)');
-  ok(st.ps[1].painted, '밟아서 페인트가 묻었다');
-  C.applyTurn(st, 0, []);
-  C.applyTurn(st, 1, [['m', LEFT]]);                 // 한 칸 → 발자국
-  eq(st.marks.length, 1, '밟은 다음 턴에 한 칸 움직이면 발자국');
-  eq(st.marks[0].x + ',' + st.marks[0].y, '4,5', '발을 뗀 칸에 남는다');
+  C.applyTurn(st, 1, [['m', LEFT], ['m', LEFT]]);    // (5,5)→(4,5) 얼룩 밟고 →(3,5) 계속
+  eq(st.marks.length, 1, '얼룩 위를 지나가면 흔적이 남는다');
+  eq(st.marks[0].x + ',' + st.marks[0].y, '4,5', '발자국은 **얼룩을 밟았던 칸**에 찍힌다');
+  eq(st.marks[0].dir, LEFT, '그리고 어느 쪽으로 빠져나갔는지까지');
+  ok(!st.ps[1].painted, '한 걸음에 다 썼다');
+
+  var s2 = board([3, 3], [5, 5], 0);
+  C.applyTurn(s2, 0, [['s', 4, 5]]);
+  C.applyTurn(s2, 1, [['m', LEFT]]);                 // 얼룩을 밟고 거기서 멈춘다
+  eq(s2.marks.length, 0, '밟고 멈추면 그 턴엔 아직 없다');
+  ok(s2.ps[1].painted, '젖은 채로 다음 턴');
+  C.applyTurn(s2, 0, []);
+  C.applyTurn(s2, 1, [['m', UP]]);
+  eq(s2.marks.length, 1, '다음 턴 첫 걸음에 찍힌다');
+  eq(s2.marks[0].x + ',' + s2.marks[0].y + ',' + s2.marks[0].dir, '4,5,' + UP, '밟았던 칸에, 나간 방향으로');
 })();
 
-section('규칙 6 — 밟고 다시 밟으면 계속 묻어 있다');
+section('규칙 6 — 얼룩을 연달아 밟으면 걸음마다 찍힌다(자취)');
 (function () {
   var st = board([3, 3], [5, 5], 0);
   C.applyTurn(st, 0, [['s', 4, 5], ['s', 3, 5]]);    // 연달아 두 칸 칠함
-  C.applyTurn(st, 1, [['m', LEFT], ['m', LEFT]]);    // 두 칸 다 페인트 위
-  ok(st.ps[1].painted, '두 걸음이어도 새로 밟았으면 다시 묻는다');
+  C.applyTurn(st, 1, [['m', LEFT], ['m', LEFT]]);    // (4,5) 밟고 →(3,5) 도 얼룩
+  eq(st.marks.length, 1, '첫 얼룩 칸에 한 개');
+  ok(st.ps[1].painted, '도착 칸도 얼룩이라 다시 젖었다');
+  C.applyTurn(st, 0, []);
+  C.applyTurn(st, 1, [['m', LEFT]]);
+  eq(st.marks.length, 2, '다음 걸음에 또 하나 — 자취가 이어진다');
+  eq(st.marks[1].x + ',' + st.marks[1].y, '3,5', '두 번째는 둘째 얼룩 칸에');
+})();
+
+section('발자국 — 같은 칸을 다시 밟으면 방향만 새로 고친다');
+(function () {
+  var st = board([3, 3], [5, 5], 0);
+  C.applyTurn(st, 0, [['s', 5, 5]]);
+  C.applyTurn(st, 1, [['m', LEFT]]);                 // (5,5) 에 왼쪽 발자국
+  eq(st.marks.length, 1, '발자국 하나');
+  C.applyTurn(st, 0, [['s', 4, 5]]);                 // 그 자리를 맞힌다 → 다시 젖음
+  C.applyTurn(st, 1, [['m', RIGHT]]);                // (4,5) 에서 오른쪽으로 = (5,5) 로 복귀
+  C.applyTurn(st, 0, [['s', 5, 5]]);
+  C.applyTurn(st, 1, [['m', LEFT]]);                 // (5,5) 를 또 밟고 나간다
+  var at55 = st.marks.filter(function (m) { return m.x === 5 && m.y === 5; });
+  eq(at55.length, 1, '같은 칸에 발자국이 겹쳐 쌓이지 않는다 — 화살표가 둘이면 못 읽는다');
+  eq(at55[0].dir, LEFT, '마지막으로 나간 방향이 남는다');
 })();
 
 section('상대와 겹쳐도 이동 단서가 새지 않는다');
@@ -251,6 +286,7 @@ section('야광 — 맞은 순간 그 턴 동안 보인다, 턴이 넘어가면 
   ok(st.ps[1].painted, '신발의 야광(발자국 규칙)은 그대로 남는다');
   C.applyTurn(st, 1, [['m', LEFT]]);
   eq(st.marks.length, 1, '한 칸 움직이면 발자국');
+  eq(st.marks[0].dir, LEFT, '방향까지');
 
   var s2 = board([0, 0], [5, 5], 0);
   C.applyTurn(s2, 0, [['s', 5, 5]]);
@@ -356,6 +392,10 @@ section('결정론 — 같은 입력이면 같은 상태');
   ok(C.hash(f1) !== C.hash(f2), '바라보는 방향이 달라도 해시가 다르다');
   var k1 = board([3, 3], [6, 6]), k2 = board([3, 3], [6, 6]); k2.ps[1].known[0] = 1;
   ok(C.hash(k1) !== C.hash(k2), '아는 칸이 달라도 해시가 다르다');
+  var d1 = board([4, 4], [6, 6]), d2 = board([4, 4], [6, 6]);
+  d1.ps[0].painted = true; d2.ps[0].painted = true;
+  C.act(d1, 0, ['m', LEFT]); C.act(d2, 0, ['m', UP]);
+  ok(C.hash(d1) !== C.hash(d2), '발자국 방향이 달라도 해시가 다르다');
 })();
 
 section('잘못된 턴은 조용히 넘어가지 않는다');

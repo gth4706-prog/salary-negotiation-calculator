@@ -162,10 +162,10 @@ BO.Core = (function () {
       turn: 1,
       side: (seed >>> 0) & 1,   // 선공도 씨앗이 정한다(둘이 서로 다른 답을 내면 안 된다)
       ap: C.AP,
-      moves: 0,          // 이번 턴에 실제로 움직인 칸 수
-      wasPainted: false, // **턴 시작 시점**의 페인트 여부 — 발자국 판정의 기준
-      stepFrom: null,    // 첫 걸음을 뗀 칸(발자국은 여기 남는다)
-      gotPaint: false,   // 이번 턴에 페인트 칸을 새로 밟았나
+      moves: 0,          // 이번 턴에 실제로 움직인 칸 수(화면·봇이 읽는다)
+      //  ⚠ v1.0: 발자국은 **턴 마감이 아니라 걸음마다** 찍힌다. 그래서 «턴 시작 시점의
+      //    페인트»(wasPainted)·«첫 걸음 칸»(stepFrom)·«이번 턴에 밟았나»(gotPaint) 같은
+      //    턴 단위 장부가 통째로 필요 없어졌다. 젖은 신발은 `ps[i].painted` 하나뿐이다.
       ps: [], paint: [], marks: [],
       lamp: null,        // 전등 버튼 자리(판마다 다르다)
       lit: 0,            // 불이 켜진 채로 남은 «행동» 수
@@ -181,7 +181,6 @@ BO.Core = (function () {
     st.ps.push(spawn(r, 1, st.room, 0));
     st.lamp = spawnLamp(r, st);
     look(st, 0); look(st, 1);
-    st.wasPainted = false;
     return st;
   }
 
@@ -277,14 +276,25 @@ BO.Core = (function () {
     st.ap--;
     me.face = d;
 
+    //  ── 발자국 — 걸음마다, 방향까지 ────────────────────────────────────────
+    //  신발이 젖어 있으면 **발을 떼는 그 칸**에 발자국이 찍히고, 어느 쪽으로 갔는지(dir)가
+    //  같이 남는다. 그리고 신발은 마른다 — 한 걸음이 야광을 다 쓴다.
+    //  · 맞고 한 칸 → 발자국 하나. 그 화살표 끝이 지금 서 있는 칸이다(치명적이다).
+    //  · 맞고 두 칸 → 첫 걸음만 찍힌다. 화살표가 가리키는 칸에서 **한 번 더** 갔으니
+    //    끝 자리는 갈린다. 예전 「두 칸이면 아예 안 남는다」를 대신하는 도망이다.
+    //  · 안 움직이면 젖은 채로 다음 턴 — 첫 걸음에 찍힌다.
+    if (me.painted) {
+      addMark(st, me.x, me.y, d, side);
+      me.painted = false;
+    }
     // 캐릭터끼리는 막지 않는다. 막히면 그 자체가 상대 위치 단서가 된다.
-    if (st.moves === 0) st.stepFrom = { x: me.x, y: me.y };
     me.x = nx; me.y = ny;
     st.moves++;
 
-    //  페인트 칸을 밟았다 — 신발에 묻는다. 효과는 **다음 턴**부터다(규칙 6).
+    //  페인트 칸을 밟았다 — 신발이 다시 젖는다. **이번 턴 다음 걸음부터** 바로 찍힌다
+    //  (규칙 6. 예전엔 «다음 턴부터»라 얼룩 위를 지나가도 흔적이 없었다).
     if (paintAt(st, nx, ny)) {
-      st.gotPaint = true;
+      me.painted = true;
       st.ev.push({ k: 'step', by: side });   // 밟은 본인만 아는 사건
     }
 
@@ -333,24 +343,24 @@ BO.Core = (function () {
     return null;
   }
 
-  // ── 턴 마감 ───────────────────────────────────────────────────────────────
-  //  발자국 규칙(5·6)이 전부 여기 있다.
-  //   · 턴 시작에 페인트가 묻어 있었고 **딱 한 칸** 움직였다 → 발을 뗀 칸에 발자국.
-  //   · **두 칸** 움직였다 → 아무것도 안 남는다(두 걸음이면 페인트가 다 닳는다).
-  //   · 한 칸도 안 움직였다 → 페인트는 그대로 신발에 남아 다음 턴으로 넘어간다
-  //     (= 윤곽이 계속 보인다. 맞았으면 움직여야 한다).
-  //  ⚠ 발자국은 **발을 뗀 칸**에만 남기고 방향은 안 적는다.
-  function endTurn(st) {
-    var side = st.side, me = st.ps[side];
-
-    if (st.wasPainted && st.moves === 1 && st.stepFrom) {
-      st.marks.push({ x: st.stepFrom.x, y: st.stepFrom.y, turn: st.turn, side: side });
-      st.ps[0].known[idx(st.stepFrom.x, st.stepFrom.y)] = 1;
-      st.ps[1].known[idx(st.stepFrom.x, st.stepFrom.y)] = 1;
-      st.ev.push({ k: 'mark', x: st.stepFrom.x, y: st.stepFrom.y, by: side });
+  //  발자국 하나. 같은 칸을 또 밟으면 **덮어쓴다** — 화살표 두 개가 겹치면 읽을 수가 없다.
+  //  찍힌 칸은 둘 다 알게 된다(야광이라 보인다).
+  function addMark(st, x, y, dir, side) {
+    for (var i = 0; i < st.marks.length; i++) {
+      var m = st.marks[i];
+      if (m.x === x && m.y === y && m.side === side) { m.dir = dir; m.turn = st.turn; break; }
     }
-    //  새로 밟은 페인트가 있으면 계속 묻은 상태. 아니면 움직이지 않았을 때만 유지.
-    me.painted = st.gotPaint || (st.wasPainted && st.moves === 0);
+    if (i === st.marks.length) st.marks.push({ x: x, y: y, turn: st.turn, side: side, dir: dir });
+    st.ps[0].known[idx(x, y)] = 1;
+    st.ps[1].known[idx(x, y)] = 1;
+    st.ev.push({ k: 'mark', x: x, y: y, by: side, dir: dir });
+  }
+
+  // ── 턴 마감 ───────────────────────────────────────────────────────────────
+  //  ⚠ v1.0 부터 발자국은 여기서 찍지 않는다 — `_move` 가 걸음마다 찍는다(addMark).
+  //    턴 마감은 이제 제한 턴 검사와 차례 넘김만 한다.
+  function endTurn(st) {
+    var side = st.side;
 
     if (!st.over && st.turn >= C.MAX_TURNS) {
       //  시간 초과: 체력이 많은 쪽. 같으면 무승부. 숨기만 해도 이기지는 못한다.
@@ -364,9 +374,6 @@ BO.Core = (function () {
     st.side = 1 - side;
     st.ap = C.AP;
     st.moves = 0;
-    st.stepFrom = null;
-    st.gotPaint = false;
-    st.wasPainted = st.ps[st.side].painted;   // 다음 사람의 턴 시작 시점 상태
   }
 
   // ── 턴 하나를 통째로 적용 ─────────────────────────────────────────────────
@@ -389,10 +396,9 @@ BO.Core = (function () {
 
   // ── 상태 해시 — 어긋남을 **조용히 넘어가지 않기 위한 장치** ────────────────
   function hash(st) {
-    var s = st.turn + '|' + st.side + '|' + st.ap + '|' + st.moves + '|' +
-            (st.wasPainted ? 1 : 0) + (st.gotPaint ? 1 : 0) + '|';
+    var s = st.turn + '|' + st.side + '|' + st.ap + '|' + st.moves + '|';
     s += JSON.stringify(st.room) + '|' + JSON.stringify(st.seen) + '|' + JSON.stringify(st.spot) + '|' +
-         JSON.stringify(st.stepFrom) + '|' + JSON.stringify(st.glow) + '|';
+         JSON.stringify(st.glow) + '|';
     for (var i = 0; i < 2; i++) {
       var p = st.ps[i];
       s += p.x + ',' + p.y + ',' + p.hp + ',' + (p.painted ? 1 : 0) + ',' + p.face + ',' + p.known.join('') + ';';
@@ -405,7 +411,7 @@ BO.Core = (function () {
     s += '|';
     for (var k = 0; k < st.marks.length; k++) {
       var m = st.marks[k];
-      s += m.x + ',' + m.y + ',' + m.turn + ',' + m.side + ';';
+      s += m.x + ',' + m.y + ',' + m.turn + ',' + m.side + ',' + m.dir + ';';
     }
     s += '|' + (st.lamp ? st.lamp.x + ',' + st.lamp.y : '-') + ',' + st.lit;
     s += '|' + (st.over ? 1 : 0) + ',' + st.winner;
@@ -462,15 +468,15 @@ BO.Core = (function () {
       paint: st.paint.map(function (p) {
         return { x: p.x, y: p.y, age: st.turn - p.turn, by: p.by, hit: !!p.hit };
       }),
+      //  발자국은 **방향까지** 준다 — 어느 쪽으로 갔는지가 추적의 전부다(설계자 확정, v1.0).
       marks: st.marks.map(function (m) {
-        return { x: m.x, y: m.y, age: st.turn - m.turn, side: m.side };
+        return { x: m.x, y: m.y, age: st.turn - m.turn, side: m.side, dir: m.dir };
       }),
       //  전등 버튼 자리는 **공개 정보**다. 둘 다 어디로 가야 하는지 안다.
       lamp: st.lamp ? { x: st.lamp.x, y: st.lamp.y } : null,
       lit: st.lit,
       foe: foeWhy ? { x: F.x, y: F.y, why: foeWhy, glow: glowing } : null,   // glow: 이 턴에 맞아 야광에 젖어 있다(불빛 아래서도 칠은 보인다)
       moves: st.side === me ? st.moves : 0,
-      stepFrom: st.side === me && st.stepFrom ? { x: st.stepFrom.x, y: st.stepFrom.y } : null,
       range: C.RANGE, senseR: C.SENSE,
       //  ⚠ 새어 나가는 정보는 **참/거짓 한 비트뿐**이다. 방향도 거리도 안 준다.
       sense: C.SENSE > 0 && dist(P.x, P.y, F.x, F.y) <= C.SENSE,

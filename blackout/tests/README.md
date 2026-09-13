@@ -44,11 +44,13 @@ node blackout/tests/endgame.test.js   # 판 종료 → 결과 → 한 판 더 ·
 node blackout/tests/leave.test.js     # 대전 중 상대가 앱을 닫으면 30초 뒤 기권승
 node blackout/tests/ui.test.js        # 고르고→확정 조작 · 기록 접기 · 스크린샷
 node blackout/tests/tutorial.test.js  # 튜토리얼 8단계를 사람처럼 끝까지
+node blackout/tests/tutfit.js         # 튜토리얼 중 화면 넘침 0 · 안내판 밑 칸이 눌리는지
 ```
 
 `pvp.js` 는 «상대가 쏘자마자 내 화면에 뜨는지»도 센다(턴이 끝나기 전에 얼룩이 보인 횟수).
-`tutorial.test.js` 가 잡은 것 하나: 8×8 로 칸이 커지자 안내판이 그 밑 칸의 클릭을 막았다.
-안내판은 이제 클릭을 통과시킨다.
+`tutorial.test.js` 가 두 번 잡았다: 8×8 로 칸이 커지자 안내판이 그 밑 칸의 클릭을 막았고(→ 글자판은
+클릭을 통과시킴), 그래도 **버튼**은 못 통과시켜 버튼에 깔린 칸이 여전히 죽어 있었다(→ 버튼을 격자
+밖 줄 `#tut-bar` 로 뺐다). `tutfit.js` 가 그 구멍을 지킨다 — 안내판 한가운데에서 무엇이 잡히는지 센다.
 
 `assets-manifest.js` 는 테스트가 아니라 도구다 — 그림을 넣거나 뺀 뒤 한 번 돌려
 `assets/manifest.json` 을 다시 만든다. `concept-crops.py`(python3 + Pillow)도 도구다 —

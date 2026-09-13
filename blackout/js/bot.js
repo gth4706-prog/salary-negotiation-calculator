@@ -32,7 +32,7 @@ BO.Bot = (function () {
 
   function teach(v) {
     if (v.ap <= 0) return null;
-    if (v.me.painted && v.moves === 0) return mv(pickMove(v, null, false));   // 한 칸만 → 발자국
+    if (v.me.painted && v.moves === 0) return mv(pickMove(v, null, false));   // 한 걸음 → 발자국을 보여 준다
     return null;
   }
 
@@ -98,11 +98,20 @@ BO.Bot = (function () {
     //  ① 마지막으로 본 자리(맞혔거나·전등이거나·내 시야에 들어왔거나)
     if (v.foeSeen) { spread(v.foeSeen.x, v.foeSeen.y, v.turn - v.foeSeen.turn, 6); evidence = true; }
 
-    //  ② 상대 발자국 — 그 칸에서 발을 뗐다. 오래된 것은 약하게(발자국은 안 지워진다).
+    //  ② 상대 발자국 — 그 칸에서 **어느 쪽으로** 발을 뗐는지까지 안다(v1.0).
+    //     그러니 무게는 발자국 칸이 아니라 **화살표가 가리키는 칸**에 싣고, 그 너머로도
+    //     조금 흘린다(한 걸음 더 갔을 수 있다). 방향을 안 쓰면 발자국이 반만 쓸모 있다.
     for (var i = 0; i < v.marks.length; i++) {
       var mk = v.marks[i];
       if (mk.side === v.mine || mk.age > 10) continue;
-      spread(mk.x, mk.y, mk.age, 5 / (1 + mk.age / 3));
+      var w = 6 / (1 + mk.age / 3);
+      var tx = mk.x + C.DX[mk.dir], ty = mk.y + C.DY[mk.dir];
+      if (C.inBoard(tx, ty)) {
+        spread(tx, ty, mk.age, w);
+        var fx = tx + C.DX[mk.dir], fy = ty + C.DY[mk.dir];       // 같은 방향으로 한 칸 더
+        if (C.inBoard(fx, fy)) spread(fx, fy, mk.age, w * 0.6);
+      } else spread(mk.x, mk.y, mk.age, w);
+      g[mk.y][mk.x] *= 0.35;                                       // 발을 뗀 칸엔 이제 없다
       evidence = true;
     }
 
@@ -153,8 +162,8 @@ BO.Bot = (function () {
 
     var g = belief(v);
 
-    //  ② 내가 야광이면(맞았거나 얼룩을 밟았다) 상대에게 **윤곽이 보인다.** 움직여서
-    //     끈다. 첫 행동이면 두 칸 도망(흔적 없음), 이미 한 칸 갔으면 한 칸 더.
+    //  ② 신발이 젖어 있으면 다음 걸음에 **방향까지 있는 발자국**이 찍힌다. 한 걸음만
+    //     떼고 멈추면 화살표 끝이 곧 내 자리다 — 두 걸음을 붙여 끝자리를 흐린다.
     if (v.me.painted) return mv(pickMove(v, null, true));
 
     //  ③ 단서가 있으면 쏜다. 없으면 **쏘지 않는다** — 64칸에 대고 찍는 건 낭비다.

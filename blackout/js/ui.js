@@ -60,7 +60,7 @@ BO.UI = (function () {
       //  얼룩은 세 겹: 빛(.splat, 글로우) > 모양(.shape, 얼룩 마스크) > 그림(.paint) + 윤곽(.edge)
       d.innerHTML = '<span class="art"></span><span class="fog"></span>' +
                     '<span class="splat hide"><i class="shape"><b class="paint"></b><b class="edge"></b></i></span>' +
-                    '<span class="mark hide"></span><span class="lamp hide"></span>' +
+                    '<span class="mark hide"><i></i></span><span class="lamp hide"></span>' +
                     '<span class="dir hide"></span><span class="ghost hide"></span><span class="reaction"></span>' +
                     '<span class="glowfx"></span>';
       (function (px, py, node) {
@@ -218,7 +218,7 @@ BO.UI = (function () {
     var dots = '';
     for (var i = 0; i < C.C.AP; i++) dots += '<span class="dot' + (i < v.ap ? ' on' : '') + '"></span>';
     els.ap.innerHTML = (v.myTurn ? '행동력 ' : '상대 행동력 ') + dots +
-      (v.me.painted ? ' <span class="glowing">· 신발에 야광 — 한 칸만 움직이면 발자국이 남는다</span>' : '');
+      (v.me.painted ? ' <span class="glowing">· 신발이 젖었다 — 다음 걸음에 발자국이 찍힌다</span>' : '');
 
     if (v.lit > 0) {
       els.sense.textContent = '💡 불이 켜졌다 — 방 전체가 보인다 (행동 ' + v.lit + '번 뒤 꺼짐)';
@@ -335,8 +335,12 @@ BO.UI = (function () {
       } else sp.className = 'splat hide';
 
       var mk = mark[key];
-      sm.className = 'mark' + (mk ? (mk.side === v.mine ? ' mine' : ' foe') : ' hide');
-      if (mk) sm.title = (mk.side === v.mine ? '내' : '상대') + ' 발자국 — 여기서 발을 뗐다';
+      sm.className = 'mark' + (mk ? (mk.side === v.mine ? ' mine' : ' foe') + (mk.age === 0 ? ' fresh' : '') : ' hide');
+      if (mk) {
+        //  발자국은 **간 쪽**을 향해 돌아 있다. 화살표 끝 칸이 그 걸음의 도착 칸이다.
+        sm.style.setProperty('--mrot', (mk.dir * 90) + 'deg');
+        sm.title = (mk.side === v.mine ? '내' : '상대') + ' 발자국 — 여기서 ' + DIRNAME[mk.dir] + '으로 갔다';
+      }
 
       var isLamp = !!(v.lamp && v.lamp.x === x && v.lamp.y === y);
       sn.className = 'lamp' + (isLamp ? (v.lit > 0 ? ' on' : '') : ' hide');
@@ -402,15 +406,22 @@ BO.UI = (function () {
         toast(byMe ? '💡 불을 켰다' : '💡 상대가 불을 켰다', 'lamp');
         BO.Sfx.play('lamp');
       } else if (e.k === 'mark') {
-        say(byMe ? '👣 내 발자국이 ' + at + ' 에 남았다' : '👣 상대 발자국 발견 ' + at, byMe ? 'foe' : 'me');
-        if (!byMe) { toast('👣 발자국!', 'spot'); BO.Sfx.play('clue'); }
+        //  방향이 정보의 전부다 — 기록에도 반드시 적는다.
+        var way = DIRNAME[e.dir] + '으로';
+        var to = '(' + (e.x + C.DX[e.dir] + 1) + ',' + (e.y + C.DY[e.dir] + 1) + ')';
+        say(byMe ? '👣 내 발자국이 ' + at + ' 에 남았다 — ' + way + ' 간 게 보인다'
+                 : '👣 상대 발자국! ' + at + ' 에서 ' + way + ' — ' + to + ' 로 갔다', byMe ? 'foe' : 'me');
+        if (!byMe) { toast('👣 ' + way + '!', 'spot'); BO.Sfx.play('clue'); }
       } else if (e.k === 'step') {
-        say('🎨 얼룩을 밟았다 — 야광이 묻어 상대에게 윤곽이 보인다. 다음 턴에 움직여라', 'hot');
+        say('🎨 얼룩을 밟았다 — 신발이 젖었다. 다음 걸음에 발자국이 찍힌다', 'hot');
         if (byMe) toast('얼룩을 밟았다', 'bump');
         BO.Sfx.play('clue');
       }
     });
   }
+
+  //  방향 이름 — 기록과 도움말이 같은 말을 쓴다(0=위 1=오른쪽 2=아래 3=왼쪽).
+  var DIRNAME = ['위쪽', '오른쪽', '아래쪽', '왼쪽'];
 
   function kindName(k) {
     return { floor: '바닥', desk: '책상', chair: '의자', cabinet: '수납장', papers: '서류', shelf: '책장',
@@ -486,7 +497,7 @@ BO.UI = (function () {
       var c = cells[i];
       if (c.dataset.kind) c.classList.remove('k-' + c.dataset.kind);
       c.dataset.kind = ''; c.className = 'cell unknown';
-      c.style.removeProperty('--art');
+      c.style.removeProperty('--art'); c.style.removeProperty('--edge');
     }
   }
 

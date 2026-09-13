@@ -78,12 +78,21 @@
 @keyframes splat-pop{from{transform:rotate(var(--rot,0deg)) scale(.15);opacity:0}to{transform:rotate(var(--rot,0deg)) scale(1);opacity:1}}
 
 /* ── 5층: 발자국 · 전등 ────────────────────────────────────────────────── */
-.cell .mark{z-index:5;pointer-events:none;color:var(--c)}
+/* 발자국 — 두 짝이 **간 쪽**을 향해 돌아 있고(--mrot), 앞머리에 갈매기표가 하나.
+   화살표가 없으면 폰에서 방향이 안 읽힌다. 이게 추적의 전부라 크고 밝게 그린다. */
+.cell .mark{z-index:5;pointer-events:none;color:var(--c);
+  transform:rotate(var(--mrot,0deg));transform-origin:50% 50%}
 .mark.mine{--c:var(--pm)} .mark.foe{--c:var(--pf)}
-.mark:before,.mark:after{content:'';position:absolute;width:20%;height:35%;top:20%;left:24%;
-  background:currentColor;border-radius:48% 48% 20% 20%;box-shadow:0 3px 0 -1px currentColor;
-  filter:drop-shadow(0 0 4px currentColor)}
-.mark:after{left:55%;top:42%}
+.mark:before,.mark:after{content:'';position:absolute;width:23%;height:33%;top:36%;left:20%;
+  background:currentColor;border-radius:52% 52% 26% 26%;box-shadow:0 4px 0 -1px currentColor;
+  filter:drop-shadow(0 0 5px currentColor)}
+.mark:after{left:57%;top:20%}
+.mark>i{position:absolute;left:50%;top:5%;width:30%;height:30%;margin-left:-15%;
+  border-top:2.5px solid currentColor;border-right:2.5px solid currentColor;border-radius:2px;
+  transform:rotate(-45deg);opacity:.8;filter:drop-shadow(0 0 5px currentColor)}
+.mark.fresh{animation:mark-pop .5s cubic-bezier(.2,1.5,.4,1)}
+@keyframes mark-pop{from{transform:rotate(var(--mrot,0deg)) scale(.3);opacity:0}
+  to{transform:rotate(var(--mrot,0deg)) scale(1);opacity:1}}
 .cell .lamp{z-index:5;inset:14%;font-size:0;background:var(--lamp-off) center/contain no-repeat;
   filter:drop-shadow(0 3px 3px #000a)}
 .cell .lamp.on{background-image:var(--lamp-on);animation:lampglow 1.2s infinite alternate}
@@ -177,7 +186,7 @@ body.has-kid .cell.foe:after{box-shadow:0 0 0 2px var(--foe),0 0 14px var(--foe)
 body.has-kid .cell.foe-seen:after{filter:brightness(.7)}
 body.has-kid .cell.foe-glow:after{box-shadow:0 0 0 2px var(--pm),0 0 18px var(--pm),0 4px 6px #000b}
 body.has-prints .mark:before,body.has-prints .mark:after{display:none}
-body.has-prints .mark{background:url(../assets/sprites/footprint-me.png) center/78% no-repeat;filter:drop-shadow(0 0 4px var(--c))}
+body.has-prints .mark{background:url(../assets/sprites/footprint-me.png) center/72% no-repeat;filter:drop-shadow(0 0 5px var(--c))}
 body.has-prints .mark.foe{background-image:url(../assets/sprites/footprint-foe.png)}
 body.has-splats .splat .paint{-webkit-mask:var(--splat) center/contain no-repeat;mask:var(--splat) center/contain no-repeat}
 body.has-lamp .cell .lamp{background-image:url(../assets/sprites/lamp-off.png)}

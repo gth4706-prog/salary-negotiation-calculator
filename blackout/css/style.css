@@ -42,15 +42,19 @@ button{font:inherit; color:inherit; background:none; border:0; cursor:pointer}
    480px 상한을 풀었다(body.in-game 의 .wrap).
    dvh 를 모르는 브라우저(iOS 15.3 이하)는 그 줄을 통째로 버리므로 vh 로 먼저 적는다. */
 .board{width:min(100%, calc(100vh - 380px)); width:min(100%, calc(100dvh - 380px))}
+/* 튜토리얼 중에는 안내판 버튼 줄(약 48px)이 하나 더 있다 */
+body.tut-on .board{width:min(100%, calc(100vh - 428px)); width:min(100%, calc(100dvh - 428px))}
 /* 실측(v0.6 두툼한 버튼 기준): 기본 379 · 기록 숨기면 334 · 십자키·행동력까지 숨기면 ~263 (tests/layout.js) */
 @media (max-height:720px){
   .logwrap{display:none}
   .board{width:min(100%, calc(100vh - 336px)); width:min(100%, calc(100dvh - 336px))}
+  body.tut-on .board{width:min(100%, calc(100vh - 384px)); width:min(100%, calc(100dvh - 384px))}
 }
 @media (max-height:600px){
   .ctl-row .pad{display:none}
   .ap{display:none}
   .board{width:min(100%, calc(100vh - 276px)); width:min(100%, calc(100dvh - 276px))}
+  body.tut-on .board{width:min(100%, calc(100vh - 324px)); width:min(100%, calc(100dvh - 324px))}
 }
 /* 가로로 눕힌 폰: 격자를 왼쪽에, 조작부를 오른쪽에. 세로로 쌓으면 절대 안 들어간다. */
 @media (orientation:landscape) and (max-height:600px){
@@ -230,10 +234,11 @@ input[type=text]{width:100%; padding:12px; border-radius:var(--r); background:#0
    반투명, 버튼만 눌린다. */
 .tut-card{background:#0e141dd6; border:1px solid var(--hot); border-radius:10px; padding:10px 12px;
   box-shadow:0 10px 30px #000b; pointer-events:none}
-.tut-card .row button{pointer-events:auto}
 .tut-step{font-size:12px; color:var(--hot); letter-spacing:.6px; font-family:var(--display)}
 .tut-card p{margin:4px 0 8px; font-size:13.5px; line-height:1.5}
-.tut-card .row{justify-content:flex-end} .tut-card .row>*{flex:0 0 auto}
+/* 버튼은 격자 밖 줄(#tut-bar)로 나갔다 — 안내판은 이제 글자판일 뿐이라 클릭을 전부 통과시킨다. */
+.tut-bar{gap:8px}
+.tut-bar>*{flex:1}
 .tut-card.done{border-color:var(--me)}
 
 /* ── 메뉴: 컨셉아트 배경 ───────────────────────────────────────────────── */

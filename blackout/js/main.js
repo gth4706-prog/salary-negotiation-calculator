@@ -164,7 +164,17 @@ window.BO = window.BO || {};
         endScreen(null, '연결 끊김', info && info.byUser ? '방에서 나왔습니다.'
           : '상대와의 연결이 끊어졌습니다. 다시 방을 잡아 보세요.');
       } else {
+        //  ⚠ 조용히 로비로 돌아가면 **왜** 튕겼는지 아무도 모른다. 실제 서버와 처음
+        //    붙을 때 제일 필요한 게 이 한 줄이다 — 서버가 의도를 갖고 거절한 코드는
+        //    사람이 읽을 말로 바꿔 보여 준다. 이 문구를 그대로 전달받으면 고칠 수 있다.
+        var code = info && info.code, why = '';
+        if (code === 4009) why = '이 방은 다른 버전의 게임 방입니다 (4009). 같은 주소에서 새로 만든 방으로 들어가세요.';
+        else if (code === 4004) why = '없는 방 코드입니다 (4004). 코드를 다시 확인하세요.';
+        else if (code === 4008) why = '같은 이름으로 다른 기기가 들어와 이 연결이 밀려났습니다 (4008). 이름을 바꿔 보세요.';
+        else if (info && !info.byUser) why = '연결이 끊겼습니다' + (code ? ' (코드 ' + code + ')' : '') +
+          (Net.lastError ? ' — ' + Net.lastError : '') + '. 다시 시도하세요.';
         show('lobby'); listRooms();
+        if (why) $('lobby-status').textContent = why;
       }
     };
     //  서버가 씨앗과 시작을 정한다. 클라이언트가 정하면 둘이 다른 판을 연다.

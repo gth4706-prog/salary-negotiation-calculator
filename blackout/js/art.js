@@ -72,14 +72,22 @@ BO.Art = (function () {
 
   //  가구 조각 — assets/furniture/<kind>.png (가로 w칸 × 세로 h칸 비율, 투명 배경).
   //  칸 하나가 알려지는 순간 불린다. 그림이 있으면 그 칸의 조각을 --art 로 넣는다.
+  //  ⚠ 먼저 내장 SVG(svgart.js)를 깔고, 그림 파일이 있으면 그걸로 덮는다. 그래서
+  //    파일이 하나도 없어도 «방»처럼 보인다.
   function tile(cell, t, roomId) {
     cell.style.removeProperty('--art');
     if (!t || t.kind === 'floor') return;
+    var builtin = BO.SvgArt ? BO.SvgArt.furniture(t) : null;
+    if (builtin) cell.style.setProperty('--art', builtin + ' ' + slicePos(t.ox, t.oy, t.w, t.h));
     var path = 'furniture/' + t.kind + (t.w > 1 && t.h === 1 && t.kind === 'cabinet' && t.w >= 3 ? '-wide' : '') + '.png';
     probe(path, function (ok) {
       cell.classList.toggle('has-art', ok);
       if (ok) cell.style.setProperty('--art', slice(BASE + path, t.ox, t.oy, t.w, t.h));
     });
+  }
+  function slicePos(ox, oy, w, h) {
+    var px = w > 1 ? (ox / (w - 1) * 100) : 0, py = h > 1 ? (oy / (h - 1) * 100) : 0;
+    return px + '% ' + py + '% / ' + (w * 100) + '% ' + (h * 100) + '% no-repeat';
   }
 
   //  «종류가 하나»인 것들은 몸통(body)에 표시를 남기고 CSS 가 읽는다.

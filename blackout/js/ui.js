@@ -20,6 +20,7 @@ window.BO = window.BO || {};
 BO.UI = (function () {
   var C = BO.Core;
   var els = {}, cells = [], mode = 'move', sel = null, roomKey = '', lastFoeKey = '';
+  var fogRects = [], beamRects = [], glowDot = null;
 
   function $(id) { return document.getElementById(id); }
 
@@ -31,6 +32,7 @@ BO.UI = (function () {
     els.confirm = $('confirm'); els.pass = $('pass'); els.pad = $('pad');
     els.sense = $('sense'); els.logToggle = $('log-toggle');
     els.toast = $('toast'); els.hurt = $('hurt');
+    if (BO.SvgArt) BO.SvgArt.install(document.body);   // 내장 그림(얼룩 마스크·전등·바닥)을 CSS 변수로
     buildBoard(handlers);
     bindControls(handlers);
     BO.Art.globals();
@@ -52,6 +54,9 @@ BO.UI = (function () {
       //  바닥 그림을 칸 단위로 잘라 붙일 때의 위치(art.js / rooms.css 의 has-floor)
       d.style.setProperty('--fx', (W > 1 ? x / (W - 1) * 100 : 0) + '%');
       d.style.setProperty('--fy', (H > 1 ? y / (H - 1) * 100 : 0) + '%');
+      //  내장 마루: 3칸짜리 널빤지의 몇 번째 조각인가(줄마다 한 칸씩 어긋난다) · 톤 차이
+      d.style.setProperty('--px', (((x + y) % 3) * 50) + '%');
+      d.style.setProperty('--fb', (0.93 + ((x * 3 + y * 7) % 5) * 0.035).toFixed(3));
       d.innerHTML = '<span class="art"></span><span class="fog"></span>' +
                     '<span class="splat hide"><i class="paint"></i></span>' +
                     '<span class="mark hide"></span><span class="lamp hide"></span>' +
@@ -62,6 +67,57 @@ BO.UI = (function () {
       els.board.appendChild(d);
       cells.push(d);
     }
+    buildOverlays();
+  }
+
+  //  ── 어둠과 빛은 칸이 아니라 **한 장의 SVG** 로 ───────────────────────────
+  //  칸마다 검은 사각형을 두면 안개가 격자무늬로 보인다. 사각형 64개를 한 SVG 에 넣고
+  //  통째로 흐리면(blur) 가장자리가 부드러운 «안개»가 되고, 시야는 따뜻한 빛 웅덩이가
+  //  된다. 컨셉의 스탠드 불빛이 이것이다. 격자선은 흐리면 안 되니 세 번째 SVG 에 따로.
+  function buildOverlays() {
+    var W = C.C.W, H = C.C.H, NS = 'http://www.w3.org/2000/svg';
+    function mk(cls) {
+      var v = document.createElementNS(NS, 'svg');
+      v.setAttribute('viewBox', '0 0 ' + W + ' ' + H); v.setAttribute('preserveAspectRatio', 'none');
+      v.setAttribute('class', cls); v.setAttribute('aria-hidden', 'true');
+      return v;
+    }
+    function rect(svg, x, y, fill) {
+      var q = document.createElementNS(NS, 'rect');
+      //  가장자리 칸은 바깥으로 넉넉히 — 흐림이 격자 테두리 안쪽을 밝히지 않게
+      var x0 = x === 0 ? -1 : x - 0.02, y0 = y === 0 ? -1 : y - 0.02;
+      var x1 = x === W - 1 ? W + 1 : x + 1.02, y1 = y === H - 1 ? H + 1 : y + 1.02;
+      q.setAttribute('x', x0); q.setAttribute('y', y0);
+      q.setAttribute('width', x1 - x0); q.setAttribute('height', y1 - y0);
+      q.setAttribute('fill', fill);
+      svg.appendChild(q);
+      return q;
+    }
+    var old = els.board.querySelectorAll('svg'); for (var i = 0; i < old.length; i++) els.board.removeChild(old[i]);
+    els.fogsvg = mk('fogsvg'); els.beam = mk('beam'); els.grid = mk('gridsvg');
+    fogRects = []; beamRects = [];
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+      fogRects.push(rect(els.fogsvg, x, y, '#040507'));
+      var b = rect(els.beam, x, y, '#ffd28a'); b.setAttribute('opacity', '0'); beamRects.push(b);
+    }
+    //  내 주위의 은은한 빛(손전등을 든 사람 주변은 조금 밝다)
+    var defs = document.createElementNS(NS, 'defs');
+    defs.innerHTML = '<radialGradient id="bo-pglow"><stop offset="0" stop-color="#ffe2b0" stop-opacity=".55"/>' +
+                     '<stop offset=".55" stop-color="#ffd28a" stop-opacity=".18"/><stop offset="1" stop-color="#ffd28a" stop-opacity="0"/></radialGradient>';
+    els.beam.appendChild(defs);
+    glowDot = document.createElementNS(NS, 'circle');
+    glowDot.setAttribute('r', '1.15'); glowDot.setAttribute('fill', 'url(#bo-pglow)');
+    els.beam.appendChild(glowDot);
+    //  격자선 — 컨셉의 점선 칸. 어둠 위에 아주 옅게.
+    var path = '';
+    for (var gx = 1; gx < W; gx++) path += 'M' + gx + ' 0V' + H;
+    for (var gy = 1; gy < H; gy++) path += 'M0 ' + gy + 'H' + W;
+    var gp = document.createElementNS(NS, 'path');
+    gp.setAttribute('d', path); gp.setAttribute('stroke', '#ffffff'); gp.setAttribute('stroke-opacity', '.09');
+    gp.setAttribute('stroke-width', '1'); gp.setAttribute('stroke-dasharray', '0.09 0.07'); gp.setAttribute('fill', 'none');
+    gp.setAttribute('vector-effect', 'non-scaling-stroke');   // 굵기는 화면 픽셀, 점선 간격은 칸 단위
+    els.grid.appendChild(gp);
+    els.board.appendChild(els.fogsvg); els.board.appendChild(els.beam); els.board.appendChild(els.grid);
   }
 
   function cellAt(x, y) { return cells[y * C.C.W + x]; }
@@ -258,12 +314,18 @@ BO.UI = (function () {
       c.classList.toggle('aim', isSel && mode === 'shoot');    // 쏠 칸
       c.classList.toggle('sensed', !!(v.sense && C.dist(x, y, v.me.x, v.me.y) <= v.senseR));
 
+      //  어둠의 두께(안개 SVG) · 시야의 빛(빛 SVG)
+      var fi = y * C.C.W + x;
+      if (fogRects[fi]) fogRects[fi].setAttribute('opacity', v.lit > 0 ? '0' : (!t ? '1' : (seen[key] ? '0.05' : '0.72')));
+      if (beamRects[fi]) beamRects[fi].setAttribute('opacity', seen[key] && v.lit <= 0 ? '0.17' : '0');
+
       var sp = c.children[2], sm = c.children[3], sn = c.children[4], sd = c.children[5], sg = c.children[6];
       var p = paint[key];
       if (p) {
-        sp.className = 'splat v' + (1 + ((x * 7 + y * 13) % 2)) + (p.by === v.mine ? ' mine' : ' foe') +
+        sp.className = 'splat' + (p.by === v.mine ? ' mine' : ' foe') +
           (p.hit ? ' hit' : '') + (p.age === 0 ? ' fresh' : '');
         sp.style.setProperty('--rot', ((x * 37 + y * 91) % 360) + 'deg');
+        sp.style.setProperty('--sv', 'var(--splat-' + (1 + ((x * 7 + y * 13) % 4)) + ')');
         sp.style.setProperty('--splat', 'url(' + BO.Art.BASE + BO.Art.splat(x, y) + ')');
         sp.title = (p.by === v.mine ? '내' : '상대') + ' 페인트' + (p.hit ? ' · 여기서 맞았다' : '');
       } else sp.className = 'splat hide';
@@ -274,7 +336,6 @@ BO.UI = (function () {
 
       var isLamp = !!(v.lamp && v.lamp.x === x && v.lamp.y === y);
       sn.className = 'lamp' + (isLamp ? (v.lit > 0 ? ' on' : '') : ' hide');
-      if (isLamp) sn.textContent = v.lit > 0 ? '💡' : '🔘';
 
       //  내가 바라보는 방향 — 시야각이 어디로 열렸는지 한눈에
       sd.className = 'dir' + (isMe ? ' f' + v.me.face : ' hide');
@@ -283,6 +344,10 @@ BO.UI = (function () {
                   (v.turn - v.foeSeen.turn) <= 3 && !isFoe;
       sg.className = 'ghost' + (ghost ? '' : ' hide');
       if (ghost) sg.textContent = '✖';
+    }
+    if (glowDot) {
+      glowDot.setAttribute('cx', v.me.x + 0.5); glowDot.setAttribute('cy', v.me.y + 0.5);
+      glowDot.setAttribute('opacity', v.lit > 0 ? '0' : '1');
     }
   }
 

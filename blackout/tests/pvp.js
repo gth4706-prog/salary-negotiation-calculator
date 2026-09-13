@@ -17,7 +17,8 @@ async function mk(b, nick) {
   const p = await ctx.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(nick + ' PAGEERROR: ' + e.message));
-  p.on('console', m => { if (m.type() === 'error') errs.push(nick + ' CONSOLE: ' + m.text()); });
+  //  글꼴(fonts.googleapis) 같은 외부 자원이 막힌 환경의 «load 실패»는 게임 오류가 아니다
+  p.on('console', m => { if (m.type() === 'error' && !/fonts\.g/.test((m.location() && m.location().url) || '')) errs.push(nick + ' CONSOLE: ' + m.text()); });
   await p.goto(BASE);
   await p.evaluate(({ n, rt }) => {
     localStorage.setItem('blackout.rtbase', rt);

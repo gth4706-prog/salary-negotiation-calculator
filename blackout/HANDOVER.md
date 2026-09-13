@@ -7,7 +7,7 @@
 - **저장소 경로**: `blackout/` · 브랜치 `claude/realtime-turn-based-dark-battle-xc922d`
 - **빌드 도구 없음.** `index.html` 을 브라우저로 열면 그대로 돈다. ES5, 외부 의존성 0.
 - **그림의 정답**: `assets/concept/concept-01.jpg`. 결국 이 느낌이 나와야 한다.
-- **지금 버전: v0.5 «야광 페인트»** (넷코드 버전 `bo0.5-glow1`).
+- **지금 버전: v0.6 «미감»** (규칙은 v0.5 그대로, 넷코드 버전 `bo0.5-glow1`).
 
 ---
 
@@ -71,16 +71,17 @@ blackout/
 ├── index.html          화면 골격
 ├── README.md           설계 배경 · 에그워에서 가져온 것과 안 가져온 것
 ├── HANDOVER.md         이 문서
-├── css/style.css       레이아웃 · 조작부 · 크기(격자 크기 산식)
-├── css/rooms.css       칸의 층(그림·어둠·얼룩·사람) · 타격 연출 · 그림이 있을 때(has-*)
-├── assets/             그림·소리. README.md 가 명세.
+├── css/style.css       레이아웃 · 조작부(두툼한 버튼) · 크기(격자 크기 산식) · 서체(Jua)
+├── css/rooms.css       칸의 층(그림·안개·빛·얼룩·사람) · 벽 테두리 · 타격 연출 · 그림 파일이 있을 때(has-*)
+├── assets/             그림·소리. README.md 가 명세. 파일이 없어도 내장 SVG 로 «방»이 보인다.
 ├── js/
+│   ├── svgart.js  내장 그림 — 컨셉 팔레트로 그린 가구 12종·마루 3종·전등·얼룩 4종(SVG 문자열)
 │   ├── rooms.js   방 «정답지» 8×8 세 종 · tileInfo(칸 하나의 정보)
 │   ├── core.js    규칙 엔진 — DOM·네트워크·시간·Math.random 을 모른다
 │   ├── net.js     방 접속(WebSocket) + P2P 직결(WebRTC). 버전 bo0.5-glow1
 │   ├── match.js   턴 진행 · 행동 즉시 전송(a) + 턴 확정(t) · 해시 대조 · 재접속 복구
 │   ├── bot.js     연습 상대 — Core.view() 만 본다. 안 본 가구는 «갈 수 있겠지» 하고 부딪힌다
-│   ├── art.js     assets/ 에 그림이 있으면 칸 단위로 잘라 끼운다. 없으면 CSS 로 논다
+│   ├── art.js     내장 SVG 를 먼저 깔고, assets/ 에 그림 파일이 있으면 칸 단위로 잘라 덮는다
 │   ├── tutorial.js 8단계 안내판. 가르치는 봇(bot.js tutorial 모드)과 시계 없는 판
 │   ├── ui.js      그리기 · 입력 · 타격 연출 — Core.view() 만 본다
 │   ├── main.js    화면 전환 · 로비 · 연결 배선
@@ -118,14 +119,22 @@ blackout/
 상태(`st`)에 v0.5 에서 들어간 것: `ps[i].face`, `ps[i].known[64]`, `spot[2]`. 전부 해시에 들어간다.
 `look(st, side)` 이 행동 뒤마다 시야를 `known` 에 더하고, `noteSpots` 가 목격을 적는다.
 
-### 화면(ui.js/rooms.css)의 층
+### 화면(ui.js/rooms.css)의 층 — v0.6 «장난감 디오라마»
 
-칸(`.cell`)마다: `.art`(그림, z1) → `.fog`(어둠, z2) → `.splat > .paint`(야광 얼룩, z3) →
-`.mark`/`.lamp`(z4) → 사람 `::after`(z5) → `.dir`(바라보는 방향, z6) → `.ghost`(z7) →
-`.reaction`(z8) → 고른 칸 `::before`(z9). 어둠 두께는 `.unknown`(불투명) / `.known`(기억, 74%) /
-`.seen`(거의 없음) / `.board.lit`(전부 걷힘). 얼룩은 `mask` 로 그림(`--art`)을 얼룩 모양으로
-뚫고 페인트 색을 덧입힌다 — 그게 스크래치 아트다. 상대는 `.foe-lit`/`.foe-seen`(실루엣)/
-`.foe-glow`(**윤곽만**, 점선).
+설계자의 기준은 **멧챠 카멜레온**(2026, 알록달록하고 어수선한 방을 장난감처럼 그린
+숨바꼭질 게임)의 미감 + 우리 컨셉아트(위에서 본 어두운 방, 스탠드 불빛, 청록/분홍 페인트).
+
+칸(`.cell`)마다: `.art`(그림, z1: 내장 SVG 또는 파일, `--art` 로 칸 단위 슬라이스) → 판 전체
+SVG 세 장(z2: `.fogsvg` 안개 64칸을 **한 장으로 흐려** 가장자리가 부드럽고, `.beam` 시야의
+따뜻한 빛 웅덩이 + 내 주위 은은한 빛, `.gridsvg` 옅은 점선 격자) → `.fog`(z3: 이제 투명한
+«테두리 층» — 갈 수 있는 칸·고른 칸·인기척 링) → `.splat > .paint`(z4, `mask:var(--sv)` 로
+그림을 얼룩 모양으로 뚫고 페인트 색을 덧입힌다 = 스크래치 아트) → `.mark`/`.lamp`(z5) →
+사람 `::after`(z6, 살짝 숨쉬듯 bob) → `.dir`(z7) → `.ghost`(z8) → `.reaction`/`.burst`(z9) →
+고른 칸 `::before`(z10) → 비네트 `::before`(z11). 안개 두께는 ui.js 가 rect opacity 로:
+모름 1 / 기억 .72 / 지금 봄 .05 / 불 켜짐 0. 격자 자체는 두꺼운 청회색 벽(`border`)으로 감싼다.
+상대는 `.foe-lit`/`.foe-seen`(실루엣)/`.foe-glow`(**윤곽만**, 점선). 마루는 3칸짜리 널빤지 한
+장을 칸마다 1/3 씩(`--px`), 줄마다 어긋나게, 톤은 `--fb` 로 살짝씩 다르게 깐다.
+체력은 페인트 방울 5개. 제목·큰 글자는 Google Fonts «Jua»(못 받으면 시스템 글꼴).
 
 **타격은 네 겹**으로 알린다(설계자: 「맞았는지 맞혔는지 모르겠다」): 격자 한가운데 큰 글자
 (`#toast`) · 흔들림/번쩍임(`.board.shake`, `#hurt`, 토큰 `.jolt`, `.burst-*`) · 소리(`hurt` 는
@@ -215,7 +224,8 @@ node blackout/tests/leave.test.js     # 상대 퇴장 → 30초 → 기권승
 ## 6. 그림 — 어떻게 채우나
 
 **명세는 `assets/README.md`.** 파일을 넣고 `node blackout/tests/assets-manifest.js`.
-없는 파일은 CSS 시험 자산으로 보인다.
+없는 파일은 **내장 SVG**(`js/svgart.js`, 컨셉 팔레트)로 보인다 — 파일 없이도 방처럼 보인다.
+내장 그림을 고치려면 svgart.js 의 함수 하나를 만지면 된다(칸 = 100 좌표, 종류·크기·id 별).
 
 v0.5 부터 그림은 **칸 단위로 잘라** 쓴다(`art.js` `slice`) — 가구는 시야에 든 칸만 보이고
 얼룩은 그 칸의 조각을 뚫어 보여 주기 때문이다. 그래서 「책상 3칸 그림 한 장」을 넣으면

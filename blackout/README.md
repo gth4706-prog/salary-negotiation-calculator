@@ -15,14 +15,15 @@
 blackout/
 ├── index.html       화면 골격(메뉴·규칙·로비·방·대전·결과)
 ├── css/style.css    레이아웃 · 조작부. 캔버스를 안 쓴다 — DOM 격자.
-├── css/rooms.css    칸의 층(그림·어둠·야광 얼룩·사람) · 타격 연출
+├── css/rooms.css    칸의 층(그림·안개·빛·야광 얼룩·사람) · 벽 테두리 · 타격 연출
 └── js/
+    ├── svgart.js    내장 그림 — 가구·마루·전등·얼룩을 컨셉 팔레트로 그린 SVG
     ├── rooms.js     방 정답지(8×8 세 종). 화면과 봇은 이걸 직접 못 본다.
     ├── core.js      규칙 엔진. DOM·네트워크·Math.random 을 안 쓴다(결정론).
     ├── net.js       방 접속(WebSocket) + P2P 직결(WebRTC). 에그워에서 이식.
     ├── match.js     턴 진행 · 행동 즉시 전송 · 상태 해시 대조 · 재접속 복구
     ├── bot.js       연습 상대. **아는 것만** 보고 추리한다(상태를 훔쳐보지 않는다).
-    ├── art.js       그림이 있으면 칸 단위로 잘라 끼운다
+    ├── art.js       내장 SVG 를 깔고, 그림 파일이 있으면 칸 단위로 잘라 덮는다
     ├── tutorial.js  8단계 안내판
     ├── ui.js        화면. `Core.view()` 가 내준 것만 그린다.
     ├── sfx.js       WebAudio 소리(오디오 파일 없음)

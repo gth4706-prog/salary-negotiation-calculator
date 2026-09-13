@@ -24,7 +24,7 @@ function board(p0, p1, side, objects) {
   st.ps[0] = { x: p0[0], y: p0[1], hp: 5, painted: false, face: 2, known: zeros() };
   st.ps[1] = { x: p1[0], y: p1[1], hp: 5, painted: false, face: 0, known: zeros() };
   st.side = side || 0; st.ap = 2; st.turn = 1; st.lamp = null; st.lit = 0;
-  st.seen = [null, null]; st.spot = [null, null]; st.paint = []; st.marks = [];
+  st.seen = [null, null]; st.spot = [null, null]; st.paint = []; st.marks = []; st.glow = null;
   st.wasPainted = st.ps[st.side].painted;
   C.look(st, 0); C.look(st, 1);                 // 판을 만들 때처럼 각자 제 시야만큼 안다
   return st;
@@ -238,28 +238,33 @@ section('시야로 본 것은 본 쪽만 안다');
   eq(theirs.foe, null, '보인 쪽에게 본 사람이 보이는 건 아니다');
 })();
 
-section('윤곽 — 맞으면 야광 페인트 때문에 보인다, 움직이면 꺼진다');
+section('야광 — 맞은 순간 그 턴 동안 보인다, 턴이 넘어가면 다시 어둠');
 (function () {
   var st = board([0, 0], [5, 5], 0);
   C.act(st, 0, ['s', 5, 5]);
   var v = C.view(st, 0);
-  ok(!!v.foe && v.foe.why === 'glow' && v.foe.x === 5 && v.foe.y === 5, '맞힌 직후 상대 윤곽이 보인다');
-  eq(C.act(st, 0, ['s', 5, 5]), null, '두 번째 행동으로 윤곽을 다시 쏜다');
+  ok(!!v.foe && v.foe.why === 'glow' && v.foe.x === 5 && v.foe.y === 5, '맞힌 직후 야광에 젖은 상대가 보인다');
+  eq(C.act(st, 0, ['s', 5, 5]), null, '두 번째 행동으로 다시 쏜다');
   eq(st.ps[1].hp, 3, '연달아 맞는다 — 찾은 값이다');
   C.endTurn(st);
-  ok(!!C.view(st, 0).foe, '상대 턴이 되어도 안 움직였으면 아직 보인다');
-  C.applyTurn(st, 1, [['m', LEFT], ['m', LEFT]]);
-  eq(C.view(st, 0).foe, null, '두 칸 도망치면 윤곽이 꺼진다');
+  eq(C.view(st, 0).foe, null, '턴이 넘어가면 안 움직였어도 안 보인다 — 다음 턴엔 캐릭터는 어둠 속');
+  ok(st.ps[1].painted, '신발의 야광(발자국 규칙)은 그대로 남는다');
+  C.applyTurn(st, 1, [['m', LEFT]]);
+  eq(st.marks.length, 1, '한 칸 움직이면 발자국');
 
   var s2 = board([0, 0], [5, 5], 0);
   C.applyTurn(s2, 0, [['s', 5, 5]]);
   C.applyTurn(s2, 1, [['s', 7, 7], ['s', 7, 6]]);   // 안 움직이고 두 발
-  ok(!!C.view(s2, 0).foe && C.view(s2, 0).foe.why === 'glow', '안 움직이면 내 턴에도 윤곽이 그대로 — 맞았으면 움직여야 한다');
+  eq(C.view(s2, 0).foe, null, '상대가 안 움직여도 다음 내 턴에는 안 보인다(다시 찾아야 한다)');
 
   var s3 = board([0, 0], [5, 5], 0);
   C.applyTurn(s3, 0, [['s', 4, 5]]);                // 빗나가 (4,5) 에 얼룩
   C.applyTurn(s3, 1, [['m', LEFT]]);                // 상대가 얼룩을 밟음
-  ok(C.view(s3, 0).foe && C.view(s3, 0).foe.why === 'glow', '얼룩을 밟아도 묻는다 — 밟고 서 있으면 보인다');
+  eq(C.view(s3, 0).foe, null, '얼룩을 밟아 묻은 건 보이지 않는다 — 발자국으로만 드러난다');
+  ok(s3.ps[1].painted, '밟아서 묻긴 했다');
+  var g1 = board([0, 0], [5, 5], 0), g2 = board([0, 0], [5, 5], 0);
+  C.act(g1, 0, ['s', 5, 5]); C.act(g2, 0, ['s', 4, 4]);
+  ok(C.hash(g1) !== C.hash(g2), '야광 상태도 해시에 들어간다');
 })();
 
 section('화면이 보는 것 — 상대 좌표도 가구도 새지 않는다');
@@ -405,7 +410,8 @@ section('전등 버튼 — 켜면 방 전체가 드러난다');
 
   C.act(st, 0, ['s', 7, 7]);
   eq(st.lit, 0, '행동 하나가 지나면 꺼진다');
-  eq(C.view(st, 0).foe.why, 'glow', '꺼져도 방금 맞힌 상대는 윤곽으로 보인다');
+  eq(C.view(st, 0).foe.why, 'glow', '꺼져도 방금 맞힌 상대는 이 턴 동안 야광으로 보인다');
+  ok(C.view(st, 0).foe.glow === true, '야광 표시(glow)는 why 와 별개로 준다 — 불빛 아래서도 칠이 보이게');
   eq(st.ps[1].hp, 4, '불빛 아래 쏜 한 발은 맞았다');
   ok(C.view(st, 0).tiles[C.idx(6, 6)] && C.view(st, 0).tiles[C.idx(6, 6)].kind === 'desk', '불이 꺼져도 본 가구는 기억한다');
 })();

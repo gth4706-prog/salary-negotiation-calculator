@@ -40,7 +40,7 @@ function fixture() {
   st.ps = [{ x: 1, y: 2, hp: 5, painted: false, face: 0, known: zeros() },
            { x: 7, y: 7, hp: 5, painted: false, face: 0, known: zeros() }];
   st.side = 0; st.lamp = null; st.lit = 0; st.seen = [null, null]; st.spot = [null, null];
-  st.paint = []; st.marks = [];
+  st.paint = []; st.marks = []; st.glow = null;
   C.look(st, 0); C.look(st, 1);
   return st;
 }
@@ -86,8 +86,8 @@ var moving = fixture(); moving.ps[0].painted = true; moving.wasPainted = true;
 C.act(moving, 0, ['m', 0]);
 var hidden = C.view(moving, 1);
 assert.strictEqual(hidden.stepFrom, null); assert.strictEqual(hidden.moves, 0);
-assert.strictEqual(hidden.foe && hidden.foe.why, 'glow', 'A painted mover glows — the opponent sees the outline (v0.5)');
-assert.strictEqual(hidden.foeSeen, null, 'but no exposure record until it is a hit/lamp');
+assert.strictEqual(hidden.foe, null, 'A painted mover is dark again once the hit turn is over (v0.9)');
+assert.strictEqual(hidden.foeSeen, null, 'and no exposure record until it is a hit/lamp');
 var dark = fixture(); C.act(dark, 0, ['m', 0]);
 assert.strictEqual(C.view(dark, 1).foe, null, 'An unpainted mover out of sight has no coordinates');
 assert.strictEqual(hidden.marks.length, 0, 'No premature footprint before turn commit');

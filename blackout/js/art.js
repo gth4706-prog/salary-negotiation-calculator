@@ -77,7 +77,15 @@ BO.Art = (function () {
     function set(path) {
       board.classList.toggle('has-floor', !!path);
       board.style.setProperty('--floor', path ? 'url(' + BASE + path + ')' : 'none');
+      board.style.removeProperty('--floor-edge');
+      if (path) edges(BASE + path, function (e) { board.style.setProperty('--floor-edge', e); });
     }
+  }
+  //  내장 마루(SVG)의 윤곽 — svgart 가 심은 --floor-<id> 로부터. 판에 한 번.
+  function floorEdgesBuiltin(board, roomId) {
+    var v = getComputedStyle(document.body).getPropertyValue('--floor-' + roomId);
+    if (!v) return;
+    edges(v.trim(), function (e) { board.style.setProperty('--floor-edge-builtin', e); });
   }
 
   //  가구 조각 — assets/furniture/<kind>-<w>x<h>.png (크기별), 없으면 <kind>.png.
@@ -86,10 +94,13 @@ BO.Art = (function () {
   //    파일이 하나도 없어도 «방»처럼 보인다. 크기별 파일을 먼저 찾는 이유: 같은 kind 라도
   //    1×2 서랍장과 3×1 수납장은 다른 그림이다(늘려 쓰면 찌그러진다).
   function tile(cell, t, roomId) {
-    cell.style.removeProperty('--art');
+    cell.style.removeProperty('--art'); cell.style.removeProperty('--edge');
     if (!t || t.kind === 'floor') return;
     var builtin = BO.SvgArt ? BO.SvgArt.furniture(t) : null;
-    if (builtin) cell.style.setProperty('--art', builtin + ' ' + slicePos(t.ox, t.oy, t.w, t.h));
+    if (builtin) {
+      cell.style.setProperty('--art', builtin + ' ' + slicePos(t.ox, t.oy, t.w, t.h));
+      edges(builtin, function (e) { if (!cell.classList.contains('has-art')) cell.style.setProperty('--edge', e + ' ' + slicePos(t.ox, t.oy, t.w, t.h)); });
+    }
     var sized = 'furniture/' + t.kind + '-' + t.w + 'x' + t.h + '.png', plain = 'furniture/' + t.kind + '.png';
     probe(sized, function (ok) {
       if (ok) { use(sized); return; }
@@ -98,6 +109,7 @@ BO.Art = (function () {
     function use(path) {
       cell.classList.add('has-art');
       cell.style.setProperty('--art', slice(BASE + path, t.ox, t.oy, t.w, t.h));
+      edges(BASE + path, function (e) { cell.style.setProperty('--edge', e + ' ' + slicePos(t.ox, t.oy, t.w, t.h)); });
     }
   }
   function slicePos(ox, oy, w, h) {
@@ -113,8 +125,48 @@ BO.Art = (function () {
     probe('sprites/footprint-me.png', function (ok) { document.body.classList.toggle('has-prints', ok); });
   }
 
+  //  ── 윤곽 마스크 — 야광 페인트가 튄 자리에 «무엇이 있었는지» 선으로 드러난다 ─────
+  //  그림 한 장을 캔버스에 그려 소벨(Sobel) 경계를 뽑고, 흰 선(알파 = 경계 세기)만 남긴
+  //  PNG data URL 을 만든다. 칸 단위 슬라이스는 그림과 똑같은 식으로 한다. 한 장에 한 번.
+  //  ⚠ 그림 파일·내장 SVG(data URL) 둘 다 같은 출처라 캔버스가 더럽혀지지 않는다.
+  var edgeCache = {};
+  function edges(url, cb) {
+    if (edgeCache[url] !== undefined) { if (edgeCache[url]) cb(edgeCache[url]); return; }
+    if (edgeCache[url + '#wait']) { edgeCache[url + '#wait'].push(cb); return; }
+    edgeCache[url + '#wait'] = [cb];
+    var img = new Image();
+    img.onload = function () {
+      var out = null;
+      try { out = sobel(img); } catch (e) { out = null; }
+      edgeCache[url] = out;
+      var w = edgeCache[url + '#wait']; delete edgeCache[url + '#wait'];
+      if (out) for (var i = 0; i < w.length; i++) w[i](out);
+    };
+    img.onerror = function () { edgeCache[url] = null; delete edgeCache[url + '#wait']; };
+    img.src = url.replace(/^url\("?|"?\)$/g, '');
+  }
+  function sobel(img) {
+    var W = Math.min(img.naturalWidth || img.width, 800), H = Math.min(img.naturalHeight || img.height, 800);
+    if (!W || !H) return null;
+    var c = document.createElement('canvas'); c.width = W; c.height = H;
+    var g = c.getContext('2d'); g.drawImage(img, 0, 0, W, H);
+    var d = g.getImageData(0, 0, W, H).data, lum = new Float32Array(W * H), i, x, y;
+    for (i = 0; i < W * H; i++) lum[i] = (d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11) * (d[i * 4 + 3] / 255);
+    var o = g.createImageData(W, H), od = o.data;
+    for (y = 1; y < H - 1; y++) for (x = 1; x < W - 1; x++) {
+      var p = y * W + x;
+      var gx = -lum[p - W - 1] - 2 * lum[p - 1] - lum[p + W - 1] + lum[p - W + 1] + 2 * lum[p + 1] + lum[p + W + 1];
+      var gy = -lum[p - W - 1] - 2 * lum[p - W] - lum[p - W + 1] + lum[p + W - 1] + 2 * lum[p + W] + lum[p + W + 1];
+      var m = Math.sqrt(gx * gx + gy * gy) * 1.6;           // 세기 — 은은한 결도 살짝 보이게
+      var a = m > 255 ? 255 : m;
+      od[p * 4] = 255; od[p * 4 + 1] = 255; od[p * 4 + 2] = 255; od[p * 4 + 3] = a < 24 ? 0 : a;
+    }
+    g.putImageData(o, 0, 0);
+    return 'url("' + c.toDataURL('image/png') + '")';
+  }
+
   //  얼룩은 여러 장 중 하나를 좌표로 고른다 — 같은 칸은 늘 같은 얼룩.
   function splat(x, y) { return 'sprites/splat-' + (1 + ((x * 7 + y * 13) % 4)) + '.png'; }
 
-  return { BASE: BASE, floor: floor, tile: tile, globals: globals, splat: splat, slice: slice };
+  return { BASE: BASE, floor: floor, floorEdgesBuiltin: floorEdgesBuiltin, tile: tile, globals: globals, splat: splat, slice: slice, edges: edges };
 })();

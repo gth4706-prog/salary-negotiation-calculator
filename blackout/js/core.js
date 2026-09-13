@@ -171,6 +171,7 @@ BO.Core = (function () {
       lit: 0,            // 불이 켜진 채로 남은 «행동» 수
       seen: [null, null],   // 공개 노출(맞음·전등) — 둘 다 안다
       spot: [null, null],   // 시야로 목격됨 — **본 쪽만** 안다
+      glow: null,           // {side, turn} 방금 맞아 야광에 젖은 사람 — 그 턴 동안만 보인다
       ev: [],               // 방금 처리한 턴에 일어난 일(화면이 읽는다)
       over: false, winner: null, reason: null
     };
@@ -309,7 +310,10 @@ BO.Core = (function () {
     var hit = (x === foe.x && y === foe.y);
     if (hit) {
       foe.hp--;
-      foe.painted = true;                      // 맞은 사람에게 야광 페인트 — 윤곽이 보인다
+      foe.painted = true;                      // 맞은 사람 신발에 야광 페인트 — 발자국 규칙
+      //  맞은 순간 야광이 튀어 **이 턴 동안** 상대가 보인다(남은 한 발을 쏠 수 있다).
+      //  턴이 넘어가면 다시 어둠 — 「다음 턴에서는 당연히 캐릭터까지는 안 보여야 해」(설계자).
+      st.glow = { side: 1 - side, turn: st.turn };
       st.seen[1 - side] = { x: x, y: y, turn: st.turn };
       if (foe.hp <= 0) { st.over = true; st.winner = side; st.reason = 'kill'; }
     }
@@ -388,7 +392,7 @@ BO.Core = (function () {
     var s = st.turn + '|' + st.side + '|' + st.ap + '|' + st.moves + '|' +
             (st.wasPainted ? 1 : 0) + (st.gotPaint ? 1 : 0) + '|';
     s += JSON.stringify(st.room) + '|' + JSON.stringify(st.seen) + '|' + JSON.stringify(st.spot) + '|' +
-         JSON.stringify(st.stepFrom) + '|';
+         JSON.stringify(st.stepFrom) + '|' + JSON.stringify(st.glow) + '|';
     for (var i = 0; i < 2; i++) {
       var p = st.ps[i];
       s += p.x + ',' + p.y + ',' + p.hp + ',' + (p.painted ? 1 : 0) + ',' + p.face + ',' + p.known.join('') + ';';
@@ -435,8 +439,11 @@ BO.Core = (function () {
     }
     var seenNow = cone(st, me);
     //  ⚠ 상대 좌표가 이 객체에 들어오는 경우는 셋뿐이다 — 불이 켜졌거나(lit),
-    //    내 시야각 안에 있거나(seen), 야광 페인트가 묻어 윤곽이 보이거나(glow).
-    var foeWhy = st.lit > 0 ? 'lit' : (sees(st, me, F.x, F.y) ? 'seen' : (F.painted ? 'glow' : null));
+    //    내 시야 안에 있거나(seen), **이 턴에** 맞아 야광에 젖어 있거나(glow).
+    //    glow 는 턴이 넘어가면 사라진다. 얼룩을 밟아 묻은 것(painted)은 안 보인다 —
+    //    그건 발자국 규칙에만 쓰인다.
+    var glowing = !!(st.glow && st.glow.side === foe && st.glow.turn === st.turn);
+    var foeWhy = st.lit > 0 ? 'lit' : (sees(st, me, F.x, F.y) ? 'seen' : (glowing ? 'glow' : null));
     var foeSeen = st.seen[foe];
     if (st.spot[foe] && (!foeSeen || st.spot[foe].turn >= foeSeen.turn)) foeSeen = st.spot[foe];
     return {
@@ -461,7 +468,7 @@ BO.Core = (function () {
       //  전등 버튼 자리는 **공개 정보**다. 둘 다 어디로 가야 하는지 안다.
       lamp: st.lamp ? { x: st.lamp.x, y: st.lamp.y } : null,
       lit: st.lit,
-      foe: foeWhy ? { x: F.x, y: F.y, why: foeWhy } : null,
+      foe: foeWhy ? { x: F.x, y: F.y, why: foeWhy, glow: glowing } : null,   // glow: 이 턴에 맞아 야광에 젖어 있다(불빛 아래서도 칠은 보인다)
       moves: st.side === me ? st.moves : 0,
       stepFrom: st.side === me && st.stepFrom ? { x: st.stepFrom.x, y: st.stepFrom.y } : null,
       range: C.RANGE, senseR: C.SENSE,

@@ -57,10 +57,12 @@ BO.UI = (function () {
       //  내장 마루: 3칸짜리 널빤지의 몇 번째 조각인가(줄마다 한 칸씩 어긋난다) · 톤 차이
       d.style.setProperty('--px', (((x + y) % 3) * 50) + '%');
       d.style.setProperty('--fb', (0.93 + ((x * 3 + y * 7) % 5) * 0.035).toFixed(3));
+      //  얼룩은 세 겹: 빛(.splat, 글로우) > 모양(.shape, 얼룩 마스크) > 그림(.paint) + 윤곽(.edge)
       d.innerHTML = '<span class="art"></span><span class="fog"></span>' +
-                    '<span class="splat hide"><i class="paint"></i></span>' +
+                    '<span class="splat hide"><i class="shape"><b class="paint"></b><b class="edge"></b></i></span>' +
                     '<span class="mark hide"></span><span class="lamp hide"></span>' +
-                    '<span class="dir hide"></span><span class="ghost hide"></span><span class="reaction"></span>';
+                    '<span class="dir hide"></span><span class="ghost hide"></span><span class="reaction"></span>' +
+                    '<span class="glowfx"></span>';
       (function (px, py, node) {
         node.addEventListener('click', function () { onTile(px, py, h); });
       })(x, y, d);
@@ -106,7 +108,8 @@ BO.UI = (function () {
                      '<stop offset=".55" stop-color="#ffd28a" stop-opacity=".18"/><stop offset="1" stop-color="#ffd28a" stop-opacity="0"/></radialGradient>';
     els.beam.appendChild(defs);
     glowDot = document.createElementNS(NS, 'circle');
-    glowDot.setAttribute('r', '0.75');   // 내 주위 빛은 반 칸 남짓 — 어둠이 먼저다 glowDot.setAttribute('fill', 'url(#bo-pglow)');
+    glowDot.setAttribute('r', '0.75');   // 내 주위 빛은 반 칸 남짓 — 어둠이 먼저다
+    glowDot.setAttribute('fill', 'url(#bo-pglow)');
     els.beam.appendChild(glowDot);
     //  격자선 — 컨셉의 점선 칸. 어둠 위에 아주 옅게.
     var path = '';
@@ -215,7 +218,7 @@ BO.UI = (function () {
     var dots = '';
     for (var i = 0; i < C.C.AP; i++) dots += '<span class="dot' + (i < v.ap ? ' on' : '') + '"></span>';
     els.ap.innerHTML = (v.myTurn ? '행동력 ' : '상대 행동력 ') + dots +
-      (v.me.painted ? ' <span class="glowing">· 야광이 묻었다 — 상대에게 윤곽이 보인다</span>' : '');
+      (v.me.painted ? ' <span class="glowing">· 신발에 야광 — 한 칸만 움직이면 발자국이 남는다</span>' : '');
 
     if (v.lit > 0) {
       els.sense.textContent = '💡 불이 켜졌다 — 방 전체가 보인다 (행동 ' + v.lit + '번 뒤 꺼짐)';
@@ -224,7 +227,7 @@ BO.UI = (function () {
       els.sense.textContent = '👀 시야에 상대가 있다!';
       els.sense.className = 'sense-badge';
     } else if (v.foe && v.foe.why === 'glow') {
-      els.sense.textContent = '✨ 상대에게 야광이 묻어 윤곽이 보인다';
+      els.sense.textContent = '✨ 맞았다! 야광에 젖은 상대가 이 턴 동안 보인다';
       els.sense.className = 'sense-badge';
     } else {
       els.sense.textContent = v.sense
@@ -260,6 +263,7 @@ BO.UI = (function () {
       els.board.setAttribute('data-room', v.room.id);
       els.board.setAttribute('aria-label', '어두운 방 전장');
       BO.Art.floor(els.board, v.room.id);
+      BO.Art.floorEdgesBuiltin(els.board, v.room.id);
     }
     els.board.classList.toggle('moving', mode === 'move' && v.myTurn);
     els.board.classList.toggle('shooting', mode === 'shoot' && v.myTurn);
@@ -305,7 +309,7 @@ BO.UI = (function () {
 
       c.classList.toggle('me', isMe);
       c.classList.toggle('foe', isFoe);
-      c.classList.toggle('foe-glow', isFoe && v.foe.why === 'glow');
+      c.classList.toggle('foe-glow', isFoe && !!(v.foe.glow || v.foe.why === 'glow'));
       c.classList.toggle('foe-seen', isFoe && v.foe.why === 'seen');
       c.classList.toggle('foe-lit', isFoe && v.foe.why === 'lit');
       c.classList.toggle('painted', isMe && v.me.painted);

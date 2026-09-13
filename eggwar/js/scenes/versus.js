@@ -105,6 +105,10 @@ GAME.VersusScene.prototype._createModePick = function () {
   var rec = GAME.Arena.get();
   var lg = GAME.Arena.leagueOf(rec.trophy);
   var rt = GAME.RtScore ? GAME.RtScore.get() : { score: 0, wins: 0, losses: 0 };
+  //  ⚠ 숫자보다 **칸 이름이 먼저**다 — 1000점이 높은 건지 낮은 건지는 알 수 없지만
+  //    «실버 2» 는 그 자체로 어디쯤인지 말한다(2026-09-14 티어 도입).
+  var rtTier = (GAME.RtScore && GAME.RtScore.tierOf) ? GAME.RtScore.tierOf(rt.score)
+                                                     : { label: '', color: '#ffffff' };
 
   var cw = Math.min(W * 0.42, PH ? 340 : 400);
   var ch = Math.max((UI.BTN_H || 58) * 2, u * (PH ? 42 : 30));
@@ -112,7 +116,7 @@ GAME.VersusScene.prototype._createModePick = function () {
   var rtOn = GAME.NetRoom && GAME.NetRoom.enabled();
 
   var b1 = UI.button(this, W / 2 - cw / 2 - 12, cy, cw, ch,
-    '⚡ 실시간 대전\n방을 만들어 지금 붙는다\n실시간 점수 ' + rt.score +
+    '⚡ 실시간 대전\n방을 만들어 지금 붙는다\n' + rtTier.label + '  ·  ' + rt.score + '점' +
       '  ·  ' + rt.wins + '승 ' + rt.losses + '패',
     function () {
       if (!rtOn) return;

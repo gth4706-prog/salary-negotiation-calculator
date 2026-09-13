@@ -2839,7 +2839,11 @@ var towerRec = null, runRec = null, goldGained = 0, bossDrop = null, bonusShown 
         var rr = GAME.RtScore.record(rtWon, (this.rt.their && this.rt.their.rtScore) || 0);
         //  ⚠ 전장 키를 실어 보낸다 — 결과 화면이 «어떤 판이었나» 를 말하려면 필요하다.
         //    알이 깨져 끝난 판인지도 같이 넣는다(그게 이 맵의 승패 규칙이다).
+        //  ⚠ 티어·승급 판정은 **RtScore.record 가 돌려준 것**을 그대로 싣는다.
+        //    결과 화면이 점수에서 다시 계산하면 판정이 두 벌이 되어 언젠가 갈라진다.
         rtResult = { won: rtWon, delta: rr.delta, score: rr.score,
+                     tier: rr.tier, prevTier: rr.prevTier,
+                     promoted: rr.promoted, demoted: rr.demoted,
                      map: (this.state.rtMap && this.state.rtMap.key) || '',
                      eggBroken: !!this.state.eggBroken };
       }

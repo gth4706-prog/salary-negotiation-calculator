@@ -274,6 +274,14 @@ GAME.CloudSave = {
     rt: function (l, r) {
       if (r === undefined) return l;
       if (!l) return r;
+      //  ⚠⚠ **사다리(EPOCH)가 다른 기록은 섞지 않는다** (2026-09-14 랭크 개편).
+      //    600 시작 시절의 best·전적이 1000 사다리에 max 로 끼면 티어가 거짓말을
+      //    한다 — «골드» 가 옛 기준인지 새 기준인지 알 수 없어진다. 한쪽만 새
+      //    사다리면 그쪽을 통째로 쓴다(둘 다 옛것이면 아래 옛 규칙 그대로 —
+      //    `RtScore.get` 이 읽는 순간 1000 으로 되돌린다).
+      var EP = GAME.RtScore && GAME.RtScore.EPOCH;
+      if (EP !== undefined && (l.epoch === EP) !== (r.epoch === EP))
+        return this._clone(l.epoch === EP ? l : r) || {};
       var o = this._clone(r) || {};
       o.best = Math.max(l.best || 0, r.best || 0);
       o.wins = Math.max(l.wins || 0, r.wins || 0);

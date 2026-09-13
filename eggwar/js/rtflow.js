@@ -308,6 +308,8 @@ GAME.RtFlow = {
   theirSetup: null,
   deadline: 0,
   _started: false,
+  _lastRec: null,   //  전투 직전의 임시 빌드 — 재대결 «설정 그대로» 전용
+
   _rttFrozen: null,
   _p95Frozen: null,
   _tickId: null,
@@ -323,7 +325,12 @@ GAME.RtFlow = {
     var K = keep ? {
       hero: this.myHeroPick || (GAME.ArenaBuild && GAME.ArenaBuild._rtRec && GAME.ArenaBuild._rtRec.heroKey) || null,
       picks: this.myPicks, rollFor: this.myRollFor,
-      rec: (GAME.ArenaBuild && GAME.ArenaBuild._rtRec) || null,
+      //  ⚠⚠ **`_rtRec` 은 이 시점에 이미 null 이다** (2026-09-13 태현님 ① 신고).
+      //    `maybeBattle` 이 전투에 들어가면서 `rtEnd()` 로 지우기 때문이다. 그래서
+      //    «이 설정 그대로» 가 영웅·장비·능력치를 **하나도** 못 이어받고 있었고,
+      //    비어 있는 DEFAULT(heroKey: vanguard)가 남아 재대결마다 광전사로 굳었다.
+      //    → 전투로 들어가기 직전의 레코드를 `_lastRec` 에 남겨 두고 여기서 되찾는다.
+      rec: (GAME.ArenaBuild && GAME.ArenaBuild._rtRec) || this._lastRec || null,
       form: this.lastFormation || null
     } : null;
     this.active = true;
@@ -349,6 +356,15 @@ GAME.RtFlow = {
       if (K.hero) this.myHeroPick = K.hero;
       if (K.picks) { this.myPicks = K.picks; this.myRollFor = K.rollFor; }
       if (myRole === 'controller' && K.rec) GAME.ArenaBuild._rtRec = K.rec;
+      //  ⚠⚠ **두 곳이 같은 영웅을 가리켜야 한다.** 준비 화면(rtprep)은 «상점에서
+      //    영웅을 바꿔 놓고 돌아온 경우» 를 위해 `_rtRec.heroKey` 를 정본으로 읽는데,
+      //    여기서 `myHeroPick` 만 되돌리면 그 둘이 어긋나 화면이 레코드 쪽(광전사)을
+      //    골라 버린다. 평소에는 `setHeroPick` 이 둘을 같이 쓰므로 안 갈라진다 —
+      //    재대결만 그 함수를 안 지나서 생긴 구멍이었다.
+      if (myRole === 'controller' && GAME.ArenaBuild && GAME.ArenaBuild._rtRec) {
+        if (this.myHeroPick) GAME.ArenaBuild._rtRec.heroKey = this.myHeroPick;
+        if (this.myPicks) GAME.ArenaBuild._rtRec.picks = this.myPicks;
+      }
       this.lastFormation = K.form;
     } else {
       this.lastFormation = null;
@@ -365,6 +381,20 @@ GAME.RtFlow = {
     //    Battle 이 시작되면 battle.js 가 다시 가져간다(교대 계약).
     GAME.NetRoom.on.message = function (from, data) {
       if (data && data.type === 'rtSetup' && data.setup) {
+        //  ⚠⚠ **관문 넷** (2026-09-13 태현님 ② «한명이 준비완료를 누르면 상대는
+        //    준비 안 됐는데도 강제시작»). 예전에는 `rtSetup` 이 오면 **조건 없이**
+        //    상대 세팅으로 앉혔다 — 판 식별자도, 보낸 사람도, 지금이 어느 단계인지도
+        //    안 봤다. 그래서 **지난 판·지난 방의 세팅 한 장**이 뒤늦게 도착하면
+        //    (폰이 깜빡였다 붙으면서 재전송되는 경로가 실제로 있다) 그 자리에서
+        //    «상대는 준비됐다» 가 되고, 내가 누르는 순간 전투가 시작된다 —
+        //    상대는 아직 상점에 있으므로 그 판은 시작부터 어긋나 있다.
+        //  ⚠ 판 도장(seed)은 **적혀 있을 때만** 본다 — 도장 없는 옛 메시지까지
+        //    버리면 구버전 클라이언트와 못 붙는다.
+        var _sd = self.startMsg && self.startMsg.seed;
+        if (!self.active || self._started) return;
+        if (from === GAME.NetRoom.me) return;
+        if (data.seed !== undefined && _sd !== undefined &&
+            (data.seed >>> 0) !== (_sd >>> 0)) return;
         self.theirSetup = data.setup;
         self.maybeBattle();
       } else if (data && data.type === 'rtPick') {
@@ -571,13 +601,16 @@ GAME.RtFlow = {
       this.maybeBattle();
       return;
     }
-    GAME.NetRoom.relay({ type: 'rtSetup', setup: setup });
+    //  ⚠ 판 도장 — 받는 쪽이 «이 판의 세팅인가» 를 가릴 수 있게 한다(위 관문).
+    GAME.NetRoom.relay({ type: 'rtSetup', setup: setup,
+                         seed: this.startMsg && this.startMsg.seed });
     this.maybeBattle();
   },
 
   //  유실 대비 재전송 — 값 불변으로 그대로 다시.
   resend: function () {
-    if (this.mySetup) GAME.NetRoom.relay({ type: 'rtSetup', setup: this.mySetup });
+    if (this.mySetup) GAME.NetRoom.relay({ type: 'rtSetup', setup: this.mySetup,
+                                           seed: this.startMsg && this.startMsg.seed });
     if (this.myHeroPick) this.sendPick(this.myHeroPick, this.myPickReady);
   },
 
@@ -607,6 +640,9 @@ GAME.RtFlow = {
     this._started = true;
     this._stopTick();
     //  세팅 스냅샷에 이미 실렸다 — 임시 빌드는 여기서 닫는다(전투·일반 대전 오염 방지).
+    //  ⚠ 지우기 **전에** 사본을 남긴다 — 재대결(«설정 그대로»)이 이것으로 되돌린다.
+    //    남기지 않으면 다음 판이 빈 DEFAULT 에서 시작한다(위 `begin` 의 K 주석).
+    this._lastRec = (GAME.ArenaBuild && GAME.ArenaBuild._rtRec) || this._lastRec || null;
     if (GAME.ArenaBuild) GAME.ArenaBuild.rtEnd();
     var NR = GAME.NetRoom;
     //  팀 라벨: 방장 = 'controller' 팀 · 손님 = 'strategist' 팀 (역할과 무관한 자리 이름).

@@ -275,7 +275,9 @@ GAME.TowerShopScene.prototype._paintRtTimer = function () {
   var F = GAME.RtFlow;
   if (!F || !F.active) { this._rtTimer.setText(''); return; }
   var s = Math.ceil(F.remainMs() / 1000);
-  this._rtTimer.setText('⏳ ' + s + '초');
+  //  ⚠ 남은 시간만으로는 «다 되면 어떻게 되는가» 를 모른다 — 상점 한복판에서
+  //    전투가 시작되면 그건 사람에게 «강제시작» 이다(2026-09-13 태현님 ②).
+  this._rtTimer.setText('⏳ ' + s + '초' + (s <= 10 ? ' · 자동 확정' : ''));
   this._rtTimer.setColor(s <= 10 ? GAME.CONFIG.COLORS.crit : GAME.CONFIG.COLORS.accentAlt);
 };
 

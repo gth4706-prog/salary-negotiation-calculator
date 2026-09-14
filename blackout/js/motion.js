@@ -1,6 +1,13 @@
 window.BO = window.BO || {};
 // Presentation only: receives a public target cell, never game state or an enemy position.
 BO.Motion = (function () {
+  // Public tile coordinates vary pigment pools without touching simulation randomness.
+  function paint(node, x, y) {
+    var n = (x * 7 + y * 11) % 4;
+    node.style.setProperty('--pool-x', (22 + n * 16) + '%');
+    node.style.setProperty('--pool-y', (24 + ((n + 2) % 4) * 15) + '%');
+    node.style.setProperty('--pigment-turn', (n * 67 + 25) + 'deg');
+  }
   function reduced() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
   function replay(node, name) { node.classList.remove(name); void node.offsetWidth; node.classList.add(name); }
   function clear(board) {
@@ -32,6 +39,7 @@ BO.Motion = (function () {
       var p = document.createElement('i'), angle = (i * 137.5 + x * 29 + y * 17) * Math.PI / 180;
       var radius = (material === 'fabric' ? 12 : 23) + (i * 11 % 19);
       p.className = material === 'paper' && i < 3 ? 'paper-chip' : 'paint-bead';
+      p.style.setProperty('--bead-color', (mine ? ['#48bba5','#e6b953','#788aca'] : ['#e78194','#efb85c','#a180bc'])[i % 3]);
       p.style.setProperty('--dx', (Math.cos(angle) * radius).toFixed(2) + 'px');
       p.style.setProperty('--dy', (Math.sin(angle) * radius).toFixed(2) + 'px');
       p.style.setProperty('--spin', ((i % 2 ? 1 : -1) * (45 + i * 21)) + 'deg');
@@ -48,5 +56,5 @@ BO.Motion = (function () {
     void fx.offsetWidth;
     fx.className = 'reaction motion-impact impact-' + material;
   }
-  return { impact: impact, shoot: shoot, clear: clear };
+  return { impact: impact, shoot: shoot, clear: clear, paint: paint };
 })();

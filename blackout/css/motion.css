@@ -12,7 +12,7 @@
 .reaction.motion-impact::after{content:none}
 .reaction.motion-impact .paint-bead,.reaction.motion-impact .paper-chip{position:absolute;left:50%;top:50%;
   width:var(--bead);height:calc(var(--bead) * 1.35);margin:-2px;border-radius:50% 50% 46% 20%;
-  background:radial-gradient(circle at 30% 25%,#fff9,transparent 50%),var(--impact-color);
+  background:radial-gradient(circle at 30% 25%,#fff9,transparent 50%),var(--bead-color,var(--impact-color));
   box-shadow:0 1px 1px #0008;opacity:0;animation:paint-fly .57s var(--delay) cubic-bezier(.15,.65,.35,1) both}
 .reaction.motion-impact .paper-chip{width:14px;height:18px;border-radius:1px;
   background:linear-gradient(150deg,#faf0d8,#c9b79a);border-bottom:2px solid #aa9580;
@@ -34,16 +34,16 @@ body.has-kid-full .cell.me.recoil::after{animation:paint-recoil .32s cubic-bezie
 @keyframes paint-muzzle{0%{opacity:.9;transform:scale(.25)}100%{opacity:0;transform:translate(20%,20%) scale(1.15)}}
 @media(prefers-reduced-motion:reduce){.splat.fresh .shape,.splat.fresh .halo,.splat.fresh .shape::after{animation:none!important}
   .cell .reaction.motion-impact,.cell .muzzle{display:none!important}body.has-kid-full .cell.me.recoil::after{animation:none!important}}
-/* Keep wood grain and fabric visible instead of burning them into neon white. */
-.splat.mine{--halo-color:rgba(79,240,220,.34)}
-.splat.foe{--halo-color:rgba(255,90,160,.34)}
-.cell .splat{filter:drop-shadow(0 0 2px var(--halo-color)) drop-shadow(0 0 6px var(--halo-color))}
-.cell .splat.hit{filter:drop-shadow(0 0 2px #ffffff55) drop-shadow(0 0 8px var(--halo-color))}
-.splat .pic{filter:brightness(1.22) saturate(1.08) contrast(1.04)}
-.splat .tint{opacity:.38}
-.splat.hit .tint{opacity:.3}
-.splat .edge{opacity:.32}
-.splat .halo{opacity:.12}
+/* Pigment reveals the material. Color pools stay inside the existing paint mask. */
+.splat.mine{--pigment-base:#40b9a6;--pigment-warm:#edc45b;--pigment-cool:#8975c5;--pigment-soft:#78a9cc}
+.splat.foe{--pigment-base:#e88697;--pigment-warm:#efb558;--pigment-cool:#9b7cc0;--pigment-soft:#65b4a8}
+.splat{--pigment:radial-gradient(ellipse at var(--pool-x,30%) var(--pool-y,50%),var(--pigment-warm) 0%,transparent 49%),radial-gradient(ellipse at 82% 78%,var(--pigment-cool) 0%,transparent 58%),linear-gradient(var(--pigment-turn,25deg),var(--pigment-base) 28%,var(--pigment-soft))}
+.cell .splat,.cell .splat.hit{filter:drop-shadow(0 1px 1px #0004)}
+.splat .pic{filter:brightness(1.08) saturate(1.05) contrast(1.04)}
+.splat .tint,.splat.hit .tint{background:var(--pigment);mix-blend-mode:color;opacity:.78}
+.splat .shape::after{background:radial-gradient(ellipse at 31% 22%,#fff8,transparent 19%),var(--pigment);mix-blend-mode:soft-light;opacity:.46}
+.splat .edge{background:#655345;mix-blend-mode:multiply;opacity:.22}
+.splat .halo{background:var(--pigment);filter:blur(.6px);opacity:.12}
 .reaction.motion-impact::before{border-width:1px}
 /* Halo opacity must not inherit the reveal animation's opaque final keyframe. */
 .splat.fresh .halo{animation-name:paint-halo-open}

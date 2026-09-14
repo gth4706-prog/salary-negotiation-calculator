@@ -2,7 +2,7 @@
 
 최신 기반: main 71f228c / 게임 v1.2 / 넷코드 bo1.2-drop1
 통합 브랜치: codex/blackout-art-integration-v12
-아트 캐시: 1.2-art2
+아트 캐시: 1.2-art3
 작업 폴더: C:\Users\gth39\Documents\Codex\2026-09-13\g\work\blackout-current\blackout
 로컬 실행: http://127.0.0.1:8770/blackout/
 
@@ -24,3 +24,6 @@
 기존 서버는 실제 도메인에서의 접속을 허용하므로 로컬은 연습/튜토리얼 확인용이다. 이번 검증은 실제 도메인의 두 사람 온라인 대전 검증을 포함하지 않는다. main 병합·실사이트 배포는 하지 않았다.
 
 다음 작업은 WORKPLAN.md. 사무실의 나머지 가구부터 같은 컨셉으로 맞추고, 페인트/발자국 시인성→방향별 캐릭터→나머지 방 순서로 확장한다. 공개 대전용 서버 심판은 별도 남은 과제다.
+
+
+모션 1차 추가: motion.js/motion.css로 재질별 착탄과 내 캐릭터 반동 연결. 최신 main 71f228c를 다시 확인하고 진행했으며 게임 규칙 파일은 변경하지 않았다. motion.test.js, ui.test.js, art.test.js 및 모션 검수 페이지 동작 확인 통과. 이전 통합 시 실시한 전체 규칙·레이아웃 검사 기록은 위와 같다. 검수: http://127.0.0.1:8770/blackout/tools/art-motion.html

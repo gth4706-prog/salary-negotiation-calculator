@@ -447,8 +447,9 @@ BO.UI = (function () {
   //  ⚠ 「맞았는지 맞혔는지 모르겠다」(실서버 2판째). 타격은 **네 겹**으로 알린다:
   //    큰 글자(toast) · 화면 흔들림·번쩍임 · 소리 · 진동. 하나만으로는 놓친다.
   function events(evs, byMe) {
+    if (byMe && BO.Motion && evs.some(function (e) { return e.k === 'hit' || e.k === 'miss'; })) BO.Motion.shoot(els.board);
     evs.forEach(function (e) {
-      if (e.k === 'hit' || e.k === 'miss') react(e.x, e.y, e.material || 'wood');
+      if (e.k === 'hit' || e.k === 'miss') react(e.x, e.y, e.material || 'wood', byMe);
       var at = '(' + (e.x + 1) + ',' + (e.y + 1) + ')';
       if (e.k === 'hit') {
         if (byMe) {
@@ -558,8 +559,10 @@ BO.UI = (function () {
   }
 
   //  표적 칸에서만 나는 연출. 쏜 자리·이동·숨은 상대 어느 것도 여기 안 들어온다.
-  function react(x, y, material) {
-    var c = cellAt(x, y), fx = c.children[7];
+  function react(x, y, material, mine) {
+    var c = cellAt(x, y);
+    if (BO.Motion) { BO.Motion.impact(c, material, mine); return; }
+    var fx = c.children[7];
     fx.className = 'reaction';
     void fx.offsetWidth;
     fx.className = 'reaction react-' + material;
@@ -618,6 +621,7 @@ BO.UI = (function () {
   }
 
   function reset() {
+    if (BO.Motion) BO.Motion.clear(els.board);
     els.log.innerHTML = ''; sel = null; mode = 'move'; roomKey = ''; lastFoeKey = '';
     els.hpMe._hp = null; els.hpFoe._hp = null;
     els.log.classList.remove('open');

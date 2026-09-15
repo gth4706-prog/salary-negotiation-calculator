@@ -415,9 +415,10 @@ BO.Core = (function () {
   //  얼룩 하나 — **판이 끝날 때까지** 남는다. 같은 칸이면 덧칠(기록만 새로 고친다).
   //  칠한 칸은 둘 다 알게 된다: 야광이라 보이고, 그 자리에 있던 것의 윤곽이 드러난다.
   function splat(st, x, y, side, hit) {
+    var tone = ((st.seed % 360) + st.turn * 137 + st.ap * 67 + side * 31) % 360;
     var old = paintAt(st, x, y);
-    if (old) { old.turn = st.turn; old.by = side; if (hit) old.hit = true; }
-    else st.paint.push({ x: x, y: y, turn: st.turn, by: side, hit: !!hit });
+    if (old) { old.turn = st.turn; old.by = side; old.tone = tone; if (hit) old.hit = true; }
+    else st.paint.push({ x: x, y: y, turn: st.turn, by: side, tone: tone, hit: !!hit });
     st.ps[0].known[idx(x, y)] = 1; st.ps[1].known[idx(x, y)] = 1;
   }
 
@@ -567,7 +568,7 @@ BO.Core = (function () {
     s += '|';
     for (var j = 0; j < st.paint.length; j++) {
       var q = st.paint[j];
-      s += q.x + ',' + q.y + ',' + q.turn + ',' + q.by + ',' + (q.hit ? 1 : 0) + ';';
+      s += q.x + ',' + q.y + ',' + q.turn + ',' + q.by + ',' + (q.hit ? 1 : 0) + ',' + (q.tone == null ? 0 : q.tone) + ';';
     }
     s += '|';
     for (var k = 0; k < st.marks.length; k++) {
@@ -633,7 +634,7 @@ BO.Core = (function () {
       foeSeen: foeSeen ? { x: foeSeen.x, y: foeSeen.y, turn: foeSeen.turn } : null,
       meSeen: st.seen[me] ? { x: st.seen[me].x, y: st.seen[me].y, turn: st.seen[me].turn } : null,
       paint: st.paint.map(function (p) {
-        return { x: p.x, y: p.y, age: st.turn - p.turn, by: p.by, hit: !!p.hit };
+        return { x: p.x, y: p.y, age: st.turn - p.turn, by: p.by, tone: p.tone, hit: !!p.hit };
       }),
       //  발자국은 **방향까지** 준다 — 어느 쪽으로 갔는지가 추적의 전부다(설계자 확정, v1.0).
       marks: st.marks.map(function (m) {

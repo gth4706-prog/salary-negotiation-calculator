@@ -17,8 +17,26 @@ BO.Motion = (function () {
     }
     return d + 'Z';
   }
+  function color(h) { return 'hsl(' + ((h % 360 + 360) % 360) + ',82%,62%)'; }
+  function palette(board, field, width, height) {
+    if (!board || !field) return;
+    var keys = Object.keys(field).sort(), key = '', defs = '', pools = '';
+    keys.forEach(function (k) { key += k + ':' + field[k].tone + ';'; });
+    if (board._pigmentKey === key) return;
+    board._pigmentKey = key;
+    keys.forEach(function (k, i) {
+      var xy = k.split(','), x = Number(xy[0]), y = Number(xy[1]);
+      var h = field[k].tone == null ? (x * 83 + y * 47) % 360 : field[k].tone;
+      defs += '<radialGradient id="p' + i + '"><stop stop-color="' + color(h) + '"/><stop offset=".42" stop-color="' + color(h + 85) + '"/><stop offset=".76" stop-color="' + color(h + 190) + '" stop-opacity=".9"/><stop offset="1" stop-color="' + color(h + 190) + '" stop-opacity="0"/></radialGradient>';
+      pools += '<ellipse cx="' + (x * 100 + 43) + '" cy="' + (y * 100 + 48) + '" rx="86" ry="78" fill="url(#p' + i + ')"/>';
+    });
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + (width * 100) + ' ' + (height * 100) + '"><defs>' + defs + '</defs>' + pools + '</svg>';
+    board.style.setProperty('--paint-colors', 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")');
+  }
   function paint(node, x, y, field, width, height) {
     width = width || 8; height = height || 8;
+    palette(node.parentNode && node.parentNode.parentNode, field, width, height);
+    node._paintTone = field && field[x + ',' + y] && field[x + ',' + y].tone;
     var signature = '', paths = '', dx, dy;
     for (dy = -1; dy <= 1; dy++) for (dx = -1; dx <= 1; dx++) {
       var present = (!dx && !dy) || (field && field[(x + dx) + ',' + (y + dy)]);
@@ -81,6 +99,7 @@ BO.Motion = (function () {
   function reduced() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
   function replay(node, name) { node.classList.remove(name); void node.offsetWidth; node.classList.add(name); }
   function clear(board) {
+    board._pigmentKey = null; board.style.removeProperty('--paint-colors');
     var paintNodes = board.querySelectorAll('.splat');
     for (var j = 0; j < paintNodes.length; j++) {
       if (paintNodes[j]._paintFrame) cancelAnimationFrame(paintNodes[j]._paintFrame);
@@ -115,7 +134,8 @@ BO.Motion = (function () {
       var p = document.createElement('i'), angle = (i * 137.5 + x * 29 + y * 17) * Math.PI / 180;
       var radius = (material === 'fabric' ? 12 : 23) + (i * 11 % 19);
       p.className = material === 'paper' && i < 3 ? 'paper-chip' : 'paint-bead';
-      p.style.setProperty('--bead-color', (mine ? ['#48bba5','#e6b953','#788aca'] : ['#e78194','#efb85c','#a180bc'])[i % 3]);
+      var painted = cell.querySelector('.splat'), hue = painted && painted._paintTone;
+      p.style.setProperty('--bead-color', color((hue == null ? 170 : hue) + (i % 3) * 85));
       p.style.setProperty('--dx', (Math.cos(angle) * radius).toFixed(2) + 'px');
       p.style.setProperty('--dy', (Math.sin(angle) * radius).toFixed(2) + 'px');
       p.style.setProperty('--spin', ((i % 2 ? 1 : -1) * (45 + i * 21)) + 'deg');

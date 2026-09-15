@@ -61,3 +61,8 @@ body.has-kid-full .cell.me.recoil::after{animation:paint-recoil .32s cubic-bezie
 .splat.paint-field.fresh .shape{animation:paint-field-open .5s ease-out}
 .splat.paint-field.fresh .shape::after{animation:none}
 @keyframes paint-field-open{from{opacity:.45}to{opacity:1}}
+
+/* Per-shot multicolour pools share world coordinates across joined masks. */
+.splat.paint-field{--pigment:var(--paint-colors,linear-gradient(120deg,#ffbd55,#ed7bac,#55cad4))}
+.splat.paint-field .tint{opacity:.86}
+.splat.paint-field .shape::after{opacity:.45}

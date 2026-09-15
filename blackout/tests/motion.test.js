@@ -1,0 +1,21 @@
+const { chromium }=require('playwright');const assert=require('assert');
+(async()=>{const b=await chromium.launch({executablePath:process.env.BROWSER_PATH||(process.platform==='win32'?'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe':'/opt/pw-browsers/chromium')});try{
+const p=await b.newPage({viewport:{width:390,height:844}});const errors=[];p.on('pageerror',e=>errors.push(e.message));
+await p.emulateMedia({reducedMotion:'no-preference'});
+await p.goto(process.env.URL||'http://127.0.0.1:8770/blackout/',{waitUntil:'networkidle'});await p.click('#go-bot');
+const initial=await p.evaluate(()=>{BO.Match.stop();let seed=0;while(BO.Core.create(seed).room.id!=='office')seed++;const s=BO.Core.create(seed);s.side=0;s.ps[0].x=0;s.ps[0].y=0;s.ps[0].face=2;s.ps[1].x=7;s.ps[1].y=7;s.lit=0;BO.UI.reset();BO.UI.render(BO.Core.view(s,0));window.motionState=s;
+const err=BO.Core.act(s,0,['s',2,1]);if(err)throw Error(err);BO.UI.render(BO.Core.view(s,0));BO.UI.events(s.ev,true);var halo=document.querySelector('.splat.fresh .halo');halo.getAnimations().forEach(function(a){a.currentTime=150;});return {haloOpacity:Number(getComputedStyle(halo).opacity),recoil:document.querySelectorAll('.cell.me.recoil').length,beads:document.querySelectorAll('.impact-wood .paint-bead').length,foe:document.querySelectorAll('.cell.foe').length};});
+assert(initial.haloOpacity<.3,'paint halo must remain translucent while opening');assert.equal(initial.recoil,1);assert.equal(initial.beads,9);assert.equal(initial.foe,0);
+console.log('PASS own shot recoils; public target emits wood droplets; hidden opponent absent');
+await p.waitForTimeout(1100);assert.equal(await p.locator('.recoil,.motion-impact').count(),0);assert.equal(await p.locator('.reaction i').count(),0);
+await p.evaluate(()=>{BO.UI.events([{k:'miss',x:5,y:4,material:'paper',kind:'papers'}],false);});
+assert.equal(await p.locator('.impact-paper .paper-chip').count(),3);assert.equal(await p.locator('.recoil').count(),0);assert.equal(await p.locator('.cell.foe').count(),0);
+console.log('PASS opponent shot animates only public target; no shooter reveal/recoil');
+await p.evaluate(()=>{const c=document.querySelector('.cell[data-x="5"][data-y="4"]');BO.Motion.impact(c,'paper',false);BO.Motion.impact(c,'fabric',true);});
+assert.equal(await p.locator('.impact-fabric .paint-bead').count(),4);assert.equal(await p.locator('.paper-chip').count(),0);
+await p.evaluate(()=>BO.UI.reset());assert.equal(await p.locator('.reaction i,.motion-impact,.recoil').count(),0);console.log('PASS rapid impacts replace particles; reset clears transients');
+await p.emulateMedia({reducedMotion:'reduce'});
+await p.evaluate(()=>{BO.UI.render(BO.Core.view(window.motionState,0));BO.UI.events([{k:'miss',x:2,y:1,material:'wood',kind:'desk'}],true);});
+assert.equal(await p.locator('.reaction i,.motion-impact,.recoil').count(),0);assert(await p.locator('.splat.mine:not(.hide)').count()>0);console.log('PASS reduced motion retains paint while skipping particles and recoil');
+assert.deepEqual(errors,[]);
+}finally{await b.close();}})().catch(e=>{console.error(e);process.exit(1)});

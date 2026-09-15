@@ -1,7 +1,7 @@
 // 튜토리얼을 처음부터 끝까지 사람처럼 밟는다.
 const { chromium } = require('playwright');
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
+  const b = await chromium.launch({ executablePath: process.env.BROWSER_PATH || (process.platform === 'win32' ? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' : '/opt/pw-browsers/chromium'), args: ['--no-sandbox'] });
   const p = await b.newPage({ viewport: { width: 390, height: 844 } });
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   let fail = 0; const ok = (c, n, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + n + (x ? ' → ' + x : '')); if (!c) fail++; };
@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
     await p.locator(`.cell[data-x="${x}"][data-y="${y}"]`).click(); await p.waitForTimeout(60); await p.click('#confirm'); await p.waitForTimeout(250); };
   const stepDir = async (d) => { await p.click('#mode-move'); await p.waitForTimeout(40); await p.click('#pad-' + d); await p.waitForTimeout(60); await p.click('#confirm'); await p.waitForTimeout(250); };
 
-  await p.goto('http://localhost:8765/blackout/?x=' + Date.now(), { waitUntil: 'networkidle' });
+  await p.goto((process.env.URL || 'http://localhost:8765/blackout/') + '?x=' + Date.now(), { waitUntil: 'networkidle' });
   await p.evaluate(() => localStorage.setItem('blackout.rtbase', 'http://localhost:8767'));
   await p.click('#go-tutorial'); await p.waitForTimeout(500);
   ok(await p.locator('#tut').isVisible(), '안내판이 뜬다');

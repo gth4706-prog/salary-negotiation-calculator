@@ -5,14 +5,14 @@ BO.Motion = (function () {
   var maskCache = {};
   function blob(x, y) {
     var pts = [], i, a, r, d = '';
-    for (i = 0; i < 16; i++) {
-      a = i * Math.PI / 8;
-      r = 40 + ((x * 17 + y * 23 + i * 13 + i * i * 3) % 10);
+    for (i = 0; i < 24; i++) {
+      a = i * Math.PI / 12;
+      r = ((i * 7 + x * 3 + y * 5) % 11 < 3 ? 43 : 28) + ((x * 17 + y * 23 + i * 13) % 8);
       pts.push([50 + Math.cos(a) * r, 50 + Math.sin(a) * r]);
     }
     for (i = 0; i < pts.length; i++) {
       var p = pts[i], q = pts[(i + 1) % pts.length];
-      if (!i) d = 'M' + ((pts[15][0] + p[0]) / 2) + ',' + ((pts[15][1] + p[1]) / 2);
+      if (!i) d = 'M' + ((pts[23][0] + p[0]) / 2) + ',' + ((pts[23][1] + p[1]) / 2);
       d += 'Q' + p[0] + ',' + p[1] + ' ' + ((p[0] + q[0]) / 2) + ',' + ((p[1] + q[1]) / 2);
     }
     return d + 'Z';
@@ -43,10 +43,37 @@ BO.Motion = (function () {
       if (nx >= 0 && nx < width && ny >= 0 && ny < height && field && !field[nx + ',' + ny]) surrounded = false;
     }
     if (surrounded) paths += '<rect width="100" height="100"/>';
+    // Fine stationary droplets make a lone impact read as paint, not a rounded tile.
+    for (var drop = 0; drop < 7; drop++) {
+      var angle = (drop * 137.5 + x * 19 + y * 31) * Math.PI / 180;
+      var radius = 43 + drop % 3;
+      paths += '<circle cx="' + (50 + Math.cos(angle) * radius) + '" cy="' + (50 + Math.sin(angle) * radius) + '" r="' + (1.1 + drop % 3 * .55) + '"/>';
+    }
     var key = x + ',' + y + ':' + signature;
     if (!maskCache[key]) maskCache[key] = 'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g fill="white">' + paths + '</g></svg>') + '")';
     node.classList.add('paint-field');
-    node.style.setProperty('--splat', maskCache[key]);
+    var previous = node._paintKey, oldPaths = node._paintPaths;
+    var changing = previous && previous !== key;
+    var fresh = field && field[x + ',' + y] && field[x + ',' + y].age === 0;
+    var initial = '<path d="' + blob(x + 2, y + 2) + '"/>';
+    if (previous !== key) {
+      if (node._paintFrame) cancelAnimationFrame(node._paintFrame);
+      node._paintFrame = 0;
+      node._paintKey = key; node._paintPaths = paths;
+      if (!reduced() && (changing || fresh)) {
+        var base = oldPaths || initial, start = performance.now();
+        function grow(now) {
+          var t = reduced() ? 1 : Math.min(1, (now - start) / 1250);
+          var eased = t * t * (3 - 2 * t);
+          var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><clipPath id="wet"><circle cx="50" cy="50" r="' + (eased * 78) + '"/></clipPath></defs><g fill="white">' + base + '<g clip-path="url(#wet)">' + paths + '</g></g></svg>';
+          node._paintCurrent = t < 1 ? 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")' : maskCache[key];
+          node.style.setProperty('--splat', node._paintCurrent);
+          node._paintFrame = t < 1 ? requestAnimationFrame(grow) : 0;
+        }
+        grow(start);
+      } else node._paintCurrent = maskCache[key];
+    }
+    node.style.setProperty('--splat', node._paintCurrent || maskCache[key]);
     node.style.setProperty('--sz', '100%');
     node.style.setProperty('--field-size', (width * 100) + '% ' + (height * 100) + '%');
     node.style.setProperty('--field-pos', (x / Math.max(1, width - 1) * 100) + '% ' + (y / Math.max(1, height - 1) * 100) + '%');
@@ -54,6 +81,12 @@ BO.Motion = (function () {
   function reduced() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
   function replay(node, name) { node.classList.remove(name); void node.offsetWidth; node.classList.add(name); }
   function clear(board) {
+    var paintNodes = board.querySelectorAll('.splat');
+    for (var j = 0; j < paintNodes.length; j++) {
+      if (paintNodes[j]._paintFrame) cancelAnimationFrame(paintNodes[j]._paintFrame);
+      paintNodes[j]._paintFrame = 0; paintNodes[j]._paintKey = null;
+      paintNodes[j]._paintPaths = null; paintNodes[j]._paintCurrent = null;
+    }
     var nodes = board.querySelectorAll('.reaction');
     for (var i = 0; i < nodes.length; i++) { nodes[i].className = 'reaction'; nodes[i].innerHTML = ''; }
     nodes = board.querySelectorAll('.recoil');

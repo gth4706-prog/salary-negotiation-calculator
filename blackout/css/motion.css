@@ -49,3 +49,15 @@ body.has-kid-full .cell.me.recoil::after{animation:paint-recoil .32s cubic-bezie
 .splat.fresh .halo{animation-name:paint-halo-open}
 @keyframes paint-halo-open{0%{-webkit-mask-size:10%;mask-size:10%;opacity:.1}
   35%{opacity:.24}100%{-webkit-mask-size:calc(var(--sz,100%) * .86);mask-size:calc(var(--sz,100%) * .86);opacity:.12}}
+
+/* All tiles sample the SAME room-sized pigment wash. No per-cell rainbow stamps. */
+.splat.paint-field{--pigment:radial-gradient(ellipse at 19% 23%,#edbd5d 0%,transparent 33%),radial-gradient(ellipse at 77% 29%,#e98287 0%,transparent 34%),radial-gradient(ellipse at 64% 81%,#8b7cb6 0%,transparent 37%),radial-gradient(ellipse at 20% 77%,#6dacbe 0%,transparent 35%),linear-gradient(135deg,#40ad9c,#b5c98b 48%,#de9f89);overflow:hidden}
+.splat.paint-field .tint,.splat.paint-field .shape::after{background:var(--pigment);background-size:var(--field-size);background-position:var(--field-pos);background-repeat:no-repeat}
+.splat.paint-field .halo{display:none}
+.cell .splat.paint-field{filter:none}
+.splat.paint-field .shape{isolation:isolate}
+.splat.paint-field .shape::after{opacity:.3}
+.splat.paint-field .tint{opacity:.62}
+.splat.paint-field.fresh .shape{animation:paint-field-open .5s ease-out}
+.splat.paint-field.fresh .shape::after{animation:none}
+@keyframes paint-field-open{from{opacity:.45}to{opacity:1}}

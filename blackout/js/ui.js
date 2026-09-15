@@ -386,10 +386,10 @@ BO.UI = (function () {
         sp.className = 'splat' + (p.by === v.mine ? ' mine' : ' foe') +
           (p.hit ? ' hit' : '') + (p.age === 0 ? ' fresh' : '');
         sp.style.setProperty('--sv', 'var(--splat-' + (1 + ((x * 7 + y * 13) % 4)) + ')');
-        if (BO.Motion) BO.Motion.paint(sp, x, y);
         //  크기를 칸마다 흔든다 — 회전을 뺀 대신의 변화(회전하면 안쪽 그림이 칸과 어긋난다).
         sp.style.setProperty('--sz', (92 + ((x * 11 + y * 19) % 5) * 5) + '%');
         sp.style.setProperty('--splat', 'var(--sv)');
+        if (BO.Motion) BO.Motion.paint(sp, x, y, paint, C.W, C.H);
         sp.title = (p.by === v.mine ? '내' : '상대') + ' 페인트' + (p.hit ? ' · 여기서 맞았다' : '');
       } else sp.className = 'splat hide';
 

@@ -265,12 +265,26 @@
    내장 SVG 대신 파일을 쓴다. 바닥은 한 장을 칸마다 잘라 쓴다(--fx/--fy 는 ui.js). */
 .board.has-floor .cell.k-floor,.board.has-floor .cell.k-rug{--art:var(--floor) var(--fx) var(--fy)/calc(var(--n)*100%) calc(var(--n)*100%) no-repeat}
 /* 가구 조각은 art.js 가 칸의 --art 를 인라인으로 덮어쓴다(has-art). */
+/* ── 아이 토큰 — 배경을 뺀 **전신** 그림(concept-crops.py) ────────────────────
+   예전 그림은 동그란 크롭이라 테두리 링(box-shadow)이 딱 맞았다. 이제는 배경이
+   투명해서, 상자 둘레에 링을 두르면 **빈 공간에 동그라미**가 뜬다. 그래서 빛을
+   상자가 아니라 **실루엣**에 입힌다 — drop-shadow 는 알파를 따라가니까 아이 윤곽을
+   그대로 두른다(얼룩 .splat 이 쓰는 것과 같은 수법이다).
+   색은 --g 한 곳에만 둔다. 그래야 «본 상대는 어둑하게»(--b) 같은 변형이 filter 를
+   통째로 덮어쓰지 않고 겹쳐진다. */
 body.has-kid .cell.me:after,body.has-kid .cell.foe:after{
-  inset:6%;border:0;border-radius:50%;background:url(../assets/sprites/kid-top.png) center/cover no-repeat;
-  box-shadow:0 0 0 2px var(--me),0 0 14px var(--me),0 4px 6px #000b}
-body.has-kid .cell.foe:after{box-shadow:0 0 0 2px var(--foe),0 0 14px var(--foe),0 4px 6px #000b}
-body.has-kid .cell.foe-seen:after{filter:brightness(.7)}
-body.has-kid .cell.foe-glow:after{box-shadow:0 0 0 2px var(--pm),0 0 18px var(--pm),0 4px 6px #000b}
+  inset:4%;border:0;border-radius:0;box-shadow:none;
+  /* ⚠ 꼬리표(?v=)는 **그림이 바뀔 때만** 올린다. 없으면 다시 온 사람이 옛 그림을
+     그대로 쓰면서 새 CSS 를 적용해 버린다(배경 원반 + 실루엣 글로우 = 엉망). */
+  background:url(../assets/sprites/kid-top.png?v=1.3) center/contain no-repeat;
+  filter:drop-shadow(0 2px 2px #000d) drop-shadow(0 0 3px var(--g)) drop-shadow(0 0 10px var(--g)) brightness(var(--b,1))}
+body.has-kid .cell.me:after{--g:var(--me)}
+body.has-kid .cell.foe:after{--g:var(--foe)}
+body.has-kid .cell.foe-seen:after{--b:.75}            /* 눈으로 본 상대 — 어둑한 실루엣 */
+body.has-kid .cell.foe-glow:after{--g:var(--pm);--b:1.12}   /* 맞아서 야광에 젖었다 */
+/* 접지 그림자는 위 filter 의 첫 drop-shadow(아래로 2px)가 낸다.
+   ⚠ :before 로 따로 깔면 안 된다 — 그 자리는 «신발이 젖었다» 표시(.cell.me.painted:before)가
+     이미 쓰고 있고, has-kid 쪽이 우선순위가 높아 그 표시를 통째로 덮어쓴다. */
 body.has-prints .mark:before,body.has-prints .mark:after{display:none}
 body.has-prints .mark{background:url(../assets/sprites/footprint-me.png) center/72% no-repeat;filter:drop-shadow(0 0 5px var(--c))}
 body.has-prints .mark.foe{background-image:url(../assets/sprites/footprint-foe.png)}

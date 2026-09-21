@@ -8,7 +8,7 @@
 #
 # 결과: assets/rooms/<방>.jpg · assets/furniture/<kind>-<w>x<h>.png · assets/sprites/splat-N.png
 # 그 뒤 `node blackout/tests/assets-manifest.js` 로 목록을 다시 만든다.
-import os, random, math
+import os, random, math, collections
 from PIL import Image, ImageDraw, ImageFilter, ImageEnhance, ImageOps, ImageChops
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -141,4 +141,95 @@ splat(OFF, (498, 160, 568, 222), 'splat-1')     # 서류 위 분홍 얼룩
 splat(CON, (855, 165, 955, 255), 'splat-2')     # 이불 위 분홍+청록
 splat(CON, (1012, 92, 1066, 135), 'splat-3')    # 서랍장 위
 splat(OFF, (548, 198, 588, 240), 'splat-4')     # 책상 위 작은 얼룩
+
+# ── 아이 토큰 — 컨셉 시트 «04 CHARACTER» 의 셋째, **위에서 내려다본** 전신 ──────────
+#  예전 kid-top.png 는 이 그림을 동그랗게 오려 쓴 것이라 발이 잘리고 배경 숯색 원반과
+#  «선택 상자» 점선이 같이 들어 있었다(칸 위에 검은 동전이 놓인 꼴). 여기서는 배경을
+#  빼고 전신을 통째로 딴다 — 어두운 방에서 바닥과 얼룩이 아이 둘레로 그대로 비친다.
+#  칸 안에서 방향을 돌리지 않는다(게임의 face 는 별도의 화살표가 알린다).
+KIDBOX = (928, 492, 1066, 672)
+
+def kidcut(box=KIDBOX, bg=(30,30,34), th=20):
+    im=CON.crop(box); W,H=im.size; px=im.load()
+    diff=Image.new('L',(W,H)); dp=diff.load()
+    for y in range(H):
+        for x in range(W):
+            r,g,b=px[x,y]
+            dp[x,y]=min(255,int(math.sqrt((r-bg[0])**2+(g-bg[1])**2+(b-bg[2])**2)*1.6))
+    #  ⚠ 문턱을 낮게 잡는다. 42 에서는 **머리카락이 배경만큼 어두워서** 통째로 잘려
+    #    나갔다(정수리가 갉아 먹힌 채로 나왔다). 대신 문턱 전에 한 번 뭉개서 JPEG
+    #    잡티가 점으로 살아남지 않게 한다 — 어차피 제일 큰 덩어리만 쓴다.
+    diff=diff.filter(ImageFilter.MedianFilter(3))
+    hard=diff.point(lambda v:255 if v>th else 0); tp=hard.load()
+    #  가장 큰 덩어리만 — 점선 선택상자는 전부 작은 조각이라 이 한 줄에 떨어져 나간다
+    lab=[[0]*W for _ in range(H)]; best=(0,None)
+    for y in range(H):
+        for x in range(W):
+            if tp[x,y] and not lab[y][x]:
+                q=collections.deque([(x,y)]); lab[y][x]=1; pts=[]
+                while q:
+                    cx,cy=q.popleft(); pts.append((cx,cy))
+                    for dx,dy in ((1,0),(-1,0),(0,1),(0,-1),(1,1),(1,-1),(-1,1),(-1,-1)):
+                        nx,ny=cx+dx,cy+dy
+                        if 0<=nx<W and 0<=ny<H and tp[nx,ny] and not lab[ny][nx]:
+                            lab[ny][nx]=1; q.append((nx,ny))
+                if len(pts)>best[0]: best=(len(pts),pts)
+    keep=Image.new('L',(W,H),0); kp=keep.load()
+    for x,y in best[1]: kp[x,y]=255
+    #  구멍 메우기 — 바깥에서 물을 부어 안 닿는 칸은 몸속이다
+    seen=Image.new('L',(W,H),0); sp=seen.load(); q=collections.deque()
+    for x in range(W):
+        for y in (0,H-1):
+            if not kp[x,y] and not sp[x,y]: sp[x,y]=255; q.append((x,y))
+    for y in range(H):
+        for x in (0,W-1):
+            if not kp[x,y] and not sp[x,y]: sp[x,y]=255; q.append((x,y))
+    while q:
+        cx,cy=q.popleft()
+        for dx,dy in ((1,0),(-1,0),(0,1),(0,-1)):
+            nx,ny=cx+dx,cy+dy
+            if 0<=nx<W and 0<=ny<H and not kp[nx,ny] and not sp[nx,ny]:
+                sp[nx,ny]=255; q.append((nx,ny))
+    for y in range(H):
+        for x in range(W):
+            if not sp[x,y]: kp[x,y]=255
+    #  ⚠ 알파는 **덩어리 그대로**를 쓴다. 예전엔 여기에 「배경과의 거리」를 곱했는데,
+    #    머리카락이 배경만큼 어두워서 머리가 반투명하게 갉아 먹혔다. 거리값은 가장자리
+    #    잔털을 «더하는» 데만 쓴다(곱하기가 아니라 더하기).
+    body=keep.filter(ImageFilter.GaussianBlur(0.7))
+    #  ⚠ 잔털은 **몸 둘레에서만** 줍는다. 그냥 더했더니 멀리 있는 점선 선택상자가
+    #    통째로 살아 돌아왔다(덩어리 고르기로 떼어낸 걸 알파가 다시 붙인 꼴).
+    near=keep.filter(ImageFilter.MaxFilter(7)).filter(ImageFilter.GaussianBlur(1.2))
+    wisp=diff.point(lambda v: 0 if v<70 else min(255,(v-70)*3))
+    wisp=ImageChops.multiply(wisp.filter(ImageFilter.GaussianBlur(0.4)), near)
+    alpha=ImageChops.lighter(body, wisp)
+    rgba=im.convert('RGBA'); rgba.putalpha(alpha)
+    #  ── 점선 선택상자 지우개 ────────────────────────────────────────────────
+    #  컨셉 시트에는 이 아이 둘레에 «선택 상자»가 점선으로 그려져 있다. 멀리 떨어진
+    #  조각은 덩어리 고르기가 떼어냈지만, 머리카락에 **닿은** 두 조각은 몸으로 딸려 온다.
+    #  그 조각은 머리카락과 색이 완전히 다르다 — 머리는 따뜻한 갈색(R≫B), 점선은
+    #  무채색 회색이다. 그래서 «위쪽 절반의 무채색 밝은 픽셀»만 지운다. 고글·신발은
+    #  아래쪽에 있어 걸리지 않는다.
+    W2,H2=rgba.size; rp=rgba.load()
+    for y in range(int(H2*0.44)):
+        for x in range(W2):
+            r,g,b,a=rp[x,y]
+            #  실측: 점선은 (69,69,74)(62,64,73) 같은 **차가운** 회색 — 파랑이 제일 높다.
+            #  머리카락은 같은 밝기라도 **따뜻한** 갈색이라 빨강이 제일 높다. 그 한 줄이
+            #  둘을 가른다. (처음엔 밝기만 봤다가 하나도 못 지웠고, 그다음엔 채도만 봤다가
+            #  머리 가장자리를 갉아 먹었다.)
+            if a and b >= r - 2 and max(r,g,b)-min(r,g,b)<18 and 52<max(r,g,b)<205:
+                rp[x,y]=(r,g,b,0)
+    return rgba.crop(rgba.getbbox())
+
+def kidsquare(im, pad=0.06, size=256):
+    w,h=im.size; side=int(max(w,h)*(1+pad*2))
+    sq=Image.new('RGBA',(side,side),(0,0,0,0))
+    sq.alpha_composite(im, ((side-w)//2,(side-h)//2))
+    return sq.resize((size,size), Image.LANCZOS)
+
+
+kid = kidsquare(kidcut())
+kid.save(os.path.join(A, 'sprites', 'kid-top.png'), optimize=True)
+
 print('done', sorted(os.listdir(os.path.join(A, 'furniture'))), sorted(os.listdir(os.path.join(A, 'rooms'))))

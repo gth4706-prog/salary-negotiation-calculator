@@ -100,6 +100,8 @@ BO.Motion = (function () {
   function replay(node, name) { node.classList.remove(name); void node.offsetWidth; node.classList.add(name); }
   function clear(board) {
     board._pigmentKey = null; board.style.removeProperty('--paint-colors');
+    var actors = board.querySelectorAll('.cell');
+    for (var a = 0; a < actors.length; a++) { if (actors[a]._hurtTimer) clearTimeout(actors[a]._hurtTimer); actors[a]._hurtTimer = 0; actors[a].classList.remove('hit-reaction'); }
     var paintNodes = board.querySelectorAll('.splat');
     for (var j = 0; j < paintNodes.length; j++) {
       if (paintNodes[j]._paintFrame) cancelAnimationFrame(paintNodes[j]._paintFrame);
@@ -110,6 +112,16 @@ BO.Motion = (function () {
     for (var i = 0; i < nodes.length; i++) { nodes[i].className = 'reaction'; nodes[i].innerHTML = ''; }
     nodes = board.querySelectorAll('.recoil');
     for (i = 0; i < nodes.length; i++) nodes[i].classList.remove('recoil');
+  }
+  function hurt(cell) {
+    if (!cell || (!cell.classList.contains('me') && !cell.classList.contains('foe'))) return;
+    if (cell._hurtTimer) clearTimeout(cell._hurtTimer);
+    var sp = cell.querySelector('.splat'), h = sp && sp._paintTone;
+    h = h == null ? 185 : h;
+    cell.style.setProperty('--coat-a', color(h)); cell.style.setProperty('--coat-b', color(h + 85));
+    cell.style.setProperty('--coat-c', color(h + 190));
+    replay(cell, 'hit-reaction');
+    cell._hurtTimer = setTimeout(function () { cell.classList.remove('hit-reaction'); cell._hurtTimer = 0; }, reduced() ? 250 : 780);
   }
   function shoot(board) {
     if (reduced()) return;
@@ -129,10 +141,17 @@ BO.Motion = (function () {
     material = /^(paper|fabric|wood)$/.test(material) ? material : 'wood';
     fx.style.setProperty('--impact-color', mine ? 'var(--pm)' : 'var(--pf)');
     var x = Number(cell.dataset.x) || 0, y = Number(cell.dataset.y) || 0;
+    var painted = cell.querySelector('.splat'), hue = painted && painted._paintTone;
+    hue = hue == null ? 185 : hue;
+    fx.style.setProperty('--liquid-a', color(hue)); fx.style.setProperty('--liquid-b', color(hue + 85));
+    fx.style.setProperty('--liquid-c', color(hue + 190));
+    fx.style.setProperty('--impact-mask', 'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="white" d="' + blob(x + 2, y + 2) + '"/></svg>') + '")');
+    var mass = document.createElement('span'); mass.className = 'liquid-mass'; fx.appendChild(mass);
+    var rim = document.createElement('span'); rim.className = 'liquid-rim'; fx.appendChild(rim);
     var count = material === 'fabric' ? 4 : 9;
     for (var i = 0; i < count; i++) {
       var p = document.createElement('i'), angle = (i * 137.5 + x * 29 + y * 17) * Math.PI / 180;
-      var radius = (material === 'fabric' ? 12 : 23) + (i * 11 % 19);
+      var radius = Math.min(75, cell.clientWidth * (material === 'fabric' ? .25 : .6)) + (i * 11 % 19);
       p.className = material === 'paper' && i < 3 ? 'paper-chip' : 'paint-bead';
       var painted = cell.querySelector('.splat'), hue = painted && painted._paintTone;
       p.style.setProperty('--bead-color', color((hue == null ? 170 : hue) + (i % 3) * 85));
@@ -140,7 +159,7 @@ BO.Motion = (function () {
       p.style.setProperty('--dy', (Math.sin(angle) * radius).toFixed(2) + 'px');
       p.style.setProperty('--spin', ((i % 2 ? 1 : -1) * (45 + i * 21)) + 'deg');
       p.style.setProperty('--delay', (i * 13) + 'ms');
-      p.style.setProperty('--bead', (3 + i % 3) + 'px');
+      p.style.setProperty('--bead', (5 + i % 5) + 'px');
       fx.appendChild(p);
     }
     if (!fx._motionBound) {
@@ -152,5 +171,5 @@ BO.Motion = (function () {
     void fx.offsetWidth;
     fx.className = 'reaction motion-impact impact-' + material;
   }
-  return { impact: impact, shoot: shoot, clear: clear, paint: paint };
+  return { impact: impact, shoot: shoot, hurt: hurt, clear: clear, paint: paint };
 })();

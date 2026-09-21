@@ -453,6 +453,7 @@ BO.UI = (function () {
       if (e.k === 'hit' || e.k === 'miss') react(e.x, e.y, e.material || 'wood', byMe);
       var at = '(' + (e.x + 1) + ',' + (e.y + 1) + ')';
       if (e.k === 'hit') {
+        if (BO.Motion) BO.Motion.hurt(cellAt(e.x, e.y));
         if (byMe) {
           say('🎯 명중! ' + at + ' — 윤곽이 보인다, 한 발 더!', 'me');
           toast('명중!', 'hitme'); burst(e.x, e.y, 'me'); shake('sm');

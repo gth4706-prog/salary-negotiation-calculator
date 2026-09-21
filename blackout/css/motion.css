@@ -66,3 +66,24 @@ body.has-kid-full .cell.me.recoil::after{animation:paint-recoil .32s cubic-bezie
 .splat.paint-field{--pigment:var(--paint-colors,linear-gradient(120deg,#ffbd55,#ed7bac,#55cad4))}
 .splat.paint-field .tint{opacity:.86}
 .splat.paint-field .shape::after{opacity:.45}
+
+/* Thick impact liquid: fast squash, outward fingers, then heavy settling. */
+.reaction.motion-impact::before{display:none}
+.reaction .liquid-mass,.reaction .liquid-rim{position:absolute;inset:-12%;pointer-events:none;
+ -webkit-mask:var(--impact-mask) center/100% no-repeat;mask:var(--impact-mask) center/100% no-repeat;
+ background:radial-gradient(ellipse at 39% 31%,#fff9,transparent 15%),radial-gradient(ellipse at 62% 55%,var(--liquid-b),transparent 53%),linear-gradient(125deg,var(--liquid-a),var(--liquid-c));
+ filter:drop-shadow(0 3px 1px #0008);animation:liquid-slam .68s cubic-bezier(.15,.7,.3,1) both}
+.reaction .liquid-rim{inset:-20%;opacity:.7;animation:liquid-skirt .72s ease-out both}
+.reaction.impact-fabric .liquid-mass{animation-duration:.82s}
+@keyframes liquid-slam{0%{transform:scale(.14,.4);opacity:1}18%{transform:scale(1.18,.87);opacity:1}42%{transform:scale(.96,1.08);opacity:.93}75%{transform:scale(1.04,.96);opacity:.55}100%{transform:scale(1.08,1);opacity:0}}
+@keyframes liquid-skirt{0%{transform:scale(.1);opacity:1}28%{transform:scale(1.2,.85);opacity:.75}65%{transform:scale(1.3,1.05);opacity:.26}100%{transform:scale(1.33,1.12);opacity:0}}
+body.has-kid-hit .cell.me.hit-reaction:after,body.has-kid-hit .cell.foe.hit-reaction:after{background-image:url(../assets/sprites/kid-hit.png);animation:body-hit .78s ease-out;filter:drop-shadow(0 3px 2px #0009)}
+body.has-kid-full .cell .glowfx{background:radial-gradient(ellipse at 56% 57%,var(--coat-a,#62d6b5) 0 15%,transparent 18%),radial-gradient(ellipse at 31% 37%,var(--coat-b,#ffc869) 0 9%,transparent 12%),radial-gradient(ellipse at 64% 78%,var(--coat-c,#cf8ceb) 0 10%,transparent 13%);animation:none;opacity:.72;filter:none;mix-blend-mode:hard-light}
+body.has-kid-hit .cell.me.hit-reaction .glowfx,body.has-kid-hit .cell.foe.hit-reaction .glowfx{display:block;-webkit-mask-image:url(../assets/sprites/kid-hit.png);mask-image:url(../assets/sprites/kid-hit.png);animation:body-hit .78s ease-out}
+@keyframes body-hit{0%{transform:scale(1)}12%{transform:translateY(3%) scale(1.12,.87) rotate(-7deg)}32%{transform:translateY(-4%) scale(.94,1.06) rotate(5deg)}58%{transform:translateY(1%) rotate(-2deg)}100%{transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){body.has-kid-hit .cell.hit-reaction:after,body.has-kid-hit .cell.hit-reaction .glowfx{animation:none!important}}
+
+/* Let the hit pose read clearly above the surrounding floor splash. */
+.cell.me .reaction.motion-impact,.cell.foe .reaction.motion-impact{z-index:5}
+.cell.me .liquid-mass,.cell.foe .liquid-mass{inset:20% -5% -15%}
+.cell.me .liquid-rim,.cell.foe .liquid-rim{inset:5% -15% -22%}

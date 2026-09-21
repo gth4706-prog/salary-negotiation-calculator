@@ -9,7 +9,7 @@
 | 배포 주소 | https://joeltool.com/blackout/ — `main` 에 합쳐지면 GitHub Pages 가 자동 배포(약 1분) |
 | 저장소 경로 | `blackout/` · 작업 브랜치 `claude/realtime-turn-based-dark-battle-xc922d` (ff-merge 로 `main` 에 올린다) |
 | 빌드 | 없음. `index.html` 을 열면 돈다. ES5, 외부 의존성은 Google Fonts «Jua» 하나(없어도 돈다) |
-| 지금 버전 | **v1.1** · 넷코드 버전 `bo1.0-track1`(규칙은 v1.0 그대로) · 캐시 꼬리표 `?v=1.1` |
+| 지금 버전 | **v1.2** · 넷코드 버전 `bo1.2-drop1` · 캐시 꼬리표 `?v=1.2` |
 | 그림의 정답 | `assets/concept/concept-01.jpg` · `office.jpg`. 결국 이 느낌이 나와야 한다 |
 | 미감의 기준 | 멧챠 카멜레온(2026) — 알록달록·어수선한 방을 장난감 디오라마처럼 |
 | 크기 | 코드 3,800줄 · 그림 1.2MB(예산 2MB) · 폴더 1.6MB |

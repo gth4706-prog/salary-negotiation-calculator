@@ -228,12 +228,38 @@ BO.SvgArt = (function () {
   }
 
   // ── 전등 버튼 · 얼룩 ─────────────────────────────────────────────────────
+  //  아이 방 바닥에 놓인 «눌러서 켜는 전등». 컨셉아트에는 이 물건이 없어서 코드로
+  //  그린다(그림 생성 도구는 쓰지 않는다 — 설계자 확정).
+  //  ⚠ 꺼져 있어도 **보여야 한다.** 자리는 공개 정보고, 둘 다 여기로 올지 말지를
+  //    판단해야 한다. 그래서 꺼진 상태에도 희미한 불씨를 남긴다 — 「꺼진 등」이지
+  //    「아무것도 아닌 회색 단추」가 아니어야 한다(예전 그림이 그랬다).
   function lamp(on) {
-    var s = head(100, 100);
-    if (on) s += c(50, 50, 48, 'url(#glow)');
-    s += c(50, 54, 30, '#2a2f38', ' filter="url(#sh)"');
-    s += c(50, 52, 26, '#c9c1a8'); s += c(50, 52, 20, '#b3ab92');
-    s += c(50, 52, 9, on ? '#fff0c0' : '#4a4f58', on ? ' stroke="#ffcc4d" stroke-width="4"' : ' stroke="#8a8474" stroke-width="3"');
+    var defs = (on
+      ? '<radialGradient id="dm" cx=".4" cy=".34"><stop offset="0" stop-color="#fffdf2"/>' +
+        '<stop offset=".45" stop-color="#ffe5a4"/><stop offset="1" stop-color="#eeaf49"/></radialGradient>'
+      : '<radialGradient id="dm" cx=".4" cy=".34"><stop offset="0" stop-color="#ded7c2"/>' +
+        '<stop offset=".55" stop-color="#b3ab95"/><stop offset="1" stop-color="#877f6d"/></radialGradient>') +
+      '<linearGradient id="bs" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#46516a"/><stop offset="1" stop-color="#1c2331"/></linearGradient>';
+    var s = head(100, 100, defs);
+    if (on) s += c(50, 52, 48, 'url(#glow)');            // 바닥으로 번지는 빛
+    s += e(50, 78, 27, 7, '#000000', ' opacity=".45" filter="url(#soft)"');   // 접지 그림자
+    s += c(50, 54, 31, 'url(#bs)', ' filter="url(#sh)"');                     // 남색 밑판(방 벽 색)
+    s += c(50, 52, 27, '#1b2230');                                            // 안쪽 홈
+    s += c(50, 52, 23, 'url(#dm)');                                           // 유리 돔
+    if (on) s += c(50, 52, 23, '#ffd98a', ' opacity=".5" filter="url(#soft)"');
+    s += c(50, 52, 23, 'none', ' stroke="' + (on ? '#ffcc4d' : '#6d6653') + '" stroke-width="2.5"');
+    //  가운데 불씨 — 켜지면 하얗게 타고, 꺼지면 **필라멘트 테**만 남는다.
+    //  ⚠ 꺼진 상태를 «어두운 동그라미»로 채웠더니 밝은 돔 + 검은 중앙 + 흰 반사가
+    //    합쳐져 **눈알**처럼 보였다. 채우지 않고 가는 테로 두면 꺼진 전구로 읽힌다.
+    if (on) {
+      s += c(50, 52, 8, '#fffbe6');
+      s += c(50, 52, 8, 'none', ' stroke="#ffe9b0" stroke-width="1.6"');
+    } else {
+      s += c(50, 52, 8, 'none', ' stroke="#8d7647" stroke-width="2.6"');
+      s += c(50, 52, 2.2, '#a98a4e');
+    }
+    s += e(42, 44, 7.5, 4.5, '#ffffff', ' opacity="' + (on ? '.8' : '.3') + '"');   // 돔 반사
     return s + tail();
   }
   //  얼룩: 흰 실루엣 4종(마스크). 방울·흘러내림이 있어야 «페인트»로 읽힌다.

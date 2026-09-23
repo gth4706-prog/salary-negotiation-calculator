@@ -19,7 +19,7 @@ window.BO = window.BO || {};
 // ============================================================================
 BO.UI = (function () {
   var C = BO.Core;
-  var els = {}, cells = [], mode = 'move', sel = null, roomKey = '', lastFoeKey = '';
+  var els = {}, cells = [], mode = 'move', sel = null, roomKey = '', lastFoeKey = '', lastMe = null;
   var fogRects = [], beamRects = [], glowDot = null;
 
   function $(id) { return document.getElementById(id); }
@@ -364,6 +364,8 @@ BO.UI = (function () {
       }
 
       c.classList.toggle('me', isMe);
+      if (isMe) c.setAttribute('data-face', v.me.face);
+      else { c.removeAttribute('data-face'); c.classList.remove('walking'); }
       c.classList.toggle('foe', isFoe);
       c.classList.toggle('foe-glow', isFoe && !!(v.foe.glow || v.foe.why === 'glow'));
       c.classList.toggle('foe-seen', isFoe && v.foe.why === 'seen');
@@ -388,7 +390,8 @@ BO.UI = (function () {
         sp.style.setProperty('--sv', 'var(--splat-' + (1 + ((x * 7 + y * 13) % 4)) + ')');
         //  크기를 칸마다 흔든다 — 회전을 뺀 대신의 변화(회전하면 안쪽 그림이 칸과 어긋난다).
         sp.style.setProperty('--sz', (92 + ((x * 11 + y * 19) % 5) * 5) + '%');
-        sp.style.setProperty('--splat', 'url(' + BO.Art.BASE + BO.Art.splat(x, y) + ')');
+        sp.style.setProperty('--splat', 'var(--sv)');
+        if (BO.Motion) BO.Motion.paint(sp, x, y, paint, C.W, C.H);
         sp.title = (p.by === v.mine ? '내' : '상대') + ' 페인트' + (p.hit ? ' · 여기서 맞았다' : '');
       } else sp.className = 'splat hide';
 
@@ -423,6 +426,9 @@ BO.UI = (function () {
       sg.className = 'ghost' + (ghost ? '' : ' hide');
       if (ghost) sg.textContent = '✖';
     }
+    if (lastMe && lastMe.room === v.room.id && Math.abs(v.me.x - lastMe.x) + Math.abs(v.me.y - lastMe.y) === 1 && BO.Motion)
+      BO.Motion.walk(cellAt(v.me.x, v.me.y), v.me.x - lastMe.x, v.me.y - lastMe.y);
+    lastMe = { x: v.me.x, y: v.me.y, room: v.room.id };
     if (glowDot) {
       glowDot.setAttribute('cx', v.me.x + 0.5); glowDot.setAttribute('cy', v.me.y + 0.5);
       glowDot.setAttribute('opacity', v.lit > 0 ? '0' : '1');
@@ -447,10 +453,12 @@ BO.UI = (function () {
   //  ⚠ 「맞았는지 맞혔는지 모르겠다」(실서버 2판째). 타격은 **네 겹**으로 알린다:
   //    큰 글자(toast) · 화면 흔들림·번쩍임 · 소리 · 진동. 하나만으로는 놓친다.
   function events(evs, byMe) {
+    if (byMe && BO.Motion && evs.some(function (e) { return e.k === 'hit' || e.k === 'miss'; })) BO.Motion.shoot(els.board);
     evs.forEach(function (e) {
-      if (e.k === 'hit' || e.k === 'miss') react(e.x, e.y, e.material || 'wood');
+      if (e.k === 'hit' || e.k === 'miss') react(e.x, e.y, e.material || 'wood', byMe);
       var at = '(' + (e.x + 1) + ',' + (e.y + 1) + ')';
       if (e.k === 'hit') {
+        if (BO.Motion) BO.Motion.hurt(cellAt(e.x, e.y));
         if (byMe) {
           say('🎯 명중! ' + at + ' — 윤곽이 보인다, 한 발 더!', 'me');
           toast('명중!', 'hitme'); burst(e.x, e.y, 'me'); shake('sm');
@@ -558,8 +566,10 @@ BO.UI = (function () {
   }
 
   //  표적 칸에서만 나는 연출. 쏜 자리·이동·숨은 상대 어느 것도 여기 안 들어온다.
-  function react(x, y, material) {
-    var c = cellAt(x, y), fx = c.children[7];
+  function react(x, y, material, mine) {
+    var c = cellAt(x, y);
+    if (BO.Motion) { BO.Motion.impact(c, material, mine); return; }
+    var fx = c.children[7];
     fx.className = 'reaction';
     void fx.offsetWidth;
     fx.className = 'reaction react-' + material;
@@ -618,6 +628,8 @@ BO.UI = (function () {
   }
 
   function reset() {
+    if (BO.Motion) BO.Motion.clear(els.board);
+    lastMe = null;
     els.log.innerHTML = ''; sel = null; mode = 'move'; roomKey = ''; lastFoeKey = '';
     els.hpMe._hp = null; els.hpFoe._hp = null;
     els.log.classList.remove('open');
@@ -626,6 +638,7 @@ BO.UI = (function () {
       var c = cells[i];
       if (c.dataset.kind) c.classList.remove('k-' + c.dataset.kind);
       c.dataset.kind = ''; c.className = 'cell unknown';
+      BO.Art.tile(c, null);
       if (c._box) c._box.className = 'box hide';
       c.style.removeProperty('--art'); c.style.removeProperty('--edge');
     }

@@ -292,3 +292,24 @@ body.has-splats .splat .shape{-webkit-mask:var(--splat) center/var(--sz,100%) no
 body.has-splats .splat .halo{-webkit-mask:var(--splat) center/calc(var(--sz,100%) * .86) no-repeat;mask:var(--splat) center/calc(var(--sz,100%) * .86) no-repeat}
 body.has-lamp .cell .lamp{background-image:url(../assets/sprites/lamp-off.png)}
 body.has-lamp .cell .lamp.on{background-image:url(../assets/sprites/lamp-on.png)}
+
+/* Concept-first art pass 01: transparent full-body token, no portrait badge.
+   Visibility still depends exclusively on .me / .foe from Core.view().
+   A single neutral illustration pose is used; only the existing arrow conveys facing. */
+body.has-kid-full .cell.me:after,body.has-kid-full .cell.foe:after{
+  inset:0;border:0;border-radius:0;background:url(../assets/sprites/kid-full.png) center/contain no-repeat;
+  box-shadow:none;filter:drop-shadow(0 2px 1px #0009);animation:bob 2.4s ease-in-out infinite}
+body.has-kid-full .cell.foe-seen:after{filter:brightness(.8) drop-shadow(0 2px 1px #0009)}
+body.has-kid-full .cell.foe-glow:after{box-shadow:none;filter:brightness(1.12) drop-shadow(0 0 4px var(--pm))}
+body.has-kid-full .cell.jolt:after{animation:jolt .55s}
+/* A small team-color footing, not a neon circle around the entire character. */
+body.has-kid-full .cell.me:before,body.has-kid-full .cell.foe:before{
+  content:'';position:absolute;z-index:6;inset:83% 30% 7%;border-radius:50%;background:var(--me);opacity:.85;pointer-events:none}
+body.has-kid-full .cell.foe:before{background:var(--foe)}
+body.has-kid-full .cell .glowfx{inset:0;background:radial-gradient(ellipse at 62% 67%,var(--c),transparent 49%),radial-gradient(ellipse at 40% 28%,var(--c),transparent 28%);
+  -webkit-mask:url(../assets/sprites/kid-full.png) center/contain no-repeat;mask:url(../assets/sprites/kid-full.png) center/contain no-repeat}
+/* Transparent furniture sits on the continuous floor, entirely below the fog. */
+.board.has-floor .cell:not(.unknown){--underfloor:var(--floor) var(--fx) var(--fy)/calc(var(--n)*100%) calc(var(--n)*100%) no-repeat;--fb:1}
+.board.has-floor .cell:not(.unknown) .art{background:var(--art),var(--underfloor)}
+.board.has-floor .cell:not(.unknown) .splat .pic{background:var(--art),var(--underfloor)}
+@media(prefers-reduced-motion:reduce){body.has-kid-full .cell:after,.cell .glowfx{animation:none!important}}

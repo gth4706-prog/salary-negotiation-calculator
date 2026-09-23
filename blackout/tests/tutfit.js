@@ -1,11 +1,11 @@
 // 튜토리얼 중에도 화면이 안 넘치는지 · 안내판 밑 칸이 눌리는지
 const { chromium } = require('playwright');
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
+  const b = await chromium.launch({ executablePath: process.env.BROWSER_PATH || (process.platform === 'win32' ? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' : '/opt/pw-browsers/chromium'), args: ['--no-sandbox'] });
   let bad = 0;
   for (const [w, h, n] of [[320,568,'SE1'],[375,667,'SE2'],[390,844,'14'],[820,1180,'iPad']]) {
     const p = await b.newPage({ viewport: { width: w, height: h } });
-    await p.goto('http://localhost:8765/blackout/?x=' + Date.now(), { waitUntil: 'networkidle' });
+    await p.goto((process.env.URL || 'http://localhost:8765/blackout/') + '?x=' + Date.now(), { waitUntil: 'networkidle' });
     await p.click('#go-tutorial'); await p.waitForTimeout(700);
     const m = await p.evaluate(() => {
       const r = document.documentElement;

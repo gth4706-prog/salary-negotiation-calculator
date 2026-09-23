@@ -41,13 +41,13 @@ button{font:inherit; color:inherit; background:none; border:0; cursor:pointer}
    까지 줄고 있었다(빼는 값 430). 조작부를 눌러 빼는 값을 줄이고, PC 에서는
    480px 상한을 풀었다(body.in-game 의 .wrap).
    dvh 를 모르는 브라우저(iOS 15.3 이하)는 그 줄을 통째로 버리므로 vh 로 먼저 적는다. */
-.board{width:min(100%, calc(100vh - 380px)); width:min(100%, calc(100dvh - 380px))}
+.board{width:min(100%, calc(100vh - 384px)); width:min(100%, calc(100dvh - 384px))}
 /* 튜토리얼 중에는 안내판 버튼 줄(약 48px)이 하나 더 있다 */
 body.tut-on .board{width:min(100%, calc(100vh - 428px)); width:min(100%, calc(100dvh - 428px))}
 /* 실측(v0.6 두툼한 버튼 기준): 기본 379 · 기록 숨기면 334 · 십자키·행동력까지 숨기면 ~263 (tests/layout.js) */
 @media (max-height:720px){
   .logwrap{display:none}
-  .board{width:min(100%, calc(100vh - 336px)); width:min(100%, calc(100dvh - 336px))}
+  .board{width:min(100%, calc(100vh - 340px)); width:min(100%, calc(100dvh - 340px))}
   body.tut-on .board{width:min(100%, calc(100vh - 384px)); width:min(100%, calc(100dvh - 384px))}
 }
 @media (max-height:600px){
@@ -259,3 +259,11 @@ input[type=text]{width:100%; padding:12px; border-radius:var(--r); background:#0
 .hero-text .eyebrow{display:block; color:var(--hot); font-size:11px; letter-spacing:2px; margin:0 0 4px}
 .hero-text h1{font-size:40px; letter-spacing:6px; margin:0; text-shadow:0 3px 0 #0008,0 2px 18px #000}
 .hero-text p{margin:6px 0 0; color:#dbe6f3; font-size:13px; text-shadow:0 1px 6px #000}
+
+/* The home uses the same accepted full-body character as the game. */
+.hero-character{position:absolute;right:3%;top:7%;width:34%;height:75%;object-fit:contain;z-index:1;
+  filter:drop-shadow(0 5px 8px #0009);pointer-events:none}
+.title.hero::after{background:linear-gradient(90deg,#090d12aa,#090d1210),linear-gradient(180deg,#07090d10 0%,#07090d66 48%,#07090df0 100%)}
+.hero-text{z-index:2;max-width:68%}
+.hero-text h1{font-size:clamp(30px,8vw,40px);letter-spacing:3px}
+.hero-text p{font-size:12px;line-height:1.55;color:#f0eadc}

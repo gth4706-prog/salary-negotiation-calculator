@@ -1,0 +1,16 @@
+/* Own facing is public to its owner only. Never infer a hidden opponent orientation. */
+body.has-kid-directions .cell.me{--actor-image:url(../assets/sprites/kid-full.png);--actor-flip:1}
+body.has-kid-directions .cell.me[data-face="0"]{--actor-image:url(../assets/sprites/kid-back.png)}
+body.has-kid-directions .cell.me[data-face="1"],body.has-kid-directions .cell.me[data-face="3"]{--actor-image:url(../assets/sprites/kid-right.png)}
+body.has-kid-directions .cell.me[data-face="3"]{--actor-flip:-1}
+body.has-kid-directions .cell.me:not(.hit-reaction):after{background-image:var(--actor-image);animation:actor-breathe 2.8s ease-in-out infinite;transform-origin:50% 86%}
+body.has-kid-directions .cell.me:not(.hit-reaction) .glowfx{-webkit-mask-image:var(--actor-image);mask-image:var(--actor-image);transform:scaleX(var(--actor-flip));transform-origin:50% 86%}
+@keyframes actor-breathe{0%,100%{transform:scaleX(var(--actor-flip)) scaleY(1)}50%{transform:scaleX(var(--actor-flip)) scaleY(1.018)}}
+body.has-kid-directions .cell.me.walking:not(.hit-reaction):after,body.has-kid-directions .cell.me.walking:not(.hit-reaction) .glowfx{animation:actor-step .38s cubic-bezier(.22,.7,.32,1) both}
+@keyframes actor-step{0%{transform:translate(var(--walk-x),var(--walk-y)) scaleX(var(--actor-flip)) scaleY(.97)}45%{transform:translate(calc(var(--walk-x) * .42),calc(var(--walk-y) * .42 - 7%)) scaleX(var(--actor-flip)) scaleY(1.025)}80%{transform:translate(0,1.5%) scaleX(var(--actor-flip)) scaleY(.97)}100%{transform:translate(0,0) scaleX(var(--actor-flip))}}
+body.has-kid-directions .cell.me.recoil:not(.hit-reaction):after{animation:actor-shot .32s ease-out}
+@keyframes actor-shot{0%,100%{transform:scaleX(var(--actor-flip))}22%{transform:translateY(-3%) scaleX(var(--actor-flip)) scaleY(.94)}58%{transform:translateY(1%) scaleX(var(--actor-flip)) scaleY(1.025)}}
+body.has-kid-directions .cell.me[data-face="0"] .muzzle{inset:12% 30% 65% 42%}
+body.has-kid-directions .cell.me[data-face="1"] .muzzle{inset:47% 0 31% 76%}
+body.has-kid-directions .cell.me[data-face="3"] .muzzle{inset:47% 76% 31% 0}
+@media(prefers-reduced-motion:reduce){body.has-kid-directions .cell.me:not(.hit-reaction):after{animation:none!important;transform:scaleX(var(--actor-flip))}body.has-kid-directions .cell.me .glowfx{animation:none!important}}

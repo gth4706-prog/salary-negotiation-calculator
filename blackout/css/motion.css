@@ -1,0 +1,89 @@
+/* Native paint motion: no video, no extra location information, no changed game timing. */
+.splat .shape::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 31% 22%,#fff8,transparent 19%),radial-gradient(ellipse at 66% 72%,#fff3,transparent 27%);
+  mix-blend-mode:soft-light;opacity:.46}
+.splat.fresh .shape::after{animation:paint-wet .85s ease-out}
+@keyframes paint-wet{0%{opacity:1}100%{opacity:.46}}
+.cell .reaction.motion-impact{inset:0;z-index:9;opacity:0;pointer-events:none;overflow:visible;
+  border:0;background:none;animation:impact-life .9s linear}
+.reaction.motion-impact::before{content:'';position:absolute;inset:24%;width:auto;height:auto;
+  border:2px solid var(--impact-color);border-radius:48% 40% 52% 44%;background:transparent;
+  opacity:0;animation:paint-crown .46s ease-out}
+.reaction.motion-impact::after{content:none}
+.reaction.motion-impact .paint-bead,.reaction.motion-impact .paper-chip{position:absolute;left:50%;top:50%;
+  width:var(--bead);height:calc(var(--bead) * 1.35);margin:-2px;border-radius:50% 50% 46% 20%;
+  background:radial-gradient(circle at 30% 25%,#fff9,transparent 50%),var(--bead-color,var(--impact-color));
+  box-shadow:0 1px 1px #0008;opacity:0;animation:paint-fly .57s var(--delay) cubic-bezier(.15,.65,.35,1) both}
+.reaction.motion-impact .paper-chip{width:14px;height:18px;border-radius:1px;
+  background:linear-gradient(150deg,#faf0d8,#c9b79a);border-bottom:2px solid #aa9580;
+  box-shadow:0 3px 4px #0008;animation-name:paper-fly;animation-duration:.7s}
+.reaction.impact-fabric::before{inset:18%;border:0;background:radial-gradient(ellipse,var(--impact-color),transparent 70%);
+  filter:blur(2px);animation:fabric-soak .8s ease-out}
+.reaction.impact-fabric .paint-bead{animation-duration:.38s;opacity:.7}
+@keyframes impact-life{0%,99%{opacity:1}100%{opacity:0}}
+@keyframes paint-crown{0%{transform:scale(.12);opacity:1}55%{opacity:.7}100%{transform:scale(1.65);opacity:0}}
+@keyframes paint-fly{0%{transform:translate(0,0) scale(.3);opacity:1}60%{opacity:1}100%{transform:translate(var(--dx),var(--dy)) rotate(var(--spin)) scale(.45);opacity:0}}
+@keyframes paper-fly{0%{transform:translate(0,0) rotate(0) scale(.25);opacity:1}50%{opacity:1;filter:brightness(1.12)}100%{transform:translate(var(--dx),var(--dy)) rotate(var(--spin)) scale(.8);opacity:0}}
+@keyframes fabric-soak{0%{transform:scale(.15);opacity:.8}60%{opacity:.35}100%{transform:scale(1.2);opacity:0}}
+/* Own character only. Hidden enemy shooters never receive this class or muzzle node. */
+body.has-kid-full .cell.me.recoil::after{animation:paint-recoil .32s cubic-bezier(.2,.7,.3,1)}
+.cell .muzzle{display:none;z-index:7;inset:62% 9% 16% 63%;pointer-events:none;opacity:0;
+  background:radial-gradient(ellipse at 20% 20%,#fff 0 5%,transparent 8%),radial-gradient(ellipse at 40% 40%,var(--pm) 0 13%,transparent 17%),radial-gradient(ellipse at 70% 70%,var(--pm) 0 10%,transparent 14%)}
+.cell.me.recoil .muzzle{display:block;animation:paint-muzzle .24s ease-out}
+@keyframes paint-recoil{0%{transform:translate(0,0) scale(1)}20%{transform:translate(-3%,-5%) rotate(-4deg) scale(.97,1.02)}55%{transform:translate(1%,2%) rotate(1deg)}100%{transform:translate(0,0) scale(1)}}
+@keyframes paint-muzzle{0%{opacity:.9;transform:scale(.25)}100%{opacity:0;transform:translate(20%,20%) scale(1.15)}}
+@media(prefers-reduced-motion:reduce){.splat.fresh .shape,.splat.fresh .halo,.splat.fresh .shape::after{animation:none!important}
+  .cell .reaction.motion-impact,.cell .muzzle{display:none!important}body.has-kid-full .cell.me.recoil::after{animation:none!important}}
+/* Pigment reveals the material. Color pools stay inside the existing paint mask. */
+.splat.mine{--pigment-base:#40b9a6;--pigment-warm:#edc45b;--pigment-cool:#8975c5;--pigment-soft:#78a9cc}
+.splat.foe{--pigment-base:#e88697;--pigment-warm:#efb558;--pigment-cool:#9b7cc0;--pigment-soft:#65b4a8}
+.splat{--pigment:radial-gradient(ellipse at var(--pool-x,30%) var(--pool-y,50%),var(--pigment-warm) 0%,transparent 49%),radial-gradient(ellipse at 82% 78%,var(--pigment-cool) 0%,transparent 58%),linear-gradient(var(--pigment-turn,25deg),var(--pigment-base) 28%,var(--pigment-soft))}
+.cell .splat,.cell .splat.hit{filter:drop-shadow(0 1px 1px #0004)}
+.splat .pic{filter:brightness(1.08) saturate(1.05) contrast(1.04)}
+.splat .tint,.splat.hit .tint{background:var(--pigment);mix-blend-mode:color;opacity:.78}
+.splat .shape::after{background:radial-gradient(ellipse at 31% 22%,#fff8,transparent 19%),var(--pigment);mix-blend-mode:soft-light;opacity:.46}
+.splat .edge{background:#655345;mix-blend-mode:multiply;opacity:.22}
+.splat .halo{background:var(--pigment);filter:blur(.6px);opacity:.12}
+.reaction.motion-impact::before{border-width:1px}
+/* Halo opacity must not inherit the reveal animation's opaque final keyframe. */
+.splat.fresh .halo{animation-name:paint-halo-open}
+@keyframes paint-halo-open{0%{-webkit-mask-size:10%;mask-size:10%;opacity:.1}
+  35%{opacity:.24}100%{-webkit-mask-size:calc(var(--sz,100%) * .86);mask-size:calc(var(--sz,100%) * .86);opacity:.12}}
+
+/* All tiles sample the SAME room-sized pigment wash. No per-cell rainbow stamps. */
+.splat.paint-field{--pigment:radial-gradient(ellipse at 19% 23%,#edbd5d 0%,transparent 33%),radial-gradient(ellipse at 77% 29%,#e98287 0%,transparent 34%),radial-gradient(ellipse at 64% 81%,#8b7cb6 0%,transparent 37%),radial-gradient(ellipse at 20% 77%,#6dacbe 0%,transparent 35%),linear-gradient(135deg,#40ad9c,#b5c98b 48%,#de9f89);overflow:hidden}
+.splat.paint-field .tint,.splat.paint-field .shape::after{background:var(--pigment);background-size:var(--field-size);background-position:var(--field-pos);background-repeat:no-repeat}
+.splat.paint-field .halo{display:none}
+.cell .splat.paint-field{filter:none}
+.splat.paint-field .shape{isolation:isolate}
+.splat.paint-field .shape::after{opacity:.3}
+.splat.paint-field .tint{opacity:.62}
+.splat.paint-field.fresh .shape{animation:paint-field-open .5s ease-out}
+.splat.paint-field.fresh .shape::after{animation:none}
+@keyframes paint-field-open{from{opacity:.45}to{opacity:1}}
+
+/* Per-shot multicolour pools share world coordinates across joined masks. */
+.splat.paint-field{--pigment:var(--paint-colors,linear-gradient(120deg,#ffbd55,#ed7bac,#55cad4))}
+.splat.paint-field .tint{opacity:.86}
+.splat.paint-field .shape::after{opacity:.45}
+
+/* Thick impact liquid: fast squash, outward fingers, then heavy settling. */
+.reaction.motion-impact::before{display:none}
+.reaction .liquid-mass,.reaction .liquid-rim{position:absolute;inset:-12%;pointer-events:none;
+ -webkit-mask:var(--impact-mask) center/100% no-repeat;mask:var(--impact-mask) center/100% no-repeat;
+ background:radial-gradient(ellipse at 39% 31%,#fff9,transparent 15%),radial-gradient(ellipse at 62% 55%,var(--liquid-b),transparent 53%),linear-gradient(125deg,var(--liquid-a),var(--liquid-c));
+ filter:drop-shadow(0 3px 1px #0008);animation:liquid-slam .68s cubic-bezier(.15,.7,.3,1) both}
+.reaction .liquid-rim{inset:-20%;opacity:.7;animation:liquid-skirt .72s ease-out both}
+.reaction.impact-fabric .liquid-mass{animation-duration:.82s}
+@keyframes liquid-slam{0%{transform:scale(.14,.4);opacity:1}18%{transform:scale(1.18,.87);opacity:1}42%{transform:scale(.96,1.08);opacity:.93}75%{transform:scale(1.04,.96);opacity:.55}100%{transform:scale(1.08,1);opacity:0}}
+@keyframes liquid-skirt{0%{transform:scale(.1);opacity:1}28%{transform:scale(1.2,.85);opacity:.75}65%{transform:scale(1.3,1.05);opacity:.26}100%{transform:scale(1.33,1.12);opacity:0}}
+body.has-kid-hit .cell.me.hit-reaction:after,body.has-kid-hit .cell.foe.hit-reaction:after{background-image:url(../assets/sprites/kid-hit.png);animation:body-hit .78s ease-out;filter:drop-shadow(0 3px 2px #0009)}
+body.has-kid-full .cell .glowfx{background:radial-gradient(ellipse at 56% 57%,var(--coat-a,#62d6b5) 0 15%,transparent 18%),radial-gradient(ellipse at 31% 37%,var(--coat-b,#ffc869) 0 9%,transparent 12%),radial-gradient(ellipse at 64% 78%,var(--coat-c,#cf8ceb) 0 10%,transparent 13%);animation:none;opacity:.72;filter:none;mix-blend-mode:hard-light}
+body.has-kid-hit .cell.me.hit-reaction .glowfx,body.has-kid-hit .cell.foe.hit-reaction .glowfx{display:block;-webkit-mask-image:url(../assets/sprites/kid-hit.png);mask-image:url(../assets/sprites/kid-hit.png);animation:body-hit .78s ease-out}
+@keyframes body-hit{0%{transform:scale(1)}12%{transform:translateY(3%) scale(1.12,.87) rotate(-7deg)}32%{transform:translateY(-4%) scale(.94,1.06) rotate(5deg)}58%{transform:translateY(1%) rotate(-2deg)}100%{transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){body.has-kid-hit .cell.hit-reaction:after,body.has-kid-hit .cell.hit-reaction .glowfx{animation:none!important}}
+
+/* Let the hit pose read clearly above the surrounding floor splash. */
+.cell.me .reaction.motion-impact,.cell.foe .reaction.motion-impact{z-index:5}
+.cell.me .liquid-mass,.cell.foe .liquid-mass{inset:20% -5% -15%}
+.cell.me .liquid-rim,.cell.foe .liquid-rim{inset:5% -15% -22%}

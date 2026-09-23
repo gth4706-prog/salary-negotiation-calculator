@@ -49,7 +49,7 @@ BO.Sfx = (function () {
 
   var BANK = {
     shot:  function () { blip(420, 120, 0.09, 'square', 0.05); },
-    splat: function () { splash(0.18, 0.10, 1600); },
+    splat: function () { blip(125, 42, .16, 'sine', .10); splash(.08, .13, 2600); splash(.32, .14, 950, .025); blip(310, 100, .07, 'sine', .035, .10); splash(.14, .05, 1700, .16); },
     //  맞혔다: 밝게 «띵—철퍽»
     hit:   function () { blip(900, 300, 0.16, 'sawtooth', 0.09); blip(1200, 1800, 0.12, 'sine', 0.06, 0.05); },
     //  맞았다: 무겁게 «쿵—우웅». 소리만으로도 «내가 맞았다»가 구분되어야 한다.

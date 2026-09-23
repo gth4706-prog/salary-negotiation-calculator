@@ -19,7 +19,7 @@ window.BO = window.BO || {};
 // ============================================================================
 BO.UI = (function () {
   var C = BO.Core;
-  var els = {}, cells = [], mode = 'move', sel = null, roomKey = '', lastFoeKey = '';
+  var els = {}, cells = [], mode = 'move', sel = null, roomKey = '', lastFoeKey = '', lastMe = null;
   var fogRects = [], beamRects = [], glowDot = null;
 
   function $(id) { return document.getElementById(id); }
@@ -364,6 +364,8 @@ BO.UI = (function () {
       }
 
       c.classList.toggle('me', isMe);
+      if (isMe) c.setAttribute('data-face', v.me.face);
+      else { c.removeAttribute('data-face'); c.classList.remove('walking'); }
       c.classList.toggle('foe', isFoe);
       c.classList.toggle('foe-glow', isFoe && !!(v.foe.glow || v.foe.why === 'glow'));
       c.classList.toggle('foe-seen', isFoe && v.foe.why === 'seen');
@@ -424,6 +426,9 @@ BO.UI = (function () {
       sg.className = 'ghost' + (ghost ? '' : ' hide');
       if (ghost) sg.textContent = '✖';
     }
+    if (lastMe && lastMe.room === v.room.id && Math.abs(v.me.x - lastMe.x) + Math.abs(v.me.y - lastMe.y) === 1 && BO.Motion)
+      BO.Motion.walk(cellAt(v.me.x, v.me.y), v.me.x - lastMe.x, v.me.y - lastMe.y);
+    lastMe = { x: v.me.x, y: v.me.y, room: v.room.id };
     if (glowDot) {
       glowDot.setAttribute('cx', v.me.x + 0.5); glowDot.setAttribute('cy', v.me.y + 0.5);
       glowDot.setAttribute('opacity', v.lit > 0 ? '0' : '1');
@@ -624,6 +629,7 @@ BO.UI = (function () {
 
   function reset() {
     if (BO.Motion) BO.Motion.clear(els.board);
+    lastMe = null;
     els.log.innerHTML = ''; sel = null; mode = 'move'; roomKey = ''; lastFoeKey = '';
     els.hpMe._hp = null; els.hpFoe._hp = null;
     els.log.classList.remove('open');

@@ -101,7 +101,7 @@ BO.Motion = (function () {
   function clear(board) {
     board._pigmentKey = null; board.style.removeProperty('--paint-colors');
     var actors = board.querySelectorAll('.cell');
-    for (var a = 0; a < actors.length; a++) { if (actors[a]._hurtTimer) clearTimeout(actors[a]._hurtTimer); actors[a]._hurtTimer = 0; actors[a].classList.remove('hit-reaction'); }
+    for (var a = 0; a < actors.length; a++) { if (actors[a]._hurtTimer) clearTimeout(actors[a]._hurtTimer); actors[a]._hurtTimer = 0; actors[a].classList.remove('hit-reaction'); if (actors[a]._walkTimer) clearTimeout(actors[a]._walkTimer); actors[a]._walkTimer = 0; actors[a].classList.remove('walking'); }
     var paintNodes = board.querySelectorAll('.splat');
     for (var j = 0; j < paintNodes.length; j++) {
       if (paintNodes[j]._paintFrame) cancelAnimationFrame(paintNodes[j]._paintFrame);
@@ -112,6 +112,16 @@ BO.Motion = (function () {
     for (var i = 0; i < nodes.length; i++) { nodes[i].className = 'reaction'; nodes[i].innerHTML = ''; }
     nodes = board.querySelectorAll('.recoil');
     for (i = 0; i < nodes.length; i++) nodes[i].classList.remove('recoil');
+  }
+  function walk(cell, dx, dy) {
+    if (!cell || !cell.classList.contains('me')) return;
+    if (cell._walkTimer) clearTimeout(cell._walkTimer);
+    cell.classList.remove('walking');
+    if (reduced()) return;
+    cell.style.setProperty('--walk-x', (-dx * 100) + '%');
+    cell.style.setProperty('--walk-y', (-dy * 100) + '%');
+    replay(cell, 'walking');
+    cell._walkTimer = setTimeout(function () { cell.classList.remove('walking'); cell._walkTimer = 0; }, 390);
   }
   function hurt(cell) {
     if (!cell || (!cell.classList.contains('me') && !cell.classList.contains('foe'))) return;
@@ -130,7 +140,7 @@ BO.Motion = (function () {
     if (!me._muzzle) {
       me._muzzle = document.createElement('span'); me._muzzle.className = 'muzzle';
       me._muzzle.setAttribute('aria-hidden', 'true'); me.appendChild(me._muzzle);
-      me.addEventListener('animationend', function (e) { if (e.animationName === 'paint-recoil') me.classList.remove('recoil'); });
+      me.addEventListener('animationend', function (e) { if ((e.animationName === 'paint-recoil' || e.animationName === 'actor-shot')) me.classList.remove('recoil'); });
     }
     replay(me, 'recoil');
   }
@@ -171,5 +181,5 @@ BO.Motion = (function () {
     void fx.offsetWidth;
     fx.className = 'reaction motion-impact impact-' + material;
   }
-  return { impact: impact, shoot: shoot, hurt: hurt, clear: clear, paint: paint };
+  return { impact: impact, shoot: shoot, hurt: hurt, walk: walk, clear: clear, paint: paint };
 })();

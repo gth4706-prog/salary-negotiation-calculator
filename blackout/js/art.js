@@ -133,6 +133,7 @@ BO.Art = (function () {
     probe('sprites/splat-1.png', function (ok) { document.body.classList.toggle('has-splats', ok); });
     probe('sprites/lamp-off.png', function (ok) { document.body.classList.toggle('has-lamp', ok); });
     probe('sprites/kid-top.png', function (ok) { document.body.classList.toggle('has-kid', ok); });
+    probe('sprites/kid-back.png', function (back) { probe('sprites/kid-right.png', function (right) { document.body.classList.toggle('has-kid-directions', back && right); }); });
     probe('sprites/kid-hit.png', function (ok) { document.body.classList.toggle('has-kid-hit', ok); });
     probe('sprites/kid-full.png', function (ok) { document.body.classList.toggle('has-kid-full', ok); });
     probe('sprites/footprint-me.png', function (ok) { document.body.classList.toggle('has-prints', ok); });

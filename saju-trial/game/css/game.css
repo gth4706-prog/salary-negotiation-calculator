@@ -362,7 +362,7 @@ q { quotes: "\201C" "\201D"; }
 .grow-panel { background: var(--cream); border: 2px solid var(--edge); border-radius: 12px; text-align: left; }
 .grow-panel-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
 .grow-panel-body > * { flex: none; }
-.grow-panel.is-acts .grow-panel-body, .grow-panel.is-result .grow-panel-body, .grow-panel.is-event .grow-panel-body, .grow-panel.is-birthday .grow-panel-body { justify-content: center; }
+.grow-panel.is-acts .grow-panel-body, .grow-panel.is-result .grow-panel-body, .grow-panel.is-birthday .grow-panel-body { justify-content: center; }
 .grow-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .grow-panel-title { font-size: .9375rem; font-weight: 700; line-height: 1.3; }
 .grow-panel-title.eyebrow { font-size: var(--fs-small); }
@@ -385,7 +385,7 @@ q { quotes: "\201C" "\201D"; }
 @keyframes grow-panel-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 .grow-then { font-size: .9375rem; line-height: 1.5; text-align: center; } /* 그 보기로 무엇이 해결됐는지 한 줄 */
 .grow-birthday-age { font-size: 1.375rem; font-weight: 700; letter-spacing: -.02em; text-align: center; } /* 생일 장면 — 「콩이가 6살이 됐어요」 크게 */
-.grow-panel.is-event .grow-line, .grow-panel.is-birthday .grow-line { text-align: center; }
+.grow-panel.is-birthday .grow-line { text-align: center; }
 .grow-gauges { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 6px; text-align: left; } /* 방의 능력치 다섯 — 이름 위 · 작은 막대 아래 */
 .grow-gauges li { display: flex; flex-direction: column; gap: 3px; font-size: .6875rem; line-height: 1.25; min-width: 0; padding-right: calc(var(--bar-h) * .7); --bar-h: 14px; } /* G11: 두툼한 알약(14px) · 끝 장식이 이웃 칸에 걸치지 않게 오른쪽 여백 */
 .gauge-head { display: flex; align-items: baseline; justify-content: space-between; gap: 2px; min-width: 0; } /* G12: 이름 · 그 막대의 지금 값(막대의 오른끝 위) */
@@ -447,7 +447,30 @@ q { quotes: "\201C" "\201D"; }
 .tut-card.is-skinned { position: absolute; padding: calc(var(--skin-edge, 0px) + 2px) calc(var(--skin-edge, 0px) + 6px); }
 .tut-text { font-size: .875rem; line-height: 1.5; font-weight: 700; }
 .tut-sub { font-size: .75rem; line-height: 1.35; color: var(--muted); }
-.tut-btns { display: flex; justify-content: flex-end; }
+.tut-btns { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+/* G15 첫 행동 뒤의 네 장: 위쪽 띠의 단추 · 저울은 장면 · 아래 판 밖이라 그 칸만 화면 전체의 어둠 위로 올린다(짚기만 — is-look 이 손가락을 막는다) · 쪽 표시 「1 / 4」는 단추 왼쪽 */
+.s-grow.is-tut .tut-target.is-lift { position: relative; z-index: 36; }
+.tut-target.is-lift > .tut-ring { inset: 0; } /* 화면 칸(.screen — 넘치면 스크롤)의 가장자리에 붙은 칸이라 밖으로 나간 테두리는 잘리고 화면이 옆으로 밀린다 — 칸 안쪽 가장자리에 */
+.grow-way.tut-target { padding-inline: 8px; } /* 저울을 짚는 동안 양끝 글이 테두리에 닿지 않게 */
+.grow-way.tut-target > .tut-ring { inset: -6px 0; }
+.tut-page { margin-right: auto; font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* ── G15 0~5살 팁(아래 판 막대 밑): 「팁」 머리말 + 한 줄 — 두 줄 자리를 늘 잡아 두어(팁 길이가 바뀌어도 판 · 장면 높이가 그대로) 새 팁은 살짝 떠오르듯 나타난다(움직임 줄이기면 그냥) ── */
+.grow-tip { display: flex; flex-direction: column; gap: 1px; text-align: left; }
+.grow-tip-text { min-height: calc(2em * 1.4); font-size: .8125rem; line-height: 1.4; animation: grow-tip-in .5s ease-out both; }
+@keyframes grow-tip-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+/* ── G15 능력치 · 성격 말풍선: 막대 줄이 단추(겉모습은 그대로 — 글 · 막대만) · 말풍선은 팝업 판 그림(ui.panel.sheet)의 작은 판, 자리는 화면이 누른 막대 옆 창 안에 단다(app.js placeStat) ── */
+.stat-btn { appearance: none; margin: 0; padding: 0; border: 0; border-radius: 6px; background: none; text-align: inherit; min-width: 0; }
+.gauge-btn { display: flex; flex-direction: column; gap: 3px; width: 100%; }
+.graph-rows li.is-stat { display: block; }
+.stat-row { display: grid; width: 100%; grid-template-columns: inherit; align-items: center; column-gap: inherit; row-gap: inherit; }
+.stat-layer { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
+.stat-tip { position: fixed; left: 8px; top: 8px; width: min(300px, calc(100vw - 16px)); pointer-events: auto; display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; background: var(--cream); border: 2px solid var(--edge); border-radius: 12px; text-align: left; font-family: var(--font-ui); }
+.stat-tip.is-skinned { position: fixed; padding: calc(var(--skin-edge, 0px) + 2px) calc(var(--skin-edge, 0px) + 6px); }
+.stat-head { font-size: .875rem; line-height: 1.4; font-weight: 700; }
+.stat-bar { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; align-items: center; gap: 6px; font-size: .6875rem; color: var(--muted); font-variant-numeric: tabular-nums; --bar-h: 12px; }
+.stat-bar .gbar { margin-right: calc(var(--bar-h) * .75); } /* 끝 장식이 「100」 글에 걸치지 않게 */
+.stat-what, .stat-up { font-size: .8125rem; line-height: 1.45; }
+.stat-what { color: var(--muted); }
 /* ── 그리다 멈췄을 때의 최소 화면(띠 한 줄 · 「새로 입력하기」) ── */
 .s-failed { justify-content: center; gap: 12px; }
 /* ── 휴대폰을 눕힌 낮은 가로 화면: 한 화면(재우기 · 정령)이 들어가지 않는다 — 「세로로 돌려 주세요」 판으로 덮는다(데스크톱 · 태블릿 가로는 높이가 넉넉해 그대로).
@@ -465,3 +488,40 @@ q { quotes: "\201C" "\201D"; }
   .sheet-head { flex-wrap: wrap; }
   .sheet-titles { flex: 1 1 100%; }
 }
+
+/* G16 큰 사건(태현님 11-11 — 목표 → 어떻게 할까요? → 성향이 들어가는 모습 → 결과): 장면 맨 위에 「큰 사건」 띠 그림(ui.event.badge — 비율 그대로) + 이름 판(만남의 판 ui.panel.card 와 같은 꼴) ·
+   셋째 장의 막대(그래프 B 부품 그대로 — 막대 틀 · 채움 · 끝 장식) 위 목표 깃발(ui.graph.goal — 깃대 아래 끝이 높음 문턱 자리에 닿는다 · --goal-foot 은 그림 안 깃대 끝의 가로 자리) ·
+   글꼴은 게임 글꼴 하나(--font-ui — 이름은 굵고 크게). 그림이 없으면 그리지 않는다(CSS 로 띠 · 깃발을 그리지 않는다). */
+.big-head { position: absolute; top: 6px; left: 8px; right: 8px; z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; }
+.big-badge { display: block; height: clamp(22px, 11cqh, 34px); width: auto; max-width: none; image-rendering: pixelated; }
+.big-card { align-self: stretch; background: var(--cream); border: 2px solid var(--edge); border-radius: 12px; padding: 4px 10px; text-align: center; }
+.big-title { font-size: 1rem; font-weight: 700; line-height: 1.3; letter-spacing: -.01em; }
+.big-what, .big-goal { font-size: .8125rem; line-height: 1.4; }
+.big-goal { font-weight: 700; color: var(--sage-deep); }
+.grow-scene.has-head .grow-actor { --size: min(120px, calc(100cqh - 120px)); }
+.grow-scene.has-head.is-first .grow-actor { --size: min(110px, calc(100cqh - 160px)); }
+.grow-scene.has-head.has-word .grow-actor { --size: min(110px, calc(100cqh - 120px - clamp(30px, 15cqh, 52px))); }
+.grow-word.is-award { height: clamp(40px, 22cqh, 76px); }
+.grow-panel.is-big-goal .grow-panel-body, .grow-panel.is-big-result .grow-panel-body, .grow-panel.is-big-show .grow-panel-body { justify-content: center; }
+.big-opening { font-size: .9375rem; line-height: 1.5; text-align: center; }
+.big-keys { font-size: .8125rem; line-height: 1.4; text-align: center; font-weight: 700; }
+.big-summary { font-size: .8125rem; line-height: 1.35; font-weight: 700; text-align: center; }
+.big-flow { font-size: .8125rem; line-height: 1.35; text-align: center; }
+.s-grow > .grow-panel.is-big-show { min-height: max-content; } /* 셋째 장: 막대 2~3 · 요약 · 흐름이 스크롤 없이 다 보이게(장면이 그만큼 작아진다 — 정령 · 말풍선은 그대로 보인다) */
+.grow-panel.is-big-show .grow-panel-body { gap: 3px; padding: 5px 10px; }
+.big-rows { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; list-style: none; }
+.big-row { display: grid; grid-template-columns: minmax(4.2em, auto) 1fr auto; grid-template-areas: "label bar num" "word word year"; column-gap: 8px; row-gap: 0; align-items: center; }
+.big-row .graph-label { grid-area: label; font-size: .8125rem; font-weight: 700; }
+.big-row .gbar { grid-area: bar; --bar-h: 14px; margin-top: 10px; } /* 위로 솟은 깃발 자리(깃발은 막대 높이의 1.5배 — 막대 위로 반만큼) */
+.big-row .graph-num { grid-area: num; font-size: .8125rem; font-weight: 700; min-width: 2ch; text-align: right; }
+.big-word { grid-area: word; font-size: .75rem; line-height: 1.25; }
+.big-row.is-high .big-word { color: var(--ok); }
+.big-row.is-low .big-word { color: var(--warn); } /* 어려움 말(주황 — 구성안) */
+.big-year { grid-area: year; font-size: .75rem; color: var(--muted); white-space: nowrap; }
+.gbar-goal { position: absolute; z-index: 4; bottom: 50%; left: calc(var(--bar-h) / 8 + (100% - var(--bar-h) / 4) * var(--at) / 100); width: calc(var(--bar-h) * .5625); height: calc(var(--bar-h) * 1.5); translate: calc(var(--goal-foot) * -100%) 0; pointer-events: none; } /* 막대 안쪽 길(gbar-lane)의 at % 자리 · 깃대 끝이 막대 가운데 높이 */
+.gbar-goal-pic { display: block; width: 100%; height: 100%; max-width: none; max-height: none; image-rendering: pixelated; } /* 120×320 그림 비율 그대로(.375) */
+.big-rows.is-fill .gbar-fill { animation: big-fill var(--fill-ms, 700ms) ease-out both; }
+@keyframes big-fill { from { width: 0; } }
+.big-result-line { font-size: .9375rem; line-height: 1.45; text-align: center; font-weight: 700; }
+.big-react { font-size: .875rem; line-height: 1.45; text-align: center; }
+.big-change, .big-record { font-size: .75rem; line-height: 1.4; text-align: center; color: var(--muted); }

@@ -1,0 +1,453 @@
+/* game/css/game.css — 「내 사주로 키우기」 화면(설계 v0.5 §12). 픽셀 정령 육아 수첩: 크림 판 · 잉크 2px 선 · 세이지 버튼(태현님 v003 의 색, 화면 설계도 3차 · 체험판 2판에서 잰 그대로).
+   한 화면: 페이지는 스크롤하지 않는다(html · body 고정, 앱은 100dvh 한 칼럼 — 데스크톱은 가운데 480px 폰 칼럼). 읽을 것 · 고를 것은 아래에서 올라오는 판(팝업),
+   판의 선택지 · 주 버튼은 늘 아래 고정이고 긴 글일 때만 판 가운데가 스크롤한다. 글꼴은 이름만(요청서 v2 — 파일을 들이는 것은 배포 계획 몫, 없으면 기기 글꼴).
+   UI 키트 그림(ui.*)이 오기 전에는 이 CSS 가 판을 그린다 — 그림이 오면 art.js 의 skin() 이 .is-skinned 를 붙이고 그림 판을 뒤에 깐다. */
+
+/* ── 색 · 글꼴(밝은 화면 / 어두운 화면) ──
+   밝은 화면의 색은 그림이 들어온 밝은 판(.skin-light — 양피지 판 · 단추 · 칩 · 태그 · 말풍선 · 입력 칸, art-plan.js 의 skinTone) 안에도 그대로 깐다: 판 그림은 어둡게에서도 밝으니
+   그 안의 글 · 바탕 색은 밝은 화면 값이어야 읽힌다(체험판 4판 — 어둡게에서 양피지 판 위의 글이 밝은 잉크라 거의 안 보였다). 어두운 화면의 색은 :root 에만 덮이고 판 안에는 닿지 않는다.
+   그림이 아직 없는 판(CSS 로 그린 판)은 skin-light 가 없어 화면의 색 그대로. */
+:root, .skin-light {
+  --paper: #F6E9C7; --cream: #FFF8E7; --ink: #3E4151; --edge: #3E4151; --muted: #55584E; --line: #D8CCB0; --panel-line: #A69F85; --sunk: #EFE1BF;
+  --sage-soft: #C4D9BD; --sage-deep: #4A6B5D; --sage-shadow: #83A588; --btn2-shadow: #CEC3A5;
+  --tag: #E5EDE0; --tag-ink: #45604F; --care-line: #9A947F;
+  --gold: #E9B85C; --lavender-soft: #E6DCEB; --track: #E9E1CD;
+  --el-wood: #4C7C64; --el-fire: #BC5A55; --el-earth: #A07A1E; --el-metal: #6B707E; --el-water: #3C74A0;
+  --ok: #43705A; --warn: #7F600F; --bad: #9A4843; /* 글로 쓰는 강조색 — 양피지 · 세이지 판 위에서도 4.5:1(체험판 4판 대비 검사) */
+  /* --muted(흐린 글): G5 에 #5F6258 → #55584E — 새 판 그림(꺼진 탭 ui.tab.off 4.09:1 · 기둥 ui.panel.pillar 4.40:1) 위에서도 4.5:1 넘게 한 단 짙게(판 그림은 고치지 않는다) */
+  --way-with: #4C5E52; --way-off: #605668; /* G7 떠오르는 한 줄 「사주대로 +1」 · 「사주와 다르게 −1」: 흐린 글(--muted #55584E) 계열에서 풀빛 · 보랏빛으로 한 단씩만 — 빨강 · 경고색 아님(태현님 11-10 「빨간색이 아니라 흐린 색」) */
+  --ink-press: #2E303C; /* 누르는 동안의 단추 글(G5 — 누른 주 단추 그림 ui.btn.primary.pressed 가 짙은 풀색이라 --ink 로는 3.9:1 — 4.5:1 넘게 한 단 짙게. 판 그림은 고치지 않는다) */
+  --scrim: rgba(46, 42, 30, .46); --shade: rgba(62, 65, 81, .22);
+  --slot-bg: rgba(255, 248, 231, .94); --slot-ink: #1D1F29; --slot-line: rgba(62, 65, 81, .55);
+  color-scheme: light;
+}
+:root {
+  --font-ui: "Gowun Dodum", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  /* 고운돋움(10-10 태현님 고름)의 크기: 본문 15px · 작은 글 12px(고운돋움은 같은 px 에서 글자가 작아 보여 한 단 키웠다 — 글꼴은 하나, 작은 글도 --font-ui).
+     고운돋움은 굵은 판이 없다 — 굵게(700)는 브라우저가 만든다(font-synthesis 를 끄지 않는다). 사주풀이(고운바탕)는 제 크기 그대로(.reading-body · .is-reading .sheet-body) */
+  --fs-body: .9375rem; --fs-small: .75rem;
+  --font-read: "Gowun Batang", "Batang", "AppleMyungjo", "Noto Serif KR", serif;
+  --font-hanja: "Noto Serif KR", "Batang", "AppleMyungjo", serif;
+  --column: 480px; --gutter: 16px; --scale: 1;
+}
+.skin-light { color: var(--ink); } /* 밝은 판 안의 글은 짙게(밖에서 물려받은 어두운 화면의 밝은 글 색 · 단추의 color: inherit 를 걷는다) — 파일 맨 앞이라 뒤의 부품 규칙(.tag { color } …)이 이긴다 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #1E1F26; --cream: #2A2C35; --ink: #F1E6C8; --edge: #8C8A7C; --muted: #B0AE9C; --line: #44474F; --panel-line: #5E6070; --sunk: #31323A;
+    --sage-soft: #35503F; --sage-deep: #9CC4AE; --sage-shadow: #18251D; --btn2-shadow: #141519;
+    --tag: #2C3A31; --tag-ink: #A9D0B8; --care-line: #6B6B72;
+    --gold: #E9B85C; --lavender-soft: #3B3444; --track: #3A3C45;
+    --el-wood: #8CC0A4; --el-fire: #EE8F86; --el-earth: #E2B654; --el-metal: #B6BAC6; --el-water: #88B8E2;
+    --ok: #8CC0A4; --warn: #E2B654; --bad: #EE8F86;
+    --way-with: #B2C0B4; --way-off: #BFB4C6;
+    --scrim: rgba(4, 5, 10, .62); --shade: rgba(0, 0, 0, .35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #1E1F26; --cream: #2A2C35; --ink: #F1E6C8; --edge: #8C8A7C; --muted: #B0AE9C; --line: #44474F; --panel-line: #5E6070; --sunk: #31323A;
+  --sage-soft: #35503F; --sage-deep: #9CC4AE; --sage-shadow: #18251D; --btn2-shadow: #141519;
+  --tag: #2C3A31; --tag-ink: #A9D0B8; --care-line: #6B6B72;
+  --gold: #E9B85C; --lavender-soft: #3B3444; --track: #3A3C45;
+  --el-wood: #8CC0A4; --el-fire: #EE8F86; --el-earth: #E2B654; --el-metal: #B6BAC6; --el-water: #88B8E2;
+  --ok: #8CC0A4; --warn: #E2B654; --bad: #EE8F86;
+  --way-with: #B2C0B4; --way-off: #BFB4C6;
+  --scrim: rgba(4, 5, 10, .62); --shade: rgba(0, 0, 0, .35);
+  color-scheme: dark;
+}
+:root[data-text="large"] { --scale: 1.125; }
+
+/* ── 바탕 ── */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+html { overscroll-behavior: none; font-size: calc(16px * var(--scale)); -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-ui); font-size: var(--fs-body); line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere; }
+h1, h2, h3, h4 { margin: 0; line-height: 1.3; font-weight: 700; letter-spacing: -.02em; }
+p, ul, ol { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--sage-deep); outline-offset: 2px; }
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.boot { margin: 40px auto; text-align: center; color: var(--muted); }
+
+/* ── 한 화면: 앱 = 100dvh 한 칼럼 ── */
+.app {
+  height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  max-width: var(--column); margin: 0 auto; padding: 10px var(--gutter); display: flex; flex-direction: column; gap: 8px; overflow: hidden; position: relative;
+}
+@media (min-width: 720px) {
+  .app { height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); margin: 16px auto; border: 2px solid var(--edge); border-radius: 22px; box-shadow: 0 12px 25px var(--shade); padding: 14px 18px; }
+}
+.screen { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; overscroll-behavior: contain; } /* 한 화면에 들어가면 스크롤이 생기지 않는다 — 기기의 글자 크기를 키웠거나(200%) 키보드가 올라와 넘칠 때만 화면이 스크롤해 잘리는 글 · 닿지 않는 단추가 없게 */
+.screen > * { flex: none; }
+.grow { flex: 1 1 auto !important; min-height: 0; }
+.muted { color: var(--muted); }
+.small { font-size: .8125rem; line-height: 1.45; }
+.tiny { font-size: .75rem; line-height: 1.4; }
+.band { flex: none; background: var(--lavender-soft); border: 1.5px solid var(--edge); border-radius: 8px; padding: 5px 10px; font-size: .8125rem; line-height: 1.4; }
+.band.is-bad { border-color: var(--bad); }
+.eyebrow { font-size: var(--fs-small); color: var(--tag-ink); letter-spacing: .06em; font-weight: 700; line-height: 1.4; }
+.icon { width: 20px; height: 20px; flex: none; image-rendering: pixelated; vertical-align: middle; object-fit: contain; }
+.icon.s { width: 16px; height: 16px; }
+.icon.xs { width: 13px; height: 13px; }
+
+/* ── 버튼 ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 14px;
+  border: 2px solid var(--edge); border-radius: 9px; background: var(--cream); color: var(--ink);
+  box-shadow: 0 3px 0 var(--btn2-shadow); font-size: .9375rem; font-weight: 700; text-align: center; line-height: 1.25;
+}
+.btn.primary { background: var(--sage-soft); box-shadow: 0 3px 0 var(--sage-shadow); }
+.btn:active { transform: translateY(2px); box-shadow: none; }
+.btn.small { min-height: 36px; padding: 4px 10px; font-size: .8125rem; border-width: 1.5px; box-shadow: 0 2px 0 var(--btn2-shadow); }
+.btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--sage-deep); padding-inline: 8px; }
+.btn.wide { width: 100%; }
+.btn:disabled { opacity: .45; cursor: default; box-shadow: none; transform: none; }
+.btn small { font-size: .75rem; font-weight: 400; color: var(--muted); }
+.btns { display: flex; gap: 8px; }
+.btns > .btn { flex: 1 1 0; min-width: 0; }
+.btns > .btn.primary { flex: 1.6 1 0; }
+.icon-btn { display: inline-grid; place-items: center; min-width: 40px; min-height: 40px; padding: 4px; border: 1.5px solid var(--panel-line); border-radius: 9px; background: var(--cream); font-size: 1.125rem; font-weight: 700; }
+
+/* ── 입력 칸 ── */
+.field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.field-label { font-size: .78rem; font-weight: 700; display: flex; flex-wrap: wrap; gap: 0 6px; align-items: center; line-height: 1.35; min-height: 22px; }
+.field-label small { font-weight: 400; color: var(--muted); font-size: .72rem; }
+.field-help { font-size: .72rem; color: var(--muted); line-height: 1.35; display: flex; flex-wrap: wrap; gap: 0 8px; align-items: center; min-height: 18px; }
+.field-help b { color: var(--ink); font-weight: 700; }
+.field-error { color: var(--bad); font-size: .75rem; line-height: 1.35; font-weight: 700; }
+.textfield, .select {
+  width: 100%; min-width: 0; min-height: 40px; padding: 6px 9px; border: 1.5px solid var(--care-line); border-radius: 7px; background: var(--cream); color: var(--ink); font-size: 1rem;
+}
+.textfield::placeholder { color: var(--muted); opacity: .8; }
+.textfield[aria-invalid="true"], .seg[aria-invalid="true"] { border-color: var(--bad); }
+.row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.row2.sex-mbti { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); } /* 「고르지 않을래요」가 360px · 글자 크게에서도 잘리지 않게 — 성별 두 단추는 좁아도 된다 */
+.select { padding-inline: 7px 4px; } /* 오른쪽은 펼침 화살표 자리가 따로 있다 */
+.row-pick { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.row-pick.is-time { grid-template-columns: minmax(0, 1fr) auto auto; }
+.seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; border-radius: 8px; }
+.seg-item { display: flex; align-items: center; justify-content: center; gap: 4px; min-height: 40px; border: 1.5px solid var(--care-line); border-radius: 7px; background: var(--cream); font-size: var(--fs-body); padding: 4px 6px; }
+.seg-item[aria-pressed="true"], .seg-item[aria-checked="true"] { background: var(--sage-soft); border: 2px solid var(--sage-deep); font-weight: 700; }
+.tabs { display: inline-flex; border: 1.5px solid var(--care-line); border-radius: 99px; overflow: hidden; }
+.tab { border: 0; background: transparent; padding: 3px 10px; min-height: 26px; font-size: .72rem; line-height: 1.2; font-weight: 700; color: var(--muted); }
+.tab[aria-checked="true"] { background: var(--sage-soft); color: var(--ink); }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: .8125rem; min-height: 32px; cursor: pointer; }
+.check input { width: 18px; height: 18px; margin: 0; accent-color: var(--sage-deep); }
+.field-box { display: block; position: relative; }
+.privacy { font-size: .75rem; color: var(--muted); background: var(--sunk); border-radius: 8px; padding: 6px 10px; line-height: 1.45; }
+
+/* ── 팝업: 아래에서 올라오는 판(데스크톱은 가운데). 머리 · 몸(길 때만 스크롤) · 발(늘 보임) ── */
+.pop-layer { position: fixed; inset: 0; z-index: 40; display: flex; justify-content: center; align-items: flex-end; padding: 10px 0 0; background: var(--scrim); }
+@media (min-width: 720px) { .pop-layer { align-items: center; padding: 20px 16px; } }
+.sheet {
+  width: 100%; max-width: var(--column); max-height: 100%; display: flex; flex-direction: column; min-height: 0; position: relative;
+  background: var(--cream); color: var(--ink); border: 2px solid var(--edge); border-bottom: 0; border-radius: 16px 16px 0 0; box-shadow: 0 -6px 24px var(--shade); outline: none;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (min-width: 720px) { .sheet { border-bottom: 2px solid var(--edge); border-radius: 16px; } }
+.sheet-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px var(--gutter) 8px; border-bottom: 1px dashed var(--panel-line); }
+.sheet-titles { flex: 1 1 auto; min-width: 0; }
+.sheet-title { font-size: 1.0625rem; line-height: 1.3; }
+.sheet-sub { font-size: .75rem; color: var(--muted); line-height: 1.35; }
+.sheet-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px var(--gutter); display: flex; flex-direction: column; gap: 9px; }
+.sheet-body > * { flex: none; }
+.sheet.is-skinned > .sheet-body:last-child { margin-bottom: var(--skin-edge, 0px); } /* 발이 없는 판(메뉴): 몸이 판 아래 테두리 그림 위로 스크롤하지 않게 — 위는 머리, 발이 있으면 발이 막는다 */
+.sheet-foot { flex: none; max-height: 60dvh; overflow-y: auto; overscroll-behavior: contain; padding: 9px var(--gutter) 11px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 7px; background: var(--cream); border-radius: 0 0 14px 14px; }
+
+/* ── 입력 화면 ── */
+.s-input { gap: 7px; }
+.s-input .title { font-size: 1.125rem; letter-spacing: -.03em; }
+.s-input .lead { font-size: .78rem; color: var(--muted); }
+.s-input .form { display: flex; flex-direction: column; gap: 7px; }
+.s-input .submit { margin-top: auto; }
+@media (max-height: 700px) { .s-input .lead { display: none; } .s-input { gap: 5px; } .s-input .form { gap: 5px; } .s-input .check { min-height: 28px; } .s-input .privacy { padding-block: 4px; } }
+
+/* 고르기 팝업 */
+.picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.picker label { display: flex; flex-direction: column; gap: 3px; font-size: .75rem; font-weight: 700; color: var(--muted); }
+
+/* ── 그림 슬롯(개발 모드 ?slots=1 의 이름표 · 그림이 없는 슬롯의 자리) ── */
+.slot-frame { display: inline-block; position: relative; vertical-align: middle; }
+.slot-frame > img { display: block; width: 100%; height: 100%; object-fit: inherit; image-rendering: pixelated; }
+.slot-placeholder { display: grid; place-items: center; position: relative; min-width: 16px; min-height: 16px; border: 1.5px dashed var(--panel-line); border-radius: 6px; background: var(--sunk); color: var(--muted); font: 9px/1.2 ui-monospace, Consolas, monospace; overflow: hidden; text-align: center; }
+.slot-tag { position: absolute; left: 0; bottom: 0; z-index: 9; max-width: 100%; font: 9px/1.25 ui-monospace, Consolas, monospace; color: var(--slot-ink); background: var(--slot-bg); border: 1px solid var(--slot-line); border-radius: 2px; padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.skin-tagged { position: relative; }
+.is-skinned { position: relative; isolation: isolate; background: transparent !important; border-color: transparent !important; box-shadow: none !important; }
+.skin-layer { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; pointer-events: none; }
+.skin-layer.is-pressed, .skin-layer.is-focus { visibility: hidden; } /* 판의 상태 그림(ui.btn.*.pressed · ui.field.focus) — 그 상태에서만 판 위에 */
+.is-skinned:active > .skin-layer.is-pressed, .is-skinned:focus-within > .skin-layer.is-focus { visibility: visible; }
+.btn.is-skinned:active { color: var(--ink-press); } /* 누른 판 그림 위의 글(G5 — 짙은 풀색 판에서도 4.5:1) */
+/* 스크롤 칸을 담은 판(.scroll-frame > .scroll-body): 판(그림 판 · CSS 판)은 스크롤하지 않는 감싸개가 그리고 스크롤은 안의 칸이 한다. 판 그림 층(.skin-layer)을 스크롤 칸에 깔면
+   보이는 높이만큼만 크고 글과 함께 스크롤된다 — 안을 내리면 판이 올라가 그 아래 글이 판 밖에 그려진다(체험판 4판의 사주풀이). 그림 판이면 판 테두리 그림의 두께
+   (--skin-edge — art.js 의 skin() 이 단다)만큼 안쪽에서 스크롤해서, 스크롤하는 글이 테두리 그림 위로 지나가지 않는다. */
+.scroll-frame { display: flex; flex-direction: column; min-height: 0; }
+.scroll-frame > .scroll-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.scroll-frame.is-skinned { border-width: 0; padding: var(--skin-edge, 0px); }
+
+/* ── 움직임 줄이기(기기 설정 · 게임 설정) ── */
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+:root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after { animation: none !important; transition: none !important; }
+/* ── 로딩(화면 설계도 02) ── */
+.s-loading { align-items: center; text-align: center; gap: 6px; }
+/* ── 도입 영상(G8 — 태현님 11-10): 화면 가득(cover — 꽉 채움 · 받기 전 바탕은 영상의 첫 색 --intro-start, 끝 무렵 · 밝은 바탕은 끝 색 --intro-end) · 「건너뛰기」는 영상 위 작은 단추 ·
+   움직임 줄이기면 첫 장면 정지 → 밝은 바탕(is-light) → 명식 요약. 영상의 색이라 밝게 · 어둡게 같은 값 ── */
+:root { --intro-start: #34221B; --intro-end: #F6E9C7; } /* 영상 첫 장면의 위 · 아래 가장자리 색(책장 · 바닥) · 영상 끝 장면의 색(밝게의 --paper 와 같다) */
+.s-intro { position: fixed; inset: 0; z-index: 30; display: block; padding: 0; overflow: hidden; background: var(--intro-start); transition: background-color .6s ease-out; }
+.s-intro.is-end, .s-intro.is-light { background: var(--intro-end); }
+.intro-stage { position: absolute; inset: 0; }
+.intro-video { display: block; width: 100%; height: 100%; object-fit: cover; } /* 화면을 꽉 채운다(컨트롤러 11-10 — 4:7 영상의 위아래 띠를 없앤다 · 양옆이 조금 잘린다) */
+.intro-skip { position: absolute; right: max(12px, calc((100vw - var(--column)) / 2 + 12px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 2; min-height: 28px; padding: 0 10px; font: inherit; font-size: .6875rem; color: var(--intro-end); background: var(--intro-start); border: 1px solid var(--intro-end); border-radius: 14px; opacity: .85; cursor: pointer; } /* G9 태현님 「영상 건너뛰기는 좀 더 작게」: 글 한 단계 작게 · 흐린 글 · 가는 테두리 · 둥근 모서리 — 누르기 영역은 28px(접근성 24px 이상) · 넓은 화면에서는 게임 칸 안쪽 */
+.s-intro.is-end .intro-skip { color: var(--intro-start); background: var(--intro-end); border-color: var(--intro-start); }
+/* G9 「입력한 사주로 만세력을 펼치는 중」: 영상 아래쪽 한 줄 — 영상 위에서 읽히게 글자 테두리(그림이 아니라 글 읽힘 — design/drawn-allow.json) · 끝 무렵 밝은 장면에서는 짙은 글 · 밝은 테 */
+.intro-line { position: absolute; left: 16px; right: 16px; bottom: calc(52px + env(safe-area-inset-bottom, 0px)); z-index: 1; margin: 0; text-align: center; font-size: .9375rem; font-weight: 700; color: var(--intro-end); text-shadow: -1px -1px 0 var(--intro-start), 1px -1px 0 var(--intro-start), -1px 1px 0 var(--intro-start), 1px 1px 0 var(--intro-start), 0 0 4px var(--intro-start); transition: color .6s ease-out; }
+.s-intro.is-end .intro-line { color: var(--intro-start); text-shadow: -1px -1px 0 var(--intro-end), 1px -1px 0 var(--intro-end), -1px 1px 0 var(--intro-end), 1px 1px 0 var(--intro-end), 0 0 4px var(--intro-end); }
+/* 명식 요약이 밝은 바탕(영상 끝 색)에서 서서히(G8): 밝은 바탕이 걷히고(어둡게면 어두운 바탕으로 — 번쩍임 없이) 글 · 단추가 차례로 나타난다(투명도만 · 시간은 TEMPO.introVideo) */
+.s-summary.is-reveal > .intro-light { position: fixed; inset: 0; z-index: 0; background: var(--intro-end); pointer-events: none; animation: intro-light var(--reveal) ease-out both; }
+.s-summary.is-reveal > :not(.intro-light) { position: relative; z-index: 1; animation: intro-in var(--reveal-item) ease-out calc(var(--i, 0) * var(--reveal-step)) both; }
+.s-summary.is-reveal > .summary-page.is-opening { animation: intro-in var(--reveal-item) ease-out calc(var(--i, 0) * var(--reveal-step)) both, page-open var(--open) ease-out calc(var(--i, 0) * var(--reveal-step)) both; } /* 책장 펼침(TEMPO.intro.open)은 그대로 — 나타날 때 함께 */
+@keyframes intro-light { from { opacity: 1; } to { opacity: 0; } }
+@keyframes intro-in { from { opacity: 0; } to { opacity: 1; } }
+.s-loading .loading-title { margin-top: 4px; }
+.loading-art { position: relative; width: 100%; display: grid; place-items: center; min-height: 120px; }
+.loading-art-pic { position: relative; height: 100%; max-height: 100%; width: auto; max-width: 100%; aspect-ratio: 9 / 16; border-radius: 12px; overflow: hidden; }
+.loading-art > .slot-placeholder { position: relative; width: min(200px, 60%); aspect-ratio: 9 / 16; max-height: 100%; }
+.loading-head { font-size: 1.125rem; }
+.loading-sub { font-size: .8125rem; color: var(--muted); }
+.loading-birth { font-size: .75rem; color: var(--muted); }
+.pillars { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; width: 100%; }
+.pillar { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 5px 2px 6px; background: var(--cream); border: 1px solid var(--panel-line); border-radius: 8px; min-width: 0; }
+.pillar.is-day { border: 2px solid var(--edge); background: var(--tag); }
+.pillar.is-empty { border-style: dashed; justify-content: center; }
+.pillar-label { font-size: var(--fs-small); color: var(--muted); font-weight: 700; }
+.pillar-char { font-family: var(--font-hanja); font-weight: 700; font-size: 1.625rem; line-height: 1.15; }
+.pillar-tag { font-size: .625rem; color: var(--muted); line-height: 1.2; }
+.pillar-ko { font-size: var(--fs-small); font-weight: 700; margin-top: 2px; }
+.pillar-none { color: var(--muted); font-size: .8125rem; padding-block: 14px; }
+.pillars.is-filling .pillar { animation: fill-in var(--fill) ease-out both; animation-delay: calc(var(--lead) + var(--i) * var(--step)); } /* 박자는 TEMPO.intro(보기 값이 --lead · --step · --fill 을 단다 — 계획 I1) */
+.pillars.is-filling .pillar-char { font-size: 2rem; }
+@keyframes fill-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ── 사주풀이(화면 설계도 03~05) ── */
+.s-reading { gap: 6px; }
+.reading-head { display: flex; flex-direction: column; gap: 1px; }
+.reading-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 36px; } /* 머리 줄: 장 이름 · 「정령 만나러 가기」(계획 I1) */
+.reading-title { font-size: 1.1875rem; letter-spacing: -.03em; }
+.reading-sub { font-size: .75rem; color: var(--muted); }
+.toc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-top: 4px; }
+.toc i { height: 4px; border-radius: 99px; background: var(--line); }
+.toc i.on { background: var(--sage-deep); }
+.toc i.now { background: var(--gold); }
+.reading-wrap { position: relative; display: flex; flex-direction: column; }
+.reading-page { flex: 1 1 auto; background: var(--cream); border: 1.5px solid var(--panel-line); border-radius: 12px; } /* 책장 판(ui.panel.page) — 스크롤은 안의 .reading-body 가(.scroll-frame) */
+.reading-body { border-radius: 10px; padding: 12px 14px 18px; display: flex; flex-direction: column; gap: 10px; font-family: var(--font-read); font-size: .875rem; }
+.reading-body > * { flex: none; }
+.more-chip { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: .72rem; font-weight: 700; padding: 3px 12px; min-height: 28px; border-radius: 99px; background: var(--cream); border: 1.5px solid var(--edge); box-shadow: 0 2px 8px var(--shade); font-family: var(--font-ui); }
+.r-p { font-size: .9375rem; line-height: 1.8; }
+.r-quote { font-size: 1.0625rem; font-weight: 700; line-height: 1.55; }
+.r-summary, .r-verdict { display: flex; flex-direction: column; gap: 4px; border-radius: 10px; padding: 9px 11px; }
+.r-summary { background: var(--tag); border: 2px solid var(--sage-deep); }
+.r-verdict { background: var(--paper); border: 1.5px solid var(--panel-line); }
+.r-verdict .r-p { font-weight: 700; }
+.r-h { font-family: var(--font-ui); font-size: 1rem; display: flex; align-items: baseline; gap: 6px; margin-top: 4px; }
+.r-n { display: inline-grid; place-items: center; min-width: 22px; height: 22px; border-radius: 6px; background: var(--sage-soft); border: 1.5px solid var(--sage-deep); font-size: .75rem; }
+.r-list { display: flex; flex-direction: column; gap: 4px; }
+.r-list ul { display: flex; flex-direction: column; gap: 3px; }
+.r-list li { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 4px; font-size: .875rem; line-height: 1.6; }
+.r-list li::before { content: "•"; color: var(--sage-deep); font-weight: 700; text-align: center; }
+.r-list.tone-fit li::before, .r-list.tone-good li::before { content: "✓"; color: var(--ok); }
+.r-list.tone-unfit li::before, .r-list.tone-care li::before { content: "△"; color: var(--warn); }
+.r-label { font-family: var(--font-ui); }
+.r-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.r-pair > .r-list { background: var(--sunk); border-radius: 8px; padding: 6px 8px; }
+.r-facts { display: flex; flex-direction: column; gap: 4px; margin: 0; font-family: var(--font-ui); }
+.r-facts div { display: grid; grid-template-columns: minmax(0, 7.5em) minmax(0, 1fr); gap: 8px; font-size: .8125rem; line-height: 1.45; }
+.r-facts dt { color: var(--muted); font-weight: 700; }
+.r-facts dd { margin: 0; }
+.r-chart { display: flex; flex-direction: column; gap: 6px; font-family: var(--font-ui); }
+.r-elements { display: flex; flex-direction: column; gap: 4px; }
+.r-elements li { display: grid; grid-template-columns: 16px 4.5em minmax(0, 1fr) 2.6em; align-items: center; gap: 6px; font-size: .8125rem; }
+.r-elements .hanja { font-family: var(--font-hanja); color: var(--muted); margin-left: 3px; font-weight: 700; }
+.el-bar { display: block; height: 9px; border-radius: 99px; background: var(--track); overflow: hidden; }
+.el-bar > i { display: block; height: 100%; border-radius: 99px; background: currentColor; }
+.el-bar.is-skinned { border-radius: 0; } /* 게이지 틀 그림(ui.gauge.frame — G4 정사각 나무 틀, 가운데가 빈 틀)이 오면: 틀의 네 귀퉁이를 둥글게 잘라 내지 않는다 */
+.el-bar.is-skinned > .skin-layer { z-index: 1; } /* 틀을 채움 위에 — 채움(i)은 그대로 막대 높이를 다 채우고, 나무 테두리가 그 둘레를 덮는다(G4) */
+.el-count { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.el-wood { color: var(--el-wood); } .el-fire { color: var(--el-fire); } .el-earth { color: var(--el-earth); } .el-metal { color: var(--el-metal); } .el-water { color: var(--el-water); }
+.r-elements li b { color: var(--ink); }
+.term small { font-size: .78em; color: var(--muted); margin-left: 1px; }
+q { quotes: "\201C" "\201D"; }
+.is-reading .sheet-body { font-family: var(--font-read); font-size: .875rem; }
+/* ── 명식 요약 한 장(태현님 10-22 시작 A — 계획 I1 · 계획 O1): 책장 판(ui.panel.page) 안에 타고난 결 한 줄 · 어떤 사주인지 글 두 줄 · 왜 이 정령인지 한 줄. 펼침은 TEMPO.intro.open(--open), 움직임 줄이기면 펼치지 않는다 ── */
+.s-summary { gap: 6px; }
+.s-summary > .btn.ghost { align-self: center; }
+.summary-page { display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 12px 14px; background: var(--cream); border: 1.5px solid var(--panel-line); border-radius: 12px; text-align: center; }
+.summary-page.is-skinned { padding: calc(var(--skin-edge, 0px) + 6px) calc(var(--skin-edge, 0px) + 8px); }
+.summary-page.is-opening { animation: page-open var(--open) ease-out both; transform-origin: left center; }
+.summary-page > .summary-book { align-self: center; flex: 0 1 auto; min-height: 0; height: clamp(72px, 24dvh, 220px); width: auto; max-width: 100%; aspect-ratio: 9 / 16; border-radius: 10px; overflow: hidden; } /* 책장 위의 만세력 책 — 화면이 낮으면 먼저 줄어든다 */
+@keyframes page-open { from { opacity: 0; transform: perspective(900px) rotateY(-24deg); } to { opacity: 1; transform: none; } }
+.summary-tag { font-size: .9375rem; font-weight: 700; }
+.summary-page .r-summary { text-align: left; font-family: var(--font-read); }
+/* ── 정령 · 장면 공통 ── */
+.scene-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 58%; image-rendering: pixelated; }
+.bubble { position: relative; max-width: min(270px, 86cqw); margin-bottom: 7px; background: var(--cream); border: 2px solid var(--edge); border-radius: 11px; padding: 4px 10px; font-size: .8125rem; line-height: 1.4; text-align: center; font-weight: 700; }
+.bubble-tail { position: absolute; left: calc(50% - 8px); bottom: -14px; width: 16px; height: 16px; image-rendering: pixelated; pointer-events: none; } /* 꼬리는 그림(ui.bubble.tail) — CSS 로 돌린 네모를 그리지 않는다 */
+.spirit { display: block; width: var(--size, 106px); height: var(--size, 106px); image-rendering: pixelated; object-fit: contain; }
+
+/* ── 만남(화면 설계도 06) ── */
+.s-meet { gap: 6px; text-align: center; }
+.meet-scene { position: relative; border: 2px solid var(--edge); border-radius: 12px; overflow: hidden; background: var(--sunk); min-height: 200px; container-type: size; }
+.meet-card { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 4; background: var(--cream); border: 2px solid var(--edge); border-radius: 12px; padding: 6px 10px; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.meet-when { font-size: 1rem; font-weight: 700; letter-spacing: -.03em; }
+.meet-stage { position: absolute; left: 0; right: 0; bottom: 10px; top: 64px; z-index: 2; display: grid; place-items: end center; }
+.meet-fx { position: absolute; left: 50%; bottom: 10px; width: min(220px, 60cqw); transform: translateX(-50%); }
+.meet-spirit { position: relative; display: flex; flex-direction: column; align-items: center; --size: min(130px, calc(100cqh - 120px)); animation: wake .9s .5s both; }
+@keyframes wake { from { opacity: 0; transform: translateY(10px) scale(.9); } to { opacity: 1; transform: none; } }
+.meet-line { font-size: .8125rem; color: var(--muted); }
+.now { display: flex; flex-direction: column; gap: 4px; background: var(--paper); border: 1.5px solid var(--panel-line); border-radius: 10px; padding: 8px 10px; }
+.steps { display: inline-flex; gap: 3px; }
+.menu-list { display: flex; flex-direction: column; gap: 6px; }
+.menu-item { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; min-height: 48px; padding: 7px 12px; text-align: left; border: 2px solid var(--edge); border-radius: 9px; background: var(--cream); box-shadow: 0 3px 0 var(--btn2-shadow); }
+.menu-item small { font-size: .72rem; color: var(--muted); font-weight: 400; }
+.menu-item b { display: inline-flex; align-items: center; gap: 4px; }
+.menu-item:disabled { opacity: .45; cursor: default; box-shadow: none; }
+/* ── 자라는 하루(설계 2026-11-09 §3 · §4 · §6 · G3 11-10): 0~5살 자동 · 방 · 나들이 · 행사 날 · 생일 — 장면은 만남과 같은 꼴(배경 그림 · 정령 · 말풍선), 막대는 그래프 그림(ui.graph.* — G11) ──
+   G3(태현님 「선택지가 뜨는 게 지금 뒷창을 가려 — 위에 한 60% 공간 · 선택창도 그 밑에」): 위쪽 띠 · 장면(약 60%) · 아래 판(약 40% — 상황 · 결과 · 방 행동이 제자리에서 바뀐다, 정령을 가리지 않는다). */
+.s-grow { gap: 6px; text-align: center; }
+.s-grow > .grow-scene.grow { flex: 6 1 0 !important; min-height: 140px; }
+.s-grow > .grow-panel { flex: 4 1 0; min-height: 0; }
+.s-rise > .grow-panel { flex: 0 1 auto; } /* 0~5살(누르는 것 없음)은 막대 셋이 다 보이게 판이 제 높이 — 장면이 나머지 */
+.grow-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; }
+.grow-top-text { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 8px; min-width: 0; text-align: left; }
+.grow-top-btns { display: flex; gap: 6px; flex: none; }
+.grow-icon-btn .icon { width: 24px; height: 24px; }
+.grow-age { font-size: 1.0625rem; font-weight: 700; letter-spacing: -.02em; }
+.grow-acts { font-size: .8125rem; color: var(--muted); }
+.grow-way { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; align-items: center; gap: 8px; font-size: .875rem; line-height: 1.25; color: var(--muted); } /* 컨트롤러 11-10: 360×640 에서 잘 보이게 — 글은 .875rem */ /* G7 저울(늘 보임 — 위쪽 띠 바로 아래): 「사주대로」 ━ 「내 길대로」 */
+.grow-way { --bar-h: 16px; padding-bottom: calc(var(--bar-h) * .55); } /* G11: 두툼한 알약(16px) · 막대 가운데 아래의 저울 받침(그림 ui.graph.seesaw.base)이 들어갈 자리 */
+.grow-way .way-bar .gbar-fill { transition: margin-left .45s ease-out, width .45s ease-out; } /* 고를 때마다 한 번 살짝(움직임 줄이기면 위의 규칙이 전환을 끈다) */
+.grow-guide { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; font-size: .8125rem; line-height: 1.35; color: var(--muted); text-align: left; } /* 0~5살 안내 두 줄(G6) — 나이 글 옆의 빈 자리(단추 자리), 장면 · 정령 · 떠오르는 글을 가리지 않는다 */
+.grow-scene { position: relative; border: 2px solid var(--edge); border-radius: 12px; overflow: hidden; background: var(--sunk); min-height: 150px; container-type: size; }
+.grow-stage { position: absolute; left: 0; right: 0; bottom: 8px; top: 8px; z-index: 2; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.grow-actor { position: relative; --size: min(120px, calc(100cqh - 90px)); }
+.grow-scene.has-caption .grow-actor { --size: min(120px, calc(100cqh - 150px)); } /* 장면 위의 한 줄이 있으면 정령이 그만큼 작아진다(한 줄과 겹치지 않게) */
+.grow-prop { position: absolute; bottom: 0; left: calc(100% - var(--size) * .15); width: var(--size); pointer-events: none; } /* 하는 중 소품 — 정령 옆(같은 프레임 크기 · G3 전과 같은 자리). 소품 그림은 프레임 안에서 기준점 줄(y 244)에 닿게 들어와 있어 정령의 발과 같은 바닥에 선다(G5) */
+.scene-caption { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 4; background: var(--cream); border: 2px solid var(--edge); border-radius: 12px; padding: 5px 10px; font-size: .8125rem; line-height: 1.45; font-weight: 700; } /* 장면 위의 한 줄 — 만남의 판(.meet-card)과 같은 꼴 */
+/* 떠오르는 능력치 글(G3 — 게임 데미지 숫자처럼): 정령의 양옆에 줄을 지어(오른쪽 · 왼쪽 번갈아) 차례(--i)마다 시차를 두고 나타났다 사라지고, 묶음 전체가 천천히 떠오른다
+   (한 묶음이 함께 오르니 줄끼리 겹치지 않는다) · 오르면 --ok · 내리면 --bad(기존 색 토큰) ·
+   시간은 TEMPO.grow.float(화면이 --float-ms · --float-gap · --float-all 로 단다) · 움직임 줄이기(아래 규칙이 animation 을 끈다)면 움직이지 않고 그 자리에 보였다가 화면이 걷는다 ·
+   G4: 나무 바닥 · 밤 배경 위에서도 읽히게 글자 테두리(판 색 --cream — 밝게는 밝은 테 · 어둡게는 짙은 테, 그림이 아니라 글 읽힘 — design/drawn-allow.json) · 글자 한 단계 크게(.8125 → .875rem) */
+.grow-floats { position: absolute; left: 0; right: 0; bottom: 42%; height: 0; z-index: 3; pointer-events: none; animation: grow-floats var(--float-all, var(--float-ms)) linear both; }
+.grow-float { position: absolute; bottom: calc(var(--row, 0) * 1.5em); white-space: nowrap; font-size: .875rem; line-height: 1.3; font-weight: 700; text-shadow: -1px -1px 0 var(--cream), 1px -1px 0 var(--cream), -1px 1px 0 var(--cream), 1px 1px 0 var(--cream), 0 0 3px var(--cream); animation: grow-float var(--float-ms) ease-out calc(var(--i, 0) * var(--float-gap)) both; }
+.grow-float.at-right { left: calc(100% - 14px); } /* 정령 시트의 빈 가장자리에 조금 걸쳐 — 360 폭에서도 장면 안에 */
+.grow-float.at-left { right: calc(100% - 14px); }
+.grow-float.is-up { color: var(--ok); }
+.grow-float.is-down { color: var(--bad); }
+.grow-float.is-with { color: var(--way-with); } /* G7 「사주대로 +1」 — 흐린 풀빛(경고색 아님) */
+.grow-float.is-off { color: var(--way-off); }   /* G7 「사주와 다르게 −1」 — 흐린 보랏빛(빨강 아님) */
+@keyframes grow-floats { from { transform: translateY(6px); } to { transform: translateY(-16px); } }
+@keyframes grow-float { 0% { opacity: 0; } 12% { opacity: 1; } 78% { opacity: 1; } 100% { opacity: 0; } }
+/* 아래 판: 팝업 판(ui.panel.sheet)과 같은 꼴 — 판(그림 · CSS)은 감싸개가 그리고 글이 커져 넘칠 때만 안의 칸이 스크롤한다(.scroll-frame) */
+.grow-panel { background: var(--cream); border: 2px solid var(--edge); border-radius: 12px; text-align: left; }
+.grow-panel-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.grow-panel-body > * { flex: none; }
+.grow-panel.is-acts .grow-panel-body, .grow-panel.is-result .grow-panel-body, .grow-panel.is-event .grow-panel-body, .grow-panel.is-birthday .grow-panel-body { justify-content: center; }
+.grow-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.grow-panel-title { font-size: .9375rem; font-weight: 700; line-height: 1.3; }
+.grow-panel-title.eyebrow { font-size: var(--fs-small); }
+.grow-options { display: flex; flex-direction: column; gap: 6px; }
+.grow-options > .btn { min-height: 40px; }
+/* G9 보기: 글 왼쪽 · 가능성(흐린 작은 글) 오른쪽 한 줄 · 성격 보기는 그 위에 작은 표지 */
+.grow-opt { flex-wrap: wrap; justify-content: space-between; text-align: left; row-gap: 0; }
+.grow-opt > span { flex: 1 1 auto; min-width: 0; }
+.grow-opt > small { flex: none; white-space: nowrap; }
+.grow-opt > small.opt-tag { flex: 1 0 100%; white-space: normal; color: var(--sage-deep); font-weight: 700; }
+/* G9: 보기가 넷(성격 보기가 열림)이면 판을 촘촘하게 · 판이 제 높이를 갖고 장면이 나머지(장면 몫은 그래도 절반 넘게 — 시험이 잰다) */
+.s-grow > .grow-panel.is-many { min-height: max-content; } /* 판은 40% 로 두되 보기 넷이 다 들어갈 만큼보다 줄지 않는다 */
+.grow-panel.is-many .grow-panel-body { padding: 6px 10px; gap: 4px; }
+.grow-panel.is-many .grow-card-text { font-size: .8125rem; line-height: 1.4; }
+.grow-panel.is-many .grow-options { gap: 4px; }
+.grow-panel.is-many .grow-options > .btn { min-height: 34px; padding-block: 3px; }
+.grow-reason { font-size: .8125rem; line-height: 1.4; color: var(--muted); text-align: center; } /* G9 까닭 한 줄 */
+.grow-card-text { font-size: .875rem; line-height: 1.5; }
+.grow-tier { font-size: 1.0625rem; font-weight: 700; text-align: center; } /* 결과 단계 한 줄(대성공 · 성공 · 그럭저럭 · 시큰둥) */
+.grow-then { font-size: .9375rem; line-height: 1.5; text-align: center; } /* 그 보기로 무엇이 해결됐는지 한 줄 */
+.grow-birthday-age { font-size: 1.375rem; font-weight: 700; letter-spacing: -.02em; text-align: center; } /* 생일 장면 — 「콩이가 6살이 됐어요」 크게 */
+.grow-panel.is-event .grow-line, .grow-panel.is-birthday .grow-line { text-align: center; }
+.grow-gauges { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 6px; text-align: left; } /* 방의 능력치 다섯 — 이름 위 · 작은 막대 아래 */
+.grow-gauges li { display: flex; flex-direction: column; gap: 3px; font-size: .6875rem; line-height: 1.25; min-width: 0; padding-right: calc(var(--bar-h) * .7); --bar-h: 14px; } /* G11: 두툼한 알약(14px) · 끝 장식이 이웃 칸에 걸치지 않게 오른쪽 여백 */
+.gauge-label { white-space: nowrap; }
+.grow-titles { display: flex; flex-direction: column; gap: 2px; font-size: .8125rem; line-height: 1.4; } /* 안 1 — 자라는 모습 맨 위의 칭호 줄 */
+.grow-title { font-weight: 700; }
+.grow-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.grow-actions > .btn { flex: 1 1 auto; }
+.grow-hint { font-size: .75rem; line-height: 1.3; color: var(--muted); text-align: center; } /* G9 — 흐린 쪽의 짧은 안내(「세 번째에는 밖으로 나가요」) */
+.grow-line { font-size: .875rem; }
+.grow-graph { display: flex; flex-direction: column; gap: 6px; text-align: left; --bar-h: 10px; }
+.graph-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; }
+.graph-rows li { display: grid; grid-template-columns: minmax(0, 5.6em) minmax(0, 1fr); align-items: center; gap: 6px; font-size: .75rem; line-height: 1.3; }
+.graph-abilities .graph-rows li { padding-right: calc(var(--bar-h) * .7); } /* 끝 장식(채움 끝 — 가득 차면 막대 끝)이 판 · 이웃 칸에 걸치지 않게 */
+.graph-mbti .graph-rows li, .graph-traits .graph-rows li { grid-template-columns: max-content minmax(0, 1fr) max-content; } /* MBTI 줄 — 양끝 글자와 몫(E 51 ━━ I 49 — G4, 네 축을 %로 늘) · 성격 시소 — 양끝에 두 성격(G11) */
+.graph-traits .graph-rows { grid-template-columns: minmax(0, 1fr); row-gap: calc(var(--bar-h) * .7); padding-top: calc(var(--bar-h) * .5); } /* 시소 가운데 별의 빛살이 윗줄에 걸치지 않게 */
+.graph-end { font-weight: 700; min-width: 3.4em; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; } /* 몫이 한두 자리로 바뀌어도 막대 길이가 줄마다 같게 */
+.graph-traits .graph-end { min-width: 5.4em; } /* 성격 이름(「호기심 많은」)이 줄마다 같은 폭 — 시소 가운데가 줄마다 같은 자리 */
+/* G11 그래프(태현님 11-11 B 안 「둥근 알약 · 시소」 — 그림 ui.graph.*): 빈 막대 틀(늘이는 9조각 · 바탕)과 그 테두리 안쪽 길(그림의 8/64 — 틀의 진한 테두리 안)에서 차오르는 채움(늘이는 9조각) ·
+   채움 끝의 장식 · 시소 가운데 별 · 저울 받침. 크기는 --bar-h 하나(채움은 그 3/4). 막대를 CSS 색 · 테두리 · 둥근 모서리로 그리지 않는다 — 그림이 없으면 보이지 않는다. */
+.gbar { position: relative; display: block; height: var(--bar-h); --fill-h: calc(var(--bar-h) * .75); }
+.gbar-track { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.gbar-lane { position: absolute; inset: calc(var(--bar-h) / 8); z-index: 2; }
+.gbar-fill { position: absolute; top: 0; bottom: 0; left: 0; display: block; transition: width .45s linear; }
+.gbar-fill.is-left { left: auto; right: 50%; }
+.gbar-fill.is-right { left: 50%; }
+.gbar-pic { position: absolute; inset: 0; pointer-events: none; }
+.gbar-tip { position: absolute; right: 0; top: 50%; width: calc(var(--bar-h) * 1.5); height: calc(var(--bar-h) * 1.5); translate: 50% -50%; image-rendering: pixelated; pointer-events: none; } /* 채움 끝(가득 차면 막대 끝)에 반쯤 걸쳐 함께 움직인다 */
+.gbar-mark { position: absolute; left: 50%; image-rendering: pixelated; pointer-events: none; }
+.gbar-mark.at-mid { z-index: 3; top: 50%; width: calc(var(--bar-h) * 1.9); height: calc(var(--bar-h) * 1.9); translate: -50% -68%; } /* 시소 가운데 별 — 별의 몸이 막대 가운데에, 빛살은 막대 위로 */
+.gbar-mark.at-below { z-index: 0; top: 30%; width: calc(var(--bar-h) * 1.6); height: calc(var(--bar-h) * 1.6); translate: -50% 0; } /* 저울 받침 — 막대 밑에 깔려 아래로 */
+/* 자라는 모습 판(G3 배치 · G11 B 안 시안): 능력치 다섯은 한 줄에 하나씩 두툼한 막대 · 성격은 네 쌍의 시소 · MBTI 네 축은 한 줄씩 */
+.grow-graph.is-big { gap: 10px; --bar-h: 16px; }
+.grow-graph.is-big .graph-abilities .graph-rows { grid-template-columns: minmax(0, 1fr); gap: 9px; }
+.grow-graph.is-big .graph-abilities .graph-rows li { grid-template-columns: minmax(0, 4.6em) minmax(0, 1fr); font-size: .875rem; --bar-h: 20px; }
+.grow-graph.is-big .graph-traits .graph-rows li { font-size: .8125rem; }
+.grow-graph.is-big .graph-mbti .graph-rows { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.grow-graph.is-big .graph-mbti .graph-rows li { font-size: .875rem; }
+
+/* ── 5살 첫 튜토리얼(G11 — 태현님 11-11): 나머지 화면은 반투명 어둠(--scrim — 그림이 아니라 가림, 손가락을 막는다) · 짚는 칸만 그 위로(그 칸만 눌린다) · 둘레에 테두리 그림(ui.tutorial.ring) ·
+   장면 위쪽 안내 자리의 판(팝업 판 그림 ui.panel.sheet · 주 단추 ui.btn.primary · 게임 글꼴). 자리는 모두 CSS 로(재지 않는다):
+   화면 전체의 어둠(.tut-dim) 위로 장면 · 아래 판을 올리고 그 안에 각각의 어둠 — 장면의 어둠 위에 안내 판, 아래 판의 어둠 위에 짚는 칸. 누를 칸의 테두리만 천천히 깜빡인다(움직임 줄이기면 위의 규칙이 끈다). ── */
+.tut-dim { position: fixed; inset: 0; z-index: 35; background: var(--scrim); }
+.s-grow.is-tut > .grow-scene, .s-grow.is-tut > .grow-panel { z-index: 36; }
+.s-grow.is-tut > .grow-panel { position: relative; }
+.tut-sdim, .tut-pdim { position: absolute; inset: 0; background: var(--scrim); }
+.tut-sdim { z-index: 5; }
+.tut-pdim { z-index: 1; }
+.tut-target { position: relative; z-index: 2; } /* 아래 판의 어둠 위로 — 이 칸만 밝고 눌린다 */
+.tut-target.is-look { pointer-events: none; } /* 보기 줄을 보이기만 하는 단계 — 「알겠어요」 전에는 고르지 않는다 */
+.tut-ring { position: absolute; inset: -8px; z-index: 1; pointer-events: none; }
+.tut-pulse .tut-ring { animation: tut-pulse 1.6s ease-in-out infinite; }
+@keyframes tut-pulse { 50% { opacity: .55; } }
+.tut-card { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 6; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; background: var(--cream); border: 2px solid var(--edge); border-radius: 12px; text-align: left; font-family: var(--font-ui); }
+.tut-card.is-skinned { position: absolute; padding: calc(var(--skin-edge, 0px) + 2px) calc(var(--skin-edge, 0px) + 6px); }
+.tut-text { font-size: .875rem; line-height: 1.5; font-weight: 700; }
+.tut-sub { font-size: .75rem; line-height: 1.35; color: var(--muted); }
+.tut-btns { display: flex; justify-content: flex-end; }
+/* ── 그리다 멈췄을 때의 최소 화면(띠 한 줄 · 「새로 입력하기」) ── */
+.s-failed { justify-content: center; gap: 12px; }
+/* ── 휴대폰을 눕힌 낮은 가로 화면: 한 화면(재우기 · 정령)이 들어가지 않는다 — 「세로로 돌려 주세요」 판으로 덮는다(데스크톱 · 태블릿 가로는 높이가 넉넉해 그대로).
+   폭이 560px 보다 좁으면 덮지 않는다: 세로로 든 휴대폰에서 소프트 키보드가 창 높이를 줄이면(390×340 · 360×260) 폭이 높이보다 커져 「가로」로 보이지만, 돌려 봐야 소용없고 입력을 가리게 된다. ── */
+.rotate { display: none; }
+@media (orientation: landscape) and (max-height: 480px) and (min-width: 560px) {
+  .rotate { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 24px; background: var(--paper); color: var(--ink); text-align: center; }
+}
+.rotate-pic { width: 48px; height: 48px; image-rendering: pixelated; } /* 돌리기 그림(icon.ui.rotate) — ↻ 글자를 그리지 않는다 */
+.rotate-title { font-size: 1.125rem; font-weight: 700; }
+.rotate-note { font-size: .8125rem; color: var(--muted); }
+/* ── 글자 200%(계획 E1 — 게임성 v6 LIFE-22): 글이 커져 줄의 폭이 em 으로 좁아지면(보통 글자 · 설정의 「크게」로는 닿지 않는 폭) 나란한 것을 줄을 바꿔 쌓는다 — 판 머리의 제목과 닫기 단추 ── */
+.pop-layer { container: pop / inline-size; }
+@container pop (max-width: 16em) {
+  .sheet-head { flex-wrap: wrap; }
+  .sheet-titles { flex: 1 1 100%; }
+}

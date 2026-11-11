@@ -334,6 +334,14 @@ q { quotes: "\201C" "\201D"; }
 .grow-stage { position: absolute; left: 0; right: 0; bottom: 8px; top: 8px; z-index: 2; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
 .grow-actor { position: relative; --size: min(120px, calc(100cqh - 90px)); }
 .grow-scene.has-caption .grow-actor { --size: min(120px, calc(100cqh - 150px)); } /* 장면 위의 한 줄이 있으면 정령이 그만큼 작아진다(한 줄과 겹치지 않게) */
+/* G12 결과 글자 그림(ui.result.* — 태현님 11-11 「캐릭터 위에 띄우고」): 정령 머리 위 · 말풍선 자리 위(말풍선은 ①② 동안 자리만 지키고 숨는다 — 판이 올라와도 그림이 움직이지 않게).
+   그림의 비율 그대로(높이만 정하고 가로는 그림이 — img 의 max-width 를 풀어 눌리지 않게) · 장면이 낮으면 정령이 그만큼 작아진다 · 톡 커지며 나타남(--word-ms · 움직임 줄이기면 위의 규칙이 끈다) */
+.grow-word { display: block; flex: none; height: clamp(30px, 15cqh, 52px); width: auto; max-width: none; margin-bottom: 4px; pointer-events: none; animation: grow-word var(--word-ms, 280ms) ease-out both; }
+.grow-scene.has-word .grow-actor { --size: min(120px, calc(100cqh - 90px - clamp(30px, 15cqh, 52px))); }
+.grow-scene.has-word.has-caption .grow-actor { --size: min(120px, calc(100cqh - 150px - clamp(30px, 15cqh, 52px))); }
+@keyframes grow-word { 0% { opacity: 0; transform: scale(.5); } 70% { opacity: 1; transform: scale(1.08); } 100% { opacity: 1; transform: scale(1); } }
+.bubble.is-hold { visibility: hidden; } /* G12 ①②: 정령의 한마디는 결과 판과 함께(③) — 자리는 그대로 */
+.s-grow.is-wait button { pointer-events: none; } /* G12 ①② 를 기다리는 동안 화면 어디를 눌러도 다음 차례(잠긴 단추가 손가락을 먹지 않게 — 화면이 받는다) */
 .grow-prop { position: absolute; bottom: 0; left: calc(100% - var(--size) * .15); width: var(--size); pointer-events: none; } /* 하는 중 소품 — 정령 옆(같은 프레임 크기 · G3 전과 같은 자리). 소품 그림은 프레임 안에서 기준점 줄(y 244)에 닿게 들어와 있어 정령의 발과 같은 바닥에 선다(G5) */
 .scene-caption { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 4; background: var(--cream); border: 2px solid var(--edge); border-radius: 12px; padding: 5px 10px; font-size: .8125rem; line-height: 1.45; font-weight: 700; } /* 장면 위의 한 줄 — 만남의 판(.meet-card)과 같은 꼴 */
 /* 떠오르는 능력치 글(G3 — 게임 데미지 숫자처럼): 정령의 양옆에 줄을 지어(오른쪽 · 왼쪽 번갈아) 차례(--i)마다 시차를 두고 나타났다 사라지고, 묶음 전체가 천천히 떠오른다
@@ -373,13 +381,16 @@ q { quotes: "\201C" "\201D"; }
 .grow-panel.is-many .grow-options > .btn { min-height: 34px; padding-block: 3px; }
 .grow-reason { font-size: .8125rem; line-height: 1.4; color: var(--muted); text-align: center; } /* G9 까닭 한 줄 */
 .grow-card-text { font-size: .875rem; line-height: 1.5; }
-.grow-tier { font-size: 1.0625rem; font-weight: 700; text-align: center; } /* 결과 단계 한 줄(대성공 · 성공 · 그럭저럭 · 시큰둥) */
+.grow-panel.is-result .grow-panel-body { animation: grow-panel-up var(--up-ms, 320ms) ease-out both; } /* G12 ③: 결과 판이 자연스럽게 올라온다(움직임 줄이기면 그냥) */
+@keyframes grow-panel-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 .grow-then { font-size: .9375rem; line-height: 1.5; text-align: center; } /* 그 보기로 무엇이 해결됐는지 한 줄 */
 .grow-birthday-age { font-size: 1.375rem; font-weight: 700; letter-spacing: -.02em; text-align: center; } /* 생일 장면 — 「콩이가 6살이 됐어요」 크게 */
 .grow-panel.is-event .grow-line, .grow-panel.is-birthday .grow-line { text-align: center; }
 .grow-gauges { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 6px; text-align: left; } /* 방의 능력치 다섯 — 이름 위 · 작은 막대 아래 */
 .grow-gauges li { display: flex; flex-direction: column; gap: 3px; font-size: .6875rem; line-height: 1.25; min-width: 0; padding-right: calc(var(--bar-h) * .7); --bar-h: 14px; } /* G11: 두툼한 알약(14px) · 끝 장식이 이웃 칸에 걸치지 않게 오른쪽 여백 */
+.gauge-head { display: flex; align-items: baseline; justify-content: space-between; gap: 2px; min-width: 0; } /* G12: 이름 · 그 막대의 지금 값(막대의 오른끝 위) */
 .gauge-label { white-space: nowrap; }
+.graph-num { flex: none; font-size: .625rem; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; } /* G12 막대 옆 숫자(지금 값의 정수 — 작게) */
 .grow-titles { display: flex; flex-direction: column; gap: 2px; font-size: .8125rem; line-height: 1.4; } /* 안 1 — 자라는 모습 맨 위의 칭호 줄 */
 .grow-title { font-weight: 700; }
 .grow-actions { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -403,15 +414,18 @@ q { quotes: "\201C" "\201D"; }
 .gbar-fill.is-left { left: auto; right: 50%; }
 .gbar-fill.is-right { left: 50%; }
 .gbar-pic { position: absolute; inset: 0; pointer-events: none; }
-.gbar-tip { position: absolute; right: 0; top: 50%; width: calc(var(--bar-h) * 1.5); height: calc(var(--bar-h) * 1.5); translate: 50% -50%; image-rendering: pixelated; pointer-events: none; } /* 채움 끝(가득 차면 막대 끝)에 반쯤 걸쳐 함께 움직인다 */
-.gbar-mark { position: absolute; left: 50%; image-rendering: pixelated; pointer-events: none; }
+.gbar-tip { position: absolute; right: 0; top: 50%; width: calc(var(--bar-h) * 1.5); height: calc(var(--bar-h) * 1.5); max-width: none; max-height: none; translate: 50% -50%; image-rendering: pixelated; pointer-events: none; } /* 채움 끝(가득 차면 막대 끝)에 반쯤 걸쳐 함께 움직인다 · G12: 그림의 비율 그대로 — img 의 max-width 100% 가 짧은 채움(값이 작을 때)의 폭으로 장식을 눌러 세로로 늘였다 */
+.gbar-mark { position: absolute; left: 50%; max-width: none; max-height: none; image-rendering: pixelated; pointer-events: none; } /* G12: 비율 그대로(위와 같은 까닭) */
 .gbar-mark.at-mid { z-index: 3; top: 50%; width: calc(var(--bar-h) * 1.9); height: calc(var(--bar-h) * 1.9); translate: -50% -68%; } /* 시소 가운데 별 — 별의 몸이 막대 가운데에, 빛살은 막대 위로 */
 .gbar-mark.at-below { z-index: 0; top: 30%; width: calc(var(--bar-h) * 1.6); height: calc(var(--bar-h) * 1.6); translate: -50% 0; } /* 저울 받침 — 막대 밑에 깔려 아래로 */
 /* 자라는 모습 판(G3 배치 · G11 B 안 시안): 능력치 다섯은 한 줄에 하나씩 두툼한 막대 · 성격은 네 쌍의 시소 · MBTI 네 축은 한 줄씩 */
 .grow-graph.is-big { gap: 10px; --bar-h: 16px; }
 .grow-graph.is-big .graph-abilities .graph-rows { grid-template-columns: minmax(0, 1fr); gap: 9px; }
-.grow-graph.is-big .graph-abilities .graph-rows li { grid-template-columns: minmax(0, 4.6em) minmax(0, 1fr); font-size: .875rem; --bar-h: 20px; }
+.grow-graph.is-big .graph-abilities .graph-rows li { grid-template-columns: minmax(0, 4.6em) minmax(0, 1fr) max-content; padding-right: 0; font-size: .875rem; --bar-h: 20px; } /* G12: 막대 옆 숫자 칸(끝 장식은 숫자 앞의 틈에) */
+.grow-graph.is-big .graph-abilities .graph-num { min-width: 2.4em; padding-left: calc(var(--bar-h) * .6); text-align: right; font-size: .75rem; }
 .grow-graph.is-big .graph-traits .graph-rows li { font-size: .8125rem; }
+.grow-graph.is-big .graph-traits .graph-end { min-width: 7em; } /* G12: 성격 이름 옆 숫자(「호기심 많은 62」)까지 줄마다 같은 폭 — 시소 가운데가 줄마다 같은 자리 */
+.grow-graph.is-big .graph-traits .graph-num { font-size: .75rem; }
 .grow-graph.is-big .graph-mbti .graph-rows { grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .grow-graph.is-big .graph-mbti .graph-rows li { font-size: .875rem; }
 

@@ -525,3 +525,60 @@ q { quotes: "\201C" "\201D"; }
 .big-result-line { font-size: .9375rem; line-height: 1.45; text-align: center; font-weight: 700; }
 .big-react { font-size: .875rem; line-height: 1.45; text-align: center; }
 .big-change, .big-record { font-size: .75rem; line-height: 1.4; text-align: center; color: var(--muted); }
+
+/* ── G19 8~16살(설계서 05-saju-work/g6/G18-spec.md): 지금 판 · 단추 · 글꼴 그대로 — 새 꾸밈 없음. 그림은 슬롯(바탕 bg.stage.* · 결과 글자 ui.grade.* · 사주 결 칩 ui.way.* · 통지문 종이 ui.notice.paper)뿐 ──
+   방의 능력치 줄: 8살부터 여섯째 어울림(여섯 칸) · 큰 선택의 보기 옆 사주 결 칩(그림 — 비율 그대로 · 글자 크게면 함께 커진다 · 단추 줄이 넘치면 아래 줄로) ·
+   곁의 작은 정령(이성친구 · 그림자 — 같은 시트 · 이름표는 글) · 꿈 찾기 칸(글자판이 올라와도 칸 · 목록이 보이게 — 장면이 줄어든다) · 가정통지문(종이 비율 그대로 · 판 안에서 가장 크게) · 사주대로라면 · 두 정령의 표. */
+.grow-gauges:has(> li:nth-child(6)) { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0 4px; }
+.grow-gauges:has(> li:nth-child(6)) li { font-size: .625rem; }
+.way-chip { display: block; flex: none; height: calc(1.35rem * var(--chip-k, 1)); width: auto; max-width: none; image-rendering: pixelated; pointer-events: none; }
+.grow-opt.has-chip { column-gap: 6px; }
+.grow-opt.has-chip > span { flex: 1 1 8em; }
+.grow-options.is-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 6px; }
+.grow-options.is-grid > .btn { min-height: 36px; padding: 3px 8px; }
+.grow-options.is-grid .grow-opt > span { flex-basis: 3em; }
+.grow-options.is-grid .way-chip { height: 1.05rem; }
+.dream-way { display: flex; justify-content: center; }
+.dream-way .way-chip { height: 1.75rem; }
+.grow-cast { display: flex; align-items: flex-end; justify-content: center; gap: 10px; }
+.cast-me, .cast-other { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.grow-cast { --cast: max(40px, min(110px, calc(100cqh - 110px))); }
+.s-grow.at-twin .grow-cast, .s-grow.at-final .grow-cast { --cast: max(36px, min(110px, calc(100cqh - 44px))); } /* 표가 판을 넓게 쓰는 장 — 장면이 낮아도 두 정령이 보이게 */
+.grow-cast .grow-actor { --size: var(--cast); }
+.cast-other { --size: calc(var(--cast) * .62); }
+.grow-cast.is-pair .cast-other { --size: var(--cast); }
+.cast-tag { font-size: .75rem; line-height: 1.25; font-weight: 700; background: var(--cream); border: 1.5px solid var(--edge); border-radius: 8px; padding: 1px 6px; white-space: nowrap; }
+.search-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 8.5em); gap: 6px; align-items: center; }
+.search-box { display: block; }
+.search-box .textfield { width: 100%; }
+.search-cat { min-height: 40px; width: 100%; min-width: 0; }
+.s-grow > .grow-panel.is-search { flex: 6 1 0; }
+.s-grow.at-search > .grow-scene.grow { flex: 2 1 0 !important; min-height: 64px; }
+.grow-panel.is-search .grow-panel-body { overflow: hidden; }
+.search-list { flex: 1 1 auto !important; min-height: 72px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding: 2px; }
+.search-item { width: 100%; min-height: 36px; padding: 5px 10px; text-align: left; border: 1.5px solid var(--panel-line); border-radius: 8px; background: var(--cream); color: var(--ink); font-size: .875rem; }
+.search-item:disabled { opacity: .5; cursor: default; }
+:root[data-kb="1"] .app { height: var(--vvh, 100dvh); }
+.s-grow > .grow-panel.is-notice { flex: 8 1 0; }
+.s-grow.at-notice > .grow-scene.grow, .s-grow.at-final > .grow-scene.grow, .s-grow.at-twin > .grow-scene.grow { flex: 2 1 0 !important; min-height: 90px; }
+.grow-panel.is-notice .grow-panel-body { height: 100%; }
+.notice-fit { flex: 1 1 auto !important; min-height: 0; display: grid; place-items: center; container-type: size; }
+.notice-paper { position: relative; width: min(100cqw, 100cqh * 1053 / 1406); height: min(100cqh, 100cqw * 1406 / 1053); background: var(--cream); border: 2px solid var(--edge); border-radius: 6px; color: var(--ink); }
+.notice-body { position: absolute; inset: 23% 8% 6% 8%; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; text-align: left; }
+.notice-title { font-size: .9375rem; font-weight: 700; text-align: center; }
+.notice-rows { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.notice-row dt { font-size: .75rem; font-weight: 700; color: var(--sage-deep); }
+.notice-row dd { margin: 0; font-size: .8125rem; line-height: 1.4; }
+.s-grow > .grow-panel.is-twin, .s-grow > .grow-panel.is-final { flex: 6 1 0; }
+.twin-table { width: 100%; border-collapse: collapse; font-size: .75rem; line-height: 1.35; table-layout: fixed; --bar-h: 10px; }
+.twin-table th, .twin-table td { padding: 3px 4px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.twin-table thead th { font-size: .75rem; color: var(--sage-deep); }
+.twin-table tbody th { width: 4.6em; font-weight: 700; color: var(--muted); }
+.twin-table td:has(.gbar) { display: grid; grid-template-columns: minmax(0, 1fr) max-content; align-items: center; gap: 4px; }
+.twin-diff { font-size: .8125rem; }
+.grow-panel.is-twin .grow-panel-body, .grow-panel.is-final .grow-panel-body { height: 100%; }
+.twin-scroll { flex: 1 1 auto !important; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.twin-scroll > * { flex: none; }
+.grow-panel.is-stop .grow-panel-body, .grow-panel.is-line .grow-panel-body, .grow-panel.is-dream .grow-panel-body { justify-content: center; }
+:root[data-text="large"] { --chip-k: 1.1; }
+.s-grow.at-notice .grow-actor { --size: max(40px, min(110px, calc(100cqh - 24px))); } /* 통지문이 판을 넓게 쓰는 동안에도 정령이 장면에 보이게 */

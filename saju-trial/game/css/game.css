@@ -616,7 +616,20 @@ q { quotes: "\201C" "\201D"; }
 .title-name.has-logo { padding-inline: 0; margin-inline: calc(-1 * var(--gutter)); align-items: flex-start; } /* G24: 로고는 장면 왼쪽에서 기기 픽셀 정수만큼 띄워 가운데에(app.js — titleLogoFit) */
 .title-logo { display: block; flex: none; width: min(100%, 420px); max-width: none; height: auto; align-self: center; }
 .title-logo.is-fit { align-self: flex-start; } /* 크기 · 자리 · 그리는 법(정수배면 pixelated)은 app.js 가 원본 크기로 정한다(G24 — 그 전에는 가운데 맞춤 대신 그림) */
-.title-lead { position: relative; font-size: .8125rem; line-height: 1.5; text-align: center; background: var(--cream); border: 2px solid var(--edge); border-radius: 10px; padding: 6px 10px; }
+/* G25 제목 글자 아홉 조각(ui.logo.title.s1~s9): 통째 로고와 같은 자리의 틀 안에 원본 자리 × 도트 크기(app.js — 기기 픽셀의 정수) · 세로 자리는 도트 크기 × 정수로만 움직인다(titleLogoAt) ·
+   조각을 그리는 동안 통째 로고는 투명(화면 읽기는 그 이름을 그대로 읽는다) · 움직임 줄이기 · 정수배가 아닐 때는 통째 로고(data-logo="whole") */
+.title-pieces { position: absolute; top: 0; left: 0; pointer-events: none; }
+.title-piece { position: absolute; display: block; max-width: none; image-rendering: pixelated; opacity: 0; }
+.title-piece[data-row="0"] { z-index: 1; } /* 아래 줄 글자는 위 줄 뒤로 떨어진다(앉은 위 줄 위에 겹쳐 그리지 않는다) */
+.title-name[data-logo="pieces"] .title-logo { opacity: 0; }
+.title-name[data-logo="whole"] .title-pieces { display: none; }
+.title-lead { position: relative; display: flex; flex-direction: column; gap: 3px; text-align: center; background: var(--cream); border: 2px solid var(--edge); border-radius: 10px; padding: 7px 10px; transition: opacity .3s ease, transform .3s ease; }
+/* G25 소개 두 단: 큰 줄(hook — 굵고 크게) · 작은 줄(sub) — 로고가 다 앉은 뒤 큰 줄(판과 함께) → 작은 줄 차례로 아래에서 살짝 올라온다(data-lead — app.js 가 TEMPO.title.logo.lead 에 단다 · 움직임 줄이기면 처음부터 2) */
+.title-hook { font-size: 1rem; font-weight: 700; line-height: 1.4; letter-spacing: -.01em; }
+.title-hook-line { display: block; text-wrap: balance; } /* 쉼표 뒤에서 줄 바꿈(vm hookLines) · 그 줄이 넘치면 고르게 둘로 */
+.title-sub { font-size: .8125rem; line-height: 1.45; color: var(--muted); text-wrap: balance; transition: opacity .3s ease, transform .3s ease; }
+.title-lead[data-lead="0"] { opacity: 0; transform: translateY(8px); }
+.title-lead:not([data-lead="2"]) .title-sub { opacity: 0; transform: translateY(6px); }
 .title-start { position: absolute; left: 50%; bottom: max(14px, 3.5cqh); z-index: 3; width: min(260px, calc(100% - 2 * var(--gutter))); translate: -50% 0; opacity: 0; font-size: 1.125rem; }
 .title-start.is-ready { opacity: 1; animation: title-start-in .6s ease both; }
 @keyframes title-start-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }

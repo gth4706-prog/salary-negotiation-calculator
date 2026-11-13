@@ -313,6 +313,7 @@ q { quotes: "\201C" "\201D"; }
 .menu-item { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; min-height: 48px; padding: 7px 12px; text-align: left; border: 2px solid var(--edge); border-radius: 9px; background: var(--cream); box-shadow: 0 3px 0 var(--btn2-shadow); }
 .menu-item small { font-size: .72rem; color: var(--muted); font-weight: 400; }
 .menu-item b { display: inline-flex; align-items: center; gap: 4px; }
+.menu-item:is(a) { color: inherit; text-decoration: none; } /* G24: 체험판 의견 줄(링크)도 단추 줄과 같은 모양 */
 .menu-item:disabled { opacity: .45; cursor: default; box-shadow: none; }
 /* ── 자라는 하루(설계 2026-11-09 §3 · §4 · §6 · G3 11-10): 0~5살 자동 · 방 · 나들이 · 행사 날 · 생일 — 장면은 만남과 같은 꼴(배경 그림 · 정령 · 말풍선), 막대는 그래프 그림(ui.graph.* — G11) ──
    G3(태현님 「선택지가 뜨는 게 지금 뒷창을 가려 — 위에 한 60% 공간 · 선택창도 그 밑에」): 위쪽 띠 · 장면(약 60%) · 아래 판(약 40% — 상황 · 결과 · 방 행동이 제자리에서 바뀐다, 정령을 가리지 않는다). */
@@ -602,8 +603,8 @@ q { quotes: "\201C" "\201D"; }
 .title-track { position: absolute; top: 0; left: 0; display: flex; will-change: transform; }
 .title-seg { position: relative; flex: none; overflow: hidden; }
 .title-bg, .title-video { position: absolute; inset: 0; display: block; width: 100%; height: 100%; max-width: none; object-fit: cover; }
-.title-video { opacity: 0; }
-.title-video.is-on { opacity: 1; }
+.title-video { visibility: hidden; } /* G24: 재생 중인 영상만 보인다 — 화면 밖이라 멈춘 영상은 숨기고 그 자리의 그림이 보인다 */
+.title-video.is-on { visibility: visible; }
 .title-actor { position: absolute; left: calc(var(--x) * 100%); top: calc(var(--y) * 100%); width: calc(var(--s) * 100cqh); translate: calc(var(--pivot-x) * -100%) calc(var(--pivot-y) * -100%); }
 .title-sprout { position: absolute; z-index: 1; pointer-events: none; }
 .title-walk { position: absolute; left: 0; top: 0; opacity: 0; }
@@ -612,8 +613,9 @@ q { quotes: "\201C" "\201D"; }
 .title-line { text-shadow: 3px 0 var(--cream), -3px 0 var(--cream), 0 3px var(--cream), 0 -3px var(--cream), 2px 2px var(--cream), -2px 2px var(--cream), 2px -2px var(--cream), -2px -2px var(--cream); }
 .title-line.is-second { align-self: flex-end; }
 .title-name .slot-placeholder { position: absolute; inset: 0; }
-.title-name.has-logo { padding-inline: 0; align-items: center; }
-.title-logo { display: block; width: min(100%, 420px); height: auto; image-rendering: pixelated; }
+.title-name.has-logo { padding-inline: 0; margin-inline: calc(-1 * var(--gutter)); align-items: flex-start; } /* G24: 로고는 장면 왼쪽에서 기기 픽셀 정수만큼 띄워 가운데에(app.js — titleLogoFit) */
+.title-logo { display: block; flex: none; width: min(100%, 420px); max-width: none; height: auto; align-self: center; }
+.title-logo.is-fit { align-self: flex-start; } /* 크기 · 자리 · 그리는 법(정수배면 pixelated)은 app.js 가 원본 크기로 정한다(G24 — 그 전에는 가운데 맞춤 대신 그림) */
 .title-lead { position: relative; font-size: .8125rem; line-height: 1.5; text-align: center; background: var(--cream); border: 2px solid var(--edge); border-radius: 10px; padding: 6px 10px; }
 .title-start { position: absolute; left: 50%; bottom: max(14px, 3.5cqh); z-index: 3; width: min(260px, calc(100% - 2 * var(--gutter))); translate: -50% 0; opacity: 0; font-size: 1.125rem; }
 .title-start.is-ready { opacity: 1; animation: title-start-in .6s ease both; }

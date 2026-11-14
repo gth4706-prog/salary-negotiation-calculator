@@ -85,6 +85,7 @@ export const ASSET_URLS = {
   "char.child.look5.evo00.happy": "assets/char.child.look5.evo00.happy.218fd795.64d5b464.webp",
   "char.child.look5.evo00.neutral": "assets/char.child.look5.evo00.neutral.5f0748aa.4046916f.webp",
   "char.child.look5.evo00.sulky": "assets/char.child.look5.evo00.sulky.2d8f0575.803a26a7.webp",
+  "fx.intro.shadow": "assets/fx.intro.shadow.8b1dafb3.4af94b81.webp",
   "icon.element.earth": "assets/icon.element.earth.7c4c91d0.daa69a4c.webp",
   "icon.element.fire": "assets/icon.element.fire.568d9a36.c4c34406.webp",
   "icon.element.metal": "assets/icon.element.metal.e8511dd2.8b0bc296.webp",

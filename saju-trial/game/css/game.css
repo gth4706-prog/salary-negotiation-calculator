@@ -608,6 +608,7 @@ q { quotes: "\201C" "\201D"; }
 .title-actor { position: absolute; left: calc(var(--x) * 100%); top: calc(var(--y) * 100%); width: calc(var(--s) * 100cqh); translate: calc(var(--pivot-x) * -100%) calc(var(--pivot-y) * -100%); }
 .title-sprout { position: absolute; z-index: 1; pointer-events: none; }
 .title-walk { position: absolute; left: 0; top: 0; opacity: 0; }
+.title-shadow { position: absolute; } /* G27 발밑 그림자 — 자리 · 크기는 칠하기(새싹과 같은 정수배) · 새싹 칸의 맨 앞 자식이라 새싹 뒤 */
 .title-top { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; flex-direction: column; gap: 10px; padding: max(16px, 5cqh) var(--gutter) 0; pointer-events: none; }
 .title-name { display: flex; flex-direction: column; padding-inline: 6%; font-size: clamp(2rem, 11cqw, 2.75rem); line-height: 1.08; letter-spacing: -.01em; color: var(--ink); position: relative; }
 .title-line { text-shadow: 3px 0 var(--cream), -3px 0 var(--cream), 0 3px var(--cream), 0 -3px var(--cream), 2px 2px var(--cream), -2px 2px var(--cream), 2px -2px var(--cream), -2px -2px var(--cream); }

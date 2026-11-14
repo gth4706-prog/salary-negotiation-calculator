@@ -596,7 +596,7 @@ q { quotes: "\201C" "\201D"; }
 :root[data-text="large"] { --chip-k: 1.1; }
 .s-grow.at-notice .grow-actor { --size: max(40px, min(110px, calc(100cqh - 24px))); } /* 통지문이 판을 넓게 쓰는 동안에도 정령이 장면에 보이게 */
 /* ── G23 게임의 맨 첫 화면(인트로 — 「사주보고 / 인생키우기」): 앱 칼럼을 가득(패딩까지) 덮는 장면 — 마을 띠(조각마다 영상 · 없으면 그림 — 조각끼리 겹쳐 잇는다)가 높이에 맞춰 가로로 흐르고,
-   가운데 새싹(도트 하나 = 1px 원본 시트)이 제자리에서 걷는다 — 띠 · 새싹의 크기 · 자리 · 칸은 app.js 가 기기 픽셀에 맞춰 칠한다(vm/title.js titleFit — 소수 px · transform 가운데 맞추기 없음).
+   가운데 새싹(G26: 게임의 걷기 시트 꼴 — 4px 격자의 도트 하나가 기기 픽셀 정수 개)이 제자리에서 걷는다 — 띠 · 새싹의 크기 · 자리 · 칸은 app.js 가 기기 픽셀에 맞춰 칠한다(vm/title.js titleFit — 소수 px · transform 가운데 맞추기 없음).
    위에 제목 · 한 줄 소개 판, 아래 [게임 시작](나타날 때 한 번 떠오른다).
    장면은 늘 밝은 낮 그림이라 밝은 화면의 색 변수(.skin-light)를 깐다 — 어둡게에서도 판 · 글이 그림 위에서 읽힌다. ── */
 .s-title { position: absolute; inset: 0; z-index: 1; overflow: hidden; gap: 0; container-type: size; background: var(--sunk); }
@@ -613,23 +613,22 @@ q { quotes: "\201C" "\201D"; }
 .title-line { text-shadow: 3px 0 var(--cream), -3px 0 var(--cream), 0 3px var(--cream), 0 -3px var(--cream), 2px 2px var(--cream), -2px 2px var(--cream), 2px -2px var(--cream), -2px -2px var(--cream); }
 .title-line.is-second { align-self: flex-end; }
 .title-name .slot-placeholder { position: absolute; inset: 0; }
-.title-name.has-logo { padding-inline: 0; margin-inline: calc(-1 * var(--gutter)); align-items: flex-start; } /* G24: 로고는 장면 왼쪽에서 기기 픽셀 정수만큼 띄워 가운데에(app.js — titleLogoFit) */
-.title-logo { display: block; flex: none; width: min(100%, 420px); max-width: none; height: auto; align-self: center; }
-.title-logo.is-fit { align-self: flex-start; } /* 크기 · 자리 · 그리는 법(정수배면 pixelated)은 app.js 가 원본 크기로 정한다(G24 — 그 전에는 가운데 맞춤 대신 그림) */
-/* G25 제목 글자 아홉 조각(ui.logo.title.s1~s9): 통째 로고와 같은 자리의 틀 안에 원본 자리 × 도트 크기(app.js — 기기 픽셀의 정수) · 세로 자리는 도트 크기 × 정수로만 움직인다(titleLogoAt) ·
-   조각을 그리는 동안 통째 로고는 투명(화면 읽기는 그 이름을 그대로 읽는다) · 움직임 줄이기 · 정수배가 아닐 때는 통째 로고(data-logo="whole") */
-.title-pieces { position: absolute; top: 0; left: 0; pointer-events: none; }
-.title-piece { position: absolute; display: block; max-width: none; image-rendering: pixelated; opacity: 0; }
-.title-piece[data-row="0"] { z-index: 1; } /* 아래 줄 글자는 위 줄 뒤로 떨어진다(앉은 위 줄 위에 겹쳐 그리지 않는다) */
-.title-name[data-logo="pieces"] .title-logo { opacity: 0; }
-.title-name[data-logo="whole"] .title-pieces { display: none; }
-.title-lead { position: relative; display: flex; flex-direction: column; gap: 3px; text-align: center; background: var(--cream); border: 2px solid var(--edge); border-radius: 10px; padding: 7px 10px; transition: opacity .3s ease, transform .3s ease; }
-/* G25 소개 두 단: 큰 줄(hook — 굵고 크게) · 작은 줄(sub) — 로고가 다 앉은 뒤 큰 줄(판과 함께) → 작은 줄 차례로 아래에서 살짝 올라온다(data-lead — app.js 가 TEMPO.title.logo.lead 에 단다 · 움직임 줄이기면 처음부터 2) */
+.title-name.has-logo { display: block; padding-inline: 0; margin-inline: calc(-1 * var(--gutter)); } /* G24 · G26: 제목 줄은 장면 왼쪽 · 제목 칸 위에서 기기 픽셀 정수만큼 띄워 놓는다(app.js — titleLogoFit · 칸 높이도) */
+/* G26 제목 줄 두 장(ui.logo.title.line1 · line2): 크기 · 자리 · 그리는 법(도트 그림이면 pixelated)은 app.js 가 원본 크기로 정하고, 차례로 통 떨어져 앉는다(titleLogoAt — 그 전에는 투명) ·
+   아래 줄은 위 줄 뒤로 떨어진다(앉은 위 줄 위에 겹쳐 그리지 않는다) */
+.title-logo { position: absolute; left: 0; top: 0; display: block; max-width: none; opacity: 0; }
+.title-logo[data-line="0"] { z-index: 1; }
+.title-name .slot-frame.title-logo { opacity: 1; } /* 개발 모드(?slots=1)의 이름표 틀 */
+/* G26 소개 두 단: 큰 줄(hook — 굵고 크게) · 작은 줄(sub) — 제목 밑에서 흘러나온다: 감싸개(.title-leadbox)의 위 끝에서 잘려 위에 숨은 판이 아래로 미끄러져 나오고(큰 줄 0.4초) 0.2초 뒤 작은 줄이 판 안에서
+   큰 줄 밑으로 같은 식으로(.title-subbox) — 몫은 app.js 가 프레임마다(titleLogoAt — 그 전에는 data-lead 로 숨겨 둔다 · 움직임 줄이기면 처음부터 2) */
+.title-leadbox { overflow: hidden; }
+.title-lead { position: relative; display: flex; flex-direction: column; gap: 3px; text-align: center; background: var(--cream); border: 2px solid var(--edge); border-radius: 10px; padding: 7px 10px; }
 .title-hook { font-size: 1rem; font-weight: 700; line-height: 1.4; letter-spacing: -.01em; }
 .title-hook-line { display: block; text-wrap: balance; } /* 쉼표 뒤에서 줄 바꿈(vm hookLines) · 그 줄이 넘치면 고르게 둘로 */
-.title-sub { font-size: .8125rem; line-height: 1.45; color: var(--muted); text-wrap: balance; transition: opacity .3s ease, transform .3s ease; }
-.title-lead[data-lead="0"] { opacity: 0; transform: translateY(8px); }
-.title-lead:not([data-lead="2"]) .title-sub { opacity: 0; transform: translateY(6px); }
+.title-subbox { display: block; overflow: hidden; }
+.title-sub { display: block; font-size: .8125rem; line-height: 1.45; color: var(--muted); text-wrap: balance; }
+.title-lead[data-lead="0"] { transform: translateY(-100%); }
+.title-lead:not([data-lead="2"]) .title-sub { transform: translateY(-100%); }
 .title-start { position: absolute; left: 50%; bottom: max(14px, 3.5cqh); z-index: 3; width: min(260px, calc(100% - 2 * var(--gutter))); translate: -50% 0; opacity: 0; font-size: 1.125rem; }
 .title-start.is-ready { opacity: 1; animation: title-start-in .6s ease both; }
 @keyframes title-start-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }

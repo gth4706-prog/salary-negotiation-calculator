@@ -671,7 +671,7 @@ q { quotes: "\201C" "\201D"; }
 .money-btn:focus-visible { outline: 2px solid var(--edge); outline-offset: 1px; }
 .money-coin { --coin: calc(round(nearest, calc(20px * var(--dpr, 1)), 26px) / var(--dpr, 1)); display: block; width: var(--coin); height: var(--coin); flex: none; image-rendering: pixelated; }
 .money-text { font-size: .875rem; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.money-toast { position: absolute; top: 100%; right: 0; z-index: 5; margin: 2px 0 0; padding: 2px 8px; white-space: nowrap; font-size: .75rem; font-weight: 700; color: var(--ok); background: var(--cream); border: 1.5px solid var(--panel-line); border-radius: 8px; pointer-events: none;
+.money-toast { position: absolute; top: 100%; right: 0; z-index: 5; margin: 2px 0 0; padding: 2px 8px; width: max-content; max-width: calc(100vw - 2 * var(--gutter, 16px)); font-size: .75rem; font-weight: 700; color: var(--ok); background: var(--cream); border: 1.5px solid var(--panel-line); border-radius: 8px; pointer-events: none;
   animation: money-toast var(--toast-ms, 2600ms) ease both; }
 @keyframes money-toast { 0% { opacity: 0; transform: translateY(-4px); } 12%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 :root[data-motion="reduce"] .money-toast { animation: none; }
@@ -681,6 +681,18 @@ q { quotes: "\201C" "\201D"; }
 .money-row dt { color: var(--muted); }
 .money-row dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
 .money-row.is-main dd { font-size: 1.0625rem; color: var(--sage-deep); }
+.money-toast.is-out { color: var(--bad); } /* G35 저절로 쓴 돈 알림 — 나감은 이미 쓰는 강조 글자 색 */
+/* G35 최근 입출금 내역: 요약 네 줄은 위에 그대로 · 목록만 판 안에서 내려 읽는다(높이는 화면의 40% 까지 — 360×640 에서도 판이 창을 넘지 않게) */
+.money-log { display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+.money-log-title { margin: 4px 0 0; font-size: .8125rem; font-weight: 700; color: var(--muted); }
+.money-lines { list-style: none; margin: 0; padding: 0 6px 0 0; max-height: 40vh; max-height: 40dvh; overflow-y: auto; overscroll-behavior: contain; }
+.money-lines:focus-visible { outline: 2px solid var(--edge); outline-offset: 1px; }
+.money-line { display: flex; align-items: baseline; gap: 8px; padding: 5px 2px; border-bottom: 1px solid var(--line); font-size: .8125rem; }
+.money-when { flex: none; min-width: 4.6em; color: var(--muted); font-size: .75rem; white-space: nowrap; } /* 「17살 봄」 · 「17살 겨울」 — 무엇 칸이 한 줄로 맞게 */
+.money-what { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.money-amount { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ok); }
+.money-line.is-out .money-amount { color: var(--bad); }
+.money-empty { margin: 0; color: var(--muted); font-size: .8125rem; }
 /* 인트로 「♪ 눌러서 소리 켜기」: 오른쪽 아래 구석 — 시작 단추(바닥 max(14px, 3.5cqh) · 높이 약 48px) 위 · 움직이지 않는다 */
 .title-sound { position: absolute; right: var(--gutter); bottom: calc(max(14px, 3.5cqh) + 60px); z-index: 3; display: flex; align-items: center; gap: 4px; margin: 0; padding: 3px 9px 3px 4px; background: var(--cream); border: 2px solid var(--edge); border-radius: 10px; font-size: .8125rem; font-weight: 700; color: var(--ink); pointer-events: none; }
 .title-sound-pic { display: block; width: 26px; height: 26px; flex: none; }

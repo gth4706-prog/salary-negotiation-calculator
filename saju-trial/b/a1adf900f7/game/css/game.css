@@ -746,9 +746,14 @@ q { quotes: "\201C" "\201D"; }
 .consent-check > .icon { flex: none; }
 .consent-text { display: flex; flex-direction: column; min-width: 0; }
 .consent-text small { font-size: var(--fs-small); color: var(--muted); font-weight: 400; line-height: 1.35; }
-.consent-check:disabled { cursor: default; }
 .is-consent .sheet-body > .btn.ghost { align-self: center; }
+.consent-lead { display: flex; flex-direction: column; gap: 2px; }
+.consent-lead p { margin: 0; font-size: var(--fs-small); line-height: 1.5; }
+.consent-note { margin: 0; text-align: center; color: var(--muted); }
 .legal-doc { display: flex; flex-direction: column; gap: 10px; }
 .legal-doc section { display: flex; flex-direction: column; gap: 4px; }
-.legal-doc h3 { font-size: .9375rem; line-height: 1.35; margin: 0; }
+.legal-doc h3, .legal-doc h4 { font-size: .9375rem; line-height: 1.35; margin: 0; }
+.legal-part { display: flex; flex-direction: column; gap: 10px; }
+.legal-part + .legal-part { margin-top: 12px; }
+.legal-doc .legal-part-title { font-size: 1.0625rem; }
 .legal-doc p { margin: 0; line-height: 1.6; }

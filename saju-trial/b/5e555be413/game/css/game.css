@@ -16,7 +16,7 @@
   --ok: #43705A; --warn: #7F600F; --bad: #9A4843; /* 글로 쓰는 강조색 — 양피지 · 세이지 판 위에서도 4.5:1(체험판 4판 대비 검사) */
   /* --muted(흐린 글): G5 에 #5F6258 → #55584E — 새 판 그림(꺼진 탭 ui.tab.off 4.09:1 · 기둥 ui.panel.pillar 4.40:1) 위에서도 4.5:1 넘게 한 단 짙게(판 그림은 고치지 않는다) */
   --way-with: #4C5E52; --way-off: #605668; /* G7 떠오르는 한 줄 「사주대로 +1」 · 「사주와 다르게 −1」: 흐린 글(--muted #55584E) 계열에서 풀빛 · 보랏빛으로 한 단씩만 — 빨강 · 경고색 아님(태현님 11-10 「빨간색이 아니라 흐린 색」) */
-  --play-ink: #3E4151; --play-bad: #9A4843; --play-halo: #FFF8E7; /* G38 손놀이 판(그림 위 — 밝게 · 어둡게 같은 색: 바탕 그림이 밝다) 위의 짧은 말 · 그 둘레 */
+  --play-ink: #3E4151; --play-bad: #9A4843; --play-halo: #FFF8E7; /* G38 미니게임 판(그림 위 — 밝게 · 어둡게 같은 색: 바탕 그림이 밝다) 위의 짧은 말 · 그 둘레 */
   --ink-press: #2E303C; /* 누르는 동안의 단추 글(G5 — 누른 주 단추 그림 ui.btn.primary.pressed 가 짙은 풀색이라 --ink 로는 3.9:1 — 4.5:1 넘게 한 단 짙게. 판 그림은 고치지 않는다) */
   --scrim: rgba(46, 42, 30, .46); --shade: rgba(62, 65, 81, .22);
   --slot-bg: rgba(255, 248, 231, .94); --slot-ink: #1D1F29; --slot-line: rgba(62, 65, 81, .55);
@@ -535,7 +535,7 @@ q { quotes: "\201C" "\201D"; }
 .big-react { font-size: .875rem; line-height: 1.45; text-align: center; }
 .big-change, .big-record { font-size: .75rem; line-height: 1.4; text-align: center; color: var(--muted); }
 
-/* ── G38 큰 사건 손놀이(태현님 11-16 — game/js/play.js): 장면 칸을 덮는 그림 판(바탕은 장면의 바탕 그림 그대로 · 판은 투명) · 가운데 「3 · 2 · 1」 · 아래 판은 하는 법 · 지금 기록 · 큰 단추.
+/* ── G38 큰 사건 미니게임(태현님 11-16 — game/js/play.js): 장면 칸을 덮는 그림 판(바탕은 장면의 바탕 그림 그대로 · 판은 투명) · 가운데 「3 · 2 · 1」 · 아래 판은 하는 법 · 지금 기록 · 큰 단추.
    그림은 판이 슬롯으로 그린다(CSS 로 블록 · 줄 · 원을 그리지 않는다). 넷째 장은 「대회 결과 · 이름」 이름표와 「같이 한 기록」 묶음 · 랭킹 판 · 놀이 수첩(팝업). ── */
 .play-slot { position: absolute; inset: 0; z-index: 3; }
 .play-board { position: absolute; inset: 0; touch-action: none; user-select: none; -webkit-user-select: none; }
@@ -746,9 +746,14 @@ q { quotes: "\201C" "\201D"; }
 .consent-check > .icon { flex: none; }
 .consent-text { display: flex; flex-direction: column; min-width: 0; }
 .consent-text small { font-size: var(--fs-small); color: var(--muted); font-weight: 400; line-height: 1.35; }
-.consent-check:disabled { cursor: default; }
 .is-consent .sheet-body > .btn.ghost { align-self: center; }
+.consent-lead { display: flex; flex-direction: column; gap: 2px; }
+.consent-lead p { margin: 0; font-size: var(--fs-small); line-height: 1.5; }
+.consent-note { margin: 0; text-align: center; color: var(--muted); }
 .legal-doc { display: flex; flex-direction: column; gap: 10px; }
 .legal-doc section { display: flex; flex-direction: column; gap: 4px; }
-.legal-doc h3 { font-size: .9375rem; line-height: 1.35; margin: 0; }
+.legal-doc h3, .legal-doc h4 { font-size: .9375rem; line-height: 1.35; margin: 0; }
+.legal-part { display: flex; flex-direction: column; gap: 10px; }
+.legal-part + .legal-part { margin-top: 12px; }
+.legal-doc .legal-part-title { font-size: 1.0625rem; }
 .legal-doc p { margin: 0; line-height: 1.6; }
